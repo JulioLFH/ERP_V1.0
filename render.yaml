@@ -29,3 +29,5 @@ services:
         value: admin@example.com
       - key: DJANGO_SUPERUSER_PASSWORD
         sync: false
+      - key: SEED_DEMO
+        value: "1"

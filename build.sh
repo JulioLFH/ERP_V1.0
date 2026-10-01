@@ -6,7 +6,10 @@ pip install -r requirements.txt
 python manage.py collectstatic --no-input
 python manage.py migrate --no-input
 
-# Crea el superusuario la primera vez si se definen DJANGO_SUPERUSER_USERNAME / _PASSWORD / _EMAIL
-if [ -n "$DJANGO_SUPERUSER_USERNAME" ]; then
-  python manage.py createsuperuser --no-input || true
+# Crea/actualiza el usuario administrador con DJANGO_SUPERUSER_USERNAME / DJANGO_SUPERUSER_PASSWORD
+python manage.py ensure_admin
+
+# Datos de demostración (solo si SEED_DEMO=1 y la base está vacía)
+if [ "$SEED_DEMO" = "1" ]; then
+  python manage.py seed_demo
 fi
