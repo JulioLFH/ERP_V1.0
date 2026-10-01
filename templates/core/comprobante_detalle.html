@@ -1,0 +1,107 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ doc }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="page-title">{{ doc.get_tipo_comprobante_display }} {{ doc.numero_completo }}
+      <span class="badge badge-{{ doc.estado }} fs-6 align-middle">{{ doc.get_estado_display }}</span></h1>
+    <div class="text-muted small">{{ etiqueta_tercero }}: <b>{{ doc.tercero.nombre }}</b> · {{ doc.tercero.get_tipo_doc_display }} {{ doc.tercero.numero_doc }} · Periodo {{ doc.periodo }}</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url app|add:':lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+    <a href="{% url app|add:':imprimir' doc.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</a>
+    {% if puede_editar %}<a href="{% url app|add:':editar' doc.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
+    {% if doc.estado == 'REGISTRADO' %}
+      {% if doc.saldo > 0 %}
+        <a href="{% if app == 'ventas' %}{% url 'finanzas:cobranza' %}{% else %}{% url 'finanzas:pago' %}{% endif %}?doc={{ doc.pk }}" class="btn btn-sm btn-success"><i class="bi bi-cash-coin"></i> Registrar {% if app == 'ventas' %}cobro{% else %}pago{% endif %}</a>
+        {% if doc.detraccion_monto %}<a href="{% if app == 'ventas' %}{% url 'finanzas:cobranza' %}{% else %}{% url 'finanzas:pago' %}{% endif %}?doc={{ doc.pk }}&detraccion=1" class="btn btn-sm btn-outline-success"><i class="bi bi-bank"></i> Detracción</a>{% endif %}
+      {% endif %}
+      {% if not doc.doc_referencia_id %}
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">Más</button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><a class="dropdown-item" href="{% url app|add:':nuevo' %}?ref={{ doc.pk }}&tipo=07"><i class="bi bi-file-earmark-minus"></i> {% if app == 'ventas' %}Emitir{% else %}Registrar{% endif %} nota de crédito</a></li>
+          <li><a class="dropdown-item" href="{% url app|add:':nuevo' %}?ref={{ doc.pk }}&tipo=08"><i class="bi bi-file-earmark-plus"></i> {% if app == 'ventas' %}Emitir{% else %}Registrar{% endif %} nota de débito</a></li>
+        </ul>
+      </div>
+      {% endif %}
+      {% if app == 'compras' and not doc.stock_aplicado and doc.tipo_comprobante != '08' %}
+        <form method="post" action="{% url 'compras:ingresar_almacen' doc.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-in-down"></i> Ingresar a almacén</button></form>
+      {% endif %}
+      <form method="post" action="{% url app|add:':anular' doc.pk %}" data-confirm="¿Anular {{ doc }}?">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular</button></form>
+    {% endif %}
+    <form method="post" action="{% url app|add:':eliminar' doc.pk %}" data-confirm="¿Eliminar definitivamente {{ doc }}?">{% csrf_token %}<button class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></button></form>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="table-responsive">
+      <table class="table mb-0">
+        <thead><tr><th>#</th><th>Descripción</th><th class="num">Cantidad</th><th class="num">Valor unit.</th><th class="num">Subtotal</th></tr></thead>
+        <tbody>
+          {% for i in items %}<tr><td>{{ forloop.counter }}</td><td>{{ i.descripcion }}{% if i.producto %}<div class="small text-muted">{{ i.producto.codigo }}</div>{% endif %}</td><td class="num">{{ i.cantidad|money }}</td><td class="num">{{ i.precio_unitario|money }}</td><td class="num">{{ i.subtotal|money }}</td></tr>
+          {% empty %}<tr><td colspan="5" class="text-muted text-center">Comprobante sin detalle (importado).</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div></div>
+
+    {% if notas %}
+    <div class="card mb-3"><div class="card-header">Notas de crédito / débito</div>
+      <ul class="list-group list-group-flush">{% for n in notas %}<li class="list-group-item d-flex justify-content-between"><a href="{% url app|add:':detalle' n.pk %}">{{ n }}</a><span>{{ n.fecha_emision|date:'d/m/Y' }} · <span class="badge badge-{{ n.estado }}">{{ n.get_estado_display }}</span> · <b class="num">{{ n.total|money }}</b></span></li>{% endfor %}</ul>
+    </div>{% endif %}
+
+    <div class="card"><div class="card-header">{% if app == 'ventas' %}Cobranzas{% else %}Pagos{% endif %} registrados (Finanzas)</div>
+      <div class="table-responsive"><table class="table table-sm mb-0">
+        <thead><tr><th>Voucher</th><th>Fecha</th><th>Cuenta</th><th>Concepto</th><th>Medio / N° op.</th><th class="num">Monto</th></tr></thead>
+        <tbody>{% for m in movimientos %}<tr><td><a href="{% url 'finanzas:voucher' m.pk %}" target="_blank">{{ m.voucher }}</a></td><td>{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.cuenta }}</td><td>{{ m.get_concepto_display }}</td><td>{{ m.get_medio_pago_display }} {{ m.numero_operacion }}</td><td class="num">{{ m.monto|money }}</td></tr>
+        {% empty %}<tr><td colspan="6" class="text-muted text-center">Sin movimientos.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card mb-3"><div class="card-body">
+      <table class="table table-sm mb-0">
+        <tr><td class="text-muted">Emisión</td><td class="text-end">{{ doc.fecha_emision|date:'d/m/Y' }}</td></tr>
+        <tr><td class="text-muted">Vencimiento</td><td class="text-end">{{ doc.fecha_vencimiento|date:'d/m/Y' }}</td></tr>
+        <tr><td class="text-muted">Forma de pago</td><td class="text-end">{{ doc.get_forma_pago_display }}</td></tr>
+        <tr><td class="text-muted">Operación</td><td class="text-end">{{ doc.get_tipo_operacion_display }}</td></tr>
+        <tr><td class="text-muted">Moneda / T.C.</td><td class="text-end">{{ doc.moneda }} / {{ doc.tipo_cambio }}</td></tr>
+        {% if app == 'compras' %}<tr><td class="text-muted">Clasificación</td><td class="text-end">{{ doc.get_clasificacion_display }}</td></tr>
+        <tr><td class="text-muted">Almacén</td><td class="text-end">{% if doc.stock_aplicado %}Ingresado{% else %}No ingresado{% endif %}</td></tr>
+        {% if doc.orden_compra %}<tr><td class="text-muted">Orden de compra</td><td class="text-end"><a href="{% url 'compras:oc_detalle' doc.orden_compra_id %}">{{ doc.orden_compra }}</a></td></tr>{% endif %}{% endif %}
+        {% if app == 'ventas' %}{% if doc.vendedor %}<tr><td class="text-muted">Vendedor</td><td class="text-end">{{ doc.vendedor }}</td></tr>{% endif %}
+        {% if doc.cotizacion %}<tr><td class="text-muted">Cotización</td><td class="text-end"><a href="{% url 'ventas:cot_detalle' doc.cotizacion_id %}">{{ doc.cotizacion }}</a></td></tr>{% endif %}
+        {% if doc.motivo_nota %}<tr><td class="text-muted">Motivo</td><td class="text-end">{{ doc.get_motivo_nota_display }}</td></tr>{% endif %}{% endif %}
+        {% if doc.doc_referencia %}<tr><td class="text-muted">Modifica a</td><td class="text-end"><a href="{% url app|add:':detalle' doc.doc_referencia_id %}">{{ doc.doc_referencia }}</a></td></tr>{% endif %}
+      </table>
+      {% if doc.glosa %}<p class="small text-muted mt-2 mb-0">{{ doc.glosa }}</p>{% endif %}
+    </div></div>
+    <div class="card mb-3"><div class="card-body">
+      <table class="table table-sm mb-0">
+        <tr><td>Op. gravada</td><td class="num">{{ doc.base_imponible|money }}</td></tr>
+        <tr><td>Exon. / inaf. / export.</td><td class="num">{{ doc.no_gravado|money }}</td></tr>
+        <tr><td>IGV</td><td class="num">{{ doc.igv|money }}</td></tr>
+        {% if doc.icbper %}<tr><td>ICBPER</td><td class="num">{{ doc.icbper|money }}</td></tr>{% endif %}
+        <tr class="fw-bold fs-6"><td>TOTAL {{ doc.simbolo }}</td><td class="num">{{ doc.total|money }}</td></tr>
+        {% if doc.detraccion_monto %}<tr class="text-muted"><td>Detracción {{ doc.detraccion_pct|floatformat:0 }}%</td><td class="num">{{ doc.detraccion_monto|money }}</td></tr>{% endif %}
+        {% if doc.retencion_monto %}<tr class="text-muted"><td>Retención</td><td class="num">-{{ doc.retencion_monto|money }}</td></tr>{% endif %}
+        {% if doc.percepcion_monto %}<tr class="text-muted"><td>Percepción</td><td class="num">+{{ doc.percepcion_monto|money }}</td></tr>{% endif %}
+        {% if not doc.doc_referencia_id %}
+        <tr><td>Neto a {% if app == 'ventas' %}cobrar{% else %}pagar{% endif %}</td><td class="num">{{ doc.neto|money }}</td></tr>
+        <tr><td>{% if app == 'ventas' %}Cobrado{% else %}Pagado{% endif %}</td><td class="num text-success">{{ doc.pagado|money }}</td></tr>
+        <tr class="fw-bold"><td>Saldo pendiente</td><td class="num {% if doc.saldo > 0 %}text-danger{% endif %}">{{ doc.saldo|money }}</td></tr>
+        {% endif %}
+      </table>
+    </div></div>
+    <div class="card"><div class="card-body">
+      <form method="post" action="{% url app|add:':trasladar' doc.pk %}" class="d-flex gap-2 align-items-end">
+        {% csrf_token %}
+        <div class="flex-grow-1"><label class="form-label small mb-1">Trasladar a periodo</label><input name="periodo" class="form-control form-control-sm" placeholder="AAAAMM" maxlength="6" value="{{ doc.periodo }}"></div>
+        <button class="btn btn-sm btn-outline-secondary">Trasladar</button>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Conciliación bancaria{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Conciliación bancaria</h1>
+<form method="post">
+  {% csrf_token %}
+  <div class="card mb-3"><div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-4"><label class="form-label small mb-1">Cuenta</label>
+        <select name="cuenta" class="form-select form-select-sm" onchange="location='?cuenta='+this.value+'&hasta={{ hasta }}'">{% for c in cuentas %}<option value="{{ c.pk }}" {% if cuenta and c.pk == cuenta.pk %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><label class="form-label small mb-1">Corte al</label><input type="date" name="hasta" value="{{ hasta }}" class="form-control form-control-sm"></div>
+      <div class="col-md-3"><label class="form-label small mb-1">Saldo según estado de cuenta</label><input type="number" step="0.01" name="saldo_banco" value="{{ saldo_banco }}" class="form-control form-control-sm text-end"></div>
+      <div class="col-auto"><button type="button" class="btn btn-sm btn-outline-secondary" onclick="location='?cuenta={{ cuenta.pk }}&hasta='+this.form.hasta.value+'&saldo_banco='+this.form.saldo_banco.value">Actualizar</button></div>
+    </div>
+  </div></div>
+
+  {% if cuenta %}
+  <div class="row g-3 mb-3">
+    <div class="col-md"><div class="kpi"><div class="label">Saldo en libros</div><div class="value fs-5">{{ cuenta.simbolo }} {{ saldo_libros|money }}</div></div></div>
+    <div class="col-md"><div class="kpi"><div class="label">(-) Depósitos en tránsito</div><div class="value fs-5">{{ ing_trans|money }}</div></div></div>
+    <div class="col-md"><div class="kpi"><div class="label">(+) Cheques / cargos no cobrados</div><div class="value fs-5">{{ egr_trans|money }}</div></div></div>
+    <div class="col-md"><div class="kpi"><div class="label">Saldo conciliado</div><div class="value fs-5">{{ cuenta.simbolo }} {{ saldo_conciliado|money }}</div></div></div>
+    <div class="col-md"><div class="kpi"><div class="label">Diferencia vs banco</div><div class="value fs-5 {% if diferencia %}text-danger{% else %}text-success{% endif %}">{% if diferencia is None %}—{% else %}{{ diferencia|money }}{% endif %}</div></div></div>
+  </div>
+  <div class="card"><div class="card-header d-flex justify-content-between align-items-center">
+      <span>Marque los movimientos que figuran en el estado de cuenta</span>
+      <button class="btn btn-sm btn-primary"><i class="bi bi-check2-all"></i> Guardar conciliación</button></div>
+    <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+      <thead><tr><th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.js-mov').forEach(c=>c.checked=this.checked)"></th><th>Fecha</th><th>Voucher</th><th>Concepto / glosa</th><th>N° op.</th><th class="num">Ingreso</th><th class="num">Egreso</th></tr></thead>
+      <tbody>
+      {% for m in movs %}
+        <tr><td><input type="checkbox" class="form-check-input js-mov" name="mov" value="{{ m.pk }}" {% if m.conciliado %}checked{% endif %}></td>
+          <td>{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.voucher }}</td><td class="small">{{ m.get_concepto_display }} — {{ m.glosa|truncatechars:50 }}</td><td>{{ m.numero_operacion }}</td>
+          <td class="num text-success">{% if m.tipo == 'INGRESO' %}{{ m.monto|money }}{% endif %}</td><td class="num text-danger">{% if m.tipo == 'EGRESO' %}{{ m.monto|money }}{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No hay movimientos por conciliar.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+  {% endif %}
+</form>
+{% endblock %}

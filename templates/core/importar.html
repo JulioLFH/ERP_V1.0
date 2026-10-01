@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">{{ titulo }}</h1>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card"><div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <label class="form-label">Archivo Excel (.xlsx)</label>
+      <input type="file" name="archivo" accept=".xlsx" class="form-control mb-3" required>
+      <button class="btn btn-primary"><i class="bi bi-upload"></i> Importar</button>
+      <a href="?plantilla=1" class="btn btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Descargar plantilla</a>
+    </form>
+    {% if resultado %}
+      <hr><p class="mb-1"><b>{{ resultado.ok }}</b> comprobantes importados.</p>
+      {% if resultado.errores %}<div class="alert alert-warning small mb-0"><ul class="mb-0">{% for e in resultado.errores %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+    {% endif %}
+  </div></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header">Columnas esperadas (fila 1)</div><div class="card-body small">
+    <code>{{ columnas|join:" | " }}</code>
+    <ul class="mt-3 mb-0 text-muted">
+      <li><b>tipo</b>: código SUNAT (01 factura, 03 boleta, 07 NC, 08 ND, 02 RH).</li>
+      <li><b>fecha / vencimiento</b>: dd/mm/aaaa.</li>
+      <li><b>ruc</b>: si el {{ etiqueta_tercero|lower }} no existe, se crea automáticamente.</li>
+      <li><b>total</b>: si se deja vacío se calcula como base + no_gravado + igv.</li>
+      <li>Las filas duplicadas se omiten y se reportan.</li>
+    </ul>
+  </div></div></div>
+</div>
+{% endblock %}

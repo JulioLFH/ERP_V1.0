@@ -1,0 +1,49 @@
+{% load erp_tags %}<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>{{ doc }}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>body{background:#eef1f5;font-size:.85rem}.doc-print{background:#fff;padding:2rem;max-width:850px;margin:1.5rem auto}
+.doc-box{border:2px solid #1d2b3a;border-radius:.5rem;padding:.75rem 1rem;text-align:center}.num{text-align:right}
+@media print{body{background:#fff}.doc-print{margin:0;padding:0}.no-print{display:none}}</style></head>
+<body>
+<div class="text-center no-print mt-3"><button onclick="window.print()" class="btn btn-primary btn-sm">Imprimir / Guardar PDF</button></div>
+<div class="doc-print">
+  <div class="row align-items-center mb-4">
+    <div class="col-7">
+      <h4 class="mb-0">{{ empresa.razon_social }}</h4>
+      {% if empresa.nombre_comercial %}<div>{{ empresa.nombre_comercial }}</div>{% endif %}
+      <div class="small text-muted">{{ empresa.direccion }}<br>{{ empresa.telefono }} {{ empresa.email }}</div>
+    </div>
+    <div class="col-5"><div class="doc-box">
+      <div class="fw-bold">RUC {{ empresa.ruc }}</div>
+      <div class="fs-6 fw-bold text-uppercase">{{ doc.get_tipo_comprobante_display }}{% if app == 'ventas' and doc.tipo_comprobante in '01 03 07 08' %} electrónica{% endif %}</div>
+      <div class="fs-5">{{ doc.numero_completo }}</div>
+    </div></div>
+  </div>
+  {% if doc.estado == 'ANULADO' %}<div class="alert alert-danger text-center fw-bold">ANULADO</div>{% endif %}
+  <table class="table table-sm table-borderless mb-3">
+    <tr><td style="width:18%" class="text-muted">{{ etiqueta_tercero }}</td><td>{{ doc.tercero.nombre }}</td><td class="text-muted">Fecha emisión</td><td>{{ doc.fecha_emision|date:'d/m/Y' }}</td></tr>
+    <tr><td class="text-muted">{{ doc.tercero.get_tipo_doc_display }}</td><td>{{ doc.tercero.numero_doc }}</td><td class="text-muted">Vencimiento</td><td>{{ doc.fecha_vencimiento|date:'d/m/Y' }}</td></tr>
+    <tr><td class="text-muted">Dirección</td><td>{{ doc.tercero.direccion }}</td><td class="text-muted">Moneda / pago</td><td>{{ doc.get_moneda_display }} · {{ doc.get_forma_pago_display }}</td></tr>
+    {% if doc.doc_referencia %}<tr><td class="text-muted">Doc. modificado</td><td>{{ doc.doc_referencia }}</td><td class="text-muted">Motivo</td><td>{{ doc.get_motivo_nota_display|default:'' }}</td></tr>{% endif %}
+  </table>
+  <table class="table table-sm table-bordered">
+    <thead class="table-light"><tr><th>Cant.</th><th>U.M.</th><th>Descripción</th><th class="num">V. unit.</th><th class="num">Importe</th></tr></thead>
+    <tbody>{% for i in items %}<tr><td>{{ i.cantidad|money }}</td><td>{{ i.producto.unidad|default:'NIU' }}</td><td>{{ i.descripcion }}</td><td class="num">{{ i.precio_unitario|money }}</td><td class="num">{{ i.subtotal|money }}</td></tr>{% endfor %}</tbody>
+  </table>
+  <div class="row">
+    <div class="col-7 small text-muted">
+      {% if doc.glosa %}<p>{{ doc.glosa }}</p>{% endif %}
+      {% if doc.detraccion_monto %}<p>Operación sujeta al SPOT ({{ doc.detraccion_pct|floatformat:0 }}%): {{ doc.simbolo }} {{ doc.detraccion_monto|money }}.</p>{% endif %}
+      {% if doc.percepcion_monto %}<p>Percepción: {{ doc.simbolo }} {{ doc.percepcion_monto|money }}</p>{% endif %}
+    </div>
+    <div class="col-5"><table class="table table-sm">
+      <tr><td>Op. gravada</td><td class="num">{{ doc.base_imponible|money }}</td></tr>
+      <tr><td>Op. exon./inaf.</td><td class="num">{{ doc.no_gravado|money }}</td></tr>
+      <tr><td>IGV</td><td class="num">{{ doc.igv|money }}</td></tr>
+      {% if doc.icbper %}<tr><td>ICBPER</td><td class="num">{{ doc.icbper|money }}</td></tr>{% endif %}
+      <tr class="fw-bold"><td>TOTAL {{ doc.simbolo }}</td><td class="num">{{ doc.total|money }}</td></tr>
+    </table></div>
+  </div>
+  <p class="small text-muted text-center mt-4 mb-0">Representación impresa generada por ERP V1.0</p>
+</div>
+</body></html>

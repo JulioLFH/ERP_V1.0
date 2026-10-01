@@ -1,0 +1,10 @@
+{% extends 'core/lista.html' %}
+{% block filtros %}
+<div class="col-auto">
+  <select name="tipo" class="form-select form-select-sm" onchange="this.form.submit()">
+    <option value="">Todos</option>
+    <option value="CLIENTE" {% if request.GET.tipo == 'CLIENTE' %}selected{% endif %}>Clientes</option>
+    <option value="PROVEEDOR" {% if request.GET.tipo == 'PROVEEDOR' %}selected{% endif %}>Proveedores</option>
+  </select>
+</div>
+{% endblock %}

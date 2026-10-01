@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{{ titulo }}</h1>
+  <a href="javascript:history.back()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+<div class="card" style="max-width: 900px">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+      <div class="row g-3">
+        {% for field in form %}
+          <div class="{% if field.name == 'glosa' or field.name == 'direccion' or field.name == 'nombre' or field.name == 'razon_social' %}col-12{% else %}col-md-6{% endif %}">
+            {% include 'core/_campo.html' %}
+          </div>
+        {% endfor %}
+      </div>
+      <div class="mt-4 d-flex gap-2">
+        <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
+        <a href="javascript:history.back()" class="btn btn-outline-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

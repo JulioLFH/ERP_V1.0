@@ -1,0 +1,49 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Movimientos de caja y bancos{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Movimientos de caja y bancos</h1>
+  <div class="d-flex gap-2">
+    <a href="{% url 'finanzas:movimiento_nuevo' %}?tipo=INGRESO" class="btn btn-sm btn-outline-success"><i class="bi bi-plus-lg"></i> Ingreso</a>
+    <a href="{% url 'finanzas:movimiento_nuevo' %}?tipo=EGRESO" class="btn btn-sm btn-outline-danger"><i class="bi bi-dash-lg"></i> Egreso</a>
+    <a href="{% url 'finanzas:transferencia' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-shuffle"></i> Transferencia</a>
+  </div>
+</div>
+<div class="card">
+  <div class="card-body border-bottom py-2">
+    <form class="row g-2" method="get">
+      <div class="col-auto"><select name="cuenta" class="form-select form-select-sm"><option value="">Todas las cuentas</option>{% for c in cuentas %}<option value="{{ c.pk }}" {% if request.GET.cuenta == c.pk|stringformat:'s' %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+      <div class="col-auto"><select name="tipo" class="form-select form-select-sm"><option value="">Ingresos y egresos</option><option value="INGRESO" {% if request.GET.tipo == 'INGRESO' %}selected{% endif %}>Ingresos</option><option value="EGRESO" {% if request.GET.tipo == 'EGRESO' %}selected{% endif %}>Egresos</option></select></div>
+      <div class="col-auto"><select name="concepto" class="form-select form-select-sm"><option value="">Todos los conceptos</option>{% for v, l in conceptos %}<option value="{{ v }}" {% if request.GET.concepto == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      <div class="col-auto"><input type="date" name="desde" value="{{ request.GET.desde }}" class="form-control form-control-sm"></div>
+      <div class="col-auto"><input type="date" name="hasta" value="{{ request.GET.hasta }}" class="form-control form-control-sm"></div>
+      <div class="col-auto"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Glosa, voucher, N° op."></div>
+      <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i></button>
+        <button name="formato" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i></button></div>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0">
+      <thead><tr><th>Voucher</th><th>Fecha</th><th>Cuenta</th><th>Concepto</th><th>Tercero / documento</th><th>Glosa</th><th class="num">Ingreso</th><th class="num">Egreso</th><th></th><th></th></tr></thead>
+      <tbody>
+      {% for m in page_obj %}
+        <tr>
+          <td><a href="{% url 'finanzas:voucher' m.pk %}" target="_blank">{{ m.voucher }}</a></td>
+          <td>{{ m.fecha|date:'d/m/Y' }}</td><td class="small">{{ m.cuenta.nombre }}</td>
+          <td class="small">{{ m.get_concepto_display }}<div class="text-muted">{{ m.get_medio_pago_display }} {{ m.numero_operacion }}</div></td>
+          <td class="small">{{ m.tercero.nombre|default:''|truncatechars:30 }}
+            {% if m.venta %}<div><a href="{% url 'ventas:detalle' m.venta_id %}">{{ m.venta.numero_completo }}</a></div>{% elif m.compra %}<div><a href="{% url 'compras:detalle' m.compra_id %}">{{ m.compra.numero_completo }}</a></div>{% endif %}</td>
+          <td class="small">{{ m.glosa|truncatechars:40 }}</td>
+          <td class="num text-success">{% if m.tipo == 'INGRESO' %}{{ m.monto|money }}{% endif %}</td>
+          <td class="num text-danger">{% if m.tipo == 'EGRESO' %}{{ m.monto|money }}{% endif %}</td>
+          <td>{% if m.conciliado %}<i class="bi bi-check2-circle text-success" title="Conciliado"></i>{% endif %}</td>
+          <td>{% if not m.conciliado %}<form method="post" action="{% url 'finanzas:movimiento_eliminar' m.pk %}" data-confirm="¿Eliminar el movimiento {{ m.voucher }}?">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-trash"></i></button></form>{% endif %}</td>
+        </tr>
+      {% empty %}<tr><td colspan="10" class="text-center text-muted py-4">Sin movimientos.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot class="fw-bold"><tr><td colspan="6" class="text-end">Totales del filtro</td><td class="num text-success">{{ ingresos|money }}</td><td class="num text-danger">{{ egresos|money }}</td><td colspan="2"></td></tr></tfoot>
+    </table>
+  </div>
+  {% include 'core/_paginacion.html' %}
+</div>
+{% endblock %}

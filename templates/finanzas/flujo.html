@@ -1,0 +1,30 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Flujo de caja{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Flujo de caja por concepto</h1>
+  <form class="d-flex gap-2" method="get">
+    <input type="date" name="desde" value="{{ desde }}" class="form-control form-control-sm">
+    <input type="date" name="hasta" value="{{ hasta }}" class="form-control form-control-sm">
+    <button class="btn btn-sm btn-primary">Ver</button>
+  </form>
+</div>
+<div class="row g-3 mb-3">
+  {% for mon, r in resumen.items %}
+  <div class="col-md-4"><div class="kpi"><div class="label">Ingresos {{ mon }}</div><div class="value fs-5 text-success">{{ r.ingreso|money }}</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="label">Egresos {{ mon }}</div><div class="value fs-5 text-danger">{{ r.egreso|money }}</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="label">Flujo neto {{ mon }}</div><div class="value fs-5">{{ r.neto|money }}</div></div></div>
+  {% empty %}<div class="col"><div class="alert alert-info mb-0">Sin movimientos en el rango.</div></div>{% endfor %}
+</div>
+<div class="row g-3">
+  <div class="col-lg-8"><div class="card"><div class="table-responsive">
+    <table class="table mb-0">
+      <thead><tr><th>Concepto</th><th>Moneda</th><th class="num">Ingresos</th><th class="num">Egresos</th><th class="num">Neto</th></tr></thead>
+      <tbody>{% for f in filas %}<tr><td>{{ f.concepto }}</td><td>{{ f.moneda }}</td><td class="num text-success">{{ f.ingreso|money }}</td><td class="num text-danger">{{ f.egreso|money }}</td><td class="num">{{ f.neto|money }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </div></div><p class="small text-muted mt-2">No incluye transferencias entre cuentas propias.</p></div>
+  <div class="col-lg-4"><div class="card"><div class="card-header">Saldos actuales</div>
+    <ul class="list-group list-group-flush">{% for c in cuentas %}<li class="list-group-item d-flex justify-content-between"><span>{{ c.nombre }}</span><span class="num fw-semibold">{{ c.simbolo }} {{ c.saldo|money }}</span></li>{% endfor %}</ul>
+  </div></div>
+</div>
+{% endblock %}

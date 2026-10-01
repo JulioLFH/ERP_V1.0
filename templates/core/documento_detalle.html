@@ -1,0 +1,52 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ doc.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3 d-print-none">
+  <div class="d-flex gap-2">
+    <a href="{% url url_lista %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+    <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir / PDF</button>
+    {% if doc.estado == 'PENDIENTE' or doc.estado == 'APROBADO' %}
+      <a href="{% url url_editar doc.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
+    {% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    {% if doc.estado != 'ANULADO' %}
+      <a href="{% url url_convertir %}?{{ param_convertir }}={{ doc.pk }}" class="btn btn-sm btn-success"><i class="bi bi-arrow-right-circle"></i> {{ texto_convertir }}</a>
+      {% if doc.estado == 'PENDIENTE' %}<form method="post" action="{% url url_estado doc.pk %}">{% csrf_token %}<input type="hidden" name="estado" value="APROBADO"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-check2"></i> Aprobar</button></form>{% endif %}
+      <form method="post" action="{% url url_estado doc.pk %}" data-confirm="¿Anular {{ doc.numero }}?">{% csrf_token %}<input type="hidden" name="estado" value="ANULADO"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular</button></form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card doc-print">
+  <div class="row align-items-center mb-4">
+    <div class="col-7"><h4 class="mb-0">{{ empresa.razon_social }}</h4><div class="small text-muted">RUC {{ empresa.ruc }} · {{ empresa.direccion }}</div></div>
+    <div class="col-5"><div class="doc-box"><div class="fw-bold">{{ titulo_doc }}</div><div class="fs-5">{{ doc.numero }}</div>
+      <span class="badge badge-{{ doc.estado }}">{{ doc.get_estado_display }}</span></div></div>
+  </div>
+  <table class="table table-sm table-borderless">
+    <tr><td class="text-muted" style="width:18%">{{ etiqueta_tercero }}</td><td>{{ doc.tercero.nombre }} ({{ doc.tercero.numero_doc }})</td><td class="text-muted">Fecha</td><td>{{ doc.fecha|date:'d/m/Y' }}</td></tr>
+    <tr><td class="text-muted">Condición de pago</td><td>{{ doc.condicion_pago|default:'-' }}</td><td class="text-muted">Moneda</td><td>{{ doc.get_moneda_display }}</td></tr>
+    {% if doc.fecha_entrega %}<tr><td class="text-muted">Fecha de entrega</td><td>{{ doc.fecha_entrega|date:'d/m/Y' }}</td><td></td><td></td></tr>{% endif %}
+    {% if doc.validez_dias %}<tr><td class="text-muted">Validez</td><td>{{ doc.validez_dias }} días</td><td class="text-muted">Vendedor</td><td>{{ doc.vendedor|default:'-' }}</td></tr>{% endif %}
+  </table>
+  <table class="table table-sm table-bordered">
+    <thead><tr><th>#</th><th>Descripción</th><th class="num">Cantidad</th><th class="num">V. unit.</th><th class="num">Importe</th></tr></thead>
+    <tbody>{% for i in items %}<tr><td>{{ forloop.counter }}</td><td>{{ i.descripcion }}</td><td class="num">{{ i.cantidad|money }}</td><td class="num">{{ i.precio_unitario|money }}</td><td class="num">{{ i.subtotal|money }}</td></tr>{% endfor %}</tbody>
+  </table>
+  <div class="row">
+    <div class="col-7 small text-muted">{{ doc.glosa|linebreaksbr }}</div>
+    <div class="col-5"><table class="table table-sm">
+      <tr><td>Op. gravada</td><td class="num">{{ doc.base_imponible|money }}</td></tr>
+      <tr><td>Op. exon./inaf.</td><td class="num">{{ doc.no_gravado|money }}</td></tr>
+      <tr><td>IGV</td><td class="num">{{ doc.igv|money }}</td></tr>
+      <tr class="fw-bold"><td>TOTAL {{ doc.simbolo }}</td><td class="num">{{ doc.total|money }}</td></tr>
+    </table></div>
+  </div>
+</div>
+
+{% if relacionados %}
+<div class="card mt-3 d-print-none" style="max-width:900px;margin:auto"><div class="card-header">Comprobantes generados</div>
+  <ul class="list-group list-group-flush">{% for r in relacionados %}<li class="list-group-item d-flex justify-content-between"><a href="{% url url_rel r.pk %}">{{ r }}</a><span class="num">{{ r.total|money }}</span></li>{% endfor %}</ul>
+</div>{% endif %}
+{% endblock %}

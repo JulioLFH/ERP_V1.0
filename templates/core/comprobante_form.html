@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{{ titulo }}</h1>
+  <a href="{% if doc.pk %}javascript:history.back(){% elif volver %}{% url volver %}{% else %}{% url app|add:':lista' %}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  <div class="card mb-3">
+    <div class="card-header">Datos del documento</div>
+    <div class="card-body">
+      <div class="row g-3">
+        {% for field in form %}{% if field.name != 'glosa' %}
+          <div class="{% if field.name == 'tercero' or field.name == 'doc_referencia' or field.name == 'cotizacion' or field.name == 'orden_compra' %}col-md-6{% else %}col-6 col-md-3{% endif %}">
+            {% include 'core/_campo.html' %}
+          </div>
+        {% endif %}{% endfor %}
+        {% if form.glosa %}<div class="col-12">{% with field=form.glosa %}{% include 'core/_campo.html' %}{% endwith %}</div>{% endif %}
+      </div>
+      {% if form.series %}
+      <datalist id="series-venta">{% for s in form.series %}<option value="{{ s.serie }}">{{ s.get_tipo_display }}</option>{% endfor %}</datalist>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span>Detalle</span>
+      <a href="{% url 'producto_nuevo' %}" target="_blank" class="small fw-normal"><i class="bi bi-plus-circle"></i> Nuevo producto</a>
+    </div>
+    {{ formset.management_form }}
+    {% for e in formset.non_form_errors %}<div class="alert alert-danger m-3 py-2">{{ e }}</div>{% endfor %}
+    <div class="table-responsive">
+      <table class="table items-table mb-0">
+        <thead><tr><th style="width:24%">Producto / servicio</th><th>Descripción</th><th style="width:11%" class="num">Cantidad</th><th style="width:13%" class="num">Valor unit. (sin IGV)</th><th style="width:11%" class="num">Subtotal</th><th class="text-center" style="width:5%"><i class="bi bi-trash"></i></th></tr></thead>
+        <tbody id="items-body" data-prefix="{{ formset.prefix }}" data-precio-campo="{{ precio_campo }}" data-igv="{{ igv_tasa|stringformat:'s' }}">
+          {% for f in formset %}
+            <tr class="item-row">
+              <td>{{ f.id }}{{ f.producto }}{% for e in f.producto.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+              <td>{{ f.descripcion }}{% for e in f.descripcion.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+              <td>{{ f.cantidad }}</td>
+              <td>{{ f.precio_unitario }}</td>
+              <td class="num js-subtotal">0.00</td>
+              <td class="text-center">{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <template id="item-template">
+      <tr class="item-row">
+        <td>{{ formset.empty_form.id }}{{ formset.empty_form.producto }}</td>
+        <td>{{ formset.empty_form.descripcion }}</td>
+        <td>{{ formset.empty_form.cantidad }}</td>
+        <td>{{ formset.empty_form.precio_unitario }}</td>
+        <td class="num js-subtotal">0.00</td>
+        <td class="text-center">{{ formset.empty_form.DELETE }}</td>
+      </tr>
+    </template>
+    <div class="card-body d-flex flex-wrap justify-content-between gap-3">
+      <div><button type="button" id="agregar-item" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar ítem</button>
+        <div id="t-extra" class="small text-muted mt-3"></div></div>
+      <table class="table table-sm totales mb-0">
+        <tr><td>Op. gravada</td><td class="num" id="t-base">0.00</td></tr>
+        <tr><td>Op. exonerada / inafecta</td><td class="num" id="t-nograv">0.00</td></tr>
+        <tr><td>IGV ({{ igv_tasa|floatformat:0 }}%)</td><td class="num" id="t-igv">0.00</td></tr>
+        <tr class="row-total"><td>TOTAL</td><td class="num" id="t-total">0.00</td></tr>
+      </table>
+    </div>
+  </div>
+  <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
+</form>
+{{ productos|json_script:"productos-data" }}
+{% endblock %}

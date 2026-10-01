@@ -1,0 +1,35 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{{ titulo }}</h1>
+  <div class="d-flex gap-2">
+    {% if app == 'ventas' %}<a href="{% url url_nuevo %}?tipo=PED" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Orden de pedido</a>{% endif %}
+    <a href="{% url url_nuevo %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> {% if app == 'ventas' %}Nueva cotización{% else %}Nueva orden{% endif %}</a>
+  </div>
+</div>
+<div class="card">
+  <div class="card-body border-bottom py-2">
+    <form class="row g-2" method="get">
+      <div class="col-md-4"><input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Número o {{ etiqueta_tercero|lower }}..."></div>
+      <div class="col-auto"><select name="estado" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todos los estados</option>{% for v, l in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></div>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead><tr><th>Número</th><th>Fecha</th><th>{{ etiqueta_tercero }}</th><th>Mon.</th><th class="num">Total</th><th>Estado</th></tr></thead>
+      <tbody>
+      {% for d in page_obj %}
+        <tr onclick="location.href='{% url url_detalle d.pk %}'" style="cursor:pointer">
+          <td class="fw-semibold">{{ d.numero }}{% if d.get_tipo_display %} <span class="small text-muted">{{ d.get_tipo_display }}</span>{% endif %}</td>
+          <td>{{ d.fecha|date:'d/m/Y' }}</td><td>{{ d.tercero.nombre }}</td><td>{{ d.moneda }}</td>
+          <td class="num">{{ d.total|money }}</td><td><span class="badge badge-{{ d.estado }}">{{ d.get_estado_display }}</span></td>
+        </tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin documentos.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include 'core/_paginacion.html' %}
+</div>
+{% endblock %}

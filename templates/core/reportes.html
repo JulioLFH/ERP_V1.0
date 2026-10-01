@@ -1,0 +1,39 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Reportes de {{ titulo_modulo|lower }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Reportes estadísticos de {{ titulo_modulo|lower }}</h1>
+  <form class="d-flex flex-wrap gap-2" method="get">
+    <select name="agrupar" class="form-select form-select-sm" style="width:auto">{% for v, l in agrupaciones %}<option value="{{ v }}" {% if v == agrupar %}selected{% endif %}>Por {{ l|lower }}</option>{% endfor %}</select>
+    <input type="date" name="desde" value="{{ desde }}" class="form-control form-control-sm" style="width:auto">
+    <input type="date" name="hasta" value="{{ hasta }}" class="form-control form-control-sm" style="width:auto">
+    <button class="btn btn-sm btn-primary">Generar</button>
+  </form>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead><tr><th>#</th><th>{% for v, l in agrupaciones %}{% if v == agrupar %}{{ l }}{% endif %}{% endfor %}</th><th class="num">Docs.</th>{% if agrupar == 'producto' %}<th class="num">Cantidad</th>{% endif %}<th class="num">Importe</th><th class="num">%</th></tr></thead>
+      <tbody>
+      {% for f in filas %}<tr><td>{{ forloop.counter }}</td><td>{{ f.clave }}</td><td class="num">{{ f.docs }}</td>{% if agrupar == 'producto' %}<td class="num">{{ f.cantidad|money }}</td>{% endif %}<td class="num">{{ f.total|money }}</td><td class="num">{{ f.pct }}%</td></tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin datos en el rango.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot class="fw-bold"><tr><td colspan="{% if agrupar == 'producto' %}4{% else %}3{% endif %}" class="text-end">Total</td><td class="num">{{ total|money }}</td><td></td></tr></tfoot>
+    </table>
+  </div></div>
+  <p class="small text-muted mt-2">{% if agrupar == 'producto' %}Importes sin IGV (valor de venta/compra).{% else %}Importes incluyen IGV en moneda original; no incluye notas de crédito.{% endif %}</p></div>
+  <div class="col-lg-5"><div class="card"><div class="card-body"><canvas id="chart"></canvas></div></div></div>
+</div>
+{{ filas|json_script:"filas-data" }}
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  const filas = JSON.parse(document.getElementById('filas-data').textContent).slice(0, 10);
+  new Chart(document.getElementById('chart'), {
+    type: 'bar',
+    data: { labels: filas.map(f => String(f.clave).slice(0, 22)), datasets: [{ label: 'Importe', data: filas.map(f => parseFloat(f.total)), backgroundColor: '#2f80ed', borderRadius: 4 }] },
+    options: { indexAxis: 'y', plugins: { legend: { display: false } } }
+  });
+</script>
+{% endblock %}

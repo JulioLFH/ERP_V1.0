@@ -1,0 +1,60 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ cfg.titulo }}{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">{{ cfg.titulo }}{% if detraccion %} — depósito de detracción{% endif %}</h1>
+<div class="card mb-3"><div class="card-body py-2">
+  <form method="get" class="row g-2 align-items-center">
+    <div class="col-auto"><label class="small">{{ cfg.etiqueta }}</label></div>
+    <div class="col-md-5"><select name="tercero" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="">— Seleccione —</option>
+      {% for t in terceros %}<option value="{{ t.pk }}" {% if tercero and tercero.pk == t.pk %}selected{% endif %}>{{ t }}</option>{% endfor %}
+    </select></div>
+    {% if detraccion %}<input type="hidden" name="detraccion" value="1">{% endif %}
+  </form>
+</div></div>
+
+{% if tercero %}
+<form method="post">
+  {% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  <div class="card mb-3"><div class="card-header">Documentos pendientes de {{ tercero.nombre }}</div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>Comprobante</th><th>Emisión</th><th>Venc.</th><th>Mon.</th><th class="num">Neto</th><th class="num">Detracción</th><th class="num">Pagado</th><th class="num">Saldo</th><th style="width:150px" class="num">Monto a aplicar</th></tr></thead>
+      <tbody>
+      {% for d in pendientes %}
+        <tr>
+          <td>{{ d.get_tipo_comprobante_display }} {{ d.numero_completo }}</td><td>{{ d.fecha_emision|date:'d/m/Y' }}</td>
+          <td {% if d.dias_vencido > 0 %}class="text-danger"{% endif %}>{{ d.fecha_vencimiento|date:'d/m/Y' }}</td><td>{{ d.moneda }}</td>
+          <td class="num">{{ d.neto|money }}</td><td class="num">{{ d.detraccion_monto|money }}</td><td class="num">{{ d.pagado|money }}</td><td class="num fw-semibold">{{ d.saldo|money }}</td>
+          <td><div class="input-group input-group-sm">
+            <button type="button" class="btn btn-outline-secondary js-llenar" data-valor="{% if detraccion %}{{ d.detraccion_monto|stringformat:'s' }}{% else %}{{ d.saldo|stringformat:'s' }}{% endif %}" title="Aplicar {% if detraccion %}detracción{% else %}saldo{% endif %}"><i class="bi bi-arrow-right"></i></button>
+            <input type="number" step="0.01" min="0" name="monto_{{ d.pk }}" class="form-control text-end js-monto" value="{% if doc_ini and doc_ini.pk == d.pk %}{% if detraccion %}{{ d.detraccion_monto|stringformat:'s' }}{% else %}{{ d.saldo|stringformat:'s' }}{% endif %}{% endif %}">
+          </div></td>
+        </tr>
+      {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No tiene documentos pendientes.</td></tr>{% endfor %}
+      </tbody>
+      {% if pendientes %}<tfoot><tr class="fw-bold"><td colspan="8" class="text-end">Total a aplicar</td><td class="num" id="total-aplicar">0.00</td></tr></tfoot>{% endif %}
+    </table></div>
+  </div>
+  {% if pendientes %}
+  <div class="card"><div class="card-header">Datos del {% if modo == 'cobranza' %}ingreso{% else %}egreso{% endif %}</div><div class="card-body">
+    <div class="row g-3">
+      {% for field in form %}<div class="col-md-4">{% include 'core/_campo.html' %}</div>{% endfor %}
+    </div>
+    <button class="btn btn-success mt-3"><i class="bi bi-check-lg"></i> Registrar {% if modo == 'cobranza' %}cobranza{% else %}pago{% endif %}</button>
+  </div></div>
+  {% endif %}
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  const total = () => {
+    let t = 0; document.querySelectorAll('.js-monto').forEach(i => t += parseFloat(i.value) || 0);
+    const el = document.getElementById('total-aplicar'); if (el) el.textContent = t.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  };
+  document.querySelectorAll('.js-llenar').forEach(b => b.addEventListener('click', () => { b.nextElementSibling.value = parseFloat(b.dataset.valor).toFixed(2); total(); }));
+  document.querySelectorAll('.js-monto').forEach(i => i.addEventListener('input', total));
+  total();
+</script>
+{% endblock %}
