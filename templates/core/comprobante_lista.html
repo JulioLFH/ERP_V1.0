@@ -32,7 +32,8 @@
           <td>{{ d.moneda }}</td>
           <td class="num">{% if d.es_nota_credito %}-{% endif %}{{ d.total|money }}</td>
           <td class="num">{% with s=d.saldo %}{% if s > 0 %}<span class="text-danger">{{ s|money }}</span>{% else %}<span class="text-success"><i class="bi bi-check2"></i></span>{% endif %}{% endwith %}</td>
-          <td><span class="badge badge-{{ d.estado }}">{{ d.get_estado_display }}</span></td>
+          <td><span class="badge badge-{{ d.estado }}">{{ d.get_estado_display }}</span>
+            {% if app == 'ventas' and d.estado_sunat != 'NO_ENVIADO' %}<div><span class="badge {% if d.estado_sunat == 'ACEPTADO' %}text-bg-success{% elif d.estado_sunat == 'PENDIENTE' %}text-bg-warning{% else %}text-bg-danger{% endif %}" title="{{ d.sunat_descripcion }}">SUNAT: {{ d.get_estado_sunat_display }}</span></div>{% endif %}</td>
         </tr>
       {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">Sin comprobantes.</td></tr>{% endfor %}
       </tbody>

@@ -1,0 +1,22 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Valorización al cierre{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Inventario valorizado al {{ corte|date:'d/m/Y' }}</h1>
+  <form class="d-flex gap-2" method="get">
+    <input type="month" name="mes" value="{{ mes }}" class="form-control form-control-sm">
+    <select name="almacen" class="form-select form-select-sm"><option value="">Todos los almacenes</option>{% for a in almacenes %}<option value="{{ a.pk }}" {% if almacen and almacen.pk == a.pk %}selected{% endif %}>{{ a.nombre }}</option>{% endfor %}</select>
+    <button class="btn btn-sm btn-primary">Ver</button>
+    <button name="formato" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i></button>
+  </form>
+</div>
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover mb-0">
+    <thead><tr><th>Código</th><th>Producto</th><th>U.M.</th><th class="num">Cantidad</th><th class="num">Costo promedio</th><th class="num">Valor S/</th></tr></thead>
+    <tbody>{% for f in filas %}<tr><td>{{ f.p.codigo }}</td><td>{{ f.p.nombre }}</td><td>{{ f.p.unidad }}</td><td class="num">{{ f.cantidad|money }}</td><td class="num">{{ f.costo|money }}</td><td class="num">{{ f.valor|money }}</td></tr>
+    {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin existencias a la fecha de corte.</td></tr>{% endfor %}</tbody>
+    <tfoot class="fw-bold"><tr><td colspan="5" class="text-end">TOTAL INVENTARIO</td><td class="num">S/ {{ total|money }}</td></tr></tfoot>
+  </table>
+</div></div>
+<p class="small text-muted mt-2">Cantidades y costo promedio reconstruidos desde el kardex al último día del mes. Útil para el cierre contable (cuenta 20 Mercaderías).</p>
+{% endblock %}

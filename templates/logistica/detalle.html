@@ -1,0 +1,61 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ g }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="page-title">{{ g.get_tipo_display }} {{ g.numero_completo }}
+      <span class="badge {% if g.estado == 'ANULADA' %}badge-ANULADO{% else %}badge-REGISTRADO{% endif %} fs-6 align-middle">{{ g.get_estado_display }}</span></h1>
+    <div class="text-muted small">{{ g.get_motivo_traslado_display }}{% if g.descripcion_motivo %} — {{ g.descripcion_motivo }}{% endif %} · {{ g.get_modalidad_display }}</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'logistica:lista' %}?tipo={{ g.tipo }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+    <a href="{% url 'logistica:imprimir' g.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</a>
+    {% if g.estado == 'EMITIDA' and g.estado_sunat != 'ACEPTADO' and g.estado_sunat != 'PENDIENTE' %}<a href="{% url 'logistica:editar' g.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
+    {% if g.estado == 'EMITIDA' %}<form method="post" action="{% url 'logistica:anular' g.pk %}" data-confirm="¿Anular {{ g }}? Se revertirá el movimiento de almacén.">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular</button></form>{% endif %}
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="card-body"><div class="row g-3 small">
+      {% if g.remitente %}<div class="col-md-6"><div class="text-muted">Remitente</div><b>{{ g.remitente.nombre }}</b><br>{{ g.remitente.get_tipo_doc_display }} {{ g.remitente.numero_doc }}</div>{% endif %}
+      <div class="col-md-6"><div class="text-muted">Destinatario</div><b>{{ g.destinatario.nombre }}</b><br>{{ g.destinatario.get_tipo_doc_display }} {{ g.destinatario.numero_doc }}</div>
+      <div class="col-md-6"><div class="text-muted">Punto de partida</div>{{ g.partida_direccion }}<br><span class="text-muted">Ubigeo {{ g.partida_ubigeo }}</span></div>
+      <div class="col-md-6"><div class="text-muted">Punto de llegada</div>{{ g.llegada_direccion }}<br><span class="text-muted">Ubigeo {{ g.llegada_ubigeo }}</span></div>
+      <div class="col-md-3"><div class="text-muted">Emisión</div>{{ g.fecha_emision|date:'d/m/Y' }}</div>
+      <div class="col-md-3"><div class="text-muted">Inicio traslado</div>{{ g.fecha_traslado|date:'d/m/Y' }}</div>
+      <div class="col-md-3"><div class="text-muted">Peso bruto</div>{{ g.peso_bruto }} {{ g.unidad_peso }}</div>
+      <div class="col-md-3"><div class="text-muted">Bultos</div>{{ g.numero_bultos }}</div>
+      {% if g.transportista %}<div class="col-md-6"><div class="text-muted">Transportista</div>{{ g.transportista.nombre }} (RUC {{ g.transportista.numero_doc }}){% if g.transportista.registro_mtc %} · MTC {{ g.transportista.registro_mtc }}{% endif %}</div>{% endif %}
+      {% if g.vehiculo %}<div class="col-md-3"><div class="text-muted">Vehículo</div>{{ g.vehiculo }}</div>{% endif %}
+      {% if g.conductor %}<div class="col-md-3"><div class="text-muted">Conductor</div>{{ g.conductor.nombres }} {{ g.conductor.apellidos }}<br>Lic. {{ g.conductor.licencia }}</div>{% endif %}
+      {% if g.venta %}<div class="col-md-6"><div class="text-muted">Comprobante relacionado</div><a href="{% url 'ventas:detalle' g.venta_id %}">{{ g.venta }}</a></div>{% endif %}
+      {% if g.compra %}<div class="col-md-6"><div class="text-muted">Compra relacionada</div><a href="{% url 'compras:detalle' g.compra_id %}">{{ g.compra }}</a></div>{% endif %}
+      {% if g.doc_relacionado %}<div class="col-md-6"><div class="text-muted">Otro documento</div>{{ g.doc_relacionado }}</div>{% endif %}
+      {% if g.tipo == '09' %}<div class="col-md-6"><div class="text-muted">Almacén</div>{{ g.get_efecto_stock_display }}{% if g.almacen_origen %} · origen {{ g.almacen_origen }}{% endif %}{% if g.almacen_destino %} · destino {{ g.almacen_destino }}{% endif %}{% if g.stock_aplicado %} <i class="bi bi-check-circle text-success"></i>{% endif %}</div>{% endif %}
+    </div>{% if g.observaciones %}<p class="small text-muted mt-3 mb-0">{{ g.observaciones }}</p>{% endif %}</div></div>
+    <div class="card"><div class="table-responsive"><table class="table mb-0">
+      <thead><tr><th>#</th><th>Código</th><th>Descripción</th><th>U.M.</th><th class="num">Cantidad</th></tr></thead>
+      <tbody>{% for i in items %}<tr><td>{{ forloop.counter }}</td><td>{{ i.producto.codigo|default:'' }}</td><td>{{ i.descripcion }}</td><td>{{ i.unidad }}</td><td class="num">{{ i.cantidad|money }}</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card border-{% if g.estado_sunat == 'ACEPTADO' %}success{% elif g.estado_sunat == 'RECHAZADO' or g.estado_sunat == 'ERROR' %}danger{% else %}secondary{% endif %}">
+      <div class="card-header d-flex justify-content-between"><span><i class="bi bi-cloud-check"></i> SUNAT (GRE)</span><span class="badge {% if g.estado_sunat == 'ACEPTADO' %}text-bg-success{% elif g.estado_sunat == 'RECHAZADO' or g.estado_sunat == 'ERROR' %}text-bg-danger{% elif g.estado_sunat == 'PENDIENTE' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ g.get_estado_sunat_display }}</span></div>
+      <div class="card-body small">
+        {% if g.sunat_descripcion %}<p>{{ g.sunat_descripcion }}</p>{% endif %}
+        <div class="d-flex flex-wrap gap-2">
+          {% if g.enlace_pdf %}<a href="{{ g.enlace_pdf }}" target="_blank" class="btn btn-sm btn-outline-secondary">PDF</a>{% endif %}
+          {% if g.enlace_xml %}<a href="{{ g.enlace_xml }}" target="_blank" class="btn btn-sm btn-outline-secondary">XML</a>{% endif %}
+          {% if g.enlace_cdr %}<a href="{{ g.enlace_cdr }}" target="_blank" class="btn btn-sm btn-outline-secondary">CDR</a>{% endif %}
+          {% if g.estado == 'EMITIDA' %}
+          <form method="post" action="{% url 'logistica:enviar_sunat' g.pk %}">{% csrf_token %}
+            {% if g.estado_sunat == 'ACEPTADO' or g.estado_sunat == 'PENDIENTE' %}<button name="accion" value="consultar" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Consultar</button>
+            {% else %}<button class="btn btn-sm btn-primary"><i class="bi bi-send"></i> Enviar a SUNAT</button>{% endif %}
+          </form>{% endif %}
+        </div>
+        {% if not cfg.activa %}<p class="text-muted mt-2 mb-0">Configure el OSE en <a href="{% url 'facturacion' %}">Facturación electrónica</a>. Desde 2023 la guía electrónica (GRE) es obligatoria.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

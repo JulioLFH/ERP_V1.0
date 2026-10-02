@@ -49,6 +49,9 @@ class Empresa(models.Model):
     telefono = models.CharField('Teléfono', max_length=50, blank=True)
     email = models.EmailField(blank=True)
     igv_tasa = models.DecimalField('Tasa IGV %', max_digits=5, decimal_places=2, default=Decimal('18.00'))
+    ubigeo = models.CharField(max_length=6, blank=True, help_text='Ubigeo del domicilio fiscal (6 dígitos)')
+    registro_mtc = models.CharField('Registro MTC', max_length=20, blank=True,
+                                    help_text='Solo si emite guías como transportista')
 
     class Meta:
         verbose_name = 'empresa'
@@ -77,6 +80,9 @@ class Tercero(models.Model):
     email = models.EmailField(blank=True)
     telefono = models.CharField('Teléfono', max_length=50, blank=True)
     dias_credito = models.PositiveIntegerField('Días de crédito', default=0)
+    ubigeo = models.CharField(max_length=6, blank=True, help_text='Ubigeo de la dirección (para guías)')
+    registro_mtc = models.CharField('Registro MTC', max_length=20, blank=True,
+                                    help_text='Solo empresas de transporte (guía transportista)')
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -117,11 +123,16 @@ class Producto(models.Model):
     def valorizado(self):
         return r2(self.stock * self.costo_promedio)
 
-    def mover_stock(self, cantidad, referencia, costo=None, fecha=None):
-        """cantidad > 0 entrada, < 0 salida. Actualiza costo promedio en entradas."""
+    @property
+    def bajo_minimo(self):
+        return self.es_inventariable and self.stock <= self.stock_minimo
+
+    def mover_stock(self, cantidad, referencia, costo=None, fecha=None, almacen=None):
+        """cantidad > 0 entrada, < 0 salida. Actualiza costo promedio en entradas y el stock del almacén."""
         cantidad = Decimal(cantidad)
         if not self.es_inventariable or cantidad == 0:
             return
+        almacen = almacen or Almacen.principal()
         if cantidad > 0 and costo is not None:
             nuevo_stock = self.stock + cantidad
             if nuevo_stock > 0:
@@ -129,19 +140,95 @@ class Producto(models.Model):
                 self.costo_promedio = (total / nuevo_stock).quantize(Decimal('0.0001'))
         self.stock += cantidad
         self.save(update_fields=['stock', 'costo_promedio'])
+        sa, _ = StockAlmacen.objects.get_or_create(producto=self, almacen=almacen)
+        sa.cantidad += cantidad
+        sa.save(update_fields=['cantidad'])
         Kardex.objects.create(
-            producto=self, fecha=fecha or timezone.localdate(),
+            producto=self, almacen=almacen, fecha=fecha or timezone.localdate(),
             tipo='ENTRADA' if cantidad > 0 else 'SALIDA', cantidad=abs(cantidad),
             costo_unitario=costo if costo is not None else self.costo_promedio,
-            saldo=self.stock, referencia=referencia,
+            costo_promedio=self.costo_promedio, saldo=self.stock, referencia=referencia,
         )
+
+
+class Almacen(models.Model):
+    codigo = models.CharField('Código', max_length=10, unique=True)
+    nombre = models.CharField(max_length=100)
+    direccion = models.CharField('Dirección', max_length=250, blank=True)
+    ubigeo = models.CharField(max_length=6, blank=True, help_text='Código de 6 dígitos (INEI)')
+    codigo_sunat = models.CharField('Cód. establecimiento SUNAT', max_length=4, default='0000')
+    es_principal = models.BooleanField('Principal', default=False)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-es_principal', 'nombre']
+        verbose_name = 'almacén'
+        verbose_name_plural = 'almacenes'
+
+    def __str__(self):
+        return self.nombre
+
+    @classmethod
+    def principal(cls):
+        alm = cls.objects.filter(es_principal=True, activo=True).first() or cls.objects.filter(activo=True).first()
+        if alm is None:
+            alm = cls.objects.create(codigo='ALM01', nombre='Almacén principal', es_principal=True)
+        return alm
+
+
+class StockAlmacen(models.Model):
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='stocks')
+    almacen = models.ForeignKey(Almacen, on_delete=models.CASCADE, related_name='stocks')
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+
+    class Meta:
+        unique_together = [('producto', 'almacen')]
+
+
+class TipoCambio(models.Model):
+    fecha = models.DateField(unique=True)
+    compra = models.DecimalField(max_digits=8, decimal_places=3)
+    venta = models.DecimalField(max_digits=8, decimal_places=3)
+    fuente = models.CharField(max_length=20, default='SUNAT')
+
+    class Meta:
+        ordering = ['-fecha']
+        verbose_name = 'tipo de cambio'
+        verbose_name_plural = 'tipos de cambio'
+
+    def __str__(self):
+        return f'{self.fecha:%d/%m/%Y} C {self.compra} V {self.venta}'
+
+
+class FacturacionConfig(models.Model):
+    """Conexión con el OSE/PSE para comprobantes y guías electrónicas."""
+    PROVEEDORES = [('NINGUNO', 'Sin facturación electrónica'), ('NUBEFACT', 'Nubefact (OSE/PSE)')]
+    proveedor = models.CharField(max_length=10, choices=PROVEEDORES, default='NINGUNO')
+    ruta = models.URLField('Ruta / URL de la API', max_length=300, blank=True,
+                           help_text='La entrega el proveedor (ej. https://api.nubefact.com/api/v1/xxxx)')
+    token = models.CharField(max_length=200, blank=True)
+    envio_automatico = models.BooleanField('Enviar al emitir', default=False,
+                                           help_text='Envía facturas, boletas, notas y guías al guardarlas')
+
+    class Meta:
+        verbose_name = 'configuración de facturación electrónica'
+
+    @classmethod
+    def actual(cls):
+        return cls.objects.first() or cls.objects.create()
+
+    @property
+    def activa(self):
+        return self.proveedor != 'NINGUNO' and bool(self.ruta and self.token)
 
 
 class Kardex(models.Model):
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='kardex')
+    almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, null=True, related_name='kardex')
     fecha = models.DateField()
     tipo = models.CharField(max_length=10)
     cantidad = models.DecimalField(max_digits=14, decimal_places=2)
+    costo_promedio = models.DecimalField(max_digits=12, decimal_places=4, default=D0)
     costo_unitario = models.DecimalField(max_digits=12, decimal_places=4, default=D0)
     saldo = models.DecimalField(max_digits=14, decimal_places=2)
     referencia = models.CharField(max_length=120)
@@ -154,7 +241,8 @@ class Kardex(models.Model):
 class Serie(models.Model):
     """Correlativos de comprobantes, cotizaciones, órdenes y vouchers."""
     TIPOS = TIPO_COMPROBANTE + [('OC', 'Orden de compra'), ('COT', 'Cotización / Proforma'),
-                                ('PED', 'Orden de pedido'), ('VOU', 'Voucher caja/bancos')]
+                                ('PED', 'Orden de pedido'), ('VOU', 'Voucher caja/bancos'),
+                                ('09', 'Guía de remisión remitente'), ('31', 'Guía de remisión transportista')]
     tipo = models.CharField(max_length=3, choices=TIPOS)
     serie = models.CharField(max_length=4)
     correlativo = models.PositiveIntegerField('Último correlativo', default=0)
@@ -271,6 +359,7 @@ class ComprobanteBase(TotalesMixin):
     percepcion_monto = models.DecimalField('Percepción', max_digits=14, decimal_places=2, default=D0)
     glosa = models.TextField(blank=True)
     estado = models.CharField(max_length=10, choices=ESTADO_COMPROBANTE, default='REGISTRADO')
+    almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, null=True, blank=True, verbose_name='Almacén')
     stock_aplicado = models.BooleanField('Movió almacén', default=False, editable=False)
     creado = models.DateTimeField(auto_now_add=True)
 
@@ -345,13 +434,16 @@ class ComprobanteBase(TotalesMixin):
     def aplicar_stock(self):
         if self.stock_aplicado or self.estado == 'ANULADO':
             return
+        if not self.almacen_id:
+            self.almacen = Almacen.principal()
         signo = self._signo_stock()
         for item in self.items.select_related('producto'):
             if item.producto and item.producto.es_inventariable:
                 costo = self._costo_entrada(item) if signo > 0 else None
-                item.producto.mover_stock(signo * item.cantidad, str(self), costo=costo, fecha=self.fecha_emision)
+                item.producto.mover_stock(signo * item.cantidad, str(self), costo=costo, fecha=self.fecha_emision,
+                                          almacen=self.almacen)
         self.stock_aplicado = True
-        self.save(update_fields=['stock_aplicado'])
+        self.save(update_fields=['stock_aplicado', 'almacen'])
 
     def revertir_stock(self):
         if not self.stock_aplicado:
@@ -359,6 +451,24 @@ class ComprobanteBase(TotalesMixin):
         signo = -self._signo_stock()
         for item in self.items.select_related('producto'):
             if item.producto and item.producto.es_inventariable:
-                item.producto.mover_stock(signo * item.cantidad, f'Reversión {self}', fecha=timezone.localdate())
+                item.producto.mover_stock(signo * item.cantidad, f'Reversión {self}', fecha=timezone.localdate(),
+                                          almacen=self.almacen)
         self.stock_aplicado = False
         self.save(update_fields=['stock_aplicado'])
+
+
+class ElectronicoMixin(models.Model):
+    """Estado del envío al OSE/SUNAT (comprobantes de venta y guías)."""
+    ESTADOS_SUNAT = [('NO_ENVIADO', 'No enviado'), ('PENDIENTE', 'Pendiente SUNAT'), ('ACEPTADO', 'Aceptado'),
+                     ('RECHAZADO', 'Rechazado'), ('ERROR', 'Error de envío'), ('BAJA', 'Comunicado de baja')]
+    estado_sunat = models.CharField('Estado SUNAT', max_length=10, choices=ESTADOS_SUNAT, default='NO_ENVIADO')
+    sunat_descripcion = models.TextField('Respuesta SUNAT', blank=True)
+    enlace_pdf = models.URLField(max_length=500, blank=True)
+    enlace_xml = models.URLField(max_length=500, blank=True)
+    enlace_cdr = models.URLField(max_length=500, blank=True)
+    codigo_hash = models.CharField(max_length=100, blank=True)
+    cadena_qr = models.TextField(blank=True)
+    fecha_envio = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        abstract = True

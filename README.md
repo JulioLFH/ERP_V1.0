@@ -30,10 +30,32 @@ Módulos (inspirados en AdSoft): **Registro de Compras**, **Registro de Ventas**
 - **Conciliación bancaria** con saldo según estado de cuenta.
 - Importación de estados de cuenta desde Excel y flujo de caja por concepto.
 
+### Logística — Guías de remisión (v1.1)
+- **Guía de remisión remitente (09)**, serie T001, y **guía de remisión transportista (31)**, serie V001.
+- Motivos de traslado del catálogo 20 SUNAT, transporte público (empresa de transporte con registro MTC) o privado (vehículo + conductor).
+- Puntos de partida y llegada con ubigeo, peso bruto, bultos y documento relacionado (factura o guía del remitente).
+- Se genera desde una factura o boleta ("Generar guía") sin volver a descontar stock.
+- Efecto en almacén: salida, entrada o **traslado entre almacenes** (motivo 04).
+- Maestros de vehículos y conductores. Impresión con QR cuando la acepta SUNAT.
+
+### Inventario (v1.1)
+- **Almacenes múltiples** con stock por almacén. El stock existente se migró al "Almacén principal".
+- **Kardex valorizado** por producto y almacén, con costo promedio y exportación a Excel.
+- Alertas de **stock mínimo**, que se configura en cada producto.
+- **Ajustes**: inventario inicial, sobrantes, mermas y faltantes.
+- **Valorización al cierre de mes**, por almacén o total.
+
+### Tipo de cambio y facturación electrónica (v1.1)
+- Tabla de **tipo de cambio SUNAT** diario, que se descarga sola. Al elegir USD en un documento, el T.C. venta se completa automáticamente.
+- Dashboard con **caja y bancos consolidado en soles** más el detalle por moneda.
+- **Facturación electrónica vía OSE (Nubefact)**: envío de facturas, boletas, NC, ND y guías, consulta de estado, comunicación de baja, PDF/XML/CDR, hash y QR. Se configura en Maestros > Facturación electrónica.
+- **Notas de crédito y débito** con flujo propio (asistente que parte del comprobante a modificar).
+- Los registros 8.1/14.1, los reportes y el flujo de caja abren en el último periodo con movimientos.
+
 ### Otros
 Dashboard con KPIs y gráficos, maestros de clientes/proveedores/productos, correlativos, datos de empresa e IGV configurable, panel `/admin`.
 
-> Simplificaciones de la v1.0: no envía comprobantes electrónicos a SUNAT/OSE y los cobros/pagos se aplican en la moneda del documento. Valide los TXT del PLE con el aplicativo de SUNAT antes de presentarlos.
+> Limitaciones: la integración con Nubefact se probó con respuestas simuladas; valídela con la cuenta DEMO de Nubefact antes de emitir comprobantes reales. Los cobros y pagos se aplican en la moneda del documento. Valide los TXT del PLE con el aplicativo de SUNAT antes de presentarlos.
 
 ## Ejecutar en Windows (local)
 

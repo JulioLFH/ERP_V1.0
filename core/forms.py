@@ -1,7 +1,9 @@
+from decimal import Decimal
+
 from django import forms
 from django.forms import inlineformset_factory
 
-from .models import Empresa, Producto, Serie, Tercero
+from .models import Almacen, Empresa, FacturacionConfig, Producto, Serie, TipoCambio, Tercero
 
 
 class BootstrapMixin:
@@ -20,6 +22,11 @@ class BootstrapMixin:
             if isinstance(field, forms.DateField):
                 w.input_type = 'date'
                 w.format = '%Y-%m-%d'
+        for nombre in ('almacen', 'almacen_origen', 'almacen_destino'):
+            if nombre in self.fields:
+                self.fields[nombre].queryset = Almacen.objects.filter(activo=True)
+        if 'almacen' in self.fields and not self.initial.get('almacen') and not getattr(getattr(self, 'instance', None), 'almacen_id', 1):
+            self.initial['almacen'] = Almacen.principal().pk
 
 
 class FechaInput(forms.DateInput):
@@ -61,6 +68,51 @@ class SerieForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Serie
         fields = '__all__'
+
+
+class AlmacenForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = Almacen
+        fields = '__all__'
+
+
+class TipoCambioForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = TipoCambio
+        fields = ['fecha', 'compra', 'venta']
+
+
+class FacturacionConfigForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = FacturacionConfig
+        fields = '__all__'
+        widgets = {'token': forms.PasswordInput(render_value=True)}
+
+
+class AjusteInventarioForm(BootstrapMixin, forms.Form):
+    TIPOS = [('ENTRADA', 'Entrada (inventario inicial / sobrante)'), ('SALIDA', 'Salida (merma / faltante / consumo)')]
+    producto = forms.ModelChoiceField(Producto.objects.none())
+    almacen = forms.ModelChoiceField(Almacen.objects.none(), label='Almacén')
+    tipo = forms.ChoiceField(choices=TIPOS)
+    cantidad = forms.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal('0.01'))
+    costo_unitario = forms.DecimalField(label='Costo unitario (solo entradas)', max_digits=12, decimal_places=4,
+                                        required=False, min_value=0)
+    fecha = forms.DateField()
+    motivo = forms.CharField(max_length=80)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['producto'].queryset = Producto.objects.filter(activo=True, tipo='BIEN')
+        self.initial.setdefault('almacen', Almacen.principal().pk)
+
+    def clean(self):
+        data = super().clean()
+        p, alm = data.get('producto'), data.get('almacen')
+        if data.get('tipo') == 'SALIDA' and p and alm:
+            disponible = p.stocks.filter(almacen=alm).values_list('cantidad', flat=True).first() or 0
+            if data.get('cantidad') and data['cantidad'] > disponible:
+                self.add_error('cantidad', f'Stock disponible en {alm}: {disponible}')
+        return data
 
 
 class ItemForm(BootstrapMixin, forms.ModelForm):

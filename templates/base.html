@@ -20,6 +20,7 @@
     <div class="nav-section">Compras</div>
     <a class="nav-link {% if u.url_name == 'oc_lista' %}active{% endif %}" href="{% url 'compras:oc_lista' %}"><i class="bi bi-clipboard-check"></i> Órdenes de compra</a>
     <a class="nav-link {% if u.namespace == 'compras' and u.url_name == 'lista' %}active{% endif %}" href="{% url 'compras:lista' %}"><i class="bi bi-bag"></i> Registro de compras</a>
+    <a class="nav-link {% if u.namespace == 'compras' and u.url_name == 'notas' %}active{% endif %}" href="{% url 'compras:notas' %}"><i class="bi bi-file-earmark-diff"></i> Notas crédito / débito</a>
     <a class="nav-link {% if u.namespace == 'compras' and u.url_name == 'pendientes' %}active{% endif %}" href="{% url 'compras:pendientes' %}"><i class="bi bi-calendar2-x"></i> Cuentas por pagar</a>
     <a class="nav-link {% if u.namespace == 'compras' and u.url_name == 'registro' %}active{% endif %}" href="{% url 'compras:registro' %}"><i class="bi bi-journal-text"></i> Registro 8.1 / PLE</a>
     <a class="nav-link {% if u.namespace == 'compras' and u.url_name == 'reportes' %}active{% endif %}" href="{% url 'compras:reportes' %}"><i class="bi bi-bar-chart"></i> Reportes compras</a>
@@ -28,10 +29,24 @@
     <div class="nav-section">Ventas</div>
     <a class="nav-link {% if u.url_name == 'cot_lista' %}active{% endif %}" href="{% url 'ventas:cot_lista' %}"><i class="bi bi-file-earmark-text"></i> Cotizaciones / pedidos</a>
     <a class="nav-link {% if u.namespace == 'ventas' and u.url_name == 'lista' %}active{% endif %}" href="{% url 'ventas:lista' %}"><i class="bi bi-receipt"></i> Comprobantes</a>
+    <a class="nav-link {% if u.namespace == 'ventas' and u.url_name == 'notas' %}active{% endif %}" href="{% url 'ventas:notas' %}"><i class="bi bi-file-earmark-diff"></i> Notas crédito / débito</a>
     <a class="nav-link {% if u.namespace == 'ventas' and u.url_name == 'pendientes' %}active{% endif %}" href="{% url 'ventas:pendientes' %}"><i class="bi bi-hourglass-split"></i> Cuentas por cobrar</a>
     <a class="nav-link {% if u.namespace == 'ventas' and u.url_name == 'registro' %}active{% endif %}" href="{% url 'ventas:registro' %}"><i class="bi bi-journal-text"></i> Registro 14.1 / PLE</a>
     <a class="nav-link {% if u.namespace == 'ventas' and u.url_name == 'reportes' %}active{% endif %}" href="{% url 'ventas:reportes' %}"><i class="bi bi-graph-up"></i> Reportes ventas</a>
     <a class="nav-link {% if u.namespace == 'ventas' and u.url_name == 'importar' %}active{% endif %}" href="{% url 'ventas:importar' %}"><i class="bi bi-file-earmark-arrow-up"></i> Importar Excel</a>
+
+    <div class="nav-section">Logística</div>
+    <a class="nav-link {% if u.namespace == 'logistica' and request.GET.tipo == '09' %}active{% endif %}" href="{% url 'logistica:lista' %}?tipo=09"><i class="bi bi-truck"></i> Guías remitente</a>
+    <a class="nav-link {% if u.namespace == 'logistica' and request.GET.tipo == '31' %}active{% endif %}" href="{% url 'logistica:lista' %}?tipo=31"><i class="bi bi-truck-front"></i> Guías transportista</a>
+    <a class="nav-link {% if u.url_name == 'vehiculos' %}active{% endif %}" href="{% url 'logistica:vehiculos' %}"><i class="bi bi-car-front"></i> Vehículos</a>
+    <a class="nav-link {% if u.url_name == 'conductores' %}active{% endif %}" href="{% url 'logistica:conductores' %}"><i class="bi bi-person-badge"></i> Conductores</a>
+
+    <div class="nav-section">Inventario</div>
+    <a class="nav-link {% if u.url_name == 'inv_stock' %}active{% endif %}" href="{% url 'inv_stock' %}"><i class="bi bi-boxes"></i> Stock por almacén</a>
+    <a class="nav-link {% if u.url_name == 'inv_kardex' %}active{% endif %}" href="{% url 'inv_kardex' %}"><i class="bi bi-list-columns"></i> Kardex valorizado</a>
+    <a class="nav-link {% if u.url_name == 'inv_ajuste' %}active{% endif %}" href="{% url 'inv_ajuste' %}"><i class="bi bi-sliders"></i> Ajustes de inventario</a>
+    <a class="nav-link {% if u.url_name == 'inv_valorizacion' %}active{% endif %}" href="{% url 'inv_valorizacion' %}"><i class="bi bi-calculator"></i> Valorización al cierre</a>
+    <a class="nav-link {% if u.url_name == 'almacenes' %}active{% endif %}" href="{% url 'almacenes' %}"><i class="bi bi-house-gear"></i> Almacenes</a>
 
     <div class="nav-section">Finanzas</div>
     <a class="nav-link {% if u.url_name == 'cuentas' %}active{% endif %}" href="{% url 'finanzas:cuentas' %}"><i class="bi bi-bank"></i> Caja y bancos</a>
@@ -45,8 +60,10 @@
 
     <div class="nav-section">Maestros</div>
     <a class="nav-link {% if u.url_name == 'terceros' %}active{% endif %}" href="{% url 'terceros' %}"><i class="bi bi-people"></i> Clientes / proveedores</a>
-    <a class="nav-link {% if u.url_name == 'productos' %}active{% endif %}" href="{% url 'productos' %}"><i class="bi bi-box-seam"></i> Productos / almacén</a>
+    <a class="nav-link {% if u.url_name == 'productos' %}active{% endif %}" href="{% url 'productos' %}"><i class="bi bi-box-seam"></i> Productos y servicios</a>
     <a class="nav-link {% if u.url_name == 'series' %}active{% endif %}" href="{% url 'series' %}"><i class="bi bi-123"></i> Correlativos</a>
+    <a class="nav-link {% if u.url_name == 'tipos_cambio' %}active{% endif %}" href="{% url 'tipos_cambio' %}"><i class="bi bi-currency-exchange"></i> Tipo de cambio</a>
+    <a class="nav-link {% if u.url_name == 'facturacion' %}active{% endif %}" href="{% url 'facturacion' %}"><i class="bi bi-cloud-upload"></i> Facturación electrónica</a>
     <a class="nav-link {% if u.url_name == 'empresa' %}active{% endif %}" href="{% url 'empresa' %}"><i class="bi bi-building-gear"></i> Empresa</a>
     {% if user.is_staff %}<a class="nav-link" href="{% url 'admin:index' %}"><i class="bi bi-shield-lock"></i> Administración</a>{% endif %}
   </nav>
@@ -71,6 +88,7 @@
 </div>
 {% endwith %}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>window.ERP_TC_URL = "{% url 'tipo_cambio_api' %}";</script>
 <script src="{% static 'js/app.js' %}"></script>
 {% block scripts %}{% endblock %}
 </body>

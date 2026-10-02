@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib import messages
@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
 from django.db.models import F, Q, Sum
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, ListView, UpdateView
@@ -14,8 +15,9 @@ from compras.models import Compra
 from finanzas.models import Cuenta
 from ventas.models import Venta
 
-from .forms import EmpresaForm, ProductoForm, SerieForm, TerceroForm
-from .models import Empresa, Producto, Serie, Tercero
+from . import tipo_cambio
+from .forms import EmpresaForm, FacturacionConfigForm, ProductoForm, SerieForm, TerceroForm, TipoCambioForm
+from .models import Empresa, FacturacionConfig, Producto, Serie, Tercero, TipoCambio
 
 D0 = Decimal('0')
 
@@ -56,15 +58,22 @@ def dashboard(request):
 
     top_clientes = (ventas.filter(periodo=periodo).exclude(tipo_comprobante='07')
                     .values('tercero__nombre').annotate(t=Sum('total')).order_by('-t')[:5])
-    cuentas = Cuenta.objects.filter(activo=True)
+    cuentas = list(Cuenta.objects.filter(activo=True))
+    tc = tipo_cambio.obtener(hoy)
+    tc_venta = tc.venta if tc else Decimal('1')
+    saldo_pen = sum((c.saldo for c in cuentas if c.moneda == 'PEN'), D0)
+    saldo_usd = sum((c.saldo for c in cuentas if c.moneda == 'USD'), D0)
 
     ctx = {
+        'tc': tc,
+        'saldo_pen': saldo_pen,
+        'saldo_usd': saldo_usd,
+        'saldo_consolidado': saldo_pen + saldo_usd * tc_venta,
         'ventas_mes': _total_pen(ventas.filter(periodo=periodo)),
         'compras_mes': _total_pen(compras.filter(periodo=periodo)),
         'total_cobrar': sum((v.saldo * v.tipo_cambio for v in por_cobrar), D0),
         'total_pagar': sum((c.saldo * c.tipo_cambio for c in por_pagar), D0),
         'cuentas': cuentas,
-        'saldo_cuentas': sum((c.saldo for c in cuentas if c.moneda == 'PEN'), D0),
         'vencidos_cobrar': sorted([v for v in por_cobrar if v.dias_vencido > 0], key=lambda d: -d.dias_vencido)[:6],
         'vencidos_pagar': sorted([c for c in por_pagar if c.dias_vencido >= -7], key=lambda d: d.fecha_vencimiento)[:6],
         'stock_bajo': Producto.objects.filter(activo=True, tipo='BIEN', stock__lte=F('stock_minimo'))[:6],
@@ -83,6 +92,61 @@ def empresa_config(request):
         messages.success(request, 'Datos de la empresa actualizados.')
         return redirect('empresa')
     return render(request, 'core/form.html', {'form': form, 'titulo': 'Datos de la empresa'})
+
+
+@login_required
+def facturacion_config(request):
+    cfg = FacturacionConfig.actual()
+    form = FacturacionConfigForm(request.POST or None, instance=cfg)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Configuración de facturación electrónica guardada.')
+        return redirect('facturacion')
+    return render(request, 'core/facturacion.html', {'form': form, 'cfg': cfg})
+
+
+# ---------------------------------------------------------------- tipo de cambio
+@login_required
+def tipos_cambio(request):
+    form = TipoCambioForm(request.POST or None, initial={'fecha': date.today()})
+    if request.method == 'POST':
+        if 'actualizar' in request.POST:
+            dias = int(request.POST.get('dias') or 7)
+            ok = 0
+            for i in range(min(dias, 60)):
+                f = date.today() - timedelta(days=i)
+                valores = tipo_cambio.consultar_sunat(f)
+                if valores:
+                    TipoCambio.objects.update_or_create(fecha=f, defaults={
+                        'compra': valores[0], 'venta': valores[1], 'fuente': 'SUNAT'})
+                    ok += 1
+            if ok:
+                messages.success(request, f'{ok} días actualizados desde SUNAT.')
+            else:
+                messages.error(request, 'No se pudo consultar SUNAT (sin conexión o servicio no disponible). '
+                                        'Puede registrar el tipo de cambio manualmente.')
+            return redirect('tipos_cambio')
+        if form.is_valid():
+            TipoCambio.objects.update_or_create(fecha=form.cleaned_data['fecha'], defaults={
+                'compra': form.cleaned_data['compra'], 'venta': form.cleaned_data['venta'], 'fuente': 'MANUAL'})
+            messages.success(request, 'Tipo de cambio guardado.')
+            return redirect('tipos_cambio')
+    return render(request, 'core/tipos_cambio.html', {
+        'form': form, 'tipos': TipoCambio.objects.all()[:90], 'hoy': tipo_cambio.obtener(date.today())})
+
+
+@login_required
+def tipo_cambio_api(request):
+    """JSON para autocompletar el T.C. en los formularios (?fecha=AAAA-MM-DD)."""
+    try:
+        fecha = date.fromisoformat(request.GET.get('fecha', ''))
+    except ValueError:
+        fecha = date.today()
+    tc = tipo_cambio.obtener(fecha)
+    if not tc:
+        return JsonResponse({'ok': False, 'mensaje': 'Sin tipo de cambio registrado'}, status=404)
+    return JsonResponse({'ok': True, 'fecha': tc.fecha.isoformat(), 'compra': str(tc.compra),
+                         'venta': str(tc.venta), 'fuente': tc.fuente})
 
 
 # ---------------------------------------------------------------- CRUD genérico
@@ -172,12 +236,6 @@ class ProductoNuevo(FormGenerico, CreateView):
 class ProductoEditar(FormGenerico, UpdateView):
     model, form_class, titulo = Producto, ProductoForm, 'Editar producto / servicio'
     success_url = reverse_lazy('productos')
-
-
-@login_required
-def kardex(request, pk):
-    producto = get_object_or_404(Producto, pk=pk)
-    return render(request, 'core/kardex.html', {'producto': producto, 'movs': producto.kardex.all()[:300]})
 
 
 class SerieLista(ListaGenerica):

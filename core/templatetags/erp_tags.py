@@ -33,6 +33,12 @@ def es_numero(valor):
     return isinstance(valor, (int, float, Decimal)) and not isinstance(valor, bool)
 
 
+@register.filter
+def campos(form, nombres):
+    """Campos del formulario indicados por nombre separados por coma (omite los que no existen)."""
+    return [form[n.strip()] for n in nombres.split(',') if n.strip() in form.fields]
+
+
 @register.simple_tag(takes_context=True)
 def qs(context, **kwargs):
     """Mantiene los parámetros GET actuales reemplazando los indicados."""

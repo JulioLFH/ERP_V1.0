@@ -1,4 +1,5 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.management import call_command
@@ -8,6 +9,7 @@ from django.urls import reverse
 from compras.models import Compra
 from core.models import Producto, Tercero
 from finanzas.models import Cuenta, Movimiento
+from logistica.models import GuiaRemision
 from ventas.models import Venta
 
 
@@ -19,6 +21,9 @@ class SmokeTest(TestCase):
 
     def setUp(self):
         self.client.force_login(self.user)
+        p = patch('core.tipo_cambio._consultar', return_value=(Decimal('3.441'), Decimal('3.450')))
+        p.start()
+        self.addCleanup(p.stop)
 
     def test_paginas_cargan(self):
         v, c = Venta.objects.first(), Compra.objects.first()
@@ -30,14 +35,23 @@ class SmokeTest(TestCase):
                 'ventas:importar', 'ventas:cot_lista', 'ventas:cot_nuevo',
                 'finanzas:cuentas', 'finanzas:cuenta_nueva', 'finanzas:movimientos', 'finanzas:movimiento_nuevo',
                 'finanzas:cobranza', 'finanzas:pago', 'finanzas:transferencia', 'finanzas:conciliacion',
-                'finanzas:importar', 'finanzas:flujo']
+                'finanzas:importar', 'finanzas:flujo',
+                'ventas:notas', 'compras:notas', 'tipos_cambio', 'facturacion', 'inv_stock', 'inv_kardex',
+                'inv_ajuste', 'inv_valorizacion', 'almacenes', 'almacen_nuevo', 'logistica:lista',
+                'logistica:nueva', 'logistica:vehiculos', 'logistica:vehiculo_nuevo', 'logistica:conductores',
+                'logistica:conductor_nuevo']
         for nombre in urls:
             r = self.client.get(reverse(nombre))
             self.assertEqual(r.status_code, 200, nombre)
         extras = [
             reverse('ventas:detalle', args=[v.pk]), reverse('ventas:imprimir', args=[v.pk]),
             reverse('ventas:editar', args=[v.pk]), reverse('compras:detalle', args=[c.pk]),
-            reverse('compras:imprimir', args=[c.pk]), reverse('kardex', args=[Producto.objects.first().pk]),
+            reverse('compras:imprimir', args=[c.pk]),
+            reverse('inv_kardex') + f'?producto={Producto.objects.first().pk}',
+            reverse('logistica:nueva') + f'?tipo=09&venta={v.pk}', reverse('logistica:nueva') + '?tipo=31',
+            reverse('logistica:detalle', args=[GuiaRemision.objects.first().pk]),
+            reverse('logistica:imprimir', args=[GuiaRemision.objects.first().pk]),
+            reverse('ventas:notas') + f'?ref={v.pk}', reverse('inv_stock') + '?bajo=1',
             reverse('ventas:nuevo') + f'?ref={v.pk}&tipo=07',
             reverse('finanzas:cobranza') + f'?doc={v.pk}', reverse('finanzas:pago') + f'?doc={c.pk}',
             reverse('finanzas:conciliacion') + f'?cuenta={cuenta.pk}&saldo_banco=1000',

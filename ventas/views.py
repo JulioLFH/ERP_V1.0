@@ -1,12 +1,14 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 
+from core import sunat
 from core.comprobantes import ComprobanteViews, ple_num
 from core.forms import item_formset
-from core.models import Empresa
+from core.models import Empresa, FacturacionConfig
 from core.utils import fmt_fecha, guardar_documento
 
 from .forms import CotizacionForm, VentaForm
@@ -39,6 +41,50 @@ class VentasViews(ComprobanteViews):
             doc.aplicar_stock()
         if doc.cotizacion_id:
             Cotizacion.objects.filter(pk=doc.cotizacion_id).exclude(estado='ANULADO').update(estado='ATENDIDO')
+        cfg = FacturacionConfig.actual()
+        if cfg.activa and cfg.envio_automatico and doc.tipo_comprobante in sunat.TIPO_NUBEFACT:
+            transaction.on_commit(lambda: self._enviar_silencioso(doc.pk))
+
+    @staticmethod
+    def _enviar_silencioso(pk):
+        try:
+            sunat.enviar_comprobante(Venta.objects.get(pk=pk))
+        except sunat.ErrorFacturacion:
+            pass  # queda en estado ERROR con el detalle; se puede reenviar desde el comprobante
+
+    def puede_editar(self, doc):
+        return super().puede_editar(doc) and doc.estado_sunat in ('NO_ENVIADO', 'ERROR', 'RECHAZADO')
+
+    def anular(self, request, pk):
+        doc = get_object_or_404(Venta, pk=pk)
+        if request.method == 'POST' and doc.estado_sunat == 'ACEPTADO' and not doc.movimientos.exists():
+            try:
+                sunat.anular_comprobante(doc, request.POST.get('motivo') or 'ANULACION DE LA OPERACION')
+                messages.info(request, 'Comunicación de baja enviada a SUNAT.')
+            except sunat.ErrorFacturacion as exc:
+                messages.error(request, f'SUNAT: {exc}. El comprobante no se anuló.')
+                return redirect('ventas:detalle', pk)
+        return super().anular(request, pk)
+
+    def enviar_sunat(self, request, pk):
+        doc = get_object_or_404(Venta, pk=pk)
+        if request.method == 'POST':
+            try:
+                if doc.estado_sunat in ('ACEPTADO', 'PENDIENTE') or request.POST.get('accion') == 'consultar':
+                    sunat.consultar_comprobante(doc)
+                else:
+                    sunat.enviar_comprobante(doc)
+                nivel = messages.success if doc.estado_sunat == 'ACEPTADO' else messages.warning
+                nivel(request, f'SUNAT: {doc.get_estado_sunat_display()}. {doc.sunat_descripcion}')
+            except sunat.ErrorFacturacion as exc:
+                messages.error(request, f'Facturación electrónica: {exc}')
+        return redirect('ventas:detalle', pk)
+
+    def urls(self):
+        from django.urls import path
+        return super().urls() + [
+            path('<int:pk>/sunat/', login_required(self.enviar_sunat), name='enviar_sunat'),
+        ]
 
     def linea_ple(self, periodo, n, d):
         """Registro de Ventas e Ingresos 14.1 (estructura PLE SUNAT)."""

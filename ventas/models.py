@@ -1,6 +1,6 @@
 from django.db import models
 
-from core.models import ComprobanteBase, DocumentoBase, ItemBase
+from core.models import ComprobanteBase, DocumentoBase, ElectronicoMixin, ItemBase
 
 
 class Cotizacion(DocumentoBase):
@@ -18,7 +18,7 @@ class CotizacionItem(ItemBase):
     documento = models.ForeignKey(Cotizacion, on_delete=models.CASCADE, related_name='items')
 
 
-class Venta(ComprobanteBase):
+class Venta(ComprobanteBase, ElectronicoMixin):
     MOTIVOS_NC = [
         ('', '---'),
         ('01', '01 Anulación de la operación'),

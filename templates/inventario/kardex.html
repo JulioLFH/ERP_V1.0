@@ -1,0 +1,43 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Kardex valorizado{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Kardex valorizado (costo promedio)</h1>
+<div class="card mb-3"><div class="card-body py-2">
+  <form class="row g-2 align-items-end" method="get">
+    <div class="col-md-4"><label class="form-label small mb-1">Producto</label>
+      <select name="producto" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">— Seleccione —</option>
+        {% for p in productos %}<option value="{{ p.pk }}" {% if producto and producto.pk == p.pk %}selected{% endif %}>{{ p.codigo }} - {{ p.nombre }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Almacén</label>
+      <select name="almacen" class="form-select form-select-sm"><option value="">Todos</option>
+        {% for a in almacenes %}<option value="{{ a.pk }}" {% if almacen and almacen.pk == a.pk %}selected{% endif %}>{{ a.nombre }}</option>{% endfor %}</select></div>
+    <div class="col-auto"><label class="form-label small mb-1">Desde</label><input type="date" name="desde" value="{{ desde }}" class="form-control form-control-sm"></div>
+    <div class="col-auto"><label class="form-label small mb-1">Hasta</label><input type="date" name="hasta" value="{{ hasta }}" class="form-control form-control-sm"></div>
+    <div class="col-auto"><button class="btn btn-sm btn-primary">Ver</button>
+      {% if producto %}<button name="formato" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i> Excel</button>{% endif %}</div>
+  </form>
+</div></div>
+
+{% if producto %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Saldo inicial</div><div class="value fs-5">{{ inicial|money }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Entradas</div><div class="value fs-5 text-success">{{ entradas|money }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Salidas</div><div class="value fs-5 text-danger">{{ salidas|money }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Saldo final</div><div class="value fs-5">{{ final|money }} <small class="text-muted fs-6">{{ producto.unidad }}</small></div></div></div>
+</div>
+<div class="card"><div class="table-responsive">
+  <table class="table table-sm table-bordered table-registro mb-0">
+    <thead><tr><th rowspan="2">Fecha</th><th rowspan="2">Almacén</th><th rowspan="2">Documento / referencia</th><th colspan="3" class="text-center">Entradas</th><th colspan="3" class="text-center">Salidas</th><th colspan="3" class="text-center">Saldo</th></tr>
+      <tr><th class="num">Cant.</th><th class="num">C. unit.</th><th class="num">Total</th><th class="num">Cant.</th><th class="num">C. unit.</th><th class="num">Total</th><th class="num">Cant.</th><th class="num">C. prom.</th><th class="num">Total</th></tr></thead>
+    <tbody>
+      <tr class="text-muted"><td colspan="9">Saldo inicial al {{ desde }}</td><td class="num">{{ inicial|money }}</td><td></td><td></td></tr>
+      {% for f in filas %}
+      <tr><td>{{ f.k.fecha|date:'d/m/Y' }}</td><td>{{ f.k.almacen|default:'' }}</td><td>{{ f.k.referencia }}</td>
+        {% if f.k.tipo == 'ENTRADA' %}<td class="num">{{ f.k.cantidad|money }}</td><td class="num">{{ f.k.costo_unitario|money }}</td><td class="num">{{ f.valor|money }}</td><td></td><td></td><td></td>
+        {% else %}<td></td><td></td><td></td><td class="num">{{ f.k.cantidad|money }}</td><td class="num">{{ f.k.costo_unitario|money }}</td><td class="num">{{ f.valor|money }}</td>{% endif %}
+        <td class="num fw-semibold">{{ f.saldo|money }}</td><td class="num">{{ f.costo_prom|money }}</td><td class="num">{{ f.saldo_valor|money }}</td></tr>
+      {% empty %}<tr><td colspan="12" class="text-center text-muted py-4">Sin movimientos en el rango.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% else %}<div class="alert alert-info">Seleccione un producto para ver su kardex.</div>{% endif %}
+{% endblock %}

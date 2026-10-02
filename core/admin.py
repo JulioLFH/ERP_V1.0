@@ -4,11 +4,11 @@ from compras.models import Compra, CompraItem, OrdenCompra, OrdenCompraItem
 from finanzas.models import Cuenta, Movimiento
 from ventas.models import Cotizacion, CotizacionItem, Venta, VentaItem
 
-from .models import Empresa, Kardex, Producto, Serie, Tercero
+from .models import Almacen, Empresa, FacturacionConfig, Kardex, Producto, Serie, StockAlmacen, Tercero, TipoCambio
 
 admin.site.site_header = 'ERP V1.0 — Administración'
 
-for modelo in (Empresa, Serie, Kardex, Cuenta):
+for modelo in (Empresa, Serie, Kardex, Cuenta, Almacen, StockAlmacen, TipoCambio, FacturacionConfig):
     admin.site.register(modelo)
 
 

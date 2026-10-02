@@ -11,6 +11,9 @@
     <a href="{% url app|add:':lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
     <a href="{% url app|add:':imprimir' doc.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</a>
     {% if puede_editar %}<a href="{% url app|add:':editar' doc.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
+    {% if app == 'ventas' and doc.estado == 'REGISTRADO' and doc.tipo_comprobante in '01 03 12 00' %}
+      <a href="{% url 'logistica:nueva' %}?tipo=09&venta={{ doc.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-truck"></i> Generar guía</a>
+    {% endif %}
     {% if doc.estado == 'REGISTRADO' %}
       {% if doc.saldo > 0 %}
         <a href="{% if app == 'ventas' %}{% url 'finanzas:cobranza' %}{% else %}{% url 'finanzas:pago' %}{% endif %}?doc={{ doc.pk }}" class="btn btn-sm btn-success"><i class="bi bi-cash-coin"></i> Registrar {% if app == 'ventas' %}cobro{% else %}pago{% endif %}</a>
@@ -20,6 +23,7 @@
       <div class="dropdown">
         <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">Más</button>
         <ul class="dropdown-menu dropdown-menu-end">
+          <li><a class="dropdown-item" href="{% url app|add:':notas' %}?ref={{ doc.pk }}"><i class="bi bi-file-earmark-diff"></i> Asistente de notas</a></li>
           <li><a class="dropdown-item" href="{% url app|add:':nuevo' %}?ref={{ doc.pk }}&tipo=07"><i class="bi bi-file-earmark-minus"></i> {% if app == 'ventas' %}Emitir{% else %}Registrar{% endif %} nota de crédito</a></li>
           <li><a class="dropdown-item" href="{% url app|add:':nuevo' %}?ref={{ doc.pk }}&tipo=08"><i class="bi bi-file-earmark-plus"></i> {% if app == 'ventas' %}Emitir{% else %}Registrar{% endif %} nota de débito</a></li>
         </ul>
@@ -61,6 +65,29 @@
   </div>
 
   <div class="col-lg-4">
+    {% if app == 'ventas' and doc.tipo_comprobante in '01 03 07 08' %}
+    <div class="card mb-3 border-{% if doc.estado_sunat == 'ACEPTADO' %}success{% elif doc.estado_sunat == 'RECHAZADO' or doc.estado_sunat == 'ERROR' %}danger{% else %}secondary{% endif %}">
+      <div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-cloud-check"></i> SUNAT</span>
+        <span class="badge {% if doc.estado_sunat == 'ACEPTADO' %}text-bg-success{% elif doc.estado_sunat == 'RECHAZADO' or doc.estado_sunat == 'ERROR' %}text-bg-danger{% elif doc.estado_sunat == 'PENDIENTE' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ doc.get_estado_sunat_display }}</span></div>
+      <div class="card-body small">
+        {% if doc.sunat_descripcion %}<p class="mb-2">{{ doc.sunat_descripcion }}</p>{% endif %}
+        {% if doc.codigo_hash %}<p class="mb-2 text-muted">Hash: {{ doc.codigo_hash }}</p>{% endif %}
+        <div class="d-flex flex-wrap gap-2">
+          {% if doc.enlace_pdf %}<a href="{{ doc.enlace_pdf }}" target="_blank" class="btn btn-sm btn-outline-secondary">PDF</a>{% endif %}
+          {% if doc.enlace_xml %}<a href="{{ doc.enlace_xml }}" target="_blank" class="btn btn-sm btn-outline-secondary">XML</a>{% endif %}
+          {% if doc.enlace_cdr %}<a href="{{ doc.enlace_cdr }}" target="_blank" class="btn btn-sm btn-outline-secondary">CDR</a>{% endif %}
+          {% if doc.estado == 'REGISTRADO' %}
+          <form method="post" action="{% url 'ventas:enviar_sunat' doc.pk %}">{% csrf_token %}
+            {% if doc.estado_sunat == 'ACEPTADO' or doc.estado_sunat == 'PENDIENTE' %}
+              <button name="accion" value="consultar" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Consultar estado</button>
+            {% else %}
+              <button class="btn btn-sm btn-primary"><i class="bi bi-send"></i> {% if doc.estado_sunat == 'NO_ENVIADO' %}Enviar a SUNAT{% else %}Reenviar{% endif %}</button>
+            {% endif %}
+          </form>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
     <div class="card mb-3"><div class="card-body">
       <table class="table table-sm mb-0">
         <tr><td class="text-muted">Emisión</td><td class="text-end">{{ doc.fecha_emision|date:'d/m/Y' }}</td></tr>
@@ -68,6 +95,8 @@
         <tr><td class="text-muted">Forma de pago</td><td class="text-end">{{ doc.get_forma_pago_display }}</td></tr>
         <tr><td class="text-muted">Operación</td><td class="text-end">{{ doc.get_tipo_operacion_display }}</td></tr>
         <tr><td class="text-muted">Moneda / T.C.</td><td class="text-end">{{ doc.moneda }} / {{ doc.tipo_cambio }}</td></tr>
+        {% if doc.almacen %}<tr><td class="text-muted">Almacén</td><td class="text-end">{{ doc.almacen }}</td></tr>{% endif %}
+        {% for gr in doc.guias.all %}<tr><td class="text-muted">Guía de remisión</td><td class="text-end"><a href="{% url 'logistica:detalle' gr.pk %}">{{ gr.numero_completo }}</a></td></tr>{% endfor %}
         {% if app == 'compras' %}<tr><td class="text-muted">Clasificación</td><td class="text-end">{{ doc.get_clasificacion_display }}</td></tr>
         <tr><td class="text-muted">Almacén</td><td class="text-end">{% if doc.stock_aplicado %}Ingresado{% else %}No ingresado{% endif %}</td></tr>
         {% if doc.orden_compra %}<tr><td class="text-muted">Orden de compra</td><td class="text-end"><a href="{% url 'compras:oc_detalle' doc.orden_compra_id %}">{{ doc.orden_compra }}</a></td></tr>{% endif %}{% endif %}

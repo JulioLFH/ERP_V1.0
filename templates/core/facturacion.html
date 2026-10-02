@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Facturación electrónica{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Facturación electrónica (SUNAT)</h1>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card"><div class="card-body">
+    <div class="mb-3">Estado:
+      {% if cfg.activa %}<span class="badge text-bg-success">Conectado con {{ cfg.get_proveedor_display }}</span>
+      {% else %}<span class="badge text-bg-secondary">No configurado</span>{% endif %}</div>
+    <form method="post">{% csrf_token %}
+      <div class="row g-3">{% for field in form %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endfor %}</div>
+      <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>
+    </form>
+  </div></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header">¿Cómo funciona?</div><div class="card-body small">
+    <ol class="mb-3">
+      <li>El ERP envía la factura, boleta, nota o guía a un <b>OSE/PSE autorizado por SUNAT</b> (integración lista para <b>Nubefact</b>).</li>
+      <li>El OSE firma el XML con su certificado, lo envía a SUNAT y devuelve el <b>CDR</b>, el PDF, el hash y el QR.</li>
+      <li>El estado (Aceptado / Rechazado) queda en cada comprobante, con botones para reenviar, consultar o dar de baja.</li>
+    </ol>
+    <p class="mb-2"><b>Para activarlo:</b></p>
+    <ul class="mb-3">
+      <li>Cree una cuenta en <a href="https://www.nubefact.com" target="_blank" rel="noopener">nubefact.com</a>. Hay una cuenta <b>DEMO gratuita</b> para pruebas sin validez tributaria.</li>
+      <li>En su panel de Nubefact: <i>API (integración)</i> → copie la <b>RUTA</b> y el <b>TOKEN</b> aquí.</li>
+      <li>Use las mismas series que tenga habilitadas en Nubefact (F001, B001, T001…), en <a href="{% url 'series' %}">Correlativos</a>.</li>
+      <li>Pruebe primero con la cuenta DEMO; cuando todo salga <b>Aceptado</b>, cambie a la ruta y token de producción.</li>
+    </ul>
+    <div class="alert alert-warning py-2 mb-0">Sin esta configuración el ERP registra e imprime comprobantes, pero <b>no los envía a SUNAT</b>: no tienen validez como comprobantes electrónicos.</div>
+  </div></div></div>
+</div>
+{% endblock %}

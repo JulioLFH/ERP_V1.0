@@ -19,7 +19,7 @@ from django.utils.decorators import method_decorator
 from .forms import item_formset
 from .models import D0, Empresa, Tercero, r2
 from .utils import (a_fecha, excel_response, fmt_fecha, guardar_documento, leer_excel, periodo_actual,
-                    txt_response)
+                    rango_por_defecto, txt_response)
 
 
 def _dec(v):
@@ -96,6 +96,8 @@ class ComprobanteViews:
         initial = {
             'tipo_comprobante': request.GET.get('tipo', '07'), 'doc_referencia': ref.pk, 'tercero': ref.tercero_id,
             'moneda': ref.moneda, 'tipo_cambio': ref.tipo_cambio, 'tipo_operacion': ref.tipo_operacion,
+            'motivo_nota': request.GET.get('motivo', ''), 'almacen': ref.almacen_id,
+            'glosa': request.GET.get('sustento', ''),
         }
         items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,
                   'precio_unitario': i.precio_unitario} for i in ref.items.all()]
@@ -157,13 +159,38 @@ class ComprobanteViews:
             messages.error(request, 'Periodo inválido (formato AAAAMM).')
         return redirect(self._url('detalle', pk))
 
+    # ------------------------------------------------------------ notas de crédito / débito
+    def notas(self, request):
+        """Flujo propio de NC/ND: lista de notas + asistente que parte del comprobante a modificar."""
+        qs = (self.modelo.objects.filter(tipo_comprobante__in=['07', '08'])
+              .select_related('tercero', 'doc_referencia'))
+        q = request.GET.get('q', '').strip()
+        if q:
+            qs = qs.filter(Q(tercero__nombre__icontains=q) | Q(numero__icontains=q) |
+                           Q(doc_referencia__numero__icontains=q))
+        if request.method == 'POST':
+            ref_id, tipo = request.POST.get('referencia'), request.POST.get('tipo')
+            if not ref_id or tipo not in ('07', '08'):
+                messages.error(request, 'Seleccione el comprobante y el tipo de nota.')
+            else:
+                from urllib.parse import urlencode
+                params = urlencode({'ref': ref_id, 'tipo': tipo, 'motivo': request.POST.get('motivo', ''),
+                                    'sustento': request.POST.get('sustento', '')})
+                return redirect(f"{self._url('nuevo')}?{params}")
+        candidatos = (self.modelo.objects.filter(estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
+                      .select_related('tercero').order_by('-fecha_emision')[:300])
+        motivos = getattr(self.modelo, 'MOTIVOS_NC', [])
+        return render(request, 'core/notas.html', self._ctx(
+            page_obj=Paginator(qs, 50).get_page(request.GET.get('page')), q=q, candidatos=candidatos,
+            motivos=[m for m in motivos if m[0]], ref_inicial=request.GET.get('ref', '')))
+
     # ------------------------------------------------------------ registro formal / PLE
     def _registro_qs(self, periodo):
         return (self.modelo.objects.filter(periodo=periodo).select_related('tercero', 'doc_referencia')
                 .order_by('fecha_emision', 'tipo_comprobante', 'serie', 'numero'))
 
     def registro(self, request):
-        periodo = periodo_actual(request)
+        periodo = periodo_actual(request, self.modelo.objects.all())
         docs = list(self._registro_qs(periodo))
         tot = {k: D0 for k in ('base', 'nograv', 'igv', 'total', 'detr', 'ret', 'perc')}
         for d in docs:
@@ -238,9 +265,7 @@ class ComprobanteViews:
 
     # ------------------------------------------------------------ reportes estadísticos
     def reportes(self, request):
-        hoy = date.today()
-        desde = request.GET.get('desde') or hoy.replace(day=1).isoformat()
-        hasta = request.GET.get('hasta') or hoy.isoformat()
+        desde, hasta = rango_por_defecto(request, self.modelo.objects.filter(estado='REGISTRADO'), 'fecha_emision')
         agrupar = request.GET.get('agrupar') or self.agrupaciones[0][0]
         base = self.modelo.objects.filter(estado='REGISTRADO', fecha_emision__range=[desde, hasta])
         if agrupar == 'producto':
@@ -327,6 +352,7 @@ class ComprobanteViews:
             path('<int:pk>/eliminar/', lr(self.eliminar), name='eliminar'),
             path('<int:pk>/trasladar/', lr(self.trasladar), name='trasladar'),
             path('registro/', lr(self.registro), name='registro'),
+            path('notas/', lr(self.notas), name='notas'),
             path('pendientes/', lr(self.pendientes), name='pendientes'),
             path('reportes/', lr(self.reportes), name='reportes'),
             path('importar/', lr(self.importar), name='importar'),

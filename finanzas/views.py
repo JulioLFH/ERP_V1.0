@@ -12,7 +12,7 @@ from django.views.generic import CreateView, UpdateView
 
 from compras.models import Compra
 from core.models import D0, Tercero
-from core.utils import a_fecha, excel_response, fmt_fecha, leer_excel
+from core.utils import a_fecha, excel_response, fmt_fecha, leer_excel, rango_por_defecto
 from core.views import FormGenerico
 from ventas.models import Venta
 
@@ -276,9 +276,7 @@ def importar_extracto(request):
 # ---------------------------------------------------------------- flujo de caja
 @login_required
 def flujo_caja(request):
-    hoy = date.today()
-    desde = request.GET.get('desde') or hoy.replace(day=1).isoformat()
-    hasta = request.GET.get('hasta') or hoy.isoformat()
+    desde, hasta = rango_por_defecto(request, Movimiento.objects.exclude(concepto='TRANSFERENCIA'))
     qs = Movimiento.objects.filter(fecha__range=[desde, hasta]).exclude(concepto='TRANSFERENCIA')
     nombres = dict(Movimiento.CONCEPTOS)
     filas = {}

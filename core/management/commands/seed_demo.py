@@ -6,8 +6,9 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from compras.models import Compra, CompraItem
-from core.models import Empresa, Producto, Serie, Tercero
+from core.models import Almacen, Empresa, Producto, Serie, Tercero
 from finanzas.models import Cuenta, Movimiento
+from logistica.models import Conductor, GuiaItem, GuiaRemision, Vehiculo
 from ventas.models import Venta, VentaItem
 
 
@@ -97,4 +98,33 @@ class Command(BaseCommand):
                                   monto=Decimal('25.50'), glosa='Mantenimiento de cuenta')
         Movimiento.objects.create(cuenta=bcp, fecha=hoy - timedelta(days=4), tipo='EGRESO', concepto='SERVICIOS',
                                   monto=Decimal('480.00'), glosa='Luz del Sur / Sedapal')
+        # ---- logística e inventario
+        emp.ubigeo = '150131'
+        emp.save()
+        principal = Almacen.principal()
+        principal.direccion, principal.ubigeo = emp.direccion, '150131'
+        principal.save()
+        Almacen.objects.create(codigo='ALM02', nombre='Almacén Callao', direccion='Av. Argentina 2450, Callao',
+                               ubigeo='070101', codigo_sunat='0001')
+        for t, ubi in zip(cli, ('060101', '040101', '150101', '150132')):
+            t.ubigeo = ubi
+            t.direccion = t.direccion or 'Av. Principal 100'
+            t.save()
+        Tercero.objects.create(tipo='PROVEEDOR', numero_doc='20601111111', nombre='TRANSPORTES RAPIDOS DEL PERU SAC',
+                               registro_mtc='1554321CNG', direccion='Av. Colonial 1200, Lima', ubigeo='150101')
+        vehiculo = Vehiculo.objects.create(placa='ABC123', marca='Hyundai', modelo='HD78')
+        conductor = Conductor.objects.create(numero_doc='41234567', nombres='Carlos', apellidos='Ramos Quispe',
+                                             licencia='Q41234567')
+        venta = Venta.objects.filter(tipo_comprobante='01').order_by('fecha_emision').first()
+        guia = GuiaRemision.objects.create(
+            tipo='09', serie='T001', numero=Serie.siguiente('09', 'T001')[1], fecha_emision=venta.fecha_emision,
+            fecha_traslado=venta.fecha_emision, motivo_traslado='01', modalidad='02', destinatario=venta.tercero,
+            vehiculo=vehiculo, conductor=conductor, venta=venta, partida_ubigeo='150131',
+            partida_direccion=emp.direccion, llegada_ubigeo=venta.tercero.ubigeo,
+            llegada_direccion=venta.tercero.direccion or 'Av. Principal 100', peso_bruto=Decimal('25'),
+            numero_bultos=4, efecto_stock='NINGUNO', almacen_origen=principal)
+        for i in venta.items.select_related('producto'):
+            if i.producto and i.producto.es_inventariable:
+                GuiaItem.objects.create(documento=guia, producto=i.producto, descripcion=i.descripcion,
+                                        cantidad=i.cantidad, unidad=i.producto.unidad)
         self.stdout.write(self.style.SUCCESS('Datos de demostración cargados.'))

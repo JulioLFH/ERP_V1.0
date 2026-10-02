@@ -14,7 +14,10 @@
   <div class="col-sm-6 col-xl"><div class="kpi d-flex justify-content-between"><div><div class="label">Compras del mes</div><div class="value">S/ {{ compras_mes|money }}</div></div><i class="bi bi-bag text-primary"></i></div></div>
   <div class="col-sm-6 col-xl"><a href="{% url 'ventas:pendientes' %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div><div class="label">Por cobrar</div><div class="value">S/ {{ total_cobrar|money }}</div></div><i class="bi bi-hourglass-split text-warning"></i></div></a></div>
   <div class="col-sm-6 col-xl"><a href="{% url 'compras:pendientes' %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div><div class="label">Por pagar</div><div class="value">S/ {{ total_pagar|money }}</div></div><i class="bi bi-calendar2-x text-danger"></i></div></a></div>
-  <div class="col-sm-6 col-xl"><a href="{% url 'finanzas:cuentas' %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div><div class="label">Caja y bancos (S/)</div><div class="value">S/ {{ saldo_cuentas|money }}</div></div><i class="bi bi-bank text-info"></i></div></a></div>
+  <div class="col-sm-6 col-xl"><a href="{% url 'finanzas:cuentas' %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div>
+    <div class="label">Caja y bancos (consolidado)</div><div class="value">S/ {{ saldo_consolidado|money }}</div>
+    <div class="small text-muted">S/ {{ saldo_pen|money }} + US$ {{ saldo_usd|money }}<br>{% if tc %}T.C. {{ tc.venta }} ({{ tc.fecha|date:'d/m' }}){% else %}Sin T.C. registrado{% endif %}</div>
+  </div><i class="bi bi-bank text-info"></i></div></a></div>
 </div>
 
 <div class="row g-3">
@@ -28,6 +31,11 @@
         {% for c in cuentas %}
         <li class="list-group-item d-flex justify-content-between"><span><i class="bi {% if c.tipo == 'CAJA' %}bi-cash{% else %}bi-bank{% endif %} text-muted"></i> {{ c.nombre }}</span><span class="num fw-semibold">{{ c.simbolo }} {{ c.saldo|money }}</span></li>
         {% empty %}<li class="list-group-item text-muted">Sin cuentas. <a href="{% url 'finanzas:cuenta_nueva' %}">Crear una</a></li>{% endfor %}
+        {% if cuentas %}
+        <li class="list-group-item d-flex justify-content-between small text-muted"><span>Total soles</span><span class="num">S/ {{ saldo_pen|money }}</span></li>
+        <li class="list-group-item d-flex justify-content-between small text-muted"><span>Total dólares</span><span class="num">US$ {{ saldo_usd|money }}</span></li>
+        <li class="list-group-item d-flex justify-content-between fw-bold"><span>Consolidado en S/ {% if tc %}<small class="fw-normal text-muted">(T.C. {{ tc.venta }})</small>{% endif %}</span><span class="num">S/ {{ saldo_consolidado|money }}</span></li>
+        {% endif %}
       </ul></div>
   </div>
 

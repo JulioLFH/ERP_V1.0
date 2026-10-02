@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db import transaction
@@ -12,7 +12,7 @@ def excel_response(nombre, titulo, encabezados, filas):
 
     wb = Workbook()
     ws = wb.active
-    ws.title = titulo[:30]
+    ws.title = ''.join(c for c in titulo if c not in '[]:*?/\\')[:30] or 'Hoja1'
     ws.append([titulo])
     ws['A1'].font = Font(bold=True, size=13)
     ws.append([])
@@ -64,8 +64,35 @@ def a_fecha(valor):
     raise ValueError(f'Fecha inválida: {valor}')
 
 
-def periodo_actual(request):
-    return request.GET.get('periodo') or date.today().strftime('%Y%m')
+def periodo_actual(request, qs=None):
+    """Periodo pedido; si no hay, el actual; y si el actual está vacío, el último con registros."""
+    if request.GET.get('periodo'):
+        return request.GET['periodo']
+    actual = date.today().strftime('%Y%m')
+    if qs is not None and not qs.filter(periodo=actual).exists():
+        ultimo = qs.exclude(periodo='').order_by('-periodo').values_list('periodo', flat=True).first()
+        if ultimo:
+            return ultimo
+    return actual
+
+
+def _fin_de_mes(d):
+    siguiente = (d.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return siguiente - timedelta(days=1)
+
+
+def rango_por_defecto(request, qs=None, campo='fecha'):
+    """(desde, hasta) ISO: lo pedido por GET, si no el mes en curso completo; si ese mes no tiene
+    registros, el mes del último registro."""
+    if request.GET.get('desde') and request.GET.get('hasta'):
+        return request.GET['desde'], request.GET['hasta']
+    hoy = date.today()
+    desde, hasta = hoy.replace(day=1), _fin_de_mes(hoy)
+    if qs is not None and not qs.filter(**{f'{campo}__range': [desde, hasta]}).exists():
+        ultima = qs.order_by(f'-{campo}').values_list(campo, flat=True).first()
+        if ultima:
+            desde, hasta = ultima.replace(day=1), _fin_de_mes(ultima)
+    return desde.isoformat(), hasta.isoformat()
 
 
 def fmt_fecha(f):
@@ -81,7 +108,13 @@ def guardar_documento(request, form_class, formset_class, instance, template, co
         if form.is_valid() and formset.is_valid():
             with transaction.atomic():
                 if instance.pk and getattr(instance, 'stock_aplicado', False):
-                    instance.revertir_stock()  # se vuelve a aplicar con los ítems nuevos en al_guardar
+                    # revertir con los datos guardados (almacén e ítems anteriores); al_guardar vuelve a aplicar
+                    type(instance).objects.get(pk=instance.pk).revertir_stock()
+                    instance.stock_aplicado = False
+                if getattr(instance, 'moneda', None) == 'USD' and instance.tipo_cambio in (None, 0, 1):
+                    from .tipo_cambio import venta_del_dia
+                    fecha = getattr(instance, 'fecha_emision', None) or getattr(instance, 'fecha', None)
+                    instance.tipo_cambio = venta_del_dia(fecha)
                 doc = form.save()
                 formset.instance = doc
                 formset.save()
@@ -98,7 +131,7 @@ def guardar_documento(request, form_class, formset_class, instance, template, co
         else:
             formset = formset_class(instance=form.instance)
     from .models import Producto
-    productos = list(Producto.objects.filter(activo=True).values('id', 'nombre', 'precio_venta', 'costo_promedio'))
+    productos = list(Producto.objects.filter(activo=True).values('id', 'nombre', 'unidad', 'precio_venta', 'costo_promedio'))
     contexto.update(form=form, formset=formset, productos=productos)
     return render(request, template, contexto)
 
@@ -108,5 +141,6 @@ def doc_detalle_url(doc):
     nombres = {
         'compra': 'compras:detalle', 'ordencompra': 'compras:oc_detalle',
         'venta': 'ventas:detalle', 'cotizacion': 'ventas:cot_detalle',
+        'guiaremision': 'logistica:detalle',
     }
     return reverse(nombres[doc._meta.model_name], args=[doc.pk])
