@@ -1,3 +1,5 @@
+from django.conf import settings
+
 from .models import Empresa
 from .modulos import MODULOS, POR_CLAVE, menu_de, modulos_del_usuario
 
@@ -10,6 +12,7 @@ def empresa(request):
     modulo = POR_CLAVE.get(clave)
     return {
         'empresa': Empresa.actual(),
+        'erp_version': settings.ERP_VERSION,
         'mods': mods,
         'apps': [m for m in MODULOS if m['clave'] in mods],
         'modulo': modulo,
