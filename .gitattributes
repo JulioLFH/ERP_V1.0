@@ -1,2 +1,6 @@
 *.sh text eol=lf
 Procfile text eol=lf
+
+*.pdf binary
+*.xlsx binary
+*.png binary
