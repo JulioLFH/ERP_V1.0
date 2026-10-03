@@ -104,6 +104,11 @@ def empresa_config(request):
 @login_required
 def facturacion_config(request):
     cfg = FacturacionConfig.actual()
+    if request.method == 'POST' and request.POST.get('accion') == 'probar':
+        from .sunat import probar_conexion
+        ok, mensaje = probar_conexion()
+        (messages.success if ok else messages.error)(request, mensaje)
+        return redirect('facturacion')
     form = FacturacionConfigForm(request.POST or None, instance=cfg)
     if request.method == 'POST' and form.is_valid():
         form.save()

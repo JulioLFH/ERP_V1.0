@@ -1,6 +1,7 @@
 from django import forms
 
 from core.forms import BootstrapMixin, validar_periodo_abierto
+from core.sunat import DETRACCION_TIPOS
 from core.models import Serie, Tercero
 
 from .models import Cotizacion, Venta
@@ -13,9 +14,10 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         model = Venta
         fields = ['tipo_comprobante', 'serie', 'numero', 'tercero', 'fecha_emision', 'fecha_vencimiento',
                   'forma_pago', 'moneda', 'tipo_cambio', 'tipo_operacion', 'detraccion_pct', 'retencion_pct',
-                  'percepcion_pct', 'icbper', 'vendedor', 'cotizacion', 'doc_referencia', 'motivo_nota',
-                  'descontar_stock', 'almacen', 'glosa']
-        widgets = {'glosa': forms.Textarea(attrs={'rows': 2})}
+                  'percepcion_pct', 'icbper', 'detraccion_codigo', 'vendedor', 'cotizacion', 'doc_referencia',
+                  'motivo_nota', 'descontar_stock', 'almacen', 'glosa']
+        widgets = {'glosa': forms.Textarea(attrs={'rows': 2}),
+                   'detraccion_codigo': forms.Select(choices=[('', '---')] + DETRACCION_TIPOS)}
         labels = {'tercero': 'Cliente', 'numero': 'Número (vacío = automático)'}
         help_texts = {'serie': 'Vacío = serie por defecto del tipo'}
 
@@ -48,6 +50,19 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         validar_periodo_abierto(self, 'fecha_emision', self.instance.periodo if self.instance.pk else None)
         return data
 
+    def clean_serie(self):
+        serie = (self.cleaned_data.get('serie') or '').upper().strip()
+        tipo = self.data.get('tipo_comprobante') or self.instance.tipo_comprobante
+        letra = _letra_serie(tipo, self._referencia())
+        if serie and letra and not self.instance.pk and (not serie.startswith(letra) or len(serie) != 4):
+            raise forms.ValidationError(f'Para este comprobante la serie debe tener 4 caracteres y empezar con '
+                                        f'"{letra}" (ej. {letra}001).')
+        return serie
+
+    def _referencia(self):
+        ref_id = self.data.get('doc_referencia')
+        return Venta.objects.filter(pk=ref_id).first() if ref_id else self.instance.doc_referencia
+
     def validate_unique(self):
         # el número se asigna en save() cuando está vacío
         if self.instance.numero:
@@ -57,12 +72,34 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         venta = self.instance
         if not venta.pk:
             tipo = venta.tipo_comprobante
-            venta.serie = (venta.serie or '').upper() or (
-                Serie.objects.filter(tipo=tipo, activo=True).values_list('serie', flat=True).first()
-                or SERIES_DEFECTO.get(tipo, 'S001'))
+            venta.serie = (venta.serie or '').upper() or _serie_defecto(tipo, venta.doc_referencia)
             if not venta.numero:
                 venta.serie, venta.numero = Serie.siguiente(tipo, venta.serie)
         return super().save(commit)
+
+
+def _letra_serie(tipo, referencia=None):
+    """SUNAT: facturas y sus notas empiezan con F; boletas y sus notas con B."""
+    if tipo == '01':
+        return 'F'
+    if tipo == '03':
+        return 'B'
+    if tipo in ('07', '08'):
+        return 'B' if referencia and referencia.tipo_comprobante == '03' else 'F'
+    return ''
+
+
+def _serie_defecto(tipo, referencia=None):
+    letra = _letra_serie(tipo, referencia)
+    qs = Serie.objects.filter(tipo=tipo, activo=True)
+    if letra:
+        qs = qs.filter(serie__startswith=letra)
+    propia = qs.values_list('serie', flat=True).first()
+    if propia:
+        return propia
+    if tipo in ('07', '08'):
+        return f'{letra}{"C" if tipo == "07" else "D"}01'
+    return SERIES_DEFECTO.get(tipo, 'S001')
 
 
 class CotizacionForm(BootstrapMixin, forms.ModelForm):

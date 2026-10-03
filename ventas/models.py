@@ -21,9 +21,9 @@ class CotizacionItem(ItemBase):
 class Venta(ComprobanteBase, ElectronicoMixin):
     MOTIVOS_NC = [
         ('', '---'),
-        ('01', '01 Anulación de la operación'),
-        ('02', '02 Anulación por error en el RUC'),
-        ('03', '03 Corrección por error en la descripción'),
+        ('01', '01 NC: Anulación de la operación / ND: Intereses por mora'),
+        ('02', '02 NC: Anulación por error en el RUC / ND: Aumento de valor'),
+        ('03', '03 NC: Corrección por error en la descripción / ND: Penalidades'),
         ('04', '04 Descuento global'),
         ('06', '06 Devolución total'),
         ('07', '07 Devolución por ítem'),
@@ -36,6 +36,8 @@ class Venta(ComprobanteBase, ElectronicoMixin):
                                        related_name='notas', verbose_name='Doc. que modifica (NC/ND)')
     motivo_nota = models.CharField('Motivo NC/ND', max_length=2, choices=MOTIVOS_NC, blank=True)
     vendedor = models.CharField(max_length=80, blank=True)
+    detraccion_codigo = models.CharField('Bien/servicio con detracción', max_length=3, blank=True, default='35',
+                                         help_text='Catálogo 54 SUNAT; solo si la venta tiene detracción')
     descontar_stock = models.BooleanField('Mover almacén', default=True)
 
     class Meta(ComprobanteBase.Meta):

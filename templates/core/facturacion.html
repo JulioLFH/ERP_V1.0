@@ -11,6 +11,11 @@
       <div class="row g-3">{% for field in form %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endfor %}</div>
       <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>
     </form>
+    {% if cfg.activa %}
+    <form method="post" class="mt-2">{% csrf_token %}
+      <button name="accion" value="probar" class="btn btn-outline-success"><i class="bi bi-plug"></i> Probar conexión con Nubefact</button>
+    </form>
+    {% endif %}
   </div></div></div>
   <div class="col-lg-6"><div class="card"><div class="card-header">¿Cómo funciona?</div><div class="card-body small">
     <ol class="mb-3">
@@ -22,7 +27,8 @@
     <ul class="mb-3">
       <li>Cree una cuenta en <a href="https://www.nubefact.com" target="_blank" rel="noopener">nubefact.com</a>. Hay una cuenta <b>DEMO gratuita</b> para pruebas sin validez tributaria.</li>
       <li>En su panel de Nubefact: <i>API (integración)</i> → copie la <b>RUTA</b> y el <b>TOKEN</b> aquí.</li>
-      <li>Use las mismas series que tenga habilitadas en Nubefact (F001, B001, T001…), en <a href="{% url 'series' %}">Correlativos</a>.</li>
+      <li>Use las mismas series que tenga habilitadas en Nubefact, en <a href="{% url 'series' %}">Correlativos</a>. SUNAT exige 4 caracteres: facturas y sus notas empiezan con <b>F</b>, boletas y sus notas con <b>B</b>, guías remitente con <b>T</b> y guías transportista con <b>V</b>.</li>
+      <li>Las guías se envían en dos pasos: el sistema las envía y consulta la respuesta de SUNAT. Si queda "Pendiente", use <b>Consultar</b> en unos minutos.</li>
       <li>Pruebe primero con la cuenta DEMO; cuando todo salga <b>Aceptado</b>, cambie a la ruta y token de producción.</li>
     </ul>
     <div class="alert alert-warning py-2 mb-0">Sin esta configuración el ERP registra e imprime comprobantes, pero <b>no los envía a SUNAT</b>: no tienen validez como comprobantes electrónicos.</div>
