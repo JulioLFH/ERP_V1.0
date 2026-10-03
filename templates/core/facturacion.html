@@ -19,7 +19,7 @@
   </div></div></div>
   <div class="col-lg-6"><div class="card"><div class="card-header">¿Cómo funciona?</div><div class="card-body small">
     <ol class="mb-3">
-      <li>El ERP envía la factura, boleta, nota o guía a un <b>OSE/PSE autorizado por SUNAT</b> (integración lista para <b>Nubefact</b>).</li>
+      <li>{{ erp_nombre }} envía la factura, boleta, nota o guía a un <b>OSE/PSE autorizado por SUNAT</b> (integración lista para <b>Nubefact</b>).</li>
       <li>El OSE firma el XML con su certificado, lo envía a SUNAT y devuelve el <b>CDR</b>, el PDF, el hash y el QR.</li>
       <li>El estado (Aceptado / Rechazado) queda en cada comprobante, con botones para reenviar, consultar o dar de baja.</li>
     </ol>
@@ -31,7 +31,7 @@
       <li>Las guías se envían en dos pasos: el sistema las envía y consulta la respuesta de SUNAT. Si queda "Pendiente", use <b>Consultar</b> en unos minutos.</li>
       <li>Pruebe primero con la cuenta DEMO; cuando todo salga <b>Aceptado</b>, cambie a la ruta y token de producción.</li>
     </ul>
-    <div class="alert alert-warning py-2 mb-0">Sin esta configuración el ERP registra e imprime comprobantes, pero <b>no los envía a SUNAT</b>: no tienen validez como comprobantes electrónicos.</div>
+    <div class="alert alert-warning py-2 mb-0">Sin esta configuración {{ erp_nombre }} registra e imprime comprobantes, pero <b>no los envía a SUNAT</b>: no tienen validez como comprobantes electrónicos.</div>
   </div></div></div>
 </div>
 {% endblock %}

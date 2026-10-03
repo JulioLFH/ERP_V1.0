@@ -1,7 +1,10 @@
-# Historial de versiones — ERP
+# Historial de versiones — CEIVA ERP
 
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
+
+## v1.4.1 — 03/10/2026 · Nuevo nombre: CEIVA ERP
+- El sistema se llama **CEIVA ERP**: inicio de sesión, barra superior, pestaña del navegador, pie de página, administración, impresiones e iniciar.bat. El nombre se define en un solo lugar (ERP_NOMBRE en erp/settings.py).
 
 ## v1.4.0 — 03/10/2026 · Corrección de los hallazgos del informe de QA
 **Inventario**

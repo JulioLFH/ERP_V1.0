@@ -7,8 +7,8 @@ from ventas.models import Cotizacion, CotizacionItem, Venta, VentaItem
 
 from .models import Almacen, Empresa, FacturacionConfig, Kardex, Producto, Serie, StockAlmacen, Tercero, TipoCambio
 
-admin.site.site_header = f'ERP v{settings.ERP_VERSION} — Administración'
-admin.site.site_title = f'ERP v{settings.ERP_VERSION}'
+admin.site.site_header = f'{settings.ERP_NOMBRE} v{settings.ERP_VERSION} — Administración'
+admin.site.site_title = f'{settings.ERP_NOMBRE} v{settings.ERP_VERSION}'
 
 for modelo in (Empresa, Serie, Kardex, Cuenta, Almacen, StockAlmacen, TipoCambio, FacturacionConfig):
     admin.site.register(modelo)

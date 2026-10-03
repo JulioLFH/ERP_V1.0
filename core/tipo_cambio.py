@@ -20,7 +20,7 @@ API_URL = 'https://api.apis.net.pe/v1/tipo-cambio-sunat?fecha={fecha}'
 def _consultar(fecha):
     """(compra, venta) o None si SUNAT no publicó esa fecha. Lanza excepción si no hay conexión."""
     req = urllib.request.Request(API_URL.format(fecha=fecha.isoformat()),
-                                 headers={'User-Agent': 'ERP-V1', 'Accept': 'application/json'})
+                                 headers={'User-Agent': 'CEIVA-ERP', 'Accept': 'application/json'})
     with urllib.request.urlopen(req, timeout=6) as resp:
         data = json.loads(resp.read().decode('utf-8'))
     compra, venta = data.get('compra'), data.get('venta')
