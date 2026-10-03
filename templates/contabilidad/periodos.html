@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Centralización contable{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Centralización contable por periodo</h1>
+  <a href="{% url 'contabilidad:asiento_nuevo' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Asiento manual</a>
+</div>
+<div class="alert alert-info small">
+  <b>Centralizar</b> genera los asientos de compras (libro 08), ventas (14), caja y bancos (01) y el costo de ventas del kardex (05), con sus destinos automáticos.
+  Si corrige un documento, vuelva a centralizar: los asientos automáticos del periodo se regeneran y los <b>manuales se conservan</b>.
+  Un periodo <b>cerrado</b> no admite cambios contables.
+</div>
+<div class="card"><div class="table-responsive">
+  <table class="table table-hover mb-0 align-middle">
+    <thead><tr><th>Periodo</th><th class="num">Compras</th><th class="num">Ventas</th><th class="num">Mov. caja/bancos</th><th class="num">Asientos</th><th>Última centralización</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+    {% for f in filas %}
+      <tr>
+        <td class="fw-semibold">{{ f.periodo|slice:"4:" }}/{{ f.periodo|slice:":4" }}</td>
+        <td class="num">{{ f.compras }}</td><td class="num">{{ f.ventas }}</td><td class="num">{{ f.movs }}</td>
+        <td class="num"><a href="{% url 'contabilidad:asientos' %}?periodo={{ f.periodo }}">{{ f.asientos }}</a></td>
+        <td class="small text-muted">{{ f.estado.fecha_centralizacion|date:'d/m/Y H:i'|default:'—' }}</td>
+        <td>{% if f.estado.cerrado %}<span class="badge text-bg-dark"><i class="bi bi-lock"></i> Cerrado</span>{% else %}<span class="badge text-bg-light">Abierto</span>{% endif %}</td>
+        <td class="text-end text-nowrap">
+          <form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="periodo" value="{{ f.periodo }}">
+            {% if not f.estado.cerrado %}
+              <button name="accion" value="centralizar" class="btn btn-sm btn-primary"><i class="bi bi-arrow-repeat"></i> Centralizar</button>
+              <button name="accion" value="cerrar" class="btn btn-sm btn-outline-dark" onclick="return confirm('¿Cerrar el periodo {{ f.periodo }}? No se podrán modificar sus asientos.')"><i class="bi bi-lock"></i></button>
+            {% else %}
+              <button name="accion" value="abrir" class="btn btn-sm btn-outline-secondary"><i class="bi bi-unlock"></i> Reabrir</button>
+            {% endif %}
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

@@ -1,6 +1,6 @@
 from django import forms
 
-from core.forms import BootstrapMixin
+from core.forms import BootstrapMixin, validar_periodo_abierto
 from core.models import Serie, Tercero
 
 from .models import Cotizacion, Venta
@@ -45,6 +45,7 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         tercero = data.get('tercero')
         if tipo == '01' and tercero and tercero.tipo_doc != '6':
             self.add_error('tercero', 'Las facturas requieren un cliente con RUC.')
+        validar_periodo_abierto(self, 'fecha_emision', self.instance.periodo if self.instance.pk else None)
         return data
 
     def validate_unique(self):

@@ -1,0 +1,40 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Balance de comprobación{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Balance de comprobación (hoja de trabajo)</h1>
+  <form class="d-flex flex-wrap gap-2" method="get">
+    <input type="month" name="desde" value="{{ mes_desde }}" class="form-control form-control-sm" style="width:auto">
+    <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm" style="width:auto">
+    <select name="nivel" class="form-select form-select-sm" style="width:auto">
+      <option value="0" {% if nivel == 0 %}selected{% endif %}>Detalle</option>
+      <option value="2" {% if nivel == 2 %}selected{% endif %}>Cuenta mayor (2 dígitos)</option>
+      <option value="3" {% if nivel == 3 %}selected{% endif %}>Subcuenta (3 dígitos)</option>
+    </select>
+    <button class="btn btn-sm btn-primary">Ver</button>
+    <button name="formato" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i></button>
+  </form>
+</div>
+<div class="card"><div class="table-responsive">
+  <table class="table table-sm table-bordered table-registro mb-0">
+    <thead>
+      <tr><th rowspan="2">Cuenta</th><th rowspan="2">Denominación</th><th colspan="2" class="text-center">Sumas</th><th colspan="2" class="text-center">Saldos</th><th colspan="2" class="text-center">Inventario (balance)</th><th colspan="2" class="text-center">Resultados por naturaleza</th><th colspan="2" class="text-center">Resultados por función</th></tr>
+      <tr><th class="num">Debe</th><th class="num">Haber</th><th class="num">Deudor</th><th class="num">Acreedor</th><th class="num">Activo</th><th class="num">Pasivo y pat.</th><th class="num">Pérdidas</th><th class="num">Ganancias</th><th class="num">Pérdidas</th><th class="num">Ganancias</th></tr>
+    </thead>
+    <tbody>
+    {% for f in filas %}
+      <tr><td>{{ f.codigo }}</td><td>{{ f.nombre|truncatechars:38 }}</td>
+        <td class="num">{{ f.d|money }}</td><td class="num">{{ f.h|money }}</td><td class="num">{% if f.sd %}{{ f.sd|money }}{% endif %}</td><td class="num">{% if f.sa %}{{ f.sa|money }}{% endif %}</td>
+        <td class="num">{% if f.activo %}{{ f.activo|money }}{% endif %}</td><td class="num">{% if f.pasivo %}{{ f.pasivo|money }}{% endif %}</td>
+        <td class="num">{% if f.nat_p %}{{ f.nat_p|money }}{% endif %}</td><td class="num">{% if f.nat_g %}{{ f.nat_g|money }}{% endif %}</td>
+        <td class="num">{% if f.fun_p %}{{ f.fun_p|money }}{% endif %}</td><td class="num">{% if f.fun_g %}{{ f.fun_g|money }}{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="12" class="text-center text-muted py-4">Sin movimientos contables en el rango.</td></tr>{% endfor %}
+    </tbody>
+    <tfoot class="fw-bold">
+      <tr><td colspan="2" class="text-end">TOTALES</td><td class="num">{{ tot.d|money }}</td><td class="num">{{ tot.h|money }}</td><td class="num">{{ tot.sd|money }}</td><td class="num">{{ tot.sa|money }}</td><td class="num">{{ tot.activo|money }}</td><td class="num">{{ tot.pasivo|money }}</td><td class="num">{{ tot.nat_p|money }}</td><td class="num">{{ tot.nat_g|money }}</td><td class="num">{{ tot.fun_p|money }}</td><td class="num">{{ tot.fun_g|money }}</td></tr>
+      <tr class="text-muted"><td colspan="6" class="text-end">Resultado del ejercicio</td><td colspan="2" class="text-center">{{ tot.res_bal|money }}</td><td colspan="2" class="text-center">{{ tot.res_nat|money }}</td><td colspan="2" class="text-center">{{ tot.res_fun|money }}</td></tr>
+    </tfoot>
+  </table>
+</div></div>
+<p class="small text-muted mt-2">Los tres resultados deben coincidir. Si difieren, revise las cuentas de gasto sin destino (clase 9 / 79) o las compras de mercadería sin el destino 20 / 61. La cuenta 79 solo aparece en sumas y saldos.</p>
+{% endblock %}

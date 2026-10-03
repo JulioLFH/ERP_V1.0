@@ -21,6 +21,9 @@ class Cuenta(models.Model):
     cci = models.CharField('CCI', max_length=30, blank=True)
     moneda = models.CharField(max_length=3, choices=MONEDAS, default='PEN')
     es_detracciones = models.BooleanField('Cuenta de detracciones', default=False)
+    cuenta_contable = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                        blank=True, related_name='+', limit_choices_to={'imputable': True},
+                                        help_text='Ej. 1011 Caja, 1041 Cuenta corriente. Vacío = cuenta por defecto')
     saldo_inicial = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
     activo = models.BooleanField(default=True)
 
@@ -84,6 +87,12 @@ class Movimiento(models.Model):
     compra = models.ForeignKey('compras.Compra', on_delete=models.PROTECT, null=True, blank=True, related_name='movimientos')
     monto = models.DecimalField(max_digits=14, decimal_places=2)
     glosa = models.CharField(max_length=250, blank=True)
+    cuenta_contable = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                        blank=True, related_name='+', limit_choices_to={'imputable': True},
+                                        verbose_name='Cuenta contable (contrapartida)',
+                                        help_text='Vacío = según el concepto (Contabilidad > Configuración)')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
+                                     verbose_name='Centro de costo')
     conciliado = models.BooleanField(default=False)
     fecha_conciliacion = models.DateField(null=True, blank=True)
     transferencia_par = models.OneToOneField('self', on_delete=models.SET_NULL, null=True, blank=True)

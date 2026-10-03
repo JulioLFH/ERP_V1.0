@@ -6,6 +6,19 @@ from django.forms import inlineformset_factory
 from .models import Almacen, Empresa, FacturacionConfig, Producto, Serie, TipoCambio, Tercero
 
 
+def periodo_cerrado(periodo):
+    """True si el periodo contable (AAAAMM) está cerrado."""
+    from contabilidad.models import PeriodoContable
+    return bool(periodo) and PeriodoContable.esta_cerrado(periodo)
+
+
+def validar_periodo_abierto(form, campo_fecha, periodo=None):
+    fecha = form.cleaned_data.get(campo_fecha)
+    periodo = periodo or (fecha.strftime('%Y%m') if fecha else '')
+    if periodo_cerrado(periodo):
+        form.add_error(campo_fecha, f'El periodo contable {periodo[4:]}/{periodo[:4]} está cerrado.')
+
+
 class BootstrapMixin:
     """Aplica clases Bootstrap a todos los widgets."""
 

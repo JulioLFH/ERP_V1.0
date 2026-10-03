@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Plan de cuentas{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Plan de cuentas (PCGE)</h1>
+  <div class="d-flex gap-2">
+    <form method="post">{% csrf_token %}<button name="accion" value="cargar_pcge" class="btn btn-sm btn-outline-secondary" title="Agrega las cuentas del PCGE que falten"><i class="bi bi-cloud-download"></i> Completar PCGE</button></form>
+    <a href="?formato=ple" class="btn btn-sm btn-dark"><i class="bi bi-filetype-txt"></i> TXT PLE 5.3</a>
+    <a href="{% url 'contabilidad:cuenta_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva cuenta</a>
+  </div>
+</div>
+<div class="card">
+  <div class="card-body border-bottom py-2">
+    <form class="row g-2" method="get">
+      <div class="col-md-4"><input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Código o nombre"></div>
+      <div class="col-auto"><select name="clase" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todas las clases</option>
+        {% for c in '0123456789' %}<option value="{{ c }}" {% if clase == c %}selected{% endif %}>Clase {{ c }}</option>{% endfor %}</select></div>
+      <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></div>
+    </form>
+  </div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+    <thead><tr><th>Código</th><th>Denominación</th><th>Naturaleza</th><th>Movimientos</th><th>Destino debe / haber</th><th></th></tr></thead>
+    <tbody>
+    {% for c in cuentas %}
+      <tr {% if not c.imputable %}class="fw-semibold table-light"{% endif %}>
+        <td style="padding-left: {{ c.nivel }}ex">{{ c.codigo }}</td><td>{{ c.nombre }}</td>
+        <td class="small">{{ c.get_naturaleza_display }}</td>
+        <td>{% if c.imputable %}<span class="badge text-bg-success">Sí</span>{% else %}<span class="badge text-bg-light">Agrupa</span>{% endif %}</td>
+        <td class="small">{% if c.destino_debe %}{{ c.destino_debe.codigo }} / {{ c.destino_haber.codigo }}{% endif %}</td>
+        <td class="text-end"><a href="{% url 'contabilidad:cuenta_editar' c.pk %}" class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-pencil"></i></a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

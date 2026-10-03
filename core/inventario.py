@@ -104,7 +104,8 @@ def ajuste(request):
         cantidad = d['cantidad'] if d['tipo'] == 'ENTRADA' else -d['cantidad']
         costo = d['costo_unitario'] if d['tipo'] == 'ENTRADA' and d['costo_unitario'] is not None else None
         with transaction.atomic():
-            p.mover_stock(cantidad, f'Ajuste: {d["motivo"]}', costo=costo, fecha=d['fecha'], almacen=d['almacen'])
+            p.mover_stock(cantidad, f'Ajuste: {d["motivo"]}', costo=costo, fecha=d['fecha'], almacen=d['almacen'],
+                          origen='AJUSTE')
         messages.success(request, f'Ajuste registrado. Stock de {p.nombre}: {p.stock}')
         return redirect(f"{reverse('inv_kardex')}?producto={p.pk}")
     ultimos = Kardex.objects.filter(referencia__startswith='Ajuste').select_related('producto', 'almacen')[:20]

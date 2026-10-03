@@ -1,0 +1,23 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Estado de resultados{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Estado de resultados (por función)</h1>
+    <div class="text-muted small">{{ empresa.razon_social }} · de {{ desde|slice:"4:" }}/{{ desde|slice:":4" }} a {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }} · en soles</div></div>
+  <form class="d-flex gap-2 d-print-none" method="get">
+    <input type="month" name="desde" value="{{ mes_desde }}" class="form-control form-control-sm">
+    <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm">
+    <button class="btn btn-sm btn-primary">Ver</button>
+    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i></button>
+  </form>
+</div>
+<div class="card" style="max-width:720px"><div class="card-body">
+  <table class="table table-sm mb-0">
+    {% for nombre, valor, estilo in lineas %}
+      <tr class="{% if estilo == 'subtotal' %}fw-semibold border-top{% elif estilo == 'total' %}fw-bold fs-6 table-light{% elif estilo == 'alerta' %}text-warning-emphasis{% endif %}">
+        <td {% if not estilo %}class="ps-4"{% endif %}>{{ nombre }}{% if estilo == 'alerta' %} <i class="bi bi-exclamation-triangle" title="Cuentas de gasto sin destino 9x / 79"></i>{% endif %}</td>
+        <td class="num {% if valor < 0 %}text-danger{% endif %}">{{ valor|money }}</td></tr>
+    {% endfor %}
+  </table>
+</div></div>
+{% endblock %}

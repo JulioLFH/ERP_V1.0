@@ -152,7 +152,7 @@ class GuiaRemision(ElectronicoMixin):
             if item.producto and item.producto.es_inventariable:
                 for almacen, signo in movs:
                     item.producto.mover_stock(signo * item.cantidad, str(self), fecha=self.fecha_traslado,
-                                              almacen=almacen or Almacen.principal())
+                                              almacen=almacen or Almacen.principal(), origen='GUIA')
         self.stock_aplicado = True
         self.save(update_fields=['stock_aplicado'])
 
@@ -163,7 +163,7 @@ class GuiaRemision(ElectronicoMixin):
             if item.producto and item.producto.es_inventariable:
                 for almacen, signo in self._movimientos_stock():
                     item.producto.mover_stock(-signo * item.cantidad, f'Reversión {self}',
-                                              fecha=timezone.localdate(), almacen=almacen or Almacen.principal())
+                                              fecha=timezone.localdate(), almacen=almacen or Almacen.principal(), origen='GUIA')
         self.stock_aplicado = False
         self.save(update_fields=['stock_aplicado'])
 

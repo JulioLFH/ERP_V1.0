@@ -1,0 +1,44 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Estado de situación financiera{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Estado de situación financiera</h1>
+    <div class="text-muted small">{{ empresa.razon_social }} · al cierre de {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }} · en soles</div></div>
+  <form class="d-flex gap-2 d-print-none" method="get">
+    <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm">
+    <button class="btn btn-sm btn-primary">Ver</button>
+    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i></button>
+  </form>
+</div>
+{% if t.diferencia %}<div class="alert alert-warning small">Diferencia de S/ {{ t.diferencia|money }} entre activo y pasivo + patrimonio. Revise compras de mercadería sin destino 20/61, asientos manuales en clase 6 o 9 sin contrapartida, o centralice los periodos pendientes.</div>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-body">
+    <table class="table table-sm mb-0">
+      <tr class="table-light fw-bold"><td colspan="2">ACTIVO</td></tr>
+      <tr><td colspan="2" class="fw-semibold text-muted small">Activo corriente</td></tr>
+      {% for n, v in activo.corriente %}<tr><td class="ps-3">{{ n }}</td><td class="num">{{ v|money }}</td></tr>{% endfor %}
+      <tr class="fw-semibold"><td>Total activo corriente</td><td class="num">{{ t.ac|money }}</td></tr>
+      <tr><td colspan="2" class="fw-semibold text-muted small">Activo no corriente</td></tr>
+      {% for n, v in activo.no_corriente %}<tr><td class="ps-3">{{ n }}</td><td class="num">{{ v|money }}</td></tr>{% endfor %}
+      <tr class="fw-semibold"><td>Total activo no corriente</td><td class="num">{{ t.anc|money }}</td></tr>
+      <tr class="fw-bold fs-6 border-top border-dark"><td>TOTAL ACTIVO</td><td class="num">{{ t.activo|money }}</td></tr>
+    </table>
+  </div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-body">
+    <table class="table table-sm mb-0">
+      <tr class="table-light fw-bold"><td colspan="2">PASIVO</td></tr>
+      <tr><td colspan="2" class="fw-semibold text-muted small">Pasivo corriente</td></tr>
+      {% for n, v in pasivo.corriente %}<tr><td class="ps-3">{{ n }}</td><td class="num">{{ v|money }}</td></tr>{% endfor %}
+      <tr class="fw-semibold"><td>Total pasivo corriente</td><td class="num">{{ t.pc|money }}</td></tr>
+      {% if pasivo.no_corriente %}{% for n, v in pasivo.no_corriente %}<tr><td class="ps-3">{{ n }}</td><td class="num">{{ v|money }}</td></tr>{% endfor %}
+      <tr class="fw-semibold"><td>Total pasivo no corriente</td><td class="num">{{ t.pnc|money }}</td></tr>{% endif %}
+      <tr class="fw-semibold"><td>TOTAL PASIVO</td><td class="num">{{ t.pasivo|money }}</td></tr>
+      <tr class="table-light fw-bold"><td colspan="2">PATRIMONIO</td></tr>
+      {% for n, v in patrimonio %}<tr><td class="ps-3">{{ n }}</td><td class="num">{{ v|money }}</td></tr>{% endfor %}
+      <tr class="fw-semibold"><td>Total patrimonio</td><td class="num">{{ t.pat|money }}</td></tr>
+      <tr class="fw-bold fs-6 border-top border-dark"><td>TOTAL PASIVO Y PATRIMONIO</td><td class="num">{{ t.pasivo_pat|money }}</td></tr>
+    </table>
+  </div></div></div>
+</div>
+<p class="small text-muted mt-2">Saldos acumulados de las clases 1 a 5. El resultado del ejercicio se calcula desde enero del año seleccionado. El capital y los saldos iniciales se registran con un asiento manual de apertura.</p>
+{% endblock %}

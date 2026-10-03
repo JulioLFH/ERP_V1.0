@@ -127,7 +127,7 @@ class Producto(models.Model):
     def bajo_minimo(self):
         return self.es_inventariable and self.stock <= self.stock_minimo
 
-    def mover_stock(self, cantidad, referencia, costo=None, fecha=None, almacen=None):
+    def mover_stock(self, cantidad, referencia, costo=None, fecha=None, almacen=None, origen=''):
         """cantidad > 0 entrada, < 0 salida. Actualiza costo promedio en entradas y el stock del almacén."""
         cantidad = Decimal(cantidad)
         if not self.es_inventariable or cantidad == 0:
@@ -147,7 +147,7 @@ class Producto(models.Model):
             producto=self, almacen=almacen, fecha=fecha or timezone.localdate(),
             tipo='ENTRADA' if cantidad > 0 else 'SALIDA', cantidad=abs(cantidad),
             costo_unitario=costo if costo is not None else self.costo_promedio,
-            costo_promedio=self.costo_promedio, saldo=self.stock, referencia=referencia,
+            costo_promedio=self.costo_promedio, saldo=self.stock, referencia=referencia, origen=origen,
         )
 
 
@@ -229,6 +229,7 @@ class Kardex(models.Model):
     tipo = models.CharField(max_length=10)
     cantidad = models.DecimalField(max_digits=14, decimal_places=2)
     costo_promedio = models.DecimalField(max_digits=12, decimal_places=4, default=D0)
+    origen = models.CharField(max_length=10, blank=True, help_text='VENTA, COMPRA, GUIA, AJUSTE')
     costo_unitario = models.DecimalField(max_digits=12, decimal_places=4, default=D0)
     saldo = models.DecimalField(max_digits=14, decimal_places=2)
     referencia = models.CharField(max_length=120)
@@ -441,7 +442,7 @@ class ComprobanteBase(TotalesMixin):
             if item.producto and item.producto.es_inventariable:
                 costo = self._costo_entrada(item) if signo > 0 else None
                 item.producto.mover_stock(signo * item.cantidad, str(self), costo=costo, fecha=self.fecha_emision,
-                                          almacen=self.almacen)
+                                          almacen=self.almacen, origen=self._meta.model_name.upper())
         self.stock_aplicado = True
         self.save(update_fields=['stock_aplicado', 'almacen'])
 
@@ -452,7 +453,7 @@ class ComprobanteBase(TotalesMixin):
         for item in self.items.select_related('producto'):
             if item.producto and item.producto.es_inventariable:
                 item.producto.mover_stock(signo * item.cantidad, f'Reversión {self}', fecha=timezone.localdate(),
-                                          almacen=self.almacen)
+                                          almacen=self.almacen, origen=self._meta.model_name.upper())
         self.stock_aplicado = False
         self.save(update_fields=['stock_aplicado'])
 

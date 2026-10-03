@@ -11,6 +11,7 @@ from django.urls import reverse_lazy
 from django.views.generic import CreateView, UpdateView
 
 from compras.models import Compra
+from core.forms import periodo_cerrado
 from core.models import D0, Tercero
 from core.utils import a_fecha, excel_response, fmt_fecha, leer_excel, rango_por_defecto
 from core.views import FormGenerico
@@ -90,6 +91,8 @@ def movimiento_eliminar(request, pk):
     if request.method == 'POST':
         if mov.conciliado:
             messages.error(request, 'No se puede eliminar un movimiento conciliado.')
+        elif periodo_cerrado(mov.fecha.strftime('%Y%m')):
+            messages.error(request, 'No se puede eliminar: el periodo contable está cerrado.')
         else:
             with transaction.atomic():
                 par = mov.transferencia_par or Movimiento.objects.filter(transferencia_par=mov).first()

@@ -1,0 +1,21 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Gastos por centro de costo{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Gastos por centro de costo</h1>
+  <form class="d-flex gap-2" method="get">
+    <input type="month" name="desde" value="{{ mes_desde }}" class="form-control form-control-sm">
+    <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm">
+    <button class="btn btn-sm btn-primary">Ver</button>
+  </form>
+</div>
+<div class="row g-3">
+  {% for codigo, g in grupos.items %}
+  <div class="col-lg-6"><div class="card h-100">
+    <div class="card-header d-flex justify-content-between"><span>{% if codigo != '—' %}{{ codigo }} {% endif %}{{ g.nombre }}</span><span class="num">S/ {{ g.total|money }}</span></div>
+    <table class="table table-sm mb-0">{% for f in g.filas %}<tr><td class="small">{{ f.codigo }} {{ f.nombre|truncatechars:45 }}</td><td class="num">{{ f.importe|money }}</td></tr>{% endfor %}</table>
+  </div></div>
+  {% empty %}<div class="col"><div class="alert alert-info">Sin gastos en el rango. Asigne centros de costo en las compras o movimientos y centralice el periodo.</div></div>{% endfor %}
+</div>
+{% if grupos %}<p class="fw-bold mt-3">Total gastos e inversiones: S/ {{ total|money }}</p>{% endif %}
+{% endblock %}

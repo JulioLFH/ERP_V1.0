@@ -1,6 +1,6 @@
 from django import forms
 
-from core.forms import BootstrapMixin
+from core.forms import BootstrapMixin, validar_periodo_abierto
 from core.models import Tercero
 
 from .models import Cuenta, Movimiento
@@ -16,7 +16,7 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Movimiento
         fields = ['cuenta', 'fecha', 'tipo', 'concepto', 'medio_pago', 'numero_operacion', 'tercero', 'monto',
-                  'glosa']
+                  'cuenta_contable', 'centro_costo', 'glosa']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -31,6 +31,11 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
             raise forms.ValidationError('El monto debe ser mayor a cero.')
         return monto
 
+    def clean(self):
+        data = super().clean()
+        validar_periodo_abierto(self, 'fecha')
+        return data
+
 
 class OperacionForm(BootstrapMixin, forms.Form):
     """Cabecera de cobranzas / pagos (individuales o grupales)."""
@@ -40,6 +45,11 @@ class OperacionForm(BootstrapMixin, forms.Form):
     numero_operacion = forms.CharField(label='N° operación / cheque', required=False)
     es_detraccion = forms.BooleanField(label='Es depósito de detracción', required=False)
     glosa = forms.CharField(required=False)
+
+    def clean(self):
+        data = super().clean()
+        validar_periodo_abierto(self, 'fecha')
+        return data
 
 
 class TransferenciaForm(BootstrapMixin, forms.Form):
@@ -59,6 +69,7 @@ class TransferenciaForm(BootstrapMixin, forms.Form):
         data = super().clean()
         if data.get('origen') and data.get('origen') == data.get('destino'):
             raise forms.ValidationError('Las cuentas de origen y destino deben ser distintas.')
+        validar_periodo_abierto(self, 'fecha')
         return data
 
 

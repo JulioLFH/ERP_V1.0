@@ -1,0 +1,37 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Asiento {{ a.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="page-title">Asiento {{ a.numero }} <span class="badge {% if a.origen == 'MANUAL' %}text-bg-warning{% else %}text-bg-light{% endif %} fs-6 align-middle">{{ a.get_origen_display }}</span></h1>
+    <div class="text-muted small">{{ a.fecha|date:'d/m/Y' }} · {{ a.get_libro_display }} · {{ a.glosa }}{% if a.moneda == 'USD' %} · US$ T.C. {{ a.tipo_cambio }}{% endif %}</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'contabilidad:asientos' %}?periodo={{ a.periodo }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Asientos</a>
+    {% if a.compra %}<a href="{% url 'compras:detalle' a.compra_id %}" class="btn btn-sm btn-outline-secondary">Ver compra</a>{% endif %}
+    {% if a.venta %}<a href="{% url 'ventas:detalle' a.venta_id %}" class="btn btn-sm btn-outline-secondary">Ver venta</a>{% endif %}
+    {% if a.movimiento %}<a href="{% url 'finanzas:voucher' a.movimiento_id %}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver voucher</a>{% endif %}
+    {% if a.origen == 'MANUAL' and not cerrado %}
+      <a href="{% url 'contabilidad:asiento_editar' a.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
+      <form method="post" action="{% url 'contabilidad:asiento_eliminar' a.pk %}" data-confirm="¿Eliminar el asiento {{ a.numero }}?">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form>
+    {% endif %}
+  </div>
+</div>
+<div class="card"><div class="table-responsive">
+  <table class="table mb-0">
+    <thead><tr><th>Cuenta</th><th>Denominación</th><th>Tercero</th><th>Documento</th><th>C. costo</th><th>Glosa</th><th class="num">Debe</th><th class="num">Haber</th></tr></thead>
+    <tbody>
+    {% for l in lineas %}
+      <tr {% if l.es_destino %}class="text-muted fst-italic"{% endif %}>
+        <td class="fw-semibold">{% if l.es_destino %}<span class="ps-3"></span>{% endif %}<a href="{% url 'contabilidad:mayor' %}?cuenta={{ l.cuenta_id }}&desde={{ a.periodo }}&hasta={{ a.periodo }}">{{ l.cuenta.codigo }}</a></td>
+        <td class="small">{{ l.cuenta.nombre }}</td><td class="small">{{ l.tercero.nombre|default:''|truncatechars:28 }}</td>
+        <td class="small">{{ l.documento }}</td><td class="small">{{ l.centro_costo.codigo|default:'' }}</td><td class="small">{{ l.glosa }}</td>
+        <td class="num">{% if l.debe %}{{ l.debe|money }}{% endif %}</td><td class="num">{% if l.haber %}{{ l.haber|money }}{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+    <tfoot class="fw-bold"><tr><td colspan="6" class="text-end">TOTALES {% if debe == haber %}<i class="bi bi-check-circle text-success"></i>{% else %}<span class="text-danger">NO CUADRA</span>{% endif %}</td><td class="num">{{ debe|money }}</td><td class="num">{{ haber|money }}</td></tr></tfoot>
+  </table>
+</div></div>
+<p class="small text-muted mt-2">Las líneas en cursiva son los asientos de destino automáticos (clase 9 / 79 y 20 / 61).</p>
+{% endblock %}

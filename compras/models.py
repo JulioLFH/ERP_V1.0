@@ -29,6 +29,12 @@ class Compra(ComprobanteBase):
     doc_referencia = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True,
                                        related_name='notas', verbose_name='Doc. que modifica (NC/ND)')
     ingresar_almacen = models.BooleanField('Ingresar a almacén', default=True)
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
+                                     verbose_name='Centro de costo')
+    cuenta_contable = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                        blank=True, related_name='+', limit_choices_to={'imputable': True},
+                                        verbose_name='Cuenta de gasto / compra',
+                                        help_text='Vacío = según la clasificación')
 
     class Meta(ComprobanteBase.Meta):
         verbose_name = 'compra'

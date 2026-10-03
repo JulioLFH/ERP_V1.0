@@ -58,6 +58,19 @@
     <a class="nav-link {% if u.namespace == 'finanzas' and u.url_name == 'importar' %}active{% endif %}" href="{% url 'finanzas:importar' %}"><i class="bi bi-upload"></i> Importar extracto</a>
     <a class="nav-link {% if u.url_name == 'flujo' %}active{% endif %}" href="{% url 'finanzas:flujo' %}"><i class="bi bi-water"></i> Flujo de caja</a>
 
+    <div class="nav-section">Contabilidad</div>
+    <a class="nav-link {% if u.url_name == 'periodos' %}active{% endif %}" href="{% url 'contabilidad:periodos' %}"><i class="bi bi-arrow-repeat"></i> Centralización / periodos</a>
+    <a class="nav-link {% if u.url_name == 'asientos' or u.url_name == 'asiento_detalle' or u.url_name == 'asiento_nuevo' %}active{% endif %}" href="{% url 'contabilidad:asientos' %}"><i class="bi bi-journal-plus"></i> Asientos contables</a>
+    <a class="nav-link {% if u.url_name == 'diario' %}active{% endif %}" href="{% url 'contabilidad:diario' %}"><i class="bi bi-journal-text"></i> Libro diario</a>
+    <a class="nav-link {% if u.url_name == 'mayor' %}active{% endif %}" href="{% url 'contabilidad:mayor' %}"><i class="bi bi-journal-bookmark"></i> Libro mayor</a>
+    <a class="nav-link {% if u.url_name == 'balance' %}active{% endif %}" href="{% url 'contabilidad:balance' %}"><i class="bi bi-table"></i> Balance de comprobación</a>
+    <a class="nav-link {% if u.url_name == 'situacion' %}active{% endif %}" href="{% url 'contabilidad:situacion' %}"><i class="bi bi-bank2"></i> Situación financiera</a>
+    <a class="nav-link {% if u.url_name == 'resultados' %}active{% endif %}" href="{% url 'contabilidad:resultados' %}"><i class="bi bi-graph-up-arrow"></i> Estado de resultados</a>
+    <a class="nav-link {% if u.url_name == 'centros_reporte' %}active{% endif %}" href="{% url 'contabilidad:centros_reporte' %}"><i class="bi bi-diagram-3"></i> Gastos por centro de costo</a>
+    <a class="nav-link {% if u.url_name == 'plan' %}active{% endif %}" href="{% url 'contabilidad:plan' %}"><i class="bi bi-list-ol"></i> Plan de cuentas</a>
+    <a class="nav-link {% if u.url_name == 'centros' %}active{% endif %}" href="{% url 'contabilidad:centros' %}"><i class="bi bi-bullseye"></i> Centros de costo</a>
+    <a class="nav-link {% if u.url_name == 'configuracion' %}active{% endif %}" href="{% url 'contabilidad:configuracion' %}"><i class="bi bi-gear"></i> Configuración contable</a>
+
     <div class="nav-section">Maestros</div>
     <a class="nav-link {% if u.url_name == 'terceros' %}active{% endif %}" href="{% url 'terceros' %}"><i class="bi bi-people"></i> Clientes / proveedores</a>
     <a class="nav-link {% if u.url_name == 'productos' %}active{% endif %}" href="{% url 'productos' %}"><i class="bi bi-box-seam"></i> Productos y servicios</a>

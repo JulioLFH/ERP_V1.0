@@ -52,6 +52,15 @@ Módulos (inspirados en AdSoft): **Registro de Compras**, **Registro de Ventas**
 - **Notas de crédito y débito** con flujo propio (asistente que parte del comprobante a modificar).
 - Los registros 8.1/14.1, los reportes y el flujo de caja abren en el último periodo con movimientos.
 
+### Contabilidad (v1.2)
+- **Plan Contable General Empresarial (PCGE 2019)** precargado (207 cuentas), editable, con cuentas de destino automáticas: 62-68 → 94 / 79, 67 → 97 / 79, 6011 → 20111 / 6111.
+- **Configuración contable**: qué cuenta usa cada operación (clientes, proveedores, IGV, ventas de bienes y servicios, compras por clasificación, honorarios y retención de 4ta, caja, bancos, detracciones, conceptos de tesorería).
+- Cuenta contable propia por cada caja o banco. En cada compra se puede elegir otra cuenta de gasto y un centro de costo; en cada movimiento, la contrapartida y un centro de costo.
+- **Centralización automática por periodo**: compras (libro 08), ventas (14), caja y bancos (01) y costo de ventas desde el kardex (05). Se puede volver a centralizar sin perder los asientos manuales.
+- **Asientos manuales** con validación de cuadre (apertura, ajustes, planillas, depreciación, cierre).
+- **Cierre de periodos**: un mes cerrado no admite registrar, editar, anular ni eliminar compras, ventas o movimientos.
+- **Reportes**: Libro Diario (Excel y TXT PLE 5.1), Libro Mayor, plan de cuentas (TXT PLE 5.3), Balance de Comprobación de 8 columnas, Estado de Situación Financiera, Estado de Resultados por función y gastos por centro de costo.
+
 ### Otros
 Dashboard con KPIs y gráficos, maestros de clientes/proveedores/productos, correlativos, datos de empresa e IGV configurable, panel `/admin`.
 

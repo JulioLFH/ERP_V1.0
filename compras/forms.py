@@ -1,6 +1,7 @@
 from django import forms
 
-from core.forms import BootstrapMixin
+from contabilidad.models import CentroCosto
+from core.forms import BootstrapMixin, validar_periodo_abierto
 from core.models import Tercero
 
 from .models import Compra, OrdenCompra
@@ -12,7 +13,7 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         fields = ['tipo_comprobante', 'serie', 'numero', 'tercero', 'fecha_emision', 'fecha_vencimiento', 'periodo',
                   'clasificacion', 'forma_pago', 'moneda', 'tipo_cambio', 'tipo_operacion', 'detraccion_pct',
                   'retencion_pct', 'percepcion_pct', 'icbper', 'orden_compra', 'doc_referencia',
-                  'ingresar_almacen', 'almacen', 'glosa']
+                  'ingresar_almacen', 'almacen', 'centro_costo', 'cuenta_contable', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2})}
         labels = {'tercero': 'Proveedor'}
 
@@ -24,11 +25,13 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         self.fields['orden_compra'].queryset = OrdenCompra.objects.exclude(estado='ANULADO')
         self.fields['doc_referencia'].queryset = Compra.objects.filter(
             estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
+        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
 
     def clean(self):
         data = super().clean()
         if data.get('tipo_comprobante') in ('07', '08') and not data.get('doc_referencia'):
             self.add_error('doc_referencia', 'Indique el comprobante que modifica la nota.')
+        validar_periodo_abierto(self, 'fecha_emision', data.get('periodo'))
         return data
 
 

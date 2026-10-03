@@ -96,6 +96,8 @@
         <tr><td class="text-muted">Operación</td><td class="text-end">{{ doc.get_tipo_operacion_display }}</td></tr>
         <tr><td class="text-muted">Moneda / T.C.</td><td class="text-end">{{ doc.moneda }} / {{ doc.tipo_cambio }}</td></tr>
         {% if doc.almacen %}<tr><td class="text-muted">Almacén</td><td class="text-end">{{ doc.almacen }}</td></tr>{% endif %}
+        {% if doc.centro_costo %}<tr><td class="text-muted">Centro de costo</td><td class="text-end">{{ doc.centro_costo }}</td></tr>{% endif %}
+        <tr><td class="text-muted">Asiento contable</td><td class="text-end">{% for a in doc.asientos.all %}<a href="{% url 'contabilidad:asiento_detalle' a.pk %}">{{ a.numero }}</a> {% empty %}<span class="text-muted small">Sin centralizar</span>{% endfor %}</td></tr>
         {% for gr in doc.guias.all %}<tr><td class="text-muted">Guía de remisión</td><td class="text-end"><a href="{% url 'logistica:detalle' gr.pk %}">{{ gr.numero_completo }}</a></td></tr>{% endfor %}
         {% if app == 'compras' %}<tr><td class="text-muted">Clasificación</td><td class="text-end">{{ doc.get_clasificacion_display }}</td></tr>
         <tr><td class="text-muted">Almacén</td><td class="text-end">{% if doc.stock_aplicado %}Ingresado{% else %}No ingresado{% endif %}</td></tr>

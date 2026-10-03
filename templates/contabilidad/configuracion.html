@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Configuración contable{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Configuración contable</h1>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <form method="post">{% csrf_token %}
+      {{ formset.management_form }}
+      <div class="card"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+        <thead><tr><th>Operación</th><th style="width:55%">Cuenta contable</th></tr></thead>
+        <tbody>
+        {% for f in formset %}
+          <tr><td class="small">{{ f.id }}{{ f.instance.descripcion }}</td><td>{{ f.cuenta }}{% for e in f.cuenta.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table></div></div>
+      <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>
+    </form>
+  </div>
+  <div class="col-lg-4"><div class="card"><div class="card-header">Cómo se usa</div><div class="card-body small">
+    <ul class="mb-0">
+      <li>Estas cuentas se usan al <b>centralizar</b> compras, ventas y caja/bancos.</li>
+      <li>En cada <b>cuenta de caja o banco</b> (Finanzas) puede indicar su propia cuenta contable (ej. 10411 BCP soles).</li>
+      <li>En cada <b>compra</b> puede elegir otra cuenta de gasto y un centro de costo; en cada <b>movimiento</b>, la contrapartida.</li>
+      <li>Las cuentas de gasto (62-68) tienen destino <b>94 / 79</b>, y las compras de mercadería (6011) destino <b>20111 / 6111</b>; se editan en el plan de cuentas.</li>
+      <li>Después de cambiar algo, vuelva a centralizar los periodos abiertos.</li>
+    </ul>
+  </div></div></div>
+</div>
+{% endblock %}

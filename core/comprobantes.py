@@ -16,7 +16,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path, reverse
 from django.utils.decorators import method_decorator
 
-from .forms import item_formset
+from .forms import item_formset, periodo_cerrado
 from .models import D0, Empresa, Tercero, r2
 from .utils import (a_fecha, excel_response, fmt_fecha, guardar_documento, leer_excel, periodo_actual,
                     rango_por_defecto, txt_response)
@@ -57,7 +57,8 @@ class ComprobanteViews:
         """Hook: mover almacén luego de guardar."""
 
     def puede_editar(self, doc):
-        return doc.estado == 'REGISTRADO' and not doc.movimientos.exists() and not doc.notas.exists()
+        return (doc.estado == 'REGISTRADO' and not doc.movimientos.exists() and not doc.notas.exists()
+                and not periodo_cerrado(doc.periodo))
 
     # ------------------------------------------------------------ vistas
     def lista(self, request):
@@ -106,7 +107,8 @@ class ComprobanteViews:
     def editar(self, request, pk):
         doc = get_object_or_404(self.modelo, pk=pk)
         if not self.puede_editar(doc):
-            messages.error(request, 'No se puede editar: el comprobante está anulado o tiene pagos/notas asociadas.')
+            messages.error(request, 'No se puede editar: el comprobante está anulado, tiene pagos/notas asociadas '
+                                    'o su periodo contable está cerrado.')
             return redirect(self._url('detalle', pk))
         return guardar_documento(request, self.form_class, item_formset(self.modelo, self.item_modelo, extra=0),
                                  doc, 'core/comprobante_form.html',
@@ -125,7 +127,9 @@ class ComprobanteViews:
     def anular(self, request, pk):
         doc = get_object_or_404(self.modelo, pk=pk)
         if request.method == 'POST':
-            if doc.movimientos.exists():
+            if periodo_cerrado(doc.periodo):
+                messages.error(request, f'El periodo contable {doc.periodo} está cerrado.')
+            elif doc.movimientos.exists():
                 messages.error(request, 'Tiene cobros/pagos registrados en Finanzas. Elimínelos antes de anular.')
             else:
                 with transaction.atomic():
@@ -138,8 +142,8 @@ class ComprobanteViews:
     def eliminar(self, request, pk):
         doc = get_object_or_404(self.modelo, pk=pk)
         if request.method == 'POST':
-            if doc.movimientos.exists() or doc.notas.exists():
-                messages.error(request, 'No se puede eliminar: tiene pagos o notas asociadas.')
+            if doc.movimientos.exists() or doc.notas.exists() or periodo_cerrado(doc.periodo):
+                messages.error(request, 'No se puede eliminar: tiene pagos o notas asociadas, o su periodo está cerrado.')
                 return redirect(self._url('detalle', pk))
             with transaction.atomic():
                 doc.revertir_stock()
@@ -151,7 +155,9 @@ class ComprobanteViews:
         """Traslada el comprobante a otro periodo de registro."""
         doc = get_object_or_404(self.modelo, pk=pk)
         nuevo = request.POST.get('periodo', '')
-        if request.method == 'POST' and len(nuevo) == 6 and nuevo.isdigit():
+        if request.method == 'POST' and (periodo_cerrado(doc.periodo) or periodo_cerrado(nuevo)):
+            messages.error(request, 'No se puede trasladar desde o hacia un periodo contable cerrado.')
+        elif request.method == 'POST' and len(nuevo) == 6 and nuevo.isdigit():
             doc.periodo = nuevo
             doc.save(update_fields=['periodo'])
             messages.success(request, f'Trasladado al periodo {nuevo}.')

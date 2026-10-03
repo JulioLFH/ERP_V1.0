@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{{ titulo }}</h1>
+  <a href="{% url 'contabilidad:asientos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  <div class="card mb-3"><div class="card-body"><div class="row g-3">
+    {% for field in form %}<div class="{% if field.name == 'glosa' %}col-md-6{% else %}col-6 col-md{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div></div></div>
+  <div class="card mb-3">
+    <div class="card-header">Líneas del asiento</div>
+    {{ formset.management_form }}
+    {% for e in formset.non_form_errors %}<div class="alert alert-danger m-3 py-2">{{ e }}</div>{% endfor %}
+    <div class="table-responsive"><table class="table items-table mb-0">
+      <thead><tr><th style="width:24%">Cuenta</th><th>Tercero</th><th>C. costo</th><th>Documento</th><th>Glosa</th><th style="width:11%" class="num">Debe</th><th style="width:11%" class="num">Haber</th><th><i class="bi bi-trash"></i></th></tr></thead>
+      <tbody id="lineas-body">
+      {% for f in formset %}
+        <tr class="linea-row">
+          <td>{{ f.id }}{{ f.cuenta }}{% for e in f.non_field_errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}{% for e in f.cuenta.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+          <td>{{ f.tercero }}</td><td>{{ f.centro_costo }}</td><td>{{ f.documento }}</td><td>{{ f.glosa }}</td>
+          <td>{{ f.debe }}</td><td>{{ f.haber }}</td><td>{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+      <tfoot class="fw-bold"><tr><td colspan="5" class="text-end">Totales <span id="estado-cuadre"></span></td><td class="num" id="t-debe">0.00</td><td class="num" id="t-haber">0.00</td><td></td></tr></tfoot>
+    </table></div>
+    <template id="linea-template">
+      <tr class="linea-row"><td>{{ formset.empty_form.id }}{{ formset.empty_form.cuenta }}</td><td>{{ formset.empty_form.tercero }}</td><td>{{ formset.empty_form.centro_costo }}</td>
+        <td>{{ formset.empty_form.documento }}</td><td>{{ formset.empty_form.glosa }}</td><td>{{ formset.empty_form.debe }}</td><td>{{ formset.empty_form.haber }}</td><td>{{ formset.empty_form.DELETE }}</td></tr>
+    </template>
+    <div class="card-body"><button type="button" id="agregar-linea" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar línea</button></div>
+  </div>
+  <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar asiento</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const body = document.getElementById('lineas-body');
+  const total = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
+  const fmt = (n) => n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  function recalcular() {
+    let d = 0, h = 0;
+    body.querySelectorAll('tr.linea-row').forEach((tr) => {
+      const del = tr.querySelector('input[name$="-DELETE"]');
+      if (del && del.checked) return;
+      d += parseFloat(tr.querySelector('.js-debe').value) || 0;
+      h += parseFloat(tr.querySelector('.js-haber').value) || 0;
+    });
+    document.getElementById('t-debe').textContent = fmt(d);
+    document.getElementById('t-haber').textContent = fmt(h);
+    const ok = Math.abs(d - h) < 0.005 && d > 0;
+    document.getElementById('estado-cuadre').innerHTML = ok ? '<i class="bi bi-check-circle text-success"></i>' : `<span class="text-danger small">diferencia ${fmt(d - h)}</span>`;
+  }
+  body.addEventListener('input', recalcular);
+  body.addEventListener('change', recalcular);
+  document.getElementById('agregar-linea').addEventListener('click', () => {
+    const i = parseInt(total.value, 10);
+    body.insertAdjacentHTML('beforeend', document.getElementById('linea-template').innerHTML.replace(/__prefix__/g, i));
+    total.value = i + 1;
+  });
+  recalcular();
+})();
+</script>
+{% endblock %}
