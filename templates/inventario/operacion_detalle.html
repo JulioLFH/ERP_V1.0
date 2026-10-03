@@ -1,0 +1,72 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ op }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="page-title"><i class="bi {{ op.tipo.icono }}"></i> {{ op.tipo.nombre }} {{ op.numero }}
+      <span class="badge {% if op.estado == 'CONFIRMADO' %}text-bg-success{% elif op.estado == 'ANULADO' %}badge-ANULADO{% else %}text-bg-warning{% endif %} fs-6 align-middle">{{ op.get_estado_display }}</span></h1>
+    <div class="text-muted small">{{ op.tipo.get_clase_display }} · Tabla 12 SUNAT {{ op.tipo.codigo_sunat }}{% if op.tipo.cuenta_contable %} · Contrapartida {{ op.tipo.cuenta_contable.codigo }}{% endif %}</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'inventario:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+    <a href="{% url 'inventario:imprimir' op.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</a>
+    {% if op.estado == 'BORRADOR' %}
+      <a href="{% url 'inventario:editar' op.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
+      {% if op.documento_origen %}<form method="post" action="{% url 'inventario:pendientes' op.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-repeat"></i> Cargar pendientes</button></form>{% endif %}
+      <form method="post" action="{% url 'inventario:eliminar' op.pk %}" data-confirm="¿Eliminar este borrador?">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Eliminar</button></form>
+      <form method="post" action="{% url 'inventario:confirmar' op.pk %}">{% csrf_token %}<button class="btn btn-sm btn-success" {% if errores %}disabled{% endif %}><i class="bi bi-check2-circle"></i> Confirmar</button></form>
+    {% elif op.estado == 'CONFIRMADO' %}
+      {% if pendiente_transito and recepcion_transito %}<a href="{% url 'inventario:nueva' %}?tipo={{ recepcion_transito.codigo }}&envio={{ op.pk }}" class="btn btn-sm btn-primary"><i class="bi bi-box-seam"></i> Recibir en destino</a>{% endif %}
+      {% if url_nota and app_nota in mods %}<a href="{{ url_nota }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-diff"></i> Emitir nota de crédito</a>{% endif %}
+      <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>
+    {% endif %}
+  </div>
+</div>
+{% if errores %}<div class="alert alert-warning py-2"><b>Para confirmar:</b><ul class="mb-0">{% for e in errores %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+{% if op.estado == 'CONFIRMADO' %}
+<div class="collapse mb-3" id="form-anular"><div class="card border-danger"><div class="card-body">
+  {% if bloqueo_anular %}<div class="alert alert-danger py-2 mb-0">No se puede anular: {{ bloqueo_anular|join:' ' }}</div>{% else %}
+  <form method="post" action="{% url 'inventario:anular' op.pk %}" class="row g-2 align-items-end" data-confirm="¿Anular {{ op }}? Se revertirá el movimiento de almacén.">
+    {% csrf_token %}
+    <div class="col-md-9"><label class="form-label small mb-1">Motivo de la anulación <span class="text-danger">*</span></label>
+      <input name="motivo" class="form-control form-control-sm" minlength="5" maxlength="250" required placeholder="Ej. Cantidades registradas por error"></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-danger w-100"><i class="bi bi-x-circle"></i> Confirmar anulación</button></div>
+  </form>{% endif %}
+</div></div></div>
+{% elif op.estado == 'ANULADO' %}
+<div class="alert alert-danger py-2"><i class="bi bi-x-octagon"></i> <b>Anulada</b>{% if op.anulado_en %} el {{ op.anulado_en|date:'d/m/Y H:i' }}{% endif %}{% if op.anulado_por %} por <b>{{ op.anulado_por.get_full_name|default:op.anulado_por.username }}</b>{% endif %}{% if op.motivo_anulacion %}. Motivo: {{ op.motivo_anulacion }}{% endif %}</div>
+{% endif %}
+{% if url_nota and op.estado == 'CONFIRMADO' %}<div class="alert alert-info py-2 small"><i class="bi bi-info-circle"></i> La mercadería ya se movió en el almacén. Si corresponde, emita la nota de crédito: se crea <b>sin volver a mover el almacén</b>.</div>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="card-body"><div class="row g-3 small">
+      <div class="col-md-3"><div class="text-muted">Fecha</div>{{ op.fecha|date:'d/m/Y' }}</div>
+      {% if op.almacen_origen %}<div class="col-md-3"><div class="text-muted">{% if op.tipo.clase == 'MANUFACTURA' %}Almacén de insumos{% else %}Almacén de origen{% endif %}</div>{{ op.almacen_origen }}</div>{% endif %}
+      {% if op.almacen_destino %}<div class="col-md-3"><div class="text-muted">{% if op.tipo.clase == 'TRANSITO_ENVIO' %}Destino final{% elif op.tipo.clase == 'MANUFACTURA' %}Almacén de productos{% else %}Almacén de destino{% endif %}</div>{{ op.almacen_destino }}</div>{% endif %}
+      {% if op.tercero %}<div class="col-md-3"><div class="text-muted">Proveedor / cliente</div>{{ op.tercero.nombre }}</div>{% endif %}
+      {% if op.orden_compra %}<div class="col-md-4"><div class="text-muted">Orden de compra</div>{% if 'compras' in mods %}<a href="{% url 'compras:oc_detalle' op.orden_compra_id %}">{{ op.orden_compra }} · {{ op.orden_compra.tercero.nombre }}</a>{% else %}{{ op.orden_compra }}{% endif %}</div>{% endif %}
+      {% if op.compra %}<div class="col-md-4"><div class="text-muted">Factura de compra</div>{% if 'compras' in mods %}<a href="{% url 'compras:detalle' op.compra_id %}">{{ op.compra }} · {{ op.compra.tercero.nombre }}</a>{% else %}{{ op.compra }}{% endif %}</div>{% endif %}
+      {% if op.venta %}<div class="col-md-4"><div class="text-muted">Comprobante de venta</div>{% if 'ventas' in mods %}<a href="{% url 'ventas:detalle' op.venta_id %}">{{ op.venta }} · {{ op.venta.tercero.nombre }}</a>{% else %}{{ op.venta }}{% endif %}</div>{% endif %}
+      {% if op.envio %}<div class="col-md-4"><div class="text-muted">Traslado a tránsito</div><a href="{% url 'inventario:detalle' op.envio_id %}">{{ op.envio }}</a></div>{% endif %}
+      {% if op.referencia %}<div class="col-md-4"><div class="text-muted">Referencia</div>{{ op.referencia }}</div>{% endif %}
+    </div>{% if op.glosa %}<p class="small text-muted mt-3 mb-0">{{ op.glosa }}</p>{% endif %}</div></div>
+    <div class="card"><div class="table-responsive"><table class="table mb-0">
+      <thead><tr><th>#</th><th>Código</th><th>Producto</th>{% if op.tipo.clase == 'MANUFACTURA' %}<th>Rol</th>{% endif %}<th>U.M.</th><th class="num">Cantidad</th><th class="num">Costo unit.</th><th class="num">Valor S/</th></tr></thead>
+      <tbody>{% for i in items %}<tr><td>{{ forloop.counter }}</td><td>{{ i.producto.codigo }}</td><td>{{ i.producto.nombre }}{% if i.observacion %}<div class="small text-muted">{{ i.observacion }}</div>{% endif %}</td>
+        {% if op.tipo.clase == 'MANUFACTURA' %}<td>{{ i.get_rol_display }}</td>{% endif %}<td>{{ i.producto.unidad }}</td><td class="num">{{ i.cantidad|money }}</td>
+        <td class="num">{% if i.costo_unitario is not None %}{{ i.costo_unitario|floatformat:4 }}{% else %}<span class="text-muted">{{ i.producto.costo_promedio|floatformat:4 }}</span>{% endif %}</td><td class="num">{{ i.valor|money }}</td></tr>{% endfor %}</tbody>
+      <tfoot><tr class="fw-semibold"><td colspan="{% if op.tipo.clase == 'MANUFACTURA' %}7{% else %}6{% endif %}" class="text-end">Total</td><td class="num">{{ total|money }}</td></tr></tfoot>
+    </table></div></div>
+    {% if op.estado == 'BORRADOR' %}<p class="small text-muted mt-2">En borrador el costo mostrado es referencial; al confirmar se toma el costo promedio vigente (salidas y traslados).</p>{% endif %}
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-clock-history"></i> Historial</div><div class="card-body small">
+      <div>Creado {{ op.creado|date:'d/m/Y H:i' }}{% if op.creado_por %} por {{ op.creado_por.get_full_name|default:op.creado_por.username }}{% endif %}</div>
+      {% if op.confirmado_en %}<div>Confirmado {{ op.confirmado_en|date:'d/m/Y H:i' }}{% if op.confirmado_por %} por {{ op.confirmado_por.get_full_name|default:op.confirmado_por.username }}{% endif %}</div>{% endif %}
+    </div></div>
+    {% if recepciones %}<div class="card"><div class="card-header"><i class="bi bi-box-seam"></i> Recepciones en destino</div>
+      <ul class="list-group list-group-flush small">{% for r in recepciones %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'inventario:detalle' r.pk %}">{{ r.numero|default:'(borrador)' }}</a><span>{{ r.fecha|date:'d/m/Y' }} · {{ r.get_estado_display }}</span></li>{% endfor %}</ul>
+    </div>{% endif %}
+  </div>
+</div>
+{% endblock %}

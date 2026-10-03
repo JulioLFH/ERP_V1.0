@@ -29,7 +29,8 @@
         </ul>
       </div>
       {% endif %}
-      {% if app == 'compras' and not doc.stock_aplicado and doc.tipo_comprobante != '08' %}
+      {% include 'inventario/_acciones_doc.html' %}
+      {% if app == 'compras' and not doc.stock_aplicado and doc.tipo_comprobante != '08' and not operaciones_inv %}
         <form method="post" action="{% url 'compras:ingresar_almacen' doc.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-in-down"></i> Ingresar a almacén</button></form>
       {% endif %}
       <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>
@@ -76,6 +77,7 @@
         {% empty %}<tr><td colspan="6" class="text-muted text-center">Sin movimientos.</td></tr>{% endfor %}</tbody>
       </table></div>
     </div>
+    {% include 'inventario/_operaciones_doc.html' %}
   </div>
 
   <div class="col-lg-4">
@@ -114,7 +116,7 @@
         {% if 'contabilidad' in mods %}<tr><td class="text-muted">Asiento contable</td><td class="text-end">{% for a in doc.asientos.all %}<a href="{% url 'contabilidad:asiento_detalle' a.pk %}">{{ a.numero }}</a> {% empty %}<span class="text-muted small">Sin centralizar</span>{% endfor %}</td></tr>{% endif %}
         {% for gr in doc.guias.all %}<tr><td class="text-muted">Guía de remisión</td><td class="text-end">{% if 'logistica' in mods %}<a href="{% url 'logistica:detalle' gr.pk %}">{{ gr.numero_completo }}</a>{% else %}{{ gr.numero_completo }}{% endif %}</td></tr>{% endfor %}
         {% if app == 'compras' %}<tr><td class="text-muted">Clasificación</td><td class="text-end">{{ doc.get_clasificacion_display }}</td></tr>
-        <tr><td class="text-muted">Almacén</td><td class="text-end">{% if doc.stock_aplicado %}Ingresado{% else %}No ingresado{% endif %}</td></tr>
+        <tr><td class="text-muted">Almacén</td><td class="text-end">{% if doc.stock_aplicado %}Ingresado{% elif operaciones_inv %}Por recepciones de inventario{% else %}No ingresado{% endif %}</td></tr>
         {% if doc.orden_compra %}<tr><td class="text-muted">Orden de compra</td><td class="text-end"><a href="{% url 'compras:oc_detalle' doc.orden_compra_id %}">{{ doc.orden_compra }}</a></td></tr>{% endif %}{% endif %}
         {% if app == 'ventas' %}{% if doc.vendedor %}<tr><td class="text-muted">Vendedor</td><td class="text-end">{{ doc.vendedor }}</td></tr>{% endif %}
         {% if doc.cotizacion %}<tr><td class="text-muted">Cotización</td><td class="text-end"><a href="{% url 'ventas:cot_detalle' doc.cotizacion_id %}">{{ doc.cotizacion }}</a></td></tr>{% endif %}

@@ -27,8 +27,11 @@ class ComprasViews(ComprobanteViews):
         if not oc_id:
             return super().initial_desde(request)
         oc = get_object_or_404(OrdenCompra, pk=oc_id)
+        from inventario.servicios import tiene_recepciones
         initial = {'orden_compra': oc.pk, 'tercero': oc.tercero_id, 'moneda': oc.moneda,
                    'tipo_cambio': oc.tipo_cambio, 'tipo_operacion': oc.tipo_operacion}
+        if tiene_recepciones(orden=oc):
+            initial['ingresar_almacen'] = False  # ya se recibió en Inventario
         items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,
                   'precio_unitario': i.precio_unitario} for i in oc.items.all()]
         return initial, items
@@ -46,8 +49,11 @@ class ComprasViews(ComprobanteViews):
             OrdenCompra.objects.filter(pk=doc.orden_compra_id).update(estado='ATENDIDO')
 
     def ingresar_almacen(self, request, pk):
+        from inventario.servicios import tiene_recepciones
         doc = get_object_or_404(Compra, pk=pk)
-        if request.method == 'POST' and not doc.stock_aplicado:
+        if request.method == 'POST' and tiene_recepciones(compra=doc):
+            messages.error(request, 'La mercadería ya se recibió con una recepción de Inventario.')
+        elif request.method == 'POST' and not doc.stock_aplicado:
             doc.ingresar_almacen = True
             doc.save(update_fields=['ingresar_almacen'])
             doc.aplicar_stock()
@@ -123,8 +129,10 @@ def oc_editar(request, pk):
 
 @login_required
 def oc_detalle(request, pk):
+    from inventario.servicios import acciones_para, operaciones_de
     oc = get_object_or_404(OrdenCompra, pk=pk)
     return render(request, 'core/documento_detalle.html', {
+        'acciones_inv': acciones_para(oc), 'operaciones_inv': operaciones_de(oc),
         'doc': oc, 'items': oc.items.all(), 'app': 'compras', 'titulo_doc': 'ORDEN DE COMPRA',
         'etiqueta_tercero': 'Proveedor', 'relacionados': oc.compras.all(),
         'url_editar': 'compras:oc_editar', 'url_estado': 'compras:oc_estado', 'url_lista': 'compras:oc_lista',

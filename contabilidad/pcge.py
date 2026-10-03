@@ -85,6 +85,7 @@ PCGE = [
     ('64', 'GASTOS POR TRIBUTOS'), ('641', 'Gobierno central'), ('6412', 'Impuesto a las transacciones financieras'),
     ('643', 'Gobierno local'), ('6431', 'Impuesto predial'),
     ('65', 'OTROS GASTOS DE GESTIÓN'), ('651', 'Seguros'), ('6511', 'Seguros'),
+    ('656', 'Suministros'), ('6561', 'Suministros (consumo interno)'),
     ('659', 'Otros gastos de gestión'), ('6591', 'Donaciones'), ('6599', 'Otros gastos de gestión'),
     ('67', 'GASTOS FINANCIEROS'), ('673', 'Intereses por préstamos y otras obligaciones'),
     ('6731', 'Préstamos de instituciones financieras'),

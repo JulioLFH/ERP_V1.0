@@ -1,0 +1,53 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{{ titulo }}</h1>
+  <a href="{% url 'inventario:nueva' %}{% if grupo %}?grupo={{ grupo }}{% endif %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva operación</a>
+</div>
+{% if en_transito %}
+<div class="card border-warning mb-3"><div class="card-header bg-warning-subtle"><i class="bi bi-truck"></i> Mercadería en tránsito por recibir</div>
+  <div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Envío</th><th>Fecha</th><th>Desde</th><th>Destino final</th><th></th></tr></thead>
+    <tbody>{% for e in en_transito %}<tr>
+      <td><a href="{% url 'inventario:detalle' e.pk %}">{{ e.numero }}</a></td><td>{{ e.fecha|date:'d/m/Y' }}</td>
+      <td>{{ e.almacen_origen }}</td><td>{{ e.almacen_destino }}</td>
+      <td class="text-end">{% if recepcion_transito %}<a href="{% url 'inventario:nueva' %}?tipo={{ recepcion_transito.codigo }}&envio={{ e.pk }}" class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-box-seam"></i> Recibir</a>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endif %}
+<div class="card">
+  <div class="card-body border-bottom py-2">
+    <form class="row g-2 align-items-center" method="get">
+      {% if grupo %}<input type="hidden" name="grupo" value="{{ grupo }}">{% endif %}
+      <div class="col-md-3"><select name="tipo" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todos los tipos</option>
+        {% for t in tipos %}<option value="{{ t.pk }}" {% if request.GET.tipo == t.pk|stringformat:'s' %}selected{% endif %}>{{ t.nombre }}</option>{% endfor %}</select></div>
+      <div class="col-auto"><select name="estado" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todos los estados</option>
+        {% for v, e in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ e }}</option>{% endfor %}</select></div>
+      <div class="col-auto"><input type="date" name="desde" value="{{ desde }}" class="form-control form-control-sm"></div>
+      <div class="col-auto"><input type="date" name="hasta" value="{{ hasta }}" class="form-control form-control-sm"></div>
+      <div class="col-md-3"><input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Número, referencia, producto, tercero"></div>
+      <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></div>
+    </form>
+  </div>
+  <div class="table-responsive"><table class="table table-hover mb-0">
+    <thead><tr><th>Fecha</th><th>Número</th><th>Tipo</th><th>Origen</th><th>Destino</th><th>Documento</th><th class="num">Valor S/</th><th>Estado</th></tr></thead>
+    <tbody>
+    {% for o in page_obj %}
+      <tr onclick="location.href='{% url 'inventario:detalle' o.pk %}'" style="cursor:pointer">
+        <td>{{ o.fecha|date:'d/m/Y' }}</td>
+        <td class="fw-semibold">{{ o.numero|default:'(borrador)' }}</td>
+        <td><i class="bi {{ o.tipo.icono }}"></i> {{ o.tipo.nombre }}</td>
+        <td class="small">{{ o.almacen_origen|default:'' }}</td>
+        <td class="small">{{ o.almacen_destino|default:'' }}</td>
+        <td class="small">{{ o.documento_origen|default:o.referencia }}</td>
+        <td class="num">{{ o.valor_total|money }}</td>
+        <td><span class="badge {% if o.estado == 'CONFIRMADO' %}text-bg-success{% elif o.estado == 'ANULADO' %}badge-ANULADO{% else %}text-bg-warning{% endif %}">{{ o.get_estado_display }}</span></td>
+      </tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Sin operaciones en el rango.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% include 'core/_paginacion.html' %}
+</div>
+{% endblock %}

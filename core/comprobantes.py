@@ -129,6 +129,17 @@ class ComprobanteViews:
         }
         items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,
                   'precio_unitario': i.precio_unitario} for i in ref.items.all()]
+        if request.GET.get('op'):
+            # NC de una devolución ya registrada en Inventario: el almacén ya se movió
+            from inventario.models import Operacion
+            op = get_object_or_404(Operacion, pk=request.GET['op'])
+            initial.update(ingresar_almacen=False, descontar_stock=False,
+                           glosa=initial['glosa'] or f'Devolución {op.numero}')
+            precios = {i.producto_id: i for i in ref.items.all()}
+            items = [{'producto': i.producto_id, 'descripcion': precios[i.producto_id].descripcion
+                      if i.producto_id in precios else i.producto.nombre, 'cantidad': i.cantidad,
+                      'precio_unitario': precios[i.producto_id].precio_unitario if i.producto_id in precios else D0}
+                     for i in op.items.select_related('producto')]
         return initial, items
 
     def editar(self, request, pk):
@@ -143,10 +154,12 @@ class ComprobanteViews:
                                  validar=self.validar_stock)
 
     def detalle(self, request, pk):
+        from inventario.servicios import acciones_para, operaciones_de
         doc = get_object_or_404(self.modelo.objects.select_related('tercero', 'doc_referencia'), pk=pk)
         return render(request, 'core/comprobante_detalle.html', self._ctx(
             doc=doc, items=doc.items.select_related('producto'), notas=doc.notas.all(),
-            movimientos=doc.movimientos.select_related('cuenta'), puede_editar=self.puede_editar(doc)))
+            movimientos=doc.movimientos.select_related('cuenta'), puede_editar=self.puede_editar(doc),
+            acciones_inv=acciones_para(doc), operaciones_inv=operaciones_de(doc)))
 
     def imprimir(self, request, pk):
         doc = get_object_or_404(self.modelo, pk=pk)

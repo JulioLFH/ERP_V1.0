@@ -10,6 +10,7 @@
     {% endif %}
   </div>
   <div class="d-flex gap-2">
+    {% include 'inventario/_acciones_doc.html' %}
     {% if doc.estado != 'ANULADO' %}
       <a href="{% url url_convertir %}?{{ param_convertir }}={{ doc.pk }}" class="btn btn-sm btn-success"><i class="bi bi-arrow-right-circle"></i> {{ texto_convertir }}</a>
       {% if doc.estado == 'PENDIENTE' %}<form method="post" action="{% url url_estado doc.pk %}">{% csrf_token %}<input type="hidden" name="estado" value="APROBADO"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-check2"></i> Aprobar</button></form>{% endif %}
@@ -45,6 +46,7 @@
   </div>
 </div>
 
+<div style="max-width:900px;margin:auto">{% include 'inventario/_operaciones_doc.html' %}</div>
 {% if relacionados %}
 <div class="card mt-3 d-print-none" style="max-width:900px;margin:auto"><div class="card-header">Comprobantes generados</div>
   <ul class="list-group list-group-flush">{% for r in relacionados %}<li class="list-group-item d-flex justify-content-between"><a href="{% url url_rel r.pk %}">{{ r }}</a><span class="num">{{ r.total|money }}</span></li>{% endfor %}</ul>

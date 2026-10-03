@@ -148,7 +148,8 @@ class Producto(models.Model):
         return StockAlmacen.objects.filter(producto=self, almacen=almacen).values_list(
             'cantidad', flat=True).first() or D0
 
-    def mover_stock(self, cantidad, referencia, costo=None, fecha=None, almacen=None, origen='', concepto=''):
+    def mover_stock(self, cantidad, referencia, costo=None, fecha=None, almacen=None, origen='', concepto='',
+                    codigo_sunat=''):
         """cantidad > 0 entrada, < 0 salida. Actualiza costo promedio en entradas y el stock del almacén."""
         cantidad = Decimal(cantidad)
         if not self.es_inventariable or cantidad == 0:
@@ -173,8 +174,22 @@ class Producto(models.Model):
                 tipo='ENTRADA' if cantidad > 0 else 'SALIDA', cantidad=abs(cantidad),
                 costo_unitario=costo if costo is not None else actual.costo_promedio,
                 costo_promedio=actual.costo_promedio, saldo=actual.stock, referencia=referencia, origen=origen,
-                concepto=concepto,
+                concepto=concepto, codigo_sunat=codigo_sunat or _codigo_sunat(origen, concepto, cantidad),
             )
+
+
+def _codigo_sunat(origen, concepto, cantidad):
+    """Tabla 12 SUNAT para los movimientos que no lo indican."""
+    entrada = cantidad > 0
+    if origen == 'VENTA':
+        return '05' if entrada else '01'
+    if origen == 'COMPRA':
+        return '02' if entrada else '06'
+    if origen == 'AJUSTE':
+        return '16' if concepto == 'INICIAL' else '28'
+    if origen == 'GUIA':
+        return '21' if entrada else '11'
+    return '99'
 
 
 class Almacen(models.Model):
@@ -184,6 +199,9 @@ class Almacen(models.Model):
     ubigeo = models.CharField(max_length=6, blank=True, help_text='Código de 6 dígitos (INEI)')
     codigo_sunat = models.CharField('Cód. establecimiento SUNAT', max_length=4, default='0000')
     es_principal = models.BooleanField('Principal', default=False)
+    USOS = [('', 'Almacén normal'), ('TRANSITO', 'Mercadería en tránsito'),
+            ('DESTRUCCION', 'Cuarentena / por destruir')]
+    uso = models.CharField('Uso', max_length=12, choices=USOS, blank=True)
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -193,6 +211,17 @@ class Almacen(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    @classmethod
+    def especial(cls, uso):
+        """Almacén virtual de tránsito o de destrucción (se crea la primera vez que se necesita)."""
+        nombres = {'TRANSITO': ('ALM-TR', 'Mercadería en tránsito'),
+                   'DESTRUCCION': ('ALM-DS', 'Cuarentena / por destruir')}
+        alm = cls.objects.filter(uso=uso).first()
+        if alm is None:
+            codigo, nombre = nombres[uso]
+            alm = cls.objects.create(codigo=codigo, nombre=nombre, uso=uso)
+        return alm
 
     @classmethod
     def principal(cls):
@@ -257,7 +286,8 @@ class Kardex(models.Model):
     costo_promedio = models.DecimalField(max_digits=12, decimal_places=4, default=D0)
     origen = models.CharField(max_length=10, blank=True, help_text='VENTA, COMPRA, GUIA, AJUSTE')
     concepto = models.CharField(max_length=10, blank=True,
-                                help_text='Solo ajustes: INICIAL, SOBRANTE, MERMA o CONSUMO (define la cuenta contable)')
+                                help_text='Ajustes: INICIAL/SOBRANTE/MERMA/CONSUMO. Operaciones: código del tipo')
+    codigo_sunat = models.CharField('Tabla 12 SUNAT', max_length=2, blank=True)
     costo_unitario = models.DecimalField(max_digits=12, decimal_places=4, default=D0)
     saldo = models.DecimalField(max_digits=14, decimal_places=2)
     referencia = models.CharField(max_length=120)

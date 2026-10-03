@@ -26,16 +26,16 @@
 </div>
 <div class="card"><div class="table-responsive">
   <table class="table table-sm table-bordered table-registro mb-0">
-    <thead><tr><th rowspan="2">Fecha</th><th rowspan="2">Almacén</th><th rowspan="2">Documento / referencia</th><th colspan="3" class="text-center">Entradas</th><th colspan="3" class="text-center">Salidas</th><th colspan="3" class="text-center">Saldo</th></tr>
+    <thead><tr><th rowspan="2">Fecha</th><th rowspan="2">Almacén</th><th rowspan="2">Documento / referencia</th><th rowspan="2" title="Tipo de operación - Tabla 12 SUNAT">T.12</th><th colspan="3" class="text-center">Entradas</th><th colspan="3" class="text-center">Salidas</th><th colspan="3" class="text-center">Saldo</th></tr>
       <tr><th class="num">Cant.</th><th class="num">C. unit.</th><th class="num">Total</th><th class="num">Cant.</th><th class="num">C. unit.</th><th class="num">Total</th><th class="num">Cant.</th><th class="num">C. prom.</th><th class="num">Total</th></tr></thead>
     <tbody>
-      <tr class="text-muted"><td colspan="9">Saldo inicial al {{ desde }}</td><td class="num">{{ inicial|money }}</td><td></td><td></td></tr>
+      <tr class="text-muted"><td colspan="10">Saldo inicial al {{ desde }}</td><td class="num">{{ inicial|money }}</td><td></td><td></td></tr>
       {% for f in filas %}
-      <tr><td>{{ f.k.fecha|date:'d/m/Y' }}</td><td>{{ f.k.almacen|default:'' }}</td><td>{{ f.k.referencia }}</td>
+      <tr><td>{{ f.k.fecha|date:'d/m/Y' }}</td><td>{{ f.k.almacen|default:'' }}</td><td>{{ f.k.referencia }}</td><td class="text-center">{{ f.k.codigo_sunat }}</td>
         {% if f.k.tipo == 'ENTRADA' %}<td class="num">{{ f.k.cantidad|money }}</td><td class="num">{{ f.k.costo_unitario|money }}</td><td class="num">{{ f.valor|money }}</td><td></td><td></td><td></td>
         {% else %}<td></td><td></td><td></td><td class="num">{{ f.k.cantidad|money }}</td><td class="num">{{ f.k.costo_unitario|money }}</td><td class="num">{{ f.valor|money }}</td>{% endif %}
         <td class="num fw-semibold">{{ f.saldo|money }}</td><td class="num">{{ f.costo_prom|money }}</td><td class="num">{{ f.saldo_valor|money }}</td></tr>
-      {% empty %}<tr><td colspan="12" class="text-center text-muted py-4">Sin movimientos en el rango.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="13" class="text-center text-muted py-4">Sin movimientos en el rango.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div></div>

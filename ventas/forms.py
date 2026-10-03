@@ -48,6 +48,10 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         if tipo == '01' and tercero and tercero.tipo_doc != '6':
             self.add_error('tercero', 'Las facturas requieren un cliente con RUC.')
         validar_periodo_abierto(self, 'fecha_emision', self.instance.periodo if self.instance.pk else None)
+        if self.instance.pk and data.get('descontar_stock') and \
+                self.instance.operaciones_inventario.filter(estado='CONFIRMADO', tipo__clase='SALIDA').exists():
+            self.add_error('descontar_stock', 'Este comprobante ya tiene despachos (salida por ventas) en Inventario. '
+                                              'Desmarque esta opción para no mover el almacén dos veces.')
         return data
 
     def clean_serie(self):

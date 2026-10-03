@@ -1,0 +1,73 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi {{ tipo.icono }}"></i> {{ titulo }}</h1>
+  <a href="{% if op.pk %}{% url 'inventario:detalle' op.pk %}{% else %}{% url 'inventario:nueva' %}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  {% if form.errors or formset.total_error_count %}<div class="alert alert-danger py-2">Revise los campos marcados.</div>{% endif %}
+  <div class="card mb-3"><div class="card-body"><div class="row g-3">
+    {% for field in form|campos:"fecha,orden_compra,compra,venta,envio,almacen_origen,almacen_destino,tercero,referencia" %}
+      <div class="{% if field.name == 'fecha' %}col-6 col-md-2{% elif field.name in 'orden_compra,compra,venta,envio,tercero' %}col-md-5{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>
+    {% endfor %}
+    {% for field in form|campos:"glosa" %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div>
+  <p class="small text-muted mt-2 mb-0">
+    {% if tipo.origen %}Al elegir el documento de origen se cargan las cantidades pendientes; puede recibir/despachar parcialmente.{% endif %}
+    {% if tipo.clase == 'MANUFACTURA' %}Indique los insumos que se consumen y los productos terminados que se obtienen: el costo de los productos es la suma del valor de los insumos.{% endif %}
+    {% if tipo.requiere_costo %}Indique el costo unitario en soles (si lo deja vacío se usa el costo promedio actual).{% endif %}
+    {% if tipo.cuenta_contable %}Contabilidad: contrapartida {{ tipo.cuenta_contable.codigo }} {{ tipo.cuenta_contable.nombre }}.{% endif %}
+  </p></div></div>
+
+  <div class="card mb-3">
+    <div class="card-header">Productos</div>
+    {{ formset.management_form }}
+    {% for e in formset.non_form_errors %}<div class="alert alert-danger m-3 py-2">{{ e }}</div>{% endfor %}
+    <div class="table-responsive">
+      <table class="table items-table mb-0">
+        <thead><tr><th style="width:35%">Producto</th>{% if muestra_rol %}<th style="width:18%">Rol</th>{% endif %}<th style="width:12%" class="num">Cantidad</th>{% if muestra_costo %}<th style="width:13%" class="num">Costo unit. S/</th>{% endif %}<th>Observación</th><th class="text-center" style="width:5%"><i class="bi bi-trash"></i></th></tr></thead>
+        <tbody id="items-body" data-prefix="{{ formset.prefix }}" data-precio-campo="costo_promedio">
+          {% for f in formset %}
+          <tr class="item-row">
+            <td>{{ f.id }}{{ f.producto }}{% for e in f.producto.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}{% for e in f.non_field_errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+            {% if muestra_rol %}<td>{{ f.rol }}{% for e in f.rol.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>{% endif %}
+            <td>{{ f.cantidad }}{% for e in f.cantidad.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+            {% if muestra_costo %}<td>{{ f.costo_unitario }}</td>{% endif %}
+            <td>{{ f.observacion }}</td>
+            <td class="text-center">{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <template id="item-template">
+      <tr class="item-row"><td>{{ formset.empty_form.id }}{{ formset.empty_form.producto }}</td>{% if muestra_rol %}<td>{{ formset.empty_form.rol }}</td>{% endif %}
+        <td>{{ formset.empty_form.cantidad }}</td>{% if muestra_costo %}<td>{{ formset.empty_form.costo_unitario }}</td>{% endif %}<td>{{ formset.empty_form.observacion }}</td><td class="text-center">{{ formset.empty_form.DELETE }}</td></tr>
+    </template>
+    <div class="card-body"><button type="button" id="agregar-item" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar producto</button></div>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-primary" name="accion" value="borrador"><i class="bi bi-save"></i> Guardar borrador</button>
+    <button class="btn btn-primary" name="accion" value="confirmar"><i class="bi bi-check2-circle"></i> Guardar y confirmar</button>
+  </div>
+</form>
+{{ productos|json_script:"productos-data" }}
+{% if not op.pk %}
+<script>
+// al elegir el documento de origen se recarga con sus cantidades pendientes
+(function () {
+  const params = {orden_compra: 'oc', compra: 'compra', venta: 'venta', envio: 'envio'};
+  Object.entries(params).forEach(([campo, param]) => {
+    const sel = document.getElementById('id_' + campo);
+    if (!sel) return;
+    sel.addEventListener('change', () => {
+      if (sel.value) location.href = `?tipo={{ tipo.codigo|escapejs }}&${param}=${encodeURIComponent(sel.value)}`;
+    });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

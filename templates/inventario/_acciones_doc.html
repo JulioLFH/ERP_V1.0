@@ -1,0 +1,8 @@
+{% if 'inventario' in mods and acciones_inv %}
+<div class="dropdown">
+  <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-boxes"></i> Almacén</button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    {% for texto, url, icono in acciones_inv %}<li><a class="dropdown-item" href="{{ url }}"><i class="bi {{ icono }}"></i> {{ texto }}</a></li>{% endfor %}
+  </ul>
+</div>
+{% endif %}

@@ -3,6 +3,18 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.5.0 — 03/10/2026 · Operaciones de inventario
+- Nuevo menú Inventario > Operaciones con 14 tipos de operación: Saldo inicial, Recepción de compras, Devolución de clientes, Ajuste ingreso, Salida por ventas, Devolución a proveedor, Ajuste salida, Consumo interno, Consumo mantenimiento, Salida a destrucción, Traslado a destrucción, Traslado a tránsito, Recepción de tránsito y Manufactura.
+- Cada operación se guarda en borrador y mueve el almacén al confirmarse; se anula con motivo (revierte el movimiento). Numeración propia: NI (ingresos), NS (salidas), NT (traslados), MF (manufactura). Impresión de la nota con firmas.
+- Recepción de compras parcial desde la orden de compra o la factura: el sistema muestra lo pendiente y no deja recibir de más. La factura de una orden ya recibida no vuelve a ingresar la mercadería.
+- Devoluciones de clientes y a proveedores limitadas a lo vendido/recibido; la devolución de cliente se valoriza al costo con que salió. Botón para emitir la nota de crédito sin volver a mover el almacén.
+- Mercadería en tránsito: el traslado la deja en el almacén virtual "Mercadería en tránsito" hasta que se recibe (también parcialmente) en el destino.
+- Destrucción en dos pasos: traslado al almacén "Cuarentena / por destruir" y salida a destrucción.
+- Manufactura: consume insumos y el costo del producto terminado es el valor de los insumos.
+- Tipos de operación configurables (Inventario > Configuración): cuenta contable de contrapartida y código de la tabla 12 de SUNAT. El kardex muestra ese código.
+- Botón "Almacén" en órdenes de compra, compras y ventas para recibir, despachar o devolver.
+- Contabilidad: cada operación usa la cuenta de su tipo (ej. consumo interno 6561, mantenimiento 6343, saldo inicial 5911); traslados y manufactura no afectan resultados.
+
 ## v1.4.1 — 03/10/2026 · Nuevo nombre: CEIVA ERP
 - El sistema se llama **CEIVA ERP**: inicio de sesión, barra superior, pestaña del navegador, pie de página, administración, impresiones e iniciar.bat. El nombre se define en un solo lugar (ERP_NOMBRE en erp/settings.py).
 

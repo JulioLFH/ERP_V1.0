@@ -260,9 +260,18 @@ def asiento_inventario(periodo, cta):
     """Movimientos del kardex del mes y ajuste final para que la 20111 iguale la valorización."""
     from core.inventario import valor_inventario
     desde, hasta = _rango(periodo)
+    from inventario.models import TipoOperacion
+    tipos = {t.codigo: t for t in TipoOperacion.objects.select_related('cuenta_contable')}
     grupos = defaultdict(lambda: D0)
+    por_cuenta = defaultdict(lambda: D0)  # operaciones de inventario: contrapartida del tipo de operación
     for k in Kardex.objects.filter(fecha__range=[desde, hasta]):
         valor = r2(k.cantidad * k.costo_unitario) * (1 if k.tipo == 'ENTRADA' else -1)  # variación del inventario
+        if k.origen == 'OPERACION':
+            tipo = tipos.get(k.concepto)
+            if tipo and tipo.cuenta_contable_id:
+                por_cuenta[tipo.cuenta_contable] += valor
+            # traslados y manufactura no tienen contrapartida: salida y entrada se compensan en la 20111
+            continue
         if k.origen == 'COMPRA':
             grupos['recepcion'] += valor
         elif k.origen in ('VENTA', 'GUIA'):
@@ -284,6 +293,9 @@ def asiento_inventario(periodo, cta):
     for clave, (contra, glosa) in contras.items():
         if grupos[clave]:
             b.neto(merc, contra, grupos[clave], glosa=glosa)
+    for contra, valor in sorted(por_cuenta.items(), key=lambda x: x[0].codigo):
+        if valor:
+            b.neto(merc, contra, valor, glosa=f'Operaciones de inventario ({contra.nombre[:60]})')
     # ajuste por valuación: la 20111 debe quedar igual al inventario valorizado del kardex
     agg = AsientoLinea.objects.filter(cuenta=merc, asiento__fecha__lte=hasta).aggregate(d=Sum('debe'), h=Sum('haber'))
     libro = (agg['d'] or D0) - (agg['h'] or D0) + sum(l.debe - l.haber for l in b.lineas if l.cuenta_id == merc.pk)

@@ -77,9 +77,10 @@ def kardex(request):
             filas.append({'k': k, 'saldo': saldo, 'costo_prom': costo_prom, 'valor': valor,
                           'saldo_valor': r2(saldo * costo_prom)})
         if request.GET.get('formato') == 'excel':
-            enc = ['Fecha', 'Almacén', 'Documento / referencia', 'Tipo', 'Entrada cant.', 'Salida cant.',
+            enc = ['Fecha', 'Almacén', 'Documento / referencia', 'Tipo', 'Tabla 12 SUNAT', 'Entrada cant.', 'Salida cant.',
                    'Costo unit.', 'Valor', 'Saldo cant.', 'Costo promedio', 'Saldo valorizado']
             datos = [[fmt_fecha(f['k'].fecha), str(f['k'].almacen or ''), f['k'].referencia, f['k'].tipo,
+                      f['k'].codigo_sunat,
                       f['k'].cantidad if f['k'].tipo == 'ENTRADA' else D0,
                       f['k'].cantidad if f['k'].tipo == 'SALIDA' else D0, f['k'].costo_unitario, f['valor'],
                       f['saldo'], f['costo_prom'], f['saldo_valor']] for f in filas]
@@ -157,7 +158,8 @@ class AlmacenLista(ListaGenerica):
     model = Almacen
     titulo = 'Almacenes / establecimientos'
     columnas = [('Código', 'codigo'), ('Nombre', 'nombre'), ('Dirección', 'direccion'), ('Ubigeo', 'ubigeo'),
-                ('Cód. SUNAT', 'codigo_sunat'), ('Principal', 'es_principal'), ('Activo', 'activo')]
+                ('Cód. SUNAT', 'codigo_sunat'), ('Uso', 'get_uso_display'), ('Principal', 'es_principal'),
+                ('Activo', 'activo')]
     url_nuevo, url_editar = 'almacen_nuevo', 'almacen_editar'
     buscar_en = ['codigo', 'nombre']
 

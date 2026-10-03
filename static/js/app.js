@@ -57,7 +57,8 @@
       sel.addEventListener('change', () => {
         const p = productos.find((x) => String(x.id) === sel.value);
         if (!p) return;
-        tr.querySelector('.js-descripcion').value = p.nombre;
+        const desc = tr.querySelector('.js-descripcion');
+        if (desc) desc.value = p.nombre;
         const precio = tr.querySelector('.js-precio');
         if (precio) precio.value = parseFloat(p[precioCampo] || 0).toFixed(2);
         const unidad = tr.querySelector('.js-unidad');

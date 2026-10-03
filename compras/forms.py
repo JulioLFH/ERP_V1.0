@@ -32,6 +32,13 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         if data.get('tipo_comprobante') in ('07', '08') and not data.get('doc_referencia'):
             self.add_error('doc_referencia', 'Indique el comprobante que modifica la nota.')
         validar_periodo_abierto(self, 'fecha_emision', data.get('periodo'))
+        if data.get('ingresar_almacen') and data.get('tipo_comprobante') not in ('07', '08'):
+            from inventario.servicios import tiene_recepciones
+            recibida = (self.instance.pk and tiene_recepciones(compra=self.instance)) or (
+                data.get('orden_compra') and tiene_recepciones(orden=data['orden_compra']))
+            if recibida:
+                self.add_error('ingresar_almacen', 'La mercadería ya se recibió en Inventario (recepción de compras). '
+                                                   'Desmarque esta opción para no ingresarla dos veces.')
         return data
 
 
