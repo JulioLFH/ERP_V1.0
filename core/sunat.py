@@ -125,10 +125,13 @@ def _guardar_respuesta(doc, data):
         doc.estado_sunat = 'PENDIENTE'
     if data.get('anulado'):
         doc.estado_sunat = 'BAJA'
+    es_boleta = getattr(doc, 'tipo_comprobante', '') in ('03', '07', '08') and (doc.serie or '').startswith('B')
+    pendiente = ('Boleta registrada en el OSE: SUNAT la recibe en el resumen diario (puede tardar hasta el día '
+                 'siguiente). Use "Consultar estado" más tarde.' if es_boleta else
+                 'Enviado. SUNAT aún no responde: use "Consultar estado" en unos minutos.')
     doc.sunat_descripcion = ' '.join(str(x) for x in (data.get('sunat_description'), data.get('sunat_note'),
                                                       data.get('sunat_soap_error')) if x) or (
-        'Enviado. SUNAT aún no responde: use "Consultar estado" en unos minutos.'
-        if doc.estado_sunat == 'PENDIENTE' else '')
+        pendiente if doc.estado_sunat == 'PENDIENTE' else '')
     enlace = data.get('enlace') or ''
     doc.enlace_pdf = data.get('enlace_del_pdf') or (f'{enlace}.pdf' if enlace and data.get('aceptada_por_sunat')
                                                     else doc.enlace_pdf)
@@ -160,6 +163,10 @@ def validar_comprobante(venta):
     if not serie.startswith(letra) or len(serie) != 4:
         errores.append(f'La serie debe tener 4 caracteres y empezar con "{letra}" (actual: "{serie}").')
     cli = venta.tercero
+    if cli.tipo_doc == '6':
+        from .forms import error_ruc
+        if error_ruc(cli.numero_doc):
+            errores.append(f'Cliente {cli.nombre}: {error_ruc(cli.numero_doc)} Corríjalo en Contactos.')
     if venta.tipo_comprobante == '01' and not (cli.direccion or '').strip():
         errores.append('La factura requiere la dirección del cliente.')
     if venta.tipo_comprobante in ('07', '08') and not venta.doc_referencia:

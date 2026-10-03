@@ -96,6 +96,19 @@ class NubefactTest(TestCase):
         self.assertEqual((p['tipo_de_comprobante'], p['documento_que_se_modifica_tipo']), (3, 2))
         self.assertEqual(p['tipo_de_nota_de_credito'], 6)
 
+    def test_valida_digito_verificador_del_ruc(self):
+        from core.forms import error_ruc
+        self.assertEqual(error_ruc('20600695771'), '')  # RUC de Nubefact
+        self.assertIn('dígito verificador debería ser 6', error_ruc('20555555551'))
+        self.assertIn('empezar con', error_ruc('30555555551'))
+        r = self.client.post(reverse('tercero_nuevo'), {'tipo': 'CLIENTE', 'tipo_doc': '6', 'numero_doc': '20555555551',
+                                                        'nombre': 'X', 'dias_credito': '0', 'activo': 'on'})
+        self.assertIn('numero_doc', r.context['form'].errors)
+        cli = Tercero.objects.filter(tipo='CLIENTE', tipo_doc='6').first()
+        Tercero.objects.filter(pk=cli.pk).update(numero_doc='20555555551')
+        self._venta(tercero=cli.pk)
+        self.assertIn('RUC inválido', ' '.join(sunat.validar_comprobante(Venta.objects.latest('id'))))
+
     def test_rechaza_serie_incorrecta(self):
         r = self._venta(serie='B001')  # factura con serie de boleta
         self.assertIn('serie', r.context['form'].errors)

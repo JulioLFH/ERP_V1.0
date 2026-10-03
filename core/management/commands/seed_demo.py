@@ -21,7 +21,7 @@ class Command(BaseCommand):
             self.stdout.write('Ya existen datos; no se cargó la demo.')
             return
         emp = Empresa.actual()
-        emp.ruc, emp.razon_social = '20601234567', 'COMERCIAL DEMO S.A.C.'
+        emp.ruc, emp.razon_social = '20601234565', 'COMERCIAL DEMO S.A.C.'
         emp.direccion = 'Av. Javier Prado Este 123, San Isidro, Lima'
         emp.save()
 
@@ -32,8 +32,8 @@ class Command(BaseCommand):
                 for r, n in (('20100047218', 'DISTRIBUIDORA ANDINA S.A.'), ('20512345671', 'IMPORTACIONES DEL PACIFICO SAC'),
                              ('20131312955', 'SERVICIOS GENERALES LIMA EIRL'))]
         cli = [Tercero.objects.create(tipo='CLIENTE', numero_doc=r, nombre=n, zona=z, dias_credito=15)
-               for r, n, z in (('20555555551', 'MINERA LOS ANDES S.A.', 'Norte'), ('20444444441', 'CONSTRUCTORA SUR SAC', 'Sur'),
-                               ('20333333331', 'RETAIL CENTRO EIRL', 'Lima'))]
+               for r, n, z in (('20555555556', 'MINERA LOS ANDES S.A.', 'Norte'), ('20444444445', 'CONSTRUCTORA SUR SAC', 'Sur'),
+                               ('20333333334', 'RETAIL CENTRO EIRL', 'Lima'))]
         cli.append(Tercero.objects.create(tipo='CLIENTE', tipo_doc='1', numero_doc='45678912', nombre='JUAN PEREZ ROJAS', zona='Lima'))
 
         prods = [Producto.objects.create(codigo=c, nombre=n, precio_venta=Decimal(p), stock_minimo=10)

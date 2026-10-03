@@ -298,7 +298,7 @@ class ComprobanteViews:
 
     def importar(self, request):
         if request.GET.get('plantilla'):
-            ejemplo = ['01', 'F001', '123', date.today().strftime('%d/%m/%Y'), '', '6', '20123456789',
+            ejemplo = ['01', 'F001', '123', date.today().strftime('%d/%m/%Y'), '', '6', '20123456786',
                        'EMPRESA EJEMPLO SAC', 'PEN', 1, 100, 0, 18, 118, 'Importado']
             return excel_response(f'Plantilla_{self.titulo}', 'plantilla', self.COLUMNAS_IMPORT, [ejemplo])
         resultado = None

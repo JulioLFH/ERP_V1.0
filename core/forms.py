@@ -56,6 +56,24 @@ class EmpresaForm(BootstrapMixin, forms.ModelForm):
         fields = '__all__'
 
 
+def digito_ruc(primeros10):
+    """Dígito verificador del RUC (módulo 11, pesos de SUNAT)."""
+    suma = sum(int(d) * p for d, p in zip(primeros10, (5, 4, 3, 2, 7, 6, 5, 4, 3, 2)))
+    resto = 11 - suma % 11
+    return {10: 0, 11: 1}.get(resto, resto)
+
+
+def error_ruc(ruc):
+    """Mensaje de error si el RUC no es válido para SUNAT; '' si es correcto."""
+    if len(ruc) != 11 or not ruc.isdigit():
+        return 'El RUC debe tener 11 dígitos.'
+    if ruc[:2] not in ('10', '15', '16', '17', '20'):
+        return 'El RUC debe empezar con 10, 15, 16, 17 o 20.'
+    if int(ruc[10]) != digito_ruc(ruc[:10]):
+        return f'RUC inválido: el dígito verificador debería ser {digito_ruc(ruc[:10])}. Revise el número.'
+    return ''
+
+
 class TerceroForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Tercero
@@ -64,8 +82,8 @@ class TerceroForm(BootstrapMixin, forms.ModelForm):
     def clean(self):
         data = super().clean()
         doc, num = data.get('tipo_doc'), (data.get('numero_doc') or '').strip()
-        if doc == '6' and (len(num) != 11 or not num.isdigit()):
-            self.add_error('numero_doc', 'El RUC debe tener 11 dígitos.')
+        if doc == '6' and error_ruc(num):
+            self.add_error('numero_doc', error_ruc(num))
         if doc == '1' and (len(num) != 8 or not num.isdigit()):
             self.add_error('numero_doc', 'El DNI debe tener 8 dígitos.')
         return data

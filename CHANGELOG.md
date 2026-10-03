@@ -12,6 +12,8 @@ El número de versión instalada se ve en el sistema, en el menú del usuario (a
 - Notas de crédito y débito de boletas usan series que empiezan con B (BC01, BD01). Se valida la letra de la serie.
 - Validaciones antes de enviar (serie, dirección, ubigeo, placa, licencia, peso) con mensajes claros.
 - Botón "Probar conexión con Nubefact" en Ajustes > Facturación electrónica.
+- Validación del dígito verificador del RUC (módulo 11 de SUNAT) al registrar clientes/proveedores y antes de enviar.
+- Probado contra la cuenta DEMO de Nubefact: factura, nota de crédito, nota de débito, guía remitente y guía transportista ACEPTADAS por SUNAT; boletas registradas a la espera del resumen diario.
 
 ## v1.3.1 — 03/10/2026 · Versión en los títulos
 - El título del sistema (inicio de sesión, barra superior, pestaña del navegador, administración e impresiones) muestra "ERP" con la versión instalada.
