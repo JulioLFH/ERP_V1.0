@@ -11,11 +11,11 @@
     <a href="{% url app|add:':lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
     <a href="{% url app|add:':imprimir' doc.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</a>
     {% if puede_editar %}<a href="{% url app|add:':editar' doc.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
-    {% if app == 'ventas' and doc.estado == 'REGISTRADO' and doc.tipo_comprobante in '01 03 12 00' %}
+    {% if app == 'ventas' and 'logistica' in mods and doc.estado == 'REGISTRADO' and doc.tipo_comprobante in '01 03 12 00' %}
       <a href="{% url 'logistica:nueva' %}?tipo=09&venta={{ doc.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-truck"></i> Generar guía</a>
     {% endif %}
     {% if doc.estado == 'REGISTRADO' %}
-      {% if doc.saldo > 0 %}
+      {% if doc.saldo > 0 and 'finanzas' in mods %}
         <a href="{% if app == 'ventas' %}{% url 'finanzas:cobranza' %}{% else %}{% url 'finanzas:pago' %}{% endif %}?doc={{ doc.pk }}" class="btn btn-sm btn-success"><i class="bi bi-cash-coin"></i> Registrar {% if app == 'ventas' %}cobro{% else %}pago{% endif %}</a>
         {% if doc.detraccion_monto %}<a href="{% if app == 'ventas' %}{% url 'finanzas:cobranza' %}{% else %}{% url 'finanzas:pago' %}{% endif %}?doc={{ doc.pk }}&detraccion=1" class="btn btn-sm btn-outline-success"><i class="bi bi-bank"></i> Detracción</a>{% endif %}
       {% endif %}
@@ -58,7 +58,7 @@
     <div class="card"><div class="card-header">{% if app == 'ventas' %}Cobranzas{% else %}Pagos{% endif %} registrados (Finanzas)</div>
       <div class="table-responsive"><table class="table table-sm mb-0">
         <thead><tr><th>Voucher</th><th>Fecha</th><th>Cuenta</th><th>Concepto</th><th>Medio / N° op.</th><th class="num">Monto</th></tr></thead>
-        <tbody>{% for m in movimientos %}<tr><td><a href="{% url 'finanzas:voucher' m.pk %}" target="_blank">{{ m.voucher }}</a></td><td>{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.cuenta }}</td><td>{{ m.get_concepto_display }}</td><td>{{ m.get_medio_pago_display }} {{ m.numero_operacion }}</td><td class="num">{{ m.monto|money }}</td></tr>
+        <tbody>{% for m in movimientos %}<tr><td>{% if 'finanzas' in mods %}<a href="{% url 'finanzas:voucher' m.pk %}" target="_blank">{{ m.voucher }}</a>{% else %}{{ m.voucher }}{% endif %}</td><td>{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.cuenta }}</td><td>{{ m.get_concepto_display }}</td><td>{{ m.get_medio_pago_display }} {{ m.numero_operacion }}</td><td class="num">{{ m.monto|money }}</td></tr>
         {% empty %}<tr><td colspan="6" class="text-muted text-center">Sin movimientos.</td></tr>{% endfor %}</tbody>
       </table></div>
     </div>
@@ -97,8 +97,8 @@
         <tr><td class="text-muted">Moneda / T.C.</td><td class="text-end">{{ doc.moneda }} / {{ doc.tipo_cambio }}</td></tr>
         {% if doc.almacen %}<tr><td class="text-muted">Almacén</td><td class="text-end">{{ doc.almacen }}</td></tr>{% endif %}
         {% if doc.centro_costo %}<tr><td class="text-muted">Centro de costo</td><td class="text-end">{{ doc.centro_costo }}</td></tr>{% endif %}
-        <tr><td class="text-muted">Asiento contable</td><td class="text-end">{% for a in doc.asientos.all %}<a href="{% url 'contabilidad:asiento_detalle' a.pk %}">{{ a.numero }}</a> {% empty %}<span class="text-muted small">Sin centralizar</span>{% endfor %}</td></tr>
-        {% for gr in doc.guias.all %}<tr><td class="text-muted">Guía de remisión</td><td class="text-end"><a href="{% url 'logistica:detalle' gr.pk %}">{{ gr.numero_completo }}</a></td></tr>{% endfor %}
+        {% if 'contabilidad' in mods %}<tr><td class="text-muted">Asiento contable</td><td class="text-end">{% for a in doc.asientos.all %}<a href="{% url 'contabilidad:asiento_detalle' a.pk %}">{{ a.numero }}</a> {% empty %}<span class="text-muted small">Sin centralizar</span>{% endfor %}</td></tr>{% endif %}
+        {% for gr in doc.guias.all %}<tr><td class="text-muted">Guía de remisión</td><td class="text-end">{% if 'logistica' in mods %}<a href="{% url 'logistica:detalle' gr.pk %}">{{ gr.numero_completo }}</a>{% else %}{{ gr.numero_completo }}{% endif %}</td></tr>{% endfor %}
         {% if app == 'compras' %}<tr><td class="text-muted">Clasificación</td><td class="text-end">{{ doc.get_clasificacion_display }}</td></tr>
         <tr><td class="text-muted">Almacén</td><td class="text-end">{% if doc.stock_aplicado %}Ingresado{% else %}No ingresado{% endif %}</td></tr>
         {% if doc.orden_compra %}<tr><td class="text-muted">Orden de compra</td><td class="text-end"><a href="{% url 'compras:oc_detalle' doc.orden_compra_id %}">{{ doc.orden_compra }}</a></td></tr>{% endif %}{% endif %}

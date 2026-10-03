@@ -28,8 +28,8 @@
       {% if g.transportista %}<div class="col-md-6"><div class="text-muted">Transportista</div>{{ g.transportista.nombre }} (RUC {{ g.transportista.numero_doc }}){% if g.transportista.registro_mtc %} · MTC {{ g.transportista.registro_mtc }}{% endif %}</div>{% endif %}
       {% if g.vehiculo %}<div class="col-md-3"><div class="text-muted">Vehículo</div>{{ g.vehiculo }}</div>{% endif %}
       {% if g.conductor %}<div class="col-md-3"><div class="text-muted">Conductor</div>{{ g.conductor.nombres }} {{ g.conductor.apellidos }}<br>Lic. {{ g.conductor.licencia }}</div>{% endif %}
-      {% if g.venta %}<div class="col-md-6"><div class="text-muted">Comprobante relacionado</div><a href="{% url 'ventas:detalle' g.venta_id %}">{{ g.venta }}</a></div>{% endif %}
-      {% if g.compra %}<div class="col-md-6"><div class="text-muted">Compra relacionada</div><a href="{% url 'compras:detalle' g.compra_id %}">{{ g.compra }}</a></div>{% endif %}
+      {% if g.venta %}<div class="col-md-6"><div class="text-muted">Comprobante relacionado</div>{% if 'ventas' in mods %}<a href="{% url 'ventas:detalle' g.venta_id %}">{{ g.venta }}</a>{% else %}{{ g.venta }}{% endif %}</div>{% endif %}
+      {% if g.compra %}<div class="col-md-6"><div class="text-muted">Compra relacionada</div>{% if 'compras' in mods %}<a href="{% url 'compras:detalle' g.compra_id %}">{{ g.compra }}</a>{% else %}{{ g.compra }}{% endif %}</div>{% endif %}
       {% if g.doc_relacionado %}<div class="col-md-6"><div class="text-muted">Otro documento</div>{{ g.doc_relacionado }}</div>{% endif %}
       {% if g.tipo == '09' %}<div class="col-md-6"><div class="text-muted">Almacén</div>{{ g.get_efecto_stock_display }}{% if g.almacen_origen %} · origen {{ g.almacen_origen }}{% endif %}{% if g.almacen_destino %} · destino {{ g.almacen_destino }}{% endif %}{% if g.stock_aplicado %} <i class="bi bi-check-circle text-success"></i>{% endif %}</div>{% endif %}
     </div>{% if g.observaciones %}<p class="small text-muted mt-3 mb-0">{{ g.observaciones }}</p>{% endif %}</div></div>
@@ -53,7 +53,7 @@
             {% else %}<button class="btn btn-sm btn-primary"><i class="bi bi-send"></i> Enviar a SUNAT</button>{% endif %}
           </form>{% endif %}
         </div>
-        {% if not cfg.activa %}<p class="text-muted mt-2 mb-0">Configure el OSE en <a href="{% url 'facturacion' %}">Facturación electrónica</a>. Desde 2023 la guía electrónica (GRE) es obligatoria.</p>{% endif %}
+        {% if not cfg.activa %}<p class="text-muted mt-2 mb-0">Configure el OSE en {% if 'ajustes' in mods %}<a href="{% url 'facturacion' %}">Ajustes &gt; Facturación electrónica</a>{% else %}Ajustes &gt; Facturación electrónica{% endif %}. Desde 2023 la guía electrónica (GRE) es obligatoria.</p>{% endif %}
       </div>
     </div>
   </div>

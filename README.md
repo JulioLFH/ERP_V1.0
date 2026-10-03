@@ -61,6 +61,13 @@ Módulos (inspirados en AdSoft): **Registro de Compras**, **Registro de Ventas**
 - **Cierre de periodos**: un mes cerrado no admite registrar, editar, anular ni eliminar compras, ventas o movimientos.
 - **Reportes**: Libro Diario (Excel y TXT PLE 5.1), Libro Mayor, plan de cuentas (TXT PLE 5.3), Balance de Comprobación de 8 columnas, Estado de Situación Financiera, Estado de Resultados por función y gastos por centro de costo.
 
+### Módulos y usuarios (v1.3, estilo Odoo)
+- **Pantalla de aplicaciones**: Tablero, Ventas, Compras, Inventario, Logística, Finanzas, Contabilidad, Contactos y Ajustes.
+- Cada aplicación tiene **su propia barra superior** de color, con solo sus menús.
+- **Usuarios y permisos por módulo** (Ajustes > Usuarios y permisos): cada usuario ve y entra únicamente a los módulos asignados. Los botones hacia otros módulos se ocultan, y si alguien intenta abrir una pantalla sin acceso ve un aviso.
+- Pantallas compartidas (Productos, Clientes, Proveedores) se abren dentro del módulo desde el que se llamaron.
+- Cada usuario puede cambiar su contraseña desde su menú, arriba a la derecha.
+
 ### Otros
 Dashboard con KPIs y gráficos, maestros de clientes/proveedores/productos, correlativos, datos de empresa e IGV configurable, panel `/admin`.
 

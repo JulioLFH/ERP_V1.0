@@ -1,20 +1,20 @@
 {% extends 'base.html' %}{% load erp_tags %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}Tablero{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="page-title">Dashboard</h1>
+  <h1 class="page-title">Tablero</h1>
   <div class="d-flex gap-2">
-    <a href="{% url 'ventas:nuevo' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nueva venta</a>
-    <a href="{% url 'compras:nuevo' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-plus-lg"></i> Nueva compra</a>
+    {% if 'ventas' in mods %}<a href="{% url 'ventas:nuevo' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nueva venta</a>{% endif %}
+    {% if 'compras' in mods %}<a href="{% url 'compras:nuevo' %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-plus-lg"></i> Nueva compra</a>{% endif %}
   </div>
 </div>
 
 <div class="row g-3 mb-3">
   <div class="col-sm-6 col-xl"><div class="kpi d-flex justify-content-between"><div><div class="label">Ventas del mes</div><div class="value">S/ {{ ventas_mes|money }}</div></div><i class="bi bi-graph-up-arrow text-success"></i></div></div>
   <div class="col-sm-6 col-xl"><div class="kpi d-flex justify-content-between"><div><div class="label">Compras del mes</div><div class="value">S/ {{ compras_mes|money }}</div></div><i class="bi bi-bag text-primary"></i></div></div>
-  <div class="col-sm-6 col-xl"><a href="{% url 'ventas:pendientes' %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div><div class="label">Por cobrar</div><div class="value">S/ {{ total_cobrar|money }}</div></div><i class="bi bi-hourglass-split text-warning"></i></div></a></div>
-  <div class="col-sm-6 col-xl"><a href="{% url 'compras:pendientes' %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div><div class="label">Por pagar</div><div class="value">S/ {{ total_pagar|money }}</div></div><i class="bi bi-calendar2-x text-danger"></i></div></a></div>
-  <div class="col-sm-6 col-xl"><a href="{% url 'finanzas:cuentas' %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div>
+  <div class="col-sm-6 col-xl"><a href="{% if 'ventas' in mods %}{% url 'ventas:pendientes' %}{% else %}#{% endif %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div><div class="label">Por cobrar</div><div class="value">S/ {{ total_cobrar|money }}</div></div><i class="bi bi-hourglass-split text-warning"></i></div></a></div>
+  <div class="col-sm-6 col-xl"><a href="{% if 'compras' in mods %}{% url 'compras:pendientes' %}{% else %}#{% endif %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div><div class="label">Por pagar</div><div class="value">S/ {{ total_pagar|money }}</div></div><i class="bi bi-calendar2-x text-danger"></i></div></a></div>
+  <div class="col-sm-6 col-xl"><a href="{% if 'finanzas' in mods %}{% url 'finanzas:cuentas' %}{% else %}#{% endif %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div>
     <div class="label">Caja y bancos (consolidado)</div><div class="value">S/ {{ saldo_consolidado|money }}</div>
     <div class="small text-muted">S/ {{ saldo_pen|money }} + US$ {{ saldo_usd|money }}<br>{% if tc %}T.C. {{ tc.venta }} ({{ tc.fecha|date:'d/m' }}){% else %}Sin T.C. registrado{% endif %}</div>
   </div><i class="bi bi-bank text-info"></i></div></a></div>
@@ -30,7 +30,7 @@
       <ul class="list-group list-group-flush">
         {% for c in cuentas %}
         <li class="list-group-item d-flex justify-content-between"><span><i class="bi {% if c.tipo == 'CAJA' %}bi-cash{% else %}bi-bank{% endif %} text-muted"></i> {{ c.nombre }}</span><span class="num fw-semibold">{{ c.simbolo }} {{ c.saldo|money }}</span></li>
-        {% empty %}<li class="list-group-item text-muted">Sin cuentas. <a href="{% url 'finanzas:cuenta_nueva' %}">Crear una</a></li>{% endfor %}
+        {% empty %}<li class="list-group-item text-muted">Sin cuentas de caja o bancos.</li>{% endfor %}
         {% if cuentas %}
         <li class="list-group-item d-flex justify-content-between small text-muted"><span>Total soles</span><span class="num">S/ {{ saldo_pen|money }}</span></li>
         <li class="list-group-item d-flex justify-content-between small text-muted"><span>Total dólares</span><span class="num">US$ {{ saldo_usd|money }}</span></li>
@@ -43,7 +43,7 @@
     <div class="card h-100"><div class="card-header text-danger"><i class="bi bi-exclamation-triangle"></i> Cobranzas vencidas</div>
       <ul class="list-group list-group-flush small">
         {% for d in vencidos_cobrar %}
-        <li class="list-group-item d-flex justify-content-between"><a href="{% url 'ventas:detalle' d.pk %}">{{ d.numero_completo }} · {{ d.tercero.nombre|truncatechars:24 }}</a><span class="num">{{ d.simbolo }} {{ d.saldo|money }} <span class="badge text-bg-danger">{{ d.dias_vencido }}d</span></span></li>
+        <li class="list-group-item d-flex justify-content-between"><a href="{% if 'ventas' in mods %}{% url 'ventas:detalle' d.pk %}{% else %}#{% endif %}">{{ d.numero_completo }} · {{ d.tercero.nombre|truncatechars:24 }}</a><span class="num">{{ d.simbolo }} {{ d.saldo|money }} <span class="badge text-bg-danger">{{ d.dias_vencido }}d</span></span></li>
         {% empty %}<li class="list-group-item text-muted">No hay cobranzas vencidas.</li>{% endfor %}
       </ul></div>
   </div>
@@ -51,7 +51,7 @@
     <div class="card h-100"><div class="card-header"><i class="bi bi-calendar-event"></i> Próximos pagos / vencidos</div>
       <ul class="list-group list-group-flush small">
         {% for d in vencidos_pagar %}
-        <li class="list-group-item d-flex justify-content-between"><a href="{% url 'compras:detalle' d.pk %}">{{ d.numero_completo }} · {{ d.tercero.nombre|truncatechars:24 }}</a><span class="num">{{ d.simbolo }} {{ d.saldo|money }} <small class="text-muted">{{ d.fecha_vencimiento|date:'d/m' }}</small></span></li>
+        <li class="list-group-item d-flex justify-content-between"><a href="{% if 'compras' in mods %}{% url 'compras:detalle' d.pk %}{% else %}#{% endif %}">{{ d.numero_completo }} · {{ d.tercero.nombre|truncatechars:24 }}</a><span class="num">{{ d.simbolo }} {{ d.saldo|money }} <small class="text-muted">{{ d.fecha_vencimiento|date:'d/m' }}</small></span></li>
         {% empty %}<li class="list-group-item text-muted">Sin pagos próximos.</li>{% endfor %}
       </ul></div>
   </div>

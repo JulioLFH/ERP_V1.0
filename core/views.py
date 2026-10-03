@@ -84,6 +84,13 @@ def dashboard(request):
 
 
 @login_required
+def home(request):
+    """Pantalla de aplicaciones (como el inicio de Odoo)."""
+    request.session.pop('modulo', None)
+    return render(request, 'core/home.html')
+
+
+@login_required
 def empresa_config(request):
     empresa = Empresa.actual()
     form = EmpresaForm(request.POST or None, instance=empresa)

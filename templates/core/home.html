@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Aplicaciones{% endblock %}
+{% block content %}
+<div class="apps-home">
+  <div class="text-center mb-5">
+    <h1 class="h4 mb-1">Hola, {{ user.first_name|default:user.get_username }}</h1>
+    <div class="text-muted small">{{ empresa.razon_social }} · RUC {{ empresa.ruc }}</div>
+  </div>
+  <div class="apps-grid">
+    {% for app in apps %}
+      <a href="{% url app.inicio %}" class="app-tile">
+        <span class="app-icon" style="background: {{ app.color }}"><i class="bi {{ app.icono }}"></i></span>
+        <span class="app-nombre">{{ app.nombre }}</span>
+        <span class="app-desc">{{ app.descripcion }}</span>
+      </a>
+    {% empty %}
+      <div class="alert alert-warning">Su usuario no tiene módulos asignados. Pida al administrador que le dé acceso en Ajustes &gt; Usuarios.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

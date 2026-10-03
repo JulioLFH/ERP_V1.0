@@ -38,7 +38,7 @@
           <div class="{% if field.name == 'transportista' %}col-12{% elif field.name == 'vehiculo' or field.name == 'conductor' %}col-md-6{% else %}col-4{% endif %}">{% include 'core/_campo.html' %}</div>
         {% endfor %}
         <div class="col-12 small text-muted">
-          {% if tipo == '31' %}Como transportista, registre su N° de registro MTC en <a href="{% url 'empresa' %}">Empresa</a>.
+          {% if tipo == '31' %}Como transportista, registre su N° de registro MTC en {% if 'ajustes' in mods %}<a href="{% url 'empresa' %}">Ajustes &gt; Empresa</a>{% else %}Ajustes &gt; Empresa{% endif %}.
           {% else %}Público: indique la empresa de transporte. Privado: vehículo y conductor propios.{% endif %}
           <a href="{% url 'logistica:vehiculo_nuevo' %}" target="_blank">+ vehículo</a> · <a href="{% url 'logistica:conductor_nuevo' %}" target="_blank">+ conductor</a>
         </div>

@@ -5,7 +5,7 @@
   <h1 class="page-title">Stock por almacén</h1>
   <div class="d-flex gap-2">
     <a href="{% url 'inv_ajuste' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-sliders"></i> Ajuste</a>
-    <a href="{% url 'logistica:nueva' %}?tipo=09" class="btn btn-sm btn-outline-primary"><i class="bi bi-truck"></i> Traslado (guía)</a>
+    {% if 'logistica' in mods %}<a href="{% url 'logistica:nueva' %}?tipo=09" class="btn btn-sm btn-outline-primary"><i class="bi bi-truck"></i> Traslado (guía)</a>{% endif %}
   </div>
 </div>
 <div class="row g-3 mb-3">

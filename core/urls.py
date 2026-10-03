@@ -1,9 +1,23 @@
-from django.urls import path
+from django.contrib.auth import views as auth_views
+from django.contrib.messages.views import SuccessMessageMixin
+from django.urls import path, reverse_lazy
 
-from . import inventario, views
+from . import inventario, usuarios, views
+
+
+class CambiarClave(SuccessMessageMixin, auth_views.PasswordChangeView):
+    template_name = 'core/cambiar_clave.html'
+    success_url = reverse_lazy('home')
+    success_message = 'Su contraseña fue actualizada.'
+
 
 urlpatterns = [
-    path('', views.dashboard, name='dashboard'),
+    path('', views.home, name='home'),
+    path('tablero/', views.dashboard, name='dashboard'),
+    path('cuenta/clave/', CambiarClave.as_view(), name='cambiar_clave'),
+    path('ajustes/usuarios/', usuarios.lista, name='usuarios'),
+    path('ajustes/usuarios/nuevo/', usuarios.nuevo, name='usuario_nuevo'),
+    path('ajustes/usuarios/<int:pk>/', usuarios.editar, name='usuario_editar'),
     path('empresa/', views.empresa_config, name='empresa'),
     path('facturacion-electronica/', views.facturacion_config, name='facturacion'),
     path('tipo-cambio/', views.tipos_cambio, name='tipos_cambio'),

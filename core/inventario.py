@@ -125,10 +125,8 @@ def valorizacion(request):
     for p in Producto.objects.filter(tipo='BIEN').order_by('codigo'):
         movs = p.kardex.filter(fecha__lte=corte)
         ultimo = movs.order_by('-fecha', '-id').first()
-        if almacen:
-            cantidad = sum((_signo(k) for k in movs.filter(almacen=almacen)), D0)
-        else:
-            cantidad = ultimo.saldo if ultimo else D0
+        # se suma por fecha (no se usa Kardex.saldo: registros con fecha anterior lo desordenan)
+        cantidad = sum((_signo(k) for k in (movs.filter(almacen=almacen) if almacen else movs)), D0)
         if not ultimo or cantidad == 0:
             continue
         costo = ultimo.costo_promedio or p.costo_promedio
