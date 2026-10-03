@@ -2,13 +2,17 @@
 {% block title %}Centralización contable{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-  <h1 class="page-title">Centralización contable por periodo</h1>
-  <a href="{% url 'contabilidad:asiento_nuevo' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Asiento manual</a>
+  <h1 class="page-title">Periodos contables</h1>
+  <div class="d-flex gap-2">
+    <form method="post">{% csrf_token %}<button name="accion" value="apertura" class="btn btn-sm btn-outline-primary"><i class="bi bi-flag"></i> {% if apertura %}Regenerar{% else %}Generar{% endif %} asiento de apertura</button></form>
+    <a href="{% url 'contabilidad:asiento_nuevo' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Asiento manual</a>
+  </div>
 </div>
 <div class="alert alert-info small">
-  <b>Centralizar</b> genera los asientos de compras (libro 08), ventas (14), caja y bancos (01) y el costo de ventas del kardex (05), con sus destinos automáticos.
-  Si corrige un documento, vuelva a centralizar: los asientos automáticos del periodo se regeneran y los <b>manuales se conservan</b>.
-  Un periodo <b>cerrado</b> no admite cambios contables.
+  <b>La contabilidad es automática:</b> cada compra, venta, cobro, pago o movimiento de almacén marca su mes como pendiente, y al abrir cualquier pantalla de Contabilidad se centraliza solo.
+  Se generan los asientos de compras (libro 08), ventas (14), caja y bancos (01), inventario y costo de ventas desde el kardex, y la diferencia de cambio de las cuentas en dólares (05).
+  Los <b>asientos manuales</b> y la <b>apertura</b> se conservan. Un periodo <b>cerrado</b> no admite cambios.
+  {% if apertura %}<br>Apertura: <a href="{% url 'contabilidad:asiento_detalle' apertura.pk %}">{{ apertura.numero }}</a> del {{ apertura.fecha|date:'d/m/Y' }} (saldos iniciales de caja y bancos).{% endif %}
 </div>
 <div class="card"><div class="table-responsive">
   <table class="table table-hover mb-0 align-middle">
@@ -20,12 +24,14 @@
         <td class="num">{{ f.compras }}</td><td class="num">{{ f.ventas }}</td><td class="num">{{ f.movs }}</td>
         <td class="num"><a href="{% url 'contabilidad:asientos' %}?periodo={{ f.periodo }}">{{ f.asientos }}</a></td>
         <td class="small text-muted">{{ f.estado.fecha_centralizacion|date:'d/m/Y H:i'|default:'—' }}</td>
-        <td>{% if f.estado.cerrado %}<span class="badge text-bg-dark"><i class="bi bi-lock"></i> Cerrado</span>{% else %}<span class="badge text-bg-light">Abierto</span>{% endif %}</td>
+        <td>{% if f.estado.cerrado %}<span class="badge text-bg-dark"><i class="bi bi-lock"></i> Cerrado</span>
+            {% elif f.estado.pendiente or not f.estado %}<span class="badge text-bg-warning">Con cambios</span>
+            {% else %}<span class="badge text-bg-success">Al día</span>{% endif %}</td>
         <td class="text-end text-nowrap">
           <form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="periodo" value="{{ f.periodo }}">
             {% if not f.estado.cerrado %}
-              <button name="accion" value="centralizar" class="btn btn-sm btn-primary"><i class="bi bi-arrow-repeat"></i> Centralizar</button>
-              <button name="accion" value="cerrar" class="btn btn-sm btn-outline-dark" onclick="return confirm('¿Cerrar el periodo {{ f.periodo }}? No se podrán modificar sus asientos.')"><i class="bi bi-lock"></i></button>
+              <button name="accion" value="centralizar" class="btn btn-sm btn-outline-primary" title="Volver a centralizar"><i class="bi bi-arrow-repeat"></i></button>
+              <button name="accion" value="cerrar" class="btn btn-sm btn-outline-dark" onclick="return confirm('¿Cerrar el periodo {{ f.periodo }}? No se podrán modificar sus documentos ni asientos.')"><i class="bi bi-lock"></i> Cerrar</button>
             {% else %}
               <button name="accion" value="abrir" class="btn btn-sm btn-outline-secondary"><i class="bi bi-unlock"></i> Reabrir</button>
             {% endif %}

@@ -122,7 +122,8 @@ def naturaleza(codigo):
 def destinos(codigo):
     """(destino_debe, destino_haber) para cuentas de gasto por naturaleza."""
     if codigo.startswith('6011'):
-        return '20111', '6111'
+        # la compra queda "por recibir"; el ingreso al almacén (kardex) la pasa a 20111
+        return '2811', '6111'
     if codigo.startswith(('62', '63', '64', '65', '68')):
         return '941', '7911'
     if codigo.startswith('67'):
@@ -163,6 +164,13 @@ DEFECTOS = [
     ('mov_ANTICIPO_EGRESO', 'Tesorería: anticipos a proveedores', '4221'),
     ('mov_CAJA_CHICA', 'Tesorería: caja chica / entregas a rendir', '1021'),
     ('mov_DEPOSITO', 'Tesorería: efectivo en tránsito', '1031'),
+    ('mercaderia_por_recibir', 'Mercaderías compradas aún no ingresadas al almacén', '2811'),
+    ('inventario_inicial', 'Inventario inicial (contrapartida patrimonial)', '5911'),
+    ('inventario_sobrante', 'Sobrantes de inventario', '7599'),
+    ('inventario_merma', 'Mermas, faltantes y consumo interno', '6599'),
+    ('dif_cambio_perdida', 'Pérdida por diferencia de cambio', '6761'),
+    ('dif_cambio_ganancia', 'Ganancia por diferencia de cambio', '7761'),
+    ('apertura_patrimonio', 'Asiento de apertura: contrapartida de saldos iniciales', '5911'),
 ]
 
 

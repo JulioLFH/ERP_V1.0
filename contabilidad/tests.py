@@ -69,8 +69,11 @@ class ContabilidadTest(TestCase):
         a = c.asientos.get()
         self.assertEqual(lineas(a, '6011').get().debe, c.base_imponible)
         self.assertEqual(lineas(a, '4212').get().haber, c.total)
-        self.assertEqual(lineas(a, '20111').get().debe, c.base_imponible)
+        # la compra queda "por recibir"; el ingreso al almacén del kardex la pasa a 20111
+        self.assertEqual(lineas(a, '2811').get().debe, c.base_imponible)
         self.assertEqual(lineas(a, '6111').get().haber, c.base_imponible)
+        inv = Asiento.objects.get(origen='INVENTARIO', periodo=c.periodo)
+        self.assertTrue(inv.lineas.filter(cuenta__codigo='2811', haber__gt=0).exists())
 
     def test_asiento_servicio_destino_94(self):
         c = Compra.objects.get(clasificacion='SERVICIO')
@@ -82,7 +85,10 @@ class ContabilidadTest(TestCase):
     def test_cobranza_y_pago(self):
         cobro = Movimiento.objects.filter(concepto='COBRANZA').first()
         a = cobro.asientos.get()
-        self.assertEqual(lineas(a, '1011' if cobro.cuenta.tipo == 'CAJA' else '1041').get().debe, cobro.monto)
+        # cada caja o banco tiene su propia subcuenta (ej. 10111 caja, 10411 BCP soles)
+        sub = cobro.cuenta.cuenta_contable.codigo
+        self.assertTrue(sub.startswith('1011' if cobro.cuenta.tipo == 'CAJA' else '1041') and len(sub) == 5)
+        self.assertEqual(lineas(a, sub).get().debe, cobro.monto)
         self.assertEqual(lineas(a, '1212').get().haber, cobro.monto)
         pago = Movimiento.objects.filter(concepto='PAGO').first()
         a = pago.asientos.get()
@@ -93,9 +99,10 @@ class ContabilidadTest(TestCase):
         self.assertTrue(lineas(a, '941').exists())  # destino automático
 
     def test_costo_de_ventas(self):
-        self.assertTrue(Asiento.objects.filter(origen='COSTO').exists())
-        a = Asiento.objects.filter(origen='COSTO').first()
-        self.assertEqual(lineas(a, '69111').get().debe, lineas(a, '20111').get().haber)
+        p = Venta.objects.filter(stock_aplicado=True).first().periodo
+        a = Asiento.objects.get(origen='INVENTARIO', periodo=p)
+        self.assertTrue(a.cuadrado)
+        self.assertGreater(lineas(a, '69111').get().debe, 0)
 
     def test_balance_y_estados_cuadran(self):
         desde, hasta = self.periodos[0], self.periodos[-1]

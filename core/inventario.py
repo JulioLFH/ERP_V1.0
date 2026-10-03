@@ -1,4 +1,5 @@
 """Inventario: stock por almacén, kardex valorizado, ajustes y valorización al cierre."""
+from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 
@@ -105,11 +106,31 @@ def ajuste(request):
         costo = d['costo_unitario'] if d['tipo'] == 'ENTRADA' and d['costo_unitario'] is not None else None
         with transaction.atomic():
             p.mover_stock(cantidad, f'Ajuste: {d["motivo"]}', costo=costo, fecha=d['fecha'], almacen=d['almacen'],
-                          origen='AJUSTE')
+                          origen='AJUSTE', concepto=d['concepto'])
         messages.success(request, f'Ajuste registrado. Stock de {p.nombre}: {p.stock}')
         return redirect(f"{reverse('inv_kardex')}?producto={p.pk}")
     ultimos = Kardex.objects.filter(referencia__startswith='Ajuste').select_related('producto', 'almacen')[:20]
     return render(request, 'inventario/ajuste.html', {'form': form, 'ultimos': ultimos})
+
+
+def valor_inventario(corte, almacen=None):
+    """([filas], total) del inventario valorizado al corte. La contabilidad ajusta la 20111 a este total."""
+    filas, total = [], D0
+    movimientos = defaultdict(list)
+    qs = Kardex.objects.filter(fecha__lte=corte, producto__tipo='BIEN').order_by('fecha', 'id')
+    for k in qs.only('producto_id', 'almacen_id', 'tipo', 'cantidad', 'costo_promedio', 'fecha'):
+        movimientos[k.producto_id].append(k)
+    for p in Producto.objects.filter(pk__in=movimientos).order_by('codigo'):
+        movs = movimientos[p.pk]
+        # se suma por fecha (no se usa Kardex.saldo: registros con fecha anterior lo desordenan)
+        cantidad = sum((_signo(k) for k in movs if not almacen or k.almacen_id == almacen.pk), D0)
+        if cantidad == 0:
+            continue
+        costo = movs[-1].costo_promedio or p.costo_promedio
+        valor = r2(cantidad * costo)
+        total += valor
+        filas.append({'p': p, 'cantidad': cantidad, 'costo': costo, 'valor': valor})
+    return filas, total
 
 
 @login_required
@@ -121,18 +142,7 @@ def valorizacion(request):
         corte, mes = _fin_de_mes(date.today()), date.today().strftime('%Y-%m')
     almacenes = Almacen.objects.all()
     almacen = almacenes.filter(pk=request.GET.get('almacen')).first() if request.GET.get('almacen') else None
-    filas, total = [], D0
-    for p in Producto.objects.filter(tipo='BIEN').order_by('codigo'):
-        movs = p.kardex.filter(fecha__lte=corte)
-        ultimo = movs.order_by('-fecha', '-id').first()
-        # se suma por fecha (no se usa Kardex.saldo: registros con fecha anterior lo desordenan)
-        cantidad = sum((_signo(k) for k in (movs.filter(almacen=almacen) if almacen else movs)), D0)
-        if not ultimo or cantidad == 0:
-            continue
-        costo = ultimo.costo_promedio or p.costo_promedio
-        valor = r2(cantidad * costo)
-        total += valor
-        filas.append({'p': p, 'cantidad': cantidad, 'costo': costo, 'valor': valor})
+    filas, total = valor_inventario(corte, almacen)
     if request.GET.get('formato') == 'excel':
         enc = ['Código', 'Producto', 'U.M.', 'Cantidad', 'Costo promedio', 'Valor S/']
         datos = [[f['p'].codigo, f['p'].nombre, f['p'].unidad, f['cantidad'], f['costo'], f['valor']] for f in filas]

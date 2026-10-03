@@ -1,7 +1,10 @@
 from decimal import ROUND_HALF_UP, Decimal
 
+from django.apps import apps
+from django.conf import settings
 from django.db import models, transaction
-from django.db.models import Sum
+from django.db.models import OuterRef, Subquery, Sum, Value
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 D0 = Decimal('0')
@@ -52,6 +55,9 @@ class Empresa(models.Model):
     ubigeo = models.CharField(max_length=6, blank=True, help_text='Ubigeo del domicilio fiscal (6 dígitos)')
     registro_mtc = models.CharField('Registro MTC', max_length=20, blank=True,
                                     help_text='Solo si emite guías como transportista')
+    permitir_stock_negativo = models.BooleanField(
+        'Permitir vender sin stock', default=False,
+        help_text='Si está desmarcado, no se puede vender ni despachar más de lo que hay en el almacén')
 
     class Meta:
         verbose_name = 'empresa'
@@ -65,6 +71,17 @@ class Empresa(models.Model):
         if empresa is None:
             empresa = cls.objects.create(ruc='20000000001', razon_social='MI EMPRESA S.A.C.')
         return empresa
+
+    def como_tercero(self):
+        """La propia empresa como destinatario (guías de traslado entre establecimientos, motivo 04)."""
+        tercero, creado = Tercero.objects.get_or_create(
+            tipo_doc='6', numero_doc=self.ruc,
+            defaults={'tipo': 'AMBOS', 'nombre': self.razon_social, 'direccion': self.direccion,
+                      'ubigeo': self.ubigeo})
+        if not creado and (tercero.nombre != self.razon_social or not tercero.direccion):
+            tercero.nombre, tercero.direccion = self.razon_social, tercero.direccion or self.direccion
+            tercero.save(update_fields=['nombre', 'direccion'])
+        return tercero
 
 
 class Tercero(models.Model):
@@ -127,28 +144,37 @@ class Producto(models.Model):
     def bajo_minimo(self):
         return self.es_inventariable and self.stock <= self.stock_minimo
 
-    def mover_stock(self, cantidad, referencia, costo=None, fecha=None, almacen=None, origen=''):
+    def stock_en(self, almacen):
+        return StockAlmacen.objects.filter(producto=self, almacen=almacen).values_list(
+            'cantidad', flat=True).first() or D0
+
+    def mover_stock(self, cantidad, referencia, costo=None, fecha=None, almacen=None, origen='', concepto=''):
         """cantidad > 0 entrada, < 0 salida. Actualiza costo promedio en entradas y el stock del almacén."""
         cantidad = Decimal(cantidad)
         if not self.es_inventariable or cantidad == 0:
             return
         almacen = almacen or Almacen.principal()
-        if cantidad > 0 and costo is not None:
-            nuevo_stock = self.stock + cantidad
-            if nuevo_stock > 0:
-                total = self.stock * self.costo_promedio + cantidad * Decimal(costo)
-                self.costo_promedio = (total / nuevo_stock).quantize(Decimal('0.0001'))
-        self.stock += cantidad
-        self.save(update_fields=['stock', 'costo_promedio'])
-        sa, _ = StockAlmacen.objects.get_or_create(producto=self, almacen=almacen)
-        sa.cantidad += cantidad
-        sa.save(update_fields=['cantidad'])
-        Kardex.objects.create(
-            producto=self, almacen=almacen, fecha=fecha or timezone.localdate(),
-            tipo='ENTRADA' if cantidad > 0 else 'SALIDA', cantidad=abs(cantidad),
-            costo_unitario=costo if costo is not None else self.costo_promedio,
-            costo_promedio=self.costo_promedio, saldo=self.stock, referencia=referencia, origen=origen,
-        )
+        with transaction.atomic():
+            # se relee y bloquea el producto: dos líneas del mismo producto no deben pisarse
+            actual = Producto.objects.select_for_update().get(pk=self.pk)
+            if cantidad > 0 and costo is not None:
+                nuevo_stock = actual.stock + cantidad
+                if nuevo_stock > 0:
+                    total = actual.stock * actual.costo_promedio + cantidad * Decimal(costo)
+                    actual.costo_promedio = (total / nuevo_stock).quantize(Decimal('0.0001'))
+            actual.stock += cantidad
+            actual.save(update_fields=['stock', 'costo_promedio'])
+            self.stock, self.costo_promedio = actual.stock, actual.costo_promedio
+            sa, _ = StockAlmacen.objects.select_for_update().get_or_create(producto=self, almacen=almacen)
+            sa.cantidad += cantidad
+            sa.save(update_fields=['cantidad'])
+            Kardex.objects.create(
+                producto=self, almacen=almacen, fecha=fecha or timezone.localdate(),
+                tipo='ENTRADA' if cantidad > 0 else 'SALIDA', cantidad=abs(cantidad),
+                costo_unitario=costo if costo is not None else actual.costo_promedio,
+                costo_promedio=actual.costo_promedio, saldo=actual.stock, referencia=referencia, origen=origen,
+                concepto=concepto,
+            )
 
 
 class Almacen(models.Model):
@@ -230,6 +256,8 @@ class Kardex(models.Model):
     cantidad = models.DecimalField(max_digits=14, decimal_places=2)
     costo_promedio = models.DecimalField(max_digits=12, decimal_places=4, default=D0)
     origen = models.CharField(max_length=10, blank=True, help_text='VENTA, COMPRA, GUIA, AJUSTE')
+    concepto = models.CharField(max_length=10, blank=True,
+                                help_text='Solo ajustes: INICIAL, SOBRANTE, MERMA o CONSUMO (define la cuenta contable)')
     costo_unitario = models.DecimalField(max_digits=12, decimal_places=4, default=D0)
     saldo = models.DecimalField(max_digits=14, decimal_places=2)
     referencia = models.CharField(max_length=120)
@@ -342,6 +370,30 @@ class DocumentoBase(TotalesMixin):
         return self.numero
 
 
+def _dec():
+    return models.DecimalField(max_digits=16, decimal_places=2)
+
+
+def _suma_sub(qs, campo):
+    """Subconsulta SUM(campo) agrupada por la referencia externa (0 si no hay filas)."""
+    sub = qs.annotate(suma_sub=Sum(campo)).values('suma_sub')[:1]
+    return Coalesce(Subquery(sub, output_field=_dec()), Value(D0), output_field=_dec())
+
+
+class ComprobanteQuerySet(models.QuerySet):
+    def con_saldos(self):
+        """Anota pagos y notas en una sola consulta (evita una consulta por documento al calcular saldos)."""
+        movimiento = apps.get_model('finanzas', 'Movimiento')
+        fk = self.model._meta.model_name
+        movs = movimiento.objects.filter(**{fk: OuterRef('pk')}).values(fk)
+        notas = self.model.objects.filter(doc_referencia=OuterRef('pk'), estado='REGISTRADO').values('doc_referencia')
+        nc, nd = notas.filter(tipo_comprobante='07'), notas.filter(tipo_comprobante='08')
+        return self.annotate(
+            ann_pagado=_suma_sub(movs, 'monto_doc'), ann_pagado_pen=_suma_sub(movs, 'monto_doc_pen'),
+            ann_nc=_suma_sub(nc, 'total'), ann_nd=_suma_sub(nd, 'total'),
+            ann_nc_pen=_suma_sub(nc, 'total_pen'), ann_nd_pen=_suma_sub(nd, 'total_pen'))
+
+
 class ComprobanteBase(TotalesMixin):
     """Comprobante de pago SUNAT (compras y ventas)."""
     tipo_comprobante = models.CharField('Tipo', max_length=2, choices=TIPO_COMPROBANTE, default='01')
@@ -362,7 +414,22 @@ class ComprobanteBase(TotalesMixin):
     estado = models.CharField(max_length=10, choices=ESTADO_COMPROBANTE, default='REGISTRADO')
     almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, null=True, blank=True, verbose_name='Almacén')
     stock_aplicado = models.BooleanField('Movió almacén', default=False, editable=False)
+    # Importes en soles calculados una sola vez (registro, cuentas por cobrar/pagar y contabilidad usan los mismos)
+    total_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    base_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    nograv_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    igv_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    icbper_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    ret_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    perc_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    detr_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    motivo_anulacion = models.CharField('Motivo de anulación', max_length=250, blank=True)
+    anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+')
+    anulado_en = models.DateTimeField(null=True, blank=True)
     creado = models.DateTimeField(auto_now_add=True)
+
+    objects = ComprobanteQuerySet.as_manager()
 
     class Meta:
         abstract = True
@@ -370,6 +437,26 @@ class ComprobanteBase(TotalesMixin):
 
     def __str__(self):
         return f'{self.get_tipo_comprobante_display()} {self.numero_completo}'
+
+    @property
+    def tc_efectivo(self):
+        return self.tipo_cambio if self.moneda == 'USD' else Decimal('1')
+
+    def calcular_pen(self):
+        tc = self.tc_efectivo
+        self.total_pen, self.igv_pen = r2(self.total * tc), r2(self.igv * tc)
+        self.icbper_pen, self.nograv_pen = r2(self.icbper * tc), r2(self.no_gravado * tc)
+        self.base_pen = self.total_pen - self.igv_pen - self.icbper_pen - self.nograv_pen
+        self.ret_pen, self.perc_pen = r2(self.retencion_monto * tc), r2(self.percepcion_monto * tc)
+        self.detr_pen = r2(self.detraccion_monto * tc)
+
+    def anular(self, usuario=None, motivo=''):
+        self.revertir_stock()
+        self.estado = 'ANULADO'
+        self.motivo_anulacion = motivo[:250]
+        self.anulado_por = usuario if usuario and usuario.is_authenticated else None
+        self.anulado_en = timezone.now()
+        self.save()
 
     @property
     def numero_completo(self):
@@ -394,16 +481,26 @@ class ComprobanteBase(TotalesMixin):
             self.periodo = self.fecha_emision.strftime('%Y%m')
         if not self.fecha_vencimiento:
             self.fecha_vencimiento = self.fecha_emision
+        self.calcular_pen()
+        if kwargs.get('update_fields') is not None and 'total' in kwargs['update_fields']:
+            kwargs['update_fields'] = list(kwargs['update_fields']) + [
+                'total_pen', 'base_pen', 'nograv_pen', 'igv_pen', 'icbper_pen', 'ret_pen', 'perc_pen', 'detr_pen']
         super().save(*args, **kwargs)
 
-    # ---- saldos
+    # ---- saldos (usan las anotaciones de .con_saldos() si existen; si no, consultan)
+    def _anotado(self, nombre, consulta):
+        if nombre in self.__dict__:
+            return self.__dict__[nombre] or D0
+        return consulta() or D0
+
+    def _notas(self, tipo, campo):
+        return self.notas.filter(estado='REGISTRADO', tipo_comprobante=tipo).aggregate(s=Sum(campo))['s']
+
     @property
     def total_documento(self):
         """Total ajustado por notas de crédito/débito que lo referencian."""
-        notas = self.notas.filter(estado='REGISTRADO')
-        nc = notas.filter(tipo_comprobante='07').aggregate(s=Sum('total'))['s'] or D0
-        nd = notas.filter(tipo_comprobante='08').aggregate(s=Sum('total'))['s'] or D0
-        return self.total - nc + nd
+        return (self.total - self._anotado('ann_nc', lambda: self._notas('07', 'total'))
+                + self._anotado('ann_nd', lambda: self._notas('08', 'total')))
 
     @property
     def neto(self):
@@ -411,13 +508,27 @@ class ComprobanteBase(TotalesMixin):
 
     @property
     def pagado(self):
-        return self.movimientos.aggregate(s=Sum('monto'))['s'] or D0
+        return self._anotado('ann_pagado', lambda: self.movimientos.aggregate(s=Sum('monto_doc'))['s'])
+
+    @property
+    def es_nota_aplicada(self):
+        return self.tipo_comprobante in ('07', '08') and bool(self.doc_referencia_id)
 
     @property
     def saldo(self):
-        if self.estado == 'ANULADO' or self.tipo_comprobante in ('07', '08') and self.doc_referencia_id:
+        if self.estado == 'ANULADO' or self.es_nota_aplicada:
             return D0
         return self.neto - self.pagado
+
+    @property
+    def saldo_pen(self):
+        """Saldo en soles con los mismos importes que usa la contabilidad (cuentas 12 y 42)."""
+        if self.estado == 'ANULADO' or self.es_nota_aplicada:
+            return D0
+        pagado = self._anotado('ann_pagado_pen', lambda: self.movimientos.aggregate(s=Sum('monto_doc_pen'))['s'])
+        return (self.total_pen - self._anotado('ann_nc_pen', lambda: self._notas('07', 'total_pen'))
+                + self._anotado('ann_nd_pen', lambda: self._notas('08', 'total_pen'))
+                - self.ret_pen + self.perc_pen - pagado)
 
     @property
     def dias_vencido(self):
@@ -452,7 +563,8 @@ class ComprobanteBase(TotalesMixin):
         signo = -self._signo_stock()
         for item in self.items.select_related('producto'):
             if item.producto and item.producto.es_inventariable:
-                item.producto.mover_stock(signo * item.cantidad, f'Reversión {self}', fecha=timezone.localdate(),
+                # con la fecha del documento: el costo del periodo queda neto y coincide con la contabilidad
+                item.producto.mover_stock(signo * item.cantidad, f'Reversión {self}', fecha=self.fecha_emision,
                                           almacen=self.almacen, origen=self._meta.model_name.upper())
         self.stock_aplicado = False
         self.save(update_fields=['stock_aplicado'])

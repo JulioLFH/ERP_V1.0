@@ -34,6 +34,10 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
     def clean(self):
         data = super().clean()
         validar_periodo_abierto(self, 'fecha')
+        if data.get('tipo') == 'EGRESO' and data.get('cuenta') and data.get('monto'):
+            error = data['cuenta'].error_sobregiro(data['monto'], excluir=self.instance)
+            if error:
+                self.add_error('monto', error)
         return data
 
 
@@ -69,7 +73,14 @@ class TransferenciaForm(BootstrapMixin, forms.Form):
         data = super().clean()
         if data.get('origen') and data.get('origen') == data.get('destino'):
             raise forms.ValidationError('Las cuentas de origen y destino deben ser distintas.')
+        if data.get('origen') and data.get('destino') and data['origen'].moneda != data['destino'].moneda:
+            raise forms.ValidationError('Las cuentas deben ser de la misma moneda. Para cambiar soles a dólares '
+                                        'registre un egreso y un ingreso con el tipo de cambio pactado.')
         validar_periodo_abierto(self, 'fecha')
+        if data.get('origen') and data.get('monto'):
+            error = data['origen'].error_sobregiro(data['monto'])
+            if error:
+                self.add_error('monto', error)
         return data
 
 

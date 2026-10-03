@@ -23,7 +23,9 @@
       {% endfor %}
     {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin asientos. Centralice el periodo en <a href="{% url 'contabilidad:periodos' %}">Centralización</a>.</td></tr>{% endfor %}
     </tbody>
-    <tfoot class="fw-bold"><tr><td colspan="5" class="text-end">TOTALES {% if debe == haber %}<i class="bi bi-check-circle text-success"></i>{% else %}<span class="text-danger">NO CUADRA</span>{% endif %}</td><td class="num">{{ debe|money }}</td><td class="num">{{ haber|money }}</td></tr></tfoot>
+    <tfoot class="fw-bold"><tr><td colspan="5" class="text-end">TOTALES DEL PERIODO {% if debe == haber %}<i class="bi bi-check-circle text-success"></i>{% else %}<span class="text-danger">NO CUADRA</span>{% endif %}</td><td class="num">{{ debe|money }}</td><td class="num">{{ haber|money }}</td></tr></tfoot>
   </table>
-</div></div>
+</div>
+{% include 'core/_paginacion.html' %}
+</div>
 {% endblock %}

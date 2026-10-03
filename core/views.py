@@ -23,11 +23,10 @@ D0 = Decimal('0')
 
 
 def _total_pen(qs):
-    """Suma total en soles considerando signo de NC."""
-    total = D0
-    for tipo, monto, tc in qs.values_list('tipo_comprobante', 'total', 'tipo_cambio'):
-        total += (-1 if tipo == '07' else 1) * monto * tc
-    return total
+    """Suma total en soles (los mismos importes de la contabilidad), con signo negativo para NC."""
+    agg = qs.aggregate(t=Sum('total_pen', filter=~Q(tipo_comprobante='07')),
+                       nc=Sum('total_pen', filter=Q(tipo_comprobante='07')))
+    return (agg['t'] or D0) - (agg['nc'] or D0)
 
 
 def _mes_anterior(anio, mes, n):
@@ -45,8 +44,11 @@ def dashboard(request):
     ventas = Venta.objects.filter(estado='REGISTRADO')
     compras = Compra.objects.filter(estado='REGISTRADO')
 
-    por_cobrar = [v for v in ventas.exclude(tipo_comprobante__in=['07', '08']).select_related('tercero') if v.saldo > 0]
-    por_pagar = [c for c in compras.exclude(tipo_comprobante__in=['07', '08']).select_related('tercero') if c.saldo > 0]
+    # una sola consulta por lista (pagos y notas anotados), sin consultas por documento
+    por_cobrar = [v for v in ventas.con_saldos().exclude(tipo_comprobante__in=['07', '08']).select_related('tercero')
+                  if v.saldo > 0]
+    por_pagar = [c for c in compras.con_saldos().exclude(tipo_comprobante__in=['07', '08']).select_related('tercero')
+                 if c.saldo > 0]
 
     meses, serie_v, serie_c = [], [], []
     for i in range(5, -1, -1):
@@ -71,8 +73,8 @@ def dashboard(request):
         'saldo_consolidado': saldo_pen + saldo_usd * tc_venta,
         'ventas_mes': _total_pen(ventas.filter(periodo=periodo)),
         'compras_mes': _total_pen(compras.filter(periodo=periodo)),
-        'total_cobrar': sum((v.saldo * v.tipo_cambio for v in por_cobrar), D0),
-        'total_pagar': sum((c.saldo * c.tipo_cambio for c in por_pagar), D0),
+        'total_cobrar': sum((v.saldo_pen for v in por_cobrar), D0),
+        'total_pagar': sum((c.saldo_pen for c in por_pagar), D0),
         'cuentas': cuentas,
         'vencidos_cobrar': sorted([v for v in por_cobrar if v.dias_vencido > 0], key=lambda d: -d.dias_vencido)[:6],
         'vencidos_pagar': sorted([c for c in por_pagar if c.dias_vencido >= -7], key=lambda d: d.fecha_vencimiento)[:6],

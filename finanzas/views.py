@@ -12,7 +12,7 @@ from django.views.generic import CreateView, UpdateView
 
 from compras.models import Compra
 from core.forms import periodo_cerrado
-from core.models import D0, Tercero
+from core.models import D0, Tercero, r2
 from core.utils import a_fecha, excel_response, fmt_fecha, leer_excel, rango_por_defecto
 from core.views import FormGenerico
 from ventas.models import Venta
@@ -119,6 +119,20 @@ def _cobranza_cfg(modo):
             ['PROVEEDOR', 'AMBOS'], 'titulo': 'Pago de comprobantes de compra', 'etiqueta': 'Proveedor'}
 
 
+def _monto_en_cuenta(aplicado, doc, cuenta, fecha, es_detraccion=False):
+    """Convierte lo aplicado al documento (su moneda) a la moneda de la cuenta de caja/banco.
+
+    La detracción de un documento en dólares se deposita en soles al tipo de cambio del documento.
+    """
+    if doc.moneda == cuenta.moneda:
+        return aplicado
+    from core.tipo_cambio import venta_del_dia
+    tc = doc.tipo_cambio if es_detraccion else venta_del_dia(fecha)
+    if doc.moneda == 'USD':
+        return r2(aplicado * tc)
+    return r2(aplicado / tc)
+
+
 @login_required
 def cobrar_pagar(request, modo):
     cfg = _cobranza_cfg(modo)
@@ -130,7 +144,7 @@ def cobrar_pagar(request, modo):
 
     pendientes = []
     if tercero:
-        qs = (cfg['modelo'].objects.filter(tercero=tercero, estado='REGISTRADO')
+        qs = (cfg['modelo'].objects.con_saldos().filter(tercero=tercero, estado='REGISTRADO')
               .exclude(tipo_comprobante__in=['07', '08']).order_by('fecha_vencimiento'))
         pendientes = [d for d in qs if d.saldo > 0]
 
@@ -159,7 +173,16 @@ def cobrar_pagar(request, modo):
                     cuenta=data['cuenta'], fecha=data['fecha'], tipo=cfg['tipo'],
                     concepto='DETRACCION' if data['es_detraccion'] else cfg['concepto'],
                     medio_pago=data['medio_pago'], numero_operacion=data['numero_operacion'], tercero=tercero,
-                    monto=monto, glosa=data['glosa'] or f'{cfg["concepto"].title()} {d}', **{cfg['fk']: d}))
+                    monto=_monto_en_cuenta(monto, d, data['cuenta'], data['fecha'], data['es_detraccion']),
+                    monto_doc=monto, glosa=data['glosa'] or f'{cfg["concepto"].title()} {d}', **{cfg['fk']: d}))
+            if cfg['tipo'] == 'EGRESO' and creados and not errores:
+                # el saldo ya incluye los pagos recién creados: no debe quedar en negativo
+                cuenta = data['cuenta']
+                saldo_final = cuenta.saldo
+                if not cuenta.permite_sobregiro and saldo_final < 0:
+                    total = sum(m.monto for m in creados)
+                    errores.append(f'Saldo insuficiente en {cuenta}: disponible {cuenta.simbolo} '
+                                   f'{saldo_final + total:,.2f}, pagos {cuenta.simbolo} {total:,.2f}.')
             if errores:
                 transaction.set_rollback(True)
         if errores:

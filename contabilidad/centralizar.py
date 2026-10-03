@@ -1,24 +1,32 @@
-"""Centralización contable automática por periodo.
+"""Centralización contable por periodo.
 
-Genera los asientos de: compras (libro 08), ventas (libro 14), movimientos de caja y bancos
-(libro 01) y costo de ventas desde el kardex (libro 05). Los asientos automáticos de un periodo
-se regeneran completos cada vez; los manuales no se tocan. Las cuentas de gasto con destino
-(6x → 9x / 79, 6011 → 20111 / 6111) agregan sus líneas de destino en el mismo asiento.
+Genera los asientos de: compras (libro 08), ventas (libro 14), caja y bancos (libro 01), movimientos de
+inventario desde el kardex y diferencia de cambio de las cuentas en dólares (libro 05). Los asientos
+automáticos de un periodo se regeneran completos; los manuales y la apertura no se tocan.
+
+Reglas que mantienen los libros iguales a los auxiliares:
+- Los importes en soles de cada comprobante (total_pen, igv_pen, ...) y de cada cobro/pago (monto_doc_pen)
+  se calculan una sola vez y los usan el registro, las cuentas por cobrar/pagar y la contabilidad.
+- La compra de mercadería va a 2811 (por recibir) vía destino de la 6011; el ingreso al almacén según el
+  kardex la pasa a 20111. Ventas, guías y ajustes mueven la 20111 por el valor del kardex, y un ajuste final
+  deja la 20111 igual a la valorización del inventario al cierre del mes.
+- Cada caja o banco usa su propia subcuenta; los cobros/pagos de documentos en dólares registran la
+  diferencia de cambio, y al cierre se ajustan los saldos en dólares al tipo de cambio del día.
 """
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Sum
 from django.utils import timezone
 
 from compras.models import Compra
 from core.models import Kardex, r2
-from finanzas.models import Movimiento
+from finanzas.models import Cuenta, Movimiento
 from ventas.models import Venta
 
-from .models import Asiento, AsientoLinea, CuentaDefecto, PeriodoContable
+from .models import ORIGENES_FIJOS, Asiento, AsientoLinea, CuentaDefecto, PeriodoContable
 
 D0 = Decimal('0')
 
@@ -45,13 +53,23 @@ class Borrador:
         if haber < 0:
             debe, haber = debe - haber, D0
         if not debe and not haber:
-            return
+            return None
         linea = AsientoLinea(cuenta=cuenta, debe=debe, haber=haber, tercero=tercero, documento=documento,
                              glosa=glosa[:200], centro_costo=centro_costo)
         if self.moneda == 'USD' and importe_me is not None:
-            linea.debe_me = r2(importe_me) if debe else D0
-            linea.haber_me = r2(importe_me) if haber else D0
+            linea.debe_me = r2(abs(importe_me)) if debe else D0
+            linea.haber_me = r2(abs(importe_me)) if haber else D0
         self.lineas.append(linea)
+        return linea
+
+    def neto(self, cuenta_aumenta, contra, importe, **kw):
+        """Importe positivo: debe a cuenta_aumenta y haber a contra; negativo al revés."""
+        if importe >= 0:
+            self.add(cuenta_aumenta, debe=importe, **kw)
+            self.add(contra, haber=importe, **kw)
+        else:
+            self.add(contra, debe=-importe, **kw)
+            self.add(cuenta_aumenta, haber=-importe, **kw)
 
     def invertir(self):
         for l in self.lineas:
@@ -71,15 +89,6 @@ class Borrador:
                     destinos.append(AsientoLinea(cuenta=c.destino_haber, debe=max(-neto, D0), haber=max(neto, D0),
                                                  glosa=f'Destino {c.codigo}', es_destino=True))
         self.lineas.extend(destinos)
-
-    def ajustar_redondeo(self, linea_ajuste):
-        """Diferencias de céntimos por tipo de cambio van a la línea indicada (normalmente el tercero)."""
-        dif = sum(l.debe for l in self.lineas) - sum(l.haber for l in self.lineas)
-        if dif and abs(dif) <= Decimal('0.10') and linea_ajuste is not None:
-            if linea_ajuste.debe:
-                linea_ajuste.debe -= dif
-            else:
-                linea_ajuste.haber += dif
 
     def grabar(self):
         d = sum(l.debe for l in self.lineas)
@@ -105,37 +114,41 @@ def _rango(periodo):
     return date(int(periodo[:4]), int(periodo[4:]), 1), _fin_mes(periodo)
 
 
+def cuenta_caja(cuenta_fin, cta):
+    from .automatico import asegurar_subcuenta
+    return asegurar_subcuenta(cuenta_fin)
+
+
 # ---------------------------------------------------------------- ventas
 def asiento_venta(v, cta):
-    tc = v.tipo_cambio if v.moneda == 'USD' else Decimal('1')
-    a = Asiento(fecha=v.fecha_emision, libro='14', origen='VENTA', venta=v, moneda=v.moneda, tipo_cambio=tc,
+    a = Asiento(fecha=v.fecha_emision, libro='14', origen='VENTA', venta=v, moneda=v.moneda,
+                tipo_cambio=v.tc_efectivo,
                 glosa=f'{v.get_tipo_comprobante_display()} {v.numero_completo} {v.tercero.nombre}'[:250])
-    b = Borrador(a, v.moneda, tc)
+    b = Borrador(a, v.moneda, v.tc_efectivo)
     doc = f'{v.tipo_comprobante} {v.numero_completo}'
-    total, igv, icb = r2(v.total * tc), r2(v.igv * tc), r2(v.icbper * tc)
-    base = total - igv - icb
-    b.add(cta['cliente'], debe=total, tercero=v.tercero, documento=doc, importe_me=v.total)
-    linea_cliente = b.lineas[-1] if b.lineas else None
-    b.add(cta['igv'], haber=igv, documento=doc, importe_me=v.igv)
-    b.add(cta['icbper'], haber=icb, documento=doc, importe_me=v.icbper)
-    # ingresos: bienes vs servicios según el detalle (sin detalle → bienes)
+    b.add(cta['cliente'], debe=v.total_pen, tercero=v.tercero, documento=doc, importe_me=v.total)
+    b.add(cta['igv'], haber=v.igv_pen, documento=doc, importe_me=v.igv)
+    b.add(cta['icbper'], haber=v.icbper_pen, documento=doc, importe_me=v.icbper)
+    # ingresos: bienes vs servicios según el detalle (sin detalle -> bienes)
+    ingreso = v.base_pen + v.nograv_pen
     subt = defaultdict(lambda: D0)
     for i in v.items.select_related('producto'):
         subt['servicios' if i.producto and i.producto.tipo == 'SERVICIO' else 'bienes'] += i.subtotal
     total_items = sum(subt.values(), D0)
     if not total_items:
         subt, total_items = {'bienes': Decimal('1')}, Decimal('1')
-    restante = base
+    restante = ingreso
     claves = list(subt)
     for n, k in enumerate(claves):
-        parte = restante if n == len(claves) - 1 else r2(base * subt[k] / total_items)
+        parte = restante if n == len(claves) - 1 else r2(ingreso * subt[k] / total_items)
         restante -= parte
-        b.add(cta[f'ventas_{k}'], haber=parte, documento=doc, importe_me=v.total * subt[k] / total_items)
-    if v.retencion_monto:
-        ret = r2(v.retencion_monto * tc)
-        b.add(cta['igv_retencion'], debe=ret, documento=doc, glosa='Retención de IGV del cliente')
-        b.add(cta['cliente'], haber=ret, tercero=v.tercero, documento=doc, glosa='Retención de IGV del cliente')
-    b.ajustar_redondeo(linea_cliente)
+        b.add(cta[f'ventas_{k}'], haber=parte, documento=doc, importe_me=(v.total - v.igv) * subt[k] / total_items)
+    if v.ret_pen:
+        b.add(cta['igv_retencion'], debe=v.ret_pen, documento=doc, glosa='Retención de IGV del cliente')
+        b.add(cta['cliente'], haber=v.ret_pen, tercero=v.tercero, documento=doc, glosa='Retención de IGV del cliente')
+    if v.perc_pen:
+        b.add(cta['cliente'], debe=v.perc_pen, tercero=v.tercero, documento=doc, glosa='Percepción cobrada')
+        b.add(cta['igv_percepcion'], haber=v.perc_pen, documento=doc, glosa='Percepción por pagar')
     if v.es_nota_credito:
         b.invertir()
     return b.grabar()
@@ -143,29 +156,24 @@ def asiento_venta(v, cta):
 
 # ---------------------------------------------------------------- compras
 def asiento_compra(c, cta):
-    tc = c.tipo_cambio if c.moneda == 'USD' else Decimal('1')
-    a = Asiento(fecha=c.fecha_emision, libro='08', origen='COMPRA', compra=c, moneda=c.moneda, tipo_cambio=tc,
+    a = Asiento(fecha=c.fecha_emision, libro='08', origen='COMPRA', compra=c, moneda=c.moneda,
+                tipo_cambio=c.tc_efectivo,
                 glosa=f'{c.get_tipo_comprobante_display()} {c.numero_completo} {c.tercero.nombre}'[:250])
-    b = Borrador(a, c.moneda, tc)
+    b = Borrador(a, c.moneda, c.tc_efectivo)
     doc = f'{c.tipo_comprobante} {c.numero_completo}'
     honorarios = c.tipo_comprobante == '02'
-    total, igv = r2(c.total * tc), r2(c.igv * tc)
-    base = total - igv
+    base = c.total_pen - c.igv_pen
     cuenta_gasto = c.cuenta_contable or cta.get(f'compra_{c.clasificacion}') or cta['compra_GASTO']
     b.add(cuenta_gasto, debe=base, documento=doc, centro_costo=c.centro_costo, importe_me=c.total - c.igv)
-    b.add(cta['igv'], debe=igv, documento=doc, importe_me=c.igv)
+    b.add(cta['igv'], debe=c.igv_pen, documento=doc, importe_me=c.igv)
     cuenta_prov = cta['honorarios_por_pagar'] if honorarios else cta['proveedor']
-    ret = r2(c.retencion_monto * tc)
-    perc = r2(c.percepcion_monto * tc)
-    if ret:
-        b.add(cta['retencion_cuarta'] if honorarios else cta['igv_retencion'], haber=ret, documento=doc,
+    if c.ret_pen:
+        b.add(cta['retencion_cuarta'] if honorarios else cta['igv_retencion'], haber=c.ret_pen, documento=doc,
               glosa='Retención de renta de 4ta categoría' if honorarios else 'Retención de IGV al proveedor')
-    if perc:
-        b.add(cta['igv_percepcion'], debe=perc, documento=doc, glosa='Percepción de IGV')
-    b.add(cuenta_prov, haber=total - ret + perc, tercero=c.tercero, documento=doc,
+    if c.perc_pen:
+        b.add(cta['igv_percepcion'], debe=c.perc_pen, documento=doc, glosa='Percepción de IGV')
+    b.add(cuenta_prov, haber=c.total_pen - c.ret_pen + c.perc_pen, tercero=c.tercero, documento=doc,
           importe_me=c.total - c.retencion_monto + c.percepcion_monto)
-    linea_prov = b.lineas[-1]
-    b.ajustar_redondeo(linea_prov)
     if c.es_nota_credito:
         b.invertir()
     b.agregar_destinos()
@@ -173,24 +181,18 @@ def asiento_compra(c, cta):
 
 
 # ---------------------------------------------------------------- caja y bancos
-def _cuenta_caja(cuenta_fin, cta):
-    if cuenta_fin.cuenta_contable_id:
-        return cuenta_fin.cuenta_contable
-    if cuenta_fin.es_detracciones:
-        return cta['detracciones']
-    return cta['caja'] if cuenta_fin.tipo == 'CAJA' else cta['bancos']
-
-
 def asiento_movimiento(m, cta, tc_func):
     if m.concepto == 'TRANSFERENCIA' and m.tipo == 'INGRESO' and m.transferencia_par_id:
         return None  # se contabiliza una sola vez desde el egreso
-    tc = tc_func(m.fecha) if m.cuenta.moneda == 'USD' else Decimal('1')
-    a = Asiento(fecha=m.fecha, libro='01', origen='TESORERIA', movimiento=m, moneda=m.cuenta.moneda, tipo_cambio=tc,
-                glosa=f'{m.voucher} {m.get_concepto_display()} {m.glosa}'[:250])
-    b = Borrador(a, m.cuenta.moneda, tc)
-    importe = r2(m.monto * tc)
-    caja = _cuenta_caja(m.cuenta, cta)
+    usd = m.cuenta.moneda == 'USD'
     doc_obj = m.venta or m.compra
+    tc_dia = tc_func(m.fecha) if usd else Decimal('1')
+    a = Asiento(fecha=m.fecha, libro='01', origen='TESORERIA', movimiento=m, moneda=m.cuenta.moneda,
+                tipo_cambio=tc_dia, glosa=f'{m.voucher} {m.get_concepto_display()} {m.glosa}'[:250])
+    b = Borrador(a, m.cuenta.moneda, tc_dia)
+    caja = cuenta_caja(m.cuenta, cta)
+    # el monto está en la moneda de la cuenta; en soles al T.C. del día si la cuenta es en dólares
+    importe_caja = r2(m.monto * tc_dia) if usd else m.monto
     doc = f'{doc_obj.tipo_comprobante} {doc_obj.numero_completo}' if doc_obj else m.numero_operacion
     tercero = m.tercero or (doc_obj.tercero if doc_obj else None)
     if m.cuenta_contable_id:
@@ -201,39 +203,96 @@ def asiento_movimiento(m, cta, tc_func):
         contra = cta['honorarios_por_pagar'] if m.compra.tipo_comprobante == '02' else cta['proveedor']
     elif m.concepto == 'TRANSFERENCIA':
         par = Movimiento.objects.filter(transferencia_par=m).select_related('cuenta').first()
-        contra = _cuenta_caja(par.cuenta, cta) if par else cta['egreso_otro']
+        contra = cuenta_caja(par.cuenta, cta) if par else cta['egreso_otro']
     elif m.concepto == 'ANTICIPO':
         contra = cta['mov_ANTICIPO_INGRESO'] if m.tipo == 'INGRESO' else cta['mov_ANTICIPO_EGRESO']
     else:
         contra = cta.get(f'mov_{m.concepto}') or (cta['ingreso_otro'] if m.tipo == 'INGRESO' else cta['egreso_otro'])
+    # el documento se cancela por el importe en soles con su propio tipo de cambio
+    importe_doc = m.monto_doc_pen if doc_obj and not m.cuenta_contable_id else importe_caja
+    diferencia = importe_caja - importe_doc
     if m.tipo == 'INGRESO':
-        b.add(caja, debe=importe, documento=doc, importe_me=m.monto)
-        b.add(contra, haber=importe, tercero=tercero, documento=doc, centro_costo=m.centro_costo, importe_me=m.monto)
+        b.add(caja, debe=importe_caja, documento=doc, importe_me=m.monto)
+        b.add(contra, haber=importe_doc, tercero=tercero, documento=doc, centro_costo=m.centro_costo,
+              importe_me=m.monto)
+        if diferencia > 0:
+            b.add(cta['dif_cambio_ganancia'], haber=diferencia, documento=doc, glosa='Diferencia de cambio')
+        elif diferencia < 0:
+            b.add(cta['dif_cambio_perdida'], debe=-diferencia, documento=doc, glosa='Diferencia de cambio')
     else:
-        b.add(contra, debe=importe, tercero=tercero, documento=doc, centro_costo=m.centro_costo, importe_me=m.monto)
-        b.add(caja, haber=importe, documento=doc, importe_me=m.monto)
+        b.add(contra, debe=importe_doc, tercero=tercero, documento=doc, centro_costo=m.centro_costo,
+              importe_me=m.monto)
+        b.add(caja, haber=importe_caja, documento=doc, importe_me=m.monto)
+        if diferencia > 0:
+            b.add(cta['dif_cambio_perdida'], debe=diferencia, documento=doc, glosa='Diferencia de cambio')
+        elif diferencia < 0:
+            b.add(cta['dif_cambio_ganancia'], haber=-diferencia, documento=doc, glosa='Diferencia de cambio')
     b.agregar_destinos()
     return b.grabar()
 
 
-# ---------------------------------------------------------------- costo de ventas
-def asiento_costo_ventas(periodo, cta):
-    desde, hasta = _rango(periodo)
-    costo = D0
-    for k in Kardex.objects.filter(origen='VENTA', fecha__range=[desde, hasta]):
-        valor = k.cantidad * k.costo_unitario
-        costo += valor if k.tipo == 'SALIDA' else -valor
-    costo = r2(costo)
-    if not costo:
+def asiento_cambio_cierre(periodo, cta, tc_obj):
+    """Ajusta las cuentas en dólares al tipo de cambio de cierre (compra, por ser activos)."""
+    if tc_obj is None:
         return None
-    a = Asiento(fecha=hasta, libro='05', origen='COSTO', glosa=f'Costo de ventas del periodo {periodo} (kardex)')
+    desde, hasta = _rango(periodo)
+    a = Asiento(fecha=hasta, libro='05', origen='CAMBIO',
+                glosa=f'Diferencia de cambio al cierre {periodo} (T.C. compra {tc_obj.compra})')
     b = Borrador(a)
-    b.add(cta['costo_ventas'], debe=costo)
-    b.add(cta['mercaderias'], haber=costo)
-    if costo < 0:
-        b.lineas = []
-        b.add(cta['mercaderias'], debe=-costo)
-        b.add(cta['costo_ventas'], haber=-costo)
+    for c in Cuenta.objects.filter(moneda='USD'):
+        sub = cuenta_caja(c, cta)
+        objetivo = r2(c.saldo_al(hasta) * tc_obj.compra)
+        agg = AsientoLinea.objects.filter(cuenta=sub, asiento__fecha__lte=hasta).aggregate(d=Sum('debe'), h=Sum('haber'))
+        libro = r2((agg['d'] or D0) - (agg['h'] or D0))
+        dif = objetivo - libro
+        if dif > 0:
+            b.add(sub, debe=dif, glosa=f'Ajuste T.C. {c}')
+            b.add(cta['dif_cambio_ganancia'], haber=dif, glosa=f'Ajuste T.C. {c}')
+        elif dif < 0:
+            b.add(cta['dif_cambio_perdida'], debe=-dif, glosa=f'Ajuste T.C. {c}')
+            b.add(sub, haber=-dif, glosa=f'Ajuste T.C. {c}')
+    b.agregar_destinos()
+    return b.grabar()
+
+
+# ---------------------------------------------------------------- inventario
+def asiento_inventario(periodo, cta):
+    """Movimientos del kardex del mes y ajuste final para que la 20111 iguale la valorización."""
+    from core.inventario import valor_inventario
+    desde, hasta = _rango(periodo)
+    grupos = defaultdict(lambda: D0)
+    for k in Kardex.objects.filter(fecha__range=[desde, hasta]):
+        valor = r2(k.cantidad * k.costo_unitario) * (1 if k.tipo == 'ENTRADA' else -1)  # variación del inventario
+        if k.origen == 'COMPRA':
+            grupos['recepcion'] += valor
+        elif k.origen in ('VENTA', 'GUIA'):
+            grupos['costo'] += valor
+        elif k.origen == 'AJUSTE' and k.concepto == 'INICIAL':
+            grupos['inicial'] += valor
+        elif k.origen == 'AJUSTE' and k.concepto in ('MERMA', 'CONSUMO'):
+            grupos['merma'] += valor
+        else:  # sobrantes y movimientos sin origen
+            grupos['sobrante' if valor > 0 else 'merma'] += valor
+    a = Asiento(fecha=hasta, libro='05', origen='INVENTARIO', glosa=f'Inventario y costo de ventas {periodo} (kardex)')
+    b = Borrador(a)
+    merc = cta['mercaderias']
+    contras = {'recepcion': (cta['mercaderia_por_recibir'], 'Ingreso al almacén de compras'),
+               'costo': (cta['costo_ventas'], 'Costo de ventas y despachos'),
+               'inicial': (cta['inventario_inicial'], 'Inventario inicial'),
+               'merma': (cta['inventario_merma'], 'Mermas, faltantes y consumo'),
+               'sobrante': (cta['inventario_sobrante'], 'Sobrantes de inventario')}
+    for clave, (contra, glosa) in contras.items():
+        if grupos[clave]:
+            b.neto(merc, contra, grupos[clave], glosa=glosa)
+    # ajuste por valuación: la 20111 debe quedar igual al inventario valorizado del kardex
+    agg = AsientoLinea.objects.filter(cuenta=merc, asiento__fecha__lte=hasta).aggregate(d=Sum('debe'), h=Sum('haber'))
+    libro = (agg['d'] or D0) - (agg['h'] or D0) + sum(l.debe - l.haber for l in b.lineas if l.cuenta_id == merc.pk)
+    dif = r2(valor_inventario(hasta)[1] - libro)
+    if dif > 0:
+        b.neto(merc, cta['inventario_sobrante'], dif, glosa='Ajuste por valuación (costo promedio)')
+    elif dif < 0:
+        b.neto(merc, cta['inventario_merma'], dif, glosa='Ajuste por valuación (costo promedio)')
+    b.agregar_destinos()
     return b.grabar()
 
 
@@ -242,7 +301,7 @@ def centralizar_periodo(periodo):
     if PeriodoContable.esta_cerrado(periodo):
         raise ErrorContable(f'El periodo {periodo} está cerrado.')
     cta = CuentaDefecto.mapa()
-    from core.tipo_cambio import venta_del_dia
+    from core.tipo_cambio import obtener, venta_del_dia
     cache_tc = {}
 
     def tc_func(fecha):
@@ -253,7 +312,7 @@ def centralizar_periodo(periodo):
     desde, hasta = _rango(periodo)
     resumen = {'compras': 0, 'ventas': 0, 'tesoreria': 0, 'costo': 0, 'errores': []}
     with transaction.atomic():
-        Asiento.objects.filter(periodo=periodo).exclude(origen='MANUAL').delete()
+        Asiento.objects.filter(periodo=periodo).exclude(origen__in=ORIGENES_FIJOS).delete()
         for c in (Compra.objects.filter(periodo=periodo, estado='REGISTRADO')
                   .select_related('tercero', 'cuenta_contable', 'centro_costo').order_by('fecha_emision', 'id')):
             try:
@@ -276,12 +335,13 @@ def centralizar_periodo(periodo):
                     resumen['tesoreria'] += 1
             except ErrorContable as exc:
                 resumen['errores'].append(str(exc))
-        if asiento_costo_ventas(periodo, cta):
-            resumen['costo'] = 1
-        PeriodoContable.objects.update_or_create(periodo=periodo,
-                                                 defaults={'fecha_centralizacion': timezone.now()})
-    ajustes = Kardex.objects.filter(origen='AJUSTE', fecha__range=[desde, hasta]).count()
-    if ajustes:
-        resumen['errores'].append(f'Hay {ajustes} ajuste(s) de inventario en el periodo: regístrelos con un '
-                                  'asiento manual (ej. inventario inicial contra 59, mermas a 6599).')
+        try:
+            if asiento_inventario(periodo, cta):
+                resumen['costo'] = 1
+            asiento_cambio_cierre(periodo, cta, obtener(hasta) if Cuenta.objects.filter(moneda='USD').exists()
+                                  else None)
+        except ErrorContable as exc:
+            resumen['errores'].append(str(exc))
+        PeriodoContable.objects.update_or_create(
+            periodo=periodo, defaults={'fecha_centralizacion': timezone.now(), 'pendiente': False})
     return resumen

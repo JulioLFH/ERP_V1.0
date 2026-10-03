@@ -33,6 +33,12 @@ class ComprasViews(ComprobanteViews):
                   'precio_unitario': i.precio_unitario} for i in oc.items.all()]
         return initial, items
 
+    def es_salida(self, tipo, mueve_stock):
+        return tipo == '07' and mueve_stock  # devolución al proveedor
+
+    def mueve_stock(self, doc):
+        return doc.ingresar_almacen
+
     def al_guardar(self, doc):
         if doc.ingresar_almacen and doc.tipo_comprobante != '08':
             doc.aplicar_stock()

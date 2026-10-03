@@ -124,7 +124,12 @@ class AjusteInventarioForm(BootstrapMixin, forms.Form):
     TIPOS = [('ENTRADA', 'Entrada (inventario inicial / sobrante)'), ('SALIDA', 'Salida (merma / faltante / consumo)')]
     producto = forms.ModelChoiceField(Producto.objects.none())
     almacen = forms.ModelChoiceField(Almacen.objects.none(), label='Almacén')
+    CONCEPTOS = [('', 'Según el tipo'), ('INICIAL', 'Inventario inicial (apertura)'), ('SOBRANTE', 'Sobrante'),
+                 ('MERMA', 'Merma o faltante'), ('CONSUMO', 'Consumo interno')]
     tipo = forms.ChoiceField(choices=TIPOS)
+    concepto = forms.ChoiceField(choices=CONCEPTOS, required=False,
+                                 help_text='Define la cuenta contable: inicial contra patrimonio (59), sobrante a '
+                                           'otros ingresos (75), merma y consumo a gastos (65)')
     cantidad = forms.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal('0.01'))
     costo_unitario = forms.DecimalField(label='Costo unitario (solo entradas)', max_digits=12, decimal_places=4,
                                         required=False, min_value=0)
@@ -138,6 +143,15 @@ class AjusteInventarioForm(BootstrapMixin, forms.Form):
 
     def clean(self):
         data = super().clean()
+        tipo, concepto = data.get('tipo'), data.get('concepto')
+        if not concepto:
+            data['concepto'] = 'SOBRANTE' if tipo == 'ENTRADA' else 'MERMA'
+        elif tipo == 'ENTRADA' and concepto in ('MERMA', 'CONSUMO') or tipo == 'SALIDA' and concepto in (
+                'INICIAL', 'SOBRANTE'):
+            self.add_error('concepto', 'El concepto no corresponde al tipo de ajuste.')
+        if tipo == 'ENTRADA' and data.get('costo_unitario') is None and data.get('producto') \
+                and not data['producto'].costo_promedio:
+            self.add_error('costo_unitario', 'Indique el costo unitario: el producto aún no tiene costo.')
         p, alm = data.get('producto'), data.get('almacen')
         if data.get('tipo') == 'SALIDA' and p and alm:
             disponible = p.stocks.filter(almacen=alm).values_list('cantidad', flat=True).first() or 0

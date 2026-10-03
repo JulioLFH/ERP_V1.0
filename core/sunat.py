@@ -48,7 +48,13 @@ ERRORES_NUBEFACT = {
 
 
 class ErrorFacturacion(Exception):
-    pass
+    def __init__(self, mensaje, codigo=None):
+        super().__init__(mensaje)
+        self.codigo = codigo
+
+
+class ErrorValidacion(ErrorFacturacion):
+    """Datos incompletos o incorrectos detectados antes de enviar (el documento no llegó al OSE)."""
 
 
 def _fecha(f):
@@ -96,7 +102,7 @@ def _post(payload):
                 raise ErrorFacturacion(f'Error HTTP {exc.code} del proveedor.')
             codigo = data.get('codigo')
             ultimo = ErrorFacturacion(f"{ERRORES_NUBEFACT.get(codigo, '')} {data.get('errors') or ''} "
-                                      f"(código Nubefact {codigo or exc.code})".strip())
+                                      f"(código Nubefact {codigo or exc.code})".strip(), codigo)
             if codigo != 10:
                 raise ultimo
         except urllib.error.URLError as exc:
@@ -145,10 +151,20 @@ def _guardar_respuesta(doc, data):
 
 
 def _registrar_error(doc, exc):
-    doc.estado_sunat = 'ERROR'
-    doc.sunat_descripcion = str(exc)
-    doc.fecha_envio = timezone.now()
+    """Estados coherentes: si no llegó al OSE queda 'No enviado' con lo que hay que corregir;
+    'Error de envío' solo cuando el OSE o la conexión respondieron con error."""
+    if isinstance(exc, ErrorValidacion):
+        doc.estado_sunat = 'NO_ENVIADO'
+        doc.sunat_descripcion = f'No enviado. Corrija antes de enviar: {exc}'
+    else:
+        doc.estado_sunat = 'ERROR'
+        doc.sunat_descripcion = str(exc)
+        doc.fecha_envio = timezone.now()
     doc.save(update_fields=['estado_sunat', 'sunat_descripcion', 'fecha_envio'])
+
+
+def _ya_existe(exc):
+    return getattr(exc, 'codigo', None) == 23
 
 
 # ---------------------------------------------------------------- comprobantes de venta
@@ -183,7 +199,7 @@ def validar_comprobante(venta):
 def payload_comprobante(venta):
     errores = validar_comprobante(venta)
     if errores:
-        raise ErrorFacturacion(' '.join(errores))
+        raise ErrorValidacion(' '.join(errores))
     empresa = Empresa.actual()
     cli = venta.tercero
     gratuita = venta.tipo_operacion == 'GRATUITA'
@@ -288,6 +304,9 @@ def enviar_comprobante(venta):
     try:
         return _guardar_respuesta(venta, _post(payload_comprobante(venta)))
     except ErrorFacturacion as exc:
+        if _ya_existe(exc):
+            # ya estaba registrado en el OSE (por ejemplo, se reenvió): se trae su estado real
+            return consultar_comprobante(venta)
         _registrar_error(venta, exc)
         raise
 
@@ -345,7 +364,7 @@ def validar_guia(guia):
 def payload_guia(guia):
     errores = validar_guia(guia)
     if errores:
-        raise ErrorFacturacion(' '.join(errores))
+        raise ErrorValidacion(' '.join(errores))
     empresa = Empresa.actual()
     # GRE remitente: "cliente" es el destinatario. GRE transportista: "cliente" es el remitente.
     cliente = guia.remitente if guia.tipo == '31' else guia.destinatario
@@ -428,8 +447,9 @@ def enviar_guia(guia):
     try:
         _guardar_respuesta(guia, _post(payload_guia(guia)))
     except ErrorFacturacion as exc:
-        _registrar_error(guia, exc)
-        raise
+        if not _ya_existe(exc):
+            _registrar_error(guia, exc)
+            raise
     try:
         return consultar_guia(guia)
     except ErrorFacturacion:

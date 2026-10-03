@@ -39,7 +39,7 @@ def consultar_sunat(fecha):
 
 def obtener(fecha=None, consultar=True):
     """TipoCambio de la fecha (consultando SUNAT si falta) o el último anterior registrado. Puede ser None."""
-    fecha = fecha or date.today()
+    fecha = min(fecha or date.today(), date.today())  # no existe tipo de cambio de fechas futuras
     tc = TipoCambio.objects.filter(fecha=fecha).first()
     if tc:
         return tc
@@ -53,9 +53,9 @@ def obtener(fecha=None, consultar=True):
                 valores = _consultar(f)
             except Exception as exc:
                 log.warning('Tipo de cambio no disponible (%s): %s', f, exc)
-                if 'HTTP Error 4' in str(exc):
+                if getattr(exc, 'code', None) in (400, 404):
                     continue  # fecha sin publicar: probar el día anterior
-                break  # sin conexión: no insistir
+                break  # sin conexión o límite de consultas (429): no insistir
             if valores:
                 return TipoCambio.objects.update_or_create(
                     fecha=fecha, defaults={'compra': valores[0], 'venta': valores[1], 'fuente': 'SUNAT'})[0]

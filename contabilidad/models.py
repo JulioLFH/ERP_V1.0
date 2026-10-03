@@ -16,11 +16,16 @@ LIBROS = [
 ]
 ORIGENES = [
     ('MANUAL', 'Manual'),
+    ('APERTURA', 'Apertura'),
     ('COMPRA', 'Compra'),
     ('VENTA', 'Venta'),
     ('TESORERIA', 'Caja y bancos'),
-    ('COSTO', 'Costo de ventas'),
+    ('INVENTARIO', 'Inventario y costo de ventas'),
+    ('CAMBIO', 'Diferencia de cambio'),
+    ('COSTO', 'Costo de ventas (versión anterior)'),
 ]
+# asientos que el sistema no regenera al centralizar
+ORIGENES_FIJOS = ('MANUAL', 'APERTURA')
 
 
 class CuentaContable(models.Model):
@@ -90,6 +95,8 @@ class CentroCosto(models.Model):
 class PeriodoContable(models.Model):
     periodo = models.CharField(max_length=6, unique=True)
     cerrado = models.BooleanField(default=False)
+    pendiente = models.BooleanField('Pendiente de centralizar', default=True,
+                                    help_text='Hubo cambios en compras, ventas, caja/bancos o almacén')
     fecha_centralizacion = models.DateTimeField(null=True, blank=True)
 
     class Meta:

@@ -2,7 +2,7 @@ from django import forms
 from django.forms import inlineformset_factory
 
 from core.forms import BootstrapMixin
-from core.models import Producto, Serie, Tercero
+from core.models import Empresa, Producto, Serie, Tercero
 from ventas.models import Venta
 
 from .models import Conductor, GuiaItem, GuiaRemision, Vehiculo
@@ -61,10 +61,36 @@ class GuiaRemitenteForm(GuiaBaseForm):
         fields = ['serie', 'motivo_traslado', 'descripcion_motivo', 'modalidad', 'venta', 'compra',
                   'transportista', 'efecto_stock', 'almacen_origen', 'almacen_destino'] + CAMPOS_COMUNES
         widgets = {'observaciones': forms.Textarea(attrs={'rows': 2})}
+        help_texts = {'destinatario': 'En traslados entre establecimientos (motivo 04 o 18) puede dejarlo vacío: '
+                                      'se usa la propia empresa.'}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['destinatario'].required = False
 
     def clean(self):
         data = super().clean()
-        if data.get('motivo_traslado') == '13' and not data.get('descripcion_motivo'):
+        motivo = data.get('motivo_traslado')
+        if motivo in ('04', '18'):
+            # SUNAT: en traslados entre establecimientos el destinatario es la misma empresa
+            empresa = Empresa.actual()
+            if data.get('destinatario') and data['destinatario'].numero_doc != empresa.ruc:
+                self.add_error('destinatario', 'En el motivo 04/18 el destinatario debe ser la propia empresa '
+                                               f'(RUC {empresa.ruc}). Deje el campo vacío.')
+            else:
+                data['destinatario'] = empresa.como_tercero()
+                self.instance.destinatario = data['destinatario']
+        elif not data.get('destinatario'):
+            self.add_error('destinatario', 'Indique el destinatario.')
+        venta = data.get('venta')
+        if venta and data.get('efecto_stock') in ('SALIDA', 'TRASLADO'):
+            if venta.stock_aplicado:
+                self.add_error('efecto_stock', f'La {venta} ya descontó el stock: la guía debe ser '
+                                               '"No mueve almacén" para no descontarlo dos veces.')
+            otra = venta.guias.filter(estado='EMITIDA', efecto_stock='SALIDA').exclude(pk=self.instance.pk).first()
+            if otra:
+                self.add_error('efecto_stock', f'La {otra} ya sacó del almacén la mercadería de esta venta.')
+        if motivo == '13' and not data.get('descripcion_motivo'):
             self.add_error('descripcion_motivo', 'Describa el motivo cuando es "13 Otros".')
         if data.get('modalidad') == '01' and not data.get('transportista'):
             self.add_error('transportista', 'En transporte público indique la empresa de transporte (RUC).')

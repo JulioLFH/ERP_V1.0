@@ -36,6 +36,12 @@ class VentasViews(ComprobanteViews):
                   'precio_unitario': i.precio_unitario} for i in cot.items.all()]
         return initial, items
 
+    def es_salida(self, tipo, mueve_stock):
+        return tipo in ('01', '03', '12', '00') and mueve_stock
+
+    def mueve_stock(self, doc):
+        return doc.descontar_stock
+
     def al_guardar(self, doc):
         if doc.descontar_stock and doc.tipo_comprobante in ('01', '03', '12', '00', '07'):
             doc.aplicar_stock()
@@ -57,9 +63,11 @@ class VentasViews(ComprobanteViews):
 
     def anular(self, request, pk):
         doc = get_object_or_404(Venta, pk=pk)
-        if request.method == 'POST' and doc.estado_sunat == 'ACEPTADO' and not doc.movimientos.exists():
+        motivo = request.POST.get('motivo', '').strip()
+        if (request.method == 'POST' and doc.estado_sunat == 'ACEPTADO' and len(motivo) >= 5
+                and not self.motivo_bloqueo_anulacion(doc)):
             try:
-                sunat.anular_comprobante(doc, request.POST.get('motivo') or 'ANULACION DE LA OPERACION')
+                sunat.anular_comprobante(doc, motivo)
                 messages.info(request, 'Comunicación de baja enviada a SUNAT.')
             except sunat.ErrorFacturacion as exc:
                 messages.error(request, f'SUNAT: {exc}. El comprobante no se anuló.')

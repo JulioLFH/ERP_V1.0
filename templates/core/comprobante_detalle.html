@@ -32,11 +32,25 @@
       {% if app == 'compras' and not doc.stock_aplicado and doc.tipo_comprobante != '08' %}
         <form method="post" action="{% url 'compras:ingresar_almacen' doc.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-in-down"></i> Ingresar a almacén</button></form>
       {% endif %}
-      <form method="post" action="{% url app|add:':anular' doc.pk %}" data-confirm="¿Anular {{ doc }}?">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular</button></form>
+      <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>
     {% endif %}
     <form method="post" action="{% url app|add:':eliminar' doc.pk %}" data-confirm="¿Eliminar definitivamente {{ doc }}?">{% csrf_token %}<button class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></button></form>
   </div>
 </div>
+{% if doc.estado == 'REGISTRADO' %}
+<div class="collapse mb-3" id="form-anular"><div class="card border-danger"><div class="card-body">
+  <form method="post" action="{% url app|add:':anular' doc.pk %}" class="row g-2 align-items-end" data-confirm="¿Anular {{ doc }}? Se revertirá el movimiento de almacén.">
+    {% csrf_token %}
+    <div class="col-md-9"><label class="form-label small mb-1">Motivo de la anulación <span class="text-danger">*</span></label>
+      <input name="motivo" class="form-control form-control-sm" minlength="5" maxlength="250" required placeholder="Ej. Error en el precio, el cliente desistió de la compra">
+      {% if app == 'ventas' and doc.estado_sunat == 'ACEPTADO' %}<div class="form-text">También se enviará la comunicación de baja a SUNAT con este motivo.</div>{% endif %}</div>
+    <div class="col-md-3"><button class="btn btn-sm btn-danger w-100"><i class="bi bi-x-circle"></i> Confirmar anulación</button></div>
+  </form>
+</div></div></div>
+{% endif %}
+{% if doc.estado == 'ANULADO' %}
+<div class="alert alert-danger py-2"><i class="bi bi-x-octagon"></i> <b>Anulado</b>{% if doc.anulado_en %} el {{ doc.anulado_en|date:'d/m/Y H:i' }}{% endif %}{% if doc.anulado_por %} por <b>{{ doc.anulado_por.get_full_name|default:doc.anulado_por.username }}</b>{% endif %}{% if doc.motivo_anulacion %}. Motivo: {{ doc.motivo_anulacion }}{% endif %}</div>
+{% endif %}
 
 <div class="row g-3">
   <div class="col-lg-8">

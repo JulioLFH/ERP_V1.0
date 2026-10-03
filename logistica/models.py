@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -115,6 +116,10 @@ class GuiaRemision(ElectronicoMixin):
 
     observaciones = models.TextField(blank=True)
     estado = models.CharField(max_length=8, choices=ESTADOS, default='EMITIDA')
+    motivo_anulacion = models.CharField('Motivo de anulación', max_length=250, blank=True)
+    anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+')
+    anulado_en = models.DateTimeField(null=True, blank=True)
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -163,7 +168,7 @@ class GuiaRemision(ElectronicoMixin):
             if item.producto and item.producto.es_inventariable:
                 for almacen, signo in self._movimientos_stock():
                     item.producto.mover_stock(-signo * item.cantidad, f'Reversión {self}',
-                                              fecha=timezone.localdate(), almacen=almacen or Almacen.principal(), origen='GUIA')
+                                              fecha=self.fecha_traslado, almacen=almacen or Almacen.principal(), origen='GUIA')
         self.stock_aplicado = False
         self.save(update_fields=['stock_aplicado'])
 

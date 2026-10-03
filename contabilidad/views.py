@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from datetime import date
 from decimal import Decimal
+from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -18,7 +19,7 @@ from core.views import FormGenerico, ListaGenerica
 from finanzas.models import Movimiento
 from ventas.models import Venta
 
-from . import pcge, reportes
+from . import automatico, pcge, reportes
 from .centralizar import ErrorContable, centralizar_periodo
 from .forms import (AsientoForm, CentroCostoForm, CuentaContableForm, CuentaDefectoFormSet, lineas_formset)
 from .models import LIBROS, ORIGENES, Asiento, AsientoLinea, CentroCosto, CuentaContable, CuentaDefecto, PeriodoContable
@@ -40,12 +41,38 @@ def _mes_input(periodo):
     return f'{periodo[:4]}-{periodo[4:]}'
 
 
+def al_dia(vista):
+    """Antes de mostrar cualquier pantalla contable, centraliza los periodos con cambios pendientes."""
+    @wraps(vista)
+    def envoltura(request, *args, **kwargs):
+        if request.method == 'GET' and automatico.periodos_pendientes():
+            for error in automatico.actualizar_pendientes():
+                messages.warning(request, error)
+        return vista(request, *args, **kwargs)
+    return envoltura
+
+
 # ---------------------------------------------------------------- periodos y centralización
 @login_required
+@al_dia
 def periodos(request):
     if request.method == 'POST':
         periodo = request.POST.get('periodo', '')
         accion = request.POST.get('accion')
+        if accion == 'apertura':
+            a = automatico.generar_apertura()
+            if a:
+                messages.success(request, f'Asiento de apertura {a.numero} generado con los saldos iniciales de caja '
+                                          'y bancos.')
+            else:
+                messages.info(request, 'Ninguna cuenta de caja o banco tiene saldo inicial.')
+            return redirect('contabilidad:periodos')
+        if accion == 'cerrar' and PeriodoContable.objects.filter(periodo=periodo, pendiente=True).exists():
+            try:
+                centralizar_periodo(periodo)  # se cierra con la contabilidad al día
+            except ErrorContable as exc:
+                messages.error(request, str(exc))
+                return redirect('contabilidad:periodos')
         if accion == 'centralizar':
             try:
                 r = centralizar_periodo(periodo)
@@ -75,11 +102,13 @@ def periodos(request):
             'ventas': Venta.objects.filter(periodo=p, estado='REGISTRADO').count(),
             'movs': Movimiento.objects.filter(fecha__year=int(p[:4]), fecha__month=int(p[4:])).count(),
         })
-    return render(request, 'contabilidad/periodos.html', {'filas': filas})
+    return render(request, 'contabilidad/periodos.html', {
+        'filas': filas, 'apertura': Asiento.objects.filter(origen='APERTURA').first()})
 
 
 # ---------------------------------------------------------------- asientos
 @login_required
+@al_dia
 def asientos(request):
     qs = Asiento.objects.annotate(total=Sum('lineas__debe'))
     periodo = _periodo(request)
@@ -97,6 +126,7 @@ def asientos(request):
 
 
 @login_required
+@al_dia
 def asiento_detalle(request, pk):
     a = get_object_or_404(Asiento, pk=pk)
     lineas = a.lineas.select_related('cuenta', 'tercero', 'centro_costo')
@@ -153,6 +183,7 @@ def asiento_eliminar(request, pk):
 
 # ---------------------------------------------------------------- libros
 @login_required
+@al_dia
 def libro_diario(request):
     periodo = _periodo(request)
     asientos_qs = (Asiento.objects.filter(periodo=periodo).order_by('fecha', 'libro', 'numero')
@@ -172,8 +203,9 @@ def libro_diario(request):
                               ['Asiento', 'Fecha', 'Libro', 'Glosa', 'Cuenta', 'Denominación', 'RUC/DNI', 'Documento',
                                'C. costo', 'Debe', 'Haber'], filas)
     tot = AsientoLinea.objects.filter(asiento__periodo=periodo).aggregate(d=Sum('debe'), h=Sum('haber'))
+    pagina = Paginator(asientos_qs, 60).get_page(request.GET.get('page'))
     return render(request, 'contabilidad/diario.html', {
-        'asientos': asientos_qs, 'periodo': periodo, 'mes': _mes_input(periodo),
+        'asientos': pagina, 'page_obj': pagina, 'periodo': periodo, 'mes': _mes_input(periodo),
         'debe': tot['d'] or D0, 'haber': tot['h'] or D0})
 
 
@@ -199,6 +231,7 @@ def _diario_ple(periodo, asientos_qs):
 
 
 @login_required
+@al_dia
 def libro_mayor(request):
     cuentas = CuentaContable.objects.filter(imputable=True)
     cuenta = cuentas.filter(pk=request.GET.get('cuenta')).first() if request.GET.get('cuenta') else None
@@ -228,6 +261,7 @@ def libro_mayor(request):
 
 
 @login_required
+@al_dia
 def balance(request):
     hasta = _periodo(request, 'hasta')
     desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')
@@ -248,6 +282,7 @@ def balance(request):
 
 
 @login_required
+@al_dia
 def estado_situacion(request):
     hasta = _periodo(request, 'hasta')
     datos = reportes.situacion_financiera(hasta, f'{hasta[:4]}01')
@@ -255,6 +290,7 @@ def estado_situacion(request):
 
 
 @login_required
+@al_dia
 def estado_resultados(request):
     hasta = _periodo(request, 'hasta')
     desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')
@@ -265,6 +301,7 @@ def estado_resultados(request):
 
 
 @login_required
+@al_dia
 def centros_costo_reporte(request):
     hasta = _periodo(request, 'hasta')
     desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')

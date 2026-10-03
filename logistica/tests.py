@@ -8,7 +8,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from core import sunat
-from core.models import Almacen, FacturacionConfig, Producto, StockAlmacen, Tercero, TipoCambio
+from core.models import Almacen, Empresa, FacturacionConfig, Producto, StockAlmacen, Tercero, TipoCambio
 from finanzas.models import Cuenta
 from ventas.models import Venta
 
@@ -43,7 +43,7 @@ class NuevasFuncionesTest(TestCase):
             'venta': '', 'compra': '', 'transportista': '', 'efecto_stock': 'TRASLADO',
             'almacen_origen': self.principal.pk, 'almacen_destino': self.callao.pk,
             'fecha_emision': '2026-10-01', 'fecha_traslado': '2026-10-01',
-            'destinatario': Tercero.objects.filter(tipo='CLIENTE').first().pk,
+            'destinatario': '',  # motivo 04: el destinatario es la propia empresa
             'partida_ubigeo': '150131', 'partida_direccion': 'Av. Javier Prado 123',
             'llegada_ubigeo': '070101', 'llegada_direccion': 'Av. Argentina 2450',
             'vehiculo': Vehiculo.objects.first().pk, 'conductor': Conductor.objects.first().pk,
@@ -63,11 +63,12 @@ class NuevasFuncionesTest(TestCase):
         guia = GuiaRemision.objects.latest('id')
         self.assertEqual((guia.tipo, guia.serie), ('09', 'T001'))
         self.assertEqual(guia.numero, '00000002')  # la demo ya emitió la 1
+        self.assertEqual(guia.destinatario.numero_doc, Empresa.actual().ruc)  # BUG-03
         p.refresh_from_db()
         self.assertEqual(p.stock, total0)  # el traslado no cambia el total
         self.assertEqual(stock_en(p, self.principal), origen0 - 5)
         self.assertEqual(stock_en(p, self.callao), destino0 + 5)
-        self.client.post(reverse('logistica:anular', args=[guia.pk]))
+        self.client.post(reverse('logistica:anular', args=[guia.pk]), {'motivo': 'Traslado no realizado'})
         self.assertEqual(stock_en(p, self.principal), origen0)
         self.assertEqual(stock_en(p, self.callao), destino0)
 

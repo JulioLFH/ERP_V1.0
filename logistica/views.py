@@ -5,11 +5,12 @@ from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views.generic import CreateView, UpdateView
 
 from core import sunat
 from core.models import Almacen, Empresa, FacturacionConfig
-from core.utils import guardar_documento
+from core.utils import faltantes_stock, guardar_documento, lineas_formset
 from core.views import FormGenerico, ListaGenerica
 from ventas.models import Venta
 
@@ -73,6 +74,29 @@ def lista(request):
         'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'q': q, 'tipo': tipo})
 
 
+def _validar_stock(form, formset):
+    """Las guías que sacan mercadería (salida o traslado) no pueden dejar el almacén de origen en negativo."""
+    guia = form.instance
+    if guia.tipo != '09' or guia.efecto_stock not in ('SALIDA', 'TRASLADO'):
+        return []
+    devolver = {}
+    if guia.pk:
+        anterior = GuiaRemision.objects.get(pk=guia.pk)
+        if anterior.stock_aplicado and anterior.almacen_origen_id == guia.almacen_origen_id \
+                and anterior.efecto_stock in ('SALIDA', 'TRASLADO'):
+            for i in anterior.items.all():
+                devolver[i.producto_id] = devolver.get(i.producto_id, 0) + i.cantidad
+    return faltantes_stock(lineas_formset(formset), guia.almacen_origen, devolver)
+
+
+def _faltantes_al_anular(guia):
+    """Anular una entrada o un traslado saca mercadería del almacén de destino."""
+    if not guia.stock_aplicado or guia.efecto_stock not in ('ENTRADA', 'TRASLADO'):
+        return []
+    return faltantes_stock([(i.producto, i.cantidad) for i in guia.items.select_related('producto')],
+                           guia.almacen_destino)
+
+
 @login_required
 def nueva(request):
     tipo = request.GET.get('tipo', '09')
@@ -88,7 +112,7 @@ def nueva(request):
     titulo = 'Nueva guía de remisión ' + ('transportista' if tipo == '31' else 'remitente')
     return guardar_documento(request, _form_class(tipo), guia_formset(), GuiaRemision(tipo=tipo),
                              'logistica/guia_form.html', _ctx(titulo, tipo), al_guardar=_al_guardar,
-                             initial=initial, items_iniciales=items)
+                             initial=initial, items_iniciales=items, validar=_validar_stock)
 
 
 @login_required
@@ -98,7 +122,7 @@ def editar(request, pk):
         messages.error(request, 'No se puede editar una guía anulada o ya enviada a SUNAT.')
         return redirect('logistica:detalle', pk)
     return guardar_documento(request, _form_class(guia.tipo), guia_formset(extra=0), guia, 'logistica/guia_form.html',
-                             _ctx(f'Editar {guia}', guia.tipo, guia), al_guardar=_al_guardar)
+                             _ctx(f'Editar {guia}', guia.tipo, guia), al_guardar=_al_guardar, validar=_validar_stock)
 
 
 @login_required
@@ -119,12 +143,24 @@ def imprimir(request, pk):
 def anular(request, pk):
     guia = get_object_or_404(GuiaRemision, pk=pk)
     if request.method == 'POST' and guia.estado != 'ANULADA':
-        with transaction.atomic():
-            guia.revertir_stock()
-            guia.estado = 'ANULADA'
-            guia.save(update_fields=['estado'])
-        aviso = ' Recuerde anularla también en SUNAT (SOL) si ya fue aceptada.' if guia.estado_sunat == 'ACEPTADO' else ''
-        messages.success(request, f'{guia} anulada.{aviso}')
+        motivo = request.POST.get('motivo', '').strip()
+        faltan = _faltantes_al_anular(guia)
+        if len(motivo) < 5:
+            messages.error(request, 'Indique el motivo de la anulación (mínimo 5 caracteres).')
+        elif faltan:
+            messages.error(request, 'No se puede anular: la mercadería ya salió del almacén de destino. '
+                           + ' '.join(faltan))
+        else:
+            with transaction.atomic():
+                guia.revertir_stock()
+                guia.estado = 'ANULADA'
+                guia.motivo_anulacion = motivo[:250]
+                guia.anulado_por = request.user
+                guia.anulado_en = timezone.now()
+                guia.save(update_fields=['estado', 'motivo_anulacion', 'anulado_por', 'anulado_en'])
+            aviso = (' Recuerde darla de baja también en SUNAT con su Clave SOL (las guías no se anulan por el OSE).'
+                     if guia.estado_sunat == 'ACEPTADO' else '')
+            messages.success(request, f'{guia} anulada.{aviso}')
     return redirect('logistica:detalle', pk)
 
 

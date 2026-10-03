@@ -18,8 +18,8 @@ from django.utils.decorators import method_decorator
 
 from .forms import item_formset, periodo_cerrado
 from .models import D0, Empresa, Tercero, r2
-from .utils import (a_fecha, excel_response, fmt_fecha, guardar_documento, leer_excel, periodo_actual,
-                    rango_por_defecto, txt_response)
+from .utils import (a_fecha, excel_response, faltantes_stock, fmt_fecha, guardar_documento, leer_excel,
+                    lineas_formset, periodo_actual, rango_por_defecto, txt_response)
 
 
 def _dec(v):
@@ -60,9 +60,35 @@ class ComprobanteViews:
         return (doc.estado == 'REGISTRADO' and not doc.movimientos.exists() and not doc.notas.exists()
                 and not periodo_cerrado(doc.periodo))
 
+    def es_salida(self, tipo, mueve_stock):
+        """True si el documento saca mercadería del almacén (se valida el stock)."""
+        return False
+
+    def validar_stock(self, form, formset):
+        doc = form.instance
+        if not self.es_salida(doc.tipo_comprobante, self.mueve_stock(doc)):
+            return []
+        devolver = {}
+        if doc.pk:
+            anterior = type(doc).objects.get(pk=doc.pk)
+            if anterior.stock_aplicado and anterior.almacen_id == doc.almacen_id:
+                for i in anterior.items.all():
+                    devolver[i.producto_id] = devolver.get(i.producto_id, D0) + i.cantidad
+        return faltantes_stock(lineas_formset(formset), doc.almacen, devolver)
+
+    def mueve_stock(self, doc):
+        return True
+
+    @staticmethod
+    def faltantes_al_revertir(doc):
+        """Anular/eliminar una entrada (compra, NC de venta) saca stock: debe haber existencias."""
+        if not doc.stock_aplicado or doc._signo_stock() < 0:
+            return []
+        return faltantes_stock([(i.producto, i.cantidad) for i in doc.items.select_related('producto')], doc.almacen)
+
     # ------------------------------------------------------------ vistas
     def lista(self, request):
-        qs = self.modelo.objects.select_related('tercero')
+        qs = self.modelo.objects.con_saldos().select_related('tercero')
         periodo = request.GET.get('periodo', '')
         if periodo:
             qs = qs.filter(periodo=periodo)
@@ -86,7 +112,8 @@ class ComprobanteViews:
         return guardar_documento(request, self.form_class, item_formset(self.modelo, self.item_modelo),
                                  self.modelo(), 'core/comprobante_form.html',
                                  self._form_ctx(f'Nuevo comprobante de {self.titulo.lower()}'),
-                                 al_guardar=self.al_guardar, initial=initial, items_iniciales=items)
+                                 al_guardar=self.al_guardar, initial=initial, items_iniciales=items,
+                                 validar=self.validar_stock)
 
     def initial_desde(self, request):
         """Prellenado al emitir NC/ND desde un comprobante (?ref=ID&tipo=07)."""
@@ -112,7 +139,8 @@ class ComprobanteViews:
             return redirect(self._url('detalle', pk))
         return guardar_documento(request, self.form_class, item_formset(self.modelo, self.item_modelo, extra=0),
                                  doc, 'core/comprobante_form.html',
-                                 self._form_ctx(f'Editar {doc}', doc), al_guardar=self.al_guardar)
+                                 self._form_ctx(f'Editar {doc}', doc), al_guardar=self.al_guardar,
+                                 validar=self.validar_stock)
 
     def detalle(self, request, pk):
         doc = get_object_or_404(self.modelo.objects.select_related('tercero', 'doc_referencia'), pk=pk)
@@ -124,26 +152,42 @@ class ComprobanteViews:
         doc = get_object_or_404(self.modelo, pk=pk)
         return render(request, 'core/comprobante_imprimir.html', self._ctx(doc=doc, items=doc.items.all()))
 
+    def motivo_bloqueo_anulacion(self, doc):
+        if doc.estado == 'ANULADO':
+            return 'El comprobante ya está anulado.'
+        if periodo_cerrado(doc.periodo):
+            return f'El periodo contable {doc.periodo} está cerrado.'
+        if doc.movimientos.exists():
+            return 'Tiene cobros/pagos registrados en Finanzas. Elimínelos antes de anular.'
+        if doc.notas.filter(estado='REGISTRADO').exists():
+            return 'Tiene notas de crédito/débito registradas. Anúlelas primero.'
+        faltan = self.faltantes_al_revertir(doc)
+        if faltan:
+            return 'No se puede anular: la mercadería ya salió del almacén. ' + ' '.join(faltan)
+        return ''
+
     def anular(self, request, pk):
         doc = get_object_or_404(self.modelo, pk=pk)
         if request.method == 'POST':
-            if periodo_cerrado(doc.periodo):
-                messages.error(request, f'El periodo contable {doc.periodo} está cerrado.')
-            elif doc.movimientos.exists():
-                messages.error(request, 'Tiene cobros/pagos registrados en Finanzas. Elimínelos antes de anular.')
+            motivo = request.POST.get('motivo', '').strip()
+            bloqueo = self.motivo_bloqueo_anulacion(doc)
+            if bloqueo:
+                messages.error(request, bloqueo)
+            elif len(motivo) < 5:
+                messages.error(request, 'Indique el motivo de la anulación (mínimo 5 caracteres).')
             else:
                 with transaction.atomic():
-                    doc.revertir_stock()
-                    doc.estado = 'ANULADO'
-                    doc.save()
+                    doc.anular(request.user, motivo)
                 messages.success(request, f'{doc} anulado.')
         return redirect(self._url('detalle', pk))
 
     def eliminar(self, request, pk):
         doc = get_object_or_404(self.modelo, pk=pk)
         if request.method == 'POST':
-            if doc.movimientos.exists() or doc.notas.exists() or periodo_cerrado(doc.periodo):
-                messages.error(request, 'No se puede eliminar: tiene pagos o notas asociadas, o su periodo está cerrado.')
+            faltan = self.faltantes_al_revertir(doc)
+            if doc.movimientos.exists() or doc.notas.exists() or periodo_cerrado(doc.periodo) or faltan:
+                messages.error(request, 'No se puede eliminar: tiene pagos o notas asociadas, su periodo está cerrado '
+                                        'o la mercadería ya salió del almacén. ' + ' '.join(faltan))
                 return redirect(self._url('detalle', pk))
             with transaction.atomic():
                 doc.revertir_stock()
@@ -158,6 +202,8 @@ class ComprobanteViews:
         if request.method == 'POST' and (periodo_cerrado(doc.periodo) or periodo_cerrado(nuevo)):
             messages.error(request, 'No se puede trasladar desde o hacia un periodo contable cerrado.')
         elif request.method == 'POST' and len(nuevo) == 6 and nuevo.isdigit():
+            from contabilidad.automatico import marcar_pendiente
+            marcar_pendiente(doc.periodo)
             doc.periodo = nuevo
             doc.save(update_fields=['periodo'])
             messages.success(request, f'Trasladado al periodo {nuevo}.')
@@ -202,14 +248,15 @@ class ComprobanteViews:
         for d in docs:
             if d.estado == 'ANULADO':
                 continue
-            s, tc = d.signo, d.tipo_cambio
-            tot['base'] += s * d.base_imponible * tc
-            tot['nograv'] += s * d.no_gravado * tc
-            tot['igv'] += s * d.igv * tc
-            tot['total'] += s * d.total * tc
-            tot['detr'] += d.detraccion_monto * tc
-            tot['ret'] += d.retencion_monto * tc
-            tot['perc'] += d.percepcion_monto * tc
+            # mismos importes en soles que la contabilidad (calculados una vez por documento)
+            s = d.signo
+            tot['base'] += s * d.base_pen
+            tot['nograv'] += s * d.nograv_pen
+            tot['igv'] += s * d.igv_pen
+            tot['total'] += s * d.total_pen
+            tot['detr'] += d.detr_pen
+            tot['ret'] += d.ret_pen
+            tot['perc'] += d.perc_pen
         if request.GET.get('formato') == 'excel':
             return self._registro_excel(periodo, docs)
         if request.GET.get('formato') == 'ple':
@@ -228,7 +275,7 @@ class ComprobanteViews:
             filas.append([n, fmt_fecha(d.fecha_emision), fmt_fecha(d.fecha_vencimiento), d.tipo_comprobante,
                           d.serie, d.numero, d.tercero.tipo_doc, d.tercero.numero_doc, d.tercero.nombre, d.moneda,
                           d.tipo_cambio, s * d.base_imponible, s * d.no_gravado, s * d.igv, d.icbper, s * d.total,
-                          r2(s * d.total * d.tipo_cambio), d.detraccion_monto, d.retencion_monto, d.percepcion_monto,
+                          s * d.total_pen, d.detraccion_monto, d.retencion_monto, d.percepcion_monto,
                           fmt_fecha(ref.fecha_emision) if ref else '', ref.tipo_comprobante if ref else '',
                           ref.numero_completo if ref else '', d.get_estado_display()])
         empresa = Empresa.actual()
@@ -247,24 +294,24 @@ class ComprobanteViews:
 
     # ------------------------------------------------------------ cuentas pendientes
     def pendientes(self, request):
-        qs = (self.modelo.objects.filter(estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
-              .select_related('tercero').order_by('fecha_vencimiento'))
+        qs = (self.modelo.objects.con_saldos().filter(estado='REGISTRADO')
+              .exclude(tipo_comprobante__in=['07', '08']).select_related('tercero').order_by('fecha_vencimiento'))
         q = request.GET.get('q', '').strip()
         if q:
             qs = qs.filter(Q(tercero__nombre__icontains=q) | Q(tercero__numero_doc__icontains=q))
         docs = [d for d in qs if d.saldo > 0]
         tramos = {'Por vencer': D0, '1-30 días': D0, '31-60 días': D0, '61-90 días': D0, '+90 días': D0}
         for d in docs:
-            dias, monto = d.dias_vencido, d.saldo * d.tipo_cambio
+            dias, monto = d.dias_vencido, d.saldo_pen
             clave = ('Por vencer' if dias <= 0 else '1-30 días' if dias <= 30 else '31-60 días' if dias <= 60
                      else '61-90 días' if dias <= 90 else '+90 días')
             tramos[clave] += monto
         if request.GET.get('formato') == 'excel':
             filas = [[fmt_fecha(d.fecha_emision), fmt_fecha(d.fecha_vencimiento), d.dias_vencido,
                       d.get_tipo_comprobante_display(), d.numero_completo, d.tercero.numero_doc, d.tercero.nombre,
-                      d.moneda, d.neto, d.pagado, d.saldo, d.detraccion_monto] for d in docs]
+                      d.moneda, d.neto, d.pagado, d.saldo, d.saldo_pen, d.detraccion_monto] for d in docs]
             enc = ['Emisión', 'Vencimiento', 'Días vencido', 'Tipo', 'Número', 'RUC/DNI', self.etiqueta_tercero,
-                   'Moneda', 'Neto', 'Pagado', 'Saldo', 'Detracción']
+                   'Moneda', 'Neto', 'Pagado', 'Saldo', 'Saldo S/', 'Detracción']
             return excel_response(f'Pendientes_{self.titulo}', f'Cronograma de vencimientos - {self.titulo}', enc, filas)
         return render(request, 'core/pendientes.html', self._ctx(
             docs=docs, tramos=tramos, q=q, total=sum(tramos.values(), D0)))

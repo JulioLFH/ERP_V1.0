@@ -99,12 +99,53 @@ def fmt_fecha(f):
     return f.strftime('%d/%m/%Y') if f else ''
 
 
+def lineas_formset(formset):
+    """[(producto, cantidad)] de las filas válidas y no eliminadas de un formset de ítems."""
+    lineas = []
+    for f in formset.forms:
+        cd = getattr(f, 'cleaned_data', None) or {}
+        if cd and not cd.get('DELETE') and cd.get('cantidad'):
+            lineas.append((cd.get('producto'), cd['cantidad']))
+    return lineas
+
+
+def faltantes_stock(lineas, almacen, devolver=None):
+    """Mensajes por cada producto cuya salida supera el stock del almacén.
+
+    devolver: {producto_id: cantidad} que el mismo documento ya había descontado (al editar).
+    """
+    from collections import defaultdict
+
+    from .models import Almacen, Empresa
+    if Empresa.actual().permitir_stock_negativo:
+        return []
+    almacen = almacen or Almacen.principal()
+    pedido, productos = defaultdict(Decimal), {}
+    for producto, cantidad in lineas:
+        if producto and producto.es_inventariable:
+            pedido[producto.pk] += Decimal(cantidad)
+            productos[producto.pk] = producto
+    mensajes = []
+    for pk, cantidad in pedido.items():
+        disponible = productos[pk].stock_en(almacen) + (devolver or {}).get(pk, Decimal('0'))
+        if cantidad > disponible:
+            mensajes.append(f'Stock insuficiente de "{productos[pk].nombre}" en {almacen}: hay {disponible:,.2f} y '
+                            f'se necesitan {cantidad:,.2f}.')
+    return mensajes
+
+
 def guardar_documento(request, form_class, formset_class, instance, template, contexto, al_guardar=None,
-                      initial=None, items_iniciales=None):
-    """Alta/edición de un documento con detalle de ítems (compras, ventas, OC, cotizaciones)."""
+                      initial=None, items_iniciales=None, validar=None):
+    """Alta/edición de un documento con detalle de ítems (compras, ventas, OC, cotizaciones, guías).
+
+    validar(form, formset) -> [mensajes]: validaciones de negocio antes de guardar (ej. stock).
+    """
     if request.method == 'POST':
         form = form_class(request.POST, instance=instance)
         formset = formset_class(request.POST, instance=form.instance)
+        if form.is_valid() and formset.is_valid() and validar:
+            for mensaje in validar(form, formset):
+                form.add_error(None, mensaje)
         if form.is_valid() and formset.is_valid():
             with transaction.atomic():
                 if instance.pk and getattr(instance, 'stock_aplicado', False):

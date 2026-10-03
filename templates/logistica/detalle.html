@@ -11,9 +11,22 @@
     <a href="{% url 'logistica:lista' %}?tipo={{ g.tipo }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
     <a href="{% url 'logistica:imprimir' g.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</a>
     {% if g.estado == 'EMITIDA' and g.estado_sunat != 'ACEPTADO' and g.estado_sunat != 'PENDIENTE' %}<a href="{% url 'logistica:editar' g.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
-    {% if g.estado == 'EMITIDA' %}<form method="post" action="{% url 'logistica:anular' g.pk %}" data-confirm="¿Anular {{ g }}? Se revertirá el movimiento de almacén.">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular</button></form>{% endif %}
+    {% if g.estado == 'EMITIDA' %}<button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>{% endif %}
   </div>
 </div>
+{% if g.estado == 'EMITIDA' %}
+<div class="collapse mb-3" id="form-anular"><div class="card border-danger"><div class="card-body">
+  <form method="post" action="{% url 'logistica:anular' g.pk %}" class="row g-2 align-items-end" data-confirm="¿Anular {{ g }}? Se revertirá el movimiento de almacén.">
+    {% csrf_token %}
+    <div class="col-md-9"><label class="form-label small mb-1">Motivo de la anulación <span class="text-danger">*</span></label>
+      <input name="motivo" class="form-control form-control-sm" minlength="5" maxlength="250" required placeholder="Ej. El traslado no se realizó">
+      {% if g.estado_sunat == 'ACEPTADO' %}<div class="form-text">Además debe darla de baja en SUNAT con su Clave SOL.</div>{% endif %}</div>
+    <div class="col-md-3"><button class="btn btn-sm btn-danger w-100"><i class="bi bi-x-circle"></i> Confirmar anulación</button></div>
+  </form>
+</div></div></div>
+{% else %}
+<div class="alert alert-danger py-2"><i class="bi bi-x-octagon"></i> <b>Anulada</b>{% if g.anulado_en %} el {{ g.anulado_en|date:'d/m/Y H:i' }}{% endif %}{% if g.anulado_por %} por <b>{{ g.anulado_por.get_full_name|default:g.anulado_por.username }}</b>{% endif %}{% if g.motivo_anulacion %}. Motivo: {{ g.motivo_anulacion }}{% endif %}</div>
+{% endif %}
 <div class="row g-3">
   <div class="col-lg-8">
     <div class="card mb-3"><div class="card-body"><div class="row g-3 small">
