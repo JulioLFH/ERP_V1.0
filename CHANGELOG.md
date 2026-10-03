@@ -1,7 +1,11 @@
-# Historial de versiones — ERP V1.0
+# Historial de versiones — ERP
 
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
+
+## v1.3.1 — 03/10/2026 · Versión en los títulos
+- El título del sistema (inicio de sesión, barra superior, pestaña del navegador, administración e impresiones) muestra "ERP" con la versión instalada.
+- Pie de página "Creado por J. Flores" en todas las pantallas y en el inicio de sesión.
 
 ## v1.3 — 03/10/2026 · Módulos estilo Odoo
 - Pantalla de aplicaciones y barra de menú propia para cada módulo.

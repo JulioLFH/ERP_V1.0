@@ -1,4 +1,4 @@
-// ERP V1.0 — detalle de ítems (agregar filas, autocompletar producto y totales en vivo)
+// ERP — detalle de ítems (agregar filas, autocompletar producto y totales en vivo)
 (function () {
   const tabla = document.getElementById('items-body');
   if (!tabla) return;

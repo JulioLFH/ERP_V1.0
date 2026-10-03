@@ -1,5 +1,5 @@
 @echo off
 cd /d "%~dp0"
-echo Iniciando ERP V1.0 en http://127.0.0.1:8000 ...
+echo Iniciando el ERP en http://127.0.0.1:8000 ...
 start "" http://127.0.0.1:8000
 .venv\Scripts\python.exe manage.py runserver 0.0.0.0:8000

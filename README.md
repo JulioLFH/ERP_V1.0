@@ -1,4 +1,4 @@
-# ERP V1.0 — Mini ERP en Django
+# ERP — Mini ERP en Django
 
 Módulos (inspirados en AdSoft): **Registro de Compras**, **Registro de Ventas** y **Finanzas (Caja y Bancos)**.
 

@@ -41,8 +41,10 @@ body { background: var(--erp-bg); font-size: .9rem; }
 .topnav .dropdown-menu { font-size: .88rem; }
 .topnav .dropdown-item.active { background: #eef2ff; color: #1d2b3a; }
 
+.pie { text-align: center; font-size: .75rem; color: #8a96a6; padding: 1rem 1rem 1.25rem; }
+
 /* pantalla de aplicaciones */
-.apps-home { min-height: calc(100vh - 56px); background: linear-gradient(160deg, #eef2f7 0%, #e3e9f3 100%); margin: -1.5rem; padding: 3rem 1.5rem; }
+.apps-home { min-height: calc(100vh - 110px); background: linear-gradient(160deg, #eef2f7 0%, #e3e9f3 100%); margin: -1.5rem; padding: 3rem 1.5rem; }
 .apps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1.75rem; max-width: 900px; margin: 0 auto; }
 .app-tile { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #1d2b3a; gap: .55rem; }
 .app-tile .app-icon { width: 76px; height: 76px; border-radius: 18px; display: grid; place-items: center; color: #fff;
