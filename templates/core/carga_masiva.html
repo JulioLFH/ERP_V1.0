@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Carga masiva{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Carga masiva desde Excel</h1>
+<ul class="nav nav-tabs mb-3">
+  {% for clave, d in definiciones.items %}<li class="nav-item"><a class="nav-link {% if clave == tipo %}active{% endif %}" href="?tipo={{ clave }}"><i class="bi {{ d.icono }}"></i> {{ d.titulo }}</a></li>{% endfor %}
+</ul>
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-body">
+      <p class="small">{{ definicion.descripcion }}</p>
+      <ol class="small ps-3">
+        <li>Descargue la plantilla y complétela (borre la fila de ejemplo).</li>
+        <li>Suba el archivo y pulse <b>Validar</b>: se revisa fila por fila <b>sin grabar nada</b>.</li>
+        <li>Si no hay errores, pulse <b>Confirmar carga</b>. Si una fila tiene error no se carga ninguna.</li>
+      </ol>
+      <a href="?tipo={{ tipo }}&plantilla=1" class="btn btn-sm btn-outline-success mb-3"><i class="bi bi-file-earmark-excel"></i> Descargar plantilla</a>
+      <form method="post" enctype="multipart/form-data">{% csrf_token %}
+        <input type="hidden" name="tipo" value="{{ tipo }}"><input type="hidden" name="accion" value="validar">
+        <input type="file" name="archivo" accept=".xlsx" class="form-control form-control-sm mb-2" required>
+        {% if tipo != 'saldos' %}<div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="actualizar" id="actualizar" value="1" {% if actualizar %}checked{% endif %}>
+          <label class="form-check-label small" for="actualizar">Actualizar los existentes (mismo código / documento)</label></div>{% endif %}
+        <button class="btn btn-sm btn-primary"><i class="bi bi-check2-square"></i> Validar archivo</button>
+      </form>
+    </div></div>
+    <div class="card"><div class="card-header small">Columnas</div><div class="table-responsive"><table class="table table-sm mb-0 small">
+      <tbody>{% for clave, titulo, req, ejemplo, nota in definicion.columnas %}<tr><td><code>{{ clave }}</code>{% if req %} <span class="text-danger">*</span>{% endif %}</td><td>{{ titulo }}{% if nota %}<div class="text-muted">{{ nota }}</div>{% endif %}</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+  </div>
+  <div class="col-lg-7">
+    {% if filas is not None %}
+    <div class="card"><div class="card-header d-flex justify-content-between align-items-center">
+      <span>Resultado de la validación · {{ archivo }}</span>
+      <span><span class="badge text-bg-success">{{ validas }} correctas</span> {% if errores %}<span class="badge text-bg-danger">{{ errores }} con error</span>{% endif %}</span></div>
+      {% if errores %}<div class="alert alert-danger m-3 py-2 small">Corrija las filas con error en el Excel y vuelva a validarlo. No se cargó nada.</div>
+      {% elif filas %}<div class="card-body border-bottom"><form method="post">{% csrf_token %}<input type="hidden" name="tipo" value="{{ tipo }}"><input type="hidden" name="accion" value="confirmar">
+        <button class="btn btn-success"><i class="bi bi-cloud-upload"></i> Confirmar carga de {{ validas }} fila(s)</button></form></div>
+      {% else %}<div class="alert alert-warning m-3 py-2 small">El archivo no tiene filas con datos.</div>{% endif %}
+      <div class="table-responsive" style="max-height: 60vh"><table class="table table-sm mb-0 small">
+        <thead><tr><th>Fila</th><th>Acción</th><th>Detalle</th></tr></thead>
+        <tbody>{% for f in filas %}<tr class="{% if f.error %}table-danger{% endif %}"><td>{{ f.n }}</td>
+          <td>{% if f.error %}<span class="badge text-bg-danger">Error</span>{% else %}<span class="badge {% if f.accion == 'Actualizar' %}text-bg-warning{% else %}text-bg-success{% endif %}">{{ f.accion }}</span>{% endif %}</td>
+          <td>{{ f.resumen }}{% if f.error %}<div class="text-danger fw-semibold">{{ f.error }}</div>{% endif %}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-5"><i class="bi bi-file-earmark-spreadsheet display-5"></i><p class="mt-2">Suba un archivo para ver la validación.</p></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

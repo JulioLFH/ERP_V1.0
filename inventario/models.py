@@ -143,6 +143,51 @@ class Operacion(models.Model):
         return sum((i.valor for i in self.items.all()), D0)
 
 
+class CierreKardex(models.Model):
+    """Cierre mensual del kardex: ningún movimiento de almacén con fecha hasta fecha_corte.
+
+    Guarda la foto del inventario valorizado al cierre (SaldoCierre). Solo se reabre el último cierre vigente.
+    """
+    ESTADOS = [('CERRADO', 'Cerrado'), ('REABIERTO', 'Reabierto')]
+
+    periodo = models.CharField('Periodo (AAAAMM)', max_length=6)
+    fecha_corte = models.DateField()
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='CERRADO')
+    unidades = models.DecimalField(max_digits=16, decimal_places=2, default=D0)
+    valor_total = models.DecimalField('Inventario valorizado S/', max_digits=16, decimal_places=2, default=D0)
+    observaciones = models.CharField(max_length=250, blank=True)
+    cerrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    cerrado_en = models.DateTimeField(auto_now_add=True)
+    reabierto_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                      related_name='+')
+    reabierto_en = models.DateTimeField(null=True, blank=True)
+    motivo_reapertura = models.CharField(max_length=250, blank=True)
+
+    class Meta:
+        ordering = ['-fecha_corte', '-id']
+        verbose_name = 'cierre de kardex'
+        verbose_name_plural = 'cierres de kardex'
+
+    def __str__(self):
+        return f'Cierre de kardex {self.periodo_texto}'
+
+    @property
+    def periodo_texto(self):
+        return f'{self.periodo[4:]}/{self.periodo[:4]}'
+
+
+class SaldoCierre(models.Model):
+    cierre = models.ForeignKey(CierreKardex, on_delete=models.CASCADE, related_name='saldos')
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT)
+    almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, null=True)
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2)
+    costo = models.DecimalField(max_digits=14, decimal_places=4)
+    valor = models.DecimalField(max_digits=16, decimal_places=2)
+
+    class Meta:
+        ordering = ['producto__codigo', 'almacen__nombre']
+
+
 class OperacionItem(models.Model):
     ROLES = [('', '—'), ('INSUMO', 'Insumo (se consume)'), ('PRODUCTO', 'Producto terminado (se produce)')]
 

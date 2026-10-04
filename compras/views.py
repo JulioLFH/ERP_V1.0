@@ -53,8 +53,11 @@ class ComprasViews(ComprobanteViews):
     def ingresar_almacen(self, request, pk):
         from inventario.servicios import tiene_recepciones
         doc = get_object_or_404(Compra, pk=pk)
+        from inventario.cierre import error_cierre
         if request.method == 'POST' and tiene_recepciones(compra=doc):
             messages.error(request, 'La mercadería ya se recibió con una recepción de Inventario.')
+        elif request.method == 'POST' and error_cierre(doc.fecha_emision):
+            messages.error(request, error_cierre(doc.fecha_emision))
         elif request.method == 'POST' and not doc.stock_aplicado:
             doc.ingresar_almacen = True
             doc.save(update_fields=['ingresar_almacen'])

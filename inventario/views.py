@@ -65,13 +65,14 @@ def _tipo_recepcion_transito():
     return TipoOperacion.objects.filter(clase='TRANSITO_RECEPCION', activo=True).first()
 
 
-def _contexto_form(op, titulo):
+def _contexto_form(op, titulo, costos=True):
     tipo = op.tipo
+    campos = ['id', 'nombre', 'unidad'] + (['costo_promedio'] if costos else [])
     return {'titulo': titulo, 'op': op, 'tipo': tipo,
-            'muestra_costo': tipo.requiere_costo or tipo.clase == 'INGRESO',
+            # sin permiso de costos solo se pide el costo cuando el tipo lo exige (saldo inicial, ajuste ingreso)
+            'muestra_costo': tipo.requiere_costo or (tipo.clase == 'INGRESO' and costos),
             'muestra_rol': tipo.clase == 'MANUFACTURA',
-            'productos': list(Producto.objects.filter(activo=True, tipo='BIEN').values(
-                'id', 'nombre', 'unidad', 'costo_promedio'))}
+            'productos': list(Producto.objects.filter(activo=True, tipo='BIEN').values(*campos))}
 
 
 def _guardar(request, op, titulo, initial=None, items=None):
@@ -105,7 +106,8 @@ def _guardar(request, op, titulo, initial=None, items=None):
             formset = fs_cls(instance=op, initial=items)
         else:
             formset = formset_cls(instance=op)
-    ctx = _contexto_form(op, titulo)
+    from core.modulos import puede_ver_costos
+    ctx = _contexto_form(op, titulo, puede_ver_costos(request.user))
     ctx.update(form=form, formset=formset)
     return render(request, 'inventario/operacion_form.html', ctx)
 
@@ -268,6 +270,75 @@ def imprimir(request, pk):
     items = list(op.items.select_related('producto'))
     return render(request, 'inventario/operacion_imprimir.html', {
         'op': op, 'items': items, 'total': sum((i.valor for i in items), 0), 'empresa': Empresa.actual()})
+
+
+# ---------------------------------------------------------------- cierre de kardex
+def _requiere_costos(request):
+    from core.inventario import _sin_permiso_costos
+    from core.modulos import puede_ver_costos
+    return None if puede_ver_costos(request.user) else _sin_permiso_costos(request)
+
+
+@login_required
+def cierres(request):
+    from . import cierre as srv
+    from .models import CierreKardex
+    bloqueo = _requiere_costos(request)
+    if bloqueo:
+        return bloqueo
+    siguiente = srv.periodo_siguiente()
+    errores = srv.errores_cierre(siguiente)[0] if siguiente else []
+    if request.method == 'POST':
+        try:
+            c = srv.cerrar(request.POST.get('periodo', ''), request.user, request.POST.get('observaciones', ''))
+            messages.success(request, f'Kardex cerrado hasta el {c.fecha_corte:%d/%m/%Y}. Inventario valorizado: '
+                                      f'S/ {c.valor_total:,.2f}.')
+            return redirect('inventario:cierre', c.pk)
+        except srv.KardexCerrado as exc:
+            messages.error(request, str(exc))
+        return redirect('inventario:cierres')
+    return render(request, 'inventario/cierres.html', {
+        'cierres': CierreKardex.objects.select_related('cerrado_por', 'reabierto_por')[:60],
+        'vigente': srv.ultimo_cierre(), 'siguiente': siguiente, 'errores_siguiente': errores,
+        'siguiente_texto': f'{siguiente[4:]}/{siguiente[:4]}' if siguiente else ''})
+
+
+@login_required
+def cierre_detalle(request, pk):
+    from core.utils import excel_response
+    from .cierre import ultimo_cierre
+    from .models import CierreKardex
+    bloqueo = _requiere_costos(request)
+    if bloqueo:
+        return bloqueo
+    c = get_object_or_404(CierreKardex.objects.select_related('cerrado_por', 'reabierto_por'), pk=pk)
+    saldos = c.saldos.select_related('producto', 'almacen')
+    if request.GET.get('formato') == 'excel':
+        datos = [[s.producto.codigo, s.producto.nombre, s.producto.unidad, str(s.almacen or ''), s.cantidad, s.costo,
+                  s.valor] for s in saldos]
+        datos.append(['', 'TOTAL', '', '', c.unidades, '', c.valor_total])
+        return excel_response(f'Cierre_kardex_{c.periodo}', f'Cierre de kardex al {c.fecha_corte:%d/%m/%Y}',
+                              ['Código', 'Producto', 'U.M.', 'Almacén', 'Cantidad', 'Costo promedio', 'Valor S/'],
+                              datos)
+    return render(request, 'inventario/cierre_detalle.html', {
+        'c': c, 'saldos': saldos, 'puede_reabrir': request.user.is_superuser and c == ultimo_cierre()})
+
+
+@login_required
+def cierre_reabrir(request, pk):
+    from . import cierre as srv
+    from .models import CierreKardex
+    c = get_object_or_404(CierreKardex, pk=pk)
+    if request.method == 'POST':
+        if not request.user.is_superuser:
+            messages.error(request, 'Solo un administrador puede reabrir el kardex.')
+        else:
+            try:
+                srv.reabrir(c, request.user, request.POST.get('motivo', ''))
+                messages.success(request, f'{c} reabierto: se pueden volver a registrar movimientos de ese periodo.')
+            except srv.KardexCerrado as exc:
+                messages.error(request, str(exc))
+    return redirect('inventario:cierre', pk)
 
 
 # ---------------------------------------------------------------- tipos de operación

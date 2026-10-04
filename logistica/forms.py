@@ -106,6 +106,11 @@ class GuiaRemitenteForm(GuiaBaseForm):
             self.add_error('almacen_destino', 'Indique el almacén de destino.')
         if efecto == 'TRASLADO' and origen and origen == destino:
             self.add_error('almacen_destino', 'El destino debe ser distinto del origen.')
+        from inventario.cierre import error_cierre
+        if efecto in ('SALIDA', 'ENTRADA', 'TRASLADO') and error_cierre(data.get('fecha_traslado')):
+            self.add_error('fecha_traslado', error_cierre(data.get('fecha_traslado')))
+        if self.instance.pk and self.instance.stock_aplicado and error_cierre(self.instance.fecha_traslado):
+            self.add_error(None, error_cierre(self.instance.fecha_traslado))
         return data
 
 

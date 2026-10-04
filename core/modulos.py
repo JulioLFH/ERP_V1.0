@@ -59,9 +59,12 @@ MODULOS = [
                              ('Traslados y tránsito', 'inventario:lista?grupo=traslados', 'bi-truck'),
                              ('Manufactura', 'inventario:lista?grupo=manufactura', 'bi-gear-wide-connected'),
                              ('Todas las operaciones', 'inventario:lista', 'bi-list-ul'),
-                             ('Ajuste rápido', 'inv_ajuste', 'bi-sliders')]),
-            ('Reportes', [('Kardex valorizado', 'inv_kardex', 'bi-list-columns'),
-                          ('Valorización al cierre', 'inv_valorizacion', 'bi-calculator')]),
+                             ('Ajuste rápido', 'inv_ajuste', 'bi-sliders'),
+                             ('Carga masiva de saldos y productos', 'carga_masiva?tipo=saldos',
+                              'bi-file-earmark-arrow-up')]),
+            ('Reportes', [('Kardex', 'inv_kardex', 'bi-list-columns'),
+                          ('Valorización al cierre', 'inv_valorizacion', 'bi-calculator'),
+                          ('Cierre de kardex', 'inventario:cierres', 'bi-lock')]),
             ('Configuración', [('Productos y servicios', 'productos', 'bi-box-seam'),
                                ('Almacenes', 'almacenes', 'bi-house-gear'),
                                ('Tipos de operación', 'inventario:tipos', 'bi-ui-checks')]),
@@ -127,7 +130,8 @@ MODULOS = [
             ('Configuración', [('Correlativos / series', 'series', 'bi-123'),
                                ('Tipo de cambio', 'tipos_cambio', 'bi-currency-exchange'),
                                ('Facturación electrónica', 'facturacion', 'bi-cloud-upload'),
-                               ('Correo saliente', 'correo', 'bi-envelope')]),
+                               ('Correo saliente', 'correo', 'bi-envelope'),
+                               ('Carga masiva (Excel)', 'carga_masiva', 'bi-file-earmark-arrow-up')]),
         ],
     },
 ]
@@ -142,7 +146,8 @@ DERIVADOS = {'contactos': {'ventas', 'compras', 'finanzas', 'logistica', 'contab
 # Rutas sin espacio de nombres (app core) -> módulos que pueden abrirlas (el primero es el principal)
 RUTAS_CORE = {
     'dashboard': ['tablero'],
-    'empresa': ['ajustes'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
+    'empresa': ['ajustes'], 'facturacion': ['ajustes'], 'correo': ['ajustes'],
+    'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'contactos'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
     'tipos_cambio': ['ajustes', 'finanzas'],
@@ -156,6 +161,21 @@ RUTAS_CORE = {
 }
 # Rutas abiertas a cualquier usuario autenticado
 RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json','login', 'logout', 'cambiar_clave', 'cambiar_clave_ok'}
+
+
+# Permiso especial: ver costos de inventario (costo promedio, valorizado, kardex valorizado)
+GRUPO_COSTOS = 'Ver costos de inventario'
+
+
+def puede_ver_costos(user):
+    if not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    cache = getattr(user, '_ver_costos', None)
+    if cache is None:
+        cache = user._ver_costos = user.groups.filter(name=GRUPO_COSTOS).exists()
+    return cache
 
 
 def modulos_del_usuario(user):
@@ -194,13 +214,17 @@ def resolver_url(destino):
     return f'{url}?{query}' if query else url
 
 
-def menu_de(modulo):
+RUTAS_COSTOS = {'inv_valorizacion', 'inventario:cierres'}  # solo con el permiso de ver costos
+
+
+def menu_de(modulo, ver_costos=True):
     """Menú del módulo con las URLs ya resueltas."""
     items = []
     for etiqueta, destino in modulo['menu']:
         if isinstance(destino, list):
             items.append({'etiqueta': etiqueta, 'hijos': [
-                {'etiqueta': e, 'url': resolver_url(d), 'icono': i} for e, d, i in destino]})
+                {'etiqueta': e, 'url': resolver_url(d), 'icono': i} for e, d, i in destino
+                if ver_costos or d not in RUTAS_COSTOS]})
         else:
             items.append({'etiqueta': etiqueta, 'url': resolver_url(destino)})
     return items

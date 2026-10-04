@@ -1,0 +1,33 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Cierre de kardex{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Cierre de kardex</h1>
+<div class="row g-3 mb-3">
+  <div class="col-lg-5"><div class="card h-100"><div class="card-body">
+    <div class="text-muted small">Kardex cerrado hasta</div>
+    <div class="fs-4 fw-semibold">{% if vigente %}<i class="bi bi-lock text-success"></i> {{ vigente.fecha_corte|date:'d/m/Y' }}{% else %}<span class="text-muted">Sin cierres</span>{% endif %}</div>
+    {% if vigente %}<div class="small text-muted">Periodo {{ vigente.periodo_texto }} · S/ {{ vigente.valor_total|money }} · <a href="{% url 'inventario:cierre' vigente.pk %}">ver detalle</a></div>{% endif %}
+    <p class="small text-muted mt-3 mb-0">Al cerrar un mes no se pueden registrar, editar ni anular compras, ventas, guías, ajustes u operaciones que muevan el almacén con fecha hasta ese día. Se guarda la valorización del inventario por producto y almacén. Solo un administrador puede reabrir el último cierre.</p>
+  </div></div></div>
+  <div class="col-lg-7"><div class="card h-100"><div class="card-header">Cerrar el siguiente periodo</div><div class="card-body">
+    {% if siguiente %}
+      <form method="post" data-confirm="¿Cerrar el kardex de {{ siguiente_texto }}? Ya no se podrán registrar movimientos de almacén con fecha de ese mes ni anteriores.">{% csrf_token %}
+        <input type="hidden" name="periodo" value="{{ siguiente }}">
+        <div class="mb-2"><span class="fs-5 fw-semibold">{{ siguiente_texto }}</span></div>
+        {% if errores_siguiente %}<div class="alert alert-warning py-2 small mb-2"><ul class="mb-0">{% for e in errores_siguiente %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+        <input name="observaciones" class="form-control form-control-sm mb-2" maxlength="250" placeholder="Observaciones (opcional), ej. inventario físico conciliado">
+        <button class="btn btn-primary btn-sm" {% if errores_siguiente %}disabled{% endif %}><i class="bi bi-lock"></i> Cerrar kardex de {{ siguiente_texto }}</button>
+      </form>
+    {% else %}<p class="text-muted mb-0">Aún no hay movimientos de almacén.</p>{% endif %}
+  </div></div></div>
+</div>
+<div class="card"><div class="card-header">Historial de cierres</div><div class="table-responsive"><table class="table table-hover mb-0">
+  <thead><tr><th>Periodo</th><th>Cerrado hasta</th><th class="num">Unidades</th><th class="num">Valorizado S/</th><th>Cerrado por</th><th>Estado</th><th></th></tr></thead>
+  <tbody>{% for c in cierres %}<tr>
+    <td class="fw-semibold">{{ c.periodo_texto }}</td><td>{{ c.fecha_corte|date:'d/m/Y' }}</td><td class="num">{{ c.unidades|money }}</td><td class="num">{{ c.valor_total|money }}</td>
+    <td class="small">{{ c.cerrado_por.get_full_name|default:c.cerrado_por.username|default:'—' }} · {{ c.cerrado_en|date:'d/m/Y H:i' }}</td>
+    <td>{% if c.estado == 'CERRADO' %}<span class="badge text-bg-success">Cerrado</span>{% else %}<span class="badge text-bg-secondary" title="{{ c.motivo_reapertura }}">Reabierto</span>{% endif %}</td>
+    <td class="text-end"><a href="{% url 'inventario:cierre' c.pk %}" class="btn btn-sm btn-outline-secondary py-0">Ver</a></td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin cierres.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

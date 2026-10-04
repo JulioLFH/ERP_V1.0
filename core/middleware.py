@@ -19,6 +19,15 @@ class AccesoModulosMiddleware:
     def __call__(self, request):
         return self.get_response(request)
 
+    def process_exception(self, request, exception):
+        """Movimiento de almacén en un periodo con el kardex cerrado: aviso claro en vez de un error 500."""
+        from inventario.cierre import KardexCerrado
+        if isinstance(exception, KardexCerrado):
+            from django.contrib import messages
+            messages.error(request, str(exception))
+            return redirect(request.META.get('HTTP_REFERER') or 'home')
+        return None
+
     def process_view(self, request, view_func, view_args, view_kwargs):
         request.modulo_actual = None
         if not request.user.is_authenticated:

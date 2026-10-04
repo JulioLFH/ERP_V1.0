@@ -1,0 +1,33 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ c }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">{{ c }} <span class="badge {% if c.estado == 'CERRADO' %}text-bg-success{% else %}text-bg-secondary{% endif %} fs-6 align-middle">{{ c.get_estado_display }}</span></h1>
+    <div class="text-muted small">Inventario al {{ c.fecha_corte|date:'d/m/Y' }} · cerrado el {{ c.cerrado_en|date:'d/m/Y H:i' }}{% if c.cerrado_por %} por {{ c.cerrado_por.get_full_name|default:c.cerrado_por.username }}{% endif %}{% if c.observaciones %} · {{ c.observaciones }}{% endif %}</div></div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'inventario:cierres' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Cierres</a>
+    <a href="?formato=excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    {% if puede_reabrir %}<button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-reabrir"><i class="bi bi-unlock"></i> Reabrir</button>{% endif %}
+  </div>
+</div>
+{% if puede_reabrir %}
+<div class="collapse mb-3" id="form-reabrir"><div class="card border-danger"><div class="card-body">
+  <form method="post" action="{% url 'inventario:cierre_reabrir' c.pk %}" class="row g-2 align-items-end" data-confirm="¿Reabrir el kardex de {{ c.periodo_texto }}?">{% csrf_token %}
+    <div class="col-md-9"><label class="form-label small mb-1">Motivo de la reapertura</label><input name="motivo" class="form-control form-control-sm" minlength="5" maxlength="250" required placeholder="Ej. Compra del mes registrada fuera de plazo"></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-danger w-100">Reabrir</button></div>
+  </form>
+</div></div></div>
+{% endif %}
+{% if c.estado == 'REABIERTO' %}<div class="alert alert-secondary py-2 small">Reabierto el {{ c.reabierto_en|date:'d/m/Y H:i' }}{% if c.reabierto_por %} por {{ c.reabierto_por.get_full_name|default:c.reabierto_por.username }}{% endif %}: {{ c.motivo_reapertura }}</div>{% endif %}
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="kpi"><div class="label">Inventario valorizado</div><div class="value">S/ {{ c.valor_total|money }}</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="label">Unidades</div><div class="value">{{ c.unidades|money }}</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="label">Líneas (producto / almacén)</div><div class="value">{{ saldos|length }}</div></div></div>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Código</th><th>Producto</th><th>Almacén</th><th class="num">Cantidad</th><th class="num">Costo promedio</th><th class="num">Valor S/</th></tr></thead>
+  <tbody>{% for s in saldos %}<tr><td>{{ s.producto.codigo }}</td><td>{{ s.producto.nombre }}</td><td>{{ s.almacen|default:'' }}</td><td class="num">{{ s.cantidad|money }}</td><td class="num">{{ s.costo|floatformat:4 }}</td><td class="num">{{ s.valor|money }}</td></tr>
+  {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin existencias al cierre.</td></tr>{% endfor %}</tbody>
+  <tfoot><tr class="fw-bold"><td colspan="3" class="text-end">Total</td><td class="num">{{ c.unidades|money }}</td><td></td><td class="num">{{ c.valor_total|money }}</td></tr></tfoot>
+</table></div></div>
+{% endblock %}

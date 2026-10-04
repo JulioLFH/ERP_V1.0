@@ -177,6 +177,9 @@ class ComprobanteViews:
         faltan = self.faltantes_al_revertir(doc)
         if faltan:
             return 'No se puede anular: la mercadería ya salió del almacén. ' + ' '.join(faltan)
+        from inventario.cierre import error_cierre
+        if doc.stock_aplicado and error_cierre(doc.fecha_emision):
+            return error_cierre(doc.fecha_emision)
         return ''
 
     def anular(self, request, pk):
@@ -197,6 +200,10 @@ class ComprobanteViews:
     def eliminar(self, request, pk):
         doc = get_object_or_404(self.modelo, pk=pk)
         if request.method == 'POST':
+            from inventario.cierre import error_cierre
+            if doc.stock_aplicado and error_cierre(doc.fecha_emision):
+                messages.error(request, error_cierre(doc.fecha_emision))
+                return redirect(self._url('detalle', pk))
             faltan = self.faltantes_al_revertir(doc)
             if doc.movimientos.exists() or doc.notas.exists() or periodo_cerrado(doc.periodo) or faltan:
                 messages.error(request, 'No se puede eliminar: tiene pagos o notas asociadas, su periodo está cerrado '

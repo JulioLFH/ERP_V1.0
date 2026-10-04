@@ -91,6 +91,9 @@ def _validar_stock(form, formset):
 
 def _faltantes_al_anular(guia):
     """Anular una entrada o un traslado saca mercadería del almacén de destino."""
+    from inventario.cierre import error_cierre
+    if guia.stock_aplicado and error_cierre(guia.fecha_traslado):
+        return [error_cierre(guia.fecha_traslado)]
     if not guia.stock_aplicado or guia.efecto_stock not in ('ENTRADA', 'TRASLADO'):
         return []
     return faltantes_stock([(i.producto, i.cantidad) for i in guia.items.select_related('producto')],

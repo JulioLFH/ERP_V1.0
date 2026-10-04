@@ -54,13 +54,13 @@
       {% if op.referencia %}<div class="col-md-4"><div class="text-muted">Referencia</div>{{ op.referencia }}</div>{% endif %}
     </div>{% if op.glosa %}<p class="small text-muted mt-3 mb-0">{{ op.glosa }}</p>{% endif %}</div></div>
     <div class="card"><div class="table-responsive"><table class="table mb-0">
-      <thead><tr><th>#</th><th>Código</th><th>Producto</th>{% if op.tipo.clase == 'MANUFACTURA' %}<th>Rol</th>{% endif %}<th>U.M.</th><th class="num">Cantidad</th><th class="num">Costo unit.</th><th class="num">Valor S/</th></tr></thead>
+      <thead><tr><th>#</th><th>Código</th><th>Producto</th>{% if op.tipo.clase == 'MANUFACTURA' %}<th>Rol</th>{% endif %}<th>U.M.</th><th class="num">Cantidad</th>{% if ver_costos %}<th class="num">Costo unit.</th><th class="num">Valor S/</th>{% endif %}</tr></thead>
       <tbody>{% for i in items %}<tr><td>{{ forloop.counter }}</td><td>{{ i.producto.codigo }}</td><td>{{ i.producto.nombre }}{% if i.observacion %}<div class="small text-muted">{{ i.observacion }}</div>{% endif %}</td>
         {% if op.tipo.clase == 'MANUFACTURA' %}<td>{{ i.get_rol_display }}</td>{% endif %}<td>{{ i.producto.unidad }}</td><td class="num">{{ i.cantidad|money }}</td>
-        <td class="num">{% if i.costo_unitario is not None %}{{ i.costo_unitario|floatformat:4 }}{% else %}<span class="text-muted">{{ i.producto.costo_promedio|floatformat:4 }}</span>{% endif %}</td><td class="num">{{ i.valor|money }}</td></tr>{% endfor %}</tbody>
-      <tfoot><tr class="fw-semibold"><td colspan="{% if op.tipo.clase == 'MANUFACTURA' %}7{% else %}6{% endif %}" class="text-end">Total</td><td class="num">{{ total|money }}</td></tr></tfoot>
+        {% if ver_costos %}<td class="num">{% if i.costo_unitario is not None %}{{ i.costo_unitario|floatformat:4 }}{% else %}<span class="text-muted">{{ i.producto.costo_promedio|floatformat:4 }}</span>{% endif %}</td><td class="num">{{ i.valor|money }}</td>{% endif %}</tr>{% endfor %}</tbody>
+      {% if ver_costos %}<tfoot><tr class="fw-semibold"><td colspan="{% if op.tipo.clase == 'MANUFACTURA' %}7{% else %}6{% endif %}" class="text-end">Total</td><td class="num">{{ total|money }}</td></tr></tfoot>{% endif %}
     </table></div></div>
-    {% if op.estado == 'BORRADOR' %}<p class="small text-muted mt-2">En borrador el costo mostrado es referencial; al confirmar se toma el costo promedio vigente (salidas y traslados).</p>{% endif %}
+    {% if op.estado == 'BORRADOR' and ver_costos %}<p class="small text-muted mt-2">En borrador el costo mostrado es referencial; al confirmar se toma el costo promedio vigente (salidas y traslados).</p>{% endif %}
   </div>
   <div class="col-lg-4">
     <div class="card mb-3"><div class="card-header"><i class="bi bi-clock-history"></i> Historial</div><div class="card-body small">

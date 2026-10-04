@@ -9,7 +9,7 @@
   {% csrf_token %}
   <div class="row g-3">
     <div class="col-lg-5"><div class="card h-100"><div class="card-header">Datos de acceso</div><div class="card-body"><div class="row g-3">
-      {% for field in form %}{% if field.name != 'modulos' and field.name != 'es_admin' %}
+      {% for field in form %}{% if field.name != 'modulos' and field.name != 'es_admin' and field.name != 'ver_costos' %}
         <div class="{% if field.name == 'is_active' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>
       {% endif %}{% endfor %}
     </div></div></div></div>
@@ -30,6 +30,11 @@
         {% endfor %}
       </div>
       {% for e in form.modulos.errors %}<div class="text-danger small mt-2">{{ e }}</div>{% endfor %}
+      <hr>
+      <div class="form-check form-switch">
+        {{ form.ver_costos }} <label class="form-check-label fw-semibold" for="{{ form.ver_costos.id_for_label }}"><i class="bi bi-eye"></i> {{ form.ver_costos.label }}</label>
+        <div class="form-text">{{ form.ver_costos.help_text }}</div>
+      </div>
     </div></div></div>
   </div>
   <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar usuario</button>

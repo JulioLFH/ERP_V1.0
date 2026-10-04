@@ -37,6 +37,11 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
                 and data.get('tipo_comprobante') not in ('07', '08') and not data.get('orden_compra'):
             self.add_error('orden_compra', 'Las compras de mercadería se registran desde una orden de compra '
                                            '(Ajustes > Empresa > Exigir orden de compra).')
+        from inventario.cierre import error_cierre
+        if data.get('ingresar_almacen') and data.get('tipo_comprobante') != '08' and error_cierre(data.get('fecha_emision')):
+            self.add_error('fecha_emision', error_cierre(data.get('fecha_emision')))
+        if self.instance.pk and self.instance.stock_aplicado and error_cierre(self.instance.fecha_emision):
+            self.add_error(None, error_cierre(self.instance.fecha_emision))
         if data.get('orden_compra') and not data.get('centro_costo'):
             data['centro_costo'] = data['orden_compra'].centro_costo
         if data.get('ingresar_almacen') and data.get('tipo_comprobante') not in ('07', '08'):

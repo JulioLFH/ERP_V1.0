@@ -31,6 +31,7 @@ urlpatterns = [
     path('productos/<int:pk>/kardex/', inventario.kardex_producto, name='kardex'),
     path('ubigeos.json', views.ubigeos_json, name='ubigeos_json'),
     path('correo/', views.correo_config, name='correo'),
+    path('carga-masiva/', views.carga_masiva, name='carga_masiva'),
     path('series/', views.SerieLista.as_view(), name='series'),
     path('series/nueva/', views.SerieNueva.as_view(), name='serie_nueva'),
     path('series/<int:pk>/', views.SerieEditar.as_view(), name='serie_editar'),

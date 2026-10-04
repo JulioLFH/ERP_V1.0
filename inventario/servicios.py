@@ -138,6 +138,9 @@ def errores_confirmacion(op):
     errores = []
     if not items:
         return ['Agregue al menos un producto.']
+    from .cierre import error_cierre
+    if error_cierre(op.fecha):
+        errores.append(error_cierre(op.fecha))
     if tipo.usa_origen_almacen and not op.almacen_origen_id and tipo.clase != 'TRANSITO_RECEPCION':
         errores.append('Indique el almacén de origen.')
     if tipo.usa_destino_almacen and not op.almacen_destino_id:
@@ -263,6 +266,9 @@ def _actualizar_vencimientos(op):
 def errores_anulacion(op):
     if op.estado != 'CONFIRMADO':
         return ['Solo se anulan operaciones confirmadas.']
+    from .cierre import error_cierre
+    if error_cierre(op.fecha):
+        return [error_cierre(op.fecha)]
     if op.tipo.clase == 'TRANSITO_ENVIO' and op.recepciones.filter(estado='CONFIRMADO').exists():
         return ['El traslado ya tiene recepciones confirmadas: anúlelas primero.']
     # revertir saca stock de donde entró

@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.8.0 — 03/10/2026 · Fase 3: control de inventario y seguridad
+- **Costos ocultos según permiso**: nuevo permiso "Puede ver costos de inventario" en Ajustes > Usuarios y permisos (los administradores siempre los ven). Sin él, en Inventario no se ve el costo promedio, el valorizado, el kardex valorizado (se muestra en unidades), los costos de las operaciones ni la valorización al cierre; tampoco en los Excel ni en los datos que se envían al navegador.
+- **Carga masiva desde Excel** (Ajustes > Configuración > Carga masiva, también desde Inventario): productos, clientes y proveedores, y saldos iniciales de inventario. Plantilla descargable, validación fila por fila sin grabar nada (tipo de producto, unidad, RUC con dígito verificador, DNI, ubigeo, almacén, cantidades y costos), opción de actualizar los existentes y carga "todo o nada". Los saldos iniciales se registran como operaciones "Saldo inicial" confirmadas (una por almacén y fecha).
+- **Cierre de kardex** (Inventario > Reportes > Cierre de kardex): cierra el mes y guarda la valorización por producto y almacén (exportable a Excel). Con el kardex cerrado no se pueden registrar, editar ni anular compras, ventas, guías, ajustes u operaciones que muevan el almacén con fecha de ese periodo. No se cierra un mes que no terminó ni con operaciones en borrador. Solo un administrador puede reabrir el último cierre (con motivo).
+
 ## v1.7.3 — 03/10/2026 · Factura solo con mercadería ingresada al almacén
 - El proveedor solo puede cargar la factura de una orden de compra cuando la mercadería **ya ingresó al almacén** (recepción confirmada), y solo por las cantidades ingresadas pendientes de facturar. Mientras tanto la orden figura como "Pendiente de ingreso" en el portal.
 - Al aprobar la factura en el ERP se vuelve a verificar que la recepción siga vigente.

@@ -248,6 +248,9 @@ class AjusteInventarioForm(BootstrapMixin, forms.Form):
         if tipo == 'ENTRADA' and data.get('costo_unitario') is None and data.get('producto') \
                 and not data['producto'].costo_promedio:
             self.add_error('costo_unitario', 'Indique el costo unitario: el producto aún no tiene costo.')
+        from inventario.cierre import error_cierre
+        if error_cierre(data.get('fecha')):
+            self.add_error('fecha', error_cierre(data.get('fecha')))
         p, alm = data.get('producto'), data.get('almacen')
         if data.get('tipo') == 'SALIDA' and p and alm:
             disponible = p.stocks.filter(almacen=alm).values_list('cantidad', flat=True).first() or 0

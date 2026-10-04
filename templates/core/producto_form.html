@@ -31,7 +31,7 @@
           {% endfor %}
         </div>
         {% if clave == 'general' and object.pk and object.es_inventariable %}
-        <div class="row g-3 mt-1 small text-muted"><div class="col-md-4">Stock actual: <b>{{ object.stock }}</b></div><div class="col-md-4">Costo promedio: <b>{{ object.costo_promedio }}</b></div><div class="col-md-4"><a href="{% url 'kardex' object.pk %}">Ver kardex</a></div></div>
+        <div class="row g-3 mt-1 small text-muted"><div class="col-md-4">Stock actual: <b>{{ object.stock }}</b></div>{% if ver_costos %}<div class="col-md-4">Costo promedio: <b>{{ object.costo_promedio }}</b></div>{% endif %}<div class="col-md-4"><a href="{% url 'kardex' object.pk %}">Ver kardex</a></div></div>
         {% endif %}
       </div>
       {% endfor %}

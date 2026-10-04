@@ -21,8 +21,16 @@ def _signo(k):
     return k.cantidad if k.tipo == 'ENTRADA' else -k.cantidad
 
 
+def _sin_permiso_costos(request):
+    return render(request, 'core/sin_acceso.html', {'motivo': 'Para ver los costos e inventario valorizado necesita el '
+                                                              'permiso "Ver costos de inventario" (Ajustes > Usuarios '
+                                                              'y permisos).'}, status=403)
+
+
 @login_required
 def stock(request):
+    from .modulos import puede_ver_costos
+    costos = puede_ver_costos(request.user)
     almacenes = list(Almacen.objects.filter(activo=True))
     productos = Producto.objects.filter(activo=True, tipo='BIEN').prefetch_related('stocks')
     q = request.GET.get('q', '').strip()
@@ -37,13 +45,14 @@ def stock(request):
         filas.append({'p': p, 'cantidades': [por_alm.get(a.pk, D0) for a in almacenes]})
     total_valor = sum((f['p'].valorizado for f in filas), D0)
     if request.GET.get('formato') == 'excel':
-        enc = ['Código', 'Producto', 'U.M.'] + [a.nombre for a in almacenes] + ['Stock total', 'Stock mínimo',
-                                                                                'Costo promedio', 'Valorizado']
-        datos = [[f['p'].codigo, f['p'].nombre, f['p'].unidad] + f['cantidades'] +
-                 [f['p'].stock, f['p'].stock_minimo, f['p'].costo_promedio, f['p'].valorizado] for f in filas]
+        enc = ['Código', 'Producto', 'U.M.'] + [a.nombre for a in almacenes] + ['Stock total', 'Stock mínimo'] + (
+            ['Costo promedio', 'Valorizado'] if costos else [])
+        datos = [[f['p'].codigo, f['p'].nombre, f['p'].unidad] + f['cantidades'] + [f['p'].stock, f['p'].stock_minimo]
+                 + ([f['p'].costo_promedio, f['p'].valorizado] if costos else []) for f in filas]
         return excel_response('Stock_por_almacen', 'Stock por almacén', enc, datos)
     return render(request, 'inventario/stock.html', {
-        'almacenes': almacenes, 'filas': filas, 'q': q, 'solo_bajo': solo_bajo, 'total_valor': total_valor,
+        'almacenes': almacenes, 'filas': filas, 'q': q, 'solo_bajo': solo_bajo,
+        'total_valor': total_valor if costos else None,
         'n_bajo': sum(1 for p in Producto.objects.filter(activo=True, tipo='BIEN') if p.bajo_minimo)})
 
 
@@ -53,7 +62,9 @@ def kardex(request):
     almacenes = Almacen.objects.all()
     producto = productos.filter(pk=request.GET.get('producto')).first() if request.GET.get('producto') else None
     almacen = almacenes.filter(pk=request.GET.get('almacen')).first() if request.GET.get('almacen') else None
-    ctx = {'productos': productos, 'almacenes': almacenes, 'producto': producto, 'almacen': almacen}
+    from inventario.cierre import ultimo_cierre
+    ctx = {'productos': productos, 'almacenes': almacenes, 'producto': producto, 'almacen': almacen,
+           'cierre': ultimo_cierre()}
     if producto:
         qs = producto.kardex.all()
         if almacen:
@@ -77,14 +88,19 @@ def kardex(request):
             filas.append({'k': k, 'saldo': saldo, 'costo_prom': costo_prom, 'valor': valor,
                           'saldo_valor': r2(saldo * costo_prom)})
         if request.GET.get('formato') == 'excel':
-            enc = ['Fecha', 'Almacén', 'Documento / referencia', 'Tipo', 'Tabla 12 SUNAT', 'Entrada cant.', 'Salida cant.',
-                   'Costo unit.', 'Valor', 'Saldo cant.', 'Costo promedio', 'Saldo valorizado']
+            from .modulos import puede_ver_costos
+            costos = puede_ver_costos(request.user)
+            enc = ['Fecha', 'Almacén', 'Documento / referencia', 'Tipo', 'Tabla 12 SUNAT', 'Entrada cant.',
+                   'Salida cant.'] + (['Costo unit.', 'Valor'] if costos else []) + ['Saldo cant.'] + (
+                ['Costo promedio', 'Saldo valorizado'] if costos else [])
             datos = [[fmt_fecha(f['k'].fecha), str(f['k'].almacen or ''), f['k'].referencia, f['k'].tipo,
                       f['k'].codigo_sunat,
                       f['k'].cantidad if f['k'].tipo == 'ENTRADA' else D0,
-                      f['k'].cantidad if f['k'].tipo == 'SALIDA' else D0, f['k'].costo_unitario, f['valor'],
-                      f['saldo'], f['costo_prom'], f['saldo_valor']] for f in filas]
-            titulo = f'Kardex valorizado {producto.codigo} {producto.nombre} del {desde} al {hasta}'
+                      f['k'].cantidad if f['k'].tipo == 'SALIDA' else D0]
+                     + ([f['k'].costo_unitario, f['valor']] if costos else []) + [f['saldo']]
+                     + ([f['costo_prom'], f['saldo_valor']] if costos else []) for f in filas]
+            titulo = (f'Kardex {"valorizado " if costos else ""}{producto.codigo} {producto.nombre} '
+                      f'del {desde} al {hasta}')
             return excel_response(f'Kardex_{producto.codigo}', titulo, enc, datos)
         ctx.update(filas=filas, desde=desde, hasta=hasta, inicial=inicial, entradas=ent, salidas=sal, final=saldo)
     return render(request, 'inventario/kardex.html', ctx)
@@ -136,6 +152,9 @@ def valor_inventario(corte, almacen=None):
 
 @login_required
 def valorizacion(request):
+    from .modulos import puede_ver_costos
+    if not puede_ver_costos(request.user):
+        return _sin_permiso_costos(request)
     mes = request.GET.get('mes') or date.today().strftime('%Y-%m')
     try:
         corte = _fin_de_mes(date.fromisoformat(f'{mes}-01'))

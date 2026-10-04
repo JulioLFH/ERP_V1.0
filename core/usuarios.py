@@ -7,7 +7,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import BootstrapMixin
-from .modulos import GRUPOS, POR_CLAVE
+from .modulos import GRUPO_COSTOS, GRUPOS, POR_CLAVE
 
 
 class UsuarioForm(BootstrapMixin, forms.ModelForm):
@@ -15,6 +15,10 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         label='Módulos permitidos', required=False, widget=forms.CheckboxSelectMultiple,
         choices=[(clave, POR_CLAVE[clave]['nombre']) for clave in GRUPOS])
     es_admin = forms.BooleanField(label='Administrador (acceso a todos los módulos)', required=False)
+    ver_costos = forms.BooleanField(
+        label='Puede ver costos de inventario', required=False,
+        help_text='Costo promedio, valorizado, kardex valorizado y valorización al cierre. Los administradores '
+                  'siempre los ven.')
     clave1 = forms.CharField(label='Contraseña', required=False, widget=forms.PasswordInput)
     clave2 = forms.CharField(label='Repetir contraseña', required=False, widget=forms.PasswordInput)
 
@@ -32,6 +36,7 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
             nombres = set(self.instance.groups.values_list('name', flat=True))
             self.initial['modulos'] = [c for c, n in GRUPOS.items() if n in nombres]
             self.initial['es_admin'] = self.instance.is_superuser
+            self.initial['ver_costos'] = GRUPO_COSTOS in nombres
             self.fields['clave1'].help_text = 'Déjela vacía para no cambiarla.'
         else:
             self.fields['clave1'].required = self.fields['clave2'].required = True
@@ -63,7 +68,10 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
             user.set_password(self.cleaned_data['clave1'])
         user.save()
         grupos = [Group.objects.get_or_create(name=GRUPOS[c])[0] for c in self.cleaned_data.get('modulos', [])]
-        otros = user.groups.exclude(name__in=GRUPOS.values())  # conserva grupos ajenos a los módulos
+        if self.cleaned_data.get('ver_costos'):
+            grupos.append(Group.objects.get_or_create(name=GRUPO_COSTOS)[0])
+        # conserva grupos ajenos a los módulos y al permiso de costos
+        otros = user.groups.exclude(name__in=list(GRUPOS.values()) + [GRUPO_COSTOS])
         user.groups.set(list(otros) + grupos)
         return user
 
@@ -75,7 +83,8 @@ def lista(request):
     for u in usuarios:
         nombres = {g.name for g in u.groups.all()}
         filas.append({'u': u, 'modulos': ['Todos'] if u.is_superuser else
-                      [POR_CLAVE[c]['nombre'] for c, n in GRUPOS.items() if n in nombres]})
+                      [POR_CLAVE[c]['nombre'] for c, n in GRUPOS.items() if n in nombres],
+                      'ver_costos': u.is_superuser or GRUPO_COSTOS in nombres})
     return render(request, 'core/usuarios.html', {'filas': filas})
 
 

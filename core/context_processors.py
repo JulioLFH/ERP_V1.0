@@ -1,7 +1,7 @@
 from django.conf import settings
 
 from .models import Empresa
-from .modulos import MODULOS, POR_CLAVE, menu_de, modulos_del_usuario
+from .modulos import MODULOS, POR_CLAVE, menu_de, modulos_del_usuario, puede_ver_costos
 
 
 def empresa(request):
@@ -18,5 +18,6 @@ def empresa(request):
         'mods': mods,
         'apps': [m for m in MODULOS if m['clave'] in mods],
         'modulo': modulo,
-        'menu_modulo': menu_de(modulo) if modulo else [],
+        'menu_modulo': menu_de(modulo, puede_ver_costos(request.user)) if modulo else [],
+        'ver_costos': puede_ver_costos(request.user),
     }

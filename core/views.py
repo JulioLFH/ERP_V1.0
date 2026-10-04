@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -143,6 +144,62 @@ def correo_config(request):
     return render(request, 'core/correo.html', {'form': form, 'cfg': cfg})
 
 
+# ---------------------------------------------------------------- carga masiva
+@login_required
+def carga_masiva(request):
+    from . import carga_masiva as cm
+    from .modulos import modulos_del_usuario, puede_ver_costos
+    mods = modulos_del_usuario(request.user)
+    permitidos = OrderedDict((k, d) for k, d in cm.DEFINICIONES.items()
+                             if (set(d['modulos']) & mods or 'ajustes' in mods)
+                             and (not d.get('costos') or puede_ver_costos(request.user)))
+    if not permitidos:
+        messages.error(request, 'No tiene permiso para cargas masivas.')
+        return redirect('home')
+    tipo = request.POST.get('tipo') or request.GET.get('tipo') or next(iter(permitidos))
+    if tipo not in permitidos:
+        if tipo == 'saldos':
+            messages.info(request, 'Los saldos iniciales requieren el permiso "Ver costos de inventario".')
+        tipo = next(iter(permitidos))
+    if request.GET.get('plantilla'):
+        from django.http import HttpResponse
+        resp = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        resp['Content-Disposition'] = f'attachment; filename="plantilla_{tipo}.xlsx"'
+        cm.plantilla(tipo).save(resp)
+        return resp
+    ctx = {'definiciones': permitidos, 'tipo': tipo, 'definicion': permitidos[tipo]}
+    accion = request.POST.get('accion')
+    if request.method == 'POST' and accion == 'validar':
+        archivo = request.FILES.get('archivo')
+        if not archivo:
+            messages.error(request, 'Seleccione el archivo Excel.')
+        else:
+            actualizar = bool(request.POST.get('actualizar'))
+            try:
+                filas, errores = cm.validar(archivo, tipo, actualizar)
+            except cm.ErrorFila as exc:
+                messages.error(request, str(exc))
+            else:
+                if not errores and filas:
+                    request.session['carga_masiva'] = {'tipo': tipo, 'filas': filas, 'archivo': archivo.name}
+                else:
+                    request.session.pop('carga_masiva', None)
+                ctx.update(filas=filas, errores=errores, validas=len(filas) - errores, archivo=archivo.name,
+                           actualizar=actualizar)
+    elif request.method == 'POST' and accion == 'confirmar':
+        pendiente = request.session.pop('carga_masiva', None)
+        if not pendiente or pendiente['tipo'] != tipo:
+            messages.error(request, 'Vuelva a validar el archivo antes de cargarlo.')
+        else:
+            try:
+                messages.success(request, f'Carga completada ({pendiente["archivo"]}): '
+                                          f'{cm.cargar(tipo, pendiente["filas"], request.user)}')
+            except Exception as exc:  # p. ej. kardex cerrado o datos cambiados desde la validación
+                messages.error(request, f'No se cargó nada: {exc}')
+        return redirect(f"{request.path}?tipo={tipo}")
+    return render(request, 'core/carga_masiva.html', ctx)
+
+
 # ---------------------------------------------------------------- tipo de cambio
 @login_required
 def tipos_cambio(request):
@@ -278,8 +335,11 @@ class ProductoLista(ListaGenerica):
         return qs
 
     def get_context_data(self, **kwargs):
+        from .modulos import puede_ver_costos
         ctx = super().get_context_data(**kwargs)
         ctx['clases'] = Producto.CLASES
+        if not puede_ver_costos(self.request.user):
+            ctx['columnas'] = [c for c in self.columnas if c[1] not in ('costo_promedio', 'valorizado')]
         return ctx
 
 

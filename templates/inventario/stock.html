@@ -9,7 +9,7 @@
   </div>
 </div>
 <div class="row g-3 mb-3">
-  <div class="col-md-4"><div class="kpi"><div class="label">Inventario valorizado</div><div class="value">S/ {{ total_valor|money }}</div></div></div>
+  <div class="col-md-4"><div class="kpi">{% if ver_costos %}<div class="label">Inventario valorizado</div><div class="value">S/ {{ total_valor|money }}</div>{% else %}<div class="label">Productos con stock</div><div class="value">{{ filas|length }}</div>{% endif %}</div></div>
   <div class="col-md-4"><a href="?bajo=1" class="text-decoration-none"><div class="kpi"><div class="label">Productos bajo stock mínimo</div><div class="value {% if n_bajo %}text-danger{% endif %}">{{ n_bajo }}</div></div></a></div>
   <div class="col-md-4"><div class="kpi"><div class="label">Almacenes activos</div><div class="value">{{ almacenes|length }}</div></div></div>
 </div>
@@ -23,14 +23,14 @@
     </form>
   </div>
   <div class="table-responsive"><table class="table table-hover mb-0">
-    <thead><tr><th>Código</th><th>Producto</th><th>U.M.</th>{% for a in almacenes %}<th class="num">{{ a.nombre }}</th>{% endfor %}<th class="num">Total</th><th class="num">Mínimo</th><th class="num">Costo prom.</th><th class="num">Valorizado</th><th></th></tr></thead>
+    <thead><tr><th>Código</th><th>Producto</th><th>U.M.</th>{% for a in almacenes %}<th class="num">{{ a.nombre }}</th>{% endfor %}<th class="num">Total</th><th class="num">Mínimo</th>{% if ver_costos %}<th class="num">Costo prom.</th><th class="num">Valorizado</th>{% endif %}<th></th></tr></thead>
     <tbody>
     {% for f in filas %}
       <tr {% if f.p.bajo_minimo %}class="table-warning"{% endif %}>
         <td>{{ f.p.codigo }}</td><td>{{ f.p.nombre }}{% if f.p.bajo_minimo %} <span class="badge text-bg-danger">bajo mínimo</span>{% endif %}</td><td>{{ f.p.unidad }}</td>
         {% for c in f.cantidades %}<td class="num">{{ c|money }}</td>{% endfor %}
         <td class="num fw-semibold">{{ f.p.stock|money }}</td><td class="num">{{ f.p.stock_minimo|money }}</td>
-        <td class="num">{{ f.p.costo_promedio|money }}</td><td class="num">{{ f.p.valorizado|money }}</td>
+        {% if ver_costos %}<td class="num">{{ f.p.costo_promedio|money }}</td><td class="num">{{ f.p.valorizado|money }}</td>{% endif %}
         <td class="text-nowrap"><a href="{% url 'inv_kardex' %}?producto={{ f.p.pk }}" class="btn btn-sm btn-outline-primary py-0" title="Kardex"><i class="bi bi-list-columns"></i></a>
           <a href="{% url 'producto_editar' f.p.pk %}" class="btn btn-sm btn-outline-secondary py-0" title="Editar / stock mínimo"><i class="bi bi-pencil"></i></a></td>
       </tr>

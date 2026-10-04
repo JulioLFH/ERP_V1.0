@@ -285,6 +285,8 @@ class Producto(models.Model):
         cantidad = Decimal(cantidad)
         if not self.es_inventariable or cantidad == 0:
             return
+        from inventario.cierre import validar_fecha
+        validar_fecha(fecha or timezone.localdate())  # kardex cerrado: no se mueve el almacén en esa fecha
         almacen = almacen or Almacen.principal()
         with transaction.atomic():
             # se relee y bloquea el producto: dos líneas del mismo producto no deben pisarse
