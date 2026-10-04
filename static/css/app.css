@@ -1,10 +1,44 @@
+/* Identidad ceiba ERP: Selva #0F3D2E · Hoja #1F7A52 · Sol #E3A72F · Bruma #F4F6F2 · tipografía Sora */
 :root {
-  --erp-primary: #1f4e79;
-  --erp-sidebar: #13263d;
-  --erp-sidebar-text: #b8c7d9;
-  --erp-bg: #f3f5f8;
+  --selva: #0F3D2E;
+  --hoja: #1F7A52;
+  --hoja-clara: #2E9E66;
+  --sol: #E3A72F;
+  --bruma: #F4F6F2;
+  --erp-primary: var(--hoja);
+  --erp-sidebar: var(--selva);
+  --erp-sidebar-text: #c6d6cd;
+  --erp-bg: var(--bruma);
+  --bs-font-sans-serif: 'Sora', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --bs-link-color: var(--hoja);
+  --bs-link-color-rgb: 31, 122, 82;
+  --bs-link-hover-color: var(--selva);
+  --bs-link-hover-color-rgb: 15, 61, 46;
+  --bs-primary: var(--hoja);
+  --bs-primary-rgb: 31, 122, 82;
 }
-body { background: var(--erp-bg); font-size: .9rem; }
+body { background: var(--erp-bg); font-size: .875rem; font-family: var(--bs-font-sans-serif); color: #1d2b25; }
+.btn-primary { --bs-btn-bg: var(--selva); --bs-btn-border-color: var(--selva); --bs-btn-hover-bg: var(--hoja);
+  --bs-btn-hover-border-color: var(--hoja); --bs-btn-active-bg: #0a2d22; --bs-btn-active-border-color: #0a2d22;
+  --bs-btn-disabled-bg: var(--selva); --bs-btn-disabled-border-color: var(--selva); }
+.btn-outline-primary { --bs-btn-color: var(--hoja); --bs-btn-border-color: var(--hoja); --bs-btn-hover-bg: var(--hoja);
+  --bs-btn-hover-border-color: var(--hoja); --bs-btn-active-bg: var(--selva); --bs-btn-active-border-color: var(--selva); }
+.btn-success { --bs-btn-bg: var(--hoja); --bs-btn-border-color: var(--hoja); --bs-btn-hover-bg: var(--selva);
+  --bs-btn-hover-border-color: var(--selva); }
+.text-primary { color: var(--hoja) !important; }
+.form-control:focus, .form-select:focus { border-color: var(--hoja-clara); box-shadow: 0 0 0 .2rem rgba(31,122,82,.18); }
+.form-check-input:checked { background-color: var(--hoja); border-color: var(--hoja); }
+.nav-tabs .nav-link.active { color: var(--selva); font-weight: 600; border-bottom-color: #fff; }
+.nav-tabs .nav-link { color: #4b5d54; }
+
+/* marca: isotipo + "ceiba" + "ERP" */
+.marca { display: inline-flex; align-items: center; gap: .45rem; text-decoration: none; line-height: 1; }
+.marca-iso { height: 30px; width: auto; }
+.marca-nombre { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 1.45rem; letter-spacing: -.02em; color: var(--selva); }
+.marca-erp { font-family: 'Sora', sans-serif; font-weight: 600; font-size: .72rem; letter-spacing: .32em; color: var(--hoja);
+  align-self: flex-end; margin-bottom: .2rem; }
+.marca-oscura .marca-nombre { color: var(--bruma); }
+.marca-oscura .marca-erp { color: var(--hoja-clara); }
 .min-vw-0 { min-width: 0; }
 
 .sidebar {
@@ -32,19 +66,21 @@ body { background: var(--erp-bg); font-size: .9rem; }
 .content { padding: 1.5rem; max-width: 1600px; margin: 0 auto; }
 
 /* barra superior por módulo (estilo Odoo) */
-.topnav { --mod-color: var(--erp-sidebar); background: var(--mod-color); padding: .25rem 0; }
-.topnav .btn-apps { color: #fff; font-size: 1.25rem; margin-right: .75rem; opacity: .9; text-decoration: none; }
+/* barra superior: fondo Selva; el color del módulo queda como línea inferior */
+.topnav { --mod-color: var(--hoja); background: var(--selva); padding: .35rem 0; border-bottom: 3px solid var(--mod-color); }
+.topnav .btn-apps { color: #fff; font-size: 1.15rem; margin-right: .85rem; opacity: .8; text-decoration: none; }
 .topnav .btn-apps:hover { opacity: 1; }
-.topnav .modulo-nombre { font-weight: 600; font-size: 1.05rem; }
-.topnav .nav-link { color: rgba(255,255,255,.88); font-size: .9rem; }
-.topnav .nav-link:hover, .topnav .nav-link.active, .topnav .nav-link.show { color: #fff; background: rgba(255,255,255,.12); border-radius: .375rem; }
-.topnav .dropdown-menu { font-size: .88rem; }
-.topnav .dropdown-item.active { background: #eef2ff; color: #1d2b3a; }
+.topnav .modulo-nombre { font-weight: 600; font-size: 1rem; padding-left: .9rem; border-left: 1px solid rgba(244,246,242,.25); color: #fff; }
+.topnav .modulo-nombre i { color: var(--mod-color); filter: brightness(1.35); }
+.topnav .nav-link { color: rgba(244,246,242,.85); font-size: .875rem; }
+.topnav .nav-link:hover, .topnav .nav-link.active, .topnav .nav-link.show { color: #fff; background: rgba(255,255,255,.1); border-radius: .375rem; }
+.topnav .dropdown-menu { font-size: .85rem; }
+.topnav .dropdown-item.active { background: #e3f1e9; color: var(--selva); }
 
-.pie { text-align: center; font-size: .75rem; color: #8a96a6; padding: 1rem 1rem 1.25rem; }
+.pie { text-align: center; font-size: .75rem; color: #7d8b84; padding: 1rem 1rem 1.25rem; }
 
 /* pantalla de aplicaciones */
-.apps-home { min-height: calc(100vh - 110px); background: linear-gradient(160deg, #eef2f7 0%, #e3e9f3 100%); margin: -1.5rem; padding: 3rem 1.5rem; }
+.apps-home { min-height: calc(100vh - 110px); background: linear-gradient(160deg, var(--bruma) 0%, #e4ece6 100%); margin: -1.5rem; padding: 3rem 1.5rem; }
 .apps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1.75rem; max-width: 900px; margin: 0 auto; }
 .app-tile { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #1d2b3a; gap: .55rem; }
 .app-tile .app-icon { width: 76px; height: 76px; border-radius: 18px; display: grid; place-items: center; color: #fff;
@@ -52,8 +88,8 @@ body { background: var(--erp-bg); font-size: .9rem; }
 .app-tile:hover .app-icon { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(16,24,40,.2); }
 .app-tile .app-nombre { font-weight: 600; font-size: .95rem; }
 .app-tile .app-desc { font-size: .75rem; color: #6b7a8c; text-align: center; line-height: 1.2; }
-.page-title { font-size: 1.3rem; font-weight: 600; color: #1d2b3a; margin: 0; }
-.card { border: 1px solid #e3e7ed; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+.page-title { font-size: 1.25rem; font-weight: 600; color: var(--selva); margin: 0; letter-spacing: -.01em; }
+.card { border: 1px solid #e1e6e2; box-shadow: 0 1px 2px rgba(15,61,46,.04); border-radius: .75rem; }
 .card-header { background: #fff; font-weight: 600; }
 
 .kpi { border-radius: .75rem; padding: 1rem 1.25rem; background: #fff; border: 1px solid #e3e7ed; height: 100%; }
@@ -62,7 +98,7 @@ body { background: var(--erp-bg); font-size: .9rem; }
 .kpi i { font-size: 1.6rem; opacity: .85; }
 
 .table { font-size: .84rem; }
-.table thead th { background: #f0f3f7; color: #44546a; font-weight: 600; white-space: nowrap; }
+.table thead th { background: #eef3ef; color: #33483e; font-weight: 600; white-space: nowrap; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .table-registro { font-size: .76rem; }
 .badge-REGISTRADO, .badge-ATENDIDO { background: #d1f0dd; color: #146c43; }

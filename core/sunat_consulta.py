@@ -31,7 +31,7 @@ def configurada():
 
 
 def _post(url, datos, cabeceras):
-    req = urllib.request.Request(url, data=datos, headers={'User-Agent': 'CEIVA-ERP', **cabeceras}, method='POST')
+    req = urllib.request.Request(url, data=datos, headers={'User-Agent': 'Ceiba-ERP', **cabeceras}, method='POST')
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read().decode('utf-8'))
 

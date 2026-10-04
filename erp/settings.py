@@ -1,4 +1,4 @@
-"""Configuración de CEIVA ERP — lista para desarrollo local y despliegue en la nube.
+"""Configuración de Ceiba ERP — lista para desarrollo local y despliegue en la nube.
 
 Variables de entorno (ver .env.example):
   SECRET_KEY, DEBUG, ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS, DATABASE_URL
@@ -11,8 +11,8 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Versión visible en el menú del usuario; actualizarla junto con CHANGELOG.md y la etiqueta de git
-ERP_NOMBRE = 'CEIVA ERP'
-ERP_VERSION = '1.7.0'
+ERP_NOMBRE = 'Ceiba ERP'
+ERP_VERSION = '1.7.1'
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insegura-cambiar-en-produccion')
 DEBUG = os.environ.get('DEBUG', '1') == '1'

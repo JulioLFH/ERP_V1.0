@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 104">
+  <!-- favicon reducido: sin ramas ni nodos -->
+  <path d="M6 42 A54 31 0 0 1 114 42 Z" fill="#1F7A52"/>
+  <circle cx="60" cy="11" r="8.5" fill="#E3A72F"/>
+  <path d="M51 42 L69 42 L65 76 L55 76 Z" fill="#0F3D2E"/>
+  <g stroke="#0F3D2E" stroke-width="8" stroke-linecap="round" fill="none">
+    <path d="M60 72 L60 96"/>
+    <path d="M60 72 C56 85 44 90 27 93"/>
+    <path d="M60 72 C64 85 76 90 93 93"/>
+  </g>
+</svg>

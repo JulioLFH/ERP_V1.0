@@ -22,7 +22,7 @@ SBS_URL = 'https://api.decolecta.com/v1/tipo-cambio/sbs/average?currency=USD&dat
 
 
 def _get_json(url, headers=None):
-    req = urllib.request.Request(url, headers={'User-Agent': 'CEIVA-ERP', 'Accept': 'application/json',
+    req = urllib.request.Request(url, headers={'User-Agent': 'Ceiba-ERP', 'Accept': 'application/json',
                                                **(headers or {})})
     with urllib.request.urlopen(req, timeout=6) as resp:
         return json.loads(resp.read().decode('utf-8'))

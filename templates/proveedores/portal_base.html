@@ -6,12 +6,13 @@
   <title>{% block title %}Portal de proveedores{% endblock %} · {{ empresa.razon_social }}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  {% include 'core/_head_marca.html' %}
   <link href="{% static 'css/app.css' %}" rel="stylesheet">
 </head>
 <body>
-<nav class="navbar navbar-dark topnav" style="--mod-color: #0b7285">
+<nav class="navbar navbar-dark topnav" style="--mod-color: var(--sol)">
   <div class="container">
-    <a class="navbar-brand modulo-nombre" href="{% if user.is_authenticated %}{% url 'portal:inicio' %}{% else %}#{% endif %}"><i class="bi bi-shop"></i> Portal de proveedores · {{ empresa.razon_social }}</a>
+    <a class="navbar-brand d-flex align-items-center gap-3" href="{% if user.is_authenticated %}{% url 'portal:inicio' %}{% else %}#{% endif %}">{% include 'core/_marca.html' with oscuro=True %}<span class="modulo-nombre"><i class="bi bi-shop"></i> Portal de proveedores · {{ empresa.razon_social }}</span></a>
     {% if user.is_authenticated and user.acceso_proveedor %}
     <div class="d-flex align-items-center gap-3 text-white small">
       <span><i class="bi bi-building"></i> {{ user.acceso_proveedor.tercero.nombre }}</span>

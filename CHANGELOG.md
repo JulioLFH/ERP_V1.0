@@ -1,7 +1,13 @@
-# Historial de versiones — CEIVA ERP
+# Historial de versiones — Ceiba ERP
 
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
+
+## v1.7.1 — 03/10/2026 · Nueva identidad: ceiba ERP
+- Logotipo de ceiba (isotipo en SVG: completo, reducido para favicon, negativo para fondos oscuros e icono de app).
+- Paleta de la marca en todo el sistema: Selva #0F3D2E (barra superior y botones), Hoja #1F7A52, Sol #E3A72F y Bruma #F4F6F2 (fondo); tipografía Sora.
+- Nueva pantalla de inicio de sesión, barra superior con el logotipo (el color de cada módulo queda como línea inferior) y portal de proveedores con la marca.
+- El sistema se llama **Ceiba ERP** (antes "CEIVA ERP").
 
 ## v1.7.0 — 03/10/2026 · Fase 2: compras, proveedores y logística
 - **Orden de compra con centro de costo obligatorio** y días de crédito (por defecto los del proveedor). Opción "Exigir orden de compra" (Ajustes > Empresa, activa por defecto): las compras nuevas de mercadería solo se registran desde una orden; la compra hereda el centro de costo de la orden.

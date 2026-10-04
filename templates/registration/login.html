@@ -2,40 +2,55 @@
 <html lang="es">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ingresar · {{ erp_nombre }} v{{ erp_version }}</title>
+  <title>Ingresar · {{ erp_nombre }}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  {% include 'core/_head_marca.html' %}
+  <link href="{% static 'css/app.css' %}" rel="stylesheet">
   <style>
-    body { min-height: 100vh; display: grid; place-items: center; background: linear-gradient(135deg, #13263d, #1f4e79); }
-    .login { width: 100%; max-width: 380px; }
+    body { min-height: 100vh; display: flex; flex-direction: column; background: #E8ECE8; }
+    .login-top { background: var(--selva); padding: .75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+    .login-top .empresa { color: var(--bruma); font-size: .85rem; letter-spacing: .02em; text-transform: uppercase; }
+    .login-wrap { flex: 1; display: grid; place-items: center; padding: 2rem 1rem; }
+    .login-card { width: 100%; max-width: 440px; background: #fff; border-radius: 1.5rem; padding: 2.75rem 2.5rem 2.5rem;
+      box-shadow: 0 10px 30px rgba(15,61,46,.08); }
+    .login-card .iso { height: 72px; display: block; margin: 0 auto .75rem; }
+    .login-card .nombre { font-weight: 700; font-size: 2.2rem; letter-spacing: -.03em; color: var(--selva); text-align: center; line-height: 1; }
+    .login-card .modulos { color: #4b5d54; font-size: .85rem; margin: 1rem 0 1.75rem; }
+    .login-card label { font-weight: 600; color: var(--selva); font-size: .85rem; margin-bottom: .45rem; }
+    .login-card .form-control { padding: .7rem .9rem; border-radius: .6rem; border-color: #cfd6d1; }
+    .login-card .btn-ingresar { background: var(--selva); color: #fff; border-radius: .6rem; padding: .75rem; font-weight: 600; }
+    .login-card .btn-ingresar:hover { background: var(--hoja); color: #fff; }
+    .lema { color: #4b5d54; font-size: .8rem; text-align: center; margin-top: 1.25rem; }
   </style>
 </head>
 <body>
-  <div class="login px-3">
-    <div class="text-center text-white mb-4">
-      <i class="bi bi-grid-1x2-fill fs-1"></i>
-      <h1 class="h3 mt-2 mb-0">{{ erp_nombre }} <span class="opacity-75">v{{ erp_version }}</span></h1>
-      <small class="opacity-75">Ventas · Compras · Inventario · Logística · Finanzas · Contabilidad</small>
+  <header class="login-top">
+    {% include 'core/_marca.html' with oscuro=True %}
+    <span class="empresa d-none d-sm-inline">{{ empresa.razon_social }}</span>
+  </header>
+  <div class="login-wrap">
+    <div class="login-card">
+      <img src="{% static 'img/ceiba-isotipo.svg' %}" alt="" class="iso">
+      <div class="nombre">ceiba</div>
+      <div class="modulos">Ventas · Compras · Inventario · Logística · Finanzas · Contabilidad</div>
+      {% if form.errors %}<div class="alert alert-danger py-2 small">Usuario o contraseña incorrectos.</div>{% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="id_username">Usuario</label>
+          <input type="text" name="username" id="id_username" class="form-control" autofocus required>
+        </div>
+        <div class="mb-4">
+          <label for="id_password">Contraseña</label>
+          <input type="password" name="password" id="id_password" class="form-control" required>
+        </div>
+        <input type="hidden" name="next" value="{{ next }}">
+        <button class="btn btn-ingresar w-100">Ingresar</button>
+      </form>
+      <div class="lema">El ERP que crece con Latinoamérica</div>
     </div>
-    <div class="card shadow border-0">
-      <div class="card-body p-4">
-        {% if form.errors %}<div class="alert alert-danger py-2 small">Usuario o contraseña incorrectos.</div>{% endif %}
-        <form method="post">
-          {% csrf_token %}
-          <div class="mb-3">
-            <label class="form-label small" for="id_username">Usuario</label>
-            <input type="text" name="username" id="id_username" class="form-control" autofocus required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label small" for="id_password">Contraseña</label>
-            <input type="password" name="password" id="id_password" class="form-control" required>
-          </div>
-          <input type="hidden" name="next" value="{{ next }}">
-          <button class="btn btn-primary w-100">Ingresar</button>
-        </form>
-      </div>
-    </div>
-    <p class="text-center text-white-50 small mt-4 mb-0">{{ erp_nombre }} v{{ erp_version }} · Creado por J. Flores</p>
   </div>
+  <p class="pie mb-0">{{ erp_nombre }} v{{ erp_version }} · Creado por J. Flores</p>
 </body>
 </html>
