@@ -1,0 +1,21 @@
+{% extends 'proveedores/portal_base.html' %}{% load erp_tags %}
+{% block title %}Factura {{ f.numero_completo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">Factura {{ f.numero_completo }}
+    <span class="badge {% if f.estado == 'APROBADA' %}text-bg-success{% elif f.estado == 'RECHAZADA' %}text-bg-danger{% else %}text-bg-warning{% endif %} fs-6 align-middle">{{ f.get_estado_display }}</span></h1>
+    <div class="text-muted small">Orden {{ f.orden_compra.numero }} · emitida el {{ f.fecha_emision|date:'d/m/Y' }} · registrada el {{ f.creado|date:'d/m/Y H:i' }}</div></div>
+  <a href="{% url 'portal:inicio' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+{% if f.estado == 'RECHAZADA' %}<div class="alert alert-danger"><b>Rechazada:</b> {{ f.motivo_rechazo }}. Puede registrar la factura corregida desde la orden.</div>{% endif %}
+{% if f.estado == 'APROBADA' and f.compra %}<div class="alert alert-success">Factura registrada. Vence el <b>{{ f.compra.fecha_vencimiento|date:'d/m/Y' }}</b>.</div>{% endif %}
+<div class="alert alert-light border small">SUNAT: <b>{{ f.get_estado_sunat_display }}</b>{% if f.sunat_detalle %} — {{ f.sunat_detalle }}{% endif %}</div>
+<div class="card"><div class="table-responsive"><table class="table mb-0">
+  <thead><tr><th>Descripción</th><th class="num">Cantidad</th><th class="num">V. unit.</th><th class="num">Subtotal</th></tr></thead>
+  <tbody>{% for i in items %}<tr><td>{{ i.descripcion }}</td><td class="num">{{ i.cantidad|money }}</td><td class="num">{{ i.precio_unitario|floatformat:4 }}</td><td class="num">{{ i.subtotal|money }}</td></tr>{% endfor %}</tbody>
+  <tfoot><tr><td colspan="3" class="text-end">Valor venta</td><td class="num">{{ f.base_imponible|add:f.no_gravado|money }}</td></tr>
+    <tr><td colspan="3" class="text-end">IGV</td><td class="num">{{ f.igv|money }}</td></tr>
+    <tr class="fw-bold"><td colspan="3" class="text-end">TOTAL {{ f.simbolo }}</td><td class="num">{{ f.total|money }}</td></tr></tfoot>
+</table></div></div>
+{% if f.observaciones %}<p class="small text-muted mt-2">Comentario: {{ f.observaciones }}</p>{% endif %}
+{% endblock %}

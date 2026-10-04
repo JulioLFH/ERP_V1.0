@@ -1,0 +1,5 @@
+{% extends 'proveedores/correo_base.html' %}
+{% block cuerpo %}
+<p>Este es un correo de prueba enviado por {{ usuario.get_full_name|default:usuario.username }}.</p>
+<p>Si lo recibe, la configuración del correo saliente es correcta: las órdenes de compra y las conformidades de recepción llegarán a sus proveedores.</p>
+{% endblock %}

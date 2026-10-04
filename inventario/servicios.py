@@ -241,7 +241,23 @@ def confirmar(op, usuario=None):
         op.confirmado_por = usuario if usuario and usuario.is_authenticated else None
         op.confirmado_en = timezone.now()
         op.save()
+        _actualizar_vencimientos(op)
     return op
+
+
+def orden_de(op):
+    """Orden de compra de una recepción (directa o a través de su factura)."""
+    if op.orden_compra_id:
+        return op.orden_compra
+    return op.compra.orden_compra if op.compra_id and op.compra.orden_compra_id else None
+
+
+def _actualizar_vencimientos(op):
+    """Las facturas de la orden vencen desde la fecha de ingreso de la mercadería."""
+    if op.tipo.clase == 'INGRESO':
+        oc = orden_de(op)
+        if oc:
+            oc.actualizar_vencimientos()
 
 
 def errores_anulacion(op):
@@ -299,6 +315,7 @@ def anular(op, usuario, motivo):
         op.anulado_por = usuario if usuario and usuario.is_authenticated else None
         op.anulado_en = timezone.now()
         op.save()
+        _actualizar_vencimientos(op)
     return op
 
 

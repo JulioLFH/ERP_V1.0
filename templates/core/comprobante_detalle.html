@@ -117,7 +117,9 @@
         {% for gr in doc.guias.all %}<tr><td class="text-muted">Guía de remisión</td><td class="text-end">{% if 'logistica' in mods %}<a href="{% url 'logistica:detalle' gr.pk %}">{{ gr.numero_completo }}</a>{% else %}{{ gr.numero_completo }}{% endif %}</td></tr>{% endfor %}
         {% if app == 'compras' %}<tr><td class="text-muted">Clasificación</td><td class="text-end">{{ doc.get_clasificacion_display }}</td></tr>
         <tr><td class="text-muted">Almacén</td><td class="text-end">{% if doc.stock_aplicado %}Ingresado{% elif operaciones_inv %}Por recepciones de inventario{% else %}No ingresado{% endif %}</td></tr>
-        {% if doc.orden_compra %}<tr><td class="text-muted">Orden de compra</td><td class="text-end"><a href="{% url 'compras:oc_detalle' doc.orden_compra_id %}">{{ doc.orden_compra }}</a></td></tr>{% endif %}{% endif %}
+        {% if doc.orden_compra %}<tr><td class="text-muted">Orden de compra</td><td class="text-end"><a href="{% url 'compras:oc_detalle' doc.orden_compra_id %}">{{ doc.orden_compra }}</a></td></tr>
+        <tr><td class="text-muted">Ingreso de mercadería</td><td class="text-end">{% if doc.fecha_ingreso %}{{ doc.fecha_ingreso|date:'d/m/Y' }}{% else %}Pendiente{% endif %} · {{ doc.orden_compra.dias_credito|default:0 }} días</td></tr>{% endif %}
+        {% if doc.factura_portal %}<tr><td class="text-muted">Portal de proveedores</td><td class="text-end"><a href="{% url 'compras:portal_factura' doc.factura_portal.pk %}">Registrada por el proveedor</a></td></tr>{% endif %}{% endif %}
         {% if app == 'ventas' %}{% if doc.vendedor %}<tr><td class="text-muted">Vendedor</td><td class="text-end">{{ doc.vendedor }}</td></tr>{% endif %}
         {% if doc.cotizacion %}<tr><td class="text-muted">Cotización</td><td class="text-end"><a href="{% url 'ventas:cot_detalle' doc.cotizacion_id %}">{{ doc.cotizacion }}</a></td></tr>{% endif %}
         {% if doc.motivo_nota %}<tr><td class="text-muted">Motivo</td><td class="text-end">{{ doc.get_motivo_nota_display }}</td></tr>{% endif %}{% endif %}

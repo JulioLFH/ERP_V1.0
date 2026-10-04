@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"></head>
+<body style="font-family: Arial, Helvetica, sans-serif; color: #1d2b3a; font-size: 14px; background: #f3f5f8; padding: 16px;">
+<div style="max-width: 680px; margin: 0 auto; background: #ffffff; border: 1px solid #dfe3ea; border-radius: 8px; padding: 24px;">
+  <div style="border-bottom: 3px solid #0b7285; padding-bottom: 8px; margin-bottom: 16px;">
+    <b style="font-size: 16px;">{{ empresa.razon_social }}</b><br>
+    <span style="color: #6b7785; font-size: 12px;">RUC {{ empresa.ruc }}{% if empresa.direccion %} · {{ empresa.direccion }}{% endif %}</span>
+  </div>
+  {% block cuerpo %}{% endblock %}
+  <p style="color: #6b7785; font-size: 12px; margin-top: 24px;">Correo enviado automáticamente desde el sistema de {{ empresa.razon_social }}.{% if empresa.email %} Consultas: {{ empresa.email }}{% endif %}</p>
+</div>
+</body></html>

@@ -38,6 +38,8 @@ MODULOS = [
                          ('Registro de compras', 'compras:lista', 'bi-bag'),
                          ('Notas de crédito / débito', 'compras:notas', 'bi-file-earmark-diff'),
                          ('Registrar compra', 'compras:nuevo', 'bi-plus-circle')]),
+            ('Portal de proveedores', [('Facturas por revisar', 'compras:portal_facturas', 'bi-inbox'),
+                                       ('Accesos de proveedores', 'compras:portal_accesos', 'bi-person-lock')]),
             ('Cuentas por pagar', 'compras:pendientes'),
             ('Proveedores', 'terceros?tipo=PROVEEDOR'),
             ('Productos', 'productos'),
@@ -124,7 +126,8 @@ MODULOS = [
             ('Usuarios y permisos', 'usuarios'),
             ('Configuración', [('Correlativos / series', 'series', 'bi-123'),
                                ('Tipo de cambio', 'tipos_cambio', 'bi-currency-exchange'),
-                               ('Facturación electrónica', 'facturacion', 'bi-cloud-upload')]),
+                               ('Facturación electrónica', 'facturacion', 'bi-cloud-upload'),
+                               ('Correo saliente', 'correo', 'bi-envelope')]),
         ],
     },
 ]
@@ -139,7 +142,7 @@ DERIVADOS = {'contactos': {'ventas', 'compras', 'finanzas', 'logistica', 'contab
 # Rutas sin espacio de nombres (app core) -> módulos que pueden abrirlas (el primero es el principal)
 RUTAS_CORE = {
     'dashboard': ['tablero'],
-    'empresa': ['ajustes'], 'facturacion': ['ajustes'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
+    'empresa': ['ajustes'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
     'tipos_cambio': ['ajustes', 'finanzas'],

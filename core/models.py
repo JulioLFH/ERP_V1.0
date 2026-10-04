@@ -65,6 +65,21 @@ class Empresa(models.Model):
     token_tipo_cambio = models.CharField(
         'Token Decolecta (tipo de cambio SBS)', max_length=200, blank=True,
         help_text='Se obtiene al registrarse en decolecta.com (API de tipo de cambio SBS)')
+    # ---- compras y portal de proveedores
+    exigir_orden_compra = models.BooleanField(
+        'Exigir orden de compra', default=True,
+        help_text='Las compras de mercadería (facturas y boletas) solo se registran desde una orden de compra')
+    tolerancia_cantidad = models.DecimalField(
+        'Tolerancia de cantidad (±)', max_digits=10, decimal_places=2, default=Decimal('1'),
+        help_text='Diferencia permitida entre la cantidad facturada por el proveedor y la recibida / pedida')
+    tolerancia_precio = models.DecimalField(
+        'Tolerancia de precio unitario (±)', max_digits=10, decimal_places=4, default=Decimal('1'),
+        help_text='Diferencia permitida entre el precio facturado y el de la orden de compra')
+    sunat_client_id = models.CharField(
+        'SUNAT API: client_id', max_length=100, blank=True,
+        help_text='Credenciales de "Consulta de validez de comprobantes" (SUNAT Operaciones en Línea > '
+                  'Empresas > Comprobantes de pago > Credenciales de API SUNAT)')
+    sunat_client_secret = models.CharField('SUNAT API: client_secret', max_length=200, blank=True)
 
     class Meta:
         verbose_name = 'empresa'
@@ -388,6 +403,32 @@ class FacturacionConfig(models.Model):
     @property
     def activa(self):
         return self.proveedor != 'NINGUNO' and bool(self.ruta and self.token)
+
+
+class CorreoConfig(models.Model):
+    """Servidor de correo saliente (SMTP) para enviar órdenes de compra y conformidades a proveedores."""
+    servidor = models.CharField('Servidor SMTP', max_length=120, blank=True, help_text='Ej. smtp.gmail.com')
+    puerto = models.PositiveIntegerField(default=587)
+    seguridad = models.CharField(max_length=4, choices=[('TLS', 'STARTTLS (587)'), ('SSL', 'SSL (465)'),
+                                                        ('', 'Ninguna')], default='TLS', blank=True)
+    usuario = models.CharField(max_length=120, blank=True)
+    clave = models.CharField('Contraseña', max_length=200, blank=True,
+                             help_text='En Gmail u Outlook use una "contraseña de aplicación"')
+    remitente = models.EmailField('Correo remitente', blank=True, help_text='Vacío = el usuario')
+    nombre_remitente = models.CharField('Nombre del remitente', max_length=100, blank=True,
+                                        help_text='Vacío = razón social de la empresa')
+    copia = models.EmailField('Enviar copia a', blank=True, help_text='Opcional: copia oculta de cada envío')
+
+    class Meta:
+        verbose_name = 'configuración de correo'
+
+    @classmethod
+    def actual(cls):
+        return cls.objects.first() or cls.objects.create()
+
+    @property
+    def activa(self):
+        return bool(self.servidor and (self.remitente or self.usuario))
 
 
 class Kardex(models.Model):

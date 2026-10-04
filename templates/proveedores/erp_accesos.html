@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Accesos al portal de proveedores{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Accesos al portal de proveedores</h1>
+  <a href="{% url 'compras:portal_acceso_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo acceso</a>
+</div>
+<div class="alert alert-light border small">El proveedor ingresa con su usuario en <b>{{ request.scheme }}://{{ request.get_host }}{% url 'portal:inicio' %}</b> (misma pantalla de inicio de sesión del sistema). Solo ve sus órdenes de compra y facturas; no puede entrar a los módulos del ERP.</div>
+<div class="card"><div class="table-responsive"><table class="table table-hover mb-0">
+  <thead><tr><th>Proveedor</th><th>Usuario</th><th>Nombre</th><th>Correo</th><th>Último ingreso</th><th>Activo</th><th></th></tr></thead>
+  <tbody>{% for a in accesos %}<tr><td>{{ a.tercero.nombre }}</td><td>{{ a.usuario.username }}</td><td>{{ a.usuario.first_name }}</td><td>{{ a.usuario.email }}</td>
+    <td>{{ a.usuario.last_login|date:'d/m/Y H:i'|default:'—' }}</td><td>{% if a.usuario.is_active %}<i class="bi bi-check-circle text-success"></i>{% else %}<i class="bi bi-x-circle text-danger"></i>{% endif %}</td>
+    <td class="text-end"><a href="{% url 'compras:portal_acceso_editar' a.pk %}" class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-pencil"></i></a></td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Aún no hay proveedores con acceso.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

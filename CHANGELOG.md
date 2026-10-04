@@ -3,6 +3,15 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.7.0 — 03/10/2026 · Fase 2: compras, proveedores y logística
+- **Orden de compra con centro de costo obligatorio** y días de crédito (por defecto los del proveedor). Opción "Exigir orden de compra" (Ajustes > Empresa, activa por defecto): las compras nuevas de mercadería solo se registran desde una orden; la compra hereda el centro de costo de la orden.
+- **Envío de la orden al proveedor por correo** con un enlace para aceptarla o rechazarla (sin necesidad de usuario). El detalle de la orden muestra la respuesta y un enlace para copiar y enviarlo por otro medio.
+- **Conformidad de recepción**: al confirmar la recepción de una compra en Inventario se envía al proveedor el correo de aceptación de la mercadería (también se puede reenviar).
+- **Portal de proveedores** (/portal/): cada proveedor ingresa con su usuario, ve sus órdenes y recepciones, acepta las órdenes y registra sus facturas. Se valida: cantidad contra lo recibido (o lo pedido) y precio contra la orden, con tolerancia ±1 configurable; facturas duplicadas; y la validez en SUNAT (API de consulta de comprobantes, con las credenciales en Ajustes > Empresa). Los usuarios del portal no pueden entrar al ERP.
+- **Compras > Portal de proveedores**: revisión de las facturas (diferencias de cantidad y precio, validación SUNAT), aprobación que registra la compra automáticamente, rechazo con motivo y administración de los accesos de los proveedores.
+- **Vencimiento desde el ingreso de la mercadería**: las facturas de una orden vencen a los días de crédito contados desde la fecha de ingreso al almacén (se recalcula con cada recepción).
+- **Ajustes > Correo saliente** (SMTP: Gmail, Outlook u otro) con botón de prueba.
+
 ## v1.6.0 — 03/10/2026 · Fase 1: configuración base y maestros
 - **Productos por tipo y código**: Mercadería, Materia prima, Semi elaborado, Producto terminado, Suministros, Activo fijo y Servicio. Si el código se deja vacío se genera solo con el prefijo del tipo (ME, MP, SE, PT, SU, AF, SV + 6 dígitos). El tipo no se cambia después de creado.
 - **Ficha del producto con pestañas** (General, Compras, Ventas, Contabilidad, Planificación): marca, código de barras, descripción, precio de compra, proveedor habitual, unidad de compra, precio de venta, stock mínimo y máximo, punto de reorden, lote mínimo de compra, tiempo de entrega y almacén por defecto. Filtro por tipo en la lista de productos.

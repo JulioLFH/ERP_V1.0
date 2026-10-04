@@ -1,0 +1,53 @@
+{% extends 'proveedores/portal_base.html' %}{% load erp_tags %}
+{% block title %}Registrar factura{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Registrar factura · Orden {{ oc.numero }}</h1>
+  <a href="{% url 'portal:oc_detalle' oc.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+{% if errores %}<div class="alert alert-danger"><b>No se pudo registrar:</b><ul class="mb-0">{% for e in errores %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+<form method="post" novalidate>{% csrf_token %}
+  <div class="card mb-3"><div class="card-body"><div class="row g-3">
+    {% for field in form %}<div class="{% if field.name == 'observaciones' %}col-md-6{% else %}col-6 col-md-2{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div>
+  <p class="small text-muted mt-2 mb-0">Ingrese los datos tal como figuran en su factura electrónica. Se valida en SUNAT. Tolerancia permitida: cantidad ±{{ tol_c }} y precio unitario ±{{ tol_p }} respecto a lo recibido y a la orden.</p>
+  </div></div>
+  <div class="card mb-3"><div class="table-responsive"><table class="table items-table mb-0">
+    <thead><tr><th>Descripción</th><th class="num">Recibido / por facturar</th><th class="num">Precio orden</th><th class="num" style="width:15%">Cantidad facturada</th><th class="num" style="width:17%">Valor unit. (sin IGV)</th><th class="num">Subtotal</th></tr></thead>
+    <tbody id="lineas">{% for l in lineas %}<tr>
+      <td>{{ l.item.descripcion }}</td><td class="num">{{ l.esperado|money }}</td><td class="num">{{ l.precio|floatformat:4 }}</td>
+      <td><input name="cant_{{ l.item.pk }}" value="{{ l.cant_txt }}" class="form-control form-control-sm text-end js-c" inputmode="decimal"></td>
+      <td><input name="precio_{{ l.item.pk }}" value="{{ l.precio_txt }}" class="form-control form-control-sm text-end js-p" inputmode="decimal"></td>
+      <td class="num js-s">0.00</td></tr>{% endfor %}</tbody>
+    <tfoot>
+      <tr><td colspan="5" class="text-end">{% if oc.tipo_operacion == 'GRAVADA' %}Op. gravada{% else %}Op. no gravada{% endif %}</td><td class="num" id="t-base">0.00</td></tr>
+      <tr><td colspan="5" class="text-end">IGV</td><td class="num" id="t-igv">0.00</td></tr>
+      <tr class="fw-bold"><td colspan="5" class="text-end">TOTAL {{ oc.simbolo }}</td><td class="num" id="t-total">0.00</td></tr>
+    </tfoot>
+  </table></div></div>
+  <button class="btn btn-primary"><i class="bi bi-send"></i> Enviar factura</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const tasa = {% if oc.tipo_operacion == 'GRAVADA' %}{{ igv_tasa|stringformat:'s' }}{% else %}0{% endif %};
+  const num = (el) => parseFloat((el.value || '0').replace(',', '')) || 0;
+  const fmt = (n) => n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  function calcular() {
+    let base = 0;
+    document.querySelectorAll('#lineas tr').forEach((tr) => {
+      const s = Math.round(num(tr.querySelector('.js-c')) * num(tr.querySelector('.js-p')) * 100) / 100;
+      tr.querySelector('.js-s').textContent = fmt(s);
+      base += s;
+    });
+    const igv = Math.round(base * tasa) / 100;
+    document.getElementById('t-base').textContent = fmt(base);
+    document.getElementById('t-igv').textContent = fmt(igv);
+    document.getElementById('t-total').textContent = fmt(base + igv);
+  }
+  document.querySelectorAll('.js-c, .js-p').forEach((i) => i.addEventListener('input', calcular));
+  calcular();
+})();
+</script>
+{% endblock %}

@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -117,6 +118,29 @@ def facturacion_config(request):
         messages.success(request, 'Configuración de facturación electrónica guardada.')
         return redirect('facturacion')
     return render(request, 'core/facturacion.html', {'form': form, 'cfg': cfg})
+
+
+@login_required
+def correo_config(request):
+    from .correo import ErrorCorreo, enviar
+    from .forms import CorreoConfigForm
+    from .models import CorreoConfig
+    cfg = CorreoConfig.actual()
+    if request.method == 'POST' and request.POST.get('accion') == 'probar':
+        destino = request.POST.get('destino', '').strip() or request.user.email
+        try:
+            enviar([destino], f'Prueba de correo - {settings.ERP_NOMBRE}', 'proveedores/correo_prueba.html',
+                   {'usuario': request.user})
+            messages.success(request, f'Correo de prueba enviado a {destino}.')
+        except ErrorCorreo as exc:
+            messages.error(request, str(exc))
+        return redirect('correo')
+    form = CorreoConfigForm(request.POST or None, instance=cfg)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Configuración de correo guardada.')
+        return redirect('correo')
+    return render(request, 'core/correo.html', {'form': form, 'cfg': cfg})
 
 
 # ---------------------------------------------------------------- tipo de cambio

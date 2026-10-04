@@ -11,6 +11,9 @@
   </div>
   <div class="d-flex gap-2">
     {% include 'inventario/_acciones_doc.html' %}
+    {% if es_oc and doc.estado != 'ANULADO' %}
+      <form method="post" action="{% url 'compras:oc_enviar' doc.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="bi bi-envelope"></i> {% if doc.enviada_en %}Reenviar{% else %}Enviar{% endif %} al proveedor</button></form>
+    {% endif %}
     {% if doc.estado != 'ANULADO' %}
       <a href="{% url url_convertir %}?{{ param_convertir }}={{ doc.pk }}" class="btn btn-sm btn-success"><i class="bi bi-arrow-right-circle"></i> {{ texto_convertir }}</a>
       {% if doc.estado == 'PENDIENTE' %}<form method="post" action="{% url url_estado doc.pk %}">{% csrf_token %}<input type="hidden" name="estado" value="APROBADO"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-check2"></i> Aprobar</button></form>{% endif %}
@@ -29,6 +32,7 @@
     <tr><td class="text-muted" style="width:18%">{{ etiqueta_tercero }}</td><td>{{ doc.tercero.nombre }} ({{ doc.tercero.numero_doc }})</td><td class="text-muted">Fecha</td><td>{{ doc.fecha|date:'d/m/Y' }}</td></tr>
     <tr><td class="text-muted">Condición de pago</td><td>{{ doc.condicion_pago|default:'-' }}</td><td class="text-muted">Moneda</td><td>{{ doc.get_moneda_display }}</td></tr>
     {% if doc.fecha_entrega %}<tr><td class="text-muted">Fecha de entrega</td><td>{{ doc.fecha_entrega|date:'d/m/Y' }}</td><td></td><td></td></tr>{% endif %}
+    {% if es_oc %}<tr><td class="text-muted">Centro de costo</td><td>{{ doc.centro_costo|default:'—' }}</td><td class="text-muted">Crédito</td><td>{% if doc.dias_credito %}{{ doc.dias_credito }} días desde el ingreso de la mercadería{% else %}Contado{% endif %}</td></tr>{% endif %}
     {% if doc.validez_dias %}<tr><td class="text-muted">Validez</td><td>{{ doc.validez_dias }} días</td><td class="text-muted">Vendedor</td><td>{{ doc.vendedor|default:'-' }}</td></tr>{% endif %}
   </table>
   <table class="table table-sm table-bordered">
@@ -46,6 +50,21 @@
   </div>
 </div>
 
+{% if es_oc %}
+<div class="card mt-3 d-print-none" style="max-width:900px;margin:auto"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-person-check"></i> Proveedor</span>
+  <span class="badge {% if doc.estado_proveedor == 'ACEPTADA' %}text-bg-success{% elif doc.estado_proveedor == 'RECHAZADA' %}text-bg-danger{% elif doc.estado_proveedor == 'ENVIADA' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ doc.get_estado_proveedor_display }}</span></div>
+  <div class="card-body small">
+    {% if doc.enviada_en %}<div>Enviada el {{ doc.enviada_en|date:'d/m/Y H:i' }} a {{ doc.enviada_a }}</div>{% endif %}
+    {% if doc.respondida_en %}<div>Respuesta el {{ doc.respondida_en|date:'d/m/Y H:i' }}{% if doc.respondida_por %} por {{ doc.respondida_por }}{% endif %}{% if doc.respuesta_comentario %}: «{{ doc.respuesta_comentario }}»{% endif %}</div>{% endif %}
+    <div>Ingreso de la mercadería: {% if fecha_ingreso %}<b>{{ fecha_ingreso|date:'d/m/Y' }}</b> (las facturas vencen desde esta fecha){% else %}pendiente{% endif %}</div>
+    {% if doc.estado != 'ANULADO' %}
+    <label class="form-label small mt-2 mb-1">Enlace de aceptación (si prefiere enviarlo por WhatsApp u otro medio)</label>
+    <div class="input-group input-group-sm"><input class="form-control" readonly value="{{ enlace_aceptacion }}" id="enlace-oc"><button type="button" class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('enlace-oc').value)"><i class="bi bi-clipboard"></i> Copiar</button></div>
+    {% endif %}
+  </div>
+  {% if facturas_portal %}<ul class="list-group list-group-flush small">{% for f in facturas_portal %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'compras:portal_factura' f.pk %}">Factura del portal {{ f.numero_completo }}</a><span>{{ f.simbolo }} {{ f.total|money }} · {{ f.get_estado_display }}</span></li>{% endfor %}</ul>{% endif %}
+</div>
+{% endif %}
 <div style="max-width:900px;margin:auto">{% include 'inventario/_operaciones_doc.html' %}</div>
 {% if relacionados %}
 <div class="card mt-3 d-print-none" style="max-width:900px;margin:auto"><div class="card-header">Comprobantes generados</div>

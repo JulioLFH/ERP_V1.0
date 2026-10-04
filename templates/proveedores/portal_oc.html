@@ -1,0 +1,36 @@
+{% extends 'proveedores/portal_base.html' %}{% load erp_tags %}
+{% block title %}Orden {{ oc.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">Orden de compra {{ oc.numero }}
+    <span class="badge {% if oc.estado_proveedor == 'ACEPTADA' %}text-bg-success{% elif oc.estado_proveedor == 'RECHAZADA' %}text-bg-danger{% else %}text-bg-warning{% endif %} fs-6 align-middle">{{ oc.get_estado_proveedor_display }}</span></h1>
+    <div class="text-muted small">Emitida el {{ oc.fecha|date:'d/m/Y' }}{% if oc.fecha_entrega %} · entrega {{ oc.fecha_entrega|date:'d/m/Y' }}{% endif %} · {% if oc.dias_credito %}crédito {{ oc.dias_credito }} días desde el ingreso de la mercadería{% else %}contado{% endif %}</div></div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'portal:inicio' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+    {% if puede_facturar %}<a href="{% url 'portal:factura_nueva' oc.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-receipt"></i> Registrar factura</a>{% endif %}
+  </div>
+</div>
+{% if oc.estado_proveedor == 'ENVIADA' %}
+<div class="card border-warning mb-3"><div class="card-body">
+  <form method="post" action="{% url 'portal:oc_responder' oc.pk %}" class="row g-2 align-items-end">{% csrf_token %}
+    <div class="col-md-8"><label class="form-label small mb-1">Comentario (obligatorio si rechaza)</label><input name="comentario" class="form-control form-control-sm" maxlength="300" placeholder="Ej. Entregaremos el 15/10"></div>
+    <div class="col-md-4 d-flex gap-2"><button name="accion" value="aceptar" class="btn btn-sm btn-success flex-fill"><i class="bi bi-check2-circle"></i> Aceptar orden</button>
+      <button name="accion" value="rechazar" class="btn btn-sm btn-outline-danger flex-fill"><i class="bi bi-x-circle"></i> Rechazar</button></div>
+  </form>
+</div></div>
+{% endif %}
+<div class="card mb-3"><div class="table-responsive"><table class="table mb-0">
+  <thead><tr><th>Descripción</th><th class="num">Pedido</th><th class="num">V. unit.</th><th class="num">Por facturar</th></tr></thead>
+  <tbody>{% for l in lineas %}<tr><td>{{ l.item.descripcion }}</td><td class="num">{{ l.item.cantidad|money }}</td><td class="num">{{ l.item.precio_unitario|floatformat:4 }}</td><td class="num fw-semibold">{{ l.esperado|money }}</td></tr>{% endfor %}</tbody>
+  <tfoot><tr class="fw-semibold"><td colspan="3" class="text-end">Total orden ({{ oc.simbolo }}, con IGV)</td><td class="num">{{ oc.total|money }}</td></tr></tfoot>
+</table></div></div>
+{% if recepciones %}
+<div class="card mb-3"><div class="card-header"><i class="bi bi-box-arrow-in-down"></i> Mercadería recibida (conformidad)</div>
+  <ul class="list-group list-group-flush small">{% for r in recepciones %}<li class="list-group-item"><b>{{ r.numero }}</b> del {{ r.fecha|date:'d/m/Y' }}: {% for i in r.items.all %}{{ i.producto.nombre }} × {{ i.cantidad|money }}{% if not forloop.last %}; {% endif %}{% endfor %}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% if facturas %}
+<div class="card"><div class="card-header">Facturas registradas</div><ul class="list-group list-group-flush small">{% for f in facturas %}
+  <li class="list-group-item d-flex justify-content-between"><a href="{% url 'portal:factura' f.pk %}">{{ f.numero_completo }}</a><span>{{ f.simbolo }} {{ f.total|money }} · {{ f.get_estado_display }}</span></li>{% endfor %}</ul></div>
+{% endif %}
+{% endblock %}

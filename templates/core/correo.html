@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Correo saliente{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Correo saliente (SMTP)</h1>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="card-body">
+    <form method="post">{% csrf_token %}
+      {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+      <div class="row g-3">{% for field in form %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}</div>
+      <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>
+    </form>
+  </div></div></div>
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-header">Probar envío</div><div class="card-body">
+      <form method="post" class="d-flex gap-2">{% csrf_token %}<input type="hidden" name="accion" value="probar">
+        <input type="email" name="destino" class="form-control form-control-sm" placeholder="{{ user.email|default:'correo@ejemplo.com' }}">
+        <button class="btn btn-sm btn-outline-primary text-nowrap" {% if not cfg.activa %}disabled{% endif %}><i class="bi bi-send"></i> Enviar prueba</button></form>
+    </div></div>
+    <div class="small text-muted">
+      <p class="mb-1"><b>Se usa para:</b> enviar las órdenes de compra con el enlace de aceptación y la conformidad de recepción de mercadería a los proveedores.</p>
+      <p class="mb-1"><b>Gmail:</b> smtp.gmail.com, puerto 587, STARTTLS, usuario = su correo, contraseña = "contraseña de aplicación" (requiere verificación en dos pasos).</p>
+      <p class="mb-0"><b>Outlook / Microsoft 365:</b> smtp.office365.com, puerto 587, STARTTLS.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

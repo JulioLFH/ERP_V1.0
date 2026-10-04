@@ -17,6 +17,9 @@
       <form method="post" action="{% url 'inventario:confirmar' op.pk %}">{% csrf_token %}<button class="btn btn-sm btn-success" {% if errores %}disabled{% endif %}><i class="bi bi-check2-circle"></i> Confirmar</button></form>
     {% elif op.estado == 'CONFIRMADO' %}
       {% if pendiente_transito and recepcion_transito %}<a href="{% url 'inventario:nueva' %}?tipo={{ recepcion_transito.codigo }}&envio={{ op.pk }}" class="btn btn-sm btn-primary"><i class="bi bi-box-seam"></i> Recibir en destino</a>{% endif %}
+      {% if op.tipo.clase == 'INGRESO' and op.orden_compra_id or op.tipo.clase == 'INGRESO' and op.compra_id %}
+        <form method="post" action="{% url 'inventario:conformidad' op.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" title="{% if op.conformidad_enviada_en %}Enviada el {{ op.conformidad_enviada_en|date:'d/m/Y H:i' }} a {{ op.conformidad_enviada_a }}{% endif %}"><i class="bi bi-envelope-check"></i> {% if op.conformidad_enviada_en %}Reenviar{% else %}Enviar{% endif %} conformidad</button></form>
+      {% endif %}
       {% if url_nota and app_nota in mods %}<a href="{{ url_nota }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-diff"></i> Emitir nota de crédito</a>{% endif %}
       <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>
     {% endif %}
@@ -63,6 +66,7 @@
     <div class="card mb-3"><div class="card-header"><i class="bi bi-clock-history"></i> Historial</div><div class="card-body small">
       <div>Creado {{ op.creado|date:'d/m/Y H:i' }}{% if op.creado_por %} por {{ op.creado_por.get_full_name|default:op.creado_por.username }}{% endif %}</div>
       {% if op.confirmado_en %}<div>Confirmado {{ op.confirmado_en|date:'d/m/Y H:i' }}{% if op.confirmado_por %} por {{ op.confirmado_por.get_full_name|default:op.confirmado_por.username }}{% endif %}</div>{% endif %}
+      {% if op.conformidad_enviada_en %}<div><i class="bi bi-envelope-check text-success"></i> Conformidad enviada {{ op.conformidad_enviada_en|date:'d/m/Y H:i' }} a {{ op.conformidad_enviada_a }}</div>{% endif %}
     </div></div>
     {% if recepciones %}<div class="card"><div class="card-header"><i class="bi bi-box-seam"></i> Recepciones en destino</div>
       <ul class="list-group list-group-flush small">{% for r in recepciones %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'inventario:detalle' r.pk %}">{{ r.numero|default:'(borrador)' }}</a><span>{{ r.fecha|date:'d/m/Y' }} · {{ r.get_estado_display }}</span></li>{% endfor %}</ul>

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Factura {{ f.numero_completo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">Factura del proveedor {{ f.numero_completo }}
+    <span class="badge {% if f.estado == 'APROBADA' %}text-bg-success{% elif f.estado == 'RECHAZADA' %}text-bg-danger{% else %}text-bg-warning{% endif %} fs-6 align-middle">{{ f.get_estado_display }}</span></h1>
+    <div class="text-muted small">{{ f.tercero.nombre }} (RUC {{ f.tercero.numero_doc }}) · emitida {{ f.fecha_emision|date:'d/m/Y' }} · registrada en el portal {{ f.creado|date:'d/m/Y H:i' }}{% if f.enviada_por %} por {{ f.enviada_por.get_full_name|default:f.enviada_por.username }}{% endif %}</div></div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'compras:portal_facturas' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+    <a href="{% url 'compras:oc_detalle' f.orden_compra_id %}" class="btn btn-sm btn-outline-secondary">Orden {{ f.orden_compra.numero }}</a>
+    {% if f.estado == 'ENVIADA' %}
+      <form method="post" action="{% url 'compras:portal_factura_sunat' f.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" {% if not sunat_configurada %}disabled title="Registre las credenciales API SUNAT en Ajustes > Empresa"{% endif %}><i class="bi bi-shield-check"></i> Validar en SUNAT</button></form>
+      <form method="post" action="{% url 'compras:portal_factura_aprobar' f.pk %}" data-confirm="¿Aprobar y registrar la compra {{ f.numero_completo }}?">{% csrf_token %}<button class="btn btn-sm btn-success" {% if f.estado_sunat == 'OBSERVADO' %}disabled{% endif %}><i class="bi bi-check2-circle"></i> Aprobar y registrar compra</button></form>
+      <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-rechazo"><i class="bi bi-x-circle"></i> Rechazar</button>
+    {% elif f.compra %}
+      <a href="{% url 'compras:detalle' f.compra_id %}" class="btn btn-sm btn-primary"><i class="bi bi-bag"></i> Ver compra registrada</a>
+    {% endif %}
+  </div>
+</div>
+{% if f.estado == 'ENVIADA' %}
+<div class="collapse mb-3" id="form-rechazo"><div class="card border-danger"><div class="card-body">
+  <form method="post" action="{% url 'compras:portal_factura_rechazar' f.pk %}" class="row g-2 align-items-end">{% csrf_token %}
+    <div class="col-md-9"><label class="form-label small mb-1">Motivo (lo verá el proveedor)</label><input name="motivo" class="form-control form-control-sm" minlength="5" maxlength="300" required placeholder="Ej. El precio no corresponde a la orden"></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-danger w-100">Confirmar rechazo</button></div>
+  </form>
+</div></div></div>
+{% elif f.estado == 'RECHAZADA' %}<div class="alert alert-danger py-2">Rechazada el {{ f.revisado_en|date:'d/m/Y H:i' }}: {{ f.motivo_rechazo }}</div>{% endif %}
+<div class="alert {% if f.estado_sunat == 'VALIDO' %}alert-success{% elif f.estado_sunat == 'OBSERVADO' %}alert-danger{% else %}alert-light border{% endif %} py-2 small">
+  <i class="bi bi-shield-check"></i> SUNAT: <b>{{ f.get_estado_sunat_display }}</b>{% if f.sunat_detalle %} — {{ f.sunat_detalle }}{% endif %}{% if f.sunat_consultado_en %} ({{ f.sunat_consultado_en|date:'d/m/Y H:i' }}){% endif %}</div>
+<div class="card"><div class="table-responsive"><table class="table mb-0">
+  <thead><tr><th>Descripción</th><th class="num">Recibido / pedido</th><th class="num">Facturado</th><th class="num">Dif.</th><th class="num">Precio orden</th><th class="num">Precio factura</th><th class="num">Dif.</th><th class="num">Subtotal</th></tr></thead>
+  <tbody>{% for i in items %}<tr><td>{{ i.descripcion }}</td><td class="num">{{ i.cantidad_esperada|money }}</td><td class="num">{{ i.cantidad|money }}</td>
+    <td class="num {% if i.dif_cant %}text-warning fw-semibold{% endif %}">{{ i.dif_cant|money }}</td><td class="num">{{ i.precio_orden|floatformat:4 }}</td><td class="num">{{ i.precio_unitario|floatformat:4 }}</td>
+    <td class="num {% if i.dif_precio %}text-warning fw-semibold{% endif %}">{{ i.dif_precio|floatformat:4 }}</td><td class="num">{{ i.subtotal|money }}</td></tr>{% endfor %}</tbody>
+  <tfoot><tr><td colspan="7" class="text-end">Valor venta</td><td class="num">{{ f.base_imponible|add:f.no_gravado|money }}</td></tr>
+    <tr><td colspan="7" class="text-end">IGV</td><td class="num">{{ f.igv|money }}</td></tr>
+    <tr class="fw-bold"><td colspan="7" class="text-end">TOTAL {{ f.simbolo }}</td><td class="num">{{ f.total|money }}</td></tr></tfoot>
+</table></div></div>
+{% if f.observaciones %}<p class="small text-muted mt-2">Comentario del proveedor: {{ f.observaciones }}</p>{% endif %}
+<p class="small text-muted mt-2">Al aprobar se registra la compra con el centro de costo de la orden; vence {{ f.orden_compra.dias_credito|default:0 }} días después del ingreso de la mercadería al almacén.</p>
+{% endblock %}

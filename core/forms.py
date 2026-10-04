@@ -3,7 +3,7 @@ from decimal import Decimal
 from django import forms
 from django.forms import inlineformset_factory
 
-from .models import Almacen, Empresa, FacturacionConfig, Producto, Serie, TipoCambio, Tercero
+from .models import Almacen, CorreoConfig, Empresa, FacturacionConfig, Producto, Serie, TipoCambio, Tercero
 
 
 def periodo_cerrado(periodo):
@@ -96,7 +96,8 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Empresa
         fields = '__all__'
-        widgets = {'token_tipo_cambio': forms.PasswordInput(render_value=True)}
+        widgets = {'token_tipo_cambio': forms.PasswordInput(render_value=True),
+                   'sunat_client_secret': forms.PasswordInput(render_value=True)}
 
     def clean(self):
         datos = super().clean()
@@ -206,6 +207,13 @@ class FacturacionConfigForm(BootstrapMixin, forms.ModelForm):
         model = FacturacionConfig
         fields = '__all__'
         widgets = {'token': forms.PasswordInput(render_value=True)}
+
+
+class CorreoConfigForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = CorreoConfig
+        fields = '__all__'
+        widgets = {'clave': forms.PasswordInput(render_value=True)}
 
 
 class AjusteInventarioForm(BootstrapMixin, forms.Form):

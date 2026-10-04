@@ -14,6 +14,7 @@ urlpatterns = [
     path('<int:pk>/anular/', views.anular, name='anular'),
     path('<int:pk>/eliminar/', views.eliminar, name='eliminar'),
     path('<int:pk>/imprimir/', views.imprimir, name='imprimir'),
+    path('<int:pk>/conformidad/', views.conformidad, name='conformidad'),
     path('tipos/', views.TipoLista.as_view(), name='tipos'),
     path('tipos/nuevo/', views.TipoNuevo.as_view(), name='tipo_nuevo'),
     path('tipos/<int:pk>/', views.TipoEditar.as_view(), name='tipo_editar'),

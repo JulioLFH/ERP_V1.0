@@ -1,6 +1,9 @@
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 
 from .modulos import POR_CLAVE, modulos_de_ruta, modulos_del_usuario
+
+# Lo único que puede abrir un usuario del portal de proveedores fuera del portal
+RUTAS_PROVEEDOR = {'logout', 'login', 'cambiar_clave', 'cambiar_clave_ok'}
 
 
 class AccesoModulosMiddleware:
@@ -20,6 +23,14 @@ class AccesoModulosMiddleware:
         request.modulo_actual = None
         if not request.user.is_authenticated:
             return None
+        match = request.resolver_match
+        if hasattr(request.user, 'acceso_proveedor') and not request.user.is_superuser:
+            # usuario del portal de proveedores: no entra al ERP
+            if match and (match.namespace == 'portal' or match.url_name in RUTAS_PROVEEDOR):
+                return None
+            return redirect('portal:inicio')
+        if match and match.namespace == 'portal':
+            return None  # el portal valida su propio acceso
         permitidos = modulos_de_ruta(request.resolver_match)
         if permitidos is None:
             return None

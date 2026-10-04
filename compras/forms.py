@@ -32,6 +32,13 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         if data.get('tipo_comprobante') in ('07', '08') and not data.get('doc_referencia'):
             self.add_error('doc_referencia', 'Indique el comprobante que modifica la nota.')
         validar_periodo_abierto(self, 'fecha_emision', data.get('periodo'))
+        from core.models import Empresa
+        if not self.instance.pk and Empresa.actual().exigir_orden_compra and data.get('clasificacion') == 'MERCADERIA' \
+                and data.get('tipo_comprobante') not in ('07', '08') and not data.get('orden_compra'):
+            self.add_error('orden_compra', 'Las compras de mercadería se registran desde una orden de compra '
+                                           '(Ajustes > Empresa > Exigir orden de compra).')
+        if data.get('orden_compra') and not data.get('centro_costo'):
+            data['centro_costo'] = data['orden_compra'].centro_costo
         if data.get('ingresar_almacen') and data.get('tipo_comprobante') not in ('07', '08'):
             from inventario.servicios import tiene_recepciones
             recibida = (self.instance.pk and tiene_recepciones(compra=self.instance)) or (
@@ -45,14 +52,19 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
 class OrdenCompraForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = OrdenCompra
-        fields = ['tercero', 'fecha', 'fecha_entrega', 'moneda', 'tipo_cambio', 'tipo_operacion',
-                  'condicion_pago', 'glosa']
+        fields = ['tercero', 'fecha', 'fecha_entrega', 'centro_costo', 'moneda', 'tipo_cambio', 'tipo_operacion',
+                  'condicion_pago', 'dias_credito', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2})}
         labels = {'tercero': 'Proveedor'}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS'])
+        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].required = True
+        if not CentroCosto.objects.filter(activo=True).exists():
+            self.fields['centro_costo'].help_text = 'Cree primero los centros de costo en Contabilidad > ' \
+                                                    'Configuración > Centros de costo'
 
     def save(self, commit=True):
         if not self.instance.numero:

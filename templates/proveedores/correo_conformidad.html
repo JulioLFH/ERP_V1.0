@@ -1,0 +1,11 @@
+{% extends 'proveedores/correo_base.html' %}{% load erp_tags %}
+{% block cuerpo %}
+<p>Estimados proveedores:</p>
+<p>Confirmamos la <b>recepción conforme</b> de la siguiente mercadería{% if oc %} correspondiente a la <b>orden de compra {{ oc.numero }}</b>{% endif %}, ingresada a nuestro almacén el <b>{{ op.fecha|date:'d/m/Y' }}</b> (nota de ingreso {{ op.numero }}{% if op.referencia %}, guía {{ op.referencia }}{% endif %}).</p>
+<table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+  <tr style="background: #f0f3f7;"><th style="text-align:left; padding:6px; border:1px solid #dfe3ea;">Producto</th><th style="text-align:right; padding:6px; border:1px solid #dfe3ea;">Cantidad recibida</th></tr>
+  {% for i in items %}<tr><td style="padding:6px; border:1px solid #dfe3ea;">{{ i.producto.nombre }}</td><td style="text-align:right; padding:6px; border:1px solid #dfe3ea;">{{ i.cantidad|money }} {{ i.producto.unidad }}</td></tr>{% endfor %}
+</table>
+{% if vence %}<p>Según la condición de la orden ({{ oc.dias_credito }} días), su factura vencerá el <b>{{ vence|date:'d/m/Y' }}</b>.</p>{% endif %}
+<p>Ya puede registrar su factura por estas cantidades en el <a href="{{ portal }}">portal de proveedores</a>.</p>
+{% endblock %}

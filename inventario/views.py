@@ -200,7 +200,34 @@ def _confirmar(request, op):
         messages.success(request, f'{op.tipo.nombre} {op.numero} confirmada: almacén actualizado.')
     except servicios.ErrorOperacion as exc:
         messages.error(request, f'No se pudo confirmar: {exc}')
+        return redirect('inventario:detalle', op.pk)
+    # recepción de una compra: conformidad (aceptación de la mercadería) al proveedor por correo
+    from core.models import CorreoConfig
+    if _es_recepcion_compra(op) and CorreoConfig.actual().activa:
+        _enviar_conformidad(request, op)
     return redirect('inventario:detalle', op.pk)
+
+
+def _es_recepcion_compra(op):
+    return op.tipo.clase == 'INGRESO' and bool(op.orden_compra_id or op.compra_id)
+
+
+def _enviar_conformidad(request, op):
+    from core.correo import ErrorCorreo
+    from proveedores.servicios import enviar_conformidad
+    try:
+        destinos = enviar_conformidad(op, request)
+        messages.success(request, f'Conformidad de recepción enviada a {", ".join(destinos)}.')
+    except ErrorCorreo as exc:
+        messages.warning(request, f'No se envió la conformidad al proveedor: {exc}')
+
+
+@login_required
+def conformidad(request, pk):
+    op = get_object_or_404(Operacion, pk=pk, estado='CONFIRMADO')
+    if request.method == 'POST' and _es_recepcion_compra(op):
+        _enviar_conformidad(request, op)
+    return redirect('inventario:detalle', pk)
 
 
 @login_required

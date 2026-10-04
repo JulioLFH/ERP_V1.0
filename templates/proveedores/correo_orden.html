@@ -1,0 +1,15 @@
+{% extends 'proveedores/correo_base.html' %}{% load erp_tags %}
+{% block cuerpo %}
+<p>Estimados <b>{{ oc.tercero.nombre }}</b>:</p>
+<p>Les enviamos la <b>orden de compra {{ oc.numero }}</b> del {{ oc.fecha|date:'d/m/Y' }}{% if oc.fecha_entrega %}, con entrega el <b>{{ oc.fecha_entrega|date:'d/m/Y' }}</b>{% endif %}.
+{% if oc.dias_credito %}Condición: crédito de {{ oc.dias_credito }} días contados desde el ingreso de la mercadería a nuestro almacén.{% else %}Condición: contado.{% endif %}</p>
+<table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+  <tr style="background: #f0f3f7;"><th style="text-align:left; padding:6px; border:1px solid #dfe3ea;">Descripción</th><th style="text-align:right; padding:6px; border:1px solid #dfe3ea;">Cantidad</th><th style="text-align:right; padding:6px; border:1px solid #dfe3ea;">V. unit.</th><th style="text-align:right; padding:6px; border:1px solid #dfe3ea;">Importe</th></tr>
+  {% for i in items %}<tr><td style="padding:6px; border:1px solid #dfe3ea;">{{ i.descripcion }}</td><td style="text-align:right; padding:6px; border:1px solid #dfe3ea;">{{ i.cantidad|money }}</td><td style="text-align:right; padding:6px; border:1px solid #dfe3ea;">{{ i.precio_unitario|floatformat:4 }}</td><td style="text-align:right; padding:6px; border:1px solid #dfe3ea;">{{ i.subtotal|money }}</td></tr>{% endfor %}
+  <tr><td colspan="3" style="text-align:right; padding:6px; border:1px solid #dfe3ea;"><b>TOTAL {{ oc.simbolo }} (con IGV)</b></td><td style="text-align:right; padding:6px; border:1px solid #dfe3ea;"><b>{{ oc.total|money }}</b></td></tr>
+</table>
+<p style="margin: 24px 0; text-align: center;">
+  <a href="{{ enlace }}" style="background: #2f9e44; color: #ffffff; text-decoration: none; padding: 12px 22px; border-radius: 6px; font-weight: bold;">Aceptar o rechazar la orden de compra</a>
+</p>
+<p style="font-size: 13px;">Cuando entreguemos la mercadería recibirá la conformidad de recepción. Registre su factura en el <a href="{{ portal }}">portal de proveedores</a> (si aún no tiene usuario, solicítelo respondiendo este correo).</p>
+{% endblock %}

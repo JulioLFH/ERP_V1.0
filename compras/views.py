@@ -29,7 +29,8 @@ class ComprasViews(ComprobanteViews):
         oc = get_object_or_404(OrdenCompra, pk=oc_id)
         from inventario.servicios import tiene_recepciones
         initial = {'orden_compra': oc.pk, 'tercero': oc.tercero_id, 'moneda': oc.moneda,
-                   'tipo_cambio': oc.tipo_cambio, 'tipo_operacion': oc.tipo_operacion}
+                   'tipo_cambio': oc.tipo_cambio, 'tipo_operacion': oc.tipo_operacion,
+                   'centro_costo': oc.centro_costo_id, 'forma_pago': 'CREDITO' if oc.dias_credito else 'CONTADO'}
         if tiene_recepciones(orden=oc):
             initial['ingresar_almacen'] = False  # ya se recibió en Inventario
         items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,
@@ -47,6 +48,7 @@ class ComprasViews(ComprobanteViews):
             doc.aplicar_stock()
         if doc.orden_compra_id and doc.orden_compra.estado != 'ANULADO':
             OrdenCompra.objects.filter(pk=doc.orden_compra_id).update(estado='ATENDIDO')
+            doc.orden_compra.actualizar_vencimientos()  # vence desde el ingreso de la mercadería
 
     def ingresar_almacen(self, request, pk):
         from inventario.servicios import tiene_recepciones
@@ -131,8 +133,12 @@ def oc_editar(request, pk):
 def oc_detalle(request, pk):
     from inventario.servicios import acciones_para, operaciones_de
     oc = get_object_or_404(OrdenCompra, pk=pk)
+    from django.urls import reverse
     return render(request, 'core/documento_detalle.html', {
-        'acciones_inv': acciones_para(oc), 'operaciones_inv': operaciones_de(oc),
+        'acciones_inv': acciones_para(oc), 'operaciones_inv': operaciones_de(oc), 'es_oc': True,
+        'enlace_aceptacion': request.build_absolute_uri(
+            reverse('portal:oc_aceptacion', args=[oc.token_aceptacion()])),
+        'facturas_portal': oc.facturas_portal.all(), 'fecha_ingreso': oc.fecha_ingreso(),
         'doc': oc, 'items': oc.items.all(), 'app': 'compras', 'titulo_doc': 'ORDEN DE COMPRA',
         'etiqueta_tercero': 'Proveedor', 'relacionados': oc.compras.all(),
         'url_editar': 'compras:oc_editar', 'url_estado': 'compras:oc_estado', 'url_lista': 'compras:oc_lista',

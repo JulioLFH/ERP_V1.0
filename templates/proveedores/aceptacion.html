@@ -1,0 +1,32 @@
+{% extends 'proveedores/portal_base.html' %}{% load erp_tags %}
+{% block title %}Orden de compra{% endblock %}
+{% block content %}
+{% if invalido %}
+<div class="alert alert-danger">El enlace no es válido o venció. Solicite a {{ empresa.razon_social }} que le reenvíe la orden.</div>
+{% else %}
+<div class="card mx-auto" style="max-width: 850px"><div class="card-body">
+  <div class="d-flex justify-content-between align-items-start mb-3">
+    <div><h1 class="page-title mb-1">Orden de compra {{ oc.numero }}</h1>
+      <div class="small text-muted">{{ empresa.razon_social }} (RUC {{ empresa.ruc }}) → {{ oc.tercero.nombre }} (RUC {{ oc.tercero.numero_doc }})</div></div>
+    <span class="badge {% if oc.estado_proveedor == 'ACEPTADA' %}text-bg-success{% elif oc.estado_proveedor == 'RECHAZADA' %}text-bg-danger{% else %}text-bg-warning{% endif %} fs-6">{{ oc.get_estado_proveedor_display }}</span>
+  </div>
+  <div class="small mb-3">Fecha: {{ oc.fecha|date:'d/m/Y' }}{% if oc.fecha_entrega %} · Entrega: {{ oc.fecha_entrega|date:'d/m/Y' }}{% endif %} · {% if oc.dias_credito %}Crédito {{ oc.dias_credito }} días desde el ingreso de la mercadería{% else %}Contado{% endif %}{% if oc.condicion_pago %} · {{ oc.condicion_pago }}{% endif %}</div>
+  <table class="table table-sm table-bordered">
+    <thead class="table-light"><tr><th>Descripción</th><th class="num">Cantidad</th><th class="num">V. unit.</th><th class="num">Importe</th></tr></thead>
+    <tbody>{% for i in items %}<tr><td>{{ i.descripcion }}</td><td class="num">{{ i.cantidad|money }}</td><td class="num">{{ i.precio_unitario|floatformat:4 }}</td><td class="num">{{ i.subtotal|money }}</td></tr>{% endfor %}</tbody>
+    <tfoot><tr class="fw-bold"><td colspan="3" class="text-end">TOTAL {{ oc.simbolo }} (con IGV)</td><td class="num">{{ oc.total|money }}</td></tr></tfoot>
+  </table>
+  {% if oc.glosa %}<p class="small">{{ oc.glosa }}</p>{% endif %}
+  {% if oc.estado_proveedor == 'ENVIADA' or oc.estado_proveedor == 'SIN_ENVIAR' %}
+  <form method="post" class="row g-2 align-items-end">{% csrf_token %}
+    <div class="col-md-4"><label class="form-label small mb-1">Su nombre</label><input name="nombre" class="form-control form-control-sm" maxlength="120" required></div>
+    <div class="col-md-8"><label class="form-label small mb-1">Comentario (obligatorio si rechaza)</label><input name="comentario" class="form-control form-control-sm" maxlength="300"></div>
+    <div class="col-12 d-flex gap-2 mt-2"><button name="accion" value="aceptar" class="btn btn-success"><i class="bi bi-check2-circle"></i> Acepto la orden de compra</button>
+      <button name="accion" value="rechazar" class="btn btn-outline-danger"><i class="bi bi-x-circle"></i> Rechazar</button></div>
+  </form>
+  {% else %}
+  <div class="alert alert-info mb-0">Respuesta registrada el {{ oc.respondida_en|date:'d/m/Y H:i' }}{% if oc.respondida_por %} por {{ oc.respondida_por }}{% endif %}.{% if oc.respuesta_comentario %} «{{ oc.respuesta_comentario }}»{% endif %}</div>
+  {% endif %}
+</div></div>
+{% endif %}
+{% endblock %}

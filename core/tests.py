@@ -105,6 +105,8 @@ class SmokeTest(TestCase):
         self.assertEqual(venta.estado, 'REGISTRADO')  # tiene cobranza → no se anula
 
     def test_compra_edicion_revierte_stock(self):
+        from core.models import Empresa
+        Empresa.objects.update(exigir_orden_compra=False)  # compra directa, sin orden de compra
         p = Producto.objects.get(codigo='P003')
         prov = Tercero.objects.filter(tipo='PROVEEDOR').first()
         stock0 = p.stock
