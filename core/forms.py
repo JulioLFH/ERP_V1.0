@@ -166,7 +166,8 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
     # pestañas del formulario (estilo Odoo): (clave, título, icono, campos)
     PESTANAS = [
         ('general', 'General', 'bi-info-circle',
-         ['clase', 'codigo', 'nombre', 'unidad', 'marca', 'codigo_barras', 'peso', 'descripcion', 'activo']),
+         ['clase', 'codigo', 'nombre', 'unidad', 'marca', 'codigo_barras', 'peso', 'control', 'descripcion',
+          'activo']),
         ('compras', 'Compras', 'bi-bag', ['puede_comprarse', 'precio_compra', 'proveedor', 'unidad_compra']),
         ('ventas', 'Ventas', 'bi-receipt', ['puede_venderse', 'precio_venta', 'afectacion_igv']),
         ('contabilidad', 'Contabilidad', 'bi-journal-bookmark',

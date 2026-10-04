@@ -72,6 +72,7 @@ def _contexto_form(op, titulo, costos=True):
             # sin permiso de costos solo se pide el costo cuando el tipo lo exige (saldo inicial, ajuste ingreso)
             'muestra_costo': tipo.requiere_costo or (tipo.clase == 'INGRESO' and costos),
             'muestra_rol': tipo.clase == 'MANUFACTURA',
+            'usa_lotes': Producto.objects.filter(activo=True).exclude(control='').exists(),
             'productos': list(Producto.objects.filter(activo=True, tipo='BIEN').values(*campos))}
 
 

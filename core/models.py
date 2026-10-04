@@ -48,6 +48,9 @@ ESTADO_DOCUMENTO = [
 ]
 
 
+DIAS_AVISO_VENCIMIENTO = 30  # lotes que vencen en este plazo aparecen en las alertas
+
+
 class Empresa(models.Model):
     ruc = models.CharField('RUC', max_length=11)
     razon_social = models.CharField('Razón social', max_length=200)
@@ -202,6 +205,10 @@ class Producto(models.Model):
     codigo_barras = models.CharField('Código de barras', max_length=40, blank=True)
     peso = models.DecimalField('Peso por unidad (kg)', max_digits=12, decimal_places=3, default=D0,
                                help_text='Calcula el peso bruto de las guías de remisión')
+    control = models.CharField('Control de existencias', max_length=5, blank=True, default='',
+                               choices=[('', 'Sin lote ni serie'), ('LOTE', 'Por lote (con vencimiento)'),
+                                        ('SERIE', 'Por número de serie (unidad por unidad)')],
+                               help_text='Farmacia y alimentos: por lote. Equipos: por número de serie')
     afectacion_igv = models.CharField('Afectación del IGV', max_length=10, choices=AFECTACION_LINEA, blank=True,
                                       default='', help_text='Ej. libros (exonerados) o productos agrarios '
                                                             '(inafectos). Vacío = según el comprobante')
@@ -297,8 +304,12 @@ class Producto(models.Model):
             'cantidad', flat=True).first() or D0
 
     def mover_stock(self, cantidad, referencia, costo=None, fecha=None, almacen=None, origen='', concepto='',
-                    codigo_sunat=''):
-        """cantidad > 0 entrada, < 0 salida. Actualiza costo promedio en entradas y el stock del almacén."""
+                    codigo_sunat='', lotes=None, lotes_de=None):
+        """cantidad > 0 entrada, < 0 salida. Actualiza costo promedio en entradas y el stock del almacén.
+
+        Productos con lote o serie: `lotes` = [(código, cantidad, vencimiento)] indica los lotes; `lotes_de` = la
+        referencia de un movimiento que se revierte (vuelven a los mismos lotes). Sin ninguno, las salidas toman
+        primero lo que vence primero (FEFO)."""
         cantidad = Decimal(cantidad)
         if not self.es_inventariable or cantidad == 0:
             return
@@ -313,19 +324,77 @@ class Producto(models.Model):
                 if nuevo_stock > 0:
                     total = actual.stock * actual.costo_promedio + cantidad * Decimal(costo)
                     actual.costo_promedio = (total / nuevo_stock).quantize(Decimal('0.0001'))
+            saldo_inicial = actual.stock
             actual.stock += cantidad
             actual.save(update_fields=['stock', 'costo_promedio'])
             self.stock, self.costo_promedio = actual.stock, actual.costo_promedio
             sa, _ = StockAlmacen.objects.select_for_update().get_or_create(producto=self, almacen=almacen)
             sa.cantidad += cantidad
             sa.save(update_fields=['cantidad'])
-            Kardex.objects.create(
-                producto=self, almacen=almacen, fecha=fecha or timezone.localdate(),
-                tipo='ENTRADA' if cantidad > 0 else 'SALIDA', cantidad=abs(cantidad),
-                costo_unitario=costo if costo is not None else actual.costo_promedio,
-                costo_promedio=actual.costo_promedio, saldo=actual.stock, referencia=referencia, origen=origen,
-                concepto=concepto, codigo_sunat=codigo_sunat or _codigo_sunat(origen, concepto, cantidad),
-            )
+            signo = 1 if cantidad > 0 else -1
+            saldo = saldo_inicial
+            for lote, parte in self._repartir_lotes(abs(cantidad), signo, almacen, lotes, lotes_de):
+                if lote is not None:
+                    sl, _ = StockLote.objects.select_for_update().get_or_create(lote=lote, almacen=almacen)
+                    sl.cantidad += signo * parte
+                    sl.save(update_fields=['cantidad'])
+                saldo += signo * parte
+                Kardex.objects.create(
+                    producto=self, almacen=almacen, fecha=fecha or timezone.localdate(),
+                    tipo='ENTRADA' if signo > 0 else 'SALIDA', cantidad=parte, lote=lote,
+                    costo_unitario=costo if costo is not None else actual.costo_promedio,
+                    costo_promedio=actual.costo_promedio, saldo=saldo, referencia=referencia, origen=origen,
+                    concepto=concepto, codigo_sunat=codigo_sunat or _codigo_sunat(origen, concepto, cantidad),
+                )
+
+    def _repartir_lotes(self, cantidad, signo, almacen, lotes, lotes_de):
+        """[(Lote o None, cantidad)] del movimiento. Sin control de lotes: una sola parte sin lote."""
+        if not self.control:
+            return [(None, cantidad)]
+        partes, restante = [], cantidad
+        if lotes:
+            for codigo, cant, vence in lotes:
+                lote, creado = Lote.objects.get_or_create(producto=self, codigo=str(codigo).strip().upper()[:60],
+                                                          defaults={'vencimiento': vence})
+                if vence and not lote.vencimiento:
+                    lote.vencimiento = vence
+                    lote.save(update_fields=['vencimiento'])
+                partes.append((lote, Decimal(cant)))
+                restante -= Decimal(cant)
+        elif lotes_de:
+            # se revierte un movimiento: los mismos lotes en sentido contrario
+            origen = (Kardex.objects.filter(producto=self, tipo='SALIDA' if signo > 0 else 'ENTRADA',
+                                            lote__isnull=False)
+                      .filter(models.Q(referencia=lotes_de) | models.Q(referencia__startswith=f'{lotes_de} |'))
+                      .values('lote').annotate(c=Sum('cantidad')).order_by('lote'))
+            for fila in origen:
+                if restante <= 0:
+                    break
+                parte = min(fila['c'], restante)
+                partes.append((Lote.objects.get(pk=fila['lote']), parte))
+                restante -= parte
+        if restante > 0 and signo < 0:
+            # FEFO: sale primero lo que vence primero (sin vencimiento al final)
+            usados = {}
+            for lote, parte in partes:
+                usados[lote.pk] = usados.get(lote.pk, D0) + parte
+            disponibles = (StockLote.objects.filter(lote__producto=self, almacen=almacen, cantidad__gt=0)
+                           .select_related('lote').order_by(models.F('lote__vencimiento').asc(nulls_last=True),
+                                                            'lote__creado', 'lote__codigo'))
+            for sl in disponibles:
+                if restante <= 0:
+                    break
+                parte = min(sl.cantidad - usados.get(sl.lote_id, D0), restante)
+                if parte > 0:
+                    partes.append((sl.lote, parte))
+                    restante -= parte
+        elif restante > 0:
+            lote, _ = Lote.objects.get_or_create(producto=self, codigo='S/L')  # ingreso sin lote indicado
+            partes.append((lote, restante))
+            restante = D0
+        if restante > 0:
+            partes.append((None, restante))  # stock anterior al control de lotes
+        return partes
 
 
 def _codigo_sunat(origen, concepto, cantidad):
@@ -570,10 +639,48 @@ class Kardex(models.Model):
     costo_unitario = models.DecimalField(max_digits=12, decimal_places=4, default=D0)
     saldo = models.DecimalField(max_digits=14, decimal_places=2)
     referencia = models.CharField(max_length=120)
+    lote = models.ForeignKey('Lote', on_delete=models.PROTECT, null=True, blank=True, related_name='kardex')
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-fecha', '-id']
+
+
+class Lote(models.Model):
+    """Lote o número de serie de un producto con control (trazabilidad y vencimiento)."""
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='lotes')
+    codigo = models.CharField('Lote / N° de serie', max_length=60)
+    vencimiento = models.DateField('Vence', null=True, blank=True)
+    fabricacion = models.DateField('Fabricación', null=True, blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['producto__nombre', 'vencimiento', 'codigo']
+        unique_together = [('producto', 'codigo')]
+
+    def __str__(self):
+        return f'{self.codigo}' + (f' (vence {self.vencimiento:%d/%m/%Y})' if self.vencimiento else '')
+
+    @property
+    def stock(self):
+        return self.stocks.aggregate(s=Sum('cantidad'))['s'] or D0
+
+    @property
+    def vencido(self):
+        return bool(self.vencimiento and self.vencimiento < timezone.localdate())
+
+    @property
+    def dias_para_vencer(self):
+        return (self.vencimiento - timezone.localdate()).days if self.vencimiento else None
+
+
+class StockLote(models.Model):
+    lote = models.ForeignKey(Lote, on_delete=models.CASCADE, related_name='stocks')
+    almacen = models.ForeignKey(Almacen, on_delete=models.CASCADE, related_name='+')
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+
+    class Meta:
+        unique_together = [('lote', 'almacen')]
 
 
 class Serie(models.Model):
@@ -881,11 +988,13 @@ class ComprobanteBase(TotalesMixin):
         if not self.almacen_id:
             self.almacen = Almacen.principal()
         signo = self._signo_stock()
+        # notas de crédito: la mercadería vuelve a (o sale de) los lotes del comprobante que modifican
+        ref = str(self.doc_referencia) if getattr(self, 'doc_referencia_id', None) else None
         for item in self.items.select_related('producto'):
             if item.producto and item.producto.es_inventariable:
                 costo = self._costo_entrada(item) if signo > 0 else None
                 item.producto.mover_stock(signo * item.cantidad, str(self), costo=costo, fecha=self.fecha_emision,
-                                          almacen=self.almacen, origen=self._meta.model_name.upper())
+                                          almacen=self.almacen, origen=self._meta.model_name.upper(), lotes_de=ref)
         self.stock_aplicado = True
         self.save(update_fields=['stock_aplicado', 'almacen'])
 
@@ -897,7 +1006,8 @@ class ComprobanteBase(TotalesMixin):
             if item.producto and item.producto.es_inventariable:
                 # con la fecha del documento: el costo del periodo queda neto y coincide con la contabilidad
                 item.producto.mover_stock(signo * item.cantidad, f'Reversión {self}', fecha=self.fecha_emision,
-                                          almacen=self.almacen, origen=self._meta.model_name.upper())
+                                          almacen=self.almacen, origen=self._meta.model_name.upper(),
+                                          lotes_de=str(self))
         self.stock_aplicado = False
         self.save(update_fields=['stock_aplicado'])
 

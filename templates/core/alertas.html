@@ -1,0 +1,24 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Alertas{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3"><i class="bi bi-bell"></i> Alertas</h1>
+<div class="row g-3" style="max-width: 1000px">
+  {% for a in alertas %}
+  <div class="col-md-6">
+    <a href="{{ a.url }}" class="card h-100 text-decoration-none border-{{ a.nivel }}">
+      <div class="card-body d-flex gap-3 align-items-start">
+        <i class="bi {{ a.icono }} fs-3 text-{{ a.nivel }}"></i>
+        <div class="flex-grow-1">
+          <div class="fw-semibold text-body">{{ a.titulo }}{% if a.cantidad %} <span class="badge text-bg-{{ a.nivel }}">{{ a.cantidad }}</span>{% endif %}</div>
+          <div class="small text-muted">{{ a.detalle }}</div>
+          {% if a.monto %}<div class="small fw-semibold text-body mt-1">S/ {{ a.monto|money }}</div>{% endif %}
+        </div>
+        <i class="bi bi-chevron-right text-muted"></i>
+      </div>
+    </a>
+  </div>
+  {% empty %}
+  <div class="col-12"><div class="card"><div class="card-body text-center text-muted py-5"><i class="bi bi-check2-circle fs-1 text-success d-block mb-2"></i>Todo al día: no hay vencimientos, aprobaciones ni tareas pendientes.</div></div></div>
+  {% endfor %}
+</div>
+{% endblock %}

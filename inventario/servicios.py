@@ -179,6 +179,50 @@ def errores_confirmacion(op):
     if salidas:
         almacen = Almacen.especial('TRANSITO') if tipo.clase == 'TRANSITO_RECEPCION' else op.almacen_origen
         errores += faltantes_stock(salidas, almacen)
+    errores += errores_lotes(op, items)
+    return errores
+
+
+def errores_lotes(op, items):
+    """Productos con lote o serie: el lote es obligatorio al ingresar; las series deben coincidir con la cantidad
+    y, al sacar lotes indicados, deben tener stock en el almacén."""
+    from core.models import StockLote
+    clase = op.tipo.clase
+    errores = []
+    for i in items:
+        control = i.producto.control
+        if not control:
+            continue
+        entra = clase == 'INGRESO' or (clase == 'MANUFACTURA' and i.rol == 'PRODUCTO')
+        sale = clase in ('SALIDA', 'TRASLADO', 'TRANSITO_ENVIO') or (clase == 'MANUFACTURA' and i.rol == 'INSUMO')
+        codigos = i.codigos_lote
+        nombre = i.producto.nombre
+        if control == 'SERIE' and codigos:
+            if i.cantidad != int(i.cantidad) or len(codigos) != int(i.cantidad):
+                errores.append(f'"{nombre}": indique {i.cantidad.normalize():f} número(s) de serie '
+                               f'(indicó {len(codigos)}).')
+                continue
+            if len(set(codigos)) != len(codigos):
+                errores.append(f'"{nombre}": hay números de serie repetidos.')
+        if entra:
+            if not codigos:
+                errores.append(f'"{nombre}" se controla por {"lote" if control == "LOTE" else "número de serie"}: '
+                               f'indíquelo.')
+            elif control == 'SERIE':
+                existentes = StockLote.objects.filter(lote__producto=i.producto, lote__codigo__in=codigos,
+                                                      cantidad__gt=0).values_list('lote__codigo', flat=True)
+                if existentes:
+                    errores.append(f'"{nombre}": las series {", ".join(existentes)} ya están en stock.')
+            elif control == 'LOTE' and len(codigos) > 1:
+                errores.append(f'"{nombre}": indique un solo lote por línea (use otra línea para otro lote).')
+        elif sale and codigos and op.almacen_origen_id:
+            necesarios = ({c: Decimal('1') for c in codigos} if control == 'SERIE' else {codigos[0]: i.cantidad})
+            stock = dict(StockLote.objects.filter(lote__producto=i.producto, almacen_id=op.almacen_origen_id,
+                                                  lote__codigo__in=necesarios).values_list('lote__codigo', 'cantidad'))
+            for codigo, cant in necesarios.items():
+                if stock.get(codigo, D0) < cant:
+                    errores.append(f'"{nombre}": el lote/serie {codigo} solo tiene '
+                                   f'{stock.get(codigo, D0).normalize():f} en {op.almacen_origen}.')
     return errores
 
 
@@ -192,9 +236,14 @@ def _lineas_que_salen(op, items):
 
 
 def _mover(item, cantidad, op, almacen, costo, codigo):
-    item.producto.mover_stock(cantidad, f'{op.tipo.nombre} {op.numero}' + (f' | {op.venta}' if op.venta_id else ''),
+    base = f'{op.tipo.nombre} {op.numero}'
+    lotes = item.lotes_para(cantidad)
+    # en traslados la entrada al destino lleva los mismos lotes que salieron del origen
+    lotes_de = base if not lotes and cantidad > 0 and op.tipo.clase in (
+        'TRASLADO', 'TRANSITO_ENVIO', 'TRANSITO_RECEPCION') else None
+    item.producto.mover_stock(cantidad, base + (f' | {op.venta}' if op.venta_id else ''),
                               costo=costo, fecha=op.fecha, almacen=almacen, origen='OPERACION',
-                              concepto=op.tipo.codigo, codigo_sunat=codigo)
+                              concepto=op.tipo.codigo, codigo_sunat=codigo, lotes=lotes, lotes_de=lotes_de)
 
 
 def confirmar(op, usuario=None):
@@ -302,7 +351,8 @@ def anular(op, usuario, motivo):
     with transaction.atomic():
         for i in op.items.select_related('producto'):
             ref = f'Anulación {tipo.nombre} {op.numero}'
-            kw = dict(fecha=op.fecha, origen='OPERACION', concepto=tipo.codigo)
+            # cada movimiento vuelve a los lotes en que se hizo
+            kw = dict(fecha=op.fecha, origen='OPERACION', concepto=tipo.codigo, lotes_de=f'{tipo.nombre} {op.numero}')
             if tipo.clase == 'INGRESO':
                 i.producto.mover_stock(-i.cantidad, ref, almacen=op.almacen_destino, codigo_sunat=tipo.codigo_sunat,
                                        **kw)

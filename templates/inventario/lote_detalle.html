@@ -1,0 +1,32 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Lote {{ lote.codigo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="page-title"><i class="bi bi-upc-scan"></i> {% if lote.producto.control == 'SERIE' %}Serie{% else %}Lote{% endif %} {{ lote.codigo }}</h1>
+    <div class="text-muted small">{{ lote.producto.codigo }} {{ lote.producto.nombre }}{% if lote.vencimiento %} · vence {{ lote.vencimiento|date:'d/m/Y' }}{% if lote.vencido %} <span class="badge badge-ANULADO">Vencido</span>{% endif %}{% endif %}</div>
+  </div>
+  <a href="{% url 'inv_lotes' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lotes</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-9">
+    <div class="card"><div class="card-header"><i class="bi bi-diagram-2"></i> Trazabilidad</div>
+      <div class="table-responsive"><table class="table table-sm mb-0">
+        <thead><tr><th>Fecha</th><th>Movimiento</th><th>Documento</th><th>Almacén</th><th class="num">Entrada</th><th class="num">Salida</th>{% if ver_costos %}<th class="num">Costo unit.</th>{% endif %}</tr></thead>
+        <tbody>{% for k in movimientos %}<tr>
+          <td>{{ k.fecha|date:'d/m/Y' }}</td><td><span class="badge {% if k.tipo == 'ENTRADA' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ k.tipo|title }}</span> <span class="small text-muted">T.12 {{ k.codigo_sunat }}</span></td>
+          <td>{{ k.referencia }}</td><td class="small">{{ k.almacen }}</td>
+          <td class="num">{% if k.tipo == 'ENTRADA' %}{{ k.cantidad|money }}{% endif %}</td><td class="num">{% if k.tipo == 'SALIDA' %}{{ k.cantidad|money }}{% endif %}</td>
+          {% if ver_costos %}<td class="num">{{ k.costo_unitario|floatformat:4 }}</td>{% endif %}
+        </tr>{% empty %}<tr><td colspan="7" class="text-muted small">Sin movimientos.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </div>
+  </div>
+  <div class="col-lg-3">
+    <div class="card"><div class="card-body">
+      <div class="text-muted small">Stock actual</div><div class="fs-4 fw-bold">{{ lote.stock|money }} {{ lote.producto.unidad }}</div>
+      {% for s in stocks %}<div class="small">{{ s.almacen }}: {{ s.cantidad|money }}</div>{% endfor %}
+    </div></div>
+  </div>
+</div>
+{% endblock %}

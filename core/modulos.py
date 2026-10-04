@@ -64,6 +64,7 @@ MODULOS = [
                              ('Carga masiva de saldos y productos', 'carga_masiva?tipo=saldos',
                               'bi-file-earmark-arrow-up')]),
             ('Reportes', [('Kardex', 'inv_kardex', 'bi-list-columns'),
+                          ('Lotes, series y vencimientos', 'inv_lotes', 'bi-upc-scan'),
                           ('Inventario permanente SUNAT 12.1 / 13.1', 'inv_libro_sunat', 'bi-journal-text'),
                           ('Sugerencia de compra', 'inv_reposicion', 'bi-cart-plus'),
                           ('Valorización al cierre', 'inv_valorizacion', 'bi-calculator'),
@@ -200,12 +201,14 @@ RUTAS_CORE = {
     'productos': ['inventario', 'ventas', 'compras', 'manufactura'],
     'producto_nuevo': ['inventario', 'ventas', 'compras', 'manufactura'],
     'producto_editar': ['inventario', 'ventas', 'compras', 'manufactura'], 'kardex': ['inventario'],
-    'inv_stock': ['inventario'], 'inv_kardex': ['inventario'], 'inv_libro_sunat': ['inventario', 'contabilidad'], 'inv_ajuste': ['inventario'],
+    'inv_stock': ['inventario'], 'inv_kardex': ['inventario'], 'inv_libro_sunat': ['inventario', 'contabilidad'],
+    'inv_lotes': ['inventario', 'ventas', 'compras'], 'inv_lote': ['inventario', 'ventas', 'compras'], 'inv_ajuste': ['inventario'],
     'inv_valorizacion': ['inventario', 'costos'], 'inv_reposicion': ['inventario', 'compras'], 'almacenes': ['inventario'], 'almacen_nuevo': ['inventario'],
     'almacen_editar': ['inventario'],
 }
 # Rutas abiertas a cualquier usuario autenticado
 RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'cambiar_clave', 'cambiar_clave_ok',
+                'alertas', 'alertas_json',  # cada alerta ya se filtra por los módulos del usuario
                 'login_2fa', 'recuperar', 'recuperar_confirmar', 'recuperar_listo', 'seguridad',
                 'sustento_subir', 'sustento_ver'}  # los sustentos validan el módulo del documento
 

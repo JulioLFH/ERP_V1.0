@@ -29,7 +29,7 @@
     {% for e in formset.non_form_errors %}<div class="alert alert-danger m-3 py-2">{{ e }}</div>{% endfor %}
     <div class="table-responsive">
       <table class="table items-table mb-0">
-        <thead><tr><th style="width:35%">Producto</th>{% if muestra_rol %}<th style="width:18%">Rol</th>{% endif %}<th style="width:12%" class="num">Cantidad</th>{% if muestra_costo %}<th style="width:13%" class="num">Costo unit. S/</th>{% endif %}<th>Observación</th><th class="text-center" style="width:5%"><i class="bi bi-trash"></i></th></tr></thead>
+        <thead><tr><th style="width:35%">Producto</th>{% if muestra_rol %}<th style="width:18%">Rol</th>{% endif %}<th style="width:12%" class="num">Cantidad</th>{% if muestra_costo %}<th style="width:13%" class="num">Costo unit. S/</th>{% endif %}{% if usa_lotes %}<th style="width:14%" title="Solo productos con control por lote o serie">Lote / series</th><th style="width:11%">Vence</th>{% endif %}<th>Observación</th><th class="text-center" style="width:5%"><i class="bi bi-trash"></i></th></tr></thead>
         <tbody id="items-body" data-prefix="{{ formset.prefix }}" data-precio-campo="costo_promedio">
           {% for f in formset %}
           <tr class="item-row">
@@ -37,6 +37,7 @@
             {% if muestra_rol %}<td>{{ f.rol }}{% for e in f.rol.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>{% endif %}
             <td>{{ f.cantidad }}{% for e in f.cantidad.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
             {% if muestra_costo %}<td>{{ f.costo_unitario }}</td>{% endif %}
+            {% if usa_lotes %}<td>{{ f.lote }}{% for e in f.lote.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td><td>{{ f.vencimiento }}</td>{% endif %}
             <td>{{ f.observacion }}</td>
             <td class="text-center">{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td>
           </tr>
@@ -46,7 +47,7 @@
     </div>
     <template id="item-template">
       <tr class="item-row"><td>{{ formset.empty_form.id }}{{ formset.empty_form.producto }}</td>{% if muestra_rol %}<td>{{ formset.empty_form.rol }}</td>{% endif %}
-        <td>{{ formset.empty_form.cantidad }}</td>{% if muestra_costo %}<td>{{ formset.empty_form.costo_unitario }}</td>{% endif %}<td>{{ formset.empty_form.observacion }}</td><td class="text-center">{{ formset.empty_form.DELETE }}</td></tr>
+        <td>{{ formset.empty_form.cantidad }}</td>{% if muestra_costo %}<td>{{ formset.empty_form.costo_unitario }}</td>{% endif %}{% if usa_lotes %}<td>{{ formset.empty_form.lote }}</td><td>{{ formset.empty_form.vencimiento }}</td>{% endif %}<td>{{ formset.empty_form.observacion }}</td><td class="text-center">{{ formset.empty_form.DELETE }}</td></tr>
     </template>
     <div class="card-body"><button type="button" id="agregar-item" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar producto</button></div>
   </div>

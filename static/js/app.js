@@ -167,6 +167,50 @@
   });
 })();
 
+// Campana de alertas: se carga en segundo plano para no demorar la pantalla
+(function () {
+  const campana = document.getElementById('campana');
+  if (!campana) return;
+  const badge = document.getElementById('campana-n');
+  const lista = document.getElementById('campana-lista');
+  fetch(campana.dataset.url, { credentials: 'same-origin' }).then((r) => r.json()).then((d) => {
+    lista.innerHTML = '';
+    if (d.total) {
+      badge.textContent = d.total;
+      badge.classList.remove('d-none');
+      badge.classList.add(d.urgentes ? 'text-bg-danger' : 'text-bg-warning');
+    }
+    if (!d.alertas.length) {
+      const vacio = document.createElement('div');
+      vacio.className = 'p-3 small text-muted';
+      vacio.textContent = 'Todo al día.';
+      lista.appendChild(vacio);
+    }
+    d.alertas.forEach((a) => {
+      const item = document.createElement('a');
+      item.className = 'dropdown-item d-flex gap-2 py-2 border-bottom small text-wrap';
+      item.href = a.url;
+      const icono = document.createElement('i');
+      icono.className = `bi ${a.icono} text-${a.nivel} fs-5`;
+      const texto = document.createElement('div');
+      const titulo = document.createElement('div');
+      titulo.className = 'fw-semibold';
+      titulo.textContent = a.titulo;
+      const detalle = document.createElement('div');
+      detalle.className = 'text-muted';
+      detalle.textContent = a.detalle;
+      texto.append(titulo, detalle);
+      item.append(icono, texto);
+      lista.appendChild(item);
+    });
+    const todas = document.createElement('a');
+    todas.className = 'dropdown-item text-center small py-2';
+    todas.href = campana.getAttribute('href');
+    todas.textContent = 'Ver todas las alertas';
+    lista.appendChild(todas);
+  }).catch(() => { lista.innerHTML = '<div class="p-3 small text-muted">No se pudieron cargar las alertas.</div>'; });
+})();
+
 // confirmación de acciones destructivas
 document.querySelectorAll('form[data-confirm]').forEach((f) => {
   f.addEventListener('submit', (e) => { if (!confirm(f.dataset.confirm)) e.preventDefault(); });

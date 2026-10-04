@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.15.0 — 04/10/2026 · Alertas y lotes, series y vencimientos
+- **Alertas** (campana en la barra superior y página Alertas), según los módulos y permisos de cada usuario: cobranzas y pagos vencidos o por vencer en 7 días, comprobantes no aceptados por SUNAT, órdenes de compra por aprobar, facturas del portal por revisar, stock bajo, lotes por vencer, insumos que no alcanzan para producir, depreciación pendiente y periodos sin centralizar.
+- **Lotes y números de serie**: cada producto puede controlarse por lote (con vencimiento) o por número de serie. Al ingresar mercadería por Inventario se indica el lote y su vencimiento (o las series); las salidas sin lote indicado toman primero lo que vence primero (FEFO). Anulaciones, notas de crédito y traslados devuelven o mueven la mercadería en los mismos lotes. En manufactura, el lote del producto es el número de la orden.
+- **Lotes, series y vencimientos** (Inventario > Reportes): stock por lote y almacén, filtro de lotes por vencer (Excel) y **trazabilidad** de cada lote: de qué documento entró y a qué documento salió.
+
 ## v1.14.0 — 04/10/2026 · Permisos por acción y afectación del IGV por línea
 - **Permisos por acción** (Ajustes > Usuarios y permisos): además de los módulos, qué puede hacer cada usuario: emitir, emitir notas de crédito, anular, aprobar órdenes de compra, ajustar o cerrar el kardex, extornar asientos, cerrar periodos, dar de baja activos, etc. Las acciones sensibles se marcan en rojo y vienen desmarcadas para usuarios nuevos. El control es del servidor (no basta con ocultar botones) y los botones "Anular" se ocultan a quien no puede.
 - **Por almacén**: el usuario solo ve y opera en los almacenes asignados (operaciones, ventas, compras, guías y órdenes de producción).

@@ -1,0 +1,33 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Lotes, series y vencimientos{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Lotes, series y vencimientos</h1>
+  <a href="?{{ request.GET.urlencode }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+</div>
+<div class="card">
+  <div class="card-body border-bottom py-2">
+    <form class="row g-2 align-items-center" method="get">
+      <div class="col-md-3"><select name="producto" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todos los productos con control</option>
+        {% for p in productos %}<option value="{{ p.pk }}" {% if request.GET.producto == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.nombre }} ({{ p.get_control_display|lower }})</option>{% endfor %}</select></div>
+      <div class="col-md-3"><input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Lote, serie o producto"></div>
+      <div class="col-auto form-check ms-2"><input type="checkbox" class="form-check-input" name="vencimiento" value="1" id="venc" {% if request.GET.vencimiento %}checked{% endif %} onchange="this.form.submit()"><label class="form-check-label small" for="venc">Vencen en</label></div>
+      <div class="col-auto"><input type="number" name="dias" value="{{ dias }}" min="1" class="form-control form-control-sm" style="width:80px"></div>
+      <div class="col-auto small text-muted">días</div>
+      <div class="col-auto form-check ms-2"><input type="checkbox" class="form-check-input" name="todos" value="1" id="todos" {% if request.GET.todos %}checked{% endif %} onchange="this.form.submit()"><label class="form-check-label small" for="todos">Incluir sin stock</label></div>
+      <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></div>
+    </form>
+  </div>
+  <div class="table-responsive"><table class="table table-hover mb-0">
+    <thead><tr><th>Producto</th><th>Lote / serie</th><th>Vence</th><th class="num">Stock</th><th>Almacenes</th></tr></thead>
+    <tbody>{% for l in lotes %}<tr onclick="location.href='{% url 'inv_lote' l.pk %}'" style="cursor:pointer" class="{% if l.vencido %}table-danger{% elif l.vencimiento and l.vencimiento <= aviso %}table-warning{% endif %}">
+      <td>{{ l.producto.codigo }} {{ l.producto.nombre }}</td>
+      <td class="fw-semibold">{{ l.codigo }}</td>
+      <td>{% if l.vencimiento %}{{ l.vencimiento|date:'d/m/Y' }} <span class="small text-muted">{% if l.vencido %}(vencido){% else %}({{ l.dias_para_vencer }} días){% endif %}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+      <td class="num">{{ l.existencia|default:0|money }}</td>
+      <td class="small">{{ l.en_almacenes|join:' · ' }}</td>
+    </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">Sin lotes. Active el control por lote o serie en el producto (pestaña General) e indique el lote al ingresar la mercadería por Inventario.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-body py-2 small text-muted">Las salidas sin lote indicado toman primero lo que vence primero (FEFO). "S/L" agrupa lo ingresado sin indicar lote (por ejemplo, compras ingresadas sin pasar por Inventario).</div>
+</div>
+{% endblock %}

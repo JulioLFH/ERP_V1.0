@@ -144,7 +144,9 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None):
         for c in lineas:
             if c.cantidad_real > 0:
                 op.items.create(producto=c.producto, cantidad=r2(c.cantidad_real), rol='INSUMO')
-        op.items.create(producto=orden.producto, cantidad=cantidad_producida, rol='PRODUCTO')
+        # producto con control por lote: el lote de producción es el número de la orden
+        op.items.create(producto=orden.producto, cantidad=cantidad_producida, rol='PRODUCTO',
+                        lote=orden.numero if orden.producto.control == 'LOTE' else '')
         try:
             inv.confirmar(op, usuario)
         except inv.ErrorOperacion as exc:

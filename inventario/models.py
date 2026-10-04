@@ -202,10 +202,27 @@ class OperacionItem(models.Model):
     cantidad = models.DecimalField(max_digits=14, decimal_places=2)
     costo_unitario = models.DecimalField('Costo unit. S/', max_digits=14, decimal_places=4, null=True, blank=True)
     rol = models.CharField(max_length=8, choices=ROLES, blank=True)
+    lote = models.CharField('Lote / series', max_length=400, blank=True,
+                            help_text='Productos con lote: el código del lote. Con serie: los números separados por '
+                                      'coma. Vacío en salidas = sale lo que vence primero')
+    vencimiento = models.DateField('Vence', null=True, blank=True)
     observacion = models.CharField(max_length=120, blank=True)
 
     class Meta:
         ordering = ['id']
+
+    @property
+    def codigos_lote(self):
+        import re
+        return [c.strip().upper() for c in re.split(r'[,;\n]+', self.lote or '') if c.strip()]
+
+    def lotes_para(self, cantidad):
+        """[(código, cantidad, vencimiento)] para mover_stock, o None si la línea no indica lotes."""
+        if not self.producto.control or not self.codigos_lote:
+            return None
+        if self.producto.control == 'SERIE':
+            return [(c, Decimal('1'), self.vencimiento) for c in self.codigos_lote]
+        return [(self.codigos_lote[0], abs(cantidad), self.vencimiento)]
 
     @property
     def valor(self):
