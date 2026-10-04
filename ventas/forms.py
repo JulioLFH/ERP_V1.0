@@ -44,6 +44,11 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
             self.add_error('doc_referencia', 'Indique el comprobante que modifica la nota.')
         if tipo in ('07', '08') and not data.get('motivo_nota'):
             self.add_error('motivo_nota', 'Indique el motivo de la nota.')
+        if not self.instance.pk and tipo:
+            from core.permisos import validar_serie
+            error = validar_serie(data, tipo, _serie_defecto(tipo, data.get('doc_referencia')))
+            if error:
+                self.add_error('serie', error)
         tercero = data.get('tercero')
         if tipo == '01' and tercero and tercero.tipo_doc != '6':
             self.add_error('tercero', 'Las facturas requieren un cliente con RUC.')

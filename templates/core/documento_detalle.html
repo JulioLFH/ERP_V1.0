@@ -16,8 +16,8 @@
     {% endif %}
     {% if doc.estado != 'ANULADO' %}
       <a href="{% url url_convertir %}?{{ param_convertir }}={{ doc.pk }}" class="btn btn-sm btn-success"><i class="bi bi-arrow-right-circle"></i> {{ texto_convertir }}</a>
-      {% if doc.estado == 'PENDIENTE' %}<form method="post" action="{% url url_estado doc.pk %}">{% csrf_token %}<input type="hidden" name="estado" value="APROBADO"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-check2"></i> Aprobar</button></form>{% endif %}
-      <form method="post" action="{% url url_estado doc.pk %}" data-confirm="¿Anular {{ doc.numero }}?">{% csrf_token %}<input type="hidden" name="estado" value="ANULADO"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular</button></form>
+      {% if doc.estado == 'PENDIENTE' and not es_oc or doc.estado == 'PENDIENTE' and puede.compras_aprobar_oc %}<form method="post" action="{% url url_estado doc.pk %}">{% csrf_token %}<input type="hidden" name="estado" value="APROBADO"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-check2"></i> Aprobar</button></form>{% endif %}
+      {% if not es_oc or puede.compras_anular %}<form method="post" action="{% url url_estado doc.pk %}" data-confirm="¿Anular {{ doc.numero }}?">{% csrf_token %}<input type="hidden" name="estado" value="ANULADO"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular</button></form>{% endif %}
     {% endif %}
   </div>
 </div>

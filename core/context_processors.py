@@ -2,6 +2,7 @@ from django.conf import settings
 
 from .models import Empresa
 from .modulos import MODULOS, POR_CLAVE, menu_de, modulos_del_usuario, puede_ver_costos
+from .permisos import Permisos
 
 
 def empresa(request):
@@ -21,4 +22,5 @@ def empresa(request):
         'modulo': modulo,
         'menu_modulo': menu_de(modulo, puede_ver_costos(request.user)) if modulo else [],
         'ver_costos': puede_ver_costos(request.user),
+        'puede': Permisos(request.user),  # {% if puede.ventas_anular %}
     }

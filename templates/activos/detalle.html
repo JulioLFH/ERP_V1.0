@@ -11,8 +11,8 @@
     <a href="{% url 'activos:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
     {% if a.estado == 'ACTIVO' %}
       <a href="{% url 'activos:editar' a.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
-      <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-baja"><i class="bi bi-box-arrow-right"></i> Dar de baja</button>
-      {% if not depreciaciones %}<button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>{% endif %}
+      {% if puede.activos_baja %}<button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-baja"><i class="bi bi-box-arrow-right"></i> Dar de baja</button>{% endif %}
+      {% if not depreciaciones and puede.activos_baja %}<button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>{% endif %}
     {% endif %}
   </div>
 </div>

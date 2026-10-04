@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from core.comprobantes import ComprobanteViews, ple_num
 from core.forms import item_formset
-from core.models import Empresa
+from core.models import Empresa, r2
 from core.utils import fmt_fecha, guardar_documento
 
 from .forms import CompraForm, OrdenCompraForm
@@ -168,6 +168,16 @@ def oc_estado(request, pk):
     oc = get_object_or_404(OrdenCompra, pk=pk)
     estado = request.POST.get('estado')
     if request.method == 'POST' and estado in dict(OrdenCompra._meta.get_field('estado').choices):
+        if estado == 'APROBADO':
+            from core.permisos import perfil_de, puede_aprobar
+            monto = r2(oc.total * (oc.tipo_cambio or 1)) if oc.moneda == 'USD' else oc.total
+            if not puede_aprobar(request.user, monto):
+                perfil = perfil_de(request.user)
+                messages.error(request, f'La orden suma S/ {monto:,.2f} y su límite de aprobación es S/ '
+                                        f'{perfil.limite_aprobacion:,.2f}: debe aprobarla un usuario con mayor '
+                                        'límite.' if perfil and perfil.limite_aprobacion else
+                               'Su usuario no puede aprobar órdenes de compra.')
+                return redirect('compras:oc_detalle', pk)
         oc.estado = estado
         oc.save(update_fields=['estado'])
         messages.success(request, f'Orden {oc.numero}: {oc.get_estado_display()}.')

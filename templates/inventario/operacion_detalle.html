@@ -21,7 +21,7 @@
         <form method="post" action="{% url 'inventario:conformidad' op.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" title="{% if op.conformidad_enviada_en %}Enviada el {{ op.conformidad_enviada_en|date:'d/m/Y H:i' }} a {{ op.conformidad_enviada_a }}{% endif %}"><i class="bi bi-envelope-check"></i> {% if op.conformidad_enviada_en %}Reenviar{% else %}Enviar{% endif %} conformidad</button></form>
       {% endif %}
       {% if url_nota and app_nota in mods %}<a href="{{ url_nota }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-diff"></i> Emitir nota de crédito</a>{% endif %}
-      <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>
+      {% if puede.inventario_anular %}<button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>{% endif %}
     {% endif %}
   </div>
 </div>

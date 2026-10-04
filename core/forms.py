@@ -41,6 +41,29 @@ class BootstrapMixin:
         if 'almacen' in self.fields and not self.initial.get('almacen') and not getattr(getattr(self, 'instance', None), 'almacen_id', 1):
             self.initial['almacen'] = Almacen.principal().pk
 
+    def __getitem__(self, nombre):
+        # al mostrar el formulario (las subclases ya fijaron sus listas) se dejan solo los almacenes del usuario;
+        # el middleware además rechaza cualquier almacén no permitido que llegue en el POST
+        if not getattr(self, '_almacenes_filtrados', False):
+            self._almacenes_filtrados = True
+            self._filtrar_almacenes()
+        return super().__getitem__(nombre)
+
+    def _filtrar_almacenes(self):
+        from .auditoria import usuario_actual
+        from .permisos import almacenes_permitidos
+        permitidos = almacenes_permitidos(usuario_actual())
+        if not permitidos:
+            return
+        for nombre, field in self.fields.items():
+            qs = getattr(field, 'queryset', None)
+            if qs is not None and qs.model is Almacen:
+                field.queryset = qs.filter(pk__in=permitidos)
+                actual = getattr(self.initial.get(nombre), 'pk', self.initial.get(nombre))
+                if actual and actual not in permitidos and not self.is_bound:
+                    primero = field.queryset.first()
+                    self.initial[nombre] = primero.pk if primero else None
+
 
 class FechaInput(forms.DateInput):
     input_type = 'date'

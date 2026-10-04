@@ -11,7 +11,7 @@
     <a href="{% url 'logistica:lista' %}?tipo={{ g.tipo }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
     <a href="{% url 'logistica:imprimir' g.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</a>
     {% if g.estado == 'EMITIDA' and g.estado_sunat != 'ACEPTADO' and g.estado_sunat != 'PENDIENTE' %}<a href="{% url 'logistica:editar' g.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
-    {% if g.estado == 'EMITIDA' %}<button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>{% endif %}
+    {% if g.estado == 'EMITIDA' and puede.logistica_anular %}<button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>{% endif %}
   </div>
 </div>
 {% if g.estado == 'EMITIDA' %}

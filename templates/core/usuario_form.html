@@ -9,7 +9,7 @@
   {% csrf_token %}
   <div class="row g-3">
     <div class="col-lg-5"><div class="card h-100"><div class="card-header">Datos de acceso</div><div class="card-body"><div class="row g-3">
-      {% for field in form %}{% if field.name != 'modulos' and field.name != 'es_admin' and field.name != 'ver_costos' %}
+      {% for field in form %}{% if field.name != 'modulos' and field.name != 'es_admin' and field.name != 'ver_costos' and field.name != 'acciones' and field.name != 'almacenes' and field.name != 'series' and field.name != 'limite_aprobacion' %}
         <div class="{% if field.name == 'is_active' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>
       {% endif %}{% endfor %}
     </div></div></div></div>
@@ -37,6 +37,33 @@
       </div>
     </div></div></div>
   </div>
+  <div class="card mt-3" id="bloque-permisos"><div class="card-header d-flex justify-content-between">
+    <span><i class="bi bi-ui-checks"></i> Permisos por acción, almacén y serie</span>
+    <span class="small text-muted">Los administradores pueden todo</span></div>
+    <div class="card-body">
+      <p class="small text-muted">Marque lo que el usuario puede hacer en cada módulo asignado. Las acciones en <span class="text-danger">rojo</span> son sensibles (anular, aprobar, cerrar): asígnelas solo a quien corresponda.</p>
+      <div class="row g-3">
+        {% for g in grupos_acciones %}
+        <div class="col-md-6 col-xl-4 grupo-acciones" data-modulo="{{ g.modulo.clave }}">
+          <div class="border rounded p-2 h-100">
+            <div class="fw-semibold small mb-1"><i class="bi {{ g.modulo.icono }}" style="color:{{ g.modulo.color }}"></i> {{ g.modulo.nombre }}</div>
+            {% for a in g.acciones %}<label class="d-block small"><input type="checkbox" class="form-check-input me-1" name="acciones" value="{{ a.valor }}" {% if a.marcada %}checked{% endif %}> <span {% if a.sensible %}class="text-danger"{% endif %}>{{ a.texto }}</span></label>{% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <hr>
+      <div class="row g-3">
+        <div class="col-md-4"><div class="fw-semibold small mb-1">{{ form.almacenes.label }}</div>
+          <div class="small" style="max-height: 180px; overflow:auto">{% for c in form.almacenes %}<label class="d-block">{{ c.tag }} {{ c.choice_label }}</label>{% endfor %}</div>
+          <div class="form-text">{{ form.almacenes.help_text }}</div></div>
+        <div class="col-md-4"><div class="fw-semibold small mb-1">{{ form.series.label }}</div>
+          <div class="small" style="max-height: 180px; overflow:auto">{% for c in form.series %}<label class="d-block">{{ c.tag }} {{ c.choice_label }}</label>{% endfor %}</div>
+          <div class="form-text">{{ form.series.help_text }}</div></div>
+        <div class="col-md-4">{% with field=form.limite_aprobacion %}{% include 'core/_campo.html' %}{% endwith %}</div>
+      </div>
+    </div>
+  </div>
   <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar usuario</button>
 </form>
 {% if form.instance.pk and form.instance.segundo_factor.activo and user.is_superuser %}
@@ -54,7 +81,16 @@
 <script>
   const admin = document.getElementById('{{ form.es_admin.id_for_label }}');
   const lista = document.getElementById('lista-modulos');
-  const sync = () => lista.classList.toggle('opacity-50', admin.checked);
-  admin.addEventListener('change', sync); sync();
+  const permisos = document.getElementById('bloque-permisos');
+  // solo se muestran las acciones de los módulos marcados; el administrador no necesita permisos finos
+  const sync = () => {
+    lista.classList.toggle('opacity-50', admin.checked);
+    permisos.classList.toggle('d-none', admin.checked);
+    const marcados = new Set([...lista.querySelectorAll('input[name=modulos]:checked')].map(i => i.value));
+    permisos.querySelectorAll('.grupo-acciones').forEach(g => g.classList.toggle('d-none', !marcados.has(g.dataset.modulo)));
+  };
+  admin.addEventListener('change', sync);
+  lista.addEventListener('change', sync);
+  sync();
 </script>
 {% endblock %}

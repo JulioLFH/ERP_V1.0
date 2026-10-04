@@ -77,4 +77,17 @@ class AccesoModulosMiddleware:
         if ultimo != actual:
             request.session['modulo'] = actual
         request.modulo_actual = actual
+        # permisos por acción, almacén (y monto para aprobar órdenes de compra)
+        from .permisos import ACCIONES, accion_de_ruta, almacen_no_permitido, puede
+        accion = accion_de_ruta(match, request)
+        if accion and not puede(request.user, accion):
+            modulo, _, clave = accion.partition('.')
+            texto = next((d for a, d, _ in ACCIONES.get(modulo, []) if a == clave), accion)
+            return render(request, 'core/sin_acceso.html', {
+                'motivo': f'Su usuario no tiene permiso para: {texto.lower()}. Pida al administrador que se lo asigne '
+                          f'en Ajustes > Usuarios y permisos.'}, status=403)
+        almacen = almacen_no_permitido(request, match)
+        if almacen is not None:
+            return render(request, 'core/sin_acceso.html', {
+                'motivo': f'Su usuario no opera en el almacén "{almacen}".'}, status=403)
         return None

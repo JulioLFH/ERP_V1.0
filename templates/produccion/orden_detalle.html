@@ -19,7 +19,7 @@
     {% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}
       <a href="#terminar" class="btn btn-sm btn-success"><i class="bi bi-flag"></i> Terminar</a>
     {% endif %}
-    {% if o.estado != 'BORRADOR' and o.estado != 'ANULADA' %}
+    {% if o.estado != 'BORRADOR' and o.estado != 'ANULADA' and puede.manufactura_anular %}
       <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>
     {% endif %}
   </div>

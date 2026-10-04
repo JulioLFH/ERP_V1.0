@@ -42,6 +42,11 @@ class GuiaBaseForm(BootstrapMixin, forms.ModelForm):
                 self.add_error(campo, 'El ubigeo tiene 6 dígitos (ej. 150101 Lima).')
         if data.get('fecha_traslado') and data.get('fecha_emision') and data['fecha_traslado'] < data['fecha_emision']:
             self.add_error('fecha_traslado', 'El traslado no puede iniciar antes de la emisión.')
+        if not self.instance.pk:
+            from core.permisos import validar_serie
+            error = validar_serie(data, self.tipo_guia, self.serie_defecto)
+            if error:
+                self.add_error('serie', error)
         return data
 
     def save(self, commit=True):

@@ -488,6 +488,25 @@ class IntentoAcceso(models.Model):
         verbose_name_plural = 'intentos de acceso fallidos'
 
 
+class PerfilUsuario(models.Model):
+    """Permisos finos del usuario dentro de sus módulos: acciones (anular, aprobar...), almacenes y series.
+    Sin perfil el usuario puede todo en sus módulos (comportamiento anterior)."""
+    usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='perfil')
+    acciones = models.JSONField(default=list, blank=True)
+    almacenes = models.ManyToManyField('Almacen', blank=True, related_name='+',
+                                       help_text='Vacío = todos los almacenes')
+    series = models.ManyToManyField('Serie', blank=True, related_name='+', help_text='Vacío = todas las series')
+    limite_aprobacion = models.DecimalField('Aprueba órdenes de compra hasta S/', max_digits=14, decimal_places=2,
+                                            default=D0, help_text='0 = sin límite')
+
+    class Meta:
+        verbose_name = 'perfil de usuario'
+        verbose_name_plural = 'perfiles de usuario'
+
+    def __str__(self):
+        return f'Permisos de {self.usuario}'
+
+
 class SegundoFactor(models.Model):
     """Doble factor (TOTP, app autenticadora): secreto, estado y códigos de respaldo (guardados con hash)."""
     usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='segundo_factor')

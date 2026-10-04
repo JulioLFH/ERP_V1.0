@@ -19,6 +19,17 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         label='Puede ver costos de inventario', required=False,
         help_text='Costo promedio, valorizado, kardex valorizado y valorización al cierre. Los administradores '
                   'siempre los ven.')
+    acciones = forms.MultipleChoiceField(label='Acciones permitidas', required=False,
+                                         widget=forms.CheckboxSelectMultiple)
+    almacenes = forms.ModelMultipleChoiceField(label='Almacenes en que opera', required=False, queryset=None,
+                                               widget=forms.CheckboxSelectMultiple,
+                                               help_text='Ninguno marcado = todos los almacenes')
+    series = forms.ModelMultipleChoiceField(label='Series que puede emitir', required=False, queryset=None,
+                                            widget=forms.CheckboxSelectMultiple,
+                                            help_text='Ninguna marcada = todas las series')
+    limite_aprobacion = forms.DecimalField(label='Aprueba órdenes de compra hasta S/', required=False,
+                                           min_value=0, max_digits=14, decimal_places=2,
+                                           help_text='0 o vacío = sin límite')
     clave1 = forms.CharField(label='Contraseña', required=False, widget=forms.PasswordInput)
     clave2 = forms.CharField(label='Repetir contraseña', required=False, widget=forms.PasswordInput)
 
@@ -31,7 +42,16 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, editor=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.editor = editor
+        from .models import Almacen, PerfilUsuario, Serie
+        from .permisos import ACCIONES
         self.fields['modulos'].widget.attrs.pop('class', None)
+        self.fields['acciones'].choices = [(f'{m}.{a}', d) for m, lista in ACCIONES.items() for a, d, _ in lista]
+        self.fields['almacenes'].queryset = Almacen.objects.filter(activo=True)
+        self.fields['series'].queryset = Serie.objects.filter(activo=True, tipo__in=['01', '03', '07', '08', '12',
+                                                                                      '00', '09', '31'])
+        for nombre in ('acciones', 'almacenes', 'series'):
+            self.fields[nombre].widget.attrs.pop('class', None)
+        perfil = PerfilUsuario.objects.filter(usuario=self.instance).first() if self.instance.pk else None
         if self.instance.pk:
             nombres = set(self.instance.groups.values_list('name', flat=True))
             self.initial['modulos'] = [c for c, n in GRUPOS.items() if n in nombres]
@@ -40,6 +60,15 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
             self.fields['clave1'].help_text = 'Déjela vacía para no cambiarla.'
         else:
             self.fields['clave1'].required = self.fields['clave2'].required = True
+        if perfil:
+            self.initial['acciones'] = perfil.acciones
+            self.initial['almacenes'] = list(perfil.almacenes.all())
+            self.initial['series'] = list(perfil.series.all())
+            self.initial['limite_aprobacion'] = perfil.limite_aprobacion
+        elif self.instance.pk:  # sin perfil hoy puede todo en sus módulos: se muestra así
+            self.initial['acciones'] = [c for c, _ in self.fields['acciones'].choices]
+        else:  # usuario nuevo: las acciones sensibles (anular, aprobar...) se asignan a propósito
+            self.initial['acciones'] = [f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, s in lista if not s]
 
     def clean(self):
         data = super().clean()
@@ -75,6 +104,13 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         # conserva grupos ajenos a los módulos y al permiso de costos
         otros = user.groups.exclude(name__in=list(GRUPOS.values()) + [GRUPO_COSTOS])
         user.groups.set(list(otros) + grupos)
+        from .models import PerfilUsuario
+        perfil, _ = PerfilUsuario.objects.get_or_create(usuario=user)
+        perfil.acciones = sorted(self.cleaned_data.get('acciones') or [])
+        perfil.limite_aprobacion = self.cleaned_data.get('limite_aprobacion') or 0
+        perfil.save()
+        perfil.almacenes.set(self.cleaned_data.get('almacenes') or [])
+        perfil.series.set(self.cleaned_data.get('series') or [])
         return user
 
 
@@ -96,8 +132,14 @@ def _guardar(request, usuario, titulo):
         u = form.save()
         messages.success(request, f'Usuario {u.username} guardado.')
         return redirect('usuarios')
+    from .permisos import ACCIONES
+    marcadas = set(form['acciones'].value() or [])
+    grupos_acciones = [{'modulo': POR_CLAVE[m], 'acciones': [
+        {'valor': f'{m}.{a}', 'texto': d, 'sensible': s, 'marcada': f'{m}.{a}' in marcadas} for a, d, s in lista]}
+        for m, lista in ACCIONES.items() if m in POR_CLAVE]
     return render(request, 'core/usuario_form.html', {'form': form, 'titulo': titulo,
-                                                       'modulos_info': [POR_CLAVE[c] for c in GRUPOS]})
+                                                       'modulos_info': [POR_CLAVE[c] for c in GRUPOS],
+                                                       'grupos_acciones': grupos_acciones})
 
 
 @login_required

@@ -57,7 +57,7 @@
       {% if app == 'compras' and not doc.stock_aplicado and doc.tipo_comprobante != '08' and not operaciones_inv %}
         <form method="post" action="{% url 'compras:ingresar_almacen' doc.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-in-down"></i> Ingresar a almacén</button></form>
       {% endif %}
-      <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>
+      {% if app == 'ventas' and puede.ventas_anular or app == 'compras' and puede.compras_anular %}<button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>{% endif %}
     {% endif %}
   </div>
 </div>
