@@ -3,6 +3,15 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.6.0 — 03/10/2026 · Fase 1: configuración base y maestros
+- **Productos por tipo y código**: Mercadería, Materia prima, Semi elaborado, Producto terminado, Suministros, Activo fijo y Servicio. Si el código se deja vacío se genera solo con el prefijo del tipo (ME, MP, SE, PT, SU, AF, SV + 6 dígitos). El tipo no se cambia después de creado.
+- **Ficha del producto con pestañas** (General, Compras, Ventas, Contabilidad, Planificación): marca, código de barras, descripción, precio de compra, proveedor habitual, unidad de compra, precio de venta, stock mínimo y máximo, punto de reorden, lote mínimo de compra, tiempo de entrega y almacén por defecto. Filtro por tipo en la lista de productos.
+- **Juego de cuentas por producto** (existencias, compra, ventas y costo), completado automáticamente según el tipo. La contabilidad automática lo usa en compras, ventas, costo de ventas y en la valorización de cada cuenta de existencias (20, 21, 23, 24, 25). Se agregaron al plan de cuentas las cuentas de materias primas, productos terminados, productos en proceso y suministros (21, 23, 24, 25, 284, 285, 602, 603, 612, 613, 692, 702).
+- **Activo fijo**: es solo de compra; la ficha muestra "Precio" (de compra) y no el precio de venta; no es inventariable.
+- **Ubigeo en cascada** (Departamento → Provincia → Distrito) con la tabla oficial del INEI (1874 distritos) en almacenes, empresa y clientes/proveedores; el ubigeo se completa solo y se valida.
+- **Tipo de cambio SBS**: en Ajustes > Empresa se elige la fuente (SUNAT o SBS promedio ponderado vía Decolecta, con token). Si la SBS no responde se usa SUNAT y se avisa.
+- En compras y órdenes de compra el precio sugerido es el precio de compra del producto.
+
 ## v1.5.0 — 03/10/2026 · Operaciones de inventario
 - Nuevo menú Inventario > Operaciones con 14 tipos de operación: Saldo inicial, Recepción de compras, Devolución de clientes, Ajuste ingreso, Salida por ventas, Devolución a proveedor, Ajuste salida, Consumo interno, Consumo mantenimiento, Salida a destrucción, Traslado a destrucción, Traslado a tránsito, Recepción de tránsito y Manufactura.
 - Cada operación se guarda en borrador y mueve el almacén al confirmarse; se anula con motivo (revierte el movimiento). Numeración propia: NI (ingresos), NS (salidas), NT (traslados), MF (manufactura). Impresión de la nota con firmas.

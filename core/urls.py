@@ -29,6 +29,7 @@ urlpatterns = [
     path('productos/nuevo/', views.ProductoNuevo.as_view(), name='producto_nuevo'),
     path('productos/<int:pk>/', views.ProductoEditar.as_view(), name='producto_editar'),
     path('productos/<int:pk>/kardex/', inventario.kardex_producto, name='kardex'),
+    path('ubigeos.json', views.ubigeos_json, name='ubigeos_json'),
     path('series/', views.SerieLista.as_view(), name='series'),
     path('series/nueva/', views.SerieNueva.as_view(), name='serie_nueva'),
     path('series/<int:pk>/', views.SerieEditar.as_view(), name='serie_editar'),

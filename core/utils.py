@@ -172,7 +172,10 @@ def guardar_documento(request, form_class, formset_class, instance, template, co
         else:
             formset = formset_class(instance=form.instance)
     from .models import Producto
-    productos = list(Producto.objects.filter(activo=True).values('id', 'nombre', 'unidad', 'precio_venta', 'costo_promedio'))
+    productos = list(Producto.objects.filter(activo=True).values('id', 'nombre', 'unidad', 'precio_venta', 'costo_promedio',
+                                                                 'precio_compra'))
+    for p in productos:  # compras: precio de compra referencial o, si no hay, el costo promedio
+        p['precio_compra'] = p['precio_compra'] or p['costo_promedio']
     contexto.update(form=form, formset=formset, productos=productos)
     return render(request, template, contexto)
 

@@ -58,6 +58,13 @@ class Empresa(models.Model):
     permitir_stock_negativo = models.BooleanField(
         'Permitir vender sin stock', default=False,
         help_text='Si está desmarcado, no se puede vender ni despachar más de lo que hay en el almacén')
+    FUENTES_TC = [('SUNAT', 'SUNAT (gratuito, apis.net.pe)'), ('SBS', 'SBS - promedio ponderado (Decolecta, requiere token)')]
+    fuente_tipo_cambio = models.CharField(
+        'Fuente del tipo de cambio', max_length=5, choices=FUENTES_TC, default='SUNAT',
+        help_text='SBS: tipo de cambio promedio ponderado publicado por la SBS. Si no responde se usa SUNAT.')
+    token_tipo_cambio = models.CharField(
+        'Token Decolecta (tipo de cambio SBS)', max_length=200, blank=True,
+        help_text='Se obtiene al registrarse en decolecta.com (API de tipo de cambio SBS)')
 
     class Meta:
         verbose_name = 'empresa'
@@ -111,20 +118,96 @@ class Tercero(models.Model):
         return f'{self.numero_doc} - {self.nombre}'
 
 
+# Tipo de producto: define el prefijo del código automático, si es inventariable y su juego de cuentas
+CLASES_PRODUCTO = [
+    ('MERCADERIA', 'Mercadería'),
+    ('MATERIA_PRIMA', 'Materia prima'),
+    ('SEMIELABORADO', 'Semi elaborado'),
+    ('PRODUCTO_TERMINADO', 'Producto terminado'),
+    ('SUMINISTRO', 'Suministros y materiales'),
+    ('ACTIVO', 'Activo fijo (solo compra)'),
+    ('SERVICIO', 'Servicio'),
+]
+PREFIJOS_PRODUCTO = {'MERCADERIA': 'ME', 'MATERIA_PRIMA': 'MP', 'SEMIELABORADO': 'SE', 'PRODUCTO_TERMINADO': 'PT',
+                     'SUMINISTRO': 'SU', 'ACTIVO': 'AF', 'SERVICIO': 'SV'}
+# Juego de cuentas por defecto (PCGE): existencias, compra, venta, costo de ventas / consumo
+CUENTAS_PRODUCTO = {
+    'MERCADERIA': ('20111', '6011', '70111', '69111'),
+    'MATERIA_PRIMA': ('2411', '6021', '70111', '69111'),
+    'SEMIELABORADO': ('2311', '6021', '7021', '6921'),
+    'PRODUCTO_TERMINADO': ('2111', '6011', '7021', '6921'),
+    'SUMINISTRO': ('2521', '6032', '7599', '6561'),
+    'ACTIVO': ('', '3369', '7599', ''),
+    'SERVICIO': ('', '6399', '7041', ''),
+}
+CAMPOS_CUENTA = ('cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo')
+
+
+def tipo_de_clase(clase):
+    return {'SERVICIO': 'SERVICIO', 'ACTIVO': 'ACTIVO'}.get(clase, 'BIEN')
+
+
+def asignar_cuentas(producto, CuentaContable):
+    """Completa las cuentas vacías del producto con el juego por defecto de su tipo (acepta modelo histórico)."""
+    codigos = CUENTAS_PRODUCTO.get(producto.clase, CUENTAS_PRODUCTO['MERCADERIA'])
+    for campo, codigo in zip(CAMPOS_CUENTA, codigos):
+        if codigo and not getattr(producto, f'{campo}_id'):
+            setattr(producto, campo, CuentaContable.objects.filter(codigo=codigo).first())
+
+
 class Producto(models.Model):
-    TIPOS = [('BIEN', 'Bien (inventariable)'), ('SERVICIO', 'Servicio')]
+    TIPOS = [('BIEN', 'Bien (inventariable)'), ('SERVICIO', 'Servicio'), ('ACTIVO', 'Activo fijo (no inventariable)')]
+    CLASES = CLASES_PRODUCTO
     UNIDADES = [('NIU', 'Unidad'), ('KGM', 'Kilogramo'), ('LTR', 'Litro'), ('MTR', 'Metro'),
                 ('BX', 'Caja'), ('PK', 'Paquete'), ('GLL', 'Galón'), ('ZZ', 'Servicio')]
 
-    codigo = models.CharField('Código', max_length=30, unique=True)
+    # ---- general
+    codigo = models.CharField('Código', max_length=30, unique=True, blank=True,
+                              help_text='Vacío = automático según el tipo (ej. MP000001)')
     nombre = models.CharField(max_length=200)
-    tipo = models.CharField(max_length=10, choices=TIPOS, default='BIEN')
-    unidad = models.CharField(max_length=5, choices=UNIDADES, default='NIU')
+    clase = models.CharField('Tipo de producto', max_length=20, choices=CLASES, default='MERCADERIA')
+    tipo = models.CharField(max_length=10, choices=TIPOS, default='BIEN', editable=False)
+    unidad = models.CharField('Unidad de medida', max_length=5, choices=UNIDADES, default='NIU')
+    marca = models.CharField(max_length=80, blank=True)
+    codigo_barras = models.CharField('Código de barras', max_length=40, blank=True)
+    descripcion = models.TextField('Descripción', blank=True)
+    activo = models.BooleanField(default=True)
+    # ---- compras
+    puede_comprarse = models.BooleanField('Se puede comprar', default=True)
+    precio_compra = models.DecimalField('Precio de compra (sin IGV)', max_digits=12, decimal_places=4, default=D0,
+                                        help_text='Precio referencial para órdenes de compra')
+    proveedor = models.ForeignKey('Tercero', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                  verbose_name='Proveedor habitual', limit_choices_to={'tipo__in': ['PROVEEDOR', 'AMBOS']})
+    unidad_compra = models.CharField('Unidad de compra', max_length=5, choices=UNIDADES, blank=True,
+                                     help_text='Vacío = la misma unidad de medida')
+    # ---- ventas
+    puede_venderse = models.BooleanField('Se puede vender', default=True)
     precio_venta = models.DecimalField('Precio venta (sin IGV)', max_digits=12, decimal_places=2, default=D0)
+    # ---- contabilidad (juego de cuentas)
+    cuenta_existencias = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                           blank=True, related_name='+', limit_choices_to={'imputable': True},
+                                           verbose_name='Cuenta de existencias (inventario)')
+    cuenta_compra = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                      blank=True, related_name='+', limit_choices_to={'imputable': True},
+                                      verbose_name='Cuenta de compra / gasto')
+    cuenta_venta = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                     blank=True, related_name='+', limit_choices_to={'imputable': True},
+                                     verbose_name='Cuenta de ventas (ingreso)')
+    cuenta_costo = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                     blank=True, related_name='+', limit_choices_to={'imputable': True},
+                                     verbose_name='Cuenta de costo de ventas / consumo')
+    # ---- planificación
+    stock_minimo = models.DecimalField('Stock mínimo', max_digits=14, decimal_places=2, default=D0)
+    stock_maximo = models.DecimalField('Stock máximo', max_digits=14, decimal_places=2, default=D0)
+    punto_reorden = models.DecimalField('Punto de reorden', max_digits=14, decimal_places=2, default=D0,
+                                        help_text='Al llegar a esta cantidad se debe pedir')
+    lote_compra = models.DecimalField('Lote mínimo de compra', max_digits=14, decimal_places=2, default=D0)
+    tiempo_entrega = models.PositiveIntegerField('Tiempo de entrega (días)', default=0)
+    almacen_defecto = models.ForeignKey('Almacen', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='+', verbose_name='Almacén por defecto')
+    # ---- calculados
     costo_promedio = models.DecimalField('Costo promedio', max_digits=12, decimal_places=4, default=D0)
     stock = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
-    stock_minimo = models.DecimalField('Stock mínimo', max_digits=14, decimal_places=2, default=D0)
-    activo = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['nombre']
@@ -132,9 +215,39 @@ class Producto(models.Model):
     def __str__(self):
         return f'{self.codigo} - {self.nombre}'
 
+    def save(self, *args, **kwargs):
+        self.tipo = tipo_de_clase(self.clase)
+        if self.clase == 'ACTIVO':
+            self.puede_venderse = False
+        if not self.codigo:
+            self.codigo = self.siguiente_codigo(self.clase)
+        if kwargs.get('update_fields') is None:
+            asignar_cuentas(self, apps.get_model('contabilidad', 'CuentaContable'))
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def siguiente_codigo(cls, clase):
+        """Prefijo del tipo + correlativo de 6 dígitos (MP000001), saltando los códigos ya usados."""
+        prefijo = PREFIJOS_PRODUCTO.get(clase, 'PR')
+        while True:
+            _, numero = Serie.siguiente('PRD', prefijo)
+            codigo = f'{prefijo}{int(numero):06d}'
+            if not cls.objects.filter(codigo=codigo).exists():
+                return codigo
+
     @property
     def es_inventariable(self):
         return self.tipo == 'BIEN'
+
+    @property
+    def precio_referencia(self):
+        """Activos (solo compra): su precio es el de compra; los demás, el de venta."""
+        return self.precio_compra if self.clase == 'ACTIVO' else self.precio_venta
+
+    @property
+    def requiere_reposicion(self):
+        limite = self.punto_reorden or self.stock_minimo
+        return self.es_inventariable and limite > 0 and self.stock <= limite
 
     @property
     def valorizado(self):
@@ -301,7 +414,8 @@ class Serie(models.Model):
     """Correlativos de comprobantes, cotizaciones, órdenes y vouchers."""
     TIPOS = TIPO_COMPROBANTE + [('OC', 'Orden de compra'), ('COT', 'Cotización / Proforma'),
                                 ('PED', 'Orden de pedido'), ('VOU', 'Voucher caja/bancos'),
-                                ('09', 'Guía de remisión remitente'), ('31', 'Guía de remisión transportista')]
+                                ('09', 'Guía de remisión remitente'), ('31', 'Guía de remisión transportista'),
+                                ('PRD', 'Código de productos (serie = prefijo del tipo)')]
     tipo = models.CharField(max_length=3, choices=TIPOS)
     serie = models.CharField(max_length=4)
     correlativo = models.PositiveIntegerField('Último correlativo', default=0)

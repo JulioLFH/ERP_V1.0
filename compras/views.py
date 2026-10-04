@@ -108,7 +108,7 @@ def oc_lista(request):
 
 def _oc_ctx(titulo, doc=None):
     return {'titulo': titulo, 'doc': doc, 'app': 'compras', 'igv_tasa': Empresa.actual().igv_tasa,
-            'precio_campo': 'costo_promedio', 'volver': 'compras:oc_lista'}
+            'precio_campo': 'precio_compra', 'volver': 'compras:oc_lista'}
 
 
 @login_required

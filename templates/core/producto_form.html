@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{{ titulo }}{% if object.pk %} <small class="text-muted fs-6">{{ object.codigo }}</small>{% endif %}</h1>
+  <a href="{% url 'productos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  {% if form.errors %}<div class="alert alert-danger py-2">Revise los campos marcados (pueden estar en otra pestaña).</div>{% endif %}
+  <div class="card" style="max-width: 1000px">
+    <div class="card-header pb-0 border-bottom-0">
+      <ul class="nav nav-tabs card-header-tabs" role="tablist">
+        {% for clave, titulo_p, icono, campos in form.pestanas %}
+        <li class="nav-item" role="presentation" id="tab-li-{{ clave }}">
+          <button class="nav-link {% if forloop.first %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#pest-{{ clave }}" type="button" role="tab">
+            <i class="bi {{ icono }}"></i> {{ titulo_p }}{% for f in campos %}{% if f.errors %} <span class="badge text-bg-danger">!</span>{% endif %}{% endfor %}</button>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="card-body tab-content">
+      {% for clave, titulo_p, icono, campos in form.pestanas %}
+      <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" id="pest-{{ clave }}" role="tabpanel">
+        {% if clave == 'contabilidad' %}<p class="small text-muted">Juego de cuentas del producto. Se completa solo según el tipo de producto y lo usa la contabilidad automática (compras, ventas, costo e inventario).</p>{% endif %}
+        {% if clave == 'planificacion' %}<p class="small text-muted">Datos para reponer stock: al llegar al punto de reorden (o al stock mínimo) el producto aparece como "por reponer".</p>{% endif %}
+        <div class="row g-3">
+          {% for field in campos %}
+          <div class="{% if field.name == 'nombre' or field.name == 'descripcion' %}col-12{% else %}col-md-6{% endif %}" id="campo-{{ field.name }}">{% include 'core/_campo.html' %}</div>
+          {% endfor %}
+        </div>
+        {% if clave == 'general' and object.pk and object.es_inventariable %}
+        <div class="row g-3 mt-1 small text-muted"><div class="col-md-4">Stock actual: <b>{{ object.stock }}</b></div><div class="col-md-4">Costo promedio: <b>{{ object.costo_promedio }}</b></div><div class="col-md-4"><a href="{% url 'kardex' object.pk %}">Ver kardex</a></div></div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="mt-3 d-flex gap-2">
+    <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
+    <a href="{% url 'productos' %}" class="btn btn-outline-secondary">Cancelar</a>
+  </div>
+</form>
+<script>
+// Activos fijos: son solo de compra, se muestra "Precio" (de compra) y no el precio de venta.
+// Servicios: sin datos de inventario.
+(function () {
+  const clase = document.getElementById('id_clase');
+  if (!clase) return;
+  const mostrar = (id, ok) => { const el = document.getElementById(id); if (el) el.classList.toggle('d-none', !ok); };
+  const etiqueta = document.querySelector('label[for="id_precio_compra"]');
+  function aplicar() {
+    const v = clase.value, activo = v === 'ACTIVO', servicio = v === 'SERVICIO';
+    mostrar('tab-li-ventas', !activo);
+    mostrar('campo-cuenta_existencias', !servicio && !activo);
+    mostrar('campo-cuenta_costo', !servicio && !activo);
+    mostrar('tab-li-planificacion', !servicio && !activo);
+    if (etiqueta) etiqueta.textContent = activo ? 'Precio' : 'Precio de compra (sin IGV)';
+    const vender = document.getElementById('id_puede_venderse');
+    if (vender && activo) vender.checked = false;
+  }
+  clase.addEventListener('change', aplicar);
+  aplicar();
+})();
+</script>
+{% endblock %}

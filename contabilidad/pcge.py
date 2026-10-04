@@ -27,7 +27,15 @@ PCGE = [
     ('19', 'ESTIMACIÓN DE CUENTAS DE COBRANZA DUDOSA'), ('191', 'Cuentas por cobrar comerciales - terceros'),
     ('1911', 'Estimación de cobranza dudosa'),
     ('20', 'MERCADERÍAS'), ('201', 'Mercaderías'), ('2011', 'Mercaderías'), ('20111', 'Mercaderías - costo'),
+    ('21', 'PRODUCTOS TERMINADOS'), ('211', 'Productos manufacturados'), ('2111', 'Productos manufacturados'),
+    ('23', 'PRODUCTOS EN PROCESO'), ('231', 'Productos en proceso de manufactura'),
+    ('2311', 'Productos en proceso (semi elaborados)'),
+    ('24', 'MATERIAS PRIMAS'), ('241', 'Materias primas para productos manufacturados'),
+    ('2411', 'Materias primas para productos manufacturados'),
+    ('25', 'MATERIALES AUXILIARES, SUMINISTROS Y REPUESTOS'), ('252', 'Suministros'), ('2521', 'Suministros'),
     ('28', 'INVENTARIOS POR RECIBIR'), ('281', 'Mercaderías'), ('2811', 'Mercaderías por recibir'),
+    ('284', 'Materias primas'), ('2841', 'Materias primas por recibir'),
+    ('285', 'Materiales auxiliares, suministros y repuestos'), ('2851', 'Suministros por recibir'),
     ('33', 'PROPIEDAD, PLANTA Y EQUIPO'),
     ('331', 'Terrenos'), ('3311', 'Terrenos'),
     ('332', 'Edificaciones'), ('3321', 'Edificaciones'),
@@ -66,8 +74,12 @@ PCGE = [
     ('59', 'RESULTADOS ACUMULADOS'), ('591', 'Utilidades no distribuidas'), ('5911', 'Utilidades acumuladas'),
     ('592', 'Pérdidas acumuladas'), ('5921', 'Pérdidas acumuladas'),
     ('60', 'COMPRAS'), ('601', 'Mercaderías'), ('6011', 'Mercaderías'),
+    ('602', 'Materias primas'), ('6021', 'Materias primas para productos manufacturados'),
+    ('603', 'Materiales auxiliares, suministros y repuestos'), ('6032', 'Suministros'),
     ('609', 'Costos vinculados con las compras'), ('6091', 'Costos vinculados con compras de mercaderías'),
     ('61', 'VARIACIÓN DE INVENTARIOS'), ('611', 'Mercaderías'), ('6111', 'Mercaderías'),
+    ('612', 'Materias primas'), ('6121', 'Materias primas'),
+    ('613', 'Materiales auxiliares, suministros y repuestos'), ('6132', 'Suministros'),
     ('62', 'GASTOS DE PERSONAL Y DIRECTORES'), ('621', 'Remuneraciones'), ('6211', 'Sueldos y salarios'),
     ('6214', 'Gratificaciones'), ('6215', 'Vacaciones'),
     ('627', 'Seguridad, previsión social y otras contribuciones'), ('6271', 'Régimen de prestaciones de salud (ESSALUD)'),
@@ -93,7 +105,9 @@ PCGE = [
     ('68', 'VALUACIÓN Y DETERIORO DE ACTIVOS Y PROVISIONES'), ('681', 'Depreciación'),
     ('6814', 'Depreciación de propiedad, planta y equipo - costo'),
     ('69', 'COSTO DE VENTAS'), ('691', 'Mercaderías'), ('6911', 'Mercaderías'), ('69111', 'Mercaderías - terceros'),
+    ('692', 'Productos terminados'), ('6921', 'Productos manufacturados'),
     ('70', 'VENTAS'), ('701', 'Mercaderías'), ('7011', 'Mercaderías'), ('70111', 'Mercaderías - terceros'),
+    ('702', 'Productos terminados'), ('7021', 'Productos manufacturados'),
     ('704', 'Prestación de servicios'), ('7041', 'Prestación de servicios - terceros'),
     ('709', 'Devoluciones sobre ventas'), ('7091', 'Devoluciones sobre ventas'),
     ('75', 'OTROS INGRESOS DE GESTIÓN'), ('759', 'Otros ingresos de gestión'), ('7599', 'Otros ingresos de gestión'),
@@ -125,6 +139,10 @@ def destinos(codigo):
     if codigo.startswith('6011'):
         # la compra queda "por recibir"; el ingreso al almacén (kardex) la pasa a 20111
         return '2811', '6111'
+    if codigo.startswith('6021'):
+        return '2841', '6121'
+    if codigo.startswith('6032'):
+        return '2851', '6132'
     if codigo.startswith(('62', '63', '64', '65', '68')):
         return '941', '7911'
     if codigo.startswith('67'):

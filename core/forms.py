@@ -50,10 +50,59 @@ class FechaInput(forms.DateInput):
         super().__init__(**kwargs)
 
 
-class EmpresaForm(BootstrapMixin, forms.ModelForm):
+class UbigeoMixin:
+    """Departamento → provincia → distrito en cascada; el ubigeo (6 dígitos) se completa solo.
+
+    Los selectores de departamento y provincia solo ayudan a elegir: el dato que se guarda es el ubigeo
+    del distrito, validado contra la tabla del INEI (static/js/app.js los llena desde /ubigeos.json).
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'ubigeo' not in self.fields:
+            return
+        from . import ubigeo
+        actual = self.initial.get('ubigeo') or getattr(self.instance, 'ubigeo', '') or ''
+        dep = forms.CharField(label='Departamento', required=False,
+                              widget=forms.Select(attrs={'class': 'form-select form-select-sm',
+                                                         'data-ubigeo-nivel': 'departamento'}))
+        prov = forms.CharField(label='Provincia', required=False,
+                               widget=forms.Select(attrs={'class': 'form-select form-select-sm',
+                                                          'data-ubigeo-nivel': 'provincia'}))
+        campo = self.fields['ubigeo']
+        campo.label = 'Distrito'
+        campo.help_text = (f'Ubigeo {actual}: {ubigeo.descripcion(actual)}' if ubigeo.existe(actual)
+                           else 'Elija departamento, provincia y distrito: el ubigeo se completa solo')
+        opciones = [('', '---------')] + ([(actual, ubigeo.tabla()[actual][2])] if ubigeo.existe(actual) else [])
+        campo.widget = forms.Select(choices=opciones, attrs={
+            'class': 'form-select form-select-sm', 'data-ubigeo-nivel': 'distrito', 'data-valor': actual})
+        orden = []
+        for nombre in self.fields:
+            if nombre == 'ubigeo':
+                orden += ['ubigeo_departamento', 'ubigeo_provincia']
+            orden.append(nombre)
+        self.fields['ubigeo_departamento'], self.fields['ubigeo_provincia'] = dep, prov
+        self.order_fields(orden)
+
+    def clean_ubigeo(self):
+        from . import ubigeo
+        valor = (self.cleaned_data.get('ubigeo') or '').strip()
+        if valor and not ubigeo.existe(valor):
+            raise forms.ValidationError('Ubigeo inexistente: elija el distrito de la lista.')
+        return valor
+
+
+class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Empresa
         fields = '__all__'
+        widgets = {'token_tipo_cambio': forms.PasswordInput(render_value=True)}
+
+    def clean(self):
+        datos = super().clean()
+        if datos.get('fuente_tipo_cambio') == 'SBS' and not datos.get('token_tipo_cambio'):
+            self.add_error('token_tipo_cambio', 'Para usar el tipo de cambio SBS indique el token de Decolecta.')
+        return datos
 
 
 def digito_ruc(primeros10):
@@ -74,7 +123,7 @@ def error_ruc(ruc):
     return ''
 
 
-class TerceroForm(BootstrapMixin, forms.ModelForm):
+class TerceroForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Tercero
         fields = '__all__'
@@ -90,9 +139,48 @@ class TerceroForm(BootstrapMixin, forms.ModelForm):
 
 
 class ProductoForm(BootstrapMixin, forms.ModelForm):
+    # pestañas del formulario (estilo Odoo): (clave, título, icono, campos)
+    PESTANAS = [
+        ('general', 'General', 'bi-info-circle',
+         ['clase', 'codigo', 'nombre', 'unidad', 'marca', 'codigo_barras', 'descripcion', 'activo']),
+        ('compras', 'Compras', 'bi-bag', ['puede_comprarse', 'precio_compra', 'proveedor', 'unidad_compra']),
+        ('ventas', 'Ventas', 'bi-receipt', ['puede_venderse', 'precio_venta']),
+        ('contabilidad', 'Contabilidad', 'bi-journal-bookmark',
+         ['cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo']),
+        ('planificacion', 'Planificación', 'bi-calendar-check',
+         ['stock_minimo', 'punto_reorden', 'stock_maximo', 'lote_compra', 'tiempo_entrega', 'almacen_defecto']),
+    ]
+
     class Meta:
         model = Producto
         exclude = ['stock', 'costo_promedio']
+        widgets = {'descripcion': forms.Textarea(attrs={'rows': 2})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from contabilidad.models import CuentaContable
+        for campo in ('cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo'):
+            self.fields[campo].queryset = CuentaContable.objects.filter(imputable=True).order_by('codigo')
+            self.fields[campo].help_text = 'Vacío = la del tipo de producto'
+        self.fields['proveedor'].queryset = Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS'])
+        self.fields['almacen_defecto'].queryset = Almacen.objects.filter(activo=True, uso='')
+        if self.instance.pk:  # el tipo define el código y el inventario: no se cambia luego de crearlo
+            self.fields['clase'].disabled = True
+            self.fields['clase'].help_text = 'No se cambia después de creado (define el código y las cuentas)'
+            self.fields['codigo'].required = True
+
+    def pestanas(self):
+        return [(clave, titulo, icono, [self[c] for c in campos if c in self.fields])
+                for clave, titulo, icono, campos in self.PESTANAS]
+
+    def clean(self):
+        datos = super().clean()
+        clase = datos.get('clase') or self.instance.clase
+        if clase != 'ACTIVO' and datos.get('puede_venderse') and datos.get('precio_venta') is None:
+            self.add_error('precio_venta', 'Indique el precio de venta.')
+        if datos.get('stock_maximo') and datos.get('stock_minimo') and datos['stock_maximo'] < datos['stock_minimo']:
+            self.add_error('stock_maximo', 'Debe ser mayor o igual al stock mínimo.')
+        return datos
 
 
 class SerieForm(BootstrapMixin, forms.ModelForm):
@@ -101,7 +189,7 @@ class SerieForm(BootstrapMixin, forms.ModelForm):
         fields = '__all__'
 
 
-class AlmacenForm(BootstrapMixin, forms.ModelForm):
+class AlmacenForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Almacen
         fields = '__all__'

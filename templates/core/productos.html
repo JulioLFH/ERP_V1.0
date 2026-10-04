@@ -1,2 +1,4 @@
 {% extends 'core/lista.html' %}
-{% block acciones_fila %}<a href="{% url 'kardex' obj.pk %}" class="btn btn-sm btn-outline-primary py-0 me-1" title="Kardex"><i class="bi bi-list-columns"></i></a>{% endblock %}
+{% block filtros %}<div class="col-auto"><select name="clase" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todos los tipos</option>
+  {% for v, e in clases %}<option value="{{ v }}" {% if request.GET.clase == v %}selected{% endif %}>{{ e }}</option>{% endfor %}</select></div>{% endblock %}
+{% block acciones_fila %}{% if obj.es_inventariable %}<a href="{% url 'kardex' obj.pk %}" class="btn btn-sm btn-outline-primary py-0 me-1" title="Kardex"><i class="bi bi-list-columns"></i></a>{% endif %}{% endblock %}

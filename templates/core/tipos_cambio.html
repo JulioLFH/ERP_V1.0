@@ -4,10 +4,11 @@
 <h1 class="page-title mb-3">Tipo de cambio USD / PEN</h1>
 <div class="row g-3">
   <div class="col-lg-4">
-    <div class="kpi mb-3"><div class="label">Hoy (venta SUNAT)</div>
+    <div class="kpi mb-3"><div class="label">Hoy (venta {{ fuente }})</div>
       <div class="value">{% if hoy %}{{ hoy.venta }}{% else %}—{% endif %}</div>
       <div class="small text-muted">{% if hoy %}Compra {{ hoy.compra }} · publicado {{ hoy.fecha|date:'d/m/Y' }} · {{ hoy.fuente }}{% else %}Sin dato registrado{% endif %}</div></div>
-    <div class="card mb-3"><div class="card-header">Actualizar desde SUNAT</div><div class="card-body">
+    <div class="card mb-3"><div class="card-header">Actualizar desde {{ fuente }}</div><div class="card-body">
+      <p class="small text-muted">Fuente configurada en {% if 'ajustes' in mods %}<a href="{% url 'empresa' %}">Ajustes &gt; Empresa</a>{% else %}Ajustes &gt; Empresa{% endif %}: <b>{{ fuente }}</b>{% if fuente == 'SBS' %} (promedio ponderado SBS; si no responde se usa SUNAT){% endif %}.</p>
       <form method="post" class="d-flex gap-2 align-items-end">{% csrf_token %}
         <div><label class="form-label small mb-1">Últimos días</label><input type="number" name="dias" value="7" min="1" max="60" class="form-control form-control-sm" style="width:90px"></div>
         <button name="actualizar" value="1" class="btn btn-sm btn-primary"><i class="bi bi-cloud-download"></i> Descargar</button>

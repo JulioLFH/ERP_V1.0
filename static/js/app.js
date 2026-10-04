@@ -123,6 +123,36 @@
   actualizar(false);
 })();
 
+// Ubigeo en cascada: departamento → provincia → distrito (el valor guardado es el ubigeo del distrito)
+(function () {
+  const dist = document.querySelector('select[data-ubigeo-nivel="distrito"]');
+  if (!dist) return;
+  const dep = document.querySelector('select[data-ubigeo-nivel="departamento"]');
+  const prov = document.querySelector('select[data-ubigeo-nivel="provincia"]');
+  const ayuda = dist.parentElement.querySelector('.form-text');
+  const actual = dist.dataset.valor || '';
+  const llenar = (sel, items, valor) => {
+    sel.innerHTML = '<option value="">---------</option>' +
+      items.map(([c, n]) => `<option value="${c}"${c === valor ? ' selected' : ''}>${n}</option>`).join('');
+  };
+  fetch('/ubigeos.json').then((r) => r.json()).then((arbol) => {
+    const deps = Object.fromEntries(arbol.map((d) => [d[0], d]));
+    const provincias = () => (deps[dep.value] ? deps[dep.value][2] : []);
+    const distritos = () => { const p = provincias().find((x) => x[0] === prov.value); return p ? p[2] : []; };
+    const mostrar = () => {
+      const d = distritos().find((x) => x[0] === dist.value);
+      if (ayuda) ayuda.textContent = d ? `Ubigeo ${d[0]}` : 'Elija departamento, provincia y distrito: el ubigeo se completa solo';
+    };
+    llenar(dep, arbol.map((d) => [d[0], d[1]]), actual.slice(0, 2));
+    llenar(prov, provincias().map((p) => [p[0], p[1]]), actual.slice(0, 4));
+    llenar(dist, distritos(), actual);
+    mostrar();
+    dep.addEventListener('change', () => { llenar(prov, provincias().map((p) => [p[0], p[1]]), ''); llenar(dist, [], ''); mostrar(); });
+    prov.addEventListener('change', () => { llenar(dist, distritos(), ''); mostrar(); });
+    dist.addEventListener('change', mostrar);
+  });
+})();
+
 // confirmación de acciones destructivas
 document.querySelectorAll('form[data-confirm]').forEach((f) => {
   f.addEventListener('submit', (e) => { if (!confirm(f.dataset.confirm)) e.preventDefault(); });

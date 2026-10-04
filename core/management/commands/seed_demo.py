@@ -39,7 +39,7 @@ class Command(BaseCommand):
         prods = [Producto.objects.create(codigo=c, nombre=n, precio_venta=Decimal(p), stock_minimo=10)
                  for c, n, p in (('P001', 'Laptop Core i5 16GB', '2500'), ('P002', 'Monitor 24" Full HD', '520'),
                                  ('P003', 'Teclado + mouse inalámbrico', '85'), ('P004', 'Impresora multifuncional', '780'))]
-        serv = Producto.objects.create(codigo='S001', nombre='Servicio de soporte técnico', tipo='SERVICIO',
+        serv = Producto.objects.create(codigo='S001', nombre='Servicio de soporte técnico', clase='SERVICIO',
                                        unidad='ZZ', precio_venta=Decimal('350'))
 
         caja = Cuenta.objects.create(tipo='CAJA', nombre='Caja principal', saldo_inicial=Decimal('2000'))

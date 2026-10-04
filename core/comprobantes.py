@@ -105,7 +105,7 @@ class ComprobanteViews:
 
     def _form_ctx(self, titulo, doc=None):
         return self._ctx(titulo=titulo, doc=doc, igv_tasa=Empresa.actual().igv_tasa,
-                         precio_campo='costo_promedio' if self.app == 'compras' else 'precio_venta')
+                         precio_campo='precio_compra' if self.app == 'compras' else 'precio_venta')
 
     def nuevo(self, request):
         initial, items = self.initial_desde(request)

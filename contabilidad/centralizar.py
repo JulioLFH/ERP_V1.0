@@ -114,6 +114,18 @@ def _rango(periodo):
     return date(int(periodo[:4]), int(periodo[4:]), 1), _fin_mes(periodo)
 
 
+def _repartir(total, pesos):
+    """[(clave, parte)] de total proporcional a pesos {clave: peso}; el último lleva el redondeo."""
+    suma = sum(pesos.values(), D0)
+    claves = list(pesos)
+    partes, restante = [], total
+    for n, k in enumerate(claves):
+        parte = restante if n == len(claves) - 1 else r2(total * pesos[k] / suma)
+        restante -= parte
+        partes.append((k, parte))
+    return partes
+
+
 def cuenta_caja(cuenta_fin, cta):
     from .automatico import asegurar_subcuenta
     return asegurar_subcuenta(cuenta_fin)
@@ -129,20 +141,21 @@ def asiento_venta(v, cta):
     b.add(cta['cliente'], debe=v.total_pen, tercero=v.tercero, documento=doc, importe_me=v.total)
     b.add(cta['igv'], haber=v.igv_pen, documento=doc, importe_me=v.igv)
     b.add(cta['icbper'], haber=v.icbper_pen, documento=doc, importe_me=v.icbper)
-    # ingresos: bienes vs servicios según el detalle (sin detalle -> bienes)
+    # ingresos: cuenta de ventas de cada producto (sin producto o sin cuenta -> bienes / servicios)
     ingreso = v.base_pen + v.nograv_pen
     subt = defaultdict(lambda: D0)
-    for i in v.items.select_related('producto'):
-        subt['servicios' if i.producto and i.producto.tipo == 'SERVICIO' else 'bienes'] += i.subtotal
+    for i in v.items.select_related('producto__cuenta_venta'):
+        p = i.producto
+        if p and p.cuenta_venta_id:
+            cuenta = p.cuenta_venta
+        else:
+            cuenta = cta['ventas_servicios'] if p and p.tipo == 'SERVICIO' else cta['ventas_bienes']
+        subt[cuenta] += i.subtotal
+    if not sum(subt.values(), D0):
+        subt = {cta['ventas_bienes']: Decimal('1')}
     total_items = sum(subt.values(), D0)
-    if not total_items:
-        subt, total_items = {'bienes': Decimal('1')}, Decimal('1')
-    restante = ingreso
-    claves = list(subt)
-    for n, k in enumerate(claves):
-        parte = restante if n == len(claves) - 1 else r2(ingreso * subt[k] / total_items)
-        restante -= parte
-        b.add(cta[f'ventas_{k}'], haber=parte, documento=doc, importe_me=(v.total - v.igv) * subt[k] / total_items)
+    for cuenta, parte in _repartir(ingreso, subt):
+        b.add(cuenta, haber=parte, documento=doc, importe_me=(v.total - v.igv) * subt[cuenta] / total_items)
     if v.ret_pen:
         b.add(cta['igv_retencion'], debe=v.ret_pen, documento=doc, glosa='Retención de IGV del cliente')
         b.add(cta['cliente'], haber=v.ret_pen, tercero=v.tercero, documento=doc, glosa='Retención de IGV del cliente')
@@ -164,7 +177,18 @@ def asiento_compra(c, cta):
     honorarios = c.tipo_comprobante == '02'
     base = c.total_pen - c.igv_pen
     cuenta_gasto = c.cuenta_contable or cta.get(f'compra_{c.clasificacion}') or cta['compra_GASTO']
-    b.add(cuenta_gasto, debe=base, documento=doc, centro_costo=c.centro_costo, importe_me=c.total - c.igv)
+    # la cuenta elegida en el comprobante manda; si no, la cuenta de compra de cada producto
+    pesos = defaultdict(lambda: D0)
+    if not c.cuenta_contable_id:
+        for i in c.items.select_related('producto__cuenta_compra'):
+            pesos[i.producto.cuenta_compra if i.producto and i.producto.cuenta_compra_id else cuenta_gasto] += \
+                i.subtotal
+    if not sum(pesos.values(), D0):
+        pesos = {cuenta_gasto: Decimal('1')}
+    total_items = sum(pesos.values(), D0)
+    for cuenta, parte in _repartir(base, pesos):
+        b.add(cuenta, debe=parte, documento=doc, centro_costo=c.centro_costo,
+              importe_me=(c.total - c.igv) * pesos[cuenta] / total_items)
     b.add(cta['igv'], debe=c.igv_pen, documento=doc, importe_me=c.igv)
     cuenta_prov = cta['honorarios_por_pagar'] if honorarios else cta['proveedor']
     if c.ret_pen:
@@ -257,53 +281,87 @@ def asiento_cambio_cierre(periodo, cta, tc_obj):
 
 # ---------------------------------------------------------------- inventario
 def asiento_inventario(periodo, cta):
-    """Movimientos del kardex del mes y ajuste final para que la 20111 iguale la valorización."""
+    """Movimientos del kardex del mes y ajuste final para que cada cuenta de existencias (20, 21, 23, 24, 25)
+    iguale la valorización de los productos que la usan.
+
+    Cada producto aporta su juego de cuentas: existencias, costo de ventas y "por recibir" (destino de su
+    cuenta de compra, ej. 6011 -> 2811, 6021 -> 2841).
+    """
     from core.inventario import valor_inventario
-    desde, hasta = _rango(periodo)
+    from core.models import Producto
     from inventario.models import TipoOperacion
+    desde, hasta = _rango(periodo)
     tipos = {t.codigo: t for t in TipoOperacion.objects.select_related('cuenta_contable')}
-    grupos = defaultdict(lambda: D0)
-    por_cuenta = defaultdict(lambda: D0)  # operaciones de inventario: contrapartida del tipo de operación
+    merc_def = cta['mercaderias']
+    productos = {p.pk: p for p in Producto.objects.select_related(
+        'cuenta_existencias', 'cuenta_costo', 'cuenta_compra__destino_debe')}
+
+    def existencias(p):
+        return p.cuenta_existencias if p and p.cuenta_existencias_id else merc_def
+
+    def por_recibir(p):
+        c = p.cuenta_compra if p and p.cuenta_compra_id else None
+        return c.destino_debe if c and c.destino_debe_id and c.destino_debe.codigo.startswith('28') \
+            else cta['mercaderia_por_recibir']
+
+    def costo(p):
+        return p.cuenta_costo if p and p.cuenta_costo_id else cta['costo_ventas']
+
+    grupos = defaultdict(lambda: D0)   # (existencias, contrapartida, glosa) -> variación del inventario
+    sin_contra = defaultdict(lambda: D0)  # traslados y manufactura: solo cambian de cuenta de existencias
     for k in Kardex.objects.filter(fecha__range=[desde, hasta]):
-        valor = r2(k.cantidad * k.costo_unitario) * (1 if k.tipo == 'ENTRADA' else -1)  # variación del inventario
+        p = productos.get(k.producto_id)
+        ex = existencias(p)
+        valor = r2(k.cantidad * k.costo_unitario) * (1 if k.tipo == 'ENTRADA' else -1)
         if k.origen == 'OPERACION':
             tipo = tipos.get(k.concepto)
-            if tipo and tipo.cuenta_contable_id:
-                por_cuenta[tipo.cuenta_contable] += valor
-            # traslados y manufactura no tienen contrapartida: salida y entrada se compensan en la 20111
-            continue
-        if k.origen == 'COMPRA':
-            grupos['recepcion'] += valor
+            if not (tipo and tipo.cuenta_contable_id):
+                sin_contra[ex] += valor
+                continue
+            contra = tipo.cuenta_contable
+            # las cuentas generales del tipo se reemplazan por las del producto
+            if contra.pk == cta['mercaderia_por_recibir'].pk:
+                contra = por_recibir(p)
+            elif contra.pk == cta['costo_ventas'].pk:
+                contra = costo(p)
+            grupos[(ex, contra, f'Operaciones de inventario ({tipo.cuenta_contable.nombre[:50]})')] += valor
+        elif k.origen == 'COMPRA':
+            grupos[(ex, por_recibir(p), 'Ingreso al almacén de compras')] += valor
         elif k.origen in ('VENTA', 'GUIA'):
-            grupos['costo'] += valor
+            grupos[(ex, costo(p), 'Costo de ventas y despachos')] += valor
         elif k.origen == 'AJUSTE' and k.concepto == 'INICIAL':
-            grupos['inicial'] += valor
+            grupos[(ex, cta['inventario_inicial'], 'Inventario inicial')] += valor
         elif k.origen == 'AJUSTE' and k.concepto in ('MERMA', 'CONSUMO'):
-            grupos['merma'] += valor
-        else:  # sobrantes y movimientos sin origen
-            grupos['sobrante' if valor > 0 else 'merma'] += valor
+            grupos[(ex, cta['inventario_merma'], 'Mermas, faltantes y consumo')] += valor
+        elif valor > 0:  # sobrantes y movimientos sin origen
+            grupos[(ex, cta['inventario_sobrante'], 'Sobrantes de inventario')] += valor
+        else:
+            grupos[(ex, cta['inventario_merma'], 'Mermas, faltantes y consumo')] += valor
     a = Asiento(fecha=hasta, libro='05', origen='INVENTARIO', glosa=f'Inventario y costo de ventas {periodo} (kardex)')
     b = Borrador(a)
-    merc = cta['mercaderias']
-    contras = {'recepcion': (cta['mercaderia_por_recibir'], 'Ingreso al almacén de compras'),
-               'costo': (cta['costo_ventas'], 'Costo de ventas y despachos'),
-               'inicial': (cta['inventario_inicial'], 'Inventario inicial'),
-               'merma': (cta['inventario_merma'], 'Mermas, faltantes y consumo'),
-               'sobrante': (cta['inventario_sobrante'], 'Sobrantes de inventario')}
-    for clave, (contra, glosa) in contras.items():
-        if grupos[clave]:
-            b.neto(merc, contra, grupos[clave], glosa=glosa)
-    for contra, valor in sorted(por_cuenta.items(), key=lambda x: x[0].codigo):
+    for (ex, contra, glosa), valor in sorted(grupos.items(), key=lambda x: (x[0][0].codigo, x[0][1].codigo)):
         if valor:
-            b.neto(merc, contra, valor, glosa=f'Operaciones de inventario ({contra.nombre[:60]})')
-    # ajuste por valuación: la 20111 debe quedar igual al inventario valorizado del kardex
-    agg = AsientoLinea.objects.filter(cuenta=merc, asiento__fecha__lte=hasta).aggregate(d=Sum('debe'), h=Sum('haber'))
-    libro = (agg['d'] or D0) - (agg['h'] or D0) + sum(l.debe - l.haber for l in b.lineas if l.cuenta_id == merc.pk)
-    dif = r2(valor_inventario(hasta)[1] - libro)
-    if dif > 0:
-        b.neto(merc, cta['inventario_sobrante'], dif, glosa='Ajuste por valuación (costo promedio)')
-    elif dif < 0:
-        b.neto(merc, cta['inventario_merma'], dif, glosa='Ajuste por valuación (costo promedio)')
+            b.neto(ex, contra, valor, glosa=glosa)
+    # traslados entre cuentas de existencias (ej. manufactura: 2411 -> 2111); el redondeo va al ajuste final
+    for ex, valor in sorted(sin_contra.items(), key=lambda x: x[0].codigo):
+        b.add(ex, debe=valor, glosa='Traslados y manufactura')
+    neto = sum((l.debe - l.haber for l in b.lineas), D0)
+    if neto:
+        b.add(cta['inventario_sobrante'] if neto > 0 else cta['inventario_merma'], debe=-neto,
+              glosa='Redondeo de traslados y manufactura')
+    # ajuste por valuación: cada cuenta de existencias debe quedar igual al inventario valorizado del kardex
+    objetivo = defaultdict(lambda: D0)
+    for fila in valor_inventario(hasta)[0]:
+        objetivo[existencias(productos.get(fila['p'].pk))] += fila['valor']
+    cuentas_ex = set(objetivo) | {merc_def} | {ex for ex, _, _ in grupos} | set(sin_contra)
+    for ex in sorted(cuentas_ex, key=lambda c: c.codigo):
+        agg = AsientoLinea.objects.filter(cuenta=ex, asiento__fecha__lte=hasta).aggregate(d=Sum('debe'), h=Sum('haber'))
+        libro = (agg['d'] or D0) - (agg['h'] or D0) + sum(l.debe - l.haber for l in b.lineas if l.cuenta_id == ex.pk)
+        dif = r2(objetivo[ex] - libro)
+        if dif > 0:
+            b.neto(ex, cta['inventario_sobrante'], dif, glosa='Ajuste por valuación (costo promedio)')
+        elif dif < 0:
+            b.neto(ex, cta['inventario_merma'], dif, glosa='Ajuste por valuación (costo promedio)')
     b.agregar_destinos()
     return b.grabar()
 

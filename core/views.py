@@ -126,19 +126,24 @@ def tipos_cambio(request):
     if request.method == 'POST':
         if 'actualizar' in request.POST:
             dias = int(request.POST.get('dias') or 7)
-            ok = 0
+            ok, fuentes = 0, set()
             for i in range(min(dias, 60)):
                 f = date.today() - timedelta(days=i)
                 valores = tipo_cambio.consultar_sunat(f)
                 if valores:
+                    fuente = valores[2] if len(valores) > 2 else 'SUNAT'
                     TipoCambio.objects.update_or_create(fecha=f, defaults={
-                        'compra': valores[0], 'venta': valores[1], 'fuente': 'SUNAT'})
+                        'compra': valores[0], 'venta': valores[1], 'fuente': fuente})
+                    fuentes.add(fuente)
                     ok += 1
             if ok:
-                messages.success(request, f'{ok} días actualizados desde SUNAT.')
+                messages.success(request, f'{ok} días actualizados desde {" / ".join(sorted(fuentes))}.')
+                if tipo_cambio.fuente_actual()[0] == 'SBS' and fuentes == {'SUNAT'}:
+                    messages.warning(request, 'La SBS (Decolecta) no respondió: se usó SUNAT. Revise el token en '
+                                              'Ajustes > Empresa.')
             else:
-                messages.error(request, 'No se pudo consultar SUNAT (sin conexión o servicio no disponible). '
-                                        'Puede registrar el tipo de cambio manualmente.')
+                messages.error(request, 'No se pudo consultar el tipo de cambio (sin conexión o servicio no '
+                                        'disponible). Puede registrarlo manualmente.')
             return redirect('tipos_cambio')
         if form.is_valid():
             TipoCambio.objects.update_or_create(fecha=form.cleaned_data['fecha'], defaults={
@@ -146,7 +151,8 @@ def tipos_cambio(request):
             messages.success(request, 'Tipo de cambio guardado.')
             return redirect('tipos_cambio')
     return render(request, 'core/tipos_cambio.html', {
-        'form': form, 'tipos': TipoCambio.objects.all()[:90], 'hoy': tipo_cambio.obtener(date.today())})
+        'form': form, 'tipos': TipoCambio.objects.all()[:90], 'hoy': tipo_cambio.obtener(date.today()),
+        'fuente': tipo_cambio.fuente_actual()[0]})
 
 
 @login_required
@@ -234,22 +240,47 @@ class TerceroEditar(FormGenerico, UpdateView):
 class ProductoLista(ListaGenerica):
     model = Producto
     titulo = 'Productos y servicios (almacén)'
-    columnas = [('Código', 'codigo'), ('Nombre', 'nombre'), ('Tipo', 'get_tipo_display'), ('U.M.', 'unidad'),
-                ('P. venta', 'precio_venta'), ('Costo prom.', 'costo_promedio'), ('Stock', 'stock'),
+    columnas = [('Código', 'codigo'), ('Nombre', 'nombre'), ('Tipo', 'get_clase_display'), ('U.M.', 'unidad'),
+                ('Precio', 'precio_referencia'), ('Costo prom.', 'costo_promedio'), ('Stock', 'stock'),
                 ('Valorizado', 'valorizado')]
     url_nuevo, url_editar = 'producto_nuevo', 'producto_editar'
-    buscar_en = ['codigo', 'nombre']
+    buscar_en = ['codigo', 'nombre', 'marca', 'codigo_barras']
     template_name = 'core/productos.html'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.GET.get('clase'):
+            qs = qs.filter(clase=self.request.GET['clase'])
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['clases'] = Producto.CLASES
+        return ctx
 
 
 class ProductoNuevo(FormGenerico, CreateView):
     model, form_class, titulo = Producto, ProductoForm, 'Nuevo producto / servicio'
+    template_name = 'core/producto_form.html'
     success_url = reverse_lazy('productos')
+
+    def get_initial(self):
+        return {'clase': self.request.GET.get('clase', 'MERCADERIA')}
 
 
 class ProductoEditar(FormGenerico, UpdateView):
     model, form_class, titulo = Producto, ProductoForm, 'Editar producto / servicio'
+    template_name = 'core/producto_form.html'
     success_url = reverse_lazy('productos')
+
+
+@login_required
+def ubigeos_json(request):
+    """Departamentos, provincias y distritos para los selectores en cascada (datos INEI)."""
+    from . import ubigeo
+    resp = JsonResponse(ubigeo.arbol(), safe=False)
+    resp['Cache-Control'] = 'private, max-age=86400'
+    return resp
 
 
 class SerieLista(ListaGenerica):

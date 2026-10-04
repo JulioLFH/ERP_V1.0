@@ -152,7 +152,7 @@ RUTAS_CORE = {
     'almacen_editar': ['inventario'],
 }
 # Rutas abiertas a cualquier usuario autenticado
-RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'login', 'logout', 'cambiar_clave', 'cambiar_clave_ok'}
+RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json','login', 'logout', 'cambiar_clave', 'cambiar_clave_ok'}
 
 
 def modulos_del_usuario(user):
