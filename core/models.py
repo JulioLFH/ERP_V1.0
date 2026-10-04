@@ -75,6 +75,9 @@ class Empresa(models.Model):
     tolerancia_precio = models.DecimalField(
         'Tolerancia de precio unitario (±)', max_digits=10, decimal_places=4, default=Decimal('1'),
         help_text='Diferencia permitida entre el precio facturado y el de la orden de compra')
+    tolerancia_total = models.DecimalField(
+        'Tolerancia del monto total (±)', max_digits=10, decimal_places=2, default=Decimal('1'),
+        help_text='Diferencia permitida entre el total de la factura del proveedor y el calculado con sus líneas')
     sunat_client_id = models.CharField(
         'SUNAT API: client_id', max_length=100, blank=True,
         help_text='Credenciales de "Consulta de validez de comprobantes" (SUNAT Operaciones en Línea > '

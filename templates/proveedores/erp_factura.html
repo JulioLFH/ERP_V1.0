@@ -25,6 +25,19 @@
   </form>
 </div></div></div>
 {% elif f.estado == 'RECHAZADA' %}<div class="alert alert-danger py-2">Rechazada el {{ f.revisado_en|date:'d/m/Y H:i' }}: {{ f.motivo_rechazo }}</div>{% endif %}
+<div class="row g-3 mb-3">
+  <div class="col-md-6"><div class="card h-100"><div class="card-body small">
+    <div class="fw-semibold mb-2"><i class="bi bi-paperclip"></i> Archivos del proveedor</div>
+    {% if f.pdf_nombre %}<a href="{% url 'compras:portal_factura_archivo' f.pk 'pdf' %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-pdf"></i> Ver PDF</a>{% else %}<span class="text-muted">Sin PDF</span>{% endif %}
+    {% if f.xml_nombre %}<a href="{% url 'compras:portal_factura_archivo' f.pk 'xml' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-filetype-xml"></i> Descargar XML</a> <span class="badge text-bg-light border">Datos leídos del XML</span>{% else %}<span class="text-muted ms-2">Sin XML (datos ingresados a mano)</span>{% endif %}
+  </div></div></div>
+  <div class="col-md-6"><div class="card h-100"><div class="card-body small">
+    <div class="fw-semibold mb-2"><i class="bi bi-calculator"></i> Cuadre</div>
+    <div class="d-flex justify-content-between"><span>Total según la factura</span><b>{% if f.total_declarado is not None %}{{ f.simbolo }} {{ f.total_declarado|money }}{% else %}—{% endif %}</b></div>
+    <div class="d-flex justify-content-between"><span>Total calculado (cantidades × precios + IGV)</span><b>{{ f.simbolo }} {{ f.total|money }}</b></div>
+    {% if f.total_declarado is not None %}<div class="d-flex justify-content-between"><span>Diferencia</span><b>{{ f.diferencia_total|money }}</b></div>{% endif %}
+  </div></div></div>
+</div>
 <div class="alert {% if f.estado_sunat == 'VALIDO' %}alert-success{% elif f.estado_sunat == 'OBSERVADO' %}alert-danger{% else %}alert-light border{% endif %} py-2 small">
   <i class="bi bi-shield-check"></i> SUNAT: <b>{{ f.get_estado_sunat_display }}</b>{% if f.sunat_detalle %} — {{ f.sunat_detalle }}{% endif %}{% if f.sunat_consultado_en %} ({{ f.sunat_consultado_en|date:'d/m/Y H:i' }}){% endif %}</div>
 <div class="card"><div class="table-responsive"><table class="table mb-0">

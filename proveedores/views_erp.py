@@ -40,6 +40,12 @@ def factura_detalle(request, pk):
 
 
 @login_required
+def factura_archivo(request, pk, tipo):
+    from .views import _descargar
+    return _descargar(get_object_or_404(FacturaProveedor, pk=pk), tipo)
+
+
+@login_required
 def factura_sunat(request, pk):
     f = get_object_or_404(FacturaProveedor, pk=pk)
     if request.method == 'POST':

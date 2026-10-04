@@ -17,6 +17,7 @@ urlpatterns = views.compras_views.urls() + [
     path('portal/facturas/', portal.facturas, name='portal_facturas'),
     path('portal/facturas/<int:pk>/', portal.factura_detalle, name='portal_factura'),
     path('portal/facturas/<int:pk>/sunat/', portal.factura_sunat, name='portal_factura_sunat'),
+    path('portal/facturas/<int:pk>/archivo/<str:tipo>/', portal.factura_archivo, name='portal_factura_archivo'),
     path('portal/facturas/<int:pk>/aprobar/', portal.factura_aprobar, name='portal_factura_aprobar'),
     path('portal/facturas/<int:pk>/rechazar/', portal.factura_rechazar, name='portal_factura_rechazar'),
     path('portal/accesos/', portal.accesos, name='portal_accesos'),

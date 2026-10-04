@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.7.2 — 03/10/2026 · Carga de facturas en el portal de proveedores
+- En el portal, cada orden de compra tiene el botón **Cargar factura**: el proveedor sube el **PDF** (obligatorio) y el **XML** de su factura electrónica (o el .zip de SUNAT).
+- Con el XML se completan solos la serie, número, fecha, monto total y las cantidades y precios de cada línea.
+- **La factura debe cuadrar**: cantidad contra lo recibido (±1), precio contra la orden (±1), monto total contra cantidades × precios + IGV (±1, configurable en Ajustes > Empresa) y, si hay XML, el RUC del emisor y del receptor, la moneda, la cantidad total y el valor de venta del XML. El formulario muestra en vivo si la factura cuadra.
+- Los archivos se guardan en la base de datos (no se pierden al desplegar) y se pueden ver desde el portal y desde Compras > Portal de proveedores, junto con el cuadre (total de la factura vs. calculado).
+- Las órdenes aprobadas también aparecen en el portal.
+
 ## v1.7.1 — 03/10/2026 · Nueva identidad: ceiba ERP
 - Logotipo de ceiba (isotipo en SVG: completo, reducido para favicon, negativo para fondos oscuros e icono de app).
 - Paleta de la marca en todo el sistema: Selva #0F3D2E (barra superior y botones), Hoja #1F7A52, Sol #E3A72F y Bruma #F4F6F2 (fondo); tipografía Sora.

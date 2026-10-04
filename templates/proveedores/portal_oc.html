@@ -7,7 +7,7 @@
     <div class="text-muted small">Emitida el {{ oc.fecha|date:'d/m/Y' }}{% if oc.fecha_entrega %} · entrega {{ oc.fecha_entrega|date:'d/m/Y' }}{% endif %} · {% if oc.dias_credito %}crédito {{ oc.dias_credito }} días desde el ingreso de la mercadería{% else %}contado{% endif %}</div></div>
   <div class="d-flex gap-2">
     <a href="{% url 'portal:inicio' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
-    {% if puede_facturar %}<a href="{% url 'portal:factura_nueva' oc.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-receipt"></i> Registrar factura</a>{% endif %}
+    {% if puede_facturar %}<a href="{% url 'portal:factura_nueva' oc.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-cloud-upload"></i> Cargar factura</a>{% endif %}
   </div>
 </div>
 {% if oc.estado_proveedor == 'ENVIADA' %}

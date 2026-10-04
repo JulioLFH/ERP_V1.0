@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
@@ -148,6 +149,32 @@ class Fase2Test(TestCase):
                                            estado_proveedor='ENVIADA')
         self.assertEqual(self.client.get(reverse('portal:oc_detalle', args=[ajena.pk])).status_code, 404)
 
+    def _pdf(self):
+        return SimpleUploadedFile('factura.pdf', b'%PDF-1.4 factura de prueba', content_type='application/pdf')
+
+    def _xml(self, cantidad, precio, total=None, ruc=None, receptor=None):
+        valor = (D(cantidad) * D(precio)).quantize(D('0.01'))
+        igv = (valor * D('0.18')).quantize(D('0.01'))
+        total = D(total) if total is not None else valor + igv
+        xml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+ xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+ xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+ <cbc:UBLVersionID>2.1</cbc:UBLVersionID><cbc:ID>F001-00001234</cbc:ID><cbc:IssueDate>{HOY.isoformat()}</cbc:IssueDate>
+ <cbc:InvoiceTypeCode listID="0101">01</cbc:InvoiceTypeCode><cbc:DocumentCurrencyCode>PEN</cbc:DocumentCurrencyCode>
+ <cac:AccountingSupplierParty><cac:Party><cac:PartyIdentification><cbc:ID schemeID="6">{ruc or self.prov.numero_doc}</cbc:ID>
+ </cac:PartyIdentification></cac:Party></cac:AccountingSupplierParty>
+ <cac:AccountingCustomerParty><cac:Party><cac:PartyIdentification><cbc:ID schemeID="6">{receptor or Empresa.actual().ruc}</cbc:ID>
+ </cac:PartyIdentification></cac:Party></cac:AccountingCustomerParty>
+ <cac:TaxTotal><cbc:TaxAmount currencyID="PEN">{igv}</cbc:TaxAmount></cac:TaxTotal>
+ <cac:LegalMonetaryTotal><cbc:LineExtensionAmount currencyID="PEN">{valor}</cbc:LineExtensionAmount>
+ <cbc:PayableAmount currencyID="PEN">{total}</cbc:PayableAmount></cac:LegalMonetaryTotal>
+ <cac:InvoiceLine><cbc:ID>1</cbc:ID><cbc:InvoicedQuantity unitCode="NIU">{cantidad}</cbc:InvoicedQuantity>
+ <cbc:LineExtensionAmount currencyID="PEN">{valor}</cbc:LineExtensionAmount>
+ <cac:Item><cbc:Description>Laptop</cbc:Description></cac:Item><cac:Price><cbc:PriceAmount currencyID="PEN">{precio}</cbc:PriceAmount></cac:Price>
+ </cac:InvoiceLine></Invoice>'''
+        return SimpleUploadedFile('20512345671-01-F001-1234.xml', xml.encode(), content_type='text/xml')
+
     def test_factura_del_portal_con_tolerancias(self):
         oc = self.crear_oc(cantidad=10)
         self.recibir(oc, 8)  # se recibieron 8 de 10
@@ -157,18 +184,68 @@ class Fase2Test(TestCase):
         item = oc.items.get()
         url = reverse('portal:factura_nueva', args=[oc.pk])
         base = {'serie': 'F001', 'numero': '1234', 'fecha_emision': HOY.isoformat(), 'observaciones': ''}
-        r = self.client.post(url, {**base, f'cant_{item.pk}': '10', f'precio_{item.pk}': '2000'})
+        r = self.client.post(url, {**base, 'total': '23600', f'cant_{item.pk}': '10', f'precio_{item.pk}': '2000'})
+        self.assertContains(r, 'Factura en PDF')  # sin PDF no se acepta
+        self.assertFalse(FacturaProveedor.objects.exists())
+        r = self.client.post(url, {**base, 'total': '23600', 'archivo_pdf': self._pdf(),
+                                   f'cant_{item.pk}': '10', f'precio_{item.pk}': '2000'})
         self.assertContains(r, 'difiere de la recibida')  # 10 vs 8 recibidas, tolerancia ±1
-        r = self.client.post(url, {**base, f'cant_{item.pk}': '8', f'precio_{item.pk}': '2001.50'})
+        r = self.client.post(url, {**base, 'total': '18885', 'archivo_pdf': self._pdf(),
+                                   f'cant_{item.pk}': '8', f'precio_{item.pk}': '2001.50'})
         self.assertContains(r, 'difiere del de la orden')  # precio fuera de ±1
-        r = self.client.post(url, {**base, f'cant_{item.pk}': '9', f'precio_{item.pk}': '2000.80'})
+        r = self.client.post(url, {**base, 'total': '20000', 'archivo_pdf': self._pdf(),
+                                   f'cant_{item.pk}': '9', f'precio_{item.pk}': '2000.80'})
+        self.assertContains(r, 'no cuadra')  # el monto total no cuadra con cantidades x precios
+        r = self.client.post(url, {**base, 'total': '21248.50', 'archivo_pdf': self._pdf(),
+                                   f'cant_{item.pk}': '9', f'precio_{item.pk}': '2000.80'})
         f = FacturaProveedor.objects.get()
         self.assertRedirects(r, reverse('portal:factura', args=[f.pk]))
-        self.assertEqual((f.estado, f.estado_sunat, f.total), ('ENVIADA', 'SIN_VALIDAR',
-                                                                D('21248.50')))  # 9 x 2000.80 + IGV
-        r = self.client.post(url, {**base, f'cant_{item.pk}': '1', f'precio_{item.pk}': '2000'})
-        self.assertEqual(r.status_code, 200)  # ya no queda por facturar o es duplicada
-        self.assertEqual(FacturaProveedor.objects.count(), 1)
+        self.assertEqual((f.estado, f.estado_sunat, f.total, f.total_declarado),
+                         ('ENVIADA', 'SIN_VALIDAR', D('21248.50'), D('21248.50')))  # 9 x 2000.80 + IGV
+        self.assertEqual(bytes(f.pdf), b'%PDF-1.4 factura de prueba')
+        r = self.client.get(reverse('portal:factura_archivo', args=[f.pk, 'pdf']))
+        self.assertEqual((r.status_code, r['Content-Type']), (200, 'application/pdf'))
+
+    def test_factura_con_xml_cuadra_cantidad_y_monto(self):
+        oc = self.crear_oc(cantidad=5)
+        self.recibir(oc, 5)
+        self.client.force_login(self.acceso())
+        item = oc.items.get()
+        url = reverse('portal:factura_nueva', args=[oc.pk])
+        lineas = {f'cant_{item.pk}': '5', f'precio_{item.pk}': '2000'}
+        # XML de otro emisor
+        r = self.client.post(url, {'archivo_pdf': self._pdf(), 'archivo_xml': self._xml('5', '2000', ruc='20100070970'),
+                                   **lineas})
+        self.assertContains(r, 'fue emitido por el RUC 20100070970')
+        # XML con total que no cuadra con sus líneas
+        r = self.client.post(url, {'archivo_pdf': self._pdf(), 'archivo_xml': self._xml('5', '2000', total='9000'),
+                                   **lineas})
+        self.assertContains(r, 'no cuadra')
+        # cantidades registradas distintas a las del XML
+        r = self.client.post(url, {'archivo_pdf': self._pdf(), 'archivo_xml': self._xml('3', '2000'), **lineas})
+        self.assertContains(r, 'La cantidad total del XML')
+        # correcto: la cabecera se toma del XML
+        r = self.client.post(url, {'archivo_pdf': self._pdf(), 'archivo_xml': self._xml('5', '2000'), **lineas})
+        f = FacturaProveedor.objects.get()
+        self.assertRedirects(r, reverse('portal:factura', args=[f.pk]))
+        self.assertEqual((f.serie, f.numero, f.total_declarado, f.total), ('F001', '1234', D('11800.00'), D('11800.00')))
+        self.assertIn('<cbc:PayableAmount', f.xml)
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse('compras:portal_factura', args=[f.pk]))
+        self.assertContains(r, 'Datos leídos del XML')
+        r = self.client.get(reverse('compras:portal_factura_archivo', args=[f.pk, 'xml']))
+        self.assertEqual(r.status_code, 200)
+
+    def test_lectura_xml_desde_zip(self):
+        import io
+        import zipfile
+        from .xml_ubl import leer
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as z:
+            z.writestr('20512345671-01-F001-1234.xml', self._xml('2', '10.5').read())
+        datos = leer(buf.getvalue(), 'factura.zip')
+        self.assertEqual((datos['serie'], datos['numero'], datos['total'], datos['lineas'][0]['cantidad']),
+                         ('F001', '1234', D('24.78'), D('2')))
 
     def test_validacion_sunat_al_registrar(self):
         oc = self.crear_oc(cantidad=2)

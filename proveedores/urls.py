@@ -10,5 +10,6 @@ urlpatterns = [
     path('ordenes/<int:pk>/responder/', views.oc_responder, name='oc_responder'),
     path('ordenes/<int:pk>/facturar/', views.factura_nueva, name='factura_nueva'),
     path('facturas/<int:pk>/', views.factura, name='factura'),
+    path('facturas/<int:pk>/<str:tipo>/', views.factura_archivo, name='factura_archivo'),
     path('aceptar/<str:token>/', views.oc_aceptacion, name='oc_aceptacion'),
 ]

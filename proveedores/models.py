@@ -44,6 +44,13 @@ class FacturaProveedor(models.Model):
     no_gravado = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
     igv = models.DecimalField('IGV', max_digits=14, decimal_places=2, default=D0)
     total = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    total_declarado = models.DecimalField('Total según la factura', max_digits=14, decimal_places=2, null=True,
+                                          blank=True)
+    # archivos en la base de datos: el disco del servidor en la nube se borra en cada despliegue
+    pdf = models.BinaryField('Factura PDF', null=True, blank=True, editable=False)
+    pdf_nombre = models.CharField(max_length=150, blank=True)
+    xml = models.TextField('Factura XML', blank=True, editable=False)
+    xml_nombre = models.CharField(max_length=150, blank=True)
     observaciones = models.CharField('Comentario del proveedor', max_length=300, blank=True)
     estado = models.CharField(max_length=10, choices=ESTADOS, default='ENVIADA')
     estado_sunat = models.CharField('Validación SUNAT', max_length=12, choices=ESTADOS_SUNAT, default='SIN_VALIDAR')
@@ -69,6 +76,10 @@ class FacturaProveedor(models.Model):
     @property
     def numero_completo(self):
         return f'{self.serie}-{self.numero}'
+
+    @property
+    def diferencia_total(self):
+        return (self.total_declarado or D0) - self.total
 
     @property
     def simbolo(self):

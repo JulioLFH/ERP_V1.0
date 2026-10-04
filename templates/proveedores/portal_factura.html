@@ -10,6 +10,10 @@
 {% if f.estado == 'RECHAZADA' %}<div class="alert alert-danger"><b>Rechazada:</b> {{ f.motivo_rechazo }}. Puede registrar la factura corregida desde la orden.</div>{% endif %}
 {% if f.estado == 'APROBADA' and f.compra %}<div class="alert alert-success">Factura registrada. Vence el <b>{{ f.compra.fecha_vencimiento|date:'d/m/Y' }}</b>.</div>{% endif %}
 <div class="alert alert-light border small">SUNAT: <b>{{ f.get_estado_sunat_display }}</b>{% if f.sunat_detalle %} — {{ f.sunat_detalle }}{% endif %}</div>
+<div class="d-flex gap-2 mb-3">
+  {% if f.pdf_nombre %}<a href="{% url 'portal:factura_archivo' f.pk 'pdf' %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-pdf"></i> PDF</a>{% endif %}
+  {% if f.xml_nombre %}<a href="{% url 'portal:factura_archivo' f.pk 'xml' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-filetype-xml"></i> XML</a>{% endif %}
+</div>
 <div class="card"><div class="table-responsive"><table class="table mb-0">
   <thead><tr><th>Descripción</th><th class="num">Cantidad</th><th class="num">V. unit.</th><th class="num">Subtotal</th></tr></thead>
   <tbody>{% for i in items %}<tr><td>{{ i.descripcion }}</td><td class="num">{{ i.cantidad|money }}</td><td class="num">{{ i.precio_unitario|floatformat:4 }}</td><td class="num">{{ i.subtotal|money }}</td></tr>{% endfor %}</tbody>

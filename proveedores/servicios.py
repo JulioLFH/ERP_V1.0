@@ -125,7 +125,8 @@ def validar_sunat(factura, guardar=True):
         return None
     try:
         r = sunat_consulta.validar(factura.tercero.numero_doc, factura.tipo_comprobante, factura.serie,
-                                   factura.numero, factura.fecha_emision, factura.total)
+                                   factura.numero, factura.fecha_emision,
+                                   factura.total_declarado if factura.total_declarado is not None else factura.total)
         factura.estado_sunat = 'VALIDO' if r['valido'] else 'OBSERVADO'
         factura.sunat_detalle = r['detalle'][:300]
     except sunat_consulta.ErrorConsulta as exc:
@@ -137,10 +138,63 @@ def validar_sunat(factura, guardar=True):
     return r
 
 
-def registrar_factura(oc, usuario, cabecera, enviadas):
-    """Crea la factura del proveedor (estado ENVIADA). Lanza ErrorPortal con los errores encontrados."""
+def totales(oc, enviadas, tasa_igv):
+    """(valor venta, igv, total) calculados con las líneas que registra el proveedor."""
+    from core.models import r2
+    subtotal = sum((r2(c * p) for c, p in enviadas.values() if c), D0)
+    igv = r2(subtotal * tasa_igv / 100) if oc.tipo_operacion == 'GRAVADA' else D0
+    return subtotal, igv, subtotal + igv
+
+
+def errores_cuadre(oc, enviadas, total_declarado, datos_xml=None):
+    """La factura debe cuadrar: cantidades (contra la orden / lo recibido y contra el XML) y monto total."""
+    empresa = Empresa.actual()
+    errores = []
+    valor, igv, calculado = totales(oc, enviadas, empresa.igv_tasa)
+    if total_declarado is None:
+        errores.append('Indique el monto total de la factura.')
+    elif abs(total_declarado - calculado) > empresa.tolerancia_total:
+        errores.append(f'El monto total de la factura ({oc.simbolo} {total_declarado:,.2f}) no cuadra con las '
+                       f'cantidades y precios registrados ({oc.simbolo} {calculado:,.2f}; tolerancia '
+                       f'±{empresa.tolerancia_total:,.2f}).')
+    if datos_xml:
+        if datos_xml['ruc_emisor'] and datos_xml['ruc_emisor'] != oc.tercero.numero_doc:
+            errores.append(f'El XML fue emitido por el RUC {datos_xml["ruc_emisor"]}, no por {oc.tercero.nombre} '
+                           f'(RUC {oc.tercero.numero_doc}).')
+        if datos_xml['ruc_receptor'] and datos_xml['ruc_receptor'] != empresa.ruc:
+            errores.append(f'La factura está emitida al RUC {datos_xml["ruc_receptor"]}, no a {empresa.razon_social} '
+                           f'(RUC {empresa.ruc}).')
+        if datos_xml['tipo'] != '01':
+            errores.append('El XML no corresponde a una factura (tipo 01).')
+        if datos_xml['moneda'] != oc.moneda:
+            errores.append(f'La factura está en {datos_xml["moneda"]} y la orden en {oc.moneda}.')
+        if datos_xml['lineas']:
+            en_xml = sum((l['cantidad'] for l in datos_xml['lineas']), D0)
+            registrada = sum((c for c, _ in enviadas.values()), D0)
+            if abs(en_xml - registrada) > empresa.tolerancia_cantidad:
+                errores.append(f'La cantidad total del XML ({en_xml:,.2f}) no cuadra con la registrada '
+                               f'({registrada:,.2f}).')
+        if abs(datos_xml['valor_venta'] - valor) > empresa.tolerancia_total:
+            errores.append(f'El valor de venta del XML ({datos_xml["valor_venta"]:,.2f}) no cuadra con el '
+                           f'registrado ({valor:,.2f}).')
+    return errores
+
+
+def registrar_factura(oc, usuario, cabecera, enviadas, archivos=None, datos_xml=None):
+    """Crea la factura del proveedor (estado ENVIADA). Lanza ErrorPortal con los errores encontrados.
+
+    cabecera: serie, numero, fecha_emision, total (monto de la factura), observaciones.
+    archivos: {'pdf': bytes, 'pdf_nombre', 'xml_nombre'}; datos_xml: resultado de xml_ubl.leer().
+    """
+    archivos = archivos or {}
+    if datos_xml:  # el XML manda sobre lo escrito
+        cabecera = {**cabecera, 'serie': datos_xml['serie'], 'numero': datos_xml['numero'],
+                    'fecha_emision': datos_xml['fecha'], 'total': datos_xml['total']}
     lineas = lineas_por_facturar(oc)
     errores = errores_lineas(lineas, enviadas)
+    total_declarado = cabecera.get('total')
+    if 'total' in cabecera or datos_xml:
+        errores += errores_cuadre(oc, enviadas, total_declarado, datos_xml)
     serie, numero = cabecera['serie'].upper().strip(), cabecera['numero'].strip()
     if duplicada(oc.tercero, serie, numero):
         errores.append(f'La factura {serie}-{numero} ya fue registrada.')
@@ -150,7 +204,9 @@ def registrar_factura(oc, usuario, cabecera, enviadas):
     with transaction.atomic():
         f = FacturaProveedor.objects.create(
             tercero=oc.tercero, orden_compra=oc, serie=serie, numero=numero,
-            fecha_emision=cabecera['fecha_emision'], moneda=oc.moneda,
+            fecha_emision=cabecera['fecha_emision'], moneda=oc.moneda, total_declarado=total_declarado,
+            pdf=archivos.get('pdf'), pdf_nombre=archivos.get('pdf_nombre', '')[:150],
+            xml=datos_xml['xml'] if datos_xml else '', xml_nombre=archivos.get('xml_nombre', '')[:150],
             observaciones=cabecera.get('observaciones', ''), enviada_por=usuario)
         for linea in lineas:
             item = linea['item']

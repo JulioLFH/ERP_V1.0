@@ -1,20 +1,25 @@
 {% extends 'proveedores/portal_base.html' %}{% load erp_tags %}
-{% block title %}Registrar factura{% endblock %}
+{% block title %}Cargar factura{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="page-title">Registrar factura · Orden {{ oc.numero }}</h1>
+  <h1 class="page-title">Cargar factura · Orden {{ oc.numero }}</h1>
   <a href="{% url 'portal:oc_detalle' oc.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
 </div>
-{% if errores %}<div class="alert alert-danger"><b>No se pudo registrar:</b><ul class="mb-0">{% for e in errores %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
-<form method="post" novalidate>{% csrf_token %}
-  <div class="card mb-3"><div class="card-body"><div class="row g-3">
-    {% for field in form %}<div class="{% if field.name == 'observaciones' %}col-md-6{% else %}col-6 col-md-2{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
-  </div>
-  <p class="small text-muted mt-2 mb-0">Ingrese los datos tal como figuran en su factura electrónica. Se valida en SUNAT. Tolerancia permitida: cantidad ±{{ tol_c }} y precio unitario ±{{ tol_p }} respecto a lo recibido y a la orden.</p>
-  </div></div>
-  <div class="card mb-3"><div class="table-responsive"><table class="table items-table mb-0">
+{% if errores %}<div class="alert alert-danger"><b>La factura no cuadra o tiene errores:</b><ul class="mb-0">{% for e in errores %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+{% if form.errors %}<div class="alert alert-danger py-2">Revise los campos marcados.</div>{% endif %}
+{% if errores or form.errors %}<div class="alert alert-warning py-2 small"><i class="bi bi-paperclip"></i> Por seguridad del navegador, vuelva a seleccionar los archivos PDF y XML antes de enviar.</div>{% endif %}
+<form method="post" enctype="multipart/form-data" novalidate>{% csrf_token %}
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-paperclip"></i> 1. Archivos de la factura</div><div class="card-body"><div class="row g-3">
+    {% for field in form|campos:"archivo_pdf,archivo_xml" %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12"><div id="xml-aviso" class="small"></div></div>
+  </div></div></div>
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-receipt"></i> 2. Datos de la factura</div><div class="card-body"><div class="row g-3">
+    {% for field in form|campos:"serie,numero,fecha_emision,total,observaciones" %}<div class="{% if field.name == 'observaciones' %}col-md-12{% elif field.name == 'total' %}col-6 col-md-3{% else %}col-6 col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div></div></div>
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-list-check"></i> 3. Cantidades y precios facturados</div>
+    <div class="table-responsive"><table class="table items-table mb-0">
     <thead><tr><th>Descripción</th><th class="num">Recibido / por facturar</th><th class="num">Precio orden</th><th class="num" style="width:15%">Cantidad facturada</th><th class="num" style="width:17%">Valor unit. (sin IGV)</th><th class="num">Subtotal</th></tr></thead>
-    <tbody id="lineas">{% for l in lineas %}<tr>
+    <tbody id="lineas">{% for l in lineas %}<tr data-desc="{{ l.item.descripcion|lower }}" data-esperado="{{ l.esperado|stringformat:'s' }}">
       <td>{{ l.item.descripcion }}</td><td class="num">{{ l.esperado|money }}</td><td class="num">{{ l.precio|floatformat:4 }}</td>
       <td><input name="cant_{{ l.item.pk }}" value="{{ l.cant_txt }}" class="form-control form-control-sm text-end js-c" inputmode="decimal"></td>
       <td><input name="precio_{{ l.item.pk }}" value="{{ l.precio_txt }}" class="form-control form-control-sm text-end js-p" inputmode="decimal"></td>
@@ -22,31 +27,106 @@
     <tfoot>
       <tr><td colspan="5" class="text-end">{% if oc.tipo_operacion == 'GRAVADA' %}Op. gravada{% else %}Op. no gravada{% endif %}</td><td class="num" id="t-base">0.00</td></tr>
       <tr><td colspan="5" class="text-end">IGV</td><td class="num" id="t-igv">0.00</td></tr>
-      <tr class="fw-bold"><td colspan="5" class="text-end">TOTAL {{ oc.simbolo }}</td><td class="num" id="t-total">0.00</td></tr>
+      <tr class="fw-bold"><td colspan="5" class="text-end">TOTAL CALCULADO {{ oc.simbolo }}</td><td class="num" id="t-total">0.00</td></tr>
+      <tr><td colspan="5" class="text-end">Total de la factura</td><td class="num" id="t-declarado">—</td></tr>
+      <tr><td colspan="6" class="text-end"><span id="cuadre" class="badge text-bg-secondary">Ingrese el monto total</span></td></tr>
     </tfoot>
   </table></div></div>
+  <p class="small text-muted">La factura debe cuadrar: cantidad ±{{ tol_c }} respecto a lo recibido, precio unitario ±{{ tol_p }} respecto a la orden y monto total ±{{ tol_t }} respecto a lo calculado. Se valida también en SUNAT.</p>
   <button class="btn btn-primary"><i class="bi bi-send"></i> Enviar factura</button>
 </form>
+{{ xml_lineas|json_script:"xml-lineas" }}
 {% endblock %}
 {% block scripts %}
 <script>
 (function () {
   const tasa = {% if oc.tipo_operacion == 'GRAVADA' %}{{ igv_tasa|stringformat:'s' }}{% else %}0{% endif %};
-  const num = (el) => parseFloat((el.value || '0').replace(',', '')) || 0;
+  const tolT = {{ tol_t|stringformat:'s' }};
+  const num = (v) => parseFloat(String(v || '0').replace(',', '')) || 0;
   const fmt = (n) => n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const filas = [...document.querySelectorAll('#lineas tr')];
+  const totalInput = document.getElementById('id_total');
+  const aviso = document.getElementById('xml-aviso');
+  let totalXml = null;
+
   function calcular() {
     let base = 0;
-    document.querySelectorAll('#lineas tr').forEach((tr) => {
-      const s = Math.round(num(tr.querySelector('.js-c')) * num(tr.querySelector('.js-p')) * 100) / 100;
+    filas.forEach((tr) => {
+      const s = Math.round(num(tr.querySelector('.js-c').value) * num(tr.querySelector('.js-p').value) * 100) / 100;
       tr.querySelector('.js-s').textContent = fmt(s);
       base += s;
     });
-    const igv = Math.round(base * tasa) / 100;
+    const igv = Math.round(base * tasa) / 100, total = base + igv;
     document.getElementById('t-base').textContent = fmt(base);
     document.getElementById('t-igv').textContent = fmt(igv);
-    document.getElementById('t-total').textContent = fmt(base + igv);
+    document.getElementById('t-total').textContent = fmt(total);
+    const declarado = totalXml !== null ? totalXml : (totalInput && totalInput.value ? num(totalInput.value) : null);
+    const badge = document.getElementById('cuadre');
+    document.getElementById('t-declarado').textContent = declarado === null ? '—' : fmt(declarado);
+    if (declarado === null) { badge.className = 'badge text-bg-secondary'; badge.textContent = 'Ingrese el monto total'; return; }
+    const dif = Math.round((declarado - total) * 100) / 100;
+    const ok = Math.abs(dif) <= tolT;
+    badge.className = 'badge ' + (ok ? 'text-bg-success' : 'text-bg-danger');
+    badge.textContent = ok ? 'La factura cuadra' : `No cuadra: diferencia ${fmt(dif)}`;
   }
+
+  function llenarLineas(lineas) {
+    if (!lineas.length) return 0;
+    let usadas = 0;
+    if (lineas.length === filas.length) {  // misma cantidad de líneas: en el mismo orden
+      lineas.forEach((l, i) => { filas[i].querySelector('.js-c').value = l.cantidad; filas[i].querySelector('.js-p').value = l.precio; });
+      return lineas.length;
+    }
+    filas.forEach((tr) => {  // si no, por descripción parecida
+      const d = tr.dataset.desc;
+      const l = lineas.find((x) => x.descripcion && (d.includes(x.descripcion.toLowerCase()) || x.descripcion.toLowerCase().includes(d)));
+      if (l) { tr.querySelector('.js-c').value = l.cantidad; tr.querySelector('.js-p').value = l.precio; usadas++; }
+    });
+    return usadas;
+  }
+
+  // lectura del XML en el navegador para completar el formulario (el servidor lo vuelve a validar)
+  const archivo = document.getElementById('id_archivo_xml');
+  if (archivo) archivo.addEventListener('change', () => {
+    const f = archivo.files[0];
+    totalXml = null;
+    if (!f) { calcular(); return; }
+    if (f.name.toLowerCase().endsWith('.zip')) {
+      aviso.innerHTML = '<span class="text-muted">Archivo .zip: los datos se leerán al enviar.</span>';
+      return;
+    }
+    f.text().then((texto) => {
+      const doc = new DOMParser().parseFromString(texto, 'application/xml');
+      const tag = (padre, nombre) => padre.getElementsByTagNameNS('*', nombre);
+      const hijo = (padre, nombre) => [...padre.children].find((c) => c.localName === nombre);
+      if (doc.getElementsByTagName('parsererror').length || doc.documentElement.localName !== 'Invoice') {
+        aviso.innerHTML = '<span class="text-danger">El archivo no es el XML de una factura electrónica.</span>';
+        return;
+      }
+      const raiz = doc.documentElement;
+      const id = (hijo(raiz, 'ID') || {}).textContent || '';
+      const [serie, numero] = id.split('-');
+      const set = (campo, v) => { const el = document.getElementById(campo); if (el && v) el.value = v; };
+      set('id_serie', serie); set('id_numero', numero ? String(parseInt(numero, 10)) : '');
+      set('id_fecha_emision', (hijo(raiz, 'IssueDate') || {}).textContent);
+      const pagar = tag(raiz, 'PayableAmount')[0];
+      if (pagar) { totalXml = num(pagar.textContent); set('id_total', totalXml.toFixed(2)); }
+      const lineas = [...tag(raiz, 'InvoiceLine')].map((ln) => {
+        const precio = ln.getElementsByTagNameNS('*', 'Price')[0];
+        const desc = ln.getElementsByTagNameNS('*', 'Description')[0];
+        return {cantidad: num((hijo(ln, 'InvoicedQuantity') || {}).textContent),
+                precio: precio ? num(precio.getElementsByTagNameNS('*', 'PriceAmount')[0].textContent) : 0,
+                descripcion: desc ? desc.textContent.trim() : ''};
+      });
+      const n = llenarLineas(lineas);
+      aviso.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> XML leído: factura ${id}, ${lineas.length} línea(s), total ${fmt(totalXml || 0)}.</span>` +
+        (n < filas.length ? ' <span class="text-warning">Revise las cantidades de las líneas que no se completaron.</span>' : '');
+      calcular();
+    });
+  });
   document.querySelectorAll('.js-c, .js-p').forEach((i) => i.addEventListener('input', calcular));
+  if (totalInput) totalInput.addEventListener('input', () => { totalXml = null; calcular(); });
+  llenarLineas(JSON.parse(document.getElementById('xml-lineas').textContent));
   calcular();
 })();
 </script>

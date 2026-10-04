@@ -12,29 +12,63 @@ from core.models import Tercero
 from .models import AccesoProveedor
 
 
+MAX_PDF = 5 * 1024 * 1024
+
+
 class FacturaCabeceraForm(BootstrapMixin, forms.Form):
-    serie = forms.CharField(max_length=4, help_text='4 caracteres, ej. F001 o E001')
-    numero = forms.CharField(label='Número', max_length=8, help_text='Solo dígitos, ej. 1234')
-    fecha_emision = forms.DateField(label='Fecha de emisión')
+    archivo_pdf = forms.FileField(label='Factura en PDF', help_text='Representación impresa (máx. 5 MB)',
+                                  widget=forms.ClearableFileInput(attrs={'accept': '.pdf,application/pdf'}))
+    archivo_xml = forms.FileField(label='Factura en XML (o .zip de SUNAT)', required=False,
+                                  help_text='Recomendado: con el XML se completan y validan los datos solos',
+                                  widget=forms.ClearableFileInput(attrs={'accept': '.xml,.zip'}))
+    serie = forms.CharField(max_length=4, required=False, help_text='4 caracteres, ej. F001 o E001')
+    numero = forms.CharField(label='Número', max_length=8, required=False, help_text='Solo dígitos, ej. 1234')
+    fecha_emision = forms.DateField(label='Fecha de emisión', required=False)
+    total = forms.DecimalField(label='Monto total de la factura', max_digits=14, decimal_places=2, required=False,
+                               min_value=Decimal('0.01'), help_text='Importe total con IGV, tal como figura en la factura')
     observaciones = forms.CharField(label='Comentario (opcional)', max_length=300, required=False)
 
-    def clean_serie(self):
-        serie = self.cleaned_data['serie'].upper().strip()
-        if not re.fullmatch(r'[FE0-9][A-Z0-9]{3}', serie):
-            raise forms.ValidationError('Serie inválida: 4 caracteres que empiezan con F, E o un dígito (F001).')
-        return serie
+    datos_xml = None
 
-    def clean_numero(self):
-        numero = self.cleaned_data['numero'].strip()
-        if not numero.isdigit() or int(numero) == 0:
-            raise forms.ValidationError('El número debe tener solo dígitos.')
-        return str(int(numero))
+    def clean_archivo_pdf(self):
+        f = self.cleaned_data['archivo_pdf']
+        if f.size > MAX_PDF:
+            raise forms.ValidationError('El PDF supera los 5 MB.')
+        inicio = f.read(5)
+        f.seek(0)
+        if inicio != b'%PDF-':
+            raise forms.ValidationError('El archivo no es un PDF.')
+        return f
 
-    def clean_fecha_emision(self):
-        fecha = self.cleaned_data['fecha_emision']
-        if fecha > timezone.localdate():
-            raise forms.ValidationError('La fecha de emisión no puede ser futura.')
-        return fecha
+    def clean_archivo_xml(self):
+        from .xml_ubl import ErrorXML, leer
+        f = self.cleaned_data.get('archivo_xml')
+        if f:
+            try:
+                self.datos_xml = leer(f.read(), f.name)
+            except ErrorXML as exc:
+                raise forms.ValidationError(str(exc))
+        return f
+
+    def clean(self):
+        datos = super().clean()
+        if self.datos_xml:  # los datos de la cabecera salen del XML
+            return datos
+        for campo in ('serie', 'numero', 'fecha_emision', 'total'):
+            if not datos.get(campo) and campo not in self.errors:
+                self.add_error(campo, 'Obligatorio (o cargue el XML de la factura).')
+        serie = (datos.get('serie') or '').upper().strip()
+        if serie and not re.fullmatch(r'[FE0-9][A-Z0-9]{3}', serie):
+            self.add_error('serie', 'Serie inválida: 4 caracteres que empiezan con F, E o un dígito (F001).')
+        datos['serie'] = serie
+        numero = (datos.get('numero') or '').strip()
+        if numero and (not numero.isdigit() or int(numero) == 0):
+            self.add_error('numero', 'El número debe tener solo dígitos.')
+        elif numero:
+            datos['numero'] = str(int(numero))
+        if datos.get('fecha_emision') and datos['fecha_emision'] > timezone.localdate():
+            self.add_error('fecha_emision', 'La fecha de emisión no puede ser futura.')
+        return datos
 
 
 def leer_lineas(data, lineas):

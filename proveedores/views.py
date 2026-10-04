@@ -30,7 +30,7 @@ def portal_requerido(vista):
 def _ordenes(tercero):
     """Órdenes visibles para el proveedor: enviadas o con mercadería recibida."""
     return (OrdenCompra.objects.filter(tercero=tercero).exclude(estado='ANULADO')
-            .filter(Q(estado_proveedor__in=['ENVIADA', 'ACEPTADA', 'RECHAZADA']) | Q(estado='ATENDIDO') |
+            .filter(Q(estado_proveedor__in=['ENVIADA', 'ACEPTADA', 'RECHAZADA']) | Q(estado__in=['APROBADO', 'ATENDIDO']) |
                     Q(recepciones__estado='CONFIRMADO')).distinct().select_related('centro_costo'))
 
 
@@ -107,13 +107,20 @@ def factura_nueva(request, pk):
         messages.error(request, 'La orden fue rechazada: no se puede facturar.')
         return redirect('portal:oc_detalle', pk)
     lineas = [l for l in servicios.lineas_por_facturar(oc) if l['esperado'] > 0]
-    form = FacturaCabeceraForm(request.POST or None, initial={'fecha_emision': timezone.localdate()})
+    if not lineas:
+        messages.info(request, 'La orden ya no tiene cantidades pendientes de facturar.')
+        return redirect('portal:oc_detalle', pk)
+    form = FacturaCabeceraForm(request.POST or None, request.FILES or None)
     errores = []
     if request.method == 'POST':
         enviadas, errores = leer_lineas(request.POST, lineas)
         if form.is_valid() and not errores:
+            pdf = form.cleaned_data['archivo_pdf']
+            xml = form.cleaned_data.get('archivo_xml')
+            archivos = {'pdf': pdf.read(), 'pdf_nombre': pdf.name, 'xml_nombre': xml.name if xml else ''}
             try:
-                f = servicios.registrar_factura(oc, request.user, form.cleaned_data, enviadas)
+                f = servicios.registrar_factura(oc, request.user, form.cleaned_data, enviadas, archivos,
+                                                form.datos_xml)
                 aviso = {'VALIDO': ' SUNAT: comprobante válido.',
                          'ERROR': ' No se pudo consultar a SUNAT; el cliente lo validará.'}.get(f.estado_sunat, '')
                 messages.success(request, f'Factura {f.numero_completo} enviada para revisión.{aviso}')
@@ -127,7 +134,27 @@ def factura_nueva(request, pk):
     e = Empresa.actual()
     return render(request, 'proveedores/portal_factura_form.html', {
         'oc': oc, 'lineas': lineas, 'form': form, 'errores': errores, 'tol_c': e.tolerancia_cantidad,
-        'tol_p': e.tolerancia_precio, 'igv_tasa': e.igv_tasa})
+        'tol_p': e.tolerancia_precio, 'tol_t': e.tolerancia_total, 'igv_tasa': e.igv_tasa,
+        'xml_lineas': [{'descripcion': l['descripcion'], 'cantidad': str(l['cantidad']), 'precio': str(l['precio'])}
+                       for l in (form.datos_xml or {}).get('lineas', [])]})
+
+
+def _descargar(f, tipo):
+    from django.http import Http404, HttpResponse
+    if tipo == 'pdf' and f.pdf:
+        resp = HttpResponse(bytes(f.pdf), content_type='application/pdf')
+        resp['Content-Disposition'] = f'inline; filename="{f.pdf_nombre or f.numero_completo + ".pdf"}"'
+        return resp
+    if tipo == 'xml' and f.xml:
+        resp = HttpResponse(f.xml, content_type='application/xml; charset=utf-8')
+        resp['Content-Disposition'] = f'attachment; filename="{f.tercero.numero_doc}-01-{f.numero_completo}.xml"'
+        return resp
+    raise Http404
+
+
+@portal_requerido
+def factura_archivo(request, pk, tipo):
+    return _descargar(get_object_or_404(FacturaProveedor.objects.filter(tercero=request.tercero), pk=pk), tipo)
 
 
 @portal_requerido
