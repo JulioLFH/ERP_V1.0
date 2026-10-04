@@ -10,6 +10,9 @@
     {% if puede_facturar %}<a href="{% url 'portal:factura_nueva' oc.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-cloud-upload"></i> Cargar factura</a>{% endif %}
   </div>
 </div>
+{% if not ingresada %}
+<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> La mercadería de esta orden <b>aún no ingresa a nuestro almacén</b>. Podrá cargar la factura cuando registremos la recepción; le llegará un correo de conformidad.</div>
+{% endif %}
 {% if oc.estado_proveedor == 'ENVIADA' %}
 <div class="card border-warning mb-3"><div class="card-body">
   <form method="post" action="{% url 'portal:oc_responder' oc.pk %}" class="row g-2 align-items-end">{% csrf_token %}
@@ -20,7 +23,7 @@
 </div></div>
 {% endif %}
 <div class="card mb-3"><div class="table-responsive"><table class="table mb-0">
-  <thead><tr><th>Descripción</th><th class="num">Pedido</th><th class="num">V. unit.</th><th class="num">Por facturar</th></tr></thead>
+  <thead><tr><th>Descripción</th><th class="num">Pedido</th><th class="num">V. unit.</th><th class="num">Ingresado al almacén / por facturar</th></tr></thead>
   <tbody>{% for l in lineas %}<tr><td>{{ l.item.descripcion }}</td><td class="num">{{ l.item.cantidad|money }}</td><td class="num">{{ l.item.precio_unitario|floatformat:4 }}</td><td class="num fw-semibold">{{ l.esperado|money }}</td></tr>{% endfor %}</tbody>
   <tfoot><tr class="fw-semibold"><td colspan="3" class="text-end">Total orden ({{ oc.simbolo }}, con IGV)</td><td class="num">{{ oc.total|money }}</td></tr></tfoot>
 </table></div></div>

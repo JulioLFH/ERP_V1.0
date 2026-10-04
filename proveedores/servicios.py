@@ -56,15 +56,14 @@ def facturado_por_item(oc, excluir=None):
 
 
 def lineas_por_facturar(oc):
-    """Líneas de la orden con la cantidad que el proveedor puede facturar: lo recibido en el almacén
-    (si hubo recepciones) o lo pedido, menos lo ya facturado."""
+    """Líneas de la orden con la cantidad que el proveedor puede facturar: solo lo que ya ingresó al almacén
+    (recepciones confirmadas), menos lo ya facturado. Los servicios (no inventariables) se facturan por lo pedido."""
     recibido = recibido_por_producto(oc)
-    hay_recepciones = bool(recibido)
     por_item, por_producto = facturado_por_item(oc)
     disponible = dict(recibido)  # se reparte entre las líneas del mismo producto
     lineas = []
     for item in oc.items.select_related('producto').order_by('id'):
-        if hay_recepciones and item.producto_id:
+        if item.producto_id and item.producto.es_inventariable:
             base = min(item.cantidad, disponible.get(item.producto_id, D0))
             disponible[item.producto_id] = disponible.get(item.producto_id, D0) - base
         else:
@@ -76,8 +75,13 @@ def lineas_por_facturar(oc):
             ya += usado
         pendiente = base - ya
         lineas.append({'item': item, 'esperado': max(pendiente, D0), 'precio': item.precio_unitario,
-                       'recibido': hay_recepciones})
+                       'recibido': bool(item.producto_id and item.producto.es_inventariable)})
     return lineas
+
+
+def tiene_ingreso(oc):
+    """La orden ya tiene mercadería ingresada al almacén (requisito para cargar la factura)."""
+    return bool(recibido_por_producto(oc)) or not oc.items.filter(producto__tipo='BIEN').exists()
 
 
 # ---------------------------------------------------------------- registro por el proveedor
@@ -95,8 +99,11 @@ def errores_lineas(lineas, enviadas):
         if cantidad < 0 or precio < 0:
             errores.append(f'{item.descripcion}: cantidad y precio deben ser positivos.')
             continue
+        if linea['recibido'] and linea['esperado'] <= 0:
+            errores.append(f'{item.descripcion}: no tiene cantidades ingresadas al almacén pendientes de facturar.')
+            continue
         if abs(cantidad - linea['esperado']) > tol_c:
-            base = 'recibida' if linea['recibido'] else 'pendiente de la orden'
+            base = 'ingresada al almacén' if linea['recibido'] else 'pendiente de la orden'
             errores.append(f'{item.descripcion}: la cantidad {cantidad:,.2f} difiere de la {base} '
                            f'({linea["esperado"]:,.2f}) en más de ±{tol_c:,.2f}.')
         if abs(precio - linea['precio']) > tol_p:
@@ -190,6 +197,9 @@ def registrar_factura(oc, usuario, cabecera, enviadas, archivos=None, datos_xml=
     if datos_xml:  # el XML manda sobre lo escrito
         cabecera = {**cabecera, 'serie': datos_xml['serie'], 'numero': datos_xml['numero'],
                     'fecha_emision': datos_xml['fecha'], 'total': datos_xml['total']}
+    if not tiene_ingreso(oc):
+        raise ErrorPortal([f'La mercadería de la orden {oc.numero} aún no ingresa al almacén: podrá cargar la '
+                           f'factura cuando se registre la recepción.'])
     lineas = lineas_por_facturar(oc)
     errores = errores_lineas(lineas, enviadas)
     total_declarado = cabecera.get('total')
@@ -235,6 +245,9 @@ def registrar_compra(factura, usuario):
     if factura.estado != 'ENVIADA':
         raise ErrorPortal(['La factura ya fue revisada.'])
     oc = factura.orden_compra
+    if not tiene_ingreso(oc):
+        raise ErrorPortal([f'La mercadería de la orden {oc.numero} ya no figura ingresada al almacén '
+                           f'(¿se anuló la recepción?).'])
     if Compra.objects.filter(tercero=factura.tercero, tipo_comprobante=factura.tipo_comprobante,
                              serie=factura.serie, numero=factura.numero).exists():
         raise ErrorPortal([f'La compra {factura.numero_completo} ya está registrada.'])

@@ -18,7 +18,7 @@
   </div></div></div>
   <div class="card mb-3"><div class="card-header"><i class="bi bi-list-check"></i> 3. Cantidades y precios facturados</div>
     <div class="table-responsive"><table class="table items-table mb-0">
-    <thead><tr><th>Descripción</th><th class="num">Recibido / por facturar</th><th class="num">Precio orden</th><th class="num" style="width:15%">Cantidad facturada</th><th class="num" style="width:17%">Valor unit. (sin IGV)</th><th class="num">Subtotal</th></tr></thead>
+    <thead><tr><th>Descripción</th><th class="num">Ingresado al almacén / por facturar</th><th class="num">Precio orden</th><th class="num" style="width:15%">Cantidad facturada</th><th class="num" style="width:17%">Valor unit. (sin IGV)</th><th class="num">Subtotal</th></tr></thead>
     <tbody id="lineas">{% for l in lineas %}<tr data-desc="{{ l.item.descripcion|lower }}" data-esperado="{{ l.esperado|stringformat:'s' }}">
       <td>{{ l.item.descripcion }}</td><td class="num">{{ l.esperado|money }}</td><td class="num">{{ l.precio|floatformat:4 }}</td>
       <td><input name="cant_{{ l.item.pk }}" value="{{ l.cant_txt }}" class="form-control form-control-sm text-end js-c" inputmode="decimal"></td>

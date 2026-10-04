@@ -189,7 +189,7 @@ class Fase2Test(TestCase):
         self.assertFalse(FacturaProveedor.objects.exists())
         r = self.client.post(url, {**base, 'total': '23600', 'archivo_pdf': self._pdf(),
                                    f'cant_{item.pk}': '10', f'precio_{item.pk}': '2000'})
-        self.assertContains(r, 'difiere de la recibida')  # 10 vs 8 recibidas, tolerancia ±1
+        self.assertContains(r, 'difiere de la ingresada al almacén')  # 10 vs 8 recibidas, tolerancia ±1
         r = self.client.post(url, {**base, 'total': '18885', 'archivo_pdf': self._pdf(),
                                    f'cant_{item.pk}': '8', f'precio_{item.pk}': '2001.50'})
         self.assertContains(r, 'difiere del de la orden')  # precio fuera de ±1
@@ -247,8 +247,27 @@ class Fase2Test(TestCase):
         self.assertEqual((datos['serie'], datos['numero'], datos['total'], datos['lineas'][0]['cantidad']),
                          ('F001', '1234', D('24.78'), D('2')))
 
+    def test_sin_ingreso_al_almacen_no_se_factura(self):
+        oc = self.crear_oc(cantidad=4)
+        OrdenCompra.objects.filter(pk=oc.pk).update(estado_proveedor='ACEPTADA')
+        self.client.force_login(self.acceso())
+        r = self.client.get(reverse('portal:oc_detalle', args=[oc.pk]))
+        self.assertContains(r, 'aún no ingresa a nuestro almacén')
+        self.assertNotContains(r, 'Cargar factura')
+        self.assertContains(self.client.get(reverse('portal:inicio')), 'Pendiente de ingreso')
+        r = self.client.get(reverse('portal:factura_nueva', args=[oc.pk]))
+        self.assertRedirects(r, reverse('portal:oc_detalle', args=[oc.pk]))
+        with self.assertRaises(servicios.ErrorPortal):
+            servicios.registrar_factura(oc, None, {'serie': 'F001', 'numero': '9', 'fecha_emision': HOY},
+                                        {oc.items.get().pk: (D('4'), D('2000'))})
+        # recibida parcialmente: solo se factura lo ingresado
+        self.recibir(oc, 3)
+        self.assertEqual(servicios.lineas_por_facturar(oc)[0]['esperado'], D('3'))
+        self.assertContains(self.client.get(reverse('portal:oc_detalle', args=[oc.pk])), 'Cargar factura')
+
     def test_validacion_sunat_al_registrar(self):
         oc = self.crear_oc(cantidad=2)
+        self.recibir(oc, 2)
         Empresa.objects.update(sunat_client_id='id', sunat_client_secret='secreto')
         item = oc.items.get()
         cab = {'serie': 'F001', 'numero': '77', 'fecha_emision': HOY}
@@ -299,6 +318,7 @@ class Fase2Test(TestCase):
         self.assertEqual((f.estado, f.compra), ('APROBADA', c))
         # otra factura, rechazada con motivo
         oc2 = self.crear_oc(cantidad=1)
+        self.recibir(oc2, 1)
         f2 = servicios.registrar_factura(oc2, None, {'serie': 'F002', 'numero': '11', 'fecha_emision': HOY},
                                          {oc2.items.get().pk: (D('1'), D('2000'))})
         self.client.post(reverse('compras:portal_factura_rechazar', args=[f2.pk]), {'motivo': 'Precio errado'})

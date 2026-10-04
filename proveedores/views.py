@@ -38,7 +38,8 @@ def _ordenes(tercero):
 def inicio(request):
     ordenes = list(_ordenes(request.tercero)[:100])
     for oc in ordenes:
-        oc.por_facturar = sum((l['esperado'] for l in servicios.lineas_por_facturar(oc)), 0)
+        oc.ingresada = servicios.tiene_ingreso(oc)
+        oc.por_facturar = sum((l['esperado'] for l in servicios.lineas_por_facturar(oc)), 0) if oc.ingresada else 0
     facturas = FacturaProveedor.objects.filter(tercero=request.tercero).select_related('orden_compra')[:100]
     return render(request, 'proveedores/portal_inicio.html', {
         'ordenes': ordenes, 'facturas': facturas,
@@ -50,9 +51,10 @@ def oc_detalle(request, pk):
     oc = get_object_or_404(_ordenes(request.tercero), pk=pk)
     lineas = servicios.lineas_por_facturar(oc)
     recibido = servicios.recibido_por_producto(oc)
+    ingresada = servicios.tiene_ingreso(oc)
     return render(request, 'proveedores/portal_oc.html', {
-        'oc': oc, 'lineas': lineas, 'recibido': recibido,
-        'puede_facturar': any(l['esperado'] > 0 for l in lineas) and oc.estado_proveedor != 'RECHAZADA',
+        'oc': oc, 'lineas': lineas, 'recibido': recibido, 'ingresada': ingresada,
+        'puede_facturar': ingresada and any(l['esperado'] > 0 for l in lineas) and oc.estado_proveedor != 'RECHAZADA',
         'facturas': oc.facturas_portal.all(),
         'recepciones': [r for r in _recepciones(oc)]})
 
@@ -105,6 +107,11 @@ def factura_nueva(request, pk):
     oc = get_object_or_404(_ordenes(request.tercero), pk=pk)
     if oc.estado_proveedor == 'RECHAZADA':
         messages.error(request, 'La orden fue rechazada: no se puede facturar.')
+        return redirect('portal:oc_detalle', pk)
+    if not servicios.tiene_ingreso(oc):
+        messages.warning(request, f'La mercadería de la orden {oc.numero} aún no ingresa a nuestro almacén. '
+                                  'Podrá cargar la factura cuando se registre la recepción (recibirá un correo de '
+                                  'conformidad).')
         return redirect('portal:oc_detalle', pk)
     lineas = [l for l in servicios.lineas_por_facturar(oc) if l['esperado'] > 0]
     if not lineas:

@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.7.3 — 03/10/2026 · Factura solo con mercadería ingresada al almacén
+- El proveedor solo puede cargar la factura de una orden de compra cuando la mercadería **ya ingresó al almacén** (recepción confirmada), y solo por las cantidades ingresadas pendientes de facturar. Mientras tanto la orden figura como "Pendiente de ingreso" en el portal.
+- Al aprobar la factura en el ERP se vuelve a verificar que la recepción siga vigente.
+- Las líneas de servicios (no inventariables) se facturan por lo pedido.
+
 ## v1.7.2 — 03/10/2026 · Carga de facturas en el portal de proveedores
 - En el portal, cada orden de compra tiene el botón **Cargar factura**: el proveedor sube el **PDF** (obligatorio) y el **XML** de su factura electrónica (o el .zip de SUNAT).
 - Con el XML se completan solos la serie, número, fecha, monto total y las cantidades y precios de cada línea.
