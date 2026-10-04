@@ -1,0 +1,35 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Saldo inicial · {{ cuenta }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Saldo inicial · {{ cuenta }}</h1>
+  <a href="{% url 'finanzas:cuentas' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Caja y bancos</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-body">
+      <div class="text-muted small">Saldo inicial vigente</div>
+      <div class="fs-3 fw-bold">{{ cuenta.simbolo }} {{ cuenta.saldo_inicial|money }}</div>
+      <p class="small text-muted mb-0">Forma parte del asiento de apertura (contra 5911). Todo cambio queda registrado con su motivo y documento de sustento.</p>
+    </div></div>
+    {% if form %}
+    <div class="card border-warning"><div class="card-header"><i class="bi bi-pencil-square"></i> Regularizar saldo inicial</div><div class="card-body">
+      <form method="post" enctype="multipart/form-data" data-confirm="¿Regularizar el saldo inicial de {{ cuenta }}? Se recalculará el asiento de apertura.">{% csrf_token %}
+        {% for e in form.non_field_errors %}<div class="alert alert-danger py-2 small">{{ e }}</div>{% endfor %}
+        {% for field in form %}<div class="mb-2">{% include 'core/_campo.html' %}</div>{% endfor %}
+        <button class="btn btn-warning btn-sm"><i class="bi bi-check2"></i> Regularizar</button>
+      </form>
+    </div></div>
+    {% else %}
+    <div class="alert alert-light border small"><i class="bi bi-lock"></i> Solo un administrador puede regularizar el saldo inicial, adjuntando el sustento.</div>
+    {% endif %}
+  </div>
+  <div class="col-lg-7"><div class="card"><div class="card-header">Historial de cambios</div><div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Fecha</th><th>Usuario</th><th class="num">Anterior</th><th class="num">Nuevo</th><th>Motivo</th><th>Sustento</th></tr></thead>
+    <tbody>{% for c in cambios %}<tr><td class="text-nowrap">{{ c.creado|date:'d/m/Y H:i' }}</td><td>{{ c.usuario.get_full_name|default:c.usuario.username|default:'—' }}</td>
+      <td class="num">{{ c.anterior|money }}</td><td class="num fw-semibold">{{ c.nuevo|money }}</td><td class="small">{{ c.motivo }}</td>
+      <td>{% if c.sustento_nombre %}<a href="{% url 'finanzas:saldo_inicial_sustento' c.pk %}" target="_blank" class="small"><i class="bi bi-paperclip"></i> {{ c.sustento_nombre|truncatechars:25 }}</a>{% else %}<span class="badge text-bg-danger">Sin sustento</span>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">{% if cuenta.saldo_inicial %}<span class="text-danger">El saldo inicial se registró antes de exigir sustento: regularícelo adjuntando el documento (puede indicar el mismo monto).</span>{% else %}Sin cambios.{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div></div></div>
+</div>
+{% endblock %}

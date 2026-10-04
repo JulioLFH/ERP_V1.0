@@ -111,6 +111,24 @@ class Cuenta(models.Model):
         return ''
 
 
+class SaldoInicialCambio(models.Model):
+    """Historial del saldo inicial de cada caja o banco: todo cambio lleva motivo y documento de sustento."""
+    cuenta = models.ForeignKey(Cuenta, on_delete=models.CASCADE, related_name='cambios_saldo_inicial')
+    anterior = models.DecimalField(max_digits=14, decimal_places=2)
+    nuevo = models.DecimalField(max_digits=14, decimal_places=2)
+    motivo = models.CharField(max_length=300)
+    sustento = models.BinaryField(null=True, blank=True, editable=False)
+    sustento_nombre = models.CharField(max_length=150, blank=True)
+    sustento_tipo = models.CharField(max_length=100, blank=True)
+    usuario = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado']
+        verbose_name = 'cambio de saldo inicial'
+        verbose_name_plural = 'cambios de saldo inicial'
+
+
 class Movimiento(models.Model):
     TIPOS = [('INGRESO', 'Ingreso'), ('EGRESO', 'Egreso')]
     CONCEPTOS = [

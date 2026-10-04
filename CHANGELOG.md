@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.9.1 — 03/10/2026 · Saldo inicial con sustento
+- El saldo inicial de caja y bancos ya no se edita libremente: al crear la cuenta se exige el motivo y el documento de sustento (extracto, acta de arqueo; PDF, imagen o Excel).
+- Después solo un administrador puede **regularizarlo** con motivo y sustento; no se permite si el periodo contable de apertura está cerrado ni si deja la cuenta en negativo.
+- Historial de cada cambio (anterior, nuevo, motivo, documento, usuario y fecha) en Caja y bancos > Saldo inicial. Los saldos registrados antes se muestran "sin sustento" para documentarlos.
+
 ## v1.9.0 — 03/10/2026 · Correcciones de la evaluación funcional
 - **Bancos y caja nunca en negativo**: el saldo se valida día por día (un egreso con fecha anterior a un ingreso ya no usa ese dinero), al eliminar ingresos o transferencias, al importar extractos y al cambiar el saldo inicial. La caja no admite sobregiro aunque se marque; un banco solo con sobregiro autorizado. Caja y bancos avisa si quedaron saldos negativos de antes para corregirlos.
 - **Facturación electrónica (63)**: los comprobantes que se intentaron enviar antes de configurar Nubefact quedan "No enviado" (no "Error de envío") y se pueden enviar; se corrigieron los existentes.

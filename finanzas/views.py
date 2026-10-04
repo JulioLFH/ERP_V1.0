@@ -35,6 +35,50 @@ class CuentaNueva(FormGenerico, CreateView):
     model, form_class, titulo = Cuenta, CuentaForm, 'Nueva cuenta de caja / banco'
     success_url = reverse_lazy('finanzas:cuentas')
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        form.usuario = self.request.user
+        return form
+
+
+@login_required
+def saldo_inicial(request, pk):
+    """Historial del saldo inicial y regularización (solo administradores, con motivo y sustento)."""
+    from .forms import RegularizarSaldoForm
+    from .models import SaldoInicialCambio
+    cuenta = get_object_or_404(Cuenta, pk=pk)
+    form = None
+    if request.user.is_superuser:
+        form = RegularizarSaldoForm(request.POST or None, request.FILES or None, cuenta=cuenta)
+        if request.method == 'POST' and form.is_valid():
+            datos, nombre, tipo = form.sustento_leido
+            with transaction.atomic():
+                SaldoInicialCambio.objects.create(
+                    cuenta=cuenta, anterior=cuenta.saldo_inicial, nuevo=form.cleaned_data['nuevo'],
+                    motivo=form.cleaned_data['motivo'], sustento=datos, sustento_nombre=nombre, sustento_tipo=tipo,
+                    usuario=request.user)
+                cuenta.saldo_inicial = form.cleaned_data['nuevo']
+                cuenta.save()  # regenera el asiento de apertura
+            messages.success(request, f'Saldo inicial de {cuenta} regularizado a {cuenta.simbolo} '
+                                      f'{cuenta.saldo_inicial:,.2f}. El asiento de apertura se actualiza solo.')
+            return redirect('finanzas:saldo_inicial', pk)
+    elif request.method == 'POST':
+        messages.error(request, 'Solo un administrador puede regularizar el saldo inicial.')
+    return render(request, 'finanzas/saldo_inicial.html', {
+        'cuenta': cuenta, 'form': form, 'cambios': cuenta.cambios_saldo_inicial.select_related('usuario')})
+
+
+@login_required
+def saldo_inicial_sustento(request, pk):
+    from django.http import Http404, HttpResponse
+    from .models import SaldoInicialCambio
+    cambio = get_object_or_404(SaldoInicialCambio, pk=pk)
+    if not cambio.sustento:
+        raise Http404
+    resp = HttpResponse(bytes(cambio.sustento), content_type=cambio.sustento_tipo or 'application/octet-stream')
+    resp['Content-Disposition'] = f'inline; filename="{cambio.sustento_nombre or "sustento"}"'
+    return resp
+
 
 class CuentaEditar(FormGenerico, UpdateView):
     model, form_class, titulo = Cuenta, CuentaForm, 'Editar cuenta'

@@ -22,7 +22,7 @@ from core.forms import digito_ruc
 from core.inventario import sugerencias_compra
 from core.models import Empresa, FacturacionConfig, IntentoAcceso, Producto, Tercero
 from core.modulos import GRUPOS
-from finanzas.forms import CuentaForm, MovimientoForm, TransferenciaForm
+from finanzas.forms import MovimientoForm, RegularizarSaldoForm, TransferenciaForm
 from finanzas.models import Cuenta, Movimiento
 from ventas.models import Venta
 
@@ -93,13 +93,44 @@ class CorreccionesTest(TestCase):
     def test_saldo_inicial_e_importacion_sin_negativos(self):
         c = self.nueva_cuenta(saldo=D('100'))
         Movimiento.objects.create(cuenta=c, fecha=HOY, tipo='EGRESO', concepto='OTRO', monto=D('80'))
-        form = CuentaForm(data={'tipo': 'BANCO', 'nombre': c.nombre, 'banco': 'BBVA', 'numero': '', 'cci': '',
-                                'moneda': 'PEN', 'saldo_inicial': '50', 'activo': 'on'}, instance=c)
-        self.assertFalse(form.is_valid())
+        sustento = SimpleUploadedFile('extracto.pdf', b'%PDF-1.4 extracto', content_type='application/pdf')
+        form = RegularizarSaldoForm(data={'nuevo': '50', 'motivo': 'Error de digitación según extracto'},
+                                    files={'sustento': sustento}, cuenta=c)
+        self.assertFalse(form.is_valid())  # dejaría la cuenta en negativo
         archivo = excel([['fecha', 'descripcion', 'monto', 'operacion'],
                          [HOY.strftime('%d/%m/%Y'), 'PAGO PROVEEDOR', -500, '1']])
         self.client.post(reverse('finanzas:importar'), {'cuenta': c.pk, 'archivo': archivo})
         self.assertEqual(c.movimientos.count(), 1)  # no se importó nada
+
+    def test_saldo_inicial_exige_sustento_y_no_se_edita_libremente(self):
+        url = reverse('finanzas:cuenta_nueva')
+        datos = {'tipo': 'CAJA', 'nombre': 'Caja tienda', 'banco': '', 'numero': '', 'cci': '', 'moneda': 'PEN',
+                 'saldo_inicial': '5000', 'activo': 'on', 'motivo_saldo': ''}
+        r = self.client.post(url, datos)
+        self.assertContains(r, 'Adjunte el documento')
+        acta = SimpleUploadedFile('acta_arqueo.pdf', b'%PDF-1.4 acta', content_type='application/pdf')
+        r = self.client.post(url, {**datos, 'motivo_saldo': 'Arqueo de caja al 31/07/2026', 'sustento': acta})
+        c = Cuenta.objects.get(nombre='Caja tienda')
+        cambio = c.cambios_saldo_inicial.get()
+        self.assertEqual((cambio.nuevo, cambio.sustento_nombre, cambio.usuario), (D('5000'), 'acta_arqueo.pdf', self.admin))
+        # luego el formulario de la cuenta ya no cambia el saldo inicial
+        self.client.post(reverse('finanzas:cuenta_editar', args=[c.pk]), {**datos, 'saldo_inicial': '999999'})
+        c.refresh_from_db()
+        self.assertEqual(c.saldo_inicial, D('5000'))
+        # regularización: solo administrador, con motivo y sustento
+        cajero = User.objects.create_user('cajero2', 'c2@c.com', 'x')
+        cajero.groups.add(Group.objects.get_or_create(name=GRUPOS['finanzas'])[0])
+        self.client.force_login(cajero)
+        r = self.client.get(reverse('finanzas:saldo_inicial', args=[c.pk]))
+        self.assertContains(r, 'Solo un administrador')
+        self.client.force_login(self.admin)
+        extracto = SimpleUploadedFile('acta2.pdf', b'%PDF-1.4 acta 2', content_type='application/pdf')
+        self.client.post(reverse('finanzas:saldo_inicial', args=[c.pk]),
+                         {'nuevo': '5200', 'motivo': 'Recuento de caja: faltaba un sobre', 'sustento': extracto})
+        c.refresh_from_db()
+        self.assertEqual((c.saldo_inicial, c.cambios_saldo_inicial.count()), (D('5200'), 2))
+        r = self.client.get(reverse('finanzas:saldo_inicial_sustento', args=[c.cambios_saldo_inicial.first().pk]))
+        self.assertEqual(r.content, b'%PDF-1.4 acta 2')
 
     def test_diagnostico_de_saldos_negativos_anteriores(self):
         c = self.nueva_cuenta()
