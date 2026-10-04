@@ -3,6 +3,14 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.12.0 — 04/10/2026 · Módulo de Activos fijos
+- **Registro de activos**: código automático (AF000001), categoría, marca, modelo, serie/placa, ubicación, responsable y centro de costo. Se registran **desde la factura de compra** (botón "Registrar activo fijo", una o varias unidades) o como **saldo inicial** con su depreciación acumulada a una fecha; sin compra en el sistema se exige el documento de sustento.
+- **Categorías** con sus cuentas (33/34, 39 y 68) y la tasa máxima de SUNAT: edificaciones 5 %, maquinaria 10 %, vehículos 20 %, muebles 10 %, cómputo 25 %, otros equipos 10 %, software 25 %; los terrenos no se deprecian.
+- **Depreciación mensual** por el método lineal, mes a mes y en orden; si un activo tiene meses pendientes se acumulan en el mes que se calcula. Solo un administrador revierte el último mes, con motivo. Proyección de la depreciación en cada activo.
+- **Bajas** (venta, siniestro, obsolescencia, donación) con motivo y sustento obligatorio: se deprecia hasta el mes de la baja. Un activo registrado por error se anula con motivo si aún no tiene depreciación. Con depreciación registrada ya no cambian su valor, vida útil ni fechas.
+- **Contabilidad** (al centralizar): depreciación 68 / 39 por centro de costo; baja: 39 + costo neto 655 contra la cuenta del activo; reclasificación si la compra usó otra cuenta. Una compra con activos registrados no se anula.
+- **Reportes**: Registro de activos fijos **Formato 7.1** (Excel con todas las columnas) y **cuadre** del registro con el libro mayor por cuenta.
+
 ## v1.11.0 — 04/10/2026 · Módulos de Manufactura y Costos
 - **Manufactura** (módulo nuevo):
   - **Centros de trabajo** con costo por hora de mano de obra y de costos indirectos (CIF).

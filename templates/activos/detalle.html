@@ -1,0 +1,95 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ a }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="page-title"><i class="bi bi-building-gear"></i> {{ a.codigo }} {{ a.nombre }}
+      <span class="badge {% if a.estado == 'ACTIVO' %}text-bg-success{% elif a.estado == 'BAJA' %}text-bg-secondary{% else %}badge-ANULADO{% endif %} fs-6 align-middle">{{ a.get_estado_display }}</span></h1>
+    <div class="text-muted small">{{ a.categoria.nombre }} · Cuenta {{ a.categoria.cuenta_activo.codigo }}{% if a.deprecia %} · Lineal {{ a.tasa }}% anual ({{ a.vida_util_meses }} meses){% else %} · No se deprecia{% endif %}</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'activos:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+    {% if a.estado == 'ACTIVO' %}
+      <a href="{% url 'activos:editar' a.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
+      <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-baja"><i class="bi bi-box-arrow-right"></i> Dar de baja</button>
+      {% if not depreciaciones %}<button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>{% endif %}
+    {% endif %}
+  </div>
+</div>
+{% if a.estado == 'ACTIVO' %}
+<div class="collapse mb-3" id="form-baja"><div class="card border-danger"><div class="card-body">
+  <form method="post" action="{% url 'activos:baja' a.pk %}" enctype="multipart/form-data" class="row g-2 align-items-end" data-confirm="¿Dar de baja {{ a.codigo }}? El valor neto pasa a gasto (655) y el activo deja de depreciarse.">
+    {% csrf_token %}
+    <div class="col-md-2"><label class="form-label small mb-1">Fecha <span class="text-danger">*</span></label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" max="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm" required></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Motivo <span class="text-danger">*</span></label><select name="motivo" class="form-select form-select-sm" required><option value="">—</option>{% for v, e in motivos %}<option value="{{ v }}">{{ e }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label small mb-1">Detalle <span class="text-danger">*</span></label><input name="detalle" class="form-control form-control-sm" minlength="10" maxlength="250" required placeholder="Ej. Vendido con factura F001-120 / informe técnico 15-2026"></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Sustento <span class="text-danger">*</span></label><input type="file" name="archivo" class="form-control form-control-sm" required></div>
+    <div class="col-md-2"><button class="btn btn-sm btn-danger w-100"><i class="bi bi-box-arrow-right"></i> Confirmar baja</button></div>
+    <div class="col-12 small text-muted">Se registra la depreciación hasta el mes de la baja. Si lo vende, emita la factura de venta aparte (ingreso en 756).</div>
+  </form>
+</div></div></div>
+{% if not depreciaciones %}
+<div class="collapse mb-3" id="form-anular"><div class="card border-secondary"><div class="card-body">
+  <form method="post" action="{% url 'activos:anular' a.pk %}" class="row g-2 align-items-end" data-confirm="¿Anular {{ a.codigo }}? Solo si se registró por error.">
+    {% csrf_token %}
+    <div class="col-md-9"><label class="form-label small mb-1">Motivo <span class="text-danger">*</span></label><input name="motivo" class="form-control form-control-sm" minlength="10" maxlength="250" required placeholder="Ej. Registrado dos veces por error"></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-secondary w-100">Confirmar anulación</button></div>
+  </form>
+</div></div></div>
+{% endif %}
+{% elif a.estado == 'BAJA' %}
+<div class="alert alert-secondary py-2"><i class="bi bi-box-arrow-right"></i> <b>Dado de baja</b> el {{ a.fecha_baja|date:'d/m/Y' }} · {{ a.get_motivo_baja_display }}: {{ a.detalle_baja }}{% if a.baja_por %} ({{ a.baja_por.get_full_name|default:a.baja_por.username }}){% endif %}</div>
+{% else %}
+<div class="alert alert-danger py-2"><i class="bi bi-x-octagon"></i> <b>Anulado</b>{% if a.baja_en %} el {{ a.baja_en|date:'d/m/Y H:i' }}{% endif %}. Motivo: {{ a.detalle_baja }}</div>
+{% endif %}
+{% if excede_tasa %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> La tasa ({{ a.tasa }}%) supera el máximo tributario de la categoría ({{ a.categoria.tasa_anual }}%): el exceso no es deducible para el impuesto a la renta.</div>{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="card-body"><div class="row g-3 small">
+      <div class="col-md-3"><div class="text-muted">Marca / modelo</div>{{ a.marca|default:'—' }} {{ a.modelo }}</div>
+      <div class="col-md-3"><div class="text-muted">Serie / placa</div>{{ a.serie|default:'—' }}</div>
+      <div class="col-md-3"><div class="text-muted">Ubicación</div>{{ a.ubicacion|default:'—' }}</div>
+      <div class="col-md-3"><div class="text-muted">Responsable</div>{{ a.responsable|default:'—' }}</div>
+      <div class="col-md-3"><div class="text-muted">Centro de costo</div>{{ a.centro_costo|default:'—' }}</div>
+      <div class="col-md-3"><div class="text-muted">Origen</div>{{ a.get_origen_display }}</div>
+      <div class="col-md-6"><div class="text-muted">Documento</div>{% if a.compra %}{% if 'compras' in mods %}<a href="{% url 'compras:detalle' a.compra_id %}">{{ a.documento }}</a>{% else %}{{ a.documento }}{% endif %}{% else %}{{ a.documento|default:'—' }}{% endif %}{% if a.proveedor %} · {{ a.proveedor.nombre }}{% endif %}</div>
+      <div class="col-md-3"><div class="text-muted">Adquisición</div>{{ a.fecha_adquisicion|date:'d/m/Y' }}</div>
+      <div class="col-md-3"><div class="text-muted">Inicio de uso</div>{{ a.fecha_uso|date:'d/m/Y' }}</div>
+      {% if a.dep_inicial %}<div class="col-md-6"><div class="text-muted">Depreciación inicial</div>S/ {{ a.dep_inicial|money }} hasta el {{ a.dep_inicial_hasta|date:'d/m/Y' }}</div>{% endif %}
+      {% if a.cuenta_origen and a.cuenta_origen_id != a.categoria.cuenta_activo_id %}<div class="col-12 text-muted">La compra lo registró en {{ a.cuenta_origen.codigo }}; se reclasifica a {{ a.categoria.cuenta_activo.codigo }} al centralizar.</div>{% endif %}
+    </div></div></div>
+
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-graph-down"></i> Depreciación registrada</div>
+      <div class="table-responsive"><table class="table table-sm mb-0">
+        <thead><tr><th>Periodo</th><th class="num">Meses</th><th class="num">Depreciación</th><th class="num">Acumulada</th><th class="num">Valor neto</th></tr></thead>
+        <tbody>{% if a.dep_inicial %}<tr class="text-muted"><td>Inicial al {{ a.dep_inicial_hasta|date:'d/m/Y' }}</td><td></td><td class="num">{{ a.dep_inicial|money }}</td><td class="num">{{ a.dep_inicial|money }}</td><td></td></tr>{% endif %}
+        {% for d in depreciaciones %}<tr><td>{% if d.proceso %}<a href="{% url 'activos:proceso' d.proceso_id %}">{{ d.periodo|slice:'4:' }}/{{ d.periodo|slice:':4' }}</a>{% else %}{{ d.periodo|slice:'4:' }}/{{ d.periodo|slice:':4' }} <span class="text-muted small">(baja)</span>{% endif %}</td>
+          <td class="num">{{ d.meses }}</td><td class="num">{{ d.cuota|money }}</td><td class="num">{{ d.acumulada|money }}</td><td class="num">{{ d.neto|money }}</td></tr>
+        {% empty %}{% if not a.dep_inicial %}<tr><td colspan="5" class="text-muted small">Aún sin depreciación. Se calcula mes a mes en Activos fijos &gt; Depreciación.</td></tr>{% endif %}{% endfor %}</tbody>
+      </table></div>
+    </div>
+    {% if proyeccion and a.estado == 'ACTIVO' %}
+    <div class="card mb-3"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-calendar3"></i> Proyección</span><a class="small" data-bs-toggle="collapse" href="#proy">Ver / ocultar</a></div>
+      <div class="collapse" id="proy"><div class="table-responsive" style="max-height:360px"><table class="table table-sm mb-0">
+        <thead><tr><th>Periodo</th><th class="num">Depreciación</th><th class="num">Acumulada</th></tr></thead>
+        <tbody>{% for periodo, cuota, acumulada in proyeccion %}<tr><td>{{ periodo|slice:'4:' }}/{{ periodo|slice:':4' }}</td><td class="num">{{ cuota|money }}</td><td class="num">{{ acumulada|money }}</td></tr>{% endfor %}</tbody>
+      </table></div></div>
+    </div>
+    {% endif %}
+    {% include 'core/_sustentos.html' with objeto=a %}
+    {% include 'core/_bitacora.html' with objeto=a %}
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3"><div class="card-body">
+      <div class="text-muted small">Valor de adquisición</div><div class="fs-5 fw-semibold">S/ {{ a.valor|money }}</div>
+      {% if a.valor_residual %}<div class="small text-muted">Valor residual S/ {{ a.valor_residual|money }}</div>{% endif %}
+      <div class="text-muted small mt-2">Depreciación acumulada</div><div class="fs-5 fw-semibold">S/ {{ a.depreciacion_registrada|money }}</div>
+      <div class="text-muted small mt-2">Valor neto en libros</div><div class="fs-4 fw-bold">S/ {{ a.valor_neto|money }}</div>
+    </div></div>
+    <div class="card"><div class="card-header"><i class="bi bi-clock-history"></i> Historial</div><div class="card-body small">
+      <div>Registrado {{ a.creado|date:'d/m/Y H:i' }}{% if a.creado_por %} por {{ a.creado_por.get_full_name|default:a.creado_por.username }}{% endif %}</div>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

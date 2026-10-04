@@ -1,0 +1,30 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ p }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{{ p }}</h1>
+  <div class="d-flex gap-2">
+    <a href="{% url 'activos:depreciacion' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Depreciación</a>
+    <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    {% if es_ultimo and user.is_superuser %}<button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-revertir"><i class="bi bi-arrow-counterclockwise"></i> Revertir</button>{% endif %}
+  </div>
+</div>
+{% if es_ultimo and user.is_superuser %}
+<div class="collapse mb-3" id="form-revertir"><div class="card border-danger"><div class="card-body">
+  <form method="post" action="{% url 'activos:proceso_revertir' p.pk %}" class="row g-2 align-items-end" data-confirm="¿Revertir {{ p }}? Se elimina el cálculo del mes (queda en la auditoría).">
+    {% csrf_token %}
+    <div class="col-md-9"><label class="form-label small mb-1">Motivo <span class="text-danger">*</span></label><input name="motivo" class="form-control form-control-sm" minlength="10" maxlength="250" required placeholder="Ej. Faltaba registrar activos de este mes"></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-danger w-100">Confirmar reversión</button></div>
+  </form>
+</div></div></div>
+{% endif %}
+<p class="small text-muted">Calculado el {{ p.creado|date:'d/m/Y H:i' }}{% if p.usuario %} por {{ p.usuario.get_full_name|default:p.usuario.username }}{% endif %} · {{ p.cantidad }} activos · S/ {{ p.total|money }}</p>
+<div class="card"><div class="table-responsive"><table class="table table-hover mb-0">
+  <thead><tr><th>Código</th><th>Activo</th><th>Categoría</th><th>Centro de costo</th><th class="num">Valor S/</th><th class="num">Meses</th><th class="num">Depreciación</th><th class="num">Acumulada</th></tr></thead>
+  <tbody>{% for l in lineas %}<tr onclick="location.href='{% url 'activos:detalle' l.activo_id %}'" style="cursor:pointer">
+    <td>{{ l.activo.codigo }}</td><td>{{ l.activo.nombre }}</td><td class="small">{{ l.activo.categoria.nombre }}</td><td class="small">{{ l.activo.centro_costo|default:'' }}</td>
+    <td class="num">{{ l.activo.valor|money }}</td><td class="num">{{ l.meses }}</td><td class="num fw-semibold">{{ l.cuota|money }}</td><td class="num">{{ l.acumulada|money }}</td>
+  </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Ningún activo tuvo depreciación en este mes.</td></tr>{% endfor %}</tbody>
+  {% if lineas %}<tfoot><tr class="fw-semibold"><td colspan="6" class="text-end">Total</td><td class="num">{{ p.total|money }}</td><td></td></tr></tfoot>{% endif %}
+</table></div></div>
+{% endblock %}

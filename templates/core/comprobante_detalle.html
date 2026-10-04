@@ -31,6 +31,14 @@
       </div>
       {% endif %}
       {% include 'inventario/_acciones_doc.html' %}
+      {% if 'activos' in mods and activos_doc.pendientes %}
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-building-gear"></i> Registrar activo fijo</button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          {% for item, pendientes, valor in activos_doc.pendientes %}<li><a class="dropdown-item" href="{% url 'activos:nuevo' %}?compra={{ doc.pk }}&item={{ item.pk }}">{{ item.descripcion|truncatechars:50 }} <span class="text-muted small">({{ pendientes }} por registrar)</span></a></li>{% endfor %}
+        </ul>
+      </div>
+      {% endif %}
       {% if app == 'compras' and not doc.stock_aplicado and doc.tipo_comprobante != '08' and not operaciones_inv %}
         <form method="post" action="{% url 'compras:ingresar_almacen' doc.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-in-down"></i> Ingresar a almacén</button></form>
       {% endif %}
@@ -78,6 +86,12 @@
       </table></div>
     </div>
     {% include 'inventario/_operaciones_doc.html' %}
+    {% if activos_doc.registrados %}
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-building-gear"></i> Activos fijos registrados</div>
+      <ul class="list-group list-group-flush small">{% for a in activos_doc.registrados %}<li class="list-group-item d-flex justify-content-between">
+        {% if 'activos' in mods %}<a href="{% url 'activos:detalle' a.pk %}">{{ a.codigo }} {{ a.nombre }}</a>{% else %}<span>{{ a.codigo }} {{ a.nombre }}</span>{% endif %}<span>S/ {{ a.valor|money }} · {{ a.get_estado_display }}</span></li>{% endfor %}</ul>
+    </div>
+    {% endif %}
     {% include 'core/_sustentos.html' with objeto=doc %}
     {% include 'core/_bitacora.html' with objeto=doc %}
   </div>

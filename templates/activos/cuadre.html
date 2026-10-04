@@ -1,0 +1,16 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Cuadre de activos fijos{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Cuadre de activos fijos con contabilidad</h1>
+  <form method="get" class="d-flex gap-2"><input type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}" class="form-control form-control-sm"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></form>
+</div>
+<div class="card"><div class="table-responsive"><table class="table mb-0">
+  <thead><tr><th>Cuenta</th><th class="num">Registro de activos S/</th><th class="num">Libro mayor S/</th><th class="num">Diferencia</th></tr></thead>
+  <tbody>{% for f in filas %}<tr>
+    <td>{{ f.cuenta.codigo }} {{ f.cuenta.nombre }}</td><td class="num">{{ f.registro|money }}</td><td class="num">{{ f.libro|money }}</td>
+    <td class="num {% if f.diferencia %}text-danger fw-semibold{% else %}text-success{% endif %}">{% if f.diferencia %}{{ f.diferencia|money }}{% else %}<i class="bi bi-check2"></i>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-4">Sin activos registrados.</td></tr>{% endfor %}</tbody>
+</table></div>
+<div class="card-body py-2 small text-muted">Las cuentas 39 se muestran en negativo (saldo acreedor). Diferencias usuales: activos que aún no se registran en el módulo, saldos iniciales que no están en el asiento de apertura o periodos sin centralizar (Contabilidad &gt; Centralización).</div></div>
+{% endblock %}

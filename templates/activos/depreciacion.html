@@ -1,0 +1,27 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Depreciación{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Depreciación mensual</h1>
+<div class="card mb-3 border-primary"><div class="card-body">
+  {% if siguiente %}
+  <form method="post" class="row g-2 align-items-end" data-confirm="¿Calcular la depreciación del periodo elegido?">
+    {% csrf_token %}
+    <div class="col-auto"><label class="form-label small mb-1">Mes a calcular</label>
+      <input type="month" name="periodo" value="{{ siguiente_input }}" class="form-control form-control-sm" {% if not libre %}readonly{% endif %} required></div>
+    <div class="col-auto"><button class="btn btn-sm btn-primary" {% if futuro %}disabled{% endif %}><i class="bi bi-calculator"></i> Calcular depreciación</button></div>
+    <div class="col-12 small text-muted">
+      {% if libre %}Primer cálculo: elija el mes desde el que el sistema empieza a depreciar. Si un activo tiene meses anteriores sin depreciar, se acumulan en ese mes.{% else %}Los meses se calculan en orden; corresponde {{ siguiente_texto }}.{% endif %}
+      {% if futuro %}<b>Aún no llega {{ siguiente_texto }}.</b>{% endif %}
+      Método lineal: lo que falta depreciar entre los meses de vida útil restantes. Se contabiliza al centralizar el periodo (68 depreciación / 39 depreciación acumulada, por centro de costo).
+    </div>
+  </form>
+  {% else %}<p class="text-muted mb-0">No hay activos registrados.</p>{% endif %}
+</div></div>
+<div class="card"><div class="table-responsive"><table class="table table-hover mb-0">
+  <thead><tr><th>Periodo</th><th class="num">Activos</th><th class="num">Depreciación S/</th><th>Calculado</th></tr></thead>
+  <tbody>{% for p in procesos %}<tr onclick="location.href='{% url 'activos:proceso' p.pk %}'" style="cursor:pointer">
+    <td class="fw-semibold">{{ p.periodo|slice:'4:' }}/{{ p.periodo|slice:':4' }}</td><td class="num">{{ p.cantidad }}</td><td class="num">{{ p.total|money }}</td>
+    <td class="small">{{ p.creado|date:'d/m/Y H:i' }}{% if p.usuario %} · {{ p.usuario.get_full_name|default:p.usuario.username }}{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-4">Aún no se calculó ningún mes.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

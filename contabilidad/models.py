@@ -22,6 +22,7 @@ ORIGENES = [
     ('TESORERIA', 'Caja y bancos'),
     ('INVENTARIO', 'Inventario y costo de ventas'),
     ('CAMBIO', 'Diferencia de cambio'),
+    ('ACTIVOS', 'Activos fijos (depreciación y bajas)'),
     ('COSTO', 'Costo de ventas (versión anterior)'),
 ]
 # asientos que el sistema no regenera al centralizar

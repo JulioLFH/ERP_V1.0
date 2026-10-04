@@ -405,6 +405,41 @@ def asiento_inventario(periodo, cta):
     return b.grabar()
 
 
+# ---------------------------------------------------------------- activos fijos
+def asiento_activos(periodo, cta):
+    """Depreciación del mes (68 / 39 por centro de costo), reclasificación de activos comprados con otra cuenta
+    y bajas (39 + costo neto 655 contra la cuenta del activo). El alta la registra la compra o la apertura."""
+    from activos.models import ActivoFijo, Depreciacion
+    desde, hasta = _rango(periodo)
+    a = Asiento(fecha=hasta, libro='05', origen='ACTIVOS', glosa=f'Activos fijos {periodo}: depreciación y bajas')
+    b = Borrador(a)
+    for af in (ActivoFijo.objects.exclude(estado='ANULADO').filter(fecha_alta__range=[desde, hasta])
+               .exclude(cuenta_origen=None).select_related('categoria__cuenta_activo', 'cuenta_origen')):
+        if af.cuenta_origen_id != af.categoria.cuenta_activo_id:
+            b.add(af.categoria.cuenta_activo, debe=af.valor, documento=af.codigo, glosa=f'Reclasificación {af}')
+            b.add(af.cuenta_origen, haber=af.valor, documento=af.codigo, glosa=f'Reclasificación {af}')
+    grupos = defaultdict(lambda: D0)
+    for d in Depreciacion.objects.filter(periodo=periodo).select_related(
+            'activo__categoria__cuenta_gasto', 'activo__categoria__cuenta_depreciacion', 'activo__centro_costo'):
+        cat = d.activo.categoria
+        if cat.cuenta_gasto_id and cat.cuenta_depreciacion_id:
+            grupos[(cat.cuenta_gasto, cat.cuenta_depreciacion, d.activo.centro_costo)] += d.cuota
+    for (gasto, acumulada, centro), valor in sorted(grupos.items(), key=lambda x: (x[0][0].codigo, x[0][1].codigo)):
+        b.add(gasto, debe=valor, centro_costo=centro, glosa='Depreciación del mes')
+        b.add(acumulada, haber=valor, glosa='Depreciación del mes')
+    for af in (ActivoFijo.objects.filter(estado='BAJA', fecha_baja__range=[desde, hasta])
+               .select_related('categoria__cuenta_activo', 'categoria__cuenta_depreciacion')
+               .prefetch_related('depreciaciones')):
+        dep = af.depreciacion_registrada if af.categoria.cuenta_depreciacion_id else D0
+        glosa = f'Baja {af} ({af.get_motivo_baja_display()})'
+        if dep:
+            b.add(af.categoria.cuenta_depreciacion, debe=dep, documento=af.codigo, glosa=glosa)
+        b.add(cta['baja_activo'], debe=af.valor - dep, documento=af.codigo, centro_costo=af.centro_costo, glosa=glosa)
+        b.add(af.categoria.cuenta_activo, haber=af.valor, documento=af.codigo, glosa=glosa)
+    b.agregar_destinos()
+    return b.grabar()
+
+
 # ---------------------------------------------------------------- proceso del periodo
 def centralizar_periodo(periodo):
     if PeriodoContable.esta_cerrado(periodo):
@@ -447,6 +482,7 @@ def centralizar_periodo(periodo):
         try:
             if asiento_inventario(periodo, cta):
                 resumen['costo'] = 1
+            asiento_activos(periodo, cta)
             asiento_cambio_cierre(periodo, cta, obtener(hasta) if Cuenta.objects.filter(moneda='USD').exists()
                                   else None)
         except ErrorContable as exc:

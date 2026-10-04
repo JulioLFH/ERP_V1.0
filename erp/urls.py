@@ -17,5 +17,6 @@ urlpatterns = [
     path('portal/', include('proveedores.urls')),
     path('manufactura/', include('produccion.urls')),
     path('costos/', include('produccion.urls_costos')),
+    path('activos/', include('activos.urls')),
     path('', include('core.urls')),
 ]

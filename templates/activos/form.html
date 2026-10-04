@@ -1,0 +1,44 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-building-gear"></i> {{ titulo }}</h1>
+  <a href="{% if activo.pk %}{% url 'activos:detalle' activo.pk %}{% elif compra %}{% url 'compras:detalle' compra.pk %}{% else %}{% url 'activos:lista' %}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+{% if compra %}<div class="alert alert-info py-2 small"><i class="bi bi-receipt"></i> Desde {{ compra.get_tipo_comprobante_display }} <b>{{ compra.numero_completo }}</b> de {{ compra.tercero.nombre }} ({{ compra.fecha_emision|date:'d/m/Y' }}){% if item %} · {{ item.descripcion }} × {{ item.cantidad|money }}{% endif %}. El valor sugerido es el subtotal sin IGV en soles por unidad. La compra ya registró el activo en contabilidad; si la categoría usa otra cuenta, se reclasifica.</div>{% endif %}
+<form method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  {% if form.errors %}<div class="alert alert-danger py-2">Revise los campos marcados.</div>{% endif %}
+  <div class="card mb-3"><div class="card-header">Identificación</div><div class="card-body"><div class="row g-3">
+    {% for field in form|campos:"nombre,categoria,marca,modelo,serie,ubicacion,responsable,centro_costo" %}
+      <div class="{% if field.name == 'nombre' %}col-md-8{% elif field.name == 'categoria' %}col-md-4{% else %}col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>
+    {% endfor %}
+  </div></div></div>
+  <div class="card mb-3"><div class="card-header">Adquisición y depreciación</div><div class="card-body"><div class="row g-3">
+    {% for field in form|campos:"origen,proveedor,documento,fecha_adquisicion,fecha_uso,valor,valor_residual,vida_util_meses,unidades" %}
+      <div class="{% if field.name == 'origen' or field.name == 'proveedor' %}col-md-6{% else %}col-6 col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>
+    {% endfor %}
+  </div>
+  <div class="row g-3 mt-1" id="bloque-inicial">
+    {% for field in form|campos:"dep_inicial,dep_inicial_hasta" %}<div class="col-6 col-md-3">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-md-6 small text-muted align-self-center">Para activos que ya tenía antes de usar el sistema: la depreciación acumulada a esa fecha (debe estar en su asiento de apertura). El sistema continúa desde el mes siguiente con lo que falta depreciar.</div>
+  </div></div></div>
+  <div class="card mb-3"><div class="card-body"><div class="row g-3">
+    {% for field in form|campos:"sustento" %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div></div></div>
+  <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar</button>
+</form>
+{{ vidas|json_script:"vidas-data" }}
+<script>
+(function () {
+  const vidas = JSON.parse(document.getElementById('vidas-data').textContent);
+  const cat = document.getElementById('id_categoria'), vida = document.getElementById('id_vida_util_meses');
+  if (cat && vida && !vida.disabled) cat.addEventListener('change', () => { if (vidas[cat.value]) vida.value = vidas[cat.value]; });
+  const origen = document.getElementById('id_origen'), bloque = document.getElementById('bloque-inicial');
+  function ver() { if (origen && bloque) bloque.style.display = origen.value === 'SALDO_INICIAL' ? '' : 'none'; }
+  if (origen) origen.addEventListener('change', ver);
+  ver();
+})();
+</script>
+{% endblock %}

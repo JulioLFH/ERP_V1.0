@@ -156,10 +156,14 @@ class ComprobanteViews:
     def detalle(self, request, pk):
         from inventario.servicios import acciones_para, operaciones_de
         doc = get_object_or_404(self.modelo.objects.select_related('tercero', 'doc_referencia'), pk=pk)
+        activos = {}
+        if doc._meta.model_name == 'compra':  # activos fijos de la factura: registrados y por registrar
+            from activos.servicios import items_compra
+            activos = {'pendientes': items_compra(doc), 'registrados': doc.activos.exclude(estado='ANULADO')}
         return render(request, 'core/comprobante_detalle.html', self._ctx(
             doc=doc, items=doc.items.select_related('producto'), notas=doc.notas.all(),
             movimientos=doc.movimientos.select_related('cuenta'), puede_editar=self.puede_editar(doc),
-            acciones_inv=acciones_para(doc), operaciones_inv=operaciones_de(doc)))
+            acciones_inv=acciones_para(doc), operaciones_inv=operaciones_de(doc), activos_doc=activos))
 
     def imprimir(self, request, pk):
         doc = get_object_or_404(self.modelo, pk=pk)
@@ -174,6 +178,8 @@ class ComprobanteViews:
             return 'Tiene cobros/pagos registrados en Finanzas. Elimínelos antes de anular.'
         if doc.notas.filter(estado='REGISTRADO').exists():
             return 'Tiene notas de crédito/débito registradas. Anúlelas primero.'
+        if doc._meta.model_name == 'compra' and doc.activos.exclude(estado='ANULADO').exists():
+            return 'Tiene activos fijos registrados con esta factura. Anúlelos o déles de baja primero.'
         faltan = self.faltantes_al_revertir(doc)
         if faltan:
             return 'No se puede anular: la mercadería ya salió del almacén. ' + ' '.join(faltan)

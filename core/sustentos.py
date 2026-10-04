@@ -13,7 +13,8 @@ EXTENSIONES = ('.pdf', '.png', '.jpg', '.jpeg', '.webp', '.xlsx', '.xls', '.xml'
 # modelo -> módulo que puede ver y adjuntar sus sustentos
 MODULO_DE = {'contabilidad.asiento': 'contabilidad', 'finanzas.movimiento': 'finanzas', 'finanzas.cuenta': 'finanzas',
              'inventario.operacion': 'inventario', 'ventas.venta': 'ventas', 'compras.compra': 'compras',
-             'compras.ordencompra': 'compras', 'logistica.guiaremision': 'logistica'}
+             'compras.ordencompra': 'compras', 'logistica.guiaremision': 'logistica',
+             'produccion.ordenproduccion': 'manufactura', 'activos.activofijo': 'activos'}
 
 
 class ErrorSustento(Exception):

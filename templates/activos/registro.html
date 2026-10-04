@@ -1,0 +1,22 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Registro de activos fijos {{ anio }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Registro de activos fijos · Formato 7.1</h1>
+  <div class="d-flex gap-2">
+    <form method="get"><select name="anio" class="form-select form-select-sm" onchange="this.form.submit()">{% for y in anios %}<option value="{{ y }}" {% if y == anio %}selected{% endif %}>Ejercicio {{ y }}</option>{% endfor %}</select></form>
+    <a href="?anio={{ anio }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel (formato completo)</a>
+  </div>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+  <thead><tr><th>Código</th><th>Cuenta</th><th>Descripción</th><th class="num">Saldo inicial</th><th class="num">Adquisiciones</th><th class="num">Retiros / bajas</th><th class="num">Valor histórico 31.12</th><th>Adquisición</th><th>Inicio uso</th><th class="num">%</th><th class="num">Dep. acum. anterior</th><th class="num">Dep. ejercicio</th><th class="num">Dep. retiros</th><th class="num">Dep. acumulada</th></tr></thead>
+  <tbody>{% for f in filas %}<tr onclick="location.href='{% url 'activos:detalle' f.a.pk %}'" style="cursor:pointer">
+    <td>{{ f.a.codigo }}</td><td>{{ f.a.categoria.cuenta_activo.codigo }}</td><td>{{ f.a.nombre }}{% if f.a.serie %} <span class="text-muted">· {{ f.a.serie }}</span>{% endif %}</td>
+    <td class="num">{{ f.saldo_inicial|money }}</td><td class="num">{{ f.adquisiciones|money }}</td><td class="num">{{ f.retiros|money }}</td><td class="num fw-semibold">{{ f.historico|money }}</td>
+    <td>{{ f.a.fecha_adquisicion|date:'d/m/Y' }}</td><td>{{ f.a.fecha_uso|date:'d/m/Y' }}</td><td class="num">{{ f.a.tasa }}</td>
+    <td class="num">{{ f.dep_anterior|money }}</td><td class="num">{{ f.dep_ejercicio|money }}</td><td class="num">{{ f.dep_retiros|money }}</td><td class="num fw-semibold">{{ f.dep_acumulada|money }}</td>
+  </tr>{% empty %}<tr><td colspan="14" class="text-center text-muted py-4">Sin activos en el ejercicio {{ anio }}.</td></tr>{% endfor %}</tbody>
+  {% if filas %}<tfoot><tr class="fw-semibold"><td colspan="3" class="text-end">Totales</td><td class="num">{{ totales.saldo_inicial|money }}</td><td class="num">{{ totales.adquisiciones|money }}</td><td class="num">{{ totales.retiros|money }}</td><td class="num">{{ totales.historico|money }}</td><td colspan="3"></td><td class="num">{{ totales.dep_anterior|money }}</td><td class="num">{{ totales.dep_ejercicio|money }}</td><td class="num">{{ totales.dep_retiros|money }}</td><td class="num">{{ totales.dep_acumulada|money }}</td></tr></tfoot>{% endif %}
+</table></div>
+<div class="card-body py-2 small text-muted">El Excel trae todas las columnas del formato 7.1 (mejoras, ajustes por inflación y otros ajustes en cero). Método de depreciación: lineal.</div></div>
+{% endblock %}

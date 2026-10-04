@@ -98,6 +98,18 @@ MODULOS = [
         ],
     },
     {
+        'clave': 'activos', 'nombre': 'Activos fijos', 'icono': 'bi-building-gear', 'color': '#7c5c2e',
+        'inicio': 'activos:lista', 'descripcion': 'Registro de activos, depreciación y bajas',
+        'menu': [
+            ('Activos', [('Activos fijos', 'activos:lista', 'bi-building-gear'),
+                         ('Nuevo activo', 'activos:nuevo', 'bi-plus-circle')]),
+            ('Depreciación', 'activos:depreciacion'),
+            ('Reportes', [('Registro de activos fijos 7.1', 'activos:registro', 'bi-journal-text'),
+                          ('Cuadre con contabilidad', 'activos:cuadre', 'bi-check2-square')]),
+            ('Configuración', [('Categorías y cuentas', 'activos:categorias', 'bi-tags')]),
+        ],
+    },
+    {
         'clave': 'logistica', 'nombre': 'Logística', 'icono': 'bi-truck', 'color': '#1098ad',
         'inicio': 'logistica:lista', 'descripcion': 'Guías de remisión remitente y transportista',
         'menu': [
