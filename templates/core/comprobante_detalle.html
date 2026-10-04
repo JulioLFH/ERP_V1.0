@@ -36,7 +36,6 @@
       {% endif %}
       <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>
     {% endif %}
-    <form method="post" action="{% url app|add:':eliminar' doc.pk %}" data-confirm="¿Eliminar definitivamente {{ doc }}?">{% csrf_token %}<button class="btn btn-sm btn-danger"><i class="bi bi-trash"></i></button></form>
   </div>
 </div>
 {% if doc.estado == 'REGISTRADO' %}
@@ -79,6 +78,8 @@
       </table></div>
     </div>
     {% include 'inventario/_operaciones_doc.html' %}
+    {% include 'core/_sustentos.html' with objeto=doc %}
+    {% include 'core/_bitacora.html' with objeto=doc %}
   </div>
 
   <div class="col-lg-4">

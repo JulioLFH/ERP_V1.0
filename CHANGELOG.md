@@ -3,6 +3,15 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.10.0 — 03/10/2026 · Todo con sustento y auditoría
+- **Documentos de sustento** (PDF, imagen, Excel, Word, XML o ZIP; máx. 5 MB) adjuntos a asientos, movimientos de caja y bancos, operaciones de inventario, comprobantes, órdenes de compra y guías. Se guardan en la base de datos y no se pueden borrar.
+- **Sustento obligatorio** en: asientos manuales; ingresos y egresos de caja y bancos sin comprobante (gastos, caja chica, tributos, préstamos…); saldo inicial, ajustes, consumos, destrucción y traslado a destrucción de inventario (no se confirman sin el documento). Las transferencias piden N° de operación o voucher. Los extractos y cargas masivas de saldos quedan adjuntos como sustento.
+- **Asientos manuales**: ya no se editan ni eliminan; se corrigen con **extorno** (asiento inverso con motivo, enlazado al original).
+- **Movimientos de caja y bancos**: ya no se eliminan; se **anulan con motivo** (quedan visibles con el filtro "Anulados" y fuera de saldos, cobros y contabilidad). Una transferencia se anula completa.
+- **Comprobantes**: se quitó "eliminar"; solo se anulan con motivo.
+- **Ajuste rápido de inventario**: ahora registra una operación numerada (saldo inicial, ajuste o consumo) con su sustento, anulable con motivo.
+- **Bitácora de auditoría** (Ajustes > Auditoría, exportable a Excel): quién creó, modificó (campo, valor anterior y nuevo), anuló, extornó o adjuntó, cuándo y desde qué IP; también los inicios de sesión. Cada comprobante, asiento, operación, movimiento, orden y guía muestra su historial.
+
 ## v1.9.1 — 03/10/2026 · Saldo inicial con sustento
 - El saldo inicial de caja y bancos ya no se edita libremente: al crear la cuenta se exige el motivo y el documento de sustento (extracto, acta de arqueo; PDF, imagen o Excel).
 - Después solo un administrador puede **regularizarlo** con motivo y sustento; no se permite si el periodo contable de apertura está cerrado ni si deja la cuenta en negativo.

@@ -87,8 +87,11 @@ class CuentaEditar(FormGenerico, UpdateView):
 
 # ---------------------------------------------------------------- movimientos
 def _filtrar_movs(request):
-    qs = Movimiento.objects.select_related('cuenta', 'tercero', 'venta', 'compra')
     f = request.GET
+    base = Movimiento.todos if f.get('estado') in ('ANULADO', 'TODOS') else Movimiento.objects
+    qs = base.select_related('cuenta', 'tercero', 'venta', 'compra')
+    if f.get('estado') == 'ANULADO':
+        qs = qs.filter(estado='ANULADO')
     if f.get('cuenta'):
         qs = qs.filter(cuenta_id=f['cuenta'])
     if f.get('desde'):
@@ -116,7 +119,8 @@ def movimientos(request):
         enc = ['Voucher', 'Fecha', 'Cuenta', 'Tipo', 'Concepto', 'Medio', 'N° op.', 'Tercero', 'Documento',
                'Ingreso', 'Egreso', 'Glosa', 'Conciliado']
         return excel_response('Movimientos_caja_bancos', 'Movimientos de caja y bancos', enc, filas)
-    agg = qs.aggregate(i=Sum('monto', filter=Q(tipo='INGRESO')), e=Sum('monto', filter=Q(tipo='EGRESO')))
+    agg = qs.filter(estado='VIGENTE').aggregate(i=Sum('monto', filter=Q(tipo='INGRESO')),
+                                                e=Sum('monto', filter=Q(tipo='EGRESO')))
     return render(request, 'finanzas/movimientos.html', {
         'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'cuentas': Cuenta.objects.all(),
         'conceptos': Movimiento.CONCEPTOS, 'ingresos': agg['i'] or D0, 'egresos': agg['e'] or D0})
@@ -124,11 +128,16 @@ def movimientos(request):
 
 @login_required
 def movimiento_nuevo(request):
+    from core.sustentos import adjuntar
     initial = {'fecha': date.today(), 'tipo': request.GET.get('tipo', 'EGRESO'), 'cuenta': request.GET.get('cuenta')}
-    form = MovimientoForm(request.POST or None, initial=initial)
+    form = MovimientoForm(request.POST or None, request.FILES or None, initial=initial)
     if request.method == 'POST' and form.is_valid():
-        mov = form.save()
-        messages.success(request, f'Movimiento {mov.voucher} registrado.')
+        with transaction.atomic():
+            mov = form.save(commit=False)
+            mov.creado_por = request.user
+            mov.save()
+            adjuntar(mov, form.cleaned_data['sustento'], request.user, mov.glosa[:200])
+        messages.success(request, f'Movimiento {mov.voucher} registrado con su sustento.')
         return redirect('finanzas:movimientos')
     return render(request, 'core/form.html', {'form': form, 'titulo': 'Ingreso / egreso de caja y bancos'})
 
@@ -146,28 +155,35 @@ def _error_al_eliminar(mov):
 
 @login_required
 def movimiento_eliminar(request, pk):
+    """Los movimientos no se borran: se anulan con motivo (quedan visibles y fuera de saldos y contabilidad)."""
+    from django.utils import timezone
+    from .forms import AnularMovimientoForm
     mov = get_object_or_404(Movimiento, pk=pk)
     if request.method == 'POST':
-        if mov.conciliado:
-            messages.error(request, 'No se puede eliminar un movimiento conciliado.')
+        form = AnularMovimientoForm(request.POST)
+        par = mov.transferencia_par or Movimiento.objects.filter(transferencia_par=mov).first()
+        conciliado = mov.conciliado or (par is not None and par.conciliado)
+        if not form.is_valid():
+            messages.error(request, ' '.join(form.errors['motivo']))
+        elif conciliado:
+            messages.error(request, 'No se puede anular un movimiento conciliado: quite primero la conciliación.')
         elif periodo_cerrado(mov.fecha.strftime('%Y%m')):
-            messages.error(request, 'No se puede eliminar: el periodo contable está cerrado.')
+            messages.error(request, 'No se puede anular: el periodo contable está cerrado.')
         elif _error_al_eliminar(mov):
-            messages.error(request, f'No se puede eliminar: {_error_al_eliminar(mov)}')
+            messages.error(request, f'No se puede anular: {_error_al_eliminar(mov)}')
         else:
             with transaction.atomic():
-                par = mov.transferencia_par or Movimiento.objects.filter(transferencia_par=mov).first()
-                if par:
-                    Movimiento.objects.filter(pk__in=[mov.pk, par.pk]).update(transferencia_par=None)
-                    par.delete()
-                mov.delete()
-            messages.success(request, 'Movimiento eliminado.')
+                for m in [mov] + ([par] if par else []):
+                    m.estado, m.motivo_anulacion = 'ANULADO', form.cleaned_data['motivo']
+                    m.anulado_por, m.anulado_en = request.user, timezone.now()
+                    m.save()
+            messages.success(request, f'Movimiento {mov.voucher} anulado{" junto con su transferencia par" if par else ""}.')
     return redirect(request.POST.get('next') or 'finanzas:movimientos')
 
 
 @login_required
 def voucher(request, pk):
-    mov = get_object_or_404(Movimiento.objects.select_related('cuenta', 'tercero'), pk=pk)
+    mov = get_object_or_404(Movimiento.todos.select_related('cuenta', 'tercero'), pk=pk)
     return render(request, 'finanzas/voucher.html', {'m': mov})
 
 
@@ -209,7 +225,7 @@ def cobrar_pagar(request, modo):
               .exclude(tipo_comprobante__in=['07', '08']).order_by('fecha_vencimiento'))
         pendientes = [d for d in qs if d.saldo > 0]
 
-    form = OperacionForm(request.POST or None, initial={
+    form = OperacionForm(request.POST or None, request.FILES or None, initial={
         'fecha': date.today(), 'es_detraccion': request.GET.get('detraccion') == '1'})
     if request.method == 'POST' and form.is_valid():
         data = form.cleaned_data
@@ -235,7 +251,8 @@ def cobrar_pagar(request, modo):
                     concepto='DETRACCION' if data['es_detraccion'] else cfg['concepto'],
                     medio_pago=data['medio_pago'], numero_operacion=data['numero_operacion'], tercero=tercero,
                     monto=_monto_en_cuenta(monto, d, data['cuenta'], data['fecha'], data['es_detraccion']),
-                    monto_doc=monto, glosa=data['glosa'] or f'{cfg["concepto"].title()} {d}', **{cfg['fk']: d}))
+                    monto_doc=monto, glosa=data['glosa'] or f'{cfg["concepto"].title()} {d}', creado_por=request.user,
+                    **{cfg['fk']: d}))
             if cfg['tipo'] == 'EGRESO' and creados and not errores:
                 # con los pagos ya creados, la cuenta no debe quedar negativa en ningún día desde su fecha
                 cuenta = data['cuenta']
@@ -247,6 +264,11 @@ def cobrar_pagar(request, modo):
                                    f'{negativo[0]:%d/%m/%Y}.')
             if errores:
                 transaction.set_rollback(True)
+            elif creados and data.get('sustento'):
+                from core.sustentos import guardar_archivo, vincular
+                archivo = guardar_archivo(data['sustento'], request.user)  # un archivo para todos los movimientos
+                for m in creados:
+                    vincular(m, archivo, request.user, data['glosa'] or '')
         if errores:
             for e in errores:
                 messages.error(request, e)
@@ -269,18 +291,24 @@ def cobrar_pagar(request, modo):
 # ---------------------------------------------------------------- transferencias
 @login_required
 def transferencia(request):
-    form = TransferenciaForm(request.POST or None, initial={'fecha': date.today()})
+    form = TransferenciaForm(request.POST or None, request.FILES or None, initial={'fecha': date.today()})
     if request.method == 'POST' and form.is_valid():
         d = form.cleaned_data
         glosa = d['glosa'] or f'Transferencia {d["origen"].nombre} → {d["destino"].nombre}'
         with transaction.atomic():
             salida = Movimiento.objects.create(
                 cuenta=d['origen'], fecha=d['fecha'], tipo='EGRESO', concepto='TRANSFERENCIA',
-                medio_pago='TRANSFERENCIA', numero_operacion=d['numero_operacion'], monto=d['monto'], glosa=glosa)
+                medio_pago='TRANSFERENCIA', numero_operacion=d['numero_operacion'], monto=d['monto'], glosa=glosa,
+                creado_por=request.user)
             entrada = Movimiento.objects.create(
                 cuenta=d['destino'], fecha=d['fecha'], tipo='INGRESO', concepto='TRANSFERENCIA',
                 medio_pago='TRANSFERENCIA', numero_operacion=d['numero_operacion'], monto=d['monto'], glosa=glosa,
-                transferencia_par=salida)
+                transferencia_par=salida, creado_por=request.user)
+            if d.get('sustento'):
+                from core.sustentos import guardar_archivo, vincular
+                archivo = guardar_archivo(d['sustento'], request.user)
+                vincular(salida, archivo, request.user, glosa)
+                vincular(entrada, archivo, request.user, glosa)
         messages.success(request, f'Transferencia registrada ({salida.voucher} / {entrada.voucher}).')
         return redirect('finanzas:movimientos')
     return render(request, 'core/form.html', {'form': form, 'titulo': 'Transferencia entre cuentas / depósito de caja'})
@@ -340,7 +368,7 @@ def importar_extracto(request):
         except Exception as exc:
             filas, errores = [], [f'No se pudo leer el archivo: {exc}']
         with transaction.atomic():
-            fechas = []
+            fechas, creados = [], []
             for n, f in enumerate(filas, 2):
                 try:
                     monto = Decimal(str(f.get('monto')).replace(',', ''))
@@ -349,11 +377,12 @@ def importar_extracto(request):
                     desc = str(f.get('descripcion') or '')
                     concepto = 'GASTO_BANCARIO' if any(p in desc.upper() for p in ('ITF', 'COMISION', 'MANTENIMIENTO', 'PORTES')) else 'OTRO'
                     fecha = a_fecha(f.get('fecha'))
-                    Movimiento.objects.create(
+                    creados.append(Movimiento.objects.create(
                         cuenta=cuenta, fecha=fecha, tipo='INGRESO' if monto > 0 else 'EGRESO',
                         concepto=concepto, medio_pago='TRANSFERENCIA', numero_operacion=str(f.get('operacion') or ''),
                         monto=abs(monto), glosa=desc[:250], conciliado=form.cleaned_data['conciliado'],
-                        fecha_conciliacion=fecha if form.cleaned_data['conciliado'] else None)
+                        fecha_conciliacion=fecha if form.cleaned_data['conciliado'] else None,
+                        creado_por=request.user))
                     fechas.append(fecha)
                     ok += 1
                 except Exception as exc:
@@ -365,6 +394,12 @@ def importar_extracto(request):
                                f'No se importó nada.')
                 transaction.set_rollback(True)
                 ok = 0
+            elif creados:
+                # el extracto del banco es el sustento de cada movimiento importado
+                from core.sustentos import guardar_archivo, vincular
+                archivo = guardar_archivo(form.cleaned_data['archivo'], request.user)
+                for m in creados:
+                    vincular(m, archivo, request.user, 'Extracto bancario importado')
         resultado = {'ok': ok, 'errores': errores}
         if ok:
             messages.success(request, f'{ok} movimientos importados en {cuenta}.')

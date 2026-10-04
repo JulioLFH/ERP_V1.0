@@ -26,7 +26,7 @@
   </div>
   <div class="col-lg-7"><div class="card"><div class="card-header">Historial de cambios</div><div class="table-responsive"><table class="table table-sm mb-0">
     <thead><tr><th>Fecha</th><th>Usuario</th><th class="num">Anterior</th><th class="num">Nuevo</th><th>Motivo</th><th>Sustento</th></tr></thead>
-    <tbody>{% for c in cambios %}<tr><td class="text-nowrap">{{ c.creado|date:'d/m/Y H:i' }}</td><td>{{ c.usuario.get_full_name|default:c.usuario.username|default:'—' }}</td>
+    <tbody>{% for c in cambios %}<tr><td class="text-nowrap">{{ c.creado|date:'d/m/Y H:i' }}</td><td>{% if c.usuario %}{{ c.usuario.get_full_name|default:c.usuario.username }}{% else %}—{% endif %}</td>
       <td class="num">{{ c.anterior|money }}</td><td class="num fw-semibold">{{ c.nuevo|money }}</td><td class="small">{{ c.motivo }}</td>
       <td>{% if c.sustento_nombre %}<a href="{% url 'finanzas:saldo_inicial_sustento' c.pk %}" target="_blank" class="small"><i class="bi bi-paperclip"></i> {{ c.sustento_nombre|truncatechars:25 }}</a>{% else %}<span class="badge text-bg-danger">Sin sustento</span>{% endif %}</td></tr>
     {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">{% if cuenta.saldo_inicial %}<span class="text-danger">El saldo inicial se registró antes de exigir sustento: regularícelo adjuntando el documento (puede indicar el mismo monto).</span>{% else %}Sin cambios.{% endif %}</td></tr>{% endfor %}</tbody>

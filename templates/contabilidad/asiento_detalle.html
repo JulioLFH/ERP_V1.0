@@ -11,12 +11,13 @@
     {% if a.compra and 'compras' in mods %}<a href="{% url 'compras:detalle' a.compra_id %}" class="btn btn-sm btn-outline-secondary">Ver compra</a>{% endif %}
     {% if a.venta and 'ventas' in mods %}<a href="{% url 'ventas:detalle' a.venta_id %}" class="btn btn-sm btn-outline-secondary">Ver venta</a>{% endif %}
     {% if a.movimiento and 'finanzas' in mods %}<a href="{% url 'finanzas:voucher' a.movimiento_id %}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver voucher</a>{% endif %}
-    {% if a.origen == 'MANUAL' and not cerrado %}
-      <a href="{% url 'contabilidad:asiento_editar' a.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
-      <form method="post" action="{% url 'contabilidad:asiento_eliminar' a.pk %}" data-confirm="¿Eliminar el asiento {{ a.numero }}?">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form>
+    {% if a.origen == 'MANUAL' and not a.extorna_id and not a.extornado %}
+      <a href="{% url 'contabilidad:asiento_extornar' a.pk %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-counterclockwise"></i> Extornar</a>
     {% endif %}
   </div>
 </div>
+{% if a.extorna %}<div class="alert alert-warning py-2 small"><i class="bi bi-arrow-counterclockwise"></i> Este asiento es el <b>extorno</b> del <a href="{% url 'contabilidad:asiento_detalle' a.extorna_id %}">{{ a.extorna.numero }}</a>.</div>{% endif %}
+{% for e in a.extornos.all %}<div class="alert alert-danger py-2 small"><i class="bi bi-x-octagon"></i> <b>Extornado</b> por el asiento <a href="{% url 'contabilidad:asiento_detalle' e.pk %}">{{ e.numero }}</a> del {{ e.fecha|date:'d/m/Y' }}: {{ e.glosa }}</div>{% endfor %}
 <div class="card"><div class="table-responsive">
   <table class="table mb-0">
     <thead><tr><th>Cuenta</th><th>Denominación</th><th>Tercero</th><th>Documento</th><th>C. costo</th><th>Glosa</th><th class="num">Debe</th><th class="num">Haber</th></tr></thead>
@@ -34,4 +35,8 @@
   </table>
 </div></div>
 <p class="small text-muted mt-2">Las líneas en cursiva son los asientos de destino automáticos (clase 9 / 79 y 20 / 61).</p>
+{% if a.origen == 'MANUAL' %}
+  {% include 'core/_sustentos.html' with objeto=a requerido=True %}
+  {% include 'core/_bitacora.html' with objeto=a %}
+{% endif %}
 {% endblock %}

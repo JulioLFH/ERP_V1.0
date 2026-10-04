@@ -3,6 +3,7 @@ from django.forms import inlineformset_factory
 
 from compras.models import Compra, OrdenCompra
 from core.forms import BootstrapMixin, validar_periodo_abierto
+from core.sustentos import SustentoField
 from core.models import Almacen, Producto, Tercero
 from ventas.models import Venta
 
@@ -12,12 +13,15 @@ from .models import Operacion, OperacionItem, TipoOperacion
 class TipoOperacionForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = TipoOperacion
-        fields = ['codigo', 'nombre', 'clase', 'origen', 'requiere_costo', 'cuenta_contable', 'codigo_sunat',
+        fields = ['codigo', 'nombre', 'clase', 'origen', 'requiere_costo', 'requiere_sustento', 'cuenta_contable',
+                  'codigo_sunat',
                   'codigo_sunat_ingreso', 'almacen_origen', 'almacen_destino', 'icono', 'orden', 'activo']
 
 
 class OperacionForm(BootstrapMixin, forms.ModelForm):
     """Cabecera: solo se muestran los campos que usa la clase del tipo de operación."""
+    sustento = SustentoField(required=False, label='Documento de sustento',
+                             help_text='Acta, informe, guía, etc. (PDF, imagen, Excel; máx. 5 MB)')
 
     class Meta:
         model = Operacion
@@ -83,6 +87,9 @@ class OperacionForm(BootstrapMixin, forms.ModelForm):
             self.fields['tercero'].label = 'Proveedor / cliente / responsable (opcional)'
         for nombre in quitar:
             self.fields.pop(nombre, None)
+        if tipo.requiere_sustento:
+            self.fields['sustento'].help_text = ('Obligatorio para confirmar: ' +
+                                                 'acta de inventario, de destrucción, informe, etc. (máx. 5 MB)')
         if not self.instance.pk:
             if 'almacen_origen' in self.fields and not self.initial.get('almacen_origen'):
                 defecto = Almacen.especial('DESTRUCCION') if tipo.codigo == 'SAL_DESTR' else Almacen.principal()

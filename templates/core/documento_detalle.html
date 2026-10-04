@@ -65,7 +65,8 @@
   {% if facturas_portal %}<ul class="list-group list-group-flush small">{% for f in facturas_portal %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'compras:portal_factura' f.pk %}">Factura del portal {{ f.numero_completo }}</a><span>{{ f.simbolo }} {{ f.total|money }} · {{ f.get_estado_display }}</span></li>{% endfor %}</ul>{% endif %}
 </div>
 {% endif %}
-<div style="max-width:900px;margin:auto">{% include 'inventario/_operaciones_doc.html' %}</div>
+<div style="max-width:900px;margin:auto">{% include 'inventario/_operaciones_doc.html' %}
+  {% if es_oc %}{% include 'core/_sustentos.html' with objeto=doc %}{% include 'core/_bitacora.html' with objeto=doc %}{% endif %}</div>
 {% if relacionados %}
 <div class="card mt-3 d-print-none" style="max-width:900px;margin:auto"><div class="card-header">Comprobantes generados</div>
   <ul class="list-group list-group-flush">{% for r in relacionados %}<li class="list-group-item d-flex justify-content-between"><a href="{% url url_rel r.pk %}">{{ r }}</a><span class="num">{{ r.total|money }}</span></li>{% endfor %}</ul>

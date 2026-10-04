@@ -112,21 +112,37 @@ def kardex_producto(request, pk):
     return redirect(f"{reverse('inv_kardex')}?producto={pk}")
 
 
+TIPO_AJUSTE = {'INICIAL': 'SALDO_INI', 'SOBRANTE': 'AJ_ING', 'MERMA': 'AJ_SAL', 'CONSUMO': 'CONS_INT'}
+
+
 @login_required
 def ajuste(request):
-    form = AjusteInventarioForm(request.POST or None, initial={'fecha': date.today(), 'tipo': 'ENTRADA',
-                                                                 'producto': request.GET.get('producto')})
+    """Ajuste rápido: registra y confirma una operación de inventario (saldo inicial, ajuste o consumo) con su
+    documento de sustento, para que quede numerada, auditada y anulable."""
+    from inventario import servicios
+    from inventario.models import Operacion, TipoOperacion
+    from .sustentos import adjuntar
+    form = AjusteInventarioForm(request.POST or None, request.FILES or None,
+                                initial={'fecha': date.today(), 'tipo': 'ENTRADA', 'producto': request.GET.get('producto')})
     if request.method == 'POST' and form.is_valid():
         d = form.cleaned_data
-        p = d['producto']
-        cantidad = d['cantidad'] if d['tipo'] == 'ENTRADA' else -d['cantidad']
-        costo = d['costo_unitario'] if d['tipo'] == 'ENTRADA' and d['costo_unitario'] is not None else None
-        with transaction.atomic():
-            p.mover_stock(cantidad, f'Ajuste: {d["motivo"]}', costo=costo, fecha=d['fecha'], almacen=d['almacen'],
-                          origen='AJUSTE', concepto=d['concepto'])
-        messages.success(request, f'Ajuste registrado. Stock de {p.nombre}: {p.stock}')
-        return redirect(f"{reverse('inv_kardex')}?producto={p.pk}")
-    ultimos = Kardex.objects.filter(referencia__startswith='Ajuste').select_related('producto', 'almacen')[:20]
+        tipo = TipoOperacion.objects.get(codigo=TIPO_AJUSTE[d['concepto']])
+        try:
+            with transaction.atomic():
+                op = Operacion.objects.create(
+                    tipo=tipo, fecha=d['fecha'], referencia=d['motivo'][:60], glosa=d['motivo'], creado_por=request.user,
+                    **({'almacen_destino': d['almacen']} if d['tipo'] == 'ENTRADA' else {'almacen_origen': d['almacen']}))
+                op.items.create(producto=d['producto'], cantidad=d['cantidad'],
+                                costo_unitario=d['costo_unitario'] if d['tipo'] == 'ENTRADA' else None)
+                adjuntar(op, d['sustento'], request.user, d['motivo'])
+                servicios.confirmar(op, request.user)
+        except servicios.ErrorOperacion as exc:
+            messages.error(request, f'No se registró el ajuste: {exc}')
+        else:
+            messages.success(request, f'{tipo.nombre} {op.numero} registrado con su sustento.')
+            return redirect('inventario:detalle', op.pk)
+    ultimos = Operacion.objects.filter(tipo__codigo__in=TIPO_AJUSTE.values()).select_related(
+        'tipo', 'almacen_origen', 'almacen_destino').prefetch_related('items__producto')[:20]
     return render(request, 'inventario/ajuste.html', {'form': form, 'ultimos': ultimos})
 
 

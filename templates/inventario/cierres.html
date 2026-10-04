@@ -25,7 +25,7 @@
   <thead><tr><th>Periodo</th><th>Cerrado hasta</th><th class="num">Unidades</th><th class="num">Valorizado S/</th><th>Cerrado por</th><th>Estado</th><th></th></tr></thead>
   <tbody>{% for c in cierres %}<tr>
     <td class="fw-semibold">{{ c.periodo_texto }}</td><td>{{ c.fecha_corte|date:'d/m/Y' }}</td><td class="num">{{ c.unidades|money }}</td><td class="num">{{ c.valor_total|money }}</td>
-    <td class="small">{{ c.cerrado_por.get_full_name|default:c.cerrado_por.username|default:'—' }} · {{ c.cerrado_en|date:'d/m/Y H:i' }}</td>
+    <td class="small">{% if c.cerrado_por %}{{ c.cerrado_por.get_full_name|default:c.cerrado_por.username }}{% else %}—{% endif %} · {{ c.cerrado_en|date:'d/m/Y H:i' }}</td>
     <td>{% if c.estado == 'CERRADO' %}<span class="badge text-bg-success">Cerrado</span>{% else %}<span class="badge text-bg-secondary" title="{{ c.motivo_reapertura }}">Reabierto</span>{% endif %}</td>
     <td class="text-end"><a href="{% url 'inventario:cierre' c.pk %}" class="btn btn-sm btn-outline-secondary py-0">Ver</a></td></tr>
   {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin cierres.</td></tr>{% endfor %}</tbody>

@@ -78,7 +78,7 @@ def _contexto_form(op, titulo, costos=True):
 def _guardar(request, op, titulo, initial=None, items=None):
     formset_cls = operacion_formset(extra=0)  # min_num ya muestra una fila
     if request.method == 'POST':
-        form = OperacionForm(request.POST, instance=op, tipo=op.tipo)
+        form = OperacionForm(request.POST, request.FILES, instance=op, tipo=op.tipo)
         formset = formset_cls(request.POST, instance=form.instance)
         if form.is_valid() and formset.is_valid():
             if op.tipo.clase == 'MANUFACTURA':
@@ -95,6 +95,9 @@ def _guardar(request, op, titulo, initial=None, items=None):
                     op.save()
                     formset.instance = op
                     formset.save()
+                    if form.cleaned_data.get('sustento'):
+                        from core.sustentos import adjuntar
+                        adjuntar(op, form.cleaned_data['sustento'], request.user, op.referencia or op.tipo.nombre)
                 if request.POST.get('accion') == 'confirmar':
                     return _confirmar(request, op)
                 messages.success(request, 'Operación guardada en borrador. Revise y confirme para mover el almacén.')

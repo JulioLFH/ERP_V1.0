@@ -5,6 +5,7 @@ from django.forms import BaseInlineFormSet, inlineformset_factory, modelformset_
 
 from core.forms import BootstrapMixin
 from core.models import Tercero
+from core.sustentos import SustentoField
 
 from .models import Asiento, AsientoLinea, CentroCosto, CuentaContable, CuentaDefecto, PeriodoContable
 
@@ -50,10 +51,31 @@ CuentaDefectoFormSet = modelformset_factory(CuentaDefecto, form=CuentaDefectoFor
 
 
 class AsientoForm(BootstrapMixin, forms.ModelForm):
+    sustento = SustentoField(help_text='Obligatorio: documento que respalda el asiento (PDF, imagen, Excel; máx. 5 MB)')
+    descripcion_sustento = forms.CharField(label='Descripción del sustento', max_length=200, required=False)
+
     class Meta:
         model = Asiento
         fields = ['fecha', 'libro', 'glosa', 'moneda', 'tipo_cambio']
         widgets = {'moneda': forms.Select(choices=[('PEN', 'Soles'), ('USD', 'Dólares')])}
+
+
+class ExtornoForm(BootstrapMixin, forms.Form):
+    fecha = forms.DateField(label='Fecha del extorno', help_text='Debe estar en un periodo abierto')
+    motivo = forms.CharField(label='Motivo del extorno', max_length=200, widget=forms.Textarea(attrs={'rows': 2}))
+    sustento = SustentoField(required=False, label='Sustento (opcional)')
+
+    def clean_fecha(self):
+        fecha = self.cleaned_data['fecha']
+        if PeriodoContable.esta_cerrado(fecha.strftime('%Y%m')):
+            raise forms.ValidationError('El periodo de esta fecha está cerrado.')
+        return fecha
+
+    def clean_motivo(self):
+        motivo = self.cleaned_data['motivo'].strip()
+        if len(motivo) < 10:
+            raise forms.ValidationError('Explique el motivo (mínimo 10 caracteres).')
+        return motivo
 
     def clean_fecha(self):
         fecha = self.cleaned_data['fecha']

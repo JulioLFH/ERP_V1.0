@@ -198,22 +198,9 @@ class ComprobanteViews:
         return redirect(self._url('detalle', pk))
 
     def eliminar(self, request, pk):
-        doc = get_object_or_404(self.modelo, pk=pk)
-        if request.method == 'POST':
-            from inventario.cierre import error_cierre
-            if doc.stock_aplicado and error_cierre(doc.fecha_emision):
-                messages.error(request, error_cierre(doc.fecha_emision))
-                return redirect(self._url('detalle', pk))
-            faltan = self.faltantes_al_revertir(doc)
-            if doc.movimientos.exists() or doc.notas.exists() or periodo_cerrado(doc.periodo) or faltan:
-                messages.error(request, 'No se puede eliminar: tiene pagos o notas asociadas, su periodo está cerrado '
-                                        'o la mercadería ya salió del almacén. ' + ' '.join(faltan))
-                return redirect(self._url('detalle', pk))
-            with transaction.atomic():
-                doc.revertir_stock()
-                doc.delete()
-            messages.success(request, 'Comprobante eliminado.')
-        return redirect(self._url('lista'))
+        """Los comprobantes no se eliminan: se anulan con motivo (queda el registro y la auditoría)."""
+        messages.error(request, 'Los comprobantes no se eliminan: use "Anular" e indique el motivo.')
+        return redirect(self._url('detalle', pk))
 
     def trasladar(self, request, pk):
         """Traslada el comprobante a otro periodo de registro."""

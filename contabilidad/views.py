@@ -135,50 +135,69 @@ def asiento_detalle(request, pk):
         'a': a, 'lineas': lineas, 'debe': d, 'haber': h, 'cerrado': PeriodoContable.esta_cerrado(a.periodo)})
 
 
-def _guardar_asiento(request, asiento, titulo):
-    form = AsientoForm(request.POST or None, instance=asiento)
-    formset = lineas_formset(extra=0 if asiento.pk else 4)(request.POST or None, instance=asiento)
+@login_required
+def asiento_nuevo(request):
+    """Asiento manual con sustento obligatorio. No se edita ni elimina: se corrige con un extorno."""
+    from core.sustentos import adjuntar
+    asiento = Asiento(libro='05')
+    form = AsientoForm(request.POST or None, request.FILES or None, instance=asiento)
+    formset = lineas_formset(extra=4)(request.POST or None, instance=asiento)
     if request.method == 'POST' and form.is_valid() and formset.is_valid():
         with transaction.atomic():
             a = form.save(commit=False)
-            a.origen = 'MANUAL'
-            if asiento.pk and a.fecha.strftime('%Y%m') != asiento.periodo:
-                a.numero = ''  # cambió de periodo: nuevo correlativo
+            a.origen, a.creado_por = 'MANUAL', request.user
             a.save()
             formset.instance = a
             formset.save()
-        messages.success(request, f'Asiento {a.numero} guardado.')
+            adjuntar(a, form.cleaned_data['sustento'], request.user, form.cleaned_data.get('descripcion_sustento', ''))
+        messages.success(request, f'Asiento {a.numero} registrado con su sustento.')
         return redirect('contabilidad:asiento_detalle', a.pk)
     cuentas = list(CuentaContable.objects.filter(imputable=True, activo=True).values('id', 'codigo', 'nombre'))
-    return render(request, 'contabilidad/asiento_form.html', {'form': form, 'formset': formset, 'titulo': titulo,
-                                                              'cuentas': cuentas})
-
-
-@login_required
-def asiento_nuevo(request):
-    return _guardar_asiento(request, Asiento(libro='05'), 'Nuevo asiento manual')
+    return render(request, 'contabilidad/asiento_form.html', {'form': form, 'formset': formset,
+                                                              'titulo': 'Nuevo asiento manual', 'cuentas': cuentas})
 
 
 @login_required
 def asiento_editar(request, pk):
-    a = get_object_or_404(Asiento, pk=pk)
-    if a.origen != 'MANUAL' or PeriodoContable.esta_cerrado(a.periodo):
-        messages.error(request, 'Solo se editan asientos manuales de periodos abiertos. Los automáticos se '
-                                'regeneran al centralizar.')
-        return redirect('contabilidad:asiento_detalle', pk)
-    return _guardar_asiento(request, a, f'Editar asiento {a.numero}')
+    messages.error(request, 'Los asientos no se editan: si hay un error, extórnelo (asiento inverso con motivo) y '
+                            'registre el asiento correcto.')
+    return redirect('contabilidad:asiento_detalle', pk)
 
 
 @login_required
 def asiento_eliminar(request, pk):
+    messages.error(request, 'Los asientos no se eliminan: use "Extornar" para anular su efecto con un asiento inverso.')
+    return redirect('contabilidad:asiento_detalle', pk)
+
+
+@login_required
+def asiento_extornar(request, pk):
+    """Asiento inverso (debe <-> haber) con motivo: anula el efecto de un asiento manual sin borrarlo."""
+    from core.auditoria import registrar
+    from core.sustentos import adjuntar
+    from .forms import ExtornoForm
     a = get_object_or_404(Asiento, pk=pk)
-    if request.method == 'POST':
-        if a.origen != 'MANUAL' or PeriodoContable.esta_cerrado(a.periodo):
-            messages.error(request, 'Solo se eliminan asientos manuales de periodos abiertos.')
-            return redirect('contabilidad:asiento_detalle', pk)
-        a.delete()
-        messages.success(request, 'Asiento eliminado.')
-    return redirect('contabilidad:asientos')
+    if a.origen != 'MANUAL' or a.extorna_id or a.extornado:
+        messages.error(request, 'Solo se extornan asientos manuales que no son extornos ni fueron extornados. Los '
+                                'automáticos se corrigen en su documento de origen.')
+        return redirect('contabilidad:asiento_detalle', pk)
+    form = ExtornoForm(request.POST or None, request.FILES or None,
+                       initial={'fecha': a.fecha if not PeriodoContable.esta_cerrado(a.periodo) else date.today()})
+    if request.method == 'POST' and form.is_valid():
+        with transaction.atomic():
+            ext = Asiento.objects.create(fecha=form.cleaned_data['fecha'], libro=a.libro, origen='MANUAL', extorna=a,
+                                         moneda=a.moneda, tipo_cambio=a.tipo_cambio, creado_por=request.user,
+                                         glosa=f'Extorno de {a.numero}: {form.cleaned_data["motivo"]}'[:250])
+            AsientoLinea.objects.bulk_create([AsientoLinea(
+                asiento=ext, cuenta=l.cuenta, tercero=l.tercero, centro_costo=l.centro_costo, documento=l.documento,
+                glosa=l.glosa, debe=l.haber, haber=l.debe, debe_me=l.haber_me, haber_me=l.debe_me,
+                es_destino=l.es_destino) for l in a.lineas.all()])
+            if form.cleaned_data.get('sustento'):
+                adjuntar(ext, form.cleaned_data['sustento'], request.user, 'Sustento del extorno')
+            registrar('EXTORNAR', a, {'extorno': ext.numero}, form.cleaned_data['motivo'])
+        messages.success(request, f'Asiento {a.numero} extornado con el asiento {ext.numero}.')
+        return redirect('contabilidad:asiento_detalle', ext.pk)
+    return render(request, 'core/form.html', {'form': form, 'titulo': f'Extornar asiento {a.numero}'})
 
 
 # ---------------------------------------------------------------- libros

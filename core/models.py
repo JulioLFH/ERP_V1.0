@@ -2,6 +2,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from django.apps import apps
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
 from django.db import models, transaction
 from django.db.models import OuterRef, Subquery, Sum, Value
 from django.db.models.functions import Coalesce
@@ -416,6 +417,61 @@ class FacturacionConfig(models.Model):
     @property
     def activa(self):
         return self.proveedor != 'NINGUNO' and bool(self.ruta and self.token)
+
+
+class ArchivoSustento(models.Model):
+    """Documento de sustento (PDF, imagen, Excel). Se guarda en la base de datos: el disco de la nube se borra."""
+    nombre = models.CharField(max_length=150)
+    tipo = models.CharField(max_length=100, blank=True)
+    datos = models.BinaryField()
+    tamano = models.PositiveIntegerField(default=0)
+    subido_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'archivo de sustento'
+        verbose_name_plural = 'archivos de sustento'
+
+    def __str__(self):
+        return self.nombre
+
+
+class Sustento(models.Model):
+    """Vínculo entre un documento del ERP (asiento, movimiento, operación, comprobante...) y su sustento.
+    Solo se agregan: no se borran (trazabilidad)."""
+    archivo = models.ForeignKey(ArchivoSustento, on_delete=models.PROTECT, related_name='vinculos')
+    content_type = models.ForeignKey('contenttypes.ContentType', on_delete=models.CASCADE)
+    object_id = models.PositiveBigIntegerField()
+    objeto = GenericForeignKey('content_type', 'object_id')
+    descripcion = models.CharField('Descripción', max_length=200, blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['creado']
+        indexes = [models.Index(fields=['content_type', 'object_id'])]
+
+
+class Bitacora(models.Model):
+    """Auditoría: quién creó, modificó, anuló o eliminó cada registro, cuándo y qué cambió."""
+    ACCIONES = [('CREAR', 'Creó'), ('MODIFICAR', 'Modificó'), ('ELIMINAR', 'Eliminó'), ('ANULAR', 'Anuló'),
+                ('EXTORNAR', 'Extornó'), ('ADJUNTAR', 'Adjuntó sustento'), ('ACCESO', 'Inició sesión')]
+    fecha = models.DateTimeField(auto_now_add=True, db_index=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='+')
+    accion = models.CharField(max_length=10, choices=ACCIONES)
+    modelo = models.CharField(max_length=60, db_index=True)
+    modelo_nombre = models.CharField(max_length=80)
+    objeto_id = models.CharField(max_length=40, db_index=True)
+    objeto = models.CharField(max_length=200)
+    cambios = models.JSONField(default=dict, blank=True)
+    motivo = models.CharField(max_length=300, blank=True)
+    ip = models.CharField(max_length=45, blank=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'registro de auditoría'
+        verbose_name_plural = 'bitácora de auditoría'
 
 
 class IntentoAcceso(models.Model):

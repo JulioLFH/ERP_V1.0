@@ -126,14 +126,32 @@ class ContabilidadTest(TestCase):
             'lineas-MAX_NUM_FORMS': '1000', 'lineas-0-cuenta': caja.pk, 'lineas-0-debe': '1000', 'lineas-0-haber': '',
             'lineas-1-cuenta': capital.pk, 'lineas-1-debe': '', 'lineas-1-haber': '1000',
         }
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        def acta():
+            return SimpleUploadedFile('acta_directorio.pdf', b'%PDF-1.4 acta', content_type='application/pdf')
         r = self.client.post(reverse('contabilidad:asiento_nuevo'), data)
+        self.assertContains(r, 'Documento de sustento')  # sin sustento no se registra
+        self.assertFalse(Asiento.objects.filter(origen='MANUAL').exists())
+        r = self.client.post(reverse('contabilidad:asiento_nuevo'), {**data, 'sustento': acta()})
         self.assertEqual(r.status_code, 302)
         manual = Asiento.objects.get(origen='MANUAL')
         self.assertTrue(manual.numero.startswith(f'05-{p}-'))
-        r = self.client.post(reverse('contabilidad:asiento_nuevo'), {**data, 'lineas-1-haber': '900'})
+        r = self.client.post(reverse('contabilidad:asiento_nuevo'), {**data, 'lineas-1-haber': '900', 'sustento': acta()})
         self.assertContains(r, 'no cuadra')
         centralizar_periodo(p)
         self.assertTrue(Asiento.objects.filter(pk=manual.pk).exists())
+        # no se edita ni elimina: se extorna con motivo
+        self.client.post(reverse('contabilidad:asiento_eliminar', args=[manual.pk]))
+        self.assertTrue(Asiento.objects.filter(pk=manual.pk).exists())
+        r = self.client.post(reverse('contabilidad:asiento_extornar', args=[manual.pk]),
+                             {'fecha': f'{p[:4]}-{p[4:]}-02', 'motivo': 'Importe del aporte registrado por error'})
+        ext = Asiento.objects.get(extorna=manual)
+        self.assertRedirects(r, reverse('contabilidad:asiento_detalle', args=[ext.pk]))
+        self.assertEqual(ext.lineas.get(cuenta=caja).haber, Decimal('1000'))
+        self.assertTrue(manual.extornado)
+        centralizar_periodo(p)
+        self.assertTrue(Asiento.objects.filter(pk=ext.pk).exists())  # el extorno tampoco se regenera
 
     def test_periodo_cerrado_bloquea(self):
         p = self.periodos[-1]

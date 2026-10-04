@@ -31,6 +31,10 @@ HOY = date.today()
 TC = (D('3.441'), D('3.450'))
 
 
+def recibo():
+    return SimpleUploadedFile('recibo.pdf', b'%PDF-1.4 recibo', content_type='application/pdf')
+
+
 def excel(filas):
     wb = Workbook()
     for f in filas:
@@ -63,32 +67,36 @@ class CorreccionesTest(TestCase):
         Movimiento.objects.create(cuenta=c, fecha=HOY, tipo='INGRESO', concepto='OTRO', monto=D('1000'))
         datos = {'cuenta': c.pk, 'fecha': HOY - timedelta(days=3), 'tipo': 'EGRESO', 'concepto': 'OTRO',
                  'medio_pago': 'TRANSFERENCIA', 'monto': '500', 'glosa': ''}
-        form = MovimientoForm(data=datos)
+        form = MovimientoForm(data=datos, files={'sustento': recibo()})
         self.assertFalse(form.is_valid())  # hoy hay 1000, pero hace 3 días la cuenta estaba en cero
         self.assertIn('quedaría en S/ -500.00', form.errors['monto'][0])
-        self.assertTrue(MovimientoForm(data={**datos, 'fecha': HOY}).is_valid())
+        self.assertTrue(MovimientoForm(data={**datos, 'fecha': HOY}, files={'sustento': recibo()}).is_valid())
+        self.assertIn('sustento', MovimientoForm(data={**datos, 'fecha': HOY}).errors)  # sin sustento no se acepta
         # transferencia con fecha anterior al ingreso
         t = TransferenciaForm(data={'origen': c.pk, 'destino': Cuenta.objects.get(nombre__startswith='BCP Cta. Cte. S').pk,
-                                    'fecha': HOY - timedelta(days=1), 'monto': '100'})
+                                    'fecha': HOY - timedelta(days=1), 'monto': '100', 'numero_operacion': '123'})
         self.assertFalse(t.is_valid())
 
     def test_caja_nunca_queda_negativa_aunque_marque_sobregiro(self):
         self.caja.permite_sobregiro = True
         self.caja.save()
         form = MovimientoForm(data={'cuenta': self.caja.pk, 'fecha': HOY, 'tipo': 'EGRESO', 'concepto': 'OTRO',
-                                    'medio_pago': 'EFECTIVO', 'monto': str(self.caja.saldo + 1), 'glosa': ''})
+                                    'medio_pago': 'EFECTIVO', 'monto': str(self.caja.saldo + 1), 'glosa': ''},
+                              files={'sustento': recibo()})
         self.assertFalse(form.is_valid())
         banco = self.nueva_cuenta(permite_sobregiro=True)
         form = MovimientoForm(data={'cuenta': banco.pk, 'fecha': HOY, 'tipo': 'EGRESO', 'concepto': 'OTRO',
-                                    'medio_pago': 'TRANSFERENCIA', 'monto': '50', 'glosa': ''})
+                                    'medio_pago': 'TRANSFERENCIA', 'monto': '50', 'glosa': ''},
+                              files={'sustento': recibo()})
         self.assertTrue(form.is_valid())  # banco con sobregiro autorizado
 
     def test_no_se_elimina_un_ingreso_ya_gastado(self):
         c = self.nueva_cuenta()
         ingreso = Movimiento.objects.create(cuenta=c, fecha=HOY, tipo='INGRESO', concepto='OTRO', monto=D('300'))
         Movimiento.objects.create(cuenta=c, fecha=HOY, tipo='EGRESO', concepto='OTRO', monto=D('200'))
-        self.client.post(reverse('finanzas:movimiento_eliminar', args=[ingreso.pk]))
-        self.assertTrue(Movimiento.objects.filter(pk=ingreso.pk).exists())
+        self.client.post(reverse('finanzas:movimiento_eliminar', args=[ingreso.pk]),
+                         {'motivo': 'Ingreso registrado por error'})
+        self.assertTrue(Movimiento.objects.filter(pk=ingreso.pk).exists())  # sigue vigente
 
     def test_saldo_inicial_e_importacion_sin_negativos(self):
         c = self.nueva_cuenta(saldo=D('100'))

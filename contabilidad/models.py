@@ -124,10 +124,18 @@ class Asiento(models.Model):
                                    related_name='asientos')
     moneda = models.CharField(max_length=3, default='PEN')
     tipo_cambio = models.DecimalField(max_digits=8, decimal_places=3, default=Decimal('1'))
+    extorna = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True, related_name='extornos',
+                                verbose_name='Extorno de', editable=False)
+    creado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                   editable=False)
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['periodo', 'libro', 'numero']
+
+    @property
+    def extornado(self):
+        return self.extornos.exists()
 
     def __str__(self):
         return f'Asiento {self.numero}'

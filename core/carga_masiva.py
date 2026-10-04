@@ -303,7 +303,7 @@ VALIDADORES = {'productos': _fila_producto, 'terceros': _fila_tercero, 'saldos':
                'saldos_cxc': lambda d, a: _fila_documento(d, True), 'saldos_cxp': lambda d, a: _fila_documento(d, False)}
 
 
-def _crear_documentos(filas, es_venta):
+def _crear_documentos(filas, es_venta, sustentar=lambda obj: None):
     from compras.models import Compra, CompraItem
     from ventas.models import Venta, VentaItem
     modelo, item_modelo = (Venta, VentaItem) if es_venta else (Compra, CompraItem)
@@ -326,6 +326,7 @@ def _crear_documentos(filas, es_venta):
         doc.calcular_totales()
         doc.retencion_monto = doc.percepcion_monto = doc.detraccion_monto = Decimal('0')  # el saldo ya es neto
         doc.save()
+        sustentar(doc)
         total += doc.total_pen
     return total
 
@@ -381,8 +382,22 @@ def validar(archivo, tipo, actualizar=False):
 
 
 # ---------------------------------------------------------------- grabación
-def cargar(tipo, filas, usuario):
-    """Graba las filas validadas (todo o nada). Devuelve un texto con el resumen."""
+def cargar(tipo, filas, usuario, adjunto=None):
+    """Graba las filas validadas (todo o nada). Devuelve un texto con el resumen.
+
+    adjunto: (bytes, nombre) del Excel, que queda como sustento de los saldos iniciales creados."""
+    from .sustentos import guardar_archivo, vincular
+    archivo = None
+
+    def sustentar(obj):
+        nonlocal archivo
+        if adjunto is None:
+            return
+        if archivo is None:
+            archivo = guardar_archivo(None, usuario, datos=adjunto[0], nombre=adjunto[1],
+                                      tipo='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        vincular(obj, archivo, usuario, 'Carga masiva desde Excel')
+
     with transaction.atomic():
         if tipo == 'productos':
             nuevos = actualizados = 0
@@ -410,7 +425,7 @@ def cargar(tipo, filas, usuario):
                 t.save()
             return f'{nuevos} clientes/proveedores nuevos y {actualizados} actualizados.'
         if tipo in ('saldos_cxc', 'saldos_cxp'):
-            total = _crear_documentos(filas, tipo == 'saldos_cxc')
+            total = _crear_documentos(filas, tipo == 'saldos_cxc', sustentar)
             return (f'{len(filas)} documentos por {"cobrar" if tipo == "saldos_cxc" else "pagar"} cargados '
                     f'(S/ {total:,.2f}).')
         if tipo == 'saldos':
@@ -428,6 +443,7 @@ def cargar(tipo, filas, usuario):
                 for d in lineas:
                     op.items.create(producto_id=d['producto'], cantidad=Decimal(d['cantidad']),
                                     costo_unitario=Decimal(d['costo']))
+                sustentar(op)
                 servicios.confirmar(op, usuario)
                 numeros.append(op.numero)
             return f'{len(filas)} saldos cargados en {len(numeros)} operación(es): {", ".join(numeros)}.'

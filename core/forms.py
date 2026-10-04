@@ -231,11 +231,23 @@ class AjusteInventarioForm(BootstrapMixin, forms.Form):
                                         required=False, min_value=0)
     fecha = forms.DateField()
     motivo = forms.CharField(max_length=80)
+    sustento = forms.FileField(label='Documento de sustento',
+                               help_text='Obligatorio: acta de inventario, informe de merma, vale de consumo… '
+                                         '(PDF, imagen, Excel; máx. 5 MB)')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['producto'].queryset = Producto.objects.filter(activo=True, tipo='BIEN')
         self.initial.setdefault('almacen', Almacen.principal().pk)
+
+    def clean_sustento(self):
+        from .sustentos import ErrorSustento, validar_archivo
+        archivo = self.cleaned_data['sustento']
+        try:
+            validar_archivo(archivo)
+        except ErrorSustento as exc:
+            raise forms.ValidationError(str(exc))
+        return archivo
 
     def clean(self):
         data = super().clean()

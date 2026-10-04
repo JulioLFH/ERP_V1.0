@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Auditoría{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Bitácora de auditoría</h1>
+  <a href="?{{ request.GET.urlencode }}&formato=excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+</div>
+<div class="card">
+  <div class="card-body border-bottom py-2">
+    <form class="row g-2" method="get">
+      <div class="col-auto"><select name="usuario" class="form-select form-select-sm"><option value="">Todos los usuarios</option>{% for u in usuarios %}<option value="{{ u.pk }}" {% if request.GET.usuario == u.pk|stringformat:'s' %}selected{% endif %}>{{ u.username }}</option>{% endfor %}</select></div>
+      <div class="col-auto"><select name="accion" class="form-select form-select-sm"><option value="">Todas las acciones</option>{% for v, e in acciones %}<option value="{{ v }}" {% if request.GET.accion == v %}selected{% endif %}>{{ e }}</option>{% endfor %}</select></div>
+      <div class="col-auto"><select name="modelo" class="form-select form-select-sm"><option value="">Todos los registros</option>{% for v, e in modelos %}<option value="{{ v }}" {% if request.GET.modelo == v %}selected{% endif %}>{{ e|capfirst }}</option>{% endfor %}</select></div>
+      <div class="col-auto"><input type="date" name="desde" value="{{ request.GET.desde }}" class="form-control form-control-sm"></div>
+      <div class="col-auto"><input type="date" name="hasta" value="{{ request.GET.hasta }}" class="form-control form-control-sm"></div>
+      <div class="col-md-3"><input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Registro o motivo"></div>
+      <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></div>
+    </form>
+  </div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+    <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Registro</th><th>Detalle</th><th>IP</th></tr></thead>
+    <tbody>{% for b in page_obj %}<tr>
+      <td class="text-nowrap">{{ b.fecha|date:'d/m/Y H:i:s' }}</td><td>{{ b.usuario.username|default:'Sistema' }}</td>
+      <td><span class="badge {% if b.accion == 'ANULAR' or b.accion == 'ELIMINAR' or b.accion == 'EXTORNAR' %}text-bg-danger{% elif b.accion == 'MODIFICAR' %}text-bg-warning{% elif b.accion == 'CREAR' %}text-bg-success{% else %}text-bg-light border{% endif %}">{{ b.get_accion_display }}</span></td>
+      <td><span class="text-muted">{{ b.modelo_nombre|capfirst }}</span><br>{{ b.objeto }}</td>
+      <td>{% if b.motivo %}<div><b>Motivo:</b> {{ b.motivo }}</div>{% endif %}
+        {% if b.accion == 'MODIFICAR' or b.accion == 'ANULAR' %}{% for campo, valores in b.cambios.items %}<div>{{ campo }}: <s class="text-muted">{{ valores.0|default:'—' }}</s> → {{ valores.1|default:'—' }}</div>{% endfor %}{% endif %}
+        {% if b.accion == 'ADJUNTAR' %}{{ b.cambios.archivo }}{% endif %}</td>
+      <td class="text-muted">{{ b.ip }}</td></tr>
+    {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin registros.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% include 'core/_paginacion.html' %}
+</div>
+{% endblock %}

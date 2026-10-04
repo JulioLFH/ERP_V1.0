@@ -141,6 +141,10 @@ def errores_confirmacion(op):
     from .cierre import error_cierre
     if error_cierre(op.fecha):
         errores.append(error_cierre(op.fecha))
+    if tipo.requiere_sustento and op.pk:
+        from core.sustentos import tiene
+        if not tiene(op):
+            errores.append(f'"{tipo.nombre}" exige sustento: adjunte el documento (acta, informe, guía, etc.).')
     if tipo.usa_origen_almacen and not op.almacen_origen_id and tipo.clase != 'TRANSITO_RECEPCION':
         errores.append('Indique el almacén de origen.')
     if tipo.usa_destino_almacen and not op.almacen_destino_id:

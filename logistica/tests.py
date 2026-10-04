@@ -115,9 +115,11 @@ class NuevasFuncionesTest(TestCase):
     def test_ajuste_y_valorizacion(self):
         p = Producto.objects.get(codigo='P004')
         stock0 = p.stock
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        acta = SimpleUploadedFile('acta.pdf', b'%PDF-1.4 acta', content_type='application/pdf')
         r = self.client.post(reverse('inv_ajuste'), {'producto': p.pk, 'almacen': self.callao.pk, 'tipo': 'ENTRADA',
                                                      'cantidad': '4', 'costo_unitario': '500', 'fecha': '2026-10-01',
-                                                     'motivo': 'Inventario inicial'})
+                                                     'motivo': 'Inventario inicial', 'sustento': acta})
         self.assertEqual(r.status_code, 302)
         p.refresh_from_db()
         self.assertEqual(p.stock, stock0 + 4)

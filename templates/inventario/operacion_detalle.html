@@ -61,6 +61,8 @@
       {% if ver_costos %}<tfoot><tr class="fw-semibold"><td colspan="{% if op.tipo.clase == 'MANUFACTURA' %}7{% else %}6{% endif %}" class="text-end">Total</td><td class="num">{{ total|money }}</td></tr></tfoot>{% endif %}
     </table></div></div>
     {% if op.estado == 'BORRADOR' and ver_costos %}<p class="small text-muted mt-2">En borrador el costo mostrado es referencial; al confirmar se toma el costo promedio vigente (salidas y traslados).</p>{% endif %}
+    {% include 'core/_sustentos.html' with objeto=op requerido=op.tipo.requiere_sustento %}
+    {% include 'core/_bitacora.html' with objeto=op %}
   </div>
   <div class="col-lg-4">
     <div class="card mb-3"><div class="card-header"><i class="bi bi-clock-history"></i> Historial</div><div class="card-body small">

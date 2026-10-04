@@ -13,7 +13,10 @@ from compras.forms import CompraForm
 from compras.models import OrdenCompra, OrdenCompraItem
 from contabilidad.centralizar import centralizar_periodo
 from contabilidad.models import Asiento
+from django.core.files.uploadedfile import SimpleUploadedFile
+
 from core.models import Almacen, Kardex, Producto, Tercero
+from core.sustentos import adjuntar
 from ventas.models import Venta
 
 from . import servicios
@@ -21,6 +24,10 @@ from .models import Operacion, TipoOperacion
 
 D = Decimal
 HOY = date.today()
+
+
+def acta():
+    return SimpleUploadedFile('acta.pdf', b'%PDF-1.4 acta de inventario', content_type='application/pdf')
 
 
 class OperacionesTest(TestCase):
@@ -46,6 +53,8 @@ class OperacionesTest(TestCase):
             op.items.create(producto=producto, cantidad=D(cantidad),
                             costo_unitario=D(fila[2]) if len(fila) > 2 and fila[2] is not None else None,
                             rol=fila[3] if len(fila) > 3 else '')
+        if op.tipo.requiere_sustento:
+            adjuntar(op, acta())
         return op
 
     def stock(self, producto, almacen):
@@ -217,7 +226,10 @@ class OperacionesTest(TestCase):
                  'items-TOTAL_FORMS': '1', 'items-INITIAL_FORMS': '0', 'items-MIN_NUM_FORMS': '1',
                  'items-MAX_NUM_FORMS': '1000', 'items-0-producto': self.p3.pk, 'items-0-cantidad': '1',
                  'items-0-observacion': 'Reposición', 'accion': 'confirmar'}
-        r = self.client.post(reverse('inventario:nueva') + '?tipo=CONS_MANT', datos)
+        # sin sustento queda en borrador: el consumo de mantenimiento lo exige
+        self.client.post(reverse('inventario:nueva') + '?tipo=CONS_MANT', {**datos, 'referencia': 'OT-14'})
+        self.assertEqual(Operacion.objects.get(referencia='OT-14').estado, 'BORRADOR')
+        r = self.client.post(reverse('inventario:nueva') + '?tipo=CONS_MANT', {**datos, 'sustento': acta()})
         op = Operacion.objects.get(referencia='OT-15')
         self.assertRedirects(r, reverse('inventario:detalle', args=[op.pk]))
         self.assertEqual(op.estado, 'CONFIRMADO')

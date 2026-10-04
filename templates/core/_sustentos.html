@@ -1,0 +1,25 @@
+{% load erp_tags %}{% with lista=objeto|sustentos %}
+<div class="card mt-3 d-print-none" id="sustentos">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-paperclip"></i> Sustentos{% if lista %} <span class="badge text-bg-light border">{{ lista|length }}</span>{% endif %}</span>
+    {% if requerido and not lista %}<span class="badge text-bg-danger">Falta el sustento</span>{% endif %}
+  </div>
+  {% if lista %}<ul class="list-group list-group-flush small">{% for s in lista %}
+    <li class="list-group-item d-flex justify-content-between gap-2">
+      <span><a href="{% url 'sustento_ver' s.pk %}" target="_blank"><i class="bi bi-file-earmark"></i> {{ s.archivo.nombre }}</a>{% if s.descripcion %} · {{ s.descripcion }}{% endif %}</span>
+      <span class="text-muted text-nowrap">{% if s.usuario %}{{ s.usuario.get_full_name|default:s.usuario.username }} · {% endif %}{{ s.creado|date:'d/m/Y H:i' }}</span>
+    </li>{% endfor %}</ul>
+  {% elif solo_lectura %}<div class="card-body small text-muted">Sin sustentos.</div>{% endif %}
+  {% if not solo_lectura %}
+  <div class="card-body border-top">
+    <form method="post" enctype="multipart/form-data" action="{% url 'sustento_subir' objeto|ct_id objeto.pk %}" class="row g-2 align-items-end">{% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}#sustentos">
+      <div class="col-md-5"><input type="file" name="archivo" class="form-control form-control-sm" required accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.xml,.zip,.docx,.doc,.csv"></div>
+      <div class="col-md-5"><input name="descripcion" class="form-control form-control-sm" maxlength="200" placeholder="Descripción (ej. acta de inventario, extracto, recibo)"></div>
+      <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-upload"></i> Adjuntar</button></div>
+    </form>
+    <div class="form-text">Los sustentos no se pueden eliminar (trazabilidad). Máx. 5 MB.</div>
+  </div>
+  {% endif %}
+</div>
+{% endwith %}

@@ -1,19 +1,21 @@
 {% extends 'base.html' %}{% load erp_tags %}
 {% block title %}Ajustes de inventario{% endblock %}
 {% block content %}
-<h1 class="page-title mb-3">Ajustes de inventario</h1>
+<h1 class="page-title mb-3">Ajuste rápido de inventario</h1>
 <div class="row g-3">
   <div class="col-lg-5"><div class="card"><div class="card-body">
-    <form method="post">{% csrf_token %}
+    <form method="post" enctype="multipart/form-data">{% csrf_token %}
       {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
-      <div class="row g-3">{% for field in form %}<div class="{% if field.name == 'producto' or field.name == 'motivo' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}</div>
+      <div class="row g-3">{% for field in form %}<div class="{% if field.name == 'producto' or field.name == 'motivo' or field.name == 'sustento' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}</div>
       <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Registrar ajuste</button>
     </form>
-    <p class="small text-muted mt-3 mb-0">Use <b>Entrada</b> para el inventario inicial o sobrantes (indique el costo) y <b>Salida</b> para mermas, faltantes o consumo interno. Los traslados entre almacenes se hacen con una guía de remisión (motivo 04).</p>
+    <p class="small text-muted mt-3 mb-0">Se registra y confirma una operación de inventario numerada (saldo inicial, ajuste de ingreso, ajuste de salida o consumo interno) con su sustento. Si hubo un error se anula desde la operación, con motivo. Para varios productos use Inventario &gt; Operaciones.</p>
   </div></div></div>
   <div class="col-lg-7"><div class="card"><div class="card-header">Últimos ajustes</div><div class="table-responsive">
-    <table class="table table-sm mb-0"><thead><tr><th>Fecha</th><th>Producto</th><th>Almacén</th><th>Tipo</th><th class="num">Cant.</th><th>Motivo</th></tr></thead>
-      <tbody>{% for k in ultimos %}<tr><td>{{ k.fecha|date:'d/m/Y' }}</td><td>{{ k.producto.nombre }}</td><td>{{ k.almacen|default:'' }}</td><td>{{ k.tipo }}</td><td class="num">{{ k.cantidad|money }}</td><td class="small">{{ k.referencia|cut:'Ajuste: ' }}</td></tr>
+    <table class="table table-sm mb-0"><thead><tr><th>Fecha</th><th>Número</th><th>Tipo</th><th>Producto</th><th class="num">Cant.</th><th>Estado</th></tr></thead>
+      <tbody>{% for o in ultimos %}<tr><td>{{ o.fecha|date:'d/m/Y' }}</td><td><a href="{% url 'inventario:detalle' o.pk %}">{{ o.numero|default:'(borrador)' }}</a></td><td class="small">{{ o.tipo.nombre }}</td>
+        <td class="small">{% for i in o.items.all %}{{ i.producto.nombre }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+        <td class="num">{% for i in o.items.all %}{{ i.cantidad|money }}{% endfor %}</td><td><span class="badge {% if o.estado == 'CONFIRMADO' %}text-bg-success{% elif o.estado == 'ANULADO' %}badge-ANULADO{% else %}text-bg-warning{% endif %}">{{ o.get_estado_display }}</span></td></tr>
       {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin ajustes.</td></tr>{% endfor %}</tbody></table>
   </div></div></div>
 </div>

@@ -50,6 +50,8 @@
       <thead><tr><th>#</th><th>Código</th><th>Descripción</th><th>U.M.</th><th class="num">Cantidad</th></tr></thead>
       <tbody>{% for i in items %}<tr><td>{{ forloop.counter }}</td><td>{{ i.producto.codigo|default:'' }}</td><td>{{ i.descripcion }}</td><td>{{ i.unidad }}</td><td class="num">{{ i.cantidad|money }}</td></tr>{% endfor %}</tbody>
     </table></div></div>
+    {% include 'core/_sustentos.html' with objeto=g %}
+    {% include 'core/_bitacora.html' with objeto=g %}
   </div>
   <div class="col-lg-4">
     <div class="card border-{% if g.estado_sunat == 'ACEPTADO' %}success{% elif g.estado_sunat == 'RECHAZADO' or g.estado_sunat == 'ERROR' %}danger{% else %}secondary{% endif %}">

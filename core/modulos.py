@@ -129,6 +129,7 @@ MODULOS = [
         'menu': [
             ('Empresa', 'empresa'),
             ('Usuarios y permisos', 'usuarios'),
+            ('Auditoría', 'auditoria'),
             ('Configuración', [('Correlativos / series', 'series', 'bi-123'),
                                ('Tipo de cambio', 'tipos_cambio', 'bi-currency-exchange'),
                                ('Facturación electrónica', 'facturacion', 'bi-cloud-upload'),
@@ -150,6 +151,7 @@ DERIVADOS = {'contactos': {'ventas', 'compras', 'finanzas', 'logistica', 'contab
 RUTAS_CORE = {
     'dashboard': ['tablero'],
     'empresa': ['ajustes'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
+    'auditoria': ['ajustes'],
     'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'finanzas', 'contactos'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
@@ -163,7 +165,8 @@ RUTAS_CORE = {
     'almacen_editar': ['inventario'],
 }
 # Rutas abiertas a cualquier usuario autenticado
-RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json','login', 'logout', 'cambiar_clave', 'cambiar_clave_ok'}
+RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'cambiar_clave', 'cambiar_clave_ok',
+                'sustento_subir', 'sustento_ver'}  # los sustentos validan el módulo del documento
 
 
 # Permiso especial: ver costos de inventario (costo promedio, valorizado, kardex valorizado)

@@ -59,6 +59,9 @@ class TipoOperacion(models.Model):
                                         verbose_name='Almacén de destino por defecto')
     almacen_origen = models.ForeignKey(Almacen, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
                                        verbose_name='Almacén de origen por defecto')
+    requiere_sustento = models.BooleanField(
+        'Exige sustento', default=False,
+        help_text='No se confirma sin un documento adjunto (acta de inventario, de destrucción, informe, etc.)')
     icono = models.CharField(max_length=30, default='bi-box-seam')
     orden = models.PositiveIntegerField(default=0)
     activo = models.BooleanField(default=True)

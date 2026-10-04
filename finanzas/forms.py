@@ -2,6 +2,7 @@ from django import forms
 
 from core.forms import BootstrapMixin, validar_periodo_abierto
 from core.models import Tercero
+from core.sustentos import SustentoField
 
 from .models import Cuenta, Movimiento
 
@@ -116,6 +117,10 @@ class RegularizarSaldoForm(BootstrapMixin, forms.Form):
 
 
 class MovimientoForm(BootstrapMixin, forms.ModelForm):
+    """Ingresos y egresos sin comprobante (gastos, caja chica, préstamos...): el sustento es obligatorio."""
+    sustento = SustentoField(help_text='Obligatorio: recibo, boleta, voucher del banco, planilla, etc. '
+                                       '(PDF, imagen, Excel; máx. 5 MB)')
+
     class Meta:
         model = Movimiento
         fields = ['cuenta', 'fecha', 'tipo', 'concepto', 'medio_pago', 'numero_operacion', 'tercero', 'monto',
@@ -152,6 +157,7 @@ class OperacionForm(BootstrapMixin, forms.Form):
     numero_operacion = forms.CharField(label='N° operación / cheque', required=False)
     es_detraccion = forms.BooleanField(label='Es depósito de detracción', required=False)
     glosa = forms.CharField(required=False)
+    sustento = SustentoField(required=False, label='Sustento (voucher, constancia de detracción)')
 
     def clean(self):
         data = super().clean()
@@ -166,6 +172,7 @@ class TransferenciaForm(BootstrapMixin, forms.Form):
     monto = forms.DecimalField(max_digits=14, decimal_places=2, min_value=0.01)
     numero_operacion = forms.CharField(label='N° operación', required=False)
     glosa = forms.CharField(required=False)
+    sustento = SustentoField(required=False, label='Sustento (voucher de la transferencia o depósito)')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -180,11 +187,23 @@ class TransferenciaForm(BootstrapMixin, forms.Form):
             raise forms.ValidationError('Las cuentas deben ser de la misma moneda. Para cambiar soles a dólares '
                                         'registre un egreso y un ingreso con el tipo de cambio pactado.')
         validar_periodo_abierto(self, 'fecha')
+        if not data.get('numero_operacion') and not data.get('sustento'):
+            self.add_error('numero_operacion', 'Indique el N° de operación o adjunte el voucher como sustento.')
         if data.get('origen') and data.get('monto'):
             error = data['origen'].error_sobregiro(data['monto'], fecha=data.get('fecha'))
             if error:
                 self.add_error('monto', error)
         return data
+
+
+class AnularMovimientoForm(forms.Form):
+    motivo = forms.CharField(max_length=250)
+
+    def clean_motivo(self):
+        motivo = self.cleaned_data['motivo'].strip()
+        if len(motivo) < 10:
+            raise forms.ValidationError('Explique el motivo de la anulación (mínimo 10 caracteres).')
+        return motivo
 
 
 class ImportarExtractoForm(BootstrapMixin, forms.Form):

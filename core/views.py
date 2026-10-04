@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
+from django.core.paginator import Paginator
 from django.db.models import F, Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -146,6 +147,40 @@ def correo_config(request):
     return render(request, 'core/correo.html', {'form': form, 'cfg': cfg})
 
 
+# ---------------------------------------------------------------- auditoría
+@login_required
+def auditoria(request):
+    from django.contrib.auth.models import User
+    from .models import Bitacora
+    qs = Bitacora.objects.select_related('usuario')
+    f = request.GET
+    if f.get('usuario'):
+        qs = qs.filter(usuario_id=f['usuario'])
+    if f.get('accion'):
+        qs = qs.filter(accion=f['accion'])
+    if f.get('modelo'):
+        qs = qs.filter(modelo=f['modelo'])
+    if f.get('desde'):
+        qs = qs.filter(fecha__date__gte=f['desde'])
+    if f.get('hasta'):
+        qs = qs.filter(fecha__date__lte=f['hasta'])
+    q = f.get('q', '').strip()
+    if q:
+        qs = qs.filter(Q(objeto__icontains=q) | Q(motivo__icontains=q) | Q(objeto_id=q))
+    if f.get('formato') == 'excel':
+        from .utils import excel_response
+        filas = [[timezone.localtime(b.fecha).strftime('%d/%m/%Y %H:%M'),
+                  b.usuario.username if b.usuario else 'Sistema', b.get_accion_display(), b.modelo_nombre, b.objeto,
+                  b.motivo, '; '.join(f'{k}: {v[0]} → {v[1]}' for k, v in b.cambios.items()
+                                      if isinstance(v, list) and len(v) == 2), b.ip] for b in qs[:20000]]
+        return excel_response('Auditoria', 'Bitácora de auditoría',
+                              ['Fecha', 'Usuario', 'Acción', 'Tipo', 'Registro', 'Motivo', 'Cambios', 'IP'], filas)
+    modelos = Bitacora.objects.values_list('modelo', 'modelo_nombre').distinct().order_by('modelo_nombre')
+    return render(request, 'core/auditoria.html', {
+        'page_obj': Paginator(qs, 100).get_page(f.get('page')), 'usuarios': User.objects.order_by('username'),
+        'acciones': Bitacora.ACCIONES, 'modelos': sorted(set(modelos), key=lambda m: m[1]), 'q': q})
+
+
 # ---------------------------------------------------------------- respaldo
 @login_required
 def respaldo(request):
@@ -207,7 +242,11 @@ def carga_masiva(request):
                 messages.error(request, str(exc))
             else:
                 if not errores and filas:
-                    request.session['carga_masiva'] = {'tipo': tipo, 'filas': filas, 'archivo': archivo.name}
+                    import base64
+                    archivo.seek(0)
+                    # el Excel queda como sustento de los saldos que se carguen
+                    request.session['carga_masiva'] = {'tipo': tipo, 'filas': filas, 'archivo': archivo.name,
+                                                       'datos': base64.b64encode(archivo.read()).decode()}
                 else:
                     request.session.pop('carga_masiva', None)
                 ctx.update(filas=filas, errores=errores, validas=len(filas) - errores, archivo=archivo.name,
@@ -218,8 +257,10 @@ def carga_masiva(request):
             messages.error(request, 'Vuelva a validar el archivo antes de cargarlo.')
         else:
             try:
+                import base64
+                adjunto = (base64.b64decode(pendiente['datos']), pendiente['archivo']) if pendiente.get('datos') else None
                 messages.success(request, f'Carga completada ({pendiente["archivo"]}): '
-                                          f'{cm.cargar(tipo, pendiente["filas"], request.user)}')
+                                          f'{cm.cargar(tipo, pendiente["filas"], request.user, adjunto)}')
             except Exception as exc:  # p. ej. kardex cerrado o datos cambiados desde la validación
                 messages.error(request, f'No se cargó nada: {exc}')
         return redirect(f"{request.path}?tipo={tipo}")

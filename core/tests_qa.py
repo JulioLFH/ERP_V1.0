@@ -157,7 +157,10 @@ class HallazgosQATest(TestCase):
         r = self.client.post(reverse('finanzas:movimiento_nuevo'), datos)
         self.assertIn('monto', r.context['form'].errors)
         Cuenta.objects.filter(pk=banco.pk).update(permite_sobregiro=True)
-        self.assertEqual(self.client.post(reverse('finanzas:movimiento_nuevo'), datos).status_code, 302)
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        sustento = SimpleUploadedFile('voucher.pdf', b'%PDF-1.4 voucher', content_type='application/pdf')
+        self.assertEqual(self.client.post(reverse('finanzas:movimiento_nuevo'),
+                                          {**datos, 'sustento': sustento}).status_code, 302)
 
     # NEW-01 / NEW-07 / NEW-02 / NEW-03 / NEW-08 -------------------------------------------------------------
     def test_new07_contabilidad_automatica_y_cuadre_con_auxiliares(self):

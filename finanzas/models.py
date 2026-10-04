@@ -129,8 +129,19 @@ class SaldoInicialCambio(models.Model):
         verbose_name_plural = 'cambios de saldo inicial'
 
 
+class VigentesManager(models.Manager):
+    """Por defecto solo los movimientos vigentes: los anulados no cuentan en saldos, cobros ni contabilidad."""
+
+    def get_queryset(self):
+        return super().get_queryset().filter(estado='VIGENTE')
+
+
 class Movimiento(models.Model):
     TIPOS = [('INGRESO', 'Ingreso'), ('EGRESO', 'Egreso')]
+    ESTADOS = [('VIGENTE', 'Vigente'), ('ANULADO', 'Anulado')]
+    # sin documento de compra/venta ni transferencia: el sustento es obligatorio
+    CONCEPTOS_CON_SUSTENTO = ('DETRACCION', 'ANTICIPO', 'DEPOSITO', 'CAJA_CHICA', 'PLANILLA', 'TRIBUTOS', 'SERVICIOS',
+                              'PRESTAMO', 'GASTO_BANCARIO', 'OTRO')
     CONCEPTOS = [
         ('COBRANZA', 'Cobranza de comprobantes'),
         ('PAGO', 'Pago a proveedores'),
@@ -176,10 +187,21 @@ class Movimiento(models.Model):
     conciliado = models.BooleanField(default=False)
     fecha_conciliacion = models.DateField(null=True, blank=True)
     transferencia_par = models.OneToOneField('self', on_delete=models.SET_NULL, null=True, blank=True)
+    estado = models.CharField(max_length=8, choices=ESTADOS, default='VIGENTE', editable=False)
+    motivo_anulacion = models.CharField('Motivo de anulación', max_length=250, blank=True, editable=False)
+    anulado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                    editable=False)
+    anulado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    creado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                   editable=False)
     creado = models.DateTimeField(auto_now_add=True)
+
+    objects = VigentesManager()
+    todos = models.Manager()
 
     class Meta:
         ordering = ['-fecha', '-id']
+        base_manager_name = 'todos'
 
     def __str__(self):
         return f'{self.voucher} {self.get_tipo_display()} {self.monto}'
@@ -187,6 +209,10 @@ class Movimiento(models.Model):
     @property
     def documento(self):
         return self.venta or self.compra
+
+    @property
+    def requiere_sustento(self):
+        return self.concepto in self.CONCEPTOS_CON_SUSTENTO and not (self.venta_id or self.compra_id)
 
     def save(self, *args, **kwargs):
         if not self.voucher:

@@ -2,7 +2,7 @@ from django.contrib.auth import views as auth_views
 from django.contrib.messages.views import SuccessMessageMixin
 from django.urls import path, reverse_lazy
 
-from . import inventario, usuarios, views
+from . import inventario, sustentos, usuarios, views
 
 
 class CambiarClave(SuccessMessageMixin, auth_views.PasswordChangeView):
@@ -33,6 +33,9 @@ urlpatterns = [
     path('correo/', views.correo_config, name='correo'),
     path('carga-masiva/', views.carga_masiva, name='carga_masiva'),
     path('respaldo/', views.respaldo, name='respaldo'),
+    path('auditoria/', views.auditoria, name='auditoria'),
+    path('sustentos/<int:ct_id>/<int:obj_id>/subir/', sustentos.subir, name='sustento_subir'),
+    path('sustentos/<int:pk>/', sustentos.ver, name='sustento_ver'),
     path('series/', views.SerieLista.as_view(), name='series'),
     path('series/nueva/', views.SerieNueva.as_view(), name='serie_nueva'),
     path('series/<int:pk>/', views.SerieEditar.as_view(), name='serie_editar'),

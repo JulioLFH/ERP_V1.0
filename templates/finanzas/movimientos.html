@@ -18,6 +18,7 @@
       <div class="col-auto"><input type="date" name="desde" value="{{ request.GET.desde }}" class="form-control form-control-sm"></div>
       <div class="col-auto"><input type="date" name="hasta" value="{{ request.GET.hasta }}" class="form-control form-control-sm"></div>
       <div class="col-auto"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Glosa, voucher, N° op."></div>
+      <div class="col-auto"><select name="estado" class="form-select form-select-sm"><option value="">Vigentes</option><option value="ANULADO" {% if request.GET.estado == 'ANULADO' %}selected{% endif %}>Anulados</option><option value="TODOS" {% if request.GET.estado == 'TODOS' %}selected{% endif %}>Todos</option></select></div>
       <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i></button>
         <button name="formato" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i></button></div>
     </form>
@@ -27,8 +28,8 @@
       <thead><tr><th>Voucher</th><th>Fecha</th><th>Cuenta</th><th>Concepto</th><th>Tercero / documento</th><th>Glosa</th><th class="num">Ingreso</th><th class="num">Egreso</th><th></th><th></th></tr></thead>
       <tbody>
       {% for m in page_obj %}
-        <tr>
-          <td><a href="{% url 'finanzas:voucher' m.pk %}" target="_blank">{{ m.voucher }}</a></td>
+        <tr {% if m.estado == 'ANULADO' %}class="text-decoration-line-through text-muted" title="Anulado: {{ m.motivo_anulacion }}"{% endif %}>
+          <td><a href="{% url 'finanzas:voucher' m.pk %}" target="_blank">{{ m.voucher }}</a>{% if m.estado == 'ANULADO' %} <span class="badge badge-ANULADO">Anulado</span>{% endif %}</td>
           <td>{{ m.fecha|date:'d/m/Y' }}</td><td class="small">{{ m.cuenta.nombre }}</td>
           <td class="small">{{ m.get_concepto_display }}<div class="text-muted">{{ m.get_medio_pago_display }} {{ m.numero_operacion }}</div></td>
           <td class="small">{{ m.tercero.nombre|default:''|truncatechars:30 }}
@@ -37,7 +38,7 @@
           <td class="num text-success">{% if m.tipo == 'INGRESO' %}{{ m.monto|money }}{% endif %}</td>
           <td class="num text-danger">{% if m.tipo == 'EGRESO' %}{{ m.monto|money }}{% endif %}</td>
           <td>{% if m.conciliado %}<i class="bi bi-check2-circle text-success" title="Conciliado"></i>{% endif %}</td>
-          <td>{% if not m.conciliado %}<form method="post" action="{% url 'finanzas:movimiento_eliminar' m.pk %}" data-confirm="¿Eliminar el movimiento {{ m.voucher }}?">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-trash"></i></button></form>{% endif %}</td>
+          <td>{% if not m.conciliado and m.estado == 'VIGENTE' %}<form method="post" action="{% url 'finanzas:movimiento_eliminar' m.pk %}" class="js-anular" data-voucher="{{ m.voucher }}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="motivo"><button class="btn btn-sm btn-link text-danger p-0" title="Anular con motivo"><i class="bi bi-x-circle"></i></button></form>{% endif %}</td>
         </tr>
       {% empty %}<tr><td colspan="10" class="text-center text-muted py-4">Sin movimientos.</td></tr>{% endfor %}
       </tbody>
@@ -46,4 +47,14 @@
   </div>
   {% include 'core/_paginacion.html' %}
 </div>
+<p class="small text-muted mt-2">Los movimientos no se eliminan: se anulan con motivo y quedan registrados (filtro "Anulados").</p>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('form.js-anular').forEach((f) => f.addEventListener('submit', (e) => {
+  const motivo = prompt(`Motivo de la anulación del movimiento ${f.dataset.voucher} (mínimo 10 caracteres):`);
+  if (!motivo || motivo.trim().length < 10) { e.preventDefault(); if (motivo !== null) alert('Indique un motivo de al menos 10 caracteres.'); return; }
+  f.querySelector('input[name=motivo]').value = motivo.trim();
+}));
+</script>
 {% endblock %}
