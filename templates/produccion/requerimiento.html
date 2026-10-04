@@ -1,0 +1,21 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Requerimiento de materiales{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Requerimiento de materiales</h1>
+  <div class="d-flex gap-2">
+    <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    {% if faltan and 'compras' in mods %}<a href="{% url 'compras:oc_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-clipboard-check"></i> Nueva orden de compra</a>{% endif %}
+  </div>
+</div>
+<p class="text-muted small">Insumos que necesitan las órdenes de producción confirmadas o en proceso, frente al stock total y a lo pedido en órdenes de compra aún no recibidas.</p>
+<div class="card"><div class="table-responsive"><table class="table table-hover mb-0">
+  <thead><tr><th>Código</th><th>Insumo</th><th>U.M.</th><th class="num">Requerido</th><th class="num">Stock</th><th class="num">En camino (OC)</th><th class="num">Por comprar</th><th>Proveedor habitual</th><th>Órdenes</th></tr></thead>
+  <tbody>{% for f in filas %}<tr {% if f.faltante > 0 %}class="table-warning"{% endif %}>
+    <td>{{ f.p.codigo }}</td><td>{{ f.p.nombre }}</td><td>{{ f.p.unidad }}</td>
+    <td class="num">{{ f.requerido|money }}</td><td class="num">{{ f.stock|money }}</td><td class="num">{{ f.camino|money }}</td>
+    <td class="num fw-semibold">{% if f.faltante > 0 %}{{ f.faltante|money }}{% else %}<i class="bi bi-check2 text-success"></i>{% endif %}</td>
+    <td class="small">{{ f.p.proveedor.nombre|default:'' }}</td><td class="small">{{ f.ordenes|join:', ' }}</td>
+  </tr>{% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No hay órdenes de producción confirmadas o en proceso.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

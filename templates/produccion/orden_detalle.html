@@ -1,0 +1,118 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ o }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="page-title"><i class="bi bi-gear-wide-connected"></i> Orden de producción {{ o.numero|default:'(borrador)' }}
+      <span class="fs-6 align-middle">{% include 'produccion/_estado.html' with estado=o.estado texto=o.get_estado_display %}</span></h1>
+    <div class="text-muted small">{{ o.producto.codigo }} {{ o.producto.nombre }} · Receta <a href="{% url 'manufactura:lista' o.lista_id %}">{{ o.lista.codigo }}</a></div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'manufactura:ordenes' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+    {% if o.estado == 'BORRADOR' %}
+      <a href="{% url 'manufactura:orden_editar' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
+      <form method="post" action="{% url 'manufactura:orden_eliminar' o.pk %}" data-confirm="¿Eliminar este borrador?">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Eliminar</button></form>
+      <form method="post" action="{% url 'manufactura:orden_confirmar' o.pk %}">{% csrf_token %}<button class="btn btn-sm btn-success"><i class="bi bi-check2-circle"></i> Confirmar</button></form>
+    {% elif o.estado == 'CONFIRMADA' %}
+      <form method="post" action="{% url 'manufactura:orden_iniciar' o.pk %}">{% csrf_token %}<button class="btn btn-sm btn-info"><i class="bi bi-play-circle"></i> Iniciar producción</button></form>
+    {% endif %}
+    {% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}
+      <a href="#terminar" class="btn btn-sm btn-success"><i class="bi bi-flag"></i> Terminar</a>
+    {% endif %}
+    {% if o.estado != 'BORRADOR' and o.estado != 'ANULADA' %}
+      <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>
+    {% endif %}
+  </div>
+</div>
+{% if o.estado != 'BORRADOR' and o.estado != 'ANULADA' %}
+<div class="collapse mb-3" id="form-anular"><div class="card border-danger"><div class="card-body">
+  <form method="post" action="{% url 'manufactura:orden_anular' o.pk %}" class="row g-2 align-items-end" data-confirm="¿Anular {{ o }}?{% if o.estado == 'TERMINADA' %} Se revertirá el movimiento de almacén (vuelven los insumos y sale el producto).{% endif %}">
+    {% csrf_token %}
+    <div class="col-md-9"><label class="form-label small mb-1">Motivo de la anulación <span class="text-danger">*</span></label>
+      <input name="motivo" class="form-control form-control-sm" minlength="10" maxlength="250" required placeholder="Ej. Producción registrada con cantidades erradas"></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-danger w-100"><i class="bi bi-x-circle"></i> Confirmar anulación</button></div>
+  </form>
+</div></div></div>
+{% elif o.estado == 'ANULADA' %}
+<div class="alert alert-danger py-2"><i class="bi bi-x-octagon"></i> <b>Anulada</b>{% if o.anulado_en %} el {{ o.anulado_en|date:'d/m/Y H:i' }}{% endif %}{% if o.anulado_por %} por <b>{{ o.anulado_por.get_full_name|default:o.anulado_por.username }}</b>{% endif %}. Motivo: {{ o.motivo_anulacion }}</div>
+{% endif %}
+{% if faltan and o.estado != 'ANULADA' %}<div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle"></i> No hay stock suficiente de algunos insumos en {{ o.almacen_insumos }}. Revise el <a href="{% url 'manufactura:requerimiento' %}">requerimiento de materiales</a>.</div>{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="card-body"><div class="row g-3 small">
+      <div class="col-md-3"><div class="text-muted">Fecha planificada</div>{{ o.fecha|date:'d/m/Y' }}</div>
+      <div class="col-md-3"><div class="text-muted">A producir</div>{{ o.cantidad|money }} {{ o.producto.unidad }}</div>
+      <div class="col-md-3"><div class="text-muted">Almacén de insumos</div>{{ o.almacen_insumos }}</div>
+      <div class="col-md-3"><div class="text-muted">Almacén de productos</div>{{ o.almacen_destino }}</div>
+      {% if o.centro_costo %}<div class="col-md-3"><div class="text-muted">Centro de costo</div>{{ o.centro_costo }}</div>{% endif %}
+      {% if o.fecha_inicio %}<div class="col-md-3"><div class="text-muted">Inicio</div>{{ o.fecha_inicio|date:'d/m/Y' }}</div>{% endif %}
+      {% if o.fecha_fin %}<div class="col-md-3"><div class="text-muted">Término</div>{{ o.fecha_fin|date:'d/m/Y' }}</div>
+        <div class="col-md-3"><div class="text-muted">Producido</div><b>{{ o.cantidad_producida|money }}</b> {{ o.producto.unidad }}</div>{% endif %}
+      {% if o.operacion %}<div class="col-md-4"><div class="text-muted">Movimiento de almacén</div>{% if 'inventario' in mods %}<a href="{% url 'inventario:detalle' o.operacion_id %}">{{ o.operacion.numero }}</a>{% else %}{{ o.operacion.numero }}{% endif %} <span class="text-muted">({{ o.operacion.get_estado_display }})</span></div>{% endif %}
+    </div>{% if o.glosa %}<p class="small text-muted mt-3 mb-0">{{ o.glosa }}</p>{% endif %}</div></div>
+
+    <form method="post" action="{% url 'manufactura:orden_terminar' o.pk %}" id="terminar" data-confirm="¿Terminar la orden? Saldrán los insumos consumidos e ingresará el producto al almacén.">
+    {% csrf_token %}
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-box-seam"></i> Insumos</div>
+      <div class="table-responsive"><table class="table table-sm mb-0">
+        <thead><tr><th>Insumo</th><th>U.M.</th><th class="num">Planificado</th>{% if o.estado != 'TERMINADA' and o.estado != 'ANULADA' %}<th class="num">Stock</th>{% endif %}<th class="num" style="width:16%">Consumido</th>{% if ver_costos and o.estado == 'TERMINADA' %}<th class="num">Costo unit.</th><th class="num">Valor S/</th>{% endif %}</tr></thead>
+        <tbody>{% for f in filas %}{% with c=f.consumo %}<tr>
+          <td>{{ c.producto.codigo }} {{ c.producto.nombre }}</td><td>{{ c.producto.unidad }}</td>
+          <td class="num">{{ c.cantidad_plan|floatformat:4 }}</td>
+          {% if o.estado != 'TERMINADA' and o.estado != 'ANULADA' %}<td class="num {% if f.faltante > 0 %}text-danger fw-semibold{% endif %}">{{ f.stock|money }}</td>{% endif %}
+          <td class="num">{% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}<input name="consumo_{{ c.pk }}" value="{{ c.cantidad_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ c.cantidad_real|floatformat:4 }}{% endif %}</td>
+          {% if ver_costos and o.estado == 'TERMINADA' %}<td class="num">{{ c.costo_unitario|floatformat:4 }}</td><td class="num">{{ c.valor|money }}</td>{% endif %}
+        </tr>{% endwith %}{% endfor %}</tbody>
+      </table></div>
+    </div>
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-tools"></i> Horas de trabajo</div>
+      <div class="table-responsive"><table class="table table-sm mb-0">
+        <thead><tr><th>Centro de trabajo</th><th>Operación</th><th class="num">Planificadas</th><th class="num" style="width:16%">Reales</th>{% if ver_costos %}<th class="num">S/ por hora</th>{% endif %}</tr></thead>
+        <tbody>{% for h in horas %}<tr>
+          <td>{{ h.centro }}</td><td>{{ h.descripcion }}</td><td class="num">{{ h.horas_plan }}</td>
+          <td class="num">{% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}<input name="hora_{{ h.pk }}" value="{{ h.horas_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ h.horas_real }}{% endif %}</td>
+          {% if ver_costos %}<td class="num">{{ h.centro.costo_hora|money }}</td>{% endif %}
+        </tr>{% empty %}<tr><td colspan="5" class="text-muted small">La receta no registra horas: el costo será solo de materiales.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </div>
+    {% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}
+    <div class="card mb-3 border-success"><div class="card-body row g-2 align-items-end">
+      <div class="col-md-4"><label class="form-label small mb-1">Cantidad producida ({{ o.producto.unidad }}) <span class="text-danger">*</span></label>
+        <input name="cantidad_producida" value="{{ o.cantidad|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal" required></div>
+      <div class="col-md-4"><label class="form-label small mb-1">Fecha de término</label><input type="date" name="fecha" class="form-control form-control-sm"></div>
+      <div class="col-md-4"><button class="btn btn-sm btn-success w-100"><i class="bi bi-flag"></i> Terminar y registrar en almacén</button></div>
+      <div class="col-12 small text-muted">Ajuste lo realmente consumido y las horas reales. El producto ingresa al costo de los insumos (costo promedio) más mano de obra y costos indirectos de las horas reales. Tabla 12 SUNAT: 10 salida a producción, 19 entrada de producción.</div>
+    </div></div>
+    {% endif %}
+    </form>
+
+    {% if variaciones %}
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-calculator"></i> Costo real vs estándar ({{ o.cantidad_producida|money }} {{ o.producto.unidad }})</div>
+      <div class="table-responsive"><table class="table table-sm mb-0">
+        <thead><tr><th>Concepto</th><th class="num">Estándar S/</th><th class="num">Real S/</th><th class="num">Variación S/</th><th class="num">%</th></tr></thead>
+        <tbody>{% for v in variaciones %}<tr {% if forloop.last %}class="fw-semibold"{% endif %}>
+          <td>{{ v.concepto }}</td><td class="num">{{ v.estandar|money }}</td><td class="num">{{ v.real|money }}</td>
+          <td class="num {% if v.variacion > 0 %}text-danger{% elif v.variacion < 0 %}text-success{% endif %}">{{ v.variacion|money }}</td>
+          <td class="num">{% if v.pct is not None %}{{ v.pct }}%{% endif %}</td></tr>{% endfor %}</tbody>
+      </table></div>
+      <div class="card-body py-2 small text-muted">Costo real unitario <b>S/ {{ o.costo_unitario|floatformat:4 }}</b> · estándar al confirmar S/ {{ o.costo_estandar_unit|floatformat:4 }}. Variación positiva = desfavorable (costó más de lo previsto).</div>
+    </div>
+    {% endif %}
+    {% include 'core/_sustentos.html' with objeto=o %}
+    {% include 'core/_bitacora.html' with objeto=o %}
+  </div>
+  <div class="col-lg-4">
+    {% if ver_costos and o.costo_estandar_unit %}<div class="card mb-3"><div class="card-body">
+      <div class="text-muted small">Costo estándar unitario</div><div class="fs-5 fw-semibold">S/ {{ o.costo_estandar_unit|floatformat:4 }}</div>
+      {% if o.estado == 'TERMINADA' %}<div class="text-muted small mt-2">Costo real unitario</div><div class="fs-5 fw-semibold">S/ {{ o.costo_unitario|floatformat:4 }}</div>
+      <div class="small text-muted">Materiales {{ o.costo_materiales|money }} · MO {{ o.costo_mano_obra|money }} · CIF {{ o.costo_cif|money }}</div>{% endif %}
+    </div></div>{% endif %}
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-clock-history"></i> Historial</div><div class="card-body small">
+      <div>Creada {{ o.creado|date:'d/m/Y H:i' }}{% if o.creado_por %} por {{ o.creado_por.get_full_name|default:o.creado_por.username }}{% endif %}</div>
+      {% if o.fecha_inicio %}<div>En proceso desde {{ o.fecha_inicio|date:'d/m/Y' }}</div>{% endif %}
+      {% if o.fecha_fin %}<div>Terminada el {{ o.fecha_fin|date:'d/m/Y' }}</div>{% endif %}
+    </div></div>
+  </div>
+</div>
+{% endblock %}

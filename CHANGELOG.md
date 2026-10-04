@@ -3,6 +3,18 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.11.0 — 04/10/2026 · Módulos de Manufactura y Costos
+- **Manufactura** (módulo nuevo):
+  - **Centros de trabajo** con costo por hora de mano de obra y de costos indirectos (CIF).
+  - **Listas de materiales (recetas)**: insumos por lote con % de merma y horas por centro de trabajo. Una receta vigente por producto; si ya se usó en órdenes no se modifica, se crea una **nueva versión**.
+  - **Órdenes de producción**: Borrador → Confirmada → En proceso → Terminada, o Anulada con motivo. Los insumos y horas se calculan de la receta según la cantidad; al terminar se registran los consumos y horas reales y se mueve el almacén (Tabla 12: 10 salida a producción, 19 entrada de producción). El producto entra al **costo por absorción**: materiales + mano de obra + CIF. Anular una orden terminada revierte el almacén.
+  - **Requerimiento de materiales**: lo que piden las órdenes abiertas frente al stock y a lo pedido en compras (exportable a Excel).
+- **Costos** (módulo nuevo, requiere el permiso "Ver costos de inventario"):
+  - **Costo estándar** por producto según su receta, comparado con el costo promedio y el precio de venta (margen), con hoja de costos y simulación por cantidad.
+  - **Costo real vs estándar** por orden terminada: variaciones de materiales, mano de obra y CIF, y rendimiento.
+  - **Rentabilidad** por producto, cliente, vendedor o mes: ventas netas, costo de ventas del kardex y margen (las notas de crédito restan).
+- **Contabilidad**: consumo de insumos en la cuenta 61 (variación de existencias) y producción en la 71 (variación de la producción almacenada) contra las cuentas de existencias de cada producto.
+
 ## v1.10.0 — 03/10/2026 · Todo con sustento y auditoría
 - **Documentos de sustento** (PDF, imagen, Excel, Word, XML o ZIP; máx. 5 MB) adjuntos a asientos, movimientos de caja y bancos, operaciones de inventario, comprobantes, órdenes de compra y guías. Se guardan en la base de datos y no se pueden borrar.
 - **Sustento obligatorio** en: asientos manuales; ingresos y egresos de caja y bancos sin comprobante (gastos, caja chica, tributos, préstamos…); saldo inicial, ajustes, consumos, destrucción y traslado a destrucción de inventario (no se confirman sin el documento). Las transferencias piden N° de operación o voucher. Los extractos y cargas masivas de saldos quedan adjuntos como sustento.

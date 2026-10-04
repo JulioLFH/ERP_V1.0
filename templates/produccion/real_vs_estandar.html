@@ -1,0 +1,32 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Costo real vs estándar{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Costo real vs estándar</h1>
+  <a href="?desde={{ desde }}&hasta={{ hasta }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+</div>
+<div class="card">
+  <div class="card-body border-bottom py-2">
+    <form class="row g-2 align-items-center" method="get">
+      <div class="col-auto small text-muted">Órdenes terminadas del</div>
+      <div class="col-auto"><input type="date" name="desde" value="{{ desde }}" class="form-control form-control-sm"></div>
+      <div class="col-auto small text-muted">al</div>
+      <div class="col-auto"><input type="date" name="hasta" value="{{ hasta }}" class="form-control form-control-sm"></div>
+      <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></div>
+    </form>
+  </div>
+  <div class="table-responsive"><table class="table table-hover mb-0">
+    <thead><tr><th>Orden</th><th>Término</th><th>Producto</th><th class="num">Producido</th><th class="num">Rend. %</th><th class="num">Materiales</th><th class="num">MO</th><th class="num">CIF</th><th class="num">Costo real</th><th class="num">Estándar</th><th class="num">Variación</th><th class="num">%</th></tr></thead>
+    <tbody>{% for f in filas %}<tr onclick="location.href='{% url 'manufactura:orden' f.o.pk %}'" style="cursor:pointer">
+      <td>{{ f.o.numero }}</td><td>{{ f.o.fecha_fin|date:'d/m/Y' }}</td><td>{{ f.o.producto.nombre }}</td>
+      <td class="num">{{ f.o.cantidad_producida|money }}</td><td class="num">{{ f.rendimiento|default_if_none:'' }}</td>
+      <td class="num">{{ f.o.costo_materiales|money }}</td><td class="num">{{ f.o.costo_mano_obra|money }}</td><td class="num">{{ f.o.costo_cif|money }}</td>
+      <td class="num fw-semibold">{{ f.real|money }}</td><td class="num">{{ f.estandar|money }}</td>
+      <td class="num {% if f.variacion > 0 %}text-danger{% elif f.variacion < 0 %}text-success{% endif %}">{{ f.variacion|money }}</td>
+      <td class="num">{% if f.pct is not None %}{{ f.pct }}%{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="12" class="text-center text-muted py-4">Sin órdenes terminadas en el rango.</td></tr>{% endfor %}</tbody>
+    {% if filas %}<tfoot><tr class="fw-semibold"><td colspan="8" class="text-end">Total</td><td class="num">{{ totales.real|money }}</td><td class="num">{{ totales.estandar|money }}</td><td class="num {% if totales.variacion > 0 %}text-danger{% elif totales.variacion < 0 %}text-success{% endif %}">{{ totales.variacion|money }}</td><td></td></tr></tfoot>{% endif %}
+  </table></div>
+  <div class="card-body py-2 small text-muted">Estándar = costo estándar unitario al confirmar la orden × cantidad producida. Variación positiva (rojo) = desfavorable. Rendimiento = producido / planificado.</div>
+</div>
+{% endblock %}

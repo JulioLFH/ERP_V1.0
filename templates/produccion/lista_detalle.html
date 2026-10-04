@@ -1,0 +1,38 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ lista }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="page-title"><i class="bi bi-diagram-3"></i> {{ lista.producto.nombre }} <small class="text-muted">{{ lista.codigo }}</small>
+      {% if lista.activa %}<span class="badge text-bg-success fs-6 align-middle">Vigente</span>{% else %}<span class="badge text-bg-secondary fs-6 align-middle">Histórica</span>{% endif %}</h1>
+    <div class="text-muted small">Rinde {{ lista.cantidad_base|money }} {{ lista.producto.unidad }} por lote</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'manufactura:listas' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+    {% if not en_uso %}<a href="{% url 'manufactura:lista_editar' lista.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
+    <form method="post" action="{% url 'manufactura:lista_version' lista.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="bi bi-files"></i> Nueva versión</button></form>
+    {% if lista.activa %}<a href="{% url 'manufactura:orden_nueva' %}?producto={{ lista.producto_id }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Orden de producción</a>{% endif %}
+  </div>
+</div>
+{% if en_uso %}<div class="alert alert-info py-2 small"><i class="bi bi-lock"></i> Esta receta ya se usó en órdenes de producción: no se edita para conservar el sustento del costeo. Para cambiarla cree una nueva versión.</div>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-8">
+    {% if hoja %}{% include 'produccion/_hoja.html' %}{% else %}
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-box-seam"></i> Insumos por lote</div>
+      <table class="table table-sm mb-0"><thead><tr><th>Insumo</th><th class="num">Cantidad</th><th class="num">Merma %</th></tr></thead>
+      <tbody>{% for c in componentes %}<tr><td>{{ c.producto.codigo }} {{ c.producto.nombre }}</td><td class="num">{{ c.cantidad|floatformat:4 }} {{ c.producto.unidad }}</td><td class="num">{{ c.merma }}</td></tr>{% endfor %}</tbody></table></div>
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-tools"></i> Operaciones</div>
+      <table class="table table-sm mb-0"><thead><tr><th>Centro</th><th>Operación</th><th class="num">Horas</th></tr></thead>
+      <tbody>{% for o in operaciones %}<tr><td>{{ o.centro }}</td><td>{{ o.descripcion }}</td><td class="num">{{ o.horas }}</td></tr>{% empty %}<tr><td colspan="3" class="text-muted small">Sin operaciones.</td></tr>{% endfor %}</tbody></table></div>
+    {% endif %}
+    {% if lista.observaciones %}<p class="small text-muted">{{ lista.observaciones|linebreaksbr }}</p>{% endif %}
+    {% include 'core/_bitacora.html' with objeto=lista %}
+  </div>
+  <div class="col-lg-4">
+    {% if versiones %}<div class="card mb-3"><div class="card-header">Otras versiones</div><ul class="list-group list-group-flush small">
+      {% for v in versiones %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'manufactura:lista' v.pk %}">{{ v.codigo }}</a><span>{% if v.activa %}Vigente{% else %}Histórica{% endif %}</span></li>{% endfor %}</ul></div>{% endif %}
+    {% if ordenes %}<div class="card"><div class="card-header">Órdenes con esta receta</div><ul class="list-group list-group-flush small">
+      {% for o in ordenes %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'manufactura:orden' o.pk %}">{{ o.numero|default:'(borrador)' }}</a><span>{{ o.fecha|date:'d/m/Y' }} · {{ o.get_estado_display }}</span></li>{% endfor %}</ul></div>{% endif %}
+  </div>
+</div>
+{% endblock %}

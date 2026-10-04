@@ -73,6 +73,31 @@ MODULOS = [
         ],
     },
     {
+        'clave': 'manufactura', 'nombre': 'Manufactura', 'icono': 'bi-gear-wide-connected', 'color': '#c2410c',
+        'inicio': 'manufactura:ordenes', 'descripcion': 'Recetas, órdenes de producción y requerimiento de materiales',
+        'menu': [
+            ('Producción', [('Órdenes de producción', 'manufactura:ordenes', 'bi-clipboard-data'),
+                            ('Nueva orden de producción', 'manufactura:orden_nueva', 'bi-plus-circle'),
+                            ('Requerimiento de materiales', 'manufactura:requerimiento', 'bi-basket')]),
+            ('Ingeniería', [('Listas de materiales (recetas)', 'manufactura:listas', 'bi-diagram-3'),
+                            ('Centros de trabajo', 'manufactura:centros', 'bi-tools')]),
+            ('Productos', 'productos'),
+        ],
+    },
+    {
+        'clave': 'costos', 'nombre': 'Costos', 'icono': 'bi-calculator', 'color': '#0f766e',
+        'inicio': 'costos:estandar', 'descripcion': 'Costo estándar, real vs estándar y rentabilidad',
+        'menu': [
+            ('Costo estándar', 'costos:estandar'),
+            ('Real vs estándar', 'costos:real_vs_estandar'),
+            ('Rentabilidad', [('Por producto', 'costos:rentabilidad?agrupar=producto', 'bi-box-seam'),
+                              ('Por cliente', 'costos:rentabilidad?agrupar=cliente', 'bi-person'),
+                              ('Por vendedor', 'costos:rentabilidad?agrupar=vendedor', 'bi-person-badge'),
+                              ('Por mes', 'costos:rentabilidad?agrupar=mes', 'bi-calendar3')]),
+            ('Valorización de inventario', 'inv_valorizacion'),
+        ],
+    },
+    {
         'clave': 'logistica', 'nombre': 'Logística', 'icono': 'bi-truck', 'color': '#1098ad',
         'inicio': 'logistica:lista', 'descripcion': 'Guías de remisión remitente y transportista',
         'menu': [
@@ -158,10 +183,11 @@ RUTAS_CORE = {
     'tipos_cambio': ['ajustes', 'finanzas'],
     'terceros': ['contactos', 'ventas', 'compras'], 'tercero_nuevo': ['contactos', 'ventas', 'compras'],
     'tercero_editar': ['contactos', 'ventas', 'compras'],
-    'productos': ['inventario', 'ventas', 'compras'], 'producto_nuevo': ['inventario', 'ventas', 'compras'],
-    'producto_editar': ['inventario', 'ventas', 'compras'], 'kardex': ['inventario'],
+    'productos': ['inventario', 'ventas', 'compras', 'manufactura'],
+    'producto_nuevo': ['inventario', 'ventas', 'compras', 'manufactura'],
+    'producto_editar': ['inventario', 'ventas', 'compras', 'manufactura'], 'kardex': ['inventario'],
     'inv_stock': ['inventario'], 'inv_kardex': ['inventario'], 'inv_ajuste': ['inventario'],
-    'inv_valorizacion': ['inventario'], 'inv_reposicion': ['inventario', 'compras'], 'almacenes': ['inventario'], 'almacen_nuevo': ['inventario'],
+    'inv_valorizacion': ['inventario', 'costos'], 'inv_reposicion': ['inventario', 'compras'], 'almacenes': ['inventario'], 'almacen_nuevo': ['inventario'],
     'almacen_editar': ['inventario'],
 }
 # Rutas abiertas a cualquier usuario autenticado

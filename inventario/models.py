@@ -125,6 +125,9 @@ class Operacion(models.Model):
     anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='+')
     anulado_en = models.DateTimeField(null=True, blank=True)
+    costo_adicional = models.DecimalField(
+        'Costo de conversión S/', max_digits=14, decimal_places=2, default=D0,
+        help_text='Manufactura: mano de obra y costos indirectos que se suman al costo de los insumos')
     conformidad_enviada_en = models.DateTimeField('Conformidad enviada al proveedor', null=True, blank=True)
     conformidad_enviada_a = models.CharField(max_length=200, blank=True)
     creado = models.DateTimeField(auto_now_add=True)

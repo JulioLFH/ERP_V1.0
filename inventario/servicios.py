@@ -237,6 +237,7 @@ def confirmar(op, usuario=None):
                 i.save(update_fields=['costo_unitario'])
                 valor += i.cantidad * i.costo_unitario
                 _mover(i, -i.cantidad, op, op.almacen_origen, None, tipo.codigo_sunat)
+            valor += op.costo_adicional or D0  # mano de obra y costos indirectos (órdenes de producción)
             unidades = sum((i.cantidad for i in productos), D0)
             costo = (valor / unidades).quantize(Decimal('0.0001')) if unidades else D0
             for i in productos:

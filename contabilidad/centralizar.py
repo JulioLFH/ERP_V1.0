@@ -330,14 +330,30 @@ def asiento_inventario(periodo, cta):
     def costo(p):
         return p.cuenta_costo if p and p.cuenta_costo_id else cta['costo_ventas']
 
+    from .models import CuentaContable
+    por_codigo = {c.codigo: c for c in CuentaContable.objects.filter(codigo__regex=r'^(61|71)')}
+    # manufactura (PCGE): el insumo consumido va a la variación de existencias (61) y el producto obtenido a la
+    # variación de la producción almacenada (71), según la cuenta de existencias de cada producto
+    VARIACION = {'24': '6121', '25': '6132', '20': '6111', '23': '7131', '21': '7111'}
+    PRODUCCION = {'23': '7131', '21': '7111'}
+
+    def contra_manufactura(ex, entrada):
+        codigo = (PRODUCCION.get(ex.codigo[:2], '7111') if entrada else VARIACION.get(ex.codigo[:2], '6111'))
+        return por_codigo.get(codigo)
+
     grupos = defaultdict(lambda: D0)   # (existencias, contrapartida, glosa) -> variación del inventario
-    sin_contra = defaultdict(lambda: D0)  # traslados y manufactura: solo cambian de cuenta de existencias
+    sin_contra = defaultdict(lambda: D0)  # traslados: solo cambian de almacén o de cuenta de existencias
     for k in Kardex.objects.filter(fecha__range=[desde, hasta]):
         p = productos.get(k.producto_id)
         ex = existencias(p)
         valor = r2(k.cantidad * k.costo_unitario) * (1 if k.tipo == 'ENTRADA' else -1)
         if k.origen == 'OPERACION':
             tipo = tipos.get(k.concepto)
+            if tipo and tipo.clase == 'MANUFACTURA' and contra_manufactura(ex, k.tipo == 'ENTRADA'):
+                contra = contra_manufactura(ex, k.tipo == 'ENTRADA')
+                glosa = 'Producción almacenada' if k.tipo == 'ENTRADA' else 'Consumo de insumos en producción'
+                grupos[(ex, contra, glosa)] += valor
+                continue
             if not (tipo and tipo.cuenta_contable_id):
                 sin_contra[ex] += valor
                 continue

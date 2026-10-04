@@ -1,0 +1,13 @@
+{% load erp_tags %}<div class="card mb-3"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-calculator"></i> Hoja de costo estándar · {{ hoja.cantidad|money }} {{ hoja.lista.producto.unidad }}</span><span class="fw-semibold">S/ {{ hoja.unitario|floatformat:4 }} por {{ hoja.lista.producto.unidad }}</span></div>
+  <div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Materiales</th><th class="num">Cantidad (con merma)</th><th class="num">Costo unit.</th><th class="num">S/</th></tr></thead>
+    <tbody>{% for m in hoja.materiales %}<tr><td>{{ m.producto.codigo }} {{ m.producto.nombre }}{% if m.merma %} <span class="text-muted small">(+{{ m.merma }}%)</span>{% endif %}</td>
+      <td class="num">{{ m.cantidad|floatformat:4 }} {{ m.producto.unidad }}</td><td class="num">{{ m.costo|floatformat:4 }}{% if not m.costo %} <i class="bi bi-exclamation-triangle text-warning" title="Sin costo: registre una compra o el precio de compra"></i>{% endif %}</td><td class="num">{{ m.valor|money }}</td></tr>{% endfor %}
+      <tr class="fw-semibold"><td colspan="3">Total materiales</td><td class="num">{{ hoja.tot_materiales|money }}</td></tr></tbody>
+    {% if hoja.horas %}<thead><tr><th>Conversión</th><th class="num">Horas</th><th class="num">MO / CIF</th><th class="num">S/</th></tr></thead>
+    <tbody>{% for h in hoja.horas %}<tr><td>{{ h.centro }}{% if h.descripcion %} · {{ h.descripcion }}{% endif %}</td><td class="num">{{ h.horas }}</td><td class="num">{{ h.mo|money }} / {{ h.cif|money }}</td><td class="num">{{ h.total|money }}</td></tr>{% endfor %}
+      <tr class="fw-semibold"><td colspan="3">Mano de obra {{ hoja.tot_mano_obra|money }} + costos indirectos {{ hoja.tot_cif|money }}</td><td class="num">{{ hoja.tot_conversion|money }}</td></tr></tbody>{% endif %}
+    <tfoot><tr class="fw-bold"><td colspan="3">Costo total del lote</td><td class="num">{{ hoja.total|money }}</td></tr></tfoot>
+  </table></div>
+  <div class="card-body py-2 small text-muted">Insumos valorizados al costo promedio actual (si no tienen, a su costo estándar o precio de compra).{% if hoja.lista.producto.precio_venta %} Precio de venta S/ {{ hoja.lista.producto.precio_venta|money }}.{% endif %}</div>
+</div>

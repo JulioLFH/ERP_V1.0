@@ -15,5 +15,7 @@ urlpatterns = [
     path('contabilidad/', include('contabilidad.urls')),
     path('inventario/operaciones/', include('inventario.urls')),
     path('portal/', include('proveedores.urls')),
+    path('manufactura/', include('produccion.urls')),
+    path('costos/', include('produccion.urls_costos')),
     path('', include('core.urls')),
 ]

@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-gear-wide-connected"></i> {{ titulo }}</h1>
+  <a href="{% if orden.pk %}{% url 'manufactura:orden' orden.pk %}{% else %}{% url 'manufactura:ordenes' %}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+<div class="card" style="max-width: 900px"><div class="card-body">
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+    <div class="row g-3">
+      {% for field in form %}
+        <div class="{% if field.name == 'glosa' %}col-12{% elif field.name == 'cantidad' or field.name == 'fecha' %}col-6 col-md-3{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>
+      {% endfor %}
+    </div>
+    <p class="small text-muted mt-3 mb-0">Al guardar se calculan los insumos y las horas según la receta, en proporción a la cantidad a producir (incluye la merma). Los consumos reales se registran al terminar la orden.</p>
+    <div class="mt-4 d-flex gap-2">
+      <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar borrador</button>
+      {% if not recetas %}<a href="{% url 'manufactura:lista_nueva' %}" class="btn btn-outline-primary"><i class="bi bi-diagram-3"></i> Crear la primera receta</a>{% endif %}
+    </div>
+  </form>
+</div></div>
+{{ recetas|json_script:"recetas-data" }}
+<script>
+// la lista de materiales sigue al producto elegido
+(function () {
+  const recetas = JSON.parse(document.getElementById('recetas-data').textContent);
+  const prod = document.getElementById('id_producto'), lista = document.getElementById('id_lista');
+  if (!prod || !lista) return;
+  function filtrar() {
+    let primera = null;
+    [...lista.options].forEach(o => {
+      if (!o.value) return;
+      const ok = !prod.value || String(recetas[o.value]) === prod.value;
+      o.hidden = !ok;
+      if (ok && primera === null) primera = o.value;
+    });
+    if (prod.value && (!lista.value || String(recetas[lista.value]) !== prod.value)) lista.value = primera || '';
+  }
+  prod.addEventListener('change', filtrar);
+  filtrar();
+})();
+</script>
+{% endblock %}

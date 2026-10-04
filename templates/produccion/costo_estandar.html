@@ -1,0 +1,22 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Costo estándar{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Costo estándar por producto</h1>
+  <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+</div>
+<p class="text-muted small">Costo de fabricar una unidad según la receta vigente: materiales al costo promedio actual más la conversión (mano de obra y costos indirectos por hora de cada centro de trabajo). Se compara con el costo promedio en almacén y con el precio de venta.</p>
+<div class="card"><div class="table-responsive"><table class="table table-hover mb-0">
+  <thead><tr><th>Producto</th><th>Receta</th><th class="num">Materiales</th><th class="num">Conversión</th><th class="num">Costo estándar</th><th class="num">Costo promedio</th><th class="num">Precio venta</th><th class="num">Margen S/</th><th class="num">Margen %</th></tr></thead>
+  <tbody>{% for f in filas %}<tr onclick="location.href='{% url 'costos:hoja' f.lista.pk %}'" style="cursor:pointer">
+    <td>{{ f.p.codigo }} {{ f.p.nombre }}</td><td>{{ f.lista.codigo }}</td>
+    <td class="num">{{ f.hoja.tot_materiales|money }}</td><td class="num">{{ f.hoja.tot_conversion|money }}</td>
+    <td class="num fw-semibold">{{ f.hoja.unitario|floatformat:4 }}</td>
+    <td class="num">{% if f.p.costo_promedio %}{{ f.p.costo_promedio|floatformat:4 }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+    <td class="num">{{ f.p.precio_venta|money }}</td>
+    <td class="num {% if f.margen is not None and f.margen < 0 %}text-danger{% endif %}">{% if f.margen is not None %}{{ f.margen|money }}{% endif %}</td>
+    <td class="num {% if f.pct is not None and f.pct < 0 %}text-danger{% endif %}">{% if f.pct is not None %}{{ f.pct }}%{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No hay recetas vigentes. Créelas en Manufactura &gt; Listas de materiales.</td></tr>{% endfor %}</tbody>
+</table></div>
+<div class="card-body py-2 small text-muted">Materiales y conversión corresponden al lote base de la receta; el costo estándar es por unidad.</div></div>
+{% endblock %}
