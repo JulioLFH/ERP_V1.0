@@ -99,6 +99,14 @@ class ComprobanteViews:
         if q:
             qs = qs.filter(Q(tercero__nombre__icontains=q) | Q(tercero__numero_doc__icontains=q) |
                            Q(numero__icontains=q) | Q(serie__icontains=q) | Q(glosa__icontains=q))
+        if request.GET.get('formato') == 'excel':  # la lista con los mismos filtros
+            from .utils import excel_response
+            datos = [[d.fecha_emision.strftime('%d/%m/%Y'), d.get_tipo_comprobante_display(), d.numero_completo,
+                      d.tercero.numero_doc, d.tercero.nombre, d.moneda, d.total, d.total_pen, d.saldo,
+                      d.get_estado_display(), d.periodo] for d in qs]
+            return excel_response(f'{self.titulo}_{periodo or "todos"}', f'{self.titulo} {periodo}'.strip(),
+                                  ['Fecha', 'Tipo', 'Número', 'RUC / DNI', 'Razón social', 'Moneda', 'Total',
+                                   'Total S/', 'Saldo', 'Estado', 'Periodo'], datos)
         pagina = Paginator(qs, 50).get_page(request.GET.get('page'))
         return render(request, 'core/comprobante_lista.html', self._ctx(
             page_obj=pagina, periodo=periodo, q=q, tipos=self.modelo._meta.get_field('tipo_comprobante').choices))
@@ -145,8 +153,11 @@ class ComprobanteViews:
     def editar(self, request, pk):
         doc = get_object_or_404(self.modelo, pk=pk)
         if not self.puede_editar(doc):
-            messages.error(request, 'No se puede editar: el comprobante está anulado, tiene pagos/notas asociadas '
-                                    'o su periodo contable está cerrado.')
+            messages.error(request, 'No se puede editar: el comprobante ya fue emitido (corríjalo con nota de crédito '
+                                    'o anúlelo), está anulado, tiene pagos/notas asociadas o su periodo contable '
+                                    'está cerrado.' if self.modelo._meta.model_name == 'venta' else
+                           'No se puede editar: el comprobante está anulado, tiene pagos/notas asociadas '
+                           'o su periodo contable está cerrado.')
             return redirect(self._url('detalle', pk))
         return guardar_documento(request, self.form_class, item_formset(self.modelo, self.item_modelo, extra=0),
                                  doc, 'core/comprobante_form.html',

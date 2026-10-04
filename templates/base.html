@@ -42,7 +42,8 @@
           <ul class="dropdown-menu dropdown-menu-end shadow-sm">
             <li><a class="dropdown-item" href="{% url 'home' %}"><i class="bi bi-grid-3x3-gap me-2"></i>Aplicaciones</a></li>
             <li><a class="dropdown-item" href="{% url 'cambiar_clave' %}"><i class="bi bi-key me-2"></i>Cambiar contraseña</a></li>
-            {% if user.is_superuser %}<li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-shield-lock me-2"></i>Administración avanzada</a></li>{% endif %}
+            <li><a class="dropdown-item" href="{% url 'seguridad' %}"><i class="bi bi-shield-lock me-2"></i>Verificación en dos pasos</a></li>
+            {% if admin_django %}<li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-shield-lock me-2"></i>Administración avanzada</a></li>{% endif %}
             <li><hr class="dropdown-divider"></li>
             <li><span class="dropdown-item-text small text-muted">{{ erp_nombre }} versión {{ erp_version }}</span></li>
             <li><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="dropdown-item"><i class="bi bi-box-arrow-right me-2"></i>Salir</button></form></li>

@@ -1,0 +1,16 @@
+{% extends 'registration/publico_base.html' %}
+{% block title %}Verificación{% endblock %}
+{% block tarjeta %}
+<h2><i class="bi bi-shield-lock"></i> Verificación en dos pasos</h2>
+<p class="small text-muted text-center">Hola <b>{{ usuario.get_full_name|default:usuario.username }}</b>, ingrese el código de 6 dígitos de su app autenticadora (o un código de respaldo).</p>
+{% if error %}<div class="alert alert-danger py-2 small">{{ error }}</div>{% endif %}
+<form method="post">
+  {% csrf_token %}
+  <div class="mb-4">
+    <label for="id_codigo">Código</label>
+    <input type="text" name="codigo" id="id_codigo" class="form-control text-center fs-4" inputmode="numeric" autocomplete="one-time-code" maxlength="10" autofocus required>
+  </div>
+  <button class="btn btn-ingresar w-100">Verificar e ingresar</button>
+</form>
+<div class="text-center small mt-3"><a href="{% url 'login' %}">Volver</a></div>
+{% endblock %}

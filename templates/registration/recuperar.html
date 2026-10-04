@@ -1,0 +1,16 @@
+{% extends 'registration/publico_base.html' %}
+{% block title %}Recuperar contraseña{% endblock %}
+{% block tarjeta %}
+<h2>Recuperar contraseña</h2>
+<p class="small text-muted text-center">Le enviaremos un enlace a su correo registrado para crear una nueva contraseña.</p>
+<form method="post">
+  {% csrf_token %}
+  <div class="mb-4">
+    <label for="id_usuario">Usuario o correo electrónico</label>
+    <input type="text" name="usuario" id="id_usuario" class="form-control" maxlength="150" autofocus required>
+  </div>
+  <button class="btn btn-ingresar w-100">Enviar enlace</button>
+</form>
+<div class="text-center small mt-3"><a href="{% url 'login' %}">Volver a ingresar</a></div>
+<p class="small text-muted text-center mt-3 mb-0">Si su usuario no tiene correo registrado, pida al administrador que cambie su contraseña.</p>
+{% endblock %}

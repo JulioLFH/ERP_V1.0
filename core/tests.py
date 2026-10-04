@@ -47,7 +47,7 @@ class SmokeTest(TestCase):
             self.assertEqual(r.status_code, 200, nombre)
         extras = [
             reverse('ventas:detalle', args=[v.pk]), reverse('ventas:imprimir', args=[v.pk]),
-            reverse('ventas:editar', args=[v.pk]), reverse('compras:detalle', args=[c.pk]),
+            reverse('compras:detalle', args=[c.pk]),
             reverse('compras:imprimir', args=[c.pk]),
             reverse('inv_kardex') + f'?producto={Producto.objects.first().pk}',
             reverse('logistica:nueva') + f'?tipo=09&venta={v.pk}', reverse('logistica:nueva') + '?tipo=31',
@@ -62,6 +62,9 @@ class SmokeTest(TestCase):
         ]
         for url in extras:
             self.assertEqual(self.client.get(url).status_code, 200, url)
+        # un comprobante emitido no se edita: se corrige con nota de crédito
+        self.assertRedirects(self.client.get(reverse('ventas:editar', args=[v.pk])),
+                             reverse('ventas:detalle', args=[v.pk]))
         for app in ('compras', 'ventas'):
             for fmt in ('excel', 'ple'):
                 r = self.client.get(reverse(f'{app}:registro') + f'?formato={fmt}')

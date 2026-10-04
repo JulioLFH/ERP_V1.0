@@ -3,6 +3,19 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.13.0 — 04/10/2026 · Correcciones de la segunda evaluación
+- **La sesión ya no se cierra al publicar una versión**: el despliegue volvía a fijar la clave del administrador y eso invalidaba sus sesiones. Ahora la clave del entorno solo se usa al crear el usuario (DJANGO_SUPERUSER_RESET=1 la repone si se pierde el acceso).
+- **Seguridad**: cabeceras HSTS (1 año) y CSP; redirección a HTTPS. El panel de Django ya no existe en /admin/ en producción: solo con una ruta secreta (ADMIN_URL), solo superusuarios y opcionalmente solo desde ciertas IP (ADMIN_IPS).
+- **Recuperación de contraseña** por correo ("¿Olvidó su contraseña?"), con enlace de un solo uso y límite de solicitudes.
+- **Verificación en dos pasos** (Google/Microsoft Authenticator) opcional por usuario, con 8 códigos de respaldo; el administrador puede quitarla con motivo si el usuario pierde el teléfono.
+- **Comprobante emitido inmutable**: ya no se edita una factura/boleta emitida; se corrige con nota de crédito o anulación (solo se edita la que falló al enviarse).
+- **Enviar comprobante** al cliente por correo (con PDF, XML y CDR del OSE) o por WhatsApp, desde el detalle; queda en la auditoría.
+- **Exportar a Excel** las listas de ventas, compras, clientes, productos y demás listados, con los filtros aplicados (sin costos para quien no tiene ese permiso).
+- **Inventario permanente SUNAT**: formatos **12.1** (unidades físicas) y **13.1** (valorizado) por mes o año, en pantalla y Excel con la estructura oficial (Inventario > Reportes y Contabilidad > Libros).
+- **Guías vinculadas** en la factura muestran su estado (las anuladas, tachadas).
+- **Reapertura de periodos** contables solo por el administrador, con motivo y registro en la auditoría.
+- **Peso por unidad** en el producto: la guía de remisión calcula el peso bruto automáticamente.
+
 ## v1.12.0 — 04/10/2026 · Módulo de Activos fijos
 - **Registro de activos**: código automático (AF000001), categoría, marca, modelo, serie/placa, ubicación, responsable y centro de costo. Se registran **desde la factura de compra** (botón "Registrar activo fijo", una o varias unidades) o como **saldo inicial** con su depreciación acumulada a una fecha; sin compra en el sistema se exige el documento de sustento.
 - **Categorías** con sus cuentas (33/34, 39 y 68) y la tasa máxima de SUNAT: edificaciones 5 %, maquinaria 10 %, vehículos 20 %, muebles 10 %, cómputo 25 %, otros equipos 10 %, software 25 %; los terrenos no se deprecian.

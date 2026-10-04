@@ -13,6 +13,7 @@ def empresa(request):
     modulo = POR_CLAVE.get(clave)
     return {
         'empresa': Empresa.actual(),
+        'admin_django': bool(settings.ADMIN_URL) and request.user.is_superuser,
         'erp_version': settings.ERP_VERSION,
         'erp_nombre': settings.ERP_NOMBRE,
         'mods': mods,

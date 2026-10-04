@@ -339,9 +339,33 @@ class ListaGenerica(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx.update(titulo=self.titulo, columnas=self.columnas, url_nuevo=self.url_nuevo,
+        ctx.update(titulo=self.titulo, columnas=self.get_columnas(), url_nuevo=self.url_nuevo,
                    url_editar=self.url_editar, q=self.request.GET.get('q', ''))
         return ctx
+
+    def get_columnas(self):
+        return self.columnas
+
+    def get(self, request, *args, **kwargs):
+        if request.GET.get('formato') == 'excel':  # la lista completa con los filtros aplicados
+            from .utils import excel_response
+            columnas = self.get_columnas()
+            filas = []
+            for obj in self.get_queryset():
+                fila = []
+                for _, campo in columnas:
+                    v = obj
+                    for parte in campo.split('.'):
+                        v = getattr(v, parte, '')
+                        v = v() if callable(v) else v
+                    if isinstance(v, bool):
+                        v = 'Sí' if v else 'No'
+                    elif v is not None and not isinstance(v, (int, float, Decimal, str)):
+                        v = str(v)
+                    fila.append(v)
+                filas.append(fila)
+            return excel_response(self.titulo[:40], self.titulo, [c for c, _ in columnas], filas)
+        return super().get(request, *args, **kwargs)
 
 
 class FormGenerico(LoginRequiredMixin, SuccessMessageMixin):
@@ -401,12 +425,15 @@ class ProductoLista(ListaGenerica):
             qs = qs.filter(clase=self.request.GET['clase'])
         return qs
 
-    def get_context_data(self, **kwargs):
+    def get_columnas(self):
         from .modulos import puede_ver_costos
+        if puede_ver_costos(self.request.user):
+            return self.columnas
+        return [c for c in self.columnas if c[1] not in ('costo_promedio', 'valorizado')]
+
+    def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['clases'] = Producto.CLASES
-        if not puede_ver_costos(self.request.user):
-            ctx['columnas'] = [c for c in self.columnas if c[1] not in ('costo_promedio', 'valorizado')]
         return ctx
 
 

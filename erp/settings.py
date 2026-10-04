@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Versión visible en el menú del usuario; actualizarla junto con CHANGELOG.md y la etiqueta de git
 ERP_NOMBRE = 'Ceiba ERP'
-ERP_VERSION = '1.12.0'
+ERP_VERSION = '1.13.0'
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insegura-cambiar-en-produccion')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
@@ -54,6 +54,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core.middleware.SeguridadMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'core.auditoria.AuditoriaMiddleware',
     'core.middleware.AccesoModulosMiddleware',
@@ -116,3 +117,28 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    # HSTS: el navegador solo usa HTTPS con el sistema durante un año
+    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', '1') == '1'
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '31536000'))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False  # el dominio de Render es compartido
+    SECURE_REFERRER_POLICY = 'same-origin'
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+
+# Política de seguridad de contenido (CSP): solo recursos propios y los CDN que usan las pantallas
+CONTENT_SECURITY_POLICY = '; '.join([
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com",
+    "font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com",
+    "img-src 'self' data: blob:",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+])
+
+# Panel de administración de Django: en producción solo existe si se define ADMIN_URL (una ruta difícil de
+# adivinar) y solo lo abren superusuarios desde las IP de ADMIN_IPS (separadas por coma; vacío = cualquiera)
+ADMIN_URL = os.environ.get('ADMIN_URL', 'admin/' if DEBUG else '').strip().strip('/')
+ADMIN_IPS = [ip.strip() for ip in os.environ.get('ADMIN_IPS', '').split(',') if ip.strip()]

@@ -5,6 +5,7 @@
   <h1 class="page-title">{% if app == 'ventas' %}Comprobantes de venta{% else %}Registro de compras{% endif %}</h1>
   <div class="d-flex gap-2">
     <a href="{% url app|add:':importar' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-arrow-up"></i> Importar</a>
+    <a href="?{{ request.GET.urlencode }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
     <a href="{% url app|add:':nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> {% if app == 'ventas' %}Emitir comprobante{% else %}Registrar compra{% endif %}</a>
   </div>
 </div>

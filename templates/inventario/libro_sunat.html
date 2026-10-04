@@ -1,0 +1,35 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Inventario permanente {% if valorizado %}13.1{% else %}12.1{% endif %}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Registro de inventario permanente · Formato {% if valorizado %}13.1 valorizado{% else %}12.1 en unidades físicas{% endif %}</h1>
+  <a href="?{{ request.GET.urlencode }}&descargar=1" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Descargar formato SUNAT</a>
+</div>
+<div class="card mb-3"><div class="card-body py-2">
+  <form class="row g-2 align-items-center" method="get">
+    <div class="col-auto"><select name="formato_sunat" class="form-select form-select-sm" onchange="this.form.submit()">
+      <option value="12.1">12.1 Unidades físicas</option>{% if puede_valorizado %}<option value="13.1" {% if valorizado %}selected{% endif %}>13.1 Valorizado</option>{% endif %}</select></div>
+    <div class="col-auto"><select name="mes" class="form-select form-select-sm" onchange="this.form.submit()">{% for v, e in meses %}<option value="{{ v }}" {% if mes == v %}selected{% endif %}>Mes {{ e }}</option>{% endfor %}<option value="anual" {% if mes == 'anual' %}selected{% endif %}>Año completo</option></select></div>
+    <div class="col-auto"><select name="anio" class="form-select form-select-sm" onchange="this.form.submit()">{% for y in anios %}<option value="{{ y }}" {% if y == anio %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></div>
+  </form>
+</div></div>
+{% for b in bloques %}
+<div class="card mb-3">
+  <div class="card-header small"><b>{{ b.p.codigo }}</b> {{ b.p.nombre }} · Tipo (tabla 5) {{ b.tipo_existencia }} · U.M. {{ b.p.unidad }}{% if valorizado %} · Promedio ponderado{% endif %}</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 small">
+    <thead><tr><th>Fecha</th><th>Doc.</th><th>Serie-número</th><th>T.12</th>
+      {% if valorizado %}<th class="num">Ent. cant.</th><th class="num">Ent. C.U.</th><th class="num">Ent. total</th><th class="num">Sal. cant.</th><th class="num">Sal. C.U.</th><th class="num">Sal. total</th><th class="num">Saldo cant.</th><th class="num">Saldo C.U.</th><th class="num">Saldo total</th>
+      {% else %}<th class="num">Entradas</th><th class="num">Salidas</th><th class="num">Saldo final</th>{% endif %}</tr></thead>
+    <tbody>
+      <tr class="text-muted"><td colspan="4">Saldo inicial</td>{% if valorizado %}<td class="num">{{ b.inicial.cantidad|money }}</td><td class="num">{{ b.inicial.costo|floatformat:4 }}</td><td class="num">{{ b.inicial.total|money }}</td><td colspan="3"></td><td class="num">{{ b.inicial.cantidad|money }}</td><td class="num">{{ b.inicial.costo|floatformat:4 }}</td><td class="num">{{ b.inicial.total|money }}</td>{% else %}<td class="num">{{ b.inicial.cantidad|money }}</td><td></td><td class="num">{{ b.inicial.cantidad|money }}</td>{% endif %}</tr>
+      {% for f in b.filas %}<tr><td>{{ f.k.fecha|date:'d/m/Y' }}</td><td>{{ f.tipo_doc }}</td><td>{{ f.serie }}{% if f.serie %}-{% endif %}{{ f.numero }}</td><td>{{ f.operacion }}</td>
+        {% if valorizado %}<td class="num">{{ f.ent_cant|money }}</td><td class="num">{{ f.ent_costo|floatformat:4 }}</td><td class="num">{{ f.ent_total|money }}</td><td class="num">{{ f.sal_cant|money }}</td><td class="num">{{ f.sal_costo|floatformat:4 }}</td><td class="num">{{ f.sal_total|money }}</td><td class="num">{{ f.saldo_cant|money }}</td><td class="num">{{ f.saldo_costo|floatformat:4 }}</td><td class="num">{{ f.saldo_total|money }}</td>
+        {% else %}<td class="num">{{ f.ent_cant|money }}</td><td class="num">{{ f.sal_cant|money }}</td><td class="num">{{ f.saldo_cant|money }}</td>{% endif %}</tr>{% endfor %}
+    </tbody>
+    <tfoot><tr class="fw-semibold"><td colspan="4" class="text-end">Totales</td>
+      {% if valorizado %}<td class="num">{{ b.totales.ent_cant|money }}</td><td></td><td class="num">{{ b.totales.ent_total|money }}</td><td class="num">{{ b.totales.sal_cant|money }}</td><td></td><td class="num">{{ b.totales.sal_total|money }}</td><td class="num">{{ b.totales.saldo_cant|money }}</td><td></td><td class="num">{{ b.totales.saldo_total|money }}</td>
+      {% else %}<td class="num">{{ b.totales.ent_cant|money }}</td><td class="num">{{ b.totales.sal_cant|money }}</td><td class="num">{{ b.totales.saldo_cant|money }}</td>{% endif %}</tr></tfoot>
+  </table></div>
+</div>
+{% empty %}<div class="card"><div class="card-body text-center text-muted">Sin existencias ni movimientos en el periodo.</div></div>{% endfor %}
+{% endblock %}

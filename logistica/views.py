@@ -24,8 +24,10 @@ def _form_class(tipo):
 
 def _ctx(titulo, tipo, doc=None):
     from core.models import Producto
+    productos = Producto.objects.filter(activo=True).only('unidad', 'peso')
     return {'titulo': titulo, 'tipo': tipo, 'doc': doc,
-            'productos_unidad': {p.pk: p.unidad for p in Producto.objects.filter(activo=True)}}
+            'productos_unidad': {p.pk: p.unidad for p in productos},
+            'productos_peso': {p.pk: str(p.peso) for p in productos if p.peso}}
 
 
 def _al_guardar(guia):

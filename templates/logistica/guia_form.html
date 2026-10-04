@@ -84,4 +84,30 @@
   <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar guía</button>
 </form>
 {{ productos|json_script:"productos-data" }}
+{{ productos_peso|json_script:"pesos-data" }}
+<script>
+// peso bruto = Σ cantidad × peso por unidad de cada producto (si los productos tienen peso registrado)
+(function () {
+  const pesos = JSON.parse(document.getElementById('pesos-data').textContent);
+  const body = document.getElementById('items-body'), total = document.getElementById('id_peso_bruto');
+  const unidad = document.getElementById('id_unidad_peso');
+  if (!body || !total || !Object.keys(pesos).length) return;
+  function calcular() {
+    let kg = 0, alguno = false;
+    body.querySelectorAll('tr.item-row').forEach(fila => {
+      const prod = fila.querySelector('select[name$="-producto"]'), cant = fila.querySelector('input[name$="-cantidad"]');
+      const borrar = fila.querySelector('input[name$="-DELETE"]');
+      if (!prod || !cant || (borrar && borrar.checked) || !pesos[prod.value]) return;
+      kg += parseFloat(pesos[prod.value]) * (parseFloat(cant.value) || 0);
+      alguno = true;
+    });
+    if (!alguno) return;
+    const valor = unidad && unidad.value === 'TNE' ? kg / 1000 : kg;
+    total.value = valor.toFixed(3);
+  }
+  body.addEventListener('change', calcular);
+  body.addEventListener('input', calcular);
+  if (unidad) unidad.addEventListener('change', calcular);
+})();
+</script>
 {% endblock %}

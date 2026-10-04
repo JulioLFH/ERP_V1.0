@@ -1,0 +1,14 @@
+{% extends 'proveedores/correo_base.html' %}{% load erp_tags %}
+{% block cuerpo %}
+<p>Estimado cliente <b>{{ v.tercero.nombre }}</b>:</p>
+{% if mensaje %}<p>{{ mensaje|linebreaksbr }}</p>{% endif %}
+<p>Le enviamos su <b>{{ v.get_tipo_comprobante_display|lower }} electrónica {{ v.numero_completo }}</b> emitida el {{ v.fecha_emision|date:'d/m/Y' }}.</p>
+<table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+  <tr style="background: #f0f3f7;"><th style="text-align:left; padding:6px; border:1px solid #dfe3ea;">Descripción</th><th style="text-align:right; padding:6px; border:1px solid #dfe3ea;">Cantidad</th><th style="text-align:right; padding:6px; border:1px solid #dfe3ea;">Subtotal</th></tr>
+  {% for i in v.items.all %}<tr><td style="padding:6px; border:1px solid #dfe3ea;">{{ i.descripcion }}</td><td style="text-align:right; padding:6px; border:1px solid #dfe3ea;">{{ i.cantidad|money }}</td><td style="text-align:right; padding:6px; border:1px solid #dfe3ea;">{{ i.subtotal|money }}</td></tr>{% endfor %}
+  <tr><td colspan="2" style="text-align:right; padding:6px; border:1px solid #dfe3ea;"><b>Total {% if v.moneda == 'USD' %}US${% else %}S/{% endif %}</b></td><td style="text-align:right; padding:6px; border:1px solid #dfe3ea;"><b>{{ v.total|money }}</b></td></tr>
+</table>
+{% if v.fecha_vencimiento %}<p>Vence el <b>{{ v.fecha_vencimiento|date:'d/m/Y' }}</b>.</p>{% endif %}
+{% if adjuntos %}<p>Adjuntamos: {{ adjuntos|join:', ' }}.</p>{% elif v.enlace_pdf %}<p>Puede descargarlo aquí: <a href="{{ v.enlace_pdf }}">PDF</a>{% if v.enlace_xml %} · <a href="{{ v.enlace_xml }}">XML</a>{% endif %}</p>{% endif %}
+<p>Gracias por su preferencia.</p>
+{% endblock %}

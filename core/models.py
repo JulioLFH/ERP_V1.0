@@ -197,6 +197,8 @@ class Producto(models.Model):
     unidad = models.CharField('Unidad de medida', max_length=5, choices=UNIDADES, default='NIU')
     marca = models.CharField(max_length=80, blank=True)
     codigo_barras = models.CharField('Código de barras', max_length=40, blank=True)
+    peso = models.DecimalField('Peso por unidad (kg)', max_digits=12, decimal_places=3, default=D0,
+                               help_text='Calcula el peso bruto de las guías de remisión')
     descripcion = models.TextField('Descripción', blank=True)
     activo = models.BooleanField(default=True)
     # ---- compras
@@ -455,7 +457,8 @@ class Sustento(models.Model):
 class Bitacora(models.Model):
     """Auditoría: quién creó, modificó, anuló o eliminó cada registro, cuándo y qué cambió."""
     ACCIONES = [('CREAR', 'Creó'), ('MODIFICAR', 'Modificó'), ('ELIMINAR', 'Eliminó'), ('ANULAR', 'Anuló'),
-                ('EXTORNAR', 'Extornó'), ('ADJUNTAR', 'Adjuntó sustento'), ('ACCESO', 'Inició sesión')]
+                ('EXTORNAR', 'Extornó'), ('ADJUNTAR', 'Adjuntó sustento'), ('ACCESO', 'Inició sesión'),
+                ('ENVIAR', 'Envió al cliente')]
     fecha = models.DateTimeField(auto_now_add=True, db_index=True)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                 related_name='+')
@@ -483,6 +486,23 @@ class IntentoAcceso(models.Model):
     class Meta:
         verbose_name = 'intento de acceso fallido'
         verbose_name_plural = 'intentos de acceso fallidos'
+
+
+class SegundoFactor(models.Model):
+    """Doble factor (TOTP, app autenticadora): secreto, estado y códigos de respaldo (guardados con hash)."""
+    usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='segundo_factor')
+    secreto = models.CharField(max_length=64)
+    activo = models.BooleanField(default=False)
+    activado_en = models.DateTimeField(null=True, blank=True)
+    ultimo_paso = models.BigIntegerField(default=0, help_text='Último código usado: no se acepta dos veces')
+    codigos_respaldo = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        verbose_name = 'doble factor'
+        verbose_name_plural = 'doble factor'
+
+    def __str__(self):
+        return f'Doble factor de {self.usuario}'
 
 
 class CorreoConfig(models.Model):

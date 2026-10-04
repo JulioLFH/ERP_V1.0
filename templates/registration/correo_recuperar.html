@@ -1,0 +1,7 @@
+{% extends 'proveedores/correo_base.html' %}
+{% block cuerpo %}
+<p>Hola <b>{{ usuario.get_full_name|default:usuario.username }}</b>:</p>
+<p>Recibimos una solicitud para cambiar la contraseña de su usuario <b>{{ usuario.username }}</b> en el sistema.</p>
+<p><a href="{{ enlace }}" style="display:inline-block; background:#0F3D2E; color:#fff; padding:10px 18px; border-radius:6px; text-decoration:none;">Crear nueva contraseña</a></p>
+<p style="font-size:12px; color:#666;">El enlace sirve una sola vez. Si usted no lo solicitó, ignore este correo: su contraseña no cambia.</p>
+{% endblock %}

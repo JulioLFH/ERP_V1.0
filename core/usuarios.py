@@ -107,4 +107,20 @@ def nuevo(request):
 
 @login_required
 def editar(request, pk):
-    return _guardar(request, get_object_or_404(User, pk=pk), 'Editar usuario')
+    usuario = get_object_or_404(User, pk=pk)
+    if request.method == 'POST' and request.POST.get('accion') == 'quitar_2fa':
+        # el usuario perdió el teléfono y sus códigos de respaldo: solo un administrador, con motivo
+        from .auditoria import registrar
+        from .models import SegundoFactor
+        motivo = request.POST.get('motivo', '').strip()
+        if not request.user.is_superuser:
+            messages.error(request, 'Solo un administrador puede quitar la verificación en dos pasos.')
+        elif len(motivo) < 10:
+            messages.error(request, 'Indique el motivo (mínimo 10 caracteres).')
+        else:
+            SegundoFactor.objects.filter(usuario=usuario).delete()
+            registrar('MODIFICAR', usuario, {'Doble factor': ['Activo', 'Quitado por el administrador']}, motivo)
+            messages.success(request, f'Se quitó la verificación en dos pasos de {usuario.username}; '
+                                      'deberá activarla de nuevo.')
+        return redirect('usuario_editar', pk)
+    return _guardar(request, usuario, 'Editar usuario')

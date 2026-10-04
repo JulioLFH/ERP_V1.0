@@ -1,0 +1,7 @@
+{% extends 'registration/publico_base.html' %}
+{% block title %}Revise su correo{% endblock %}
+{% block tarjeta %}
+<h2><i class="bi bi-envelope-check"></i> Revise su correo</h2>
+<p class="small text-center">Si los datos corresponden a un usuario con correo registrado, le enviamos un enlace para crear una nueva contraseña. El enlace sirve una sola vez.</p>
+<div class="text-center small mt-3"><a href="{% url 'login' %}">Volver a ingresar</a></div>
+{% endblock %}

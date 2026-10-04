@@ -83,9 +83,23 @@ def periodos(request):
                     messages.warning(request, e)
             except ErrorContable as exc:
                 messages.error(request, str(exc))
-        elif accion in ('cerrar', 'abrir'):
-            PeriodoContable.objects.update_or_create(periodo=periodo, defaults={'cerrado': accion == 'cerrar'})
-            messages.success(request, f'Periodo {periodo} {"cerrado" if accion == "cerrar" else "reabierto"}.')
+        elif accion == 'cerrar':
+            PeriodoContable.objects.update_or_create(periodo=periodo, defaults={'cerrado': True})
+            messages.success(request, f'Periodo {periodo} cerrado.')
+        elif accion == 'abrir':
+            # reapertura controlada: solo administrador, con motivo, queda en la auditoría
+            motivo = request.POST.get('motivo', '').strip()
+            p = PeriodoContable.objects.filter(periodo=periodo, cerrado=True).first()
+            if not request.user.is_superuser:
+                messages.error(request, 'Solo un administrador puede reabrir un periodo cerrado.')
+            elif len(motivo) < 10:
+                messages.error(request, 'Indique el motivo de la reapertura (mínimo 10 caracteres).')
+            elif p:
+                from core.auditoria import registrar
+                PeriodoContable.objects.filter(pk=p.pk).update(cerrado=False)
+                registrar('MODIFICAR', p, {'Estado': ['Cerrado', 'Reabierto']}, motivo)
+                messages.success(request, f'Periodo {periodo} reabierto. Ciérrelo nuevamente al terminar las '
+                                          'correcciones.')
         return redirect('contabilidad:periodos')
 
     meses = set(Compra.objects.values_list('periodo', flat=True)) | set(Venta.objects.values_list('periodo', flat=True))

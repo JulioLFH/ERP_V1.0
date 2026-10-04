@@ -143,7 +143,7 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
     # pestañas del formulario (estilo Odoo): (clave, título, icono, campos)
     PESTANAS = [
         ('general', 'General', 'bi-info-circle',
-         ['clase', 'codigo', 'nombre', 'unidad', 'marca', 'codigo_barras', 'descripcion', 'activo']),
+         ['clase', 'codigo', 'nombre', 'unidad', 'marca', 'codigo_barras', 'peso', 'descripcion', 'activo']),
         ('compras', 'Compras', 'bi-bag', ['puede_comprarse', 'precio_compra', 'proveedor', 'unidad_compra']),
         ('ventas', 'Ventas', 'bi-receipt', ['puede_venderse', 'precio_venta']),
         ('contabilidad', 'Contabilidad', 'bi-journal-bookmark',
@@ -157,8 +157,15 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
         exclude = ['stock', 'costo_promedio']
         widgets = {'descripcion': forms.Textarea(attrs={'rows': 2})}
 
+    def clean_peso(self):
+        peso = self.cleaned_data.get('peso') or Decimal('0')
+        if peso < 0:
+            raise forms.ValidationError('No puede ser negativo.')
+        return peso
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['peso'].required = False
         from contabilidad.models import CuentaContable
         for campo in ('cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo'):
             self.fields[campo].queryset = CuentaContable.objects.filter(imputable=True).order_by('codigo')

@@ -64,6 +64,7 @@ MODULOS = [
                              ('Carga masiva de saldos y productos', 'carga_masiva?tipo=saldos',
                               'bi-file-earmark-arrow-up')]),
             ('Reportes', [('Kardex', 'inv_kardex', 'bi-list-columns'),
+                          ('Inventario permanente SUNAT 12.1 / 13.1', 'inv_libro_sunat', 'bi-journal-text'),
                           ('Sugerencia de compra', 'inv_reposicion', 'bi-cart-plus'),
                           ('Valorización al cierre', 'inv_valorizacion', 'bi-calculator'),
                           ('Cierre de kardex', 'inventario:cierres', 'bi-lock')]),
@@ -144,7 +145,8 @@ MODULOS = [
                           ('Nuevo asiento manual', 'contabilidad:asiento_nuevo', 'bi-plus-circle'),
                           ('Centralización y periodos', 'contabilidad:periodos', 'bi-arrow-repeat')]),
             ('Libros', [('Libro diario', 'contabilidad:diario', 'bi-journal-text'),
-                        ('Libro mayor', 'contabilidad:mayor', 'bi-journal-bookmark')]),
+                        ('Libro mayor', 'contabilidad:mayor', 'bi-journal-bookmark'),
+                        ('Inventario permanente 12.1 / 13.1', 'inv_libro_sunat', 'bi-boxes')]),
             ('Reportes', [('Balance de comprobación', 'contabilidad:balance', 'bi-table'),
                           ('Estado de situación financiera', 'contabilidad:situacion', 'bi-bank2'),
                           ('Estado de resultados', 'contabilidad:resultados', 'bi-graph-up-arrow'),
@@ -198,12 +200,13 @@ RUTAS_CORE = {
     'productos': ['inventario', 'ventas', 'compras', 'manufactura'],
     'producto_nuevo': ['inventario', 'ventas', 'compras', 'manufactura'],
     'producto_editar': ['inventario', 'ventas', 'compras', 'manufactura'], 'kardex': ['inventario'],
-    'inv_stock': ['inventario'], 'inv_kardex': ['inventario'], 'inv_ajuste': ['inventario'],
+    'inv_stock': ['inventario'], 'inv_kardex': ['inventario'], 'inv_libro_sunat': ['inventario', 'contabilidad'], 'inv_ajuste': ['inventario'],
     'inv_valorizacion': ['inventario', 'costos'], 'inv_reposicion': ['inventario', 'compras'], 'almacenes': ['inventario'], 'almacen_nuevo': ['inventario'],
     'almacen_editar': ['inventario'],
 }
 # Rutas abiertas a cualquier usuario autenticado
 RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'cambiar_clave', 'cambiar_clave_ok',
+                'login_2fa', 'recuperar', 'recuperar_confirmar', 'recuperar_listo', 'seguridad',
                 'sustento_subir', 'sustento_ver'}  # los sustentos validan el módulo del documento
 
 

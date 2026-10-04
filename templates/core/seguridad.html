@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Seguridad de la cuenta{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Seguridad de la cuenta</h1>
+<div class="card" style="max-width: 720px"><div class="card-body">
+  <h2 class="h6"><i class="bi bi-shield-lock"></i> Verificación en dos pasos (doble factor)</h2>
+  {% if codigos %}
+  <div class="alert alert-warning">
+    <b>Códigos de respaldo</b> — anótelos o imprímalos ahora; no se volverán a mostrar. Cada uno sirve una sola vez si pierde el teléfono.
+    <div class="row g-2 mt-2 font-monospace fs-6">{% for c in codigos %}<div class="col-6 col-md-3">{{ c|slice:':4' }}-{{ c|slice:'4:' }}</div>{% endfor %}</div>
+  </div>
+  {% endif %}
+  {% if sf and sf.activo %}
+    <p class="text-success mb-2"><i class="bi bi-check-circle-fill"></i> Activo desde el {{ sf.activado_en|date:'d/m/Y H:i' }}. Al ingresar se pide el código de su app autenticadora.</p>
+    <p class="small text-muted">Códigos de respaldo disponibles: <b>{{ restantes }}</b>.</p>
+    <div class="row g-3">
+      <div class="col-md-6"><form method="post" class="border rounded p-3">{% csrf_token %}<input type="hidden" name="accion" value="regenerar">
+        <label class="form-label small mb-1">Nuevos códigos de respaldo</label>
+        <input name="codigo" class="form-control form-control-sm mb-2" placeholder="Código actual de la app" inputmode="numeric" required>
+        <button class="btn btn-sm btn-outline-primary w-100">Generar nuevos códigos</button></form></div>
+      <div class="col-md-6"><form method="post" class="border border-danger rounded p-3" data-confirm="¿Desactivar la verificación en dos pasos?">{% csrf_token %}<input type="hidden" name="accion" value="desactivar">
+        <label class="form-label small mb-1">Desactivar</label>
+        <input type="password" name="clave" class="form-control form-control-sm mb-2" placeholder="Contraseña" required>
+        <input name="codigo" class="form-control form-control-sm mb-2" placeholder="Código de la app o de respaldo" required>
+        <button class="btn btn-sm btn-outline-danger w-100">Desactivar</button></form></div>
+    </div>
+  {% elif secreto %}
+    <ol class="small">
+      <li>Instale en su celular <b>Google Authenticator</b>, <b>Microsoft Authenticator</b> o similar.</li>
+      <li>Escanee este código QR (o ingrese la clave manualmente).</li>
+      <li>Escriba el código de 6 dígitos que muestra la app.</li>
+    </ol>
+    <div class="d-flex flex-wrap gap-4 align-items-center">
+      <div id="qr" class="p-2 bg-white border rounded"></div>
+      <div>
+        <div class="small text-muted">Clave manual</div>
+        <div class="font-monospace mb-3" style="word-break: break-all">{{ secreto }}</div>
+        <form method="post" class="d-flex gap-2">{% csrf_token %}<input type="hidden" name="accion" value="confirmar">
+          <input name="codigo" class="form-control form-control-sm" placeholder="Código de 6 dígitos" inputmode="numeric" maxlength="6" autofocus required>
+          <button class="btn btn-sm btn-primary text-nowrap">Activar</button></form>
+      </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>new QRCode(document.getElementById('qr'), {text: '{{ uri|escapejs }}', width: 180, height: 180});</script>
+  {% else %}
+    <p class="small">Además de la contraseña, al ingresar se pedirá un código que cambia cada 30 segundos en su celular. Así, aunque alguien conozca su contraseña, no podrá entrar.</p>
+    <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="iniciar"><button class="btn btn-sm btn-primary"><i class="bi bi-shield-plus"></i> Activar verificación en dos pasos</button></form>
+  {% endif %}
+  <hr>
+  <a href="{% url 'cambiar_clave' %}" class="small"><i class="bi bi-key"></i> Cambiar contraseña</a>
+</div></div>
+{% endblock %}

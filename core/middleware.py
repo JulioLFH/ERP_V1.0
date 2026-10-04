@@ -1,9 +1,33 @@
+from django.conf import settings
+from django.http import Http404
 from django.shortcuts import redirect, render
 
 from .modulos import POR_CLAVE, modulos_de_ruta, modulos_del_usuario
 
+
+class SeguridadMiddleware:
+    """Cabecera CSP en todas las respuestas y panel de administración de Django restringido: solo desde las IP
+    permitidas (ADMIN_IPS) y, ya autenticado, solo para superusuarios; para los demás la ruta no existe."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        prefijo = f'/{settings.ADMIN_URL}/' if settings.ADMIN_URL else None
+        if prefijo and request.path.startswith(prefijo):
+            ip = (request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+                  or request.META.get('REMOTE_ADDR', ''))
+            usuario = getattr(request, 'user', None)
+            if (settings.ADMIN_IPS and ip not in settings.ADMIN_IPS) or (
+                    usuario is not None and usuario.is_authenticated and not usuario.is_superuser):
+                raise Http404
+        response = self.get_response(request)
+        if settings.CONTENT_SECURITY_POLICY and 'Content-Security-Policy' not in response:
+            response['Content-Security-Policy'] = settings.CONTENT_SECURITY_POLICY
+        return response
+
 # Lo único que puede abrir un usuario del portal de proveedores fuera del portal
-RUTAS_PROVEEDOR = {'logout', 'login', 'cambiar_clave', 'cambiar_clave_ok'}
+RUTAS_PROVEEDOR = {'logout', 'login', 'cambiar_clave', 'cambiar_clave_ok', 'seguridad', 'login_2fa'}
 
 
 class AccesoModulosMiddleware:

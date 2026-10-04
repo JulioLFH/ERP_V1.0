@@ -96,7 +96,9 @@ class VentasViews(ComprobanteViews):
             pass  # queda en estado ERROR con el detalle; se puede reenviar desde el comprobante
 
     def puede_editar(self, doc):
-        return super().puede_editar(doc) and doc.estado_sunat in ('NO_ENVIADO', 'ERROR', 'RECHAZADO')
+        # el comprobante emitido es inmutable: se corrige con nota de crédito o anulación. Solo se edita el que
+        # falló al enviarse (no llegó a SUNAT) para corregirlo y reenviarlo.
+        return super().puede_editar(doc) and doc.estado_sunat == 'ERROR'
 
     def anular(self, request, pk):
         doc = get_object_or_404(Venta, pk=pk)

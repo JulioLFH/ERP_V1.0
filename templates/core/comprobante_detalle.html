@@ -12,6 +12,21 @@
     <a href="{% url app|add:':lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
     <a href="{% url app|add:':imprimir' doc.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</a>
     {% if puede_editar %}<a href="{% url app|add:':editar' doc.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
+    {% if app == 'ventas' and doc.estado == 'REGISTRADO' %}
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside"><i class="bi bi-send"></i> Enviar</button>
+        <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 320px">
+          <form method="post" action="{% url 'ventas:enviar_correo' doc.pk %}">{% csrf_token %}
+            <label class="form-label small mb-1">Correo del cliente</label>
+            <input name="para" value="{{ doc.tercero.email }}" class="form-control form-control-sm mb-2" placeholder="correo@cliente.com" required>
+            <textarea name="mensaje" rows="2" class="form-control form-control-sm mb-2" placeholder="Mensaje (opcional)"></textarea>
+            <button class="btn btn-sm btn-primary w-100"><i class="bi bi-envelope"></i> Enviar por correo{% if doc.enlace_pdf %} con PDF y XML{% endif %}</button>
+          </form>
+          <hr class="my-2">
+          <a href="{% url 'ventas:whatsapp' doc.pk %}" target="_blank" rel="noopener" class="btn btn-sm btn-success w-100"><i class="bi bi-whatsapp"></i> Enviar por WhatsApp{% if doc.tercero.telefono %} ({{ doc.tercero.telefono }}){% endif %}</a>
+        </div>
+      </div>
+    {% endif %}
     {% if app == 'ventas' and 'logistica' in mods and doc.estado == 'REGISTRADO' and doc.tipo_comprobante in '01 03 12 00' %}
       <a href="{% url 'logistica:nueva' %}?tipo=09&venta={{ doc.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-truck"></i> Generar guía</a>
     {% endif %}
@@ -130,7 +145,7 @@
         {% if doc.almacen %}<tr><td class="text-muted">Almacén</td><td class="text-end">{{ doc.almacen }}</td></tr>{% endif %}
         {% if doc.centro_costo %}<tr><td class="text-muted">Centro de costo</td><td class="text-end">{{ doc.centro_costo }}</td></tr>{% endif %}
         {% if 'contabilidad' in mods %}<tr><td class="text-muted">Asiento contable</td><td class="text-end">{% for a in doc.asientos.all %}<a href="{% url 'contabilidad:asiento_detalle' a.pk %}">{{ a.numero }}</a> {% empty %}<span class="text-muted small">Sin centralizar</span>{% endfor %}</td></tr>{% endif %}
-        {% for gr in doc.guias.all %}<tr><td class="text-muted">Guía de remisión</td><td class="text-end">{% if 'logistica' in mods %}<a href="{% url 'logistica:detalle' gr.pk %}">{{ gr.numero_completo }}</a>{% else %}{{ gr.numero_completo }}{% endif %}</td></tr>{% endfor %}
+        {% for gr in doc.guias.all %}<tr><td class="text-muted">Guía de remisión</td><td class="text-end"><span {% if gr.estado == 'ANULADA' %}class="text-decoration-line-through text-muted"{% endif %}>{% if 'logistica' in mods %}<a href="{% url 'logistica:detalle' gr.pk %}">{{ gr.numero_completo }}</a>{% else %}{{ gr.numero_completo }}{% endif %}</span> <span class="badge {% if gr.estado == 'ANULADA' %}badge-ANULADO{% else %}text-bg-success{% endif %}">{{ gr.get_estado_display }}</span></td></tr>{% endfor %}
         {% if app == 'compras' %}<tr><td class="text-muted">Clasificación</td><td class="text-end">{{ doc.get_clasificacion_display }}</td></tr>
         <tr><td class="text-muted">Almacén</td><td class="text-end">{% if doc.stock_aplicado %}Ingresado{% elif operaciones_inv %}Por recepciones de inventario{% else %}No ingresado{% endif %}</td></tr>
         {% if doc.orden_compra %}<tr><td class="text-muted">Orden de compra</td><td class="text-end"><a href="{% url 'compras:oc_detalle' doc.orden_compra_id %}">{{ doc.orden_compra }}</a></td></tr>

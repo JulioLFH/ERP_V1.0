@@ -31,3 +31,8 @@ services:
         sync: false
       - key: SEED_DEMO
         value: "1"
+      # Opcional: ruta secreta del panel de Django (sin ella no existe /admin/) e IP permitidas (coma)
+      - key: ADMIN_URL
+        sync: false
+      - key: ADMIN_IPS
+        sync: false

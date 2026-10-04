@@ -15,8 +15,10 @@ class ErrorCorreo(Exception):
     pass
 
 
-def enviar(destinatarios, asunto, plantilla, contexto):
-    """Envía un correo HTML. Lanza ErrorCorreo con un mensaje claro si no se pudo."""
+def enviar(destinatarios, asunto, plantilla, contexto, adjuntos=None):
+    """Envía un correo HTML. Lanza ErrorCorreo con un mensaje claro si no se pudo.
+
+    adjuntos: [(nombre, contenido en bytes, tipo MIME)]."""
     cfg = CorreoConfig.actual()
     if not cfg.activa:
         raise ErrorCorreo('Configure el correo saliente en Ajustes > Correo saliente.')
@@ -34,6 +36,8 @@ def enviar(destinatarios, asunto, plantilla, contexto):
                                      bcc=[cfg.copia] if cfg.copia else None, connection=conexion,
                                      reply_to=[empresa.email] if empresa.email else None)
     mensaje.attach_alternative(html, 'text/html')
+    for nombre, contenido, tipo in adjuntos or []:
+        mensaje.attach(nombre, contenido, tipo)
     try:
         mensaje.send()
     except Exception as exc:  # autenticación, servidor caído, puerto bloqueado...

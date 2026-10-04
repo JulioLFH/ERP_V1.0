@@ -51,3 +51,16 @@ class LoginSeguroForm(AuthenticationForm):
 
 class LoginSeguroView(LoginView):
     authentication_form = LoginSeguroForm
+
+    def form_valid(self, form):
+        """Con doble factor activo la sesión se abre recién después de validar el código."""
+        from django.shortcuts import redirect
+
+        from .doble_factor import SESION_PENDIENTE, tiene_doble_factor
+        usuario = form.get_user()
+        if tiene_doble_factor(usuario):
+            self.request.session.cycle_key()
+            self.request.session[SESION_PENDIENTE] = {'id': usuario.pk, 'backend': usuario.backend,
+                                                      'next': self.get_redirect_url()}
+            return redirect('login_2fa')
+        return super().form_valid(form)

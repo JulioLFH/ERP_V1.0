@@ -39,6 +39,16 @@
   </div>
   <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar usuario</button>
 </form>
+{% if form.instance.pk and form.instance.segundo_factor.activo and user.is_superuser %}
+<div class="card border-warning mt-3" style="max-width: 900px"><div class="card-body">
+  <div class="small mb-2"><i class="bi bi-shield-lock"></i> Este usuario tiene activa la verificación en dos pasos. Si perdió el teléfono y sus códigos de respaldo, puede quitarla para que la active de nuevo.</div>
+  <form method="post" class="row g-2 align-items-end" data-confirm="¿Quitar la verificación en dos pasos de {{ form.instance.username }}?">{% csrf_token %}
+    <input type="hidden" name="accion" value="quitar_2fa">
+    <div class="col-md-9"><input name="motivo" class="form-control form-control-sm" minlength="10" required placeholder="Motivo (ej. pérdida del celular, verificado por teléfono)"></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-outline-warning w-100">Quitar doble factor</button></div>
+  </form>
+</div></div>
+{% endif %}
 {% endblock %}
 {% block scripts %}
 <script>

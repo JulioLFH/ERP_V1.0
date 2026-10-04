@@ -1,0 +1,7 @@
+{% extends 'registration/publico_base.html' %}
+{% block title %}Contraseña actualizada{% endblock %}
+{% block tarjeta %}
+<h2><i class="bi bi-check-circle"></i> Contraseña actualizada</h2>
+<p class="small text-center">Ya puede ingresar con su nueva contraseña.</p>
+<a href="{% url 'login' %}" class="btn btn-ingresar w-100">Ingresar</a>
+{% endblock %}
