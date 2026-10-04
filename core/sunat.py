@@ -204,10 +204,11 @@ def payload_comprobante(venta):
     empresa = Empresa.actual()
     cli = venta.tercero
     gratuita = venta.tipo_operacion == 'GRATUITA'
-    tipo_igv = TIPO_IGV.get(venta.tipo_operacion, 1)
-    tasa = empresa.igv_tasa / 100 if venta.lleva_igv else Decimal('0')
     items, total_gratuita = [], Decimal('0')
     for i in venta.items.select_related('producto'):
+        afectacion = i.afectacion_en(venta)  # cada línea con su tipo de IGV (gravado, exonerado, inafecto)
+        tipo_igv = TIPO_IGV.get(afectacion, 1)
+        tasa = empresa.igv_tasa / 100 if afectacion == 'GRAVADA' else Decimal('0')
         igv = r2(i.subtotal * tasa)
         if gratuita:
             total_gratuita += i.subtotal
@@ -228,7 +229,7 @@ def payload_comprobante(venta):
             'anticipo_documento_numero': '',
         })
     ref = venta.doc_referencia
-    no_gravado = _num(venta.no_gravado)
+    inafecta = venta.inafecto + venta.exportacion
     if venta.tipo_operacion == 'EXPORTACION':
         transaccion = 2
     elif venta.detraccion_monto:
@@ -256,8 +257,8 @@ def payload_comprobante(venta):
         'porcentaje_de_igv': _num(empresa.igv_tasa),
         'descuento_global': '', 'total_descuento': '', 'total_anticipo': '',
         'total_gravada': _num(venta.base_imponible) if venta.base_imponible else '',
-        'total_inafecta': no_gravado if venta.tipo_operacion in ('INAFECTA', 'EXPORTACION') else '',
-        'total_exonerada': no_gravado if venta.tipo_operacion == 'EXONERADA' else '',
+        'total_inafecta': _num(inafecta) if inafecta else '',
+        'total_exonerada': _num(venta.exonerado) if venta.exonerado else '',
         'total_igv': _num(venta.igv) if venta.igv else '',
         'total_gratuita': _num(total_gratuita) if gratuita else '',
         'total_otros_cargos': '',

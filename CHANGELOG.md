@@ -3,6 +3,14 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.14.0 — 04/10/2026 · Permisos por acción y afectación del IGV por línea
+- **Permisos por acción** (Ajustes > Usuarios y permisos): además de los módulos, qué puede hacer cada usuario: emitir, emitir notas de crédito, anular, aprobar órdenes de compra, ajustar o cerrar el kardex, extornar asientos, cerrar periodos, dar de baja activos, etc. Las acciones sensibles se marcan en rojo y vienen desmarcadas para usuarios nuevos. El control es del servidor (no basta con ocultar botones) y los botones "Anular" se ocultan a quien no puede.
+- **Por almacén**: el usuario solo ve y opera en los almacenes asignados (operaciones, ventas, compras, guías y órdenes de producción).
+- **Por serie**: el usuario solo emite con sus series (comprobantes y guías); si deja la serie vacía se usa la suya.
+- **Límite de aprobación** de órdenes de compra por usuario (en soles): una orden mayor la aprueba quien tenga más límite.
+- Los usuarios existentes conservan todo lo de sus módulos hasta que el administrador les asigne permisos. Los cambios de permisos quedan en la auditoría.
+- **Afectación del IGV por línea**: una factura puede mezclar ítems gravados, exonerados e inafectos (columna "IGV" en el detalle). El producto puede tener su afectación (ej. libros exonerados) y se completa sola. Totales, envío a SUNAT (tipo de IGV por ítem), impresión y registro de ventas 14.1 separan gravado, exonerado, inafecto y exportación.
+
 ## v1.13.0 — 04/10/2026 · Correcciones de la segunda evaluación
 - **La sesión ya no se cierra al publicar una versión**: el despliegue volvía a fijar la clave del administrador y eso invalidaba sus sesiones. Ahora la clave del entorno solo se usa al crear el usuario (DJANGO_SUPERUSER_RESET=1 la repone si se pierde el acceso).
 - **Seguridad**: cabeceras HSTS (1 año) y CSP; redirección a HTTPS. El panel de Django ya no existe en /admin/ en producción: solo con una ruta secreta (ADMIN_URL), solo superusuarios y opcionalmente solo desde ciertas IP (ADMIN_IPS).

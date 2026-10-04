@@ -34,7 +34,7 @@
     {% for e in formset.non_form_errors %}<div class="alert alert-danger m-3 py-2">{{ e }}</div>{% endfor %}
     <div class="table-responsive">
       <table class="table items-table mb-0">
-        <thead><tr><th style="width:24%">Producto / servicio</th><th>Descripción</th><th style="width:11%" class="num">Cantidad</th><th style="width:13%" class="num">Valor unit. (sin IGV)</th><th style="width:11%" class="num">Subtotal</th><th class="text-center" style="width:5%"><i class="bi bi-trash"></i></th></tr></thead>
+        <thead><tr><th style="width:22%">Producto / servicio</th><th>Descripción</th><th style="width:9%" class="num">Cantidad</th><th style="width:12%" class="num">Valor unit. (sin IGV)</th><th style="width:11%" title="Afectación del IGV de la línea">IGV</th><th style="width:10%" class="num">Subtotal</th><th class="text-center" style="width:4%"><i class="bi bi-trash"></i></th></tr></thead>
         <tbody id="items-body" data-prefix="{{ formset.prefix }}" data-precio-campo="{{ precio_campo }}" data-igv="{{ igv_tasa|stringformat:'s' }}">
           {% for f in formset %}
             <tr class="item-row">
@@ -42,6 +42,7 @@
               <td>{{ f.descripcion }}{% for e in f.descripcion.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
               <td>{{ f.cantidad }}</td>
               <td>{{ f.precio_unitario }}</td>
+              <td>{{ f.afectacion }}</td>
               <td class="num js-subtotal">0.00</td>
               <td class="text-center">{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td>
             </tr>
@@ -55,6 +56,7 @@
         <td>{{ formset.empty_form.descripcion }}</td>
         <td>{{ formset.empty_form.cantidad }}</td>
         <td>{{ formset.empty_form.precio_unitario }}</td>
+        <td>{{ formset.empty_form.afectacion }}</td>
         <td class="num js-subtotal">0.00</td>
         <td class="text-center">{{ formset.empty_form.DELETE }}</td>
       </tr>
@@ -64,7 +66,8 @@
         <div id="t-extra" class="small text-muted mt-3"></div></div>
       <table class="table table-sm totales mb-0">
         <tr><td>Op. gravada</td><td class="num" id="t-base">0.00</td></tr>
-        <tr><td>Op. exonerada / inafecta</td><td class="num" id="t-nograv">0.00</td></tr>
+        <tr><td>Op. exonerada</td><td class="num" id="t-exo">0.00</td></tr>
+        <tr><td>Op. inafecta / exportación</td><td class="num" id="t-nograv">0.00</td></tr>
         <tr><td>IGV ({{ igv_tasa|floatformat:0 }}%)</td><td class="num" id="t-igv">0.00</td></tr>
         <tr class="row-total"><td>TOTAL</td><td class="num" id="t-total">0.00</td></tr>
       </table>

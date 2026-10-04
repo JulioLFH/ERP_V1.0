@@ -35,6 +35,9 @@ TIPO_OPERACION = [
     ('EXPORTACION', 'Exportación'),
     ('GRATUITA', 'Gratuita'),
 ]
+# Afectación del IGV de cada línea (vacío = la del comprobante); Tabla 7 SUNAT: 10 gravado, 20 exonerado, 30 inafecto
+AFECTACION_LINEA = [('', 'Según el comprobante'), ('GRAVADA', 'Gravada'), ('EXONERADA', 'Exonerada'),
+                    ('INAFECTA', 'Inafecta')]
 FORMA_PAGO = [('CONTADO', 'Contado'), ('CREDITO', 'Crédito')]
 ESTADO_COMPROBANTE = [('REGISTRADO', 'Registrado'), ('ANULADO', 'Anulado')]
 ESTADO_DOCUMENTO = [
@@ -199,6 +202,9 @@ class Producto(models.Model):
     codigo_barras = models.CharField('Código de barras', max_length=40, blank=True)
     peso = models.DecimalField('Peso por unidad (kg)', max_digits=12, decimal_places=3, default=D0,
                                help_text='Calcula el peso bruto de las guías de remisión')
+    afectacion_igv = models.CharField('Afectación del IGV', max_length=10, choices=AFECTACION_LINEA, blank=True,
+                                      default='', help_text='Ej. libros (exonerados) o productos agrarios '
+                                                            '(inafectos). Vacío = según el comprobante')
     descripcion = models.TextField('Descripción', blank=True)
     activo = models.BooleanField(default=True)
     # ---- compras
@@ -611,6 +617,7 @@ class ItemBase(models.Model):
     cantidad = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('1'))
     precio_unitario = models.DecimalField('Valor unit. (sin IGV)', max_digits=14, decimal_places=4, default=D0)
     subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    afectacion = models.CharField('IGV', max_length=10, choices=AFECTACION_LINEA, blank=True, default='')
 
     class Meta:
         abstract = True
@@ -619,6 +626,16 @@ class ItemBase(models.Model):
         self.subtotal = r2(self.cantidad * self.precio_unitario)
         super().save(*args, **kwargs)
 
+    def afectacion_en(self, doc):
+        """Afectación real de la línea: exportación y operaciones gratuitas mandan sobre la línea; los
+        documentos sin IGV (recibo por honorarios, nota de venta) son inafectos."""
+        if doc.tipo_operacion in ('EXPORTACION', 'GRATUITA'):
+            return doc.tipo_operacion
+        afectacion = self.afectacion or doc.tipo_operacion
+        if afectacion == 'GRAVADA' and getattr(doc, 'tipo_comprobante', '01') in ('02', '00'):
+            return 'INAFECTA'
+        return afectacion
+
 
 class TotalesMixin(models.Model):
     tipo_operacion = models.CharField('Operación', max_length=12, choices=TIPO_OPERACION, default='GRAVADA')
@@ -626,6 +643,8 @@ class TotalesMixin(models.Model):
     tipo_cambio = models.DecimalField('T.C.', max_digits=8, decimal_places=3, default=Decimal('1.000'))
     base_imponible = models.DecimalField('Base imponible', max_digits=14, decimal_places=2, default=D0)
     no_gravado = models.DecimalField('Exon./Inaf./Export.', max_digits=14, decimal_places=2, default=D0)
+    exonerado = models.DecimalField('Op. exonerada', max_digits=14, decimal_places=2, default=D0)
+    inafecto = models.DecimalField('Op. inafecta', max_digits=14, decimal_places=2, default=D0)
     igv = models.DecimalField('IGV', max_digits=14, decimal_places=2, default=D0)
     icbper = models.DecimalField('ICBPER', max_digits=10, decimal_places=2, default=D0)
     total = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
@@ -641,18 +660,23 @@ class TotalesMixin(models.Model):
     def lleva_igv(self):
         return self.tipo_operacion == 'GRAVADA' and getattr(self, 'tipo_comprobante', '01') not in ('02', '00')
 
+    @property
+    def exportacion(self):
+        return self.no_gravado - self.exonerado - self.inafecto
+
+    @property
+    def afectaciones_mixtas(self):
+        return len({i.afectacion_en(self) for i in self.items.all()}) > 1
+
     def calcular_totales(self):
-        subtotal = sum((i.subtotal for i in self.items.all()), D0)
-        if self.tipo_operacion == 'GRATUITA':
-            self.base_imponible = self.no_gravado = self.igv = D0
-        elif self.lleva_igv:
-            self.base_imponible = r2(subtotal)
-            self.no_gravado = D0
-            self.igv = r2(subtotal * Empresa.actual().igv_tasa / 100)
-        else:
-            self.base_imponible = D0
-            self.no_gravado = r2(subtotal)
-            self.igv = D0
+        """Totales por afectación de cada línea: gravada (base + IGV), exonerada, inafecta o exportación."""
+        sumas = {'GRAVADA': D0, 'EXONERADA': D0, 'INAFECTA': D0, 'EXPORTACION': D0, 'GRATUITA': D0}
+        for i in self.items.all():
+            sumas[i.afectacion_en(self)] += i.subtotal
+        self.base_imponible = r2(sumas['GRAVADA'])
+        self.exonerado, self.inafecto = r2(sumas['EXONERADA']), r2(sumas['INAFECTA'])
+        self.no_gravado = self.exonerado + self.inafecto + r2(sumas['EXPORTACION'])
+        self.igv = r2(self.base_imponible * Empresa.actual().igv_tasa / 100)
         self.total = self.base_imponible + self.no_gravado + self.igv + self.icbper
 
 

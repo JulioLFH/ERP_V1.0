@@ -409,7 +409,7 @@ class ComprobanteViews:
                         tercero=tercero, moneda=(f.get('moneda') or 'PEN').upper(),
                         tipo_cambio=_dec(f.get('tc')) or Decimal('1'),
                         tipo_operacion='GRAVADA' if igv else 'EXONERADA',
-                        base_imponible=base, no_gravado=nograv, igv=igv, total=total,
+                        base_imponible=base, no_gravado=nograv, exonerado=nograv, igv=igv, total=total,
                         glosa=f.get('glosa') or 'Importado desde Excel')
                 ok += 1
             except IntegrityError:

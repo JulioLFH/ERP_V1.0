@@ -28,7 +28,7 @@
   </table>
   <table class="table table-sm table-bordered">
     <thead class="table-light"><tr><th>Cant.</th><th>U.M.</th><th>Descripción</th><th class="num">V. unit.</th><th class="num">Importe</th></tr></thead>
-    <tbody>{% for i in items %}<tr><td>{{ i.cantidad|money }}</td><td>{{ i.producto.unidad|default:'NIU' }}</td><td>{{ i.descripcion }}</td><td class="num">{{ i.precio_unitario|money }}</td><td class="num">{{ i.subtotal|money }}</td></tr>{% endfor %}</tbody>
+    <tbody>{% for i in items %}<tr><td>{{ i.cantidad|money }}</td><td>{{ i.producto.unidad|default:'NIU' }}</td><td>{{ i.descripcion }}{% if i.afectacion == 'EXONERADA' or i.afectacion == 'INAFECTA' %} ({{ i.get_afectacion_display|lower }}){% endif %}</td><td class="num">{{ i.precio_unitario|money }}</td><td class="num">{{ i.subtotal|money }}</td></tr>{% endfor %}</tbody>
   </table>
   <div class="row">
     <div class="col-7 small text-muted">
@@ -38,7 +38,8 @@
     </div>
     <div class="col-5"><table class="table table-sm">
       <tr><td>Op. gravada</td><td class="num">{{ doc.base_imponible|money }}</td></tr>
-      <tr><td>Op. exon./inaf.</td><td class="num">{{ doc.no_gravado|money }}</td></tr>
+      {% if doc.exonerado %}<tr><td>Op. exonerada</td><td class="num">{{ doc.exonerado|money }}</td></tr>{% endif %}
+      {% if doc.inafecto or doc.exportacion %}<tr><td>Op. inafecta{% if doc.exportacion %} / exportación{% endif %}</td><td class="num">{{ doc.inafecto|money }}{% if doc.exportacion %} / {{ doc.exportacion|money }}{% endif %}</td></tr>{% endif %}
       <tr><td>IGV</td><td class="num">{{ doc.igv|money }}</td></tr>
       {% if doc.icbper %}<tr><td>ICBPER</td><td class="num">{{ doc.icbper|money }}</td></tr>{% endif %}
       <tr class="fw-bold"><td>TOTAL {{ doc.simbolo }}</td><td class="num">{{ doc.total|money }}</td></tr>

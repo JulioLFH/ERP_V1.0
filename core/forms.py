@@ -168,7 +168,7 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
         ('general', 'General', 'bi-info-circle',
          ['clase', 'codigo', 'nombre', 'unidad', 'marca', 'codigo_barras', 'peso', 'descripcion', 'activo']),
         ('compras', 'Compras', 'bi-bag', ['puede_comprarse', 'precio_compra', 'proveedor', 'unidad_compra']),
-        ('ventas', 'Ventas', 'bi-receipt', ['puede_venderse', 'precio_venta']),
+        ('ventas', 'Ventas', 'bi-receipt', ['puede_venderse', 'precio_venta', 'afectacion_igv']),
         ('contabilidad', 'Contabilidad', 'bi-journal-bookmark',
          ['cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo']),
         ('planificacion', 'Planificación', 'bi-calendar-check',
@@ -303,10 +303,13 @@ class AjusteInventarioForm(BootstrapMixin, forms.Form):
 
 class ItemForm(BootstrapMixin, forms.ModelForm):
     class Meta:
-        fields = ['producto', 'descripcion', 'cantidad', 'precio_unitario']
+        fields = ['producto', 'descripcion', 'cantidad', 'precio_unitario', 'afectacion']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['afectacion'].widget.attrs['class'] = 'form-select form-select-sm js-afectacion'
+        self.fields['afectacion'].choices = [('', 'Según doc.'), ('GRAVADA', 'Gravada'),
+                                             ('EXONERADA', 'Exonerada'), ('INAFECTA', 'Inafecta')]
         self.fields['producto'].queryset = Producto.objects.filter(activo=True)
         self.fields['producto'].widget.attrs['class'] = 'form-select form-select-sm js-producto'
         self.fields['cantidad'].widget.attrs['class'] = 'form-control form-control-sm text-end js-cantidad'

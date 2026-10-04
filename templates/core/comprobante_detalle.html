@@ -82,7 +82,7 @@
       <table class="table mb-0">
         <thead><tr><th>#</th><th>Descripción</th><th class="num">Cantidad</th><th class="num">Valor unit.</th><th class="num">Subtotal</th></tr></thead>
         <tbody>
-          {% for i in items %}<tr><td>{{ forloop.counter }}</td><td>{{ i.descripcion }}{% if i.producto %}<div class="small text-muted">{{ i.producto.codigo }}</div>{% endif %}</td><td class="num">{{ i.cantidad|money }}</td><td class="num">{{ i.precio_unitario|money }}</td><td class="num">{{ i.subtotal|money }}</td></tr>
+          {% for i in items %}<tr><td>{{ forloop.counter }}</td><td>{{ i.descripcion }}{% if i.producto %}<div class="small text-muted">{{ i.producto.codigo }}</div>{% endif %}{% if i.afectacion and i.afectacion != doc.tipo_operacion %}<span class="badge text-bg-light border">{{ i.get_afectacion_display }}</span>{% endif %}</td><td class="num">{{ i.cantidad|money }}</td><td class="num">{{ i.precio_unitario|money }}</td><td class="num">{{ i.subtotal|money }}</td></tr>
           {% empty %}<tr><td colspan="5" class="text-muted text-center">Comprobante sin detalle (importado).</td></tr>{% endfor %}
         </tbody>
       </table>
@@ -161,7 +161,9 @@
     <div class="card mb-3"><div class="card-body">
       <table class="table table-sm mb-0">
         <tr><td>Op. gravada</td><td class="num">{{ doc.base_imponible|money }}</td></tr>
-        <tr><td>Exon. / inaf. / export.</td><td class="num">{{ doc.no_gravado|money }}</td></tr>
+        {% if doc.exonerado %}<tr><td>Op. exonerada</td><td class="num">{{ doc.exonerado|money }}</td></tr>{% endif %}
+        {% if doc.inafecto %}<tr><td>Op. inafecta</td><td class="num">{{ doc.inafecto|money }}</td></tr>{% endif %}
+        {% if doc.exportacion %}<tr><td>Exportación</td><td class="num">{{ doc.exportacion|money }}</td></tr>{% endif %}
         <tr><td>IGV</td><td class="num">{{ doc.igv|money }}</td></tr>
         {% if doc.icbper %}<tr><td>ICBPER</td><td class="num">{{ doc.icbper|money }}</td></tr>{% endif %}
         <tr class="fw-bold fs-6"><td>TOTAL {{ doc.simbolo }}</td><td class="num">{{ doc.total|money }}</td></tr>

@@ -14,28 +14,36 @@
   const num = (el) => parseFloat(el && el.value) || 0;
   const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
 
+  // afectación real de la línea (misma regla que ItemBase.afectacion_en en el servidor)
+  function afectacion(tr) {
+    const op = document.getElementById('id_tipo_operacion');
+    const tipo = document.getElementById('id_tipo_comprobante');
+    const cabecera = op ? op.value : 'GRAVADA';
+    if (['EXPORTACION', 'GRATUITA'].includes(cabecera)) return cabecera;
+    const sel = tr.querySelector('.js-afectacion');
+    const a = (sel && sel.value) || cabecera;
+    return a === 'GRAVADA' && tipo && ['02', '00'].includes(tipo.value) ? 'INAFECTA' : a;
+  }
+
   function recalcular() {
-    let subtotal = 0;
+    const sumas = { GRAVADA: 0, EXONERADA: 0, INAFECTA: 0, EXPORTACION: 0, GRATUITA: 0 };
     tabla.querySelectorAll('tr.item-row').forEach((tr) => {
       const borrar = tr.querySelector('input[name$="-DELETE"]');
       tr.classList.toggle('opacity-50', !!(borrar && borrar.checked));
       const celda = tr.querySelector('.js-subtotal');
       if (!celda) return; // guías: sin importes
-      const st = num(tr.querySelector('.js-cantidad')) * num(tr.querySelector('.js-precio'));
+      const st = Math.round(num(tr.querySelector('.js-cantidad')) * num(tr.querySelector('.js-precio')) * 100) / 100;
       celda.textContent = fmt(st);
-      if (!(borrar && borrar.checked)) subtotal += st;
+      if (!(borrar && borrar.checked)) sumas[afectacion(tr)] += st;
     });
     if (!document.getElementById('t-total')) return;
-    const op = document.getElementById('id_tipo_operacion');
-    const tipo = document.getElementById('id_tipo_comprobante');
-    const gravada = (!op || op.value === 'GRAVADA') && !(tipo && ['02', '00'].includes(tipo.value));
-    const gratuita = op && op.value === 'GRATUITA';
     const icbper = num(document.getElementById('id_icbper'));
-    const base = gratuita ? 0 : subtotal;
-    const igv = gravada && !gratuita ? Math.round(base * igvTasa) / 100 : 0;
-    const total = base + igv + icbper;
-    setText('t-base', fmt(gravada ? base : 0));
-    setText('t-nograv', fmt(gravada ? 0 : base));
+    const base = sumas.GRAVADA;
+    const igv = Math.round(base * igvTasa) / 100;
+    const total = base + sumas.EXONERADA + sumas.INAFECTA + sumas.EXPORTACION + igv + icbper;
+    setText('t-base', fmt(base));
+    setText('t-exo', fmt(sumas.EXONERADA));
+    setText('t-nograv', fmt(sumas.INAFECTA + sumas.EXPORTACION));
     setText('t-igv', fmt(igv));
     setText('t-total', fmt(total));
     const extra = document.getElementById('t-extra');
@@ -63,12 +71,15 @@
         if (precio) precio.value = parseFloat(p[precioCampo] || 0).toFixed(2);
         const unidad = tr.querySelector('.js-unidad');
         if (unidad && p.unidad) unidad.value = p.unidad;
+        const afec = tr.querySelector('.js-afectacion');
+        if (afec && p.afectacion_igv !== undefined) afec.value = p.afectacion_igv || '';
         const cant = tr.querySelector('.js-cantidad');
         if (!num(cant)) cant.value = 1;
         recalcular();
       });
     }
     tr.querySelectorAll('input').forEach((i) => i.addEventListener('input', recalcular));
+    tr.querySelectorAll('.js-afectacion').forEach((s) => s.addEventListener('change', recalcular));
     tr.querySelectorAll('input[type=checkbox]').forEach((i) => i.addEventListener('change', recalcular));
   }
 
@@ -82,7 +93,10 @@
     tr.querySelector('.js-producto').focus();
   });
   ['id_tipo_operacion', 'id_tipo_comprobante', 'id_icbper', 'id_detraccion_pct', 'id_retencion_pct', 'id_percepcion_pct']
-    .forEach((id) => { const el = document.getElementById(id); if (el) el.addEventListener('input', recalcular); });
+    .forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) { el.addEventListener('input', recalcular); el.addEventListener('change', recalcular); }
+    });
   recalcular();
 })();
 

@@ -64,7 +64,12 @@ class VentasViews(ComprobanteViews):
             subtotal = sum((Decimal(c) * Decimal(f.cleaned_data.get('precio_unitario') or 0)
                             for f in formset.forms for c in [f.cleaned_data.get('cantidad') or 0]
                             if getattr(f, 'cleaned_data', None) and not f.cleaned_data.get('DELETE')), Decimal('0'))
-            igv = subtotal * empresa.igv_tasa / 100 if datos.get('tipo_operacion') == 'GRAVADA' else 0
+            gravado = sum((Decimal(f.cleaned_data.get('cantidad') or 0) * Decimal(f.cleaned_data.get('precio_unitario')
+                                                                                   or 0)
+                           for f in formset.forms if getattr(f, 'cleaned_data', None) and not
+                           f.cleaned_data.get('DELETE') and (f.cleaned_data.get('afectacion') or
+                                                             datos.get('tipo_operacion')) == 'GRAVADA'), Decimal('0'))
+            igv = gravado * empresa.igv_tasa / 100
             tc = (datos.get('tipo_cambio') or 1) if datos.get('moneda') == 'USD' else 1
             nuevo = r2((subtotal + igv) * tc)
             actual = sum((v.saldo_pen for v in deuda), Decimal('0'))
@@ -137,9 +142,7 @@ class VentasViews(ComprobanteViews):
         """Registro de Ventas e Ingresos 14.1 (estructura PLE SUNAT)."""
         ref = d.doc_referencia
         s = 0 if d.estado == 'ANULADO' else d.signo
-        exportacion = d.no_gravado if d.tipo_operacion == 'EXPORTACION' else 0
-        exonerada = d.no_gravado if d.tipo_operacion == 'EXONERADA' else 0
-        inafecta = d.no_gravado if d.tipo_operacion in ('INAFECTA', 'GRATUITA') else 0
+        exportacion, exonerada, inafecta = d.exportacion, d.exonerado, d.inafecto  # por línea (mixtos)
         campos = [
             f'{periodo}00', f'V{n:06d}', f'M{n:06d}', fmt_fecha(d.fecha_emision), fmt_fecha(d.fecha_vencimiento),
             d.tipo_comprobante, d.serie, d.numero, '', d.tercero.tipo_doc, d.tercero.numero_doc,
