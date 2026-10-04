@@ -87,7 +87,8 @@ def _enviar(cfg, payload, autorizacion):
 def _post(payload):
     cfg = FacturacionConfig.actual()
     if not cfg.activa:
-        raise ErrorFacturacion('La facturación electrónica no está configurada (Ajustes > Facturación electrónica).')
+        # no llegó al OSE: el documento queda "No enviado" y se puede enviar al configurar Nubefact
+        raise ErrorValidacion('La facturación electrónica no está configurada (Ajustes > Facturación electrónica).')
     token = cfg.token.strip()
     # El manual indica enviar el token tal cual; algunas cuentas antiguas usan el formato Token token="..."
     formatos = [token, f'Token token="{token}"']
@@ -301,6 +302,8 @@ def payload_comprobante(venta):
 
 
 def enviar_comprobante(venta):
+    if venta.es_saldo_inicial:
+        raise ErrorFacturacion('Es un saldo inicial (documento emitido antes de usar el sistema): no se envía a SUNAT.')
     try:
         return _guardar_respuesta(venta, _post(payload_comprobante(venta)))
     except ErrorFacturacion as exc:

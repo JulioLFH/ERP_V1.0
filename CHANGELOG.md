@@ -3,6 +3,17 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.9.0 — 03/10/2026 · Correcciones de la evaluación funcional
+- **Bancos y caja nunca en negativo**: el saldo se valida día por día (un egreso con fecha anterior a un ingreso ya no usa ese dinero), al eliminar ingresos o transferencias, al importar extractos y al cambiar el saldo inicial. La caja no admite sobregiro aunque se marque; un banco solo con sobregiro autorizado. Caja y bancos avisa si quedaron saldos negativos de antes para corregirlos.
+- **Facturación electrónica (63)**: los comprobantes que se intentaron enviar antes de configurar Nubefact quedan "No enviado" (no "Error de envío") y se pueden enviar; se corrigieron los existentes.
+- **Despachos parciales (40)**: una guía de una venta no puede despachar más de lo facturado (sumando las guías emitidas y descontando devoluciones) ni productos que no están en la factura.
+- **Control de crédito (37)**: límite de crédito por cliente y bloqueo de ventas al crédito con deuda vencida (con días de gracia, en Ajustes > Empresa).
+- **Libro Mayor PLE 6.1 (67)**: exportación TXT del mayor del mes.
+- **Sugerencia de compra (34)**: Inventario > Reportes > Sugerencia de compra según punto de reorden, stock máximo, lote y lo que ya está en camino; crea la orden de compra por proveedor.
+- **Saldos iniciales por cobrar y por pagar (77)**: carga masiva de comprobantes pendientes de antes de usar el sistema; se cobran/pagan normalmente, no van a los registros de ventas/compras ni a SUNAT y se contabilizan contra la apertura (5911).
+- **Seguridad (74)**: bloqueo temporal de 15 minutos tras 5 intentos fallidos de inicio de sesión (el administrador lo desbloquea al editar el usuario).
+- **Respaldos (80)**: Ajustes > Respaldo de datos descarga una copia completa (solo administradores).
+
 ## v1.8.0 — 03/10/2026 · Fase 3: control de inventario y seguridad
 - **Costos ocultos según permiso**: nuevo permiso "Puede ver costos de inventario" en Ajustes > Usuarios y permisos (los administradores siempre los ven). Sin él, en Inventario no se ve el costo promedio, el valorizado, el kardex valorizado (se muestra en unidades), los costos de las operaciones ni la valorización al cierre; tampoco en los Excel ni en los datos que se envían al navegador.
 - **Carga masiva desde Excel** (Ajustes > Configuración > Carga masiva, también desde Inventario): productos, clientes y proveedores, y saldos iniciales de inventario. Plantilla descargable, validación fila por fila sin grabar nada (tipo de producto, unidad, RUC con dígito verificador, DNI, ubigeo, almacén, cantidades y costos), opción de actualizar los existentes y carga "todo o nada". Los saldos iniciales se registran como operaciones "Saldo inicial" confirmadas (una por almacén y fecha).

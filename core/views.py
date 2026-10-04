@@ -11,6 +11,7 @@ from django.db.models import F, Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views.generic import CreateView, ListView, UpdateView
 
 from compras.models import Compra
@@ -45,6 +46,7 @@ def dashboard(request):
     periodo = hoy.strftime('%Y%m')
     ventas = Venta.objects.filter(estado='REGISTRADO')
     compras = Compra.objects.filter(estado='REGISTRADO')
+    ventas_mov, compras_mov = ventas.filter(es_saldo_inicial=False), compras.filter(es_saldo_inicial=False)
 
     # una sola consulta por lista (pagos y notas anotados), sin consultas por documento
     por_cobrar = [v for v in ventas.con_saldos().exclude(tipo_comprobante__in=['07', '08']).select_related('tercero')
@@ -57,10 +59,10 @@ def dashboard(request):
         a, m = _mes_anterior(hoy.year, hoy.month, i)
         p = f'{a}{m:02d}'
         meses.append(f'{m:02d}/{a}')
-        serie_v.append(float(_total_pen(ventas.filter(periodo=p))))
-        serie_c.append(float(_total_pen(compras.filter(periodo=p))))
+        serie_v.append(float(_total_pen(ventas_mov.filter(periodo=p))))
+        serie_c.append(float(_total_pen(compras_mov.filter(periodo=p))))
 
-    top_clientes = (ventas.filter(periodo=periodo).exclude(tipo_comprobante='07')
+    top_clientes = (ventas_mov.filter(periodo=periodo).exclude(tipo_comprobante='07')
                     .values('tercero__nombre').annotate(t=Sum('total')).order_by('-t')[:5])
     cuentas = list(Cuenta.objects.filter(activo=True))
     tc = tipo_cambio.obtener(hoy)
@@ -73,8 +75,8 @@ def dashboard(request):
         'saldo_pen': saldo_pen,
         'saldo_usd': saldo_usd,
         'saldo_consolidado': saldo_pen + saldo_usd * tc_venta,
-        'ventas_mes': _total_pen(ventas.filter(periodo=periodo)),
-        'compras_mes': _total_pen(compras.filter(periodo=periodo)),
+        'ventas_mes': _total_pen(ventas_mov.filter(periodo=periodo)),
+        'compras_mes': _total_pen(compras_mov.filter(periodo=periodo)),
         'total_cobrar': sum((v.saldo_pen for v in por_cobrar), D0),
         'total_pagar': sum((c.saldo_pen for c in por_pagar), D0),
         'cuentas': cuentas,
@@ -142,6 +144,30 @@ def correo_config(request):
         messages.success(request, 'Configuración de correo guardada.')
         return redirect('correo')
     return render(request, 'core/correo.html', {'form': form, 'cfg': cfg})
+
+
+# ---------------------------------------------------------------- respaldo
+@login_required
+def respaldo(request):
+    """Copia completa de los datos (JSON comprimido) para guardarla fuera del servidor. Solo administradores."""
+    if not request.user.is_superuser:
+        return render(request, 'core/sin_acceso.html', {'motivo': 'Solo un administrador puede descargar el respaldo.'},
+                      status=403)
+    if request.method == 'POST':
+        import gzip
+        import io
+        from django.core.management import call_command
+        from django.http import HttpResponse
+        salida = io.StringIO()
+        call_command('dumpdata', '--natural-foreign', '--natural-primary', '--indent', '0',
+                     '--exclude', 'contenttypes', '--exclude', 'auth.permission', '--exclude', 'sessions',
+                     '--exclude', 'admin.logentry', stdout=salida)
+        datos = gzip.compress(salida.getvalue().encode('utf-8'))
+        resp = HttpResponse(datos, content_type='application/gzip')
+        nombre = f'respaldo_ceiba_{timezone.localtime():%Y%m%d_%H%M}.json.gz'
+        resp['Content-Disposition'] = f'attachment; filename="{nombre}"'
+        return resp
+    return render(request, 'core/respaldo.html')
 
 
 # ---------------------------------------------------------------- carga masiva

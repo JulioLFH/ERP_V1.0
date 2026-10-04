@@ -74,11 +74,47 @@ def lista(request):
         'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'q': q, 'tipo': tipo})
 
 
+def _validar_despacho(form, formset):
+    """Una guía de una venta no puede despachar más de lo facturado (sumando las otras guías emitidas)."""
+    guia = form.instance
+    venta = form.cleaned_data.get('venta')
+    if guia.tipo != '09' or not venta:
+        return []
+    from collections import defaultdict
+    from decimal import Decimal
+    vendido, nombres = defaultdict(Decimal), {}
+    for i in venta.items.select_related('producto'):
+        if i.producto_id:
+            vendido[i.producto_id] += i.cantidad
+            nombres[i.producto_id] = i.producto.nombre
+    for nota in venta.notas.filter(estado='REGISTRADO', tipo_comprobante='07'):  # devoluciones
+        for i in nota.items.filter(producto__isnull=False):
+            vendido[i.producto_id] -= i.cantidad
+    despachado = defaultdict(Decimal)
+    for otra in venta.guias.filter(estado='EMITIDA').exclude(pk=guia.pk):
+        for i in otra.items.filter(producto__isnull=False):
+            despachado[i.producto_id] += i.cantidad
+    errores = []
+    for producto, cantidad in lineas_formset(formset):
+        if not producto:
+            continue
+        if producto.pk not in vendido:
+            errores.append(f'"{producto.nombre}" no figura en la {venta}.')
+            continue
+        despachado[producto.pk] += cantidad
+    for pid, cant in despachado.items():
+        if pid in vendido and cant > vendido[pid]:
+            errores.append(f'"{nombres[pid]}": se despacharían {cant:,.2f} y la {venta} solo factura '
+                           f'{vendido[pid]:,.2f} (sumando las guías emitidas).')
+    return errores
+
+
 def _validar_stock(form, formset):
     """Las guías que sacan mercadería (salida o traslado) no pueden dejar el almacén de origen en negativo."""
+    errores = _validar_despacho(form, formset)
     guia = form.instance
     if guia.tipo != '09' or guia.efecto_stock not in ('SALIDA', 'TRASLADO'):
-        return []
+        return errores
     devolver = {}
     if guia.pk:
         anterior = GuiaRemision.objects.get(pk=guia.pk)
@@ -86,7 +122,7 @@ def _validar_stock(form, formset):
                 and anterior.efecto_stock in ('SALIDA', 'TRASLADO'):
             for i in anterior.items.all():
                 devolver[i.producto_id] = devolver.get(i.producto_id, 0) + i.cantidad
-    return faltantes_stock(lineas_formset(formset), guia.almacen_origen, devolver)
+    return errores + faltantes_stock(lineas_formset(formset), guia.almacen_origen, devolver)
 
 
 def _faltantes_al_anular(guia):

@@ -65,6 +65,12 @@ class Empresa(models.Model):
     token_tipo_cambio = models.CharField(
         'Token Decolecta (tipo de cambio SBS)', max_length=200, blank=True,
         help_text='Se obtiene al registrarse en decolecta.com (API de tipo de cambio SBS)')
+    # ---- control de crédito de clientes
+    bloquear_deuda_vencida = models.BooleanField(
+        'Bloquear crédito con deuda vencida', default=True,
+        help_text='No se emiten ventas al crédito a clientes con comprobantes vencidos e impagos')
+    dias_gracia = models.PositiveIntegerField('Días de gracia', default=0,
+                                              help_text='Días después del vencimiento antes de bloquear el crédito')
     # ---- compras y portal de proveedores
     exigir_orden_compra = models.BooleanField(
         'Exigir orden de compra', default=True,
@@ -122,6 +128,8 @@ class Tercero(models.Model):
     email = models.EmailField(blank=True)
     telefono = models.CharField('Teléfono', max_length=50, blank=True)
     dias_credito = models.PositiveIntegerField('Días de crédito', default=0)
+    limite_credito = models.DecimalField('Límite de crédito S/', max_digits=14, decimal_places=2, default=D0,
+                                         help_text='Deuda máxima permitida en ventas al crédito. 0 = sin límite')
     ubigeo = models.CharField(max_length=6, blank=True, help_text='Ubigeo de la dirección (para guías)')
     registro_mtc = models.CharField('Registro MTC', max_length=20, blank=True,
                                     help_text='Solo empresas de transporte (guía transportista)')
@@ -410,6 +418,17 @@ class FacturacionConfig(models.Model):
         return self.proveedor != 'NINGUNO' and bool(self.ruta and self.token)
 
 
+class IntentoAcceso(models.Model):
+    """Inicios de sesión fallidos: tras 5 en 15 minutos el usuario queda bloqueado temporalmente."""
+    usuario = models.CharField(max_length=150, db_index=True)
+    ip = models.CharField(max_length=45, blank=True)
+    creado = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = 'intento de acceso fallido'
+        verbose_name_plural = 'intentos de acceso fallidos'
+
+
 class CorreoConfig(models.Model):
     """Servidor de correo saliente (SMTP) para enviar órdenes de compra y conformidades a proveedores."""
     servidor = models.CharField('Servidor SMTP', max_length=120, blank=True, help_text='Ej. smtp.gmail.com')
@@ -604,6 +623,10 @@ class ComprobanteBase(TotalesMixin):
     estado = models.CharField(max_length=10, choices=ESTADO_COMPROBANTE, default='REGISTRADO')
     almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, null=True, blank=True, verbose_name='Almacén')
     stock_aplicado = models.BooleanField('Movió almacén', default=False, editable=False)
+    es_saldo_inicial = models.BooleanField(
+        'Saldo inicial', default=False, editable=False,
+        help_text='Documento pendiente de antes de usar el sistema: se cobra/paga, pero no va a los registros '
+                  'de ventas/compras ni a SUNAT y se contabiliza contra la apertura (5911)')
     # Importes en soles calculados una sola vez (registro, cuentas por cobrar/pagar y contabilidad usan los mismos)
     total_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
     base_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)

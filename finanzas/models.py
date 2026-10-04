@@ -26,8 +26,8 @@ class Cuenta(models.Model):
                                         help_text='Ej. 1011 Caja, 1041 Cuenta corriente. Vacío = cuenta por defecto')
     saldo_inicial = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
     permite_sobregiro = models.BooleanField('Permite sobregiro', default=False,
-                                            help_text='Si está desmarcado, no se aceptan egresos que dejen el saldo '
-                                                      'en negativo')
+                                            help_text='Solo bancos con línea de sobregiro autorizada. Si está '
+                                                      'desmarcado (o es caja) el saldo nunca puede quedar en negativo')
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -57,16 +57,57 @@ class Cuenta(models.Model):
     def saldo_conciliado(self):
         return self.saldo_al(solo_conciliado=True)
 
-    def error_sobregiro(self, egreso, excluir=None):
-        """Mensaje si el egreso deja la cuenta en negativo (y la cuenta no admite sobregiro)."""
-        if self.permite_sobregiro or not egreso:
+    @property
+    def admite_negativo(self):
+        """Solo un banco con sobregiro autorizado puede quedar en negativo; una caja nunca."""
+        return self.tipo == 'BANCO' and self.permite_sobregiro
+
+    def saldos_diarios(self, cambios=None, excluir_ids=(), saldo_inicial=None):
+        """[(fecha, saldo al cierre del día)] en orden, aplicando cambios {fecha: delta} y sin los excluidos."""
+        from collections import defaultdict
+        deltas = defaultdict(lambda: D0)
+        qs = self.movimientos.exclude(pk__in=[p for p in excluir_ids if p])
+        for r in qs.values('fecha', 'tipo').annotate(t=Sum('monto')):
+            deltas[r['fecha']] += r['t'] if r['tipo'] == 'INGRESO' else -r['t']
+        for fecha, delta in (cambios or {}).items():
+            deltas[fecha] += delta
+        saldo = self.saldo_inicial if saldo_inicial is None else saldo_inicial
+        salida = []
+        for fecha in sorted(deltas):
+            saldo += deltas[fecha]
+            salida.append((fecha, saldo))
+        return salida
+
+    def primer_negativo(self, desde=None, **kwargs):
+        """(fecha, saldo) del primer día con saldo negativo desde la fecha indicada, o None."""
+        for fecha, saldo in self.saldos_diarios(**kwargs):
+            if saldo < 0 and (desde is None or fecha >= desde):
+                return fecha, saldo
+        return None
+
+    def error_sobregiro(self, egreso, excluir=None, fecha=None, cambios=None, excluir_ids=()):
+        """Mensaje si el egreso (o los cambios) dejan la cuenta en negativo en algún día desde su fecha.
+
+        Se revisa el saldo día por día: un egreso con fecha anterior a un ingreso no puede usar ese dinero.
+        """
+        if self.admite_negativo or not (egreso or cambios or excluir_ids or excluir):
             return ''
-        saldo = self.saldo
-        if excluir is not None and excluir.pk and excluir.cuenta_id == self.pk:
-            saldo += excluir.monto if excluir.tipo == 'EGRESO' else -excluir.monto
-        if egreso > saldo:
-            return (f'Saldo insuficiente en {self}: disponible {self.simbolo} {saldo:,.2f}, egreso '
-                    f'{self.simbolo} {egreso:,.2f}. Si la cuenta tiene sobregiro autorizado, márquelo en la cuenta.')
+        from django.utils import timezone as tz
+        fecha = fecha or tz.localdate()
+        cambios = dict(cambios or {})
+        if egreso:
+            cambios[fecha] = cambios.get(fecha, D0) - egreso
+        ids = list(excluir_ids) + ([excluir.pk] if excluir is not None and excluir.pk else [])
+        desde = min(cambios) if cambios else fecha
+        negativo = self.primer_negativo(desde=desde, cambios=cambios, excluir_ids=ids)
+        if negativo:
+            dia, saldo = negativo
+            disponible = self.saldo_al(fecha) - sum(
+                (m.monto if m.tipo == 'INGRESO' else -m.monto) for m in self.movimientos.filter(
+                    pk__in=[i for i in ids if i], fecha__lte=fecha))
+            return (f'Saldo insuficiente en {self}: la cuenta quedaría en {self.simbolo} {saldo:,.2f} el '
+                    f'{dia:%d/%m/%Y} (disponible al {fecha:%d/%m/%Y}: {self.simbolo} {disponible:,.2f}). '
+                    f'Registre primero el ingreso o use una fecha posterior.')
         return ''
 
 

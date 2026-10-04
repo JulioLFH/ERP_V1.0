@@ -118,8 +118,22 @@ def _oc_ctx(titulo, doc=None):
 
 @login_required
 def oc_nuevo(request):
+    initial, items = None, None
+    if request.GET.get('reponer') is not None:
+        # desde Inventario > Sugerencia de compra: productos a reponer del proveedor habitual
+        from core.inventario import sugerencias_compra
+        prov = int(request.GET['reponer'] or 0) or None
+        filas = [f for f in sugerencias_compra() if f['p'].proveedor_id == prov]
+        if filas:
+            from contabilidad.models import CentroCosto
+            centro = CentroCosto.objects.filter(activo=True).first()
+            initial = {'tercero': prov, 'centro_costo': centro.pk if centro else None,
+                       'glosa': 'Reposición de stock (sugerencia de compra)'}
+            items = [{'producto': f['p'].pk, 'descripcion': f['p'].nombre, 'cantidad': f['cantidad'],
+                      'precio_unitario': f['precio']} for f in filas]
     return guardar_documento(request, OrdenCompraForm, item_formset(OrdenCompra, OrdenCompraItem), OrdenCompra(),
-                             'core/comprobante_form.html', _oc_ctx('Nueva orden de compra'))
+                             'core/comprobante_form.html', _oc_ctx('Nueva orden de compra'), initial=initial,
+                             items_iniciales=items)
 
 
 @login_required

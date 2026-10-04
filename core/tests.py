@@ -20,6 +20,8 @@ class SmokeTest(TestCase):
         cls.user = User.objects.create_superuser('t', 't@t.com', 'x')
 
     def setUp(self):
+        from core.models import Empresa
+        Empresa.objects.update(bloquear_deuda_vencida=False)  # los clientes demo tienen facturas vencidas
         self.client.force_login(self.user)
         p = patch('core.tipo_cambio._consultar', return_value=(Decimal('3.441'), Decimal('3.450')))
         p.start()

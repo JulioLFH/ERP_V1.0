@@ -132,7 +132,28 @@ def cuenta_caja(cuenta_fin, cta):
 
 
 # ---------------------------------------------------------------- ventas
+def asiento_saldo_inicial(d, cta, es_venta):
+    """Documento pendiente de antes de usar el sistema: 12 (o 42) contra la apertura (5911)."""
+    a = Asiento(fecha=d.fecha_emision, libro='05', origen='VENTA' if es_venta else 'COMPRA', moneda=d.moneda,
+                tipo_cambio=d.tc_efectivo, glosa=f'Saldo inicial {d.get_tipo_comprobante_display()} '
+                                                 f'{d.numero_completo} {d.tercero.nombre}'[:250],
+                **({'venta': d} if es_venta else {'compra': d}))
+    b = Borrador(a, d.moneda, d.tc_efectivo)
+    doc = f'{d.tipo_comprobante} {d.numero_completo}'
+    tercero_cta = cta['cliente'] if es_venta else (cta['honorarios_por_pagar'] if d.tipo_comprobante == '02'
+                                                   else cta['proveedor'])
+    if es_venta:
+        b.add(tercero_cta, debe=d.total_pen, tercero=d.tercero, documento=doc, importe_me=d.total)
+        b.add(cta['apertura_patrimonio'], haber=d.total_pen, documento=doc, glosa='Apertura: cuentas por cobrar')
+    else:
+        b.add(cta['apertura_patrimonio'], debe=d.total_pen, documento=doc, glosa='Apertura: cuentas por pagar')
+        b.add(tercero_cta, haber=d.total_pen, tercero=d.tercero, documento=doc, importe_me=d.total)
+    return b.grabar()
+
+
 def asiento_venta(v, cta):
+    if v.es_saldo_inicial:
+        return asiento_saldo_inicial(v, cta, es_venta=True)
     a = Asiento(fecha=v.fecha_emision, libro='14', origen='VENTA', venta=v, moneda=v.moneda,
                 tipo_cambio=v.tc_efectivo,
                 glosa=f'{v.get_tipo_comprobante_display()} {v.numero_completo} {v.tercero.nombre}'[:250])
@@ -169,6 +190,8 @@ def asiento_venta(v, cta):
 
 # ---------------------------------------------------------------- compras
 def asiento_compra(c, cta):
+    if c.es_saldo_inicial:
+        return asiento_saldo_inicial(c, cta, es_venta=False)
     a = Asiento(fecha=c.fecha_emision, libro='08', origen='COMPRA', compra=c, moneda=c.moneda,
                 tipo_cambio=c.tc_efectivo,
                 glosa=f'{c.get_tipo_comprobante_display()} {c.numero_completo} {c.tercero.nombre}'[:250])

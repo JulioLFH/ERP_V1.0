@@ -24,7 +24,11 @@ from .models import Cuenta, Movimiento
 # ---------------------------------------------------------------- cuentas
 @login_required
 def cuentas(request):
-    return render(request, 'finanzas/cuentas.html', {'cuentas': Cuenta.objects.all()})
+    lista = list(Cuenta.objects.all())
+    for c in lista:  # diagnóstico: días en que el saldo quedó en negativo (datos anteriores a la validación)
+        c.negativo = None if c.admite_negativo else c.primer_negativo()
+    return render(request, 'finanzas/cuentas.html', {'cuentas': lista,
+                                                     'con_negativo': [c for c in lista if c.negativo]})
 
 
 class CuentaNueva(FormGenerico, CreateView):
@@ -85,6 +89,17 @@ def movimiento_nuevo(request):
     return render(request, 'core/form.html', {'form': form, 'titulo': 'Ingreso / egreso de caja y bancos'})
 
 
+def _error_al_eliminar(mov):
+    """Quitar un ingreso (o una transferencia, que es ingreso en la cuenta destino) no puede dejar saldo negativo."""
+    par = mov.transferencia_par or Movimiento.objects.filter(transferencia_par=mov).first()
+    for m in [mov] + ([par] if par else []):
+        if m.tipo == 'INGRESO':
+            error = m.cuenta.error_sobregiro(D0, fecha=m.fecha, excluir_ids=[m.pk])
+            if error:
+                return error
+    return ''
+
+
 @login_required
 def movimiento_eliminar(request, pk):
     mov = get_object_or_404(Movimiento, pk=pk)
@@ -93,6 +108,8 @@ def movimiento_eliminar(request, pk):
             messages.error(request, 'No se puede eliminar un movimiento conciliado.')
         elif periodo_cerrado(mov.fecha.strftime('%Y%m')):
             messages.error(request, 'No se puede eliminar: el periodo contable está cerrado.')
+        elif _error_al_eliminar(mov):
+            messages.error(request, f'No se puede eliminar: {_error_al_eliminar(mov)}')
         else:
             with transaction.atomic():
                 par = mov.transferencia_par or Movimiento.objects.filter(transferencia_par=mov).first()
@@ -176,13 +193,14 @@ def cobrar_pagar(request, modo):
                     monto=_monto_en_cuenta(monto, d, data['cuenta'], data['fecha'], data['es_detraccion']),
                     monto_doc=monto, glosa=data['glosa'] or f'{cfg["concepto"].title()} {d}', **{cfg['fk']: d}))
             if cfg['tipo'] == 'EGRESO' and creados and not errores:
-                # el saldo ya incluye los pagos recién creados: no debe quedar en negativo
+                # con los pagos ya creados, la cuenta no debe quedar negativa en ningún día desde su fecha
                 cuenta = data['cuenta']
-                saldo_final = cuenta.saldo
-                if not cuenta.permite_sobregiro and saldo_final < 0:
+                negativo = None if cuenta.admite_negativo else cuenta.primer_negativo(desde=data['fecha'])
+                if negativo:
                     total = sum(m.monto for m in creados)
-                    errores.append(f'Saldo insuficiente en {cuenta}: disponible {cuenta.simbolo} '
-                                   f'{saldo_final + total:,.2f}, pagos {cuenta.simbolo} {total:,.2f}.')
+                    errores.append(f'Saldo insuficiente en {cuenta}: con los pagos ({cuenta.simbolo} {total:,.2f}) '
+                                   f'la cuenta quedaría en {cuenta.simbolo} {negativo[1]:,.2f} el '
+                                   f'{negativo[0]:%d/%m/%Y}.')
             if errores:
                 transaction.set_rollback(True)
         if errores:
@@ -278,6 +296,7 @@ def importar_extracto(request):
         except Exception as exc:
             filas, errores = [], [f'No se pudo leer el archivo: {exc}']
         with transaction.atomic():
+            fechas = []
             for n, f in enumerate(filas, 2):
                 try:
                     monto = Decimal(str(f.get('monto')).replace(',', ''))
@@ -285,14 +304,23 @@ def importar_extracto(request):
                         continue
                     desc = str(f.get('descripcion') or '')
                     concepto = 'GASTO_BANCARIO' if any(p in desc.upper() for p in ('ITF', 'COMISION', 'MANTENIMIENTO', 'PORTES')) else 'OTRO'
+                    fecha = a_fecha(f.get('fecha'))
                     Movimiento.objects.create(
-                        cuenta=cuenta, fecha=a_fecha(f.get('fecha')), tipo='INGRESO' if monto > 0 else 'EGRESO',
+                        cuenta=cuenta, fecha=fecha, tipo='INGRESO' if monto > 0 else 'EGRESO',
                         concepto=concepto, medio_pago='TRANSFERENCIA', numero_operacion=str(f.get('operacion') or ''),
                         monto=abs(monto), glosa=desc[:250], conciliado=form.cleaned_data['conciliado'],
-                        fecha_conciliacion=a_fecha(f.get('fecha')) if form.cleaned_data['conciliado'] else None)
+                        fecha_conciliacion=fecha if form.cleaned_data['conciliado'] else None)
+                    fechas.append(fecha)
                     ok += 1
                 except Exception as exc:
                     errores.append(f'Fila {n}: {exc}')
+            negativo = cuenta.primer_negativo(desde=min(fechas)) if fechas and not cuenta.admite_negativo else None
+            if negativo:
+                errores.append(f'Con estos movimientos {cuenta} quedaría en {cuenta.simbolo} {negativo[1]:,.2f} el '
+                               f'{negativo[0]:%d/%m/%Y}: revise el extracto o registre antes los ingresos que faltan. '
+                               f'No se importó nada.')
+                transaction.set_rollback(True)
+                ok = 0
         resultado = {'ok': ok, 'errores': errores}
         if ok:
             messages.success(request, f'{ok} movimientos importados en {cuenta}.')

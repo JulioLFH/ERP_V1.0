@@ -41,6 +41,7 @@ MODULOS = [
             ('Portal de proveedores', [('Facturas por revisar', 'compras:portal_facturas', 'bi-inbox'),
                                        ('Accesos de proveedores', 'compras:portal_accesos', 'bi-person-lock')]),
             ('Cuentas por pagar', 'compras:pendientes'),
+            ('Sugerencia de compra', 'inv_reposicion'),
             ('Proveedores', 'terceros?tipo=PROVEEDOR'),
             ('Productos', 'productos'),
             ('Reportes', [('Registro de compras 8.1 / PLE', 'compras:registro', 'bi-journal-text'),
@@ -63,6 +64,7 @@ MODULOS = [
                              ('Carga masiva de saldos y productos', 'carga_masiva?tipo=saldos',
                               'bi-file-earmark-arrow-up')]),
             ('Reportes', [('Kardex', 'inv_kardex', 'bi-list-columns'),
+                          ('Sugerencia de compra', 'inv_reposicion', 'bi-cart-plus'),
                           ('Valorización al cierre', 'inv_valorizacion', 'bi-calculator'),
                           ('Cierre de kardex', 'inventario:cierres', 'bi-lock')]),
             ('Configuración', [('Productos y servicios', 'productos', 'bi-box-seam'),
@@ -131,7 +133,8 @@ MODULOS = [
                                ('Tipo de cambio', 'tipos_cambio', 'bi-currency-exchange'),
                                ('Facturación electrónica', 'facturacion', 'bi-cloud-upload'),
                                ('Correo saliente', 'correo', 'bi-envelope'),
-                               ('Carga masiva (Excel)', 'carga_masiva', 'bi-file-earmark-arrow-up')]),
+                               ('Carga masiva (Excel)', 'carga_masiva', 'bi-file-earmark-arrow-up'),
+                               ('Respaldo de datos', 'respaldo', 'bi-shield-check')]),
         ],
     },
 ]
@@ -146,8 +149,8 @@ DERIVADOS = {'contactos': {'ventas', 'compras', 'finanzas', 'logistica', 'contab
 # Rutas sin espacio de nombres (app core) -> módulos que pueden abrirlas (el primero es el principal)
 RUTAS_CORE = {
     'dashboard': ['tablero'],
-    'empresa': ['ajustes'], 'facturacion': ['ajustes'], 'correo': ['ajustes'],
-    'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'contactos'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
+    'empresa': ['ajustes'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
+    'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'finanzas', 'contactos'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
     'tipos_cambio': ['ajustes', 'finanzas'],
@@ -156,7 +159,7 @@ RUTAS_CORE = {
     'productos': ['inventario', 'ventas', 'compras'], 'producto_nuevo': ['inventario', 'ventas', 'compras'],
     'producto_editar': ['inventario', 'ventas', 'compras'], 'kardex': ['inventario'],
     'inv_stock': ['inventario'], 'inv_kardex': ['inventario'], 'inv_ajuste': ['inventario'],
-    'inv_valorizacion': ['inventario'], 'almacenes': ['inventario'], 'almacen_nuevo': ['inventario'],
+    'inv_valorizacion': ['inventario'], 'inv_reposicion': ['inventario', 'compras'], 'almacenes': ['inventario'], 'almacen_nuevo': ['inventario'],
     'almacen_editar': ['inventario'],
 }
 # Rutas abiertas a cualquier usuario autenticado

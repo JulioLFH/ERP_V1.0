@@ -258,7 +258,8 @@ class ComprobanteViews:
 
     # ------------------------------------------------------------ registro formal / PLE
     def _registro_qs(self, periodo):
-        return (self.modelo.objects.filter(periodo=periodo).select_related('tercero', 'doc_referencia')
+        return (self.modelo.objects.filter(periodo=periodo, es_saldo_inicial=False)
+                .select_related('tercero', 'doc_referencia')
                 .order_by('fecha_emision', 'tipo_comprobante', 'serie', 'numero'))
 
     def registro(self, request):
@@ -340,7 +341,8 @@ class ComprobanteViews:
     def reportes(self, request):
         desde, hasta = rango_por_defecto(request, self.modelo.objects.filter(estado='REGISTRADO'), 'fecha_emision')
         agrupar = request.GET.get('agrupar') or self.agrupaciones[0][0]
-        base = self.modelo.objects.filter(estado='REGISTRADO', fecha_emision__range=[desde, hasta])
+        base = self.modelo.objects.filter(estado='REGISTRADO', fecha_emision__range=[desde, hasta],
+                                          es_saldo_inicial=False)
         if agrupar == 'producto':
             filas = (self.item_modelo.objects.filter(documento__in=base.exclude(tipo_comprobante='07'))
                      .values('descripcion').annotate(cantidad=Sum('cantidad'), total=Sum('subtotal'),

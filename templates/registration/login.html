@@ -34,7 +34,7 @@
       <img src="{% static 'img/ceiba-isotipo.svg' %}" alt="" class="iso">
       <div class="nombre">ceiba</div>
       <div class="modulos">Ventas · Compras · Inventario · Logística · Finanzas · Contabilidad</div>
-      {% if form.errors %}<div class="alert alert-danger py-2 small">Usuario o contraseña incorrectos.</div>{% endif %}
+      {% if form.errors %}<div class="alert alert-danger py-2 small">{% for e in form.non_field_errors %}{{ e }}{% empty %}Usuario o contraseña incorrectos.{% endfor %}</div>{% endif %}
       <form method="post">
         {% csrf_token %}
         <div class="mb-3">

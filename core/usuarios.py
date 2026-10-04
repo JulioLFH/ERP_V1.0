@@ -67,6 +67,8 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         if self.cleaned_data.get('clave1'):
             user.set_password(self.cleaned_data['clave1'])
         user.save()
+        from .models import IntentoAcceso
+        IntentoAcceso.objects.filter(usuario__iexact=user.username).delete()  # el administrador lo desbloquea
         grupos = [Group.objects.get_or_create(name=GRUPOS[c])[0] for c in self.cleaned_data.get('modulos', [])]
         if self.cleaned_data.get('ver_costos'):
             grupos.append(Group.objects.get_or_create(name=GRUPO_COSTOS)[0])

@@ -36,6 +36,43 @@ class VentasViews(ComprobanteViews):
                   'precio_unitario': i.precio_unitario} for i in cot.items.all()]
         return initial, items
 
+    def validar_stock(self, form, formset):
+        return super().validar_stock(form, formset) + self.validar_credito(form, formset)
+
+    def validar_credito(self, form, formset):
+        """Ventas al crédito: bloqueo por deuda vencida y por límite de crédito del cliente."""
+        from datetime import timedelta
+        from decimal import Decimal
+        from django.utils import timezone
+        from core.models import Empresa, r2
+        doc, datos = form.instance, form.cleaned_data
+        cliente = datos.get('tercero')
+        if not cliente or datos.get('forma_pago') != 'CREDITO' or datos.get('tipo_comprobante') in ('07', '08'):
+            return []
+        empresa = Empresa.actual()
+        deuda = [v for v in Venta.objects.con_saldos().filter(tercero=cliente, estado='REGISTRADO').exclude(
+            tipo_comprobante__in=['07', '08']).exclude(pk=doc.pk) if v.saldo > 0]
+        errores = []
+        if empresa.bloquear_deuda_vencida:
+            limite_fecha = timezone.localdate() - timedelta(days=empresa.dias_gracia)
+            vencidos = [v for v in deuda if v.fecha_vencimiento and v.fecha_vencimiento < limite_fecha]
+            if vencidos:
+                lista = ', '.join(f'{v.numero_completo} (venció {v.fecha_vencimiento:%d/%m/%Y})' for v in vencidos[:5])
+                errores.append(f'{cliente.nombre} tiene {len(vencidos)} comprobante(s) vencido(s) e impago(s): '
+                               f'{lista}. Cobre la deuda o emita la venta al contado.')
+        if cliente.limite_credito:
+            subtotal = sum((Decimal(c) * Decimal(f.cleaned_data.get('precio_unitario') or 0)
+                            for f in formset.forms for c in [f.cleaned_data.get('cantidad') or 0]
+                            if getattr(f, 'cleaned_data', None) and not f.cleaned_data.get('DELETE')), Decimal('0'))
+            igv = subtotal * empresa.igv_tasa / 100 if datos.get('tipo_operacion') == 'GRAVADA' else 0
+            tc = (datos.get('tipo_cambio') or 1) if datos.get('moneda') == 'USD' else 1
+            nuevo = r2((subtotal + igv) * tc)
+            actual = sum((v.saldo_pen for v in deuda), Decimal('0'))
+            if actual + nuevo > cliente.limite_credito:
+                errores.append(f'Se supera el límite de crédito de {cliente.nombre}: deuda S/ {actual:,.2f} + esta venta '
+                               f'S/ {nuevo:,.2f} = S/ {actual + nuevo:,.2f} (límite S/ {cliente.limite_credito:,.2f}).')
+        return errores
+
     def es_salida(self, tipo, mueve_stock):
         return tipo in ('01', '03', '12', '00') and mueve_stock
 

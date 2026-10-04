@@ -1,0 +1,27 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Sugerencia de compra{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Sugerencia de compra (reposición)</h1>
+  <a href="?formato=excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+</div>
+<p class="small text-muted">Productos cuyo stock más lo pedido en órdenes de compra vigentes (en camino) llegó al punto de reorden (o al stock mínimo). La cantidad sugerida completa el stock máximo (o el doble del punto de reorden) y se redondea al lote mínimo de compra. Estos datos se configuran en cada producto, pestaña Planificación.</p>
+{% for clave, g in grupos.items %}
+<div class="card mb-3">
+  <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+    <span><i class="bi bi-truck"></i> {% if g.proveedor %}{{ g.proveedor.nombre }}{% else %}<span class="text-muted">Sin proveedor habitual</span>{% endif %}</span>
+    {% if 'compras' in mods %}<a href="{% url 'compras:oc_nuevo' %}?reponer={{ clave }}" class="btn btn-sm btn-primary"><i class="bi bi-clipboard-plus"></i> Crear orden de compra</a>{% endif %}
+  </div>
+  <div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Código</th><th>Producto</th><th>U.M.</th><th class="num">Stock</th><th class="num">En camino</th><th class="num">Reorden</th><th class="num">Objetivo</th><th class="num">Sugerido</th><th class="num">Precio compra</th><th class="num">Importe</th><th class="num">Entrega</th></tr></thead>
+    <tbody>{% for f in g.filas %}<tr><td>{{ f.p.codigo }}</td><td><a href="{% url 'producto_editar' f.p.pk %}">{{ f.p.nombre }}</a></td><td>{{ f.p.unidad }}</td>
+      <td class="num {% if f.p.stock <= 0 %}text-danger fw-semibold{% endif %}">{{ f.p.stock|money }}</td><td class="num">{{ f.camino|money }}</td><td class="num">{{ f.limite|money }}</td>
+      <td class="num">{{ f.objetivo|money }}</td><td class="num fw-bold">{{ f.cantidad|money }}</td><td class="num">{{ f.precio|floatformat:2 }}</td><td class="num">{{ f.importe|money }}</td>
+      <td class="num">{% if f.p.tiempo_entrega %}{{ f.p.tiempo_entrega }} d{% endif %}</td></tr>{% endfor %}</tbody>
+    <tfoot><tr class="fw-semibold"><td colspan="9" class="text-end">Total estimado sin IGV</td><td class="num">{{ g.total|money }}</td><td></td></tr></tfoot>
+  </table></div>
+</div>
+{% empty %}
+<div class="alert alert-success"><i class="bi bi-check-circle"></i> No hay productos por reponer. (Solo se evalúan los productos con punto de reorden o stock mínimo configurado.)</div>
+{% endfor %}
+{% endblock %}

@@ -111,6 +111,39 @@ DEFINICIONES = OrderedDict([
             ('telefono', 'Teléfono', False, '', ''),
             ('dias_credito', 'Días de crédito', False, '30', ''),
         ]}),
+    ('saldos_cxc', {
+        'titulo': 'Saldos iniciales por cobrar', 'icono': 'bi-person-down', 'modulos': ['ventas', 'finanzas'],
+        'descripcion': 'Comprobantes de venta pendientes de cobro emitidos antes de usar el sistema. Se cobran '
+                       'normalmente; no van al registro de ventas ni a SUNAT y se contabilizan 12 contra 5911 '
+                       '(apertura). El cliente debe existir.',
+        'columnas': [
+            ('numero_doc', 'RUC/DNI del cliente', True, '20555555556', ''),
+            ('tipo_comprobante', 'Tipo de comprobante', True, '01', '01 factura, 03 boleta, 12 ticket, 00 otros'),
+            ('serie', 'Serie', True, 'F001', ''),
+            ('numero', 'Número', True, '1234', ''),
+            ('fecha_emision', 'Fecha de emisión', True, '15/09/2026', 'dd/mm/aaaa'),
+            ('fecha_vencimiento', 'Fecha de vencimiento', False, '15/10/2026', 'Vacío = la de emisión'),
+            ('moneda', 'Moneda', False, 'PEN', 'PEN o USD. Vacío = PEN'),
+            ('saldo', 'Saldo pendiente', True, '1180.00', 'Importe que falta cobrar (con IGV), en la moneda'),
+            ('tipo_cambio', 'Tipo de cambio', False, '', 'Solo USD. Vacío = T.C. venta de la fecha de emisión'),
+        ]}),
+    ('saldos_cxp', {
+        'titulo': 'Saldos iniciales por pagar', 'icono': 'bi-person-up', 'modulos': ['compras', 'finanzas'],
+        'descripcion': 'Comprobantes de compra pendientes de pago recibidos antes de usar el sistema. Se pagan '
+                       'normalmente; no van al registro de compras y se contabilizan 5911 (apertura) contra 42. El '
+                       'proveedor debe existir.',
+        'columnas': [
+            ('numero_doc', 'RUC/DNI del proveedor', True, '20555555556', ''),
+            ('tipo_comprobante', 'Tipo de comprobante', True, '01', '01 factura, 02 recibo por honorarios, 03 boleta, '
+                                                                     '12 ticket, 00 otros'),
+            ('serie', 'Serie', True, 'F001', ''),
+            ('numero', 'Número', True, '5678', ''),
+            ('fecha_emision', 'Fecha de emisión', True, '10/09/2026', 'dd/mm/aaaa'),
+            ('fecha_vencimiento', 'Fecha de vencimiento', False, '10/10/2026', 'Vacío = la de emisión'),
+            ('moneda', 'Moneda', False, 'PEN', 'PEN o USD. Vacío = PEN'),
+            ('saldo', 'Saldo pendiente', True, '2360.00', 'Importe que falta pagar (con IGV), en la moneda'),
+            ('tipo_cambio', 'Tipo de cambio', False, '', 'Solo USD. Vacío = T.C. venta de la fecha de emisión'),
+        ]}),
     ('saldos', {
         'titulo': 'Saldos iniciales de inventario', 'icono': 'bi-flag', 'modulos': ['inventario'], 'costos': True,
         'descripcion': 'Crea y confirma una operación "Saldo inicial" por almacén y fecha (contrapartida 5911).',
@@ -216,7 +249,85 @@ def _fila_saldo(d, actualizar):
             'resumen': f'{codigo} · {p.nombre} · {alm.nombre} · {cantidad:,.2f} × S/ {costo:,.4f}'}
 
 
-VALIDADORES = {'productos': _fila_producto, 'terceros': _fila_tercero, 'saldos': _fila_saldo}
+def _fila_documento(d, es_venta):
+    from .utils import a_fecha
+    numero_doc = _txt(d.get('numero_doc'))
+    tipos_tercero = ['CLIENTE', 'AMBOS'] if es_venta else ['PROVEEDOR', 'AMBOS']
+    tercero = Tercero.objects.filter(numero_doc=numero_doc).first()
+    if not tercero:
+        raise ErrorFila(f'{"Cliente" if es_venta else "Proveedor"} {numero_doc or "(vacío)"} no existe: cárguelo '
+                        f'primero en clientes y proveedores.')
+    if tercero.tipo not in tipos_tercero:
+        raise ErrorFila(f'{tercero.nombre} está registrado como {tercero.get_tipo_display().lower()}.')
+    tipo = _txt(d.get('tipo_comprobante')).zfill(2)
+    permitidos = ('01', '03', '12', '00') if es_venta else ('01', '02', '03', '12', '14', '00')
+    if tipo not in permitidos:
+        raise ErrorFila(f'Tipo de comprobante "{tipo}" no válido (use {", ".join(permitidos)}).')
+    serie, numero = _txt(d.get('serie')).upper(), _txt(d.get('numero'))
+    if not serie or not numero:
+        raise ErrorFila('Serie y número son obligatorios.')
+    try:
+        emision = a_fecha(d.get('fecha_emision'))
+        vence = a_fecha(d.get('fecha_vencimiento')) if d.get('fecha_vencimiento') not in (None, '') else emision
+    except ValueError as exc:
+        raise ErrorFila(str(exc))
+    if emision > date.today():
+        raise ErrorFila('La fecha de emisión no puede ser futura.')
+    moneda = (_txt(d.get('moneda')) or 'PEN').upper()
+    if moneda not in ('PEN', 'USD'):
+        raise ErrorFila('Moneda: PEN o USD.')
+    saldo = _dec(d.get('saldo'), 'Saldo pendiente', requerido=True)
+    if saldo <= 0:
+        raise ErrorFila('Saldo pendiente: debe ser mayor a cero.')
+    tc = _dec(d.get('tipo_cambio'), 'Tipo de cambio', minimo=Decimal('0.001')) if moneda == 'USD' else Decimal('1')
+    if tc is None:
+        from .tipo_cambio import venta_del_dia
+        tc = venta_del_dia(emision)
+    from compras.models import Compra
+    from ventas.models import Venta
+    modelo = Venta if es_venta else Compra
+    filtro = {'tipo_comprobante': tipo, 'serie': serie, 'numero': numero}
+    if not es_venta:
+        filtro['tercero'] = tercero
+    if modelo.objects.filter(**filtro).exists():
+        raise ErrorFila(f'El comprobante {serie}-{numero} ya está registrado.')
+    return {'accion': 'Saldo inicial', 'codigo': f'{tercero.numero_doc}-{tipo}-{serie}-{numero}',
+            'datos': {'tercero': tercero.pk, 'tipo': tipo, 'serie': serie, 'numero': numero,
+                      'emision': emision.isoformat(), 'vence': vence.isoformat(), 'moneda': moneda,
+                      'saldo': str(saldo), 'tc': str(tc)},
+            'resumen': f'{tercero.nombre} · {tipo} {serie}-{numero} · vence {vence:%d/%m/%Y} · '
+                       f'{"US$" if moneda == "USD" else "S/"} {saldo:,.2f}'}
+
+
+VALIDADORES = {'productos': _fila_producto, 'terceros': _fila_tercero, 'saldos': _fila_saldo,
+               'saldos_cxc': lambda d, a: _fila_documento(d, True), 'saldos_cxp': lambda d, a: _fila_documento(d, False)}
+
+
+def _crear_documentos(filas, es_venta):
+    from compras.models import Compra, CompraItem
+    from ventas.models import Venta, VentaItem
+    modelo, item_modelo = (Venta, VentaItem) if es_venta else (Compra, CompraItem)
+    total = Decimal('0')
+    for f in filas:
+        d = f['datos']
+        saldo = Decimal(d['saldo'])
+        extra = {'descontar_stock': False} if es_venta else {'ingresar_almacen': False, 'clasificacion': 'GASTO'}
+        doc = modelo(tercero_id=d['tercero'], tipo_comprobante=d['tipo'], serie=d['serie'], numero=d['numero'],
+                     fecha_emision=date.fromisoformat(d['emision']), fecha_vencimiento=date.fromisoformat(d['vence']),
+                     moneda=d['moneda'], tipo_cambio=Decimal(d['tc']), tipo_operacion='INAFECTA',
+                     forma_pago='CREDITO' if d['vence'] > d['emision'] else 'CONTADO', es_saldo_inicial=True,
+                     glosa='Saldo inicial cargado desde Excel', **extra)
+        if es_venta:
+            doc.estado_sunat = 'NO_ENVIADO'
+            doc.sunat_descripcion = 'Saldo inicial: no se envía a SUNAT.'
+        doc.save()
+        item_modelo.objects.create(documento=doc, descripcion='Saldo inicial pendiente', cantidad=1,
+                                   precio_unitario=saldo)
+        doc.calcular_totales()
+        doc.retencion_monto = doc.percepcion_monto = doc.detraccion_monto = Decimal('0')  # el saldo ya es neto
+        doc.save()
+        total += doc.total_pen
+    return total
 
 
 def leer_archivo(archivo, tipo):
@@ -298,6 +409,10 @@ def cargar(tipo, filas, usuario):
                     setattr(t, campo, valor)
                 t.save()
             return f'{nuevos} clientes/proveedores nuevos y {actualizados} actualizados.'
+        if tipo in ('saldos_cxc', 'saldos_cxp'):
+            total = _crear_documentos(filas, tipo == 'saldos_cxc')
+            return (f'{len(filas)} documentos por {"cobrar" if tipo == "saldos_cxc" else "pagar"} cargados '
+                    f'(S/ {total:,.2f}).')
         if tipo == 'saldos':
             from inventario import servicios
             from inventario.models import Operacion, TipoOperacion

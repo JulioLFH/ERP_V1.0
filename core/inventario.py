@@ -130,6 +130,73 @@ def ajuste(request):
     return render(request, 'inventario/ajuste.html', {'form': form, 'ultimos': ultimos})
 
 
+def en_camino():
+    """{producto_id: cantidad} pedida en órdenes de compra vigentes y aún no recibida en el almacén."""
+    from collections import defaultdict
+    from compras.models import OrdenCompra
+    from proveedores.servicios import recibido_por_producto
+    pendiente = defaultdict(lambda: D0)
+    for oc in OrdenCompra.objects.exclude(estado='ANULADO').exclude(estado_proveedor='RECHAZADA').prefetch_related(
+            'items'):
+        pedido = defaultdict(lambda: D0)
+        for i in oc.items.all():
+            if i.producto_id:
+                pedido[i.producto_id] += i.cantidad
+        if not pedido:
+            continue
+        recibido = recibido_por_producto(oc)
+        for pid, cant in pedido.items():
+            falta = cant - recibido.get(pid, D0)
+            if falta > 0:
+                pendiente[pid] += falta
+    return pendiente
+
+
+def sugerencias_compra():
+    """Productos a reponer: stock + en camino ≤ punto de reorden (o stock mínimo). Cantidad sugerida hasta el
+    stock máximo (o el doble del punto de reorden), redondeada al lote mínimo de compra."""
+    import math
+    camino = en_camino()
+    filas = []
+    for p in Producto.objects.filter(activo=True, tipo='BIEN', puede_comprarse=True).select_related('proveedor'):
+        limite = p.punto_reorden or p.stock_minimo
+        if not limite:
+            continue
+        disponible = p.stock + camino.get(p.pk, D0)
+        if disponible > limite:
+            continue
+        objetivo = p.stock_maximo if p.stock_maximo > limite else limite * 2
+        cantidad = objetivo - disponible
+        if p.lote_compra and p.lote_compra > 0:
+            cantidad = Decimal(math.ceil(cantidad / p.lote_compra)) * p.lote_compra
+        if cantidad <= 0:
+            continue
+        filas.append({'p': p, 'limite': limite, 'camino': camino.get(p.pk, D0), 'disponible': disponible,
+                      'objetivo': objetivo, 'cantidad': cantidad, 'precio': p.precio_compra,
+                      'importe': r2(cantidad * p.precio_compra)})
+    return filas
+
+
+@login_required
+def reposicion(request):
+    from collections import OrderedDict
+    filas = sugerencias_compra()
+    grupos = OrderedDict()
+    for f in sorted(filas, key=lambda f: (f['p'].proveedor.nombre if f['p'].proveedor else 'ZZZ', f['p'].nombre)):
+        clave = f['p'].proveedor_id or 0
+        g = grupos.setdefault(clave, {'proveedor': f['p'].proveedor, 'filas': [], 'total': D0})
+        g['filas'].append(f)
+        g['total'] += f['importe']
+    if request.GET.get('formato') == 'excel':
+        datos = [[f['p'].codigo, f['p'].nombre, f['p'].unidad, f['p'].stock, f['camino'], f['limite'], f['objetivo'],
+                  f['cantidad'], f['p'].proveedor.nombre if f['p'].proveedor else '', f['p'].tiempo_entrega]
+                 for f in filas]
+        return excel_response('Sugerencia_de_compra', 'Sugerencia de compra (reposición)',
+                              ['Código', 'Producto', 'U.M.', 'Stock', 'En camino (OC)', 'Punto de reorden',
+                               'Stock objetivo', 'Cantidad sugerida', 'Proveedor habitual', 'Entrega (días)'], datos)
+    return render(request, 'inventario/reposicion.html', {'grupos': grupos, 'total_filas': len(filas)})
+
+
 def valor_inventario(corte, almacen=None):
     """([filas], total) del inventario valorizado al corte. La contabilidad ajusta la 20111 a este total."""
     filas, total = [], D0

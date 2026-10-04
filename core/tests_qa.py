@@ -98,11 +98,19 @@ class HallazgosQATest(TestCase):
         return self.client.post(reverse('logistica:nueva') + '?tipo=09', data)
 
     def test_bug02_guia_no_descuenta_dos_veces(self):
-        venta = Venta.objects.filter(tipo_comprobante='01', stock_aplicado=True).first()
+        venta = Venta.objects.filter(tipo_comprobante='01', stock_aplicado=True, items__producto__codigo='P003').first()
         r = self._guia(venta=venta.pk, destinatario=venta.tercero_id)
         self.assertIn('efecto_stock', r.context['form'].errors)
         r = self._guia(venta=venta.pk, destinatario=venta.tercero_id, efecto_stock='NINGUNO')
         self.assertEqual(r.status_code, 302)
+        # despachos parciales: no se puede despachar más de lo facturado sumando las guías emitidas
+        vendido = venta.items.get(producto__codigo='P003').cantidad
+        r = self._guia(venta=venta.pk, destinatario=venta.tercero_id, efecto_stock='NINGUNO',
+                       **{'items-0-cantidad': str(vendido)})
+        self.assertIn('solo factura', ' '.join(r.context['form'].non_field_errors()))
+        r = self._guia(venta=venta.pk, destinatario=venta.tercero_id, efecto_stock='NINGUNO',
+                       **{'items-0-cantidad': str(vendido - 1)})
+        self.assertEqual(r.status_code, 302)  # 1 + (vendido - 1) = vendido
 
     def test_bug01_guia_salida_sin_stock(self):
         r = self._guia(**{'items-0-cantidad': '9999'})

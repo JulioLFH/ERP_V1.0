@@ -4,7 +4,8 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
   <div>
     <h1 class="page-title">{{ doc.get_tipo_comprobante_display }} {{ doc.numero_completo }}
-      <span class="badge badge-{{ doc.estado }} fs-6 align-middle">{{ doc.get_estado_display }}</span></h1>
+      <span class="badge badge-{{ doc.estado }} fs-6 align-middle">{{ doc.get_estado_display }}</span>
+      {% if doc.es_saldo_inicial %}<span class="badge text-bg-info fs-6 align-middle" title="Documento pendiente de antes de usar el sistema: no va al registro ni a SUNAT">Saldo inicial</span>{% endif %}</h1>
     <div class="text-muted small">{{ etiqueta_tercero }}: <b>{{ doc.tercero.nombre }}</b> · {{ doc.tercero.get_tipo_doc_display }} {{ doc.tercero.numero_doc }} · Periodo {{ doc.periodo }}</div>
   </div>
   <div class="d-flex flex-wrap gap-2">
@@ -81,7 +82,7 @@
   </div>
 
   <div class="col-lg-4">
-    {% if app == 'ventas' and doc.tipo_comprobante in '01 03 07 08' %}
+    {% if app == 'ventas' and doc.tipo_comprobante in '01 03 07 08' and not doc.es_saldo_inicial %}
     <div class="card mb-3 border-{% if doc.estado_sunat == 'ACEPTADO' %}success{% elif doc.estado_sunat == 'RECHAZADO' or doc.estado_sunat == 'ERROR' %}danger{% else %}secondary{% endif %}">
       <div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-cloud-check"></i> SUNAT</span>
         <span class="badge {% if doc.estado_sunat == 'ACEPTADO' %}text-bg-success{% elif doc.estado_sunat == 'RECHAZADO' or doc.estado_sunat == 'ERROR' %}text-bg-danger{% elif doc.estado_sunat == 'PENDIENTE' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ doc.get_estado_sunat_display }}</span></div>

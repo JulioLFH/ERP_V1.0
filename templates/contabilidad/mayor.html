@@ -10,7 +10,8 @@
     <div class="col-auto"><label class="form-label small mb-1">Desde</label><input type="month" name="desde" value="{{ mes_desde }}" class="form-control form-control-sm"></div>
     <div class="col-auto"><label class="form-label small mb-1">Hasta</label><input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm"></div>
     <div class="col-auto"><button class="btn btn-sm btn-primary">Ver</button>
-      {% if cuenta %}<button name="formato" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i></button>{% endif %}</div>
+      {% if cuenta %}<button name="formato" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i></button>{% endif %}
+      <button name="formato" value="ple" class="btn btn-sm btn-outline-secondary" title="Libro Mayor 6.1 del mes 'hasta' (todas las cuentas)"><i class="bi bi-filetype-txt"></i> TXT PLE 6.1</button></div>
   </form>
 </div></div>
 {% if cuenta %}

@@ -11,6 +11,19 @@ class CuentaForm(BootstrapMixin, forms.ModelForm):
         model = Cuenta
         fields = '__all__'
 
+    def clean(self):
+        data = super().clean()
+        inicial = data.get('saldo_inicial')
+        admite = data.get('tipo') == 'BANCO' and data.get('permite_sobregiro')
+        if inicial is not None and inicial < 0 and not admite:
+            self.add_error('saldo_inicial', 'El saldo inicial no puede ser negativo.')
+        elif inicial is not None and self.instance.pk and not admite:
+            negativo = self.instance.primer_negativo(saldo_inicial=inicial)
+            if negativo:
+                self.add_error('saldo_inicial', f'Con este saldo inicial la cuenta quedaría en '
+                                                f'{self.instance.simbolo} {negativo[1]:,.2f} el {negativo[0]:%d/%m/%Y}.')
+        return data
+
 
 class MovimientoForm(BootstrapMixin, forms.ModelForm):
     class Meta:
@@ -35,7 +48,7 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
         data = super().clean()
         validar_periodo_abierto(self, 'fecha')
         if data.get('tipo') == 'EGRESO' and data.get('cuenta') and data.get('monto'):
-            error = data['cuenta'].error_sobregiro(data['monto'], excluir=self.instance)
+            error = data['cuenta'].error_sobregiro(data['monto'], excluir=self.instance, fecha=data.get('fecha'))
             if error:
                 self.add_error('monto', error)
         return data
@@ -78,7 +91,7 @@ class TransferenciaForm(BootstrapMixin, forms.Form):
                                         'registre un egreso y un ingreso con el tipo de cambio pactado.')
         validar_periodo_abierto(self, 'fecha')
         if data.get('origen') and data.get('monto'):
-            error = data['origen'].error_sobregiro(data['monto'])
+            error = data['origen'].error_sobregiro(data['monto'], fecha=data.get('fecha'))
             if error:
                 self.add_error('monto', error)
         return data

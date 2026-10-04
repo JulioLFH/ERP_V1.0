@@ -209,25 +209,44 @@ def libro_diario(request):
         'debe': tot['d'] or D0, 'haber': tot['h'] or D0})
 
 
+def _linea_ple(periodo, a, n, l):
+    """Campos comunes del Libro Diario 5.1 y del Libro Mayor 6.1 (misma estructura en el PLE)."""
+    doc = a.documento
+    tercero = l.tercero
+    tipo_doc = serie = numero = ''
+    if doc is not None and hasattr(doc, 'tipo_comprobante'):
+        tipo_doc, serie, numero = doc.tipo_comprobante, doc.serie, doc.numero
+    campos = [f'{periodo}00', a.numero.replace('-', ''), f'M{n}', l.cuenta.codigo, '',
+              l.centro_costo.codigo if l.centro_costo else '', a.moneda,
+              tercero.tipo_doc if tercero else '', tercero.numero_doc if tercero else '',
+              tipo_doc or '00', serie, numero, fmt_fecha(a.fecha), '', fmt_fecha(a.fecha),
+              (l.glosa or a.glosa)[:200].replace('|', ' '), '', f'{l.debe:.2f}', f'{l.haber:.2f}', '', '1']
+    return '|'.join(campos) + '|'
+
+
 def _diario_ple(periodo, asientos_qs):
     """Libro Diario formato 5.1 (PLE)."""
     lineas = []
     for a in asientos_qs:
-        doc = a.documento
         for n, l in enumerate(a.lineas.all(), 1):
-            tercero = l.tercero
-            tipo_doc = serie = numero = ''
-            if doc is not None and hasattr(doc, 'tipo_comprobante'):
-                tipo_doc, serie, numero = doc.tipo_comprobante, doc.serie, doc.numero
-            campos = [f'{periodo}00', a.numero.replace('-', ''), f'M{n}', l.cuenta.codigo, '',
-                      l.centro_costo.codigo if l.centro_costo else '', a.moneda,
-                      tercero.tipo_doc if tercero else '', tercero.numero_doc if tercero else '',
-                      tipo_doc or '00', serie, numero, fmt_fecha(a.fecha), '', fmt_fecha(a.fecha),
-                      (l.glosa or a.glosa)[:200].replace('|', ' '), '', f'{l.debe:.2f}', f'{l.haber:.2f}', '', '1']
-            lineas.append('|'.join(campos) + '|')
+            lineas.append(_linea_ple(periodo, a, n, l))
     empresa = Empresa.actual()
     indicador = '1' if lineas else '0'
     return txt_response(f'LE{empresa.ruc}{periodo}00050100001{indicador}11.txt', lineas)
+
+
+def _mayor_ple(periodo):
+    """Libro Mayor formato 6.1 (PLE): los movimientos del mes agrupados por cuenta."""
+    asientos = (Asiento.objects.filter(periodo=periodo)
+                .prefetch_related('lineas__cuenta', 'lineas__tercero', 'lineas__centro_costo'))
+    movs = []
+    for a in asientos:
+        for n, l in enumerate(a.lineas.all(), 1):
+            movs.append((l.cuenta.codigo, a.fecha, a.numero, n, a, l))
+    lineas = [_linea_ple(periodo, a, n, l) for _, _, _, n, a, l in sorted(movs, key=lambda m: m[:4])]
+    empresa = Empresa.actual()
+    indicador = '1' if lineas else '0'
+    return txt_response(f'LE{empresa.ruc}{periodo}00060100001{indicador}11.txt', lineas)
 
 
 @login_required
@@ -237,6 +256,8 @@ def libro_mayor(request):
     cuenta = cuentas.filter(pk=request.GET.get('cuenta')).first() if request.GET.get('cuenta') else None
     hasta = _periodo(request, 'hasta')
     desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')
+    if request.GET.get('formato') == 'ple':  # todas las cuentas del mes "hasta"
+        return _mayor_ple(hasta)
     ctx = {'cuentas': cuentas, 'cuenta': cuenta, 'desde': desde, 'hasta': hasta,
            'mes_desde': _mes_input(desde), 'mes_hasta': _mes_input(hasta)}
     if cuenta:
