@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Versión visible en el menú del usuario; actualizarla junto con CHANGELOG.md y la etiqueta de git
 ERP_NOMBRE = 'Ceiba ERP'
-ERP_VERSION = '1.15.0'
+ERP_VERSION = '1.16.0'
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insegura-cambiar-en-produccion')
 DEBUG = os.environ.get('DEBUG', '1') == '1'

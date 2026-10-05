@@ -3,6 +3,33 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.16.0 — 05/10/2026 · Manufactura y costos tipo SAP, estructura organizacional y requerimientos
+**Correcciones**
+- Terminar una orden de producción confirmada ya no da error (fecha como texto con kardex cerrado); se inicia sola.
+- Contactos con RUC antiguo (datos de demostración) se pueden editar; el RUC se valida al crear o al cambiarlo.
+- La guía generada desde una factura propone solo el saldo pendiente de despacho.
+- **Diferencia de precio** entre la recepción (costo de la orden de compra) y la factura: se liquida sola; lo que sigue en stock revaloriza el costo promedio y lo ya vendido va al costo de ventas. La cuenta 28 queda en cero.
+- Reapertura de periodos con el permiso "Reabrir periodos cerrados" (además del administrador).
+
+**Estructura organizacional**
+- **Centros de beneficio** (líneas de negocio) y **centros de costo con tipo** (producción, servicio, administración, ventas, finanzas), **jerarquía** y responsable. Los gastos de centros de producción van al **costo de producción (90)**, no a la 94.
+- La venta toma la **línea del producto**; ingresos, costo de ventas e inventario se registran por línea. Nuevo **Estado de resultados por línea de negocio** con cuentas por cobrar e inventario por línea. Gastos por centro de costo con acumulado por jerarquía.
+
+**Manufactura y costos (estilo SAP)**
+- **Puestos de trabajo** con tipo, tarifas de mano de obra y máquina/CIF, turnos, calendario y eficiencia; **carga vs capacidad** por puesto.
+- **Hojas de ruta** con operaciones 10, 20, 30… (preparación, ejecución por unidad y espera), reutilizables.
+- **Listas de materiales** con estado (borrador / aprobada / obsoleta), vigencia, rango de lote, operación y almacén de consumo por insumo.
+- **Versiones de fabricación** (receta + hoja de ruta + rango de lote + vigencia): la orden y el MRP eligen la versión según cantidad y fecha.
+- **Costo estándar por periodo**: se calcula de abajo hacia arriba y se **libera**; las órdenes del periodo se comparan contra él (ya no se recalcula al confirmar).
+- **Variaciones por tipo** en cada orden: precio y cantidad de materiales, eficiencia de mano de obra y de máquina/CIF, y tarifa.
+- **Absorción de costos de planta**: gasto real de cada centro de costo de planta frente a lo absorbido por las órdenes (sub o sobreaplicación).
+- **MRP multinivel**: desde pedidos de venta y plan de demanda, explota todas las recetas y propone órdenes de fabricar (semielaborados incluidos) y de comprar con fechas; se convierten en órdenes de producción y de compra.
+
+**Requerimientos internos al almacén** (módulo Requerimientos)
+- Las áreas piden materiales contra su centro de costo; se aprueban (quien pide no aprueba), el almacén entrega total o parcialmente, los faltantes pasan a órdenes de compra y el consumo va a la cuenta de gasto y al centro de costo del área.
+
+**Carga masiva** de centros de beneficio, centros de costo, puestos, recetas, hojas de ruta y versiones, en ese orden.
+
 ## v1.15.0 — 04/10/2026 · Alertas y lotes, series y vencimientos
 - **Alertas** (campana en la barra superior y página Alertas), según los módulos y permisos de cada usuario: cobranzas y pagos vencidos o por vencer en 7 días, comprobantes no aceptados por SUNAT, órdenes de compra por aprobar, facturas del portal por revisar, stock bajo, lotes por vencer, insumos que no alcanzan para producir, depreciación pendiente y periodos sin centralizar.
 - **Lotes y números de serie**: cada producto puede controlarse por lote (con vencimiento) o por número de serie. Al ingresar mercadería por Inventario se indica el lote y su vencimiento (o las series); las salidas sin lote indicado toman primero lo que vence primero (FEFO). Anulaciones, notas de crédito y traslados devuelven o mueven la mercadería en los mismos lotes. En manufactura, el lote del producto es el número de la orden.

@@ -154,7 +154,78 @@ DEFINICIONES = OrderedDict([
             ('costo_unitario', 'Costo unitario S/ sin IGV', True, '92.30', ''),
             ('fecha', 'Fecha', False, '', 'dd/mm/aaaa. Vacío = hoy'),
         ]}),
+    # maestros de costos y manufactura: cárguelos en este orden (cada uno usa los anteriores)
+    ('centros_beneficio', {
+        'titulo': '1. Centros de beneficio', 'icono': 'bi-briefcase', 'modulos': ['contabilidad', 'manufactura'],
+        'descripcion': 'Líneas de negocio. Orden de carga: centros de beneficio, centros de costo, puestos de '
+                       'trabajo, recetas, hojas de ruta y versiones de fabricación.',
+        'columnas': [
+            ('codigo', 'Código', True, 'GAL', ''), ('nombre', 'Nombre', True, 'Galletas', ''),
+            ('responsable', 'Responsable', False, 'Gerente de línea', ''),
+        ]}),
+    ('centros_costo', {
+        'titulo': '2. Centros de costo', 'icono': 'bi-bullseye', 'modulos': ['contabilidad', 'manufactura'],
+        'descripcion': 'Con tipo, jerarquía (centro del que depende) y centro de beneficio. El centro superior '
+                       'debe existir o venir antes en el mismo archivo.',
+        'columnas': [
+            ('codigo', 'Código', True, 'PL-HOR', ''), ('nombre', 'Nombre', True, 'Hornos', ''),
+            ('tipo', 'Tipo', True, 'Producción', 'Producción, Servicio, Administración, Ventas o Finanzas'),
+            ('padre', 'Depende de (código)', False, 'PL', ''),
+            ('centro_beneficio', 'Centro de beneficio (código)', False, 'GAL', ''),
+            ('responsable', 'Responsable', False, '', ''),
+        ]}),
+    ('puestos', {
+        'titulo': '3. Puestos de trabajo', 'icono': 'bi-tools', 'modulos': ['manufactura'],
+        'descripcion': 'Máquinas, líneas o puestos manuales con sus tarifas, capacidad y calendario.',
+        'columnas': [
+            ('codigo', 'Código', True, 'HOR1', ''), ('nombre', 'Nombre', True, 'Horno 1', ''),
+            ('tipo', 'Tipo', False, 'Máquina', 'Máquina, Línea de producción o Puesto manual'),
+            ('costo_hora_mo', 'Tarifa mano de obra S/ h', True, '20', ''),
+            ('costo_hora_cif', 'Tarifa máquina y CIF S/ h', True, '30', ''),
+            ('centro_costo', 'Centro de costo (código)', False, 'PL-HOR', ''),
+            ('horas_turno', 'Horas por turno', False, '8', ''), ('turnos', 'Turnos por día', False, '1', ''),
+            ('dias_laborables', 'Días laborables', False, '123456', '1 = lunes … 7 = domingo'),
+            ('eficiencia', 'Eficiencia %', False, '100', ''),
+        ]}),
+    ('recetas', {
+        'titulo': '4. Listas de materiales', 'icono': 'bi-diagram-3', 'modulos': ['manufactura'],
+        'descripcion': 'Una fila por insumo; las filas con el mismo producto y receta forman una lista. Productos e '
+                       'insumos deben existir.',
+        'columnas': [
+            ('producto', 'Producto a fabricar (código)', True, 'PT000001', ''),
+            ('receta', 'Código de la receta', True, 'G1', ''),
+            ('cantidad_base', 'Rinde (cantidad por lote)', True, '100', ''),
+            ('insumo', 'Insumo (código)', True, 'MP000001', ''),
+            ('cantidad', 'Cantidad del insumo', True, '12.5', 'Para el lote indicado en "Rinde"'),
+            ('merma', 'Merma %', False, '2', ''),
+            ('operacion', 'Se consume en la op.', False, '10', ''),
+        ]}),
+    ('hojas_ruta', {
+        'titulo': '5. Hojas de ruta', 'icono': 'bi-signpost-split', 'modulos': ['manufactura'],
+        'descripcion': 'Una fila por operación; las filas con el mismo código forman una hoja. El puesto debe existir.',
+        'columnas': [
+            ('hoja', 'Código de la hoja', True, 'R-GAL', ''), ('nombre', 'Nombre de la hoja', True, 'Horneado', ''),
+            ('secuencia', 'Operación', True, '10', '10, 20, 30…'), ('puesto', 'Puesto (código)', True, 'HOR1', ''),
+            ('descripcion', 'Descripción', True, 'Hornear', ''),
+            ('preparacion', 'Preparación (h por orden)', False, '0.5', ''),
+            ('por_unidad', 'Ejecución (h por unidad)', False, '0.01', ''),
+            ('espera', 'Espera (h)', False, '0', ''),
+        ]}),
+    ('versiones', {
+        'titulo': '6. Versiones de fabricación', 'icono': 'bi-layers', 'modulos': ['manufactura'],
+        'descripcion': 'Une receta y hoja de ruta para un rango de lote y una vigencia.',
+        'columnas': [
+            ('producto', 'Producto (código)', True, 'PT000001', ''), ('version', 'Versión', True, '1', ''),
+            ('receta', 'Receta (código)', True, 'G1', ''), ('hoja', 'Hoja de ruta (código)', False, 'R-GAL', ''),
+            ('lote_desde', 'Lote desde', False, '0', ''), ('lote_hasta', 'Lote hasta', False, '', 'Vacío = sin tope'),
+            ('lote_costeo', 'Lote de costeo', False, '100', ''),
+            ('vigente_desde', 'Vigente desde', False, '', 'dd/mm/aaaa. Vacío = hoy'),
+            ('dias_fabricacion', 'Plazo de fabricación (días)', False, '1', ''),
+        ]}),
 ])
+
+# códigos que vienen en el mismo archivo (para referencias a filas anteriores: centro superior, etc.)
+_CONTEXTO = {'codigos': set()}
 
 
 # ---------------------------------------------------------------- validación por tipo
@@ -299,8 +370,163 @@ def _fila_documento(d, es_venta):
                        f'{"US$" if moneda == "USD" else "S/"} {saldo:,.2f}'}
 
 
+def _producto(codigo, campo):
+    p = Producto.objects.filter(codigo=_txt(codigo).upper()).first()
+    if not p:
+        raise ErrorFila(f'{campo}: el producto {_txt(codigo) or "(vacío)"} no existe.')
+    return p
+
+
+def _fila_beneficio(d, actualizar):
+    from contabilidad.models import CentroBeneficio
+    codigo, nombre = _txt(d.get('codigo')).upper(), _txt(d.get('nombre'))
+    if not codigo or not nombre:
+        raise ErrorFila('Código y nombre son obligatorios.')
+    existe = CentroBeneficio.objects.filter(codigo=codigo).exists()
+    if existe and not actualizar:
+        raise ErrorFila(f'{codigo} ya existe (marque "Actualizar existentes").')
+    return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': codigo,
+            'datos': {'nombre': nombre[:100], 'responsable': _txt(d.get('responsable'))[:120]},
+            'resumen': f'{codigo} · {nombre}'}
+
+
+def _fila_centro_costo(d, actualizar):
+    from contabilidad.models import CentroBeneficio, CentroCosto
+    codigo, nombre = _txt(d.get('codigo')).upper(), _txt(d.get('nombre'))
+    if not codigo or not nombre:
+        raise ErrorFila('Código y nombre son obligatorios.')
+    tipo = _elegir(d.get('tipo'), _opciones(CentroCosto.TIPOS, {'SERVICIO': 'SERVICIO', 'APOYO': 'SERVICIO'}),
+                   'Tipo')
+    padre = _txt(d.get('padre')).upper()
+    if padre and padre == codigo:
+        raise ErrorFila('Un centro no puede depender de sí mismo.')
+    if padre and not CentroCosto.objects.filter(codigo=padre).exists() and padre not in _CONTEXTO['codigos']:
+        raise ErrorFila(f'Centro superior {padre} no existe (cárguelo antes, en este archivo o en otro).')
+    cb = _txt(d.get('centro_beneficio')).upper()
+    if cb and not CentroBeneficio.objects.filter(codigo=cb).exists():
+        raise ErrorFila(f'Centro de beneficio {cb} no existe.')
+    existe = CentroCosto.objects.filter(codigo=codigo).exists()
+    if existe and not actualizar:
+        raise ErrorFila(f'{codigo} ya existe (marque "Actualizar existentes").')
+    return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': codigo,
+            'datos': {'nombre': nombre[:100], 'tipo': tipo, 'padre': padre, 'centro_beneficio': cb,
+                      'responsable': _txt(d.get('responsable'))[:120]},
+            'resumen': f'{codigo} · {nombre} · {dict(CentroCosto.TIPOS)[tipo]}' + (f' · depende de {padre}' if padre else '')}
+
+
+def _fila_puesto(d, actualizar):
+    from contabilidad.models import CentroCosto
+    from produccion.models import CentroTrabajo
+    codigo, nombre = _txt(d.get('codigo')).upper(), _txt(d.get('nombre'))
+    if not codigo or not nombre:
+        raise ErrorFila('Código y nombre son obligatorios.')
+    cc = _txt(d.get('centro_costo')).upper()
+    if cc and not CentroCosto.objects.filter(codigo=cc).exists():
+        raise ErrorFila(f'Centro de costo {cc} no existe.')
+    dias = _txt(d.get('dias_laborables')) or '123456'
+    if not set(dias) <= set('1234567'):
+        raise ErrorFila('Días laborables: dígitos del 1 (lunes) al 7 (domingo).')
+    existe = CentroTrabajo.objects.filter(codigo=codigo).exists()
+    if existe and not actualizar:
+        raise ErrorFila(f'{codigo} ya existe (marque "Actualizar existentes").')
+    eficiencia = _dec(d.get('eficiencia'), 'Eficiencia', minimo=Decimal('1')) or Decimal('100')
+    return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': codigo, 'datos': {
+        'nombre': nombre[:100], 'tipo': _elegir(d.get('tipo'), _opciones(CentroTrabajo.TIPOS), 'Tipo',
+                                                requerido=False, defecto='MAQUINA'),
+        'costo_hora_mo': str(_dec(d.get('costo_hora_mo'), 'Tarifa mano de obra', True, D0)),
+        'costo_hora_cif': str(_dec(d.get('costo_hora_cif'), 'Tarifa máquina y CIF', True, D0)),
+        'centro_costo': cc, 'horas_turno': str(_dec(d.get('horas_turno'), 'Horas por turno', minimo=D0) or 8),
+        'turnos': int(_dec(d.get('turnos'), 'Turnos', minimo=D0) or 1), 'dias_laborables': ''.join(sorted(set(dias))),
+        'eficiencia': str(eficiencia)}, 'resumen': f'{codigo} · {nombre}'}
+
+
+def _fila_receta(d, actualizar):
+    from produccion.models import ListaMateriales
+    producto = _producto(d.get('producto'), 'Producto')
+    if producto.clase not in ('PRODUCTO_TERMINADO', 'SEMIELABORADO'):
+        raise ErrorFila(f'{producto.codigo} es {producto.get_clase_display()}: solo se fabrican productos terminados '
+                        'o semielaborados.')
+    receta = _txt(d.get('receta')).upper()
+    if not receta:
+        raise ErrorFila('Código de la receta: obligatorio.')
+    insumo = _producto(d.get('insumo'), 'Insumo')
+    if insumo.pk == producto.pk:
+        raise ErrorFila('Un producto no puede ser insumo de su propia receta.')
+    if ListaMateriales.objects.filter(producto=producto, codigo=receta).exists():
+        raise ErrorFila(f'La receta {receta} de {producto.codigo} ya existe: cree una nueva versión con otro código.')
+    base = _dec(d.get('cantidad_base'), 'Rinde', True, Decimal('0.01'))
+    cantidad = _dec(d.get('cantidad'), 'Cantidad del insumo', True, Decimal('0.0001'))
+    merma = _dec(d.get('merma'), 'Merma', minimo=D0) or D0
+    op = _dec(d.get('operacion'), 'Operación', minimo=D0)
+    return {'accion': 'Nueva receta', 'codigo': f'{producto.codigo}|{receta}|{insumo.codigo}', 'datos': {
+        'producto': producto.pk, 'receta': receta, 'base': str(base), 'insumo': insumo.pk, 'cantidad': str(cantidad),
+        'merma': str(merma), 'operacion': int(op) if op else None},
+        'resumen': f'{producto.codigo} {receta} · {insumo.nombre} {cantidad:g} por {base:g}'}
+
+
+def _fila_hoja(d, actualizar):
+    from produccion.models import CentroTrabajo, HojaRuta
+    hoja, nombre = _txt(d.get('hoja')).upper(), _txt(d.get('nombre'))
+    if not hoja or not nombre:
+        raise ErrorFila('Código y nombre de la hoja son obligatorios.')
+    if HojaRuta.objects.filter(codigo=hoja).exists():
+        raise ErrorFila(f'La hoja {hoja} ya existe: cree otra con otro código.')
+    puesto = CentroTrabajo.objects.filter(codigo=_txt(d.get('puesto')).upper()).first()
+    if not puesto:
+        raise ErrorFila(f'Puesto {_txt(d.get("puesto")) or "(vacío)"} no existe.')
+    secuencia = _dec(d.get('secuencia'), 'Operación', True, Decimal('1'))
+    prep = _dec(d.get('preparacion'), 'Preparación', minimo=D0) or D0
+    unidad = _dec(d.get('por_unidad'), 'Ejecución', minimo=D0) or D0
+    if not prep and not unidad:
+        raise ErrorFila('Indique horas de preparación o de ejecución.')
+    descripcion = _txt(d.get('descripcion'))
+    if not descripcion:
+        raise ErrorFila('Descripción: obligatoria.')
+    return {'accion': 'Nueva hoja', 'codigo': f'{hoja}|{int(secuencia)}', 'datos': {
+        'hoja': hoja, 'nombre': nombre[:120], 'secuencia': int(secuencia), 'puesto': puesto.pk,
+        'descripcion': descripcion[:100], 'preparacion': str(prep), 'por_unidad': str(unidad),
+        'espera': str(_dec(d.get('espera'), 'Espera', minimo=D0) or D0)},
+        'resumen': f'{hoja} · {int(secuencia)} {descripcion} · {puesto.codigo}'}
+
+
+def _fila_version(d, actualizar):
+    from produccion.models import HojaRuta, ListaMateriales, VersionFabricacion
+    from .utils import a_fecha
+    producto = _producto(d.get('producto'), 'Producto')
+    version = _txt(d.get('version')).upper()
+    if not version:
+        raise ErrorFila('Versión: obligatoria.')
+    if VersionFabricacion.objects.filter(producto=producto, codigo=version).exists():
+        raise ErrorFila(f'La versión {version} de {producto.codigo} ya existe.')
+    lista = ListaMateriales.objects.filter(producto=producto, codigo=_txt(d.get('receta')).upper()).first()
+    if not lista:
+        raise ErrorFila(f'La receta {_txt(d.get("receta"))} de {producto.codigo} no existe.')
+    hoja_cod = _txt(d.get('hoja')).upper()
+    hoja = HojaRuta.objects.filter(codigo=hoja_cod).first() if hoja_cod else None
+    if hoja_cod and not hoja:
+        raise ErrorFila(f'La hoja de ruta {hoja_cod} no existe.')
+    try:
+        desde = a_fecha(d.get('vigente_desde')) if d.get('vigente_desde') not in (None, '') else date.today()
+    except ValueError as exc:
+        raise ErrorFila(str(exc))
+    lote_min = _dec(d.get('lote_desde'), 'Lote desde', minimo=D0) or D0
+    lote_max = _dec(d.get('lote_hasta'), 'Lote hasta', minimo=D0)
+    if lote_max is not None and lote_max < lote_min:
+        raise ErrorFila('Lote hasta debe ser mayor o igual a lote desde.')
+    costeo = _dec(d.get('lote_costeo'), 'Lote de costeo', minimo=Decimal('0.01'))
+    dias = _dec(d.get('dias_fabricacion'), 'Plazo', minimo=D0)
+    return {'accion': 'Nueva versión', 'codigo': f'{producto.codigo}|{version}', 'datos': {
+        'producto': producto.pk, 'version': version, 'lista': lista.pk, 'hoja': hoja.pk if hoja else None,
+        'lote_min': str(lote_min), 'lote_max': str(lote_max) if lote_max is not None else None,
+        'lote_costeo': str(costeo) if costeo else None, 'desde': desde.isoformat(),
+        'dias': int(dias) if dias is not None else 1},
+        'resumen': f'{producto.codigo} versión {version} · receta {lista.codigo}' + (f' · ruta {hoja.codigo}' if hoja else '')}
+
+
 VALIDADORES = {'productos': _fila_producto, 'terceros': _fila_tercero, 'saldos': _fila_saldo,
-               'saldos_cxc': lambda d, a: _fila_documento(d, True), 'saldos_cxp': lambda d, a: _fila_documento(d, False)}
+               'saldos_cxc': lambda d, a: _fila_documento(d, True), 'saldos_cxp': lambda d, a: _fila_documento(d, False),
+               'centros_beneficio': _fila_beneficio, 'centros_costo': _fila_centro_costo, 'puestos': _fila_puesto,
+               'recetas': _fila_receta, 'hojas_ruta': _fila_hoja, 'versiones': _fila_version}
 
 
 def _crear_documentos(filas, es_venta, sustentar=lambda obj: None):
@@ -365,7 +591,9 @@ def validar(archivo, tipo, actualizar=False):
     """(filas, errores): cada fila con accion/resumen/datos o error. No graba nada."""
     validador = VALIDADORES[tipo]
     resultado, errores, vistos = [], 0, {}
-    for fila in leer_archivo(archivo, tipo):
+    filas = leer_archivo(archivo, tipo)
+    _CONTEXTO['codigos'] = {_txt(f['datos'].get('codigo')).upper() for f in filas}
+    for fila in filas:
         try:
             r = validador(fila['datos'], actualizar)
             clave = r['codigo']
@@ -447,7 +675,65 @@ def cargar(tipo, filas, usuario, adjunto=None):
                 servicios.confirmar(op, usuario)
                 numeros.append(op.numero)
             return f'{len(filas)} saldos cargados en {len(numeros)} operación(es): {", ".join(numeros)}.'
+        if tipo in ('centros_beneficio', 'centros_costo', 'puestos', 'recetas', 'hojas_ruta', 'versiones'):
+            return _cargar_maestro(tipo, filas)
     raise ValueError(tipo)
+
+
+def _cargar_maestro(tipo, filas):
+    from contabilidad.models import CentroBeneficio, CentroCosto
+    from produccion.models import CentroTrabajo, HojaRuta, ListaMateriales, VersionFabricacion
+    if tipo == 'centros_beneficio':
+        for f in filas:
+            CentroBeneficio.objects.update_or_create(codigo=f['codigo'], defaults=f['datos'])
+        return f'{len(filas)} centros de beneficio cargados.'
+    if tipo == 'centros_costo':
+        for f in filas:  # en orden: el centro superior ya existe o vino antes en el archivo
+            d = dict(f['datos'])
+            d['padre'] = CentroCosto.objects.get(codigo=d['padre']) if d['padre'] else None
+            d['centro_beneficio'] = CentroBeneficio.objects.get(codigo=d['centro_beneficio']) \
+                if d['centro_beneficio'] else None
+            CentroCosto.objects.update_or_create(codigo=f['codigo'], defaults=d)
+        return f'{len(filas)} centros de costo cargados.'
+    if tipo == 'puestos':
+        for f in filas:
+            d = dict(f['datos'])
+            d['centro_costo'] = CentroCosto.objects.filter(codigo=d['centro_costo']).first() if d['centro_costo'] \
+                else None
+            for campo in ('costo_hora_mo', 'costo_hora_cif', 'horas_turno', 'eficiencia'):
+                d[campo] = Decimal(d[campo])
+            CentroTrabajo.objects.update_or_create(codigo=f['codigo'], defaults=d)
+        return f'{len(filas)} puestos de trabajo cargados.'
+    if tipo == 'recetas':
+        listas = {}
+        for f in filas:
+            d = f['datos']
+            clave = (d['producto'], d['receta'])
+            if clave not in listas:
+                listas[clave] = ListaMateriales.objects.create(producto_id=d['producto'], codigo=d['receta'],
+                                                               cantidad_base=Decimal(d['base']), estado='APROBADA')
+            listas[clave].componentes.create(producto_id=d['insumo'], cantidad=Decimal(d['cantidad']),
+                                             merma=Decimal(d['merma']), operacion=d['operacion'])
+        return f'{len(listas)} recetas cargadas ({len(filas)} insumos).'
+    if tipo == 'hojas_ruta':
+        hojas = {}
+        for f in filas:
+            d = f['datos']
+            if d['hoja'] not in hojas:
+                hojas[d['hoja']] = HojaRuta.objects.create(codigo=d['hoja'], nombre=d['nombre'], estado='APROBADA')
+            hojas[d['hoja']].operaciones.create(
+                secuencia=d['secuencia'], centro_id=d['puesto'], descripcion=d['descripcion'],
+                horas_preparacion=Decimal(d['preparacion']), horas_unidad=Decimal(d['por_unidad']),
+                horas_espera=Decimal(d['espera']))
+        return f'{len(hojas)} hojas de ruta cargadas ({len(filas)} operaciones).'
+    for f in filas:  # versiones
+        d = f['datos']
+        VersionFabricacion.objects.create(
+            producto_id=d['producto'], codigo=d['version'], lista_id=d['lista'], hoja_id=d['hoja'],
+            lote_min=Decimal(d['lote_min']), lote_max=Decimal(d['lote_max']) if d['lote_max'] else None,
+            lote_costeo=Decimal(d['lote_costeo']) if d['lote_costeo'] else None,
+            vigente_desde=date.fromisoformat(d['desde']), dias_fabricacion=d['dias'])
+    return f'{len(filas)} versiones de fabricación cargadas.'
 
 
 def plantilla(tipo):
