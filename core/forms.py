@@ -176,7 +176,7 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
     PESTANAS = [
         ('general', 'General', 'bi-info-circle',
          ['clase', 'codigo', 'nombre', 'unidad', 'marca', 'codigo_barras', 'peso', 'control', 'descripcion',
-          'activo']),
+          'imagen_archivo', 'quitar_imagen', 'activo']),
         ('compras', 'Compras', 'bi-bag', ['puede_comprarse', 'precio_compra', 'proveedor', 'unidad_compra',
                                           'factor_compra']),
         ('ventas', 'Ventas', 'bi-receipt', ['puede_venderse', 'precio_venta', 'afectacion_igv']),
@@ -186,10 +186,37 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
          ['stock_minimo', 'punto_reorden', 'stock_maximo', 'lote_compra', 'tiempo_entrega', 'almacen_defecto']),
     ]
 
+    imagen_archivo = forms.FileField(label='Imagen', required=False,
+                                     help_text='PNG, JPG, GIF o WEBP de hasta 2 MB (catálogo, API, tienda online)')
+    quitar_imagen = forms.BooleanField(label='Quitar la imagen actual', required=False)
+
     class Meta:
         model = Producto
         exclude = ['stock', 'costo_promedio']
         widgets = {'descripcion': forms.Textarea(attrs={'rows': 2})}
+
+    def clean_imagen_archivo(self):
+        archivo = self.cleaned_data.get('imagen_archivo')
+        if archivo:
+            from .variantes import MAX_IMAGEN, tipo_imagen
+            if archivo.size > MAX_IMAGEN:
+                raise forms.ValidationError('La imagen supera 2 MB.')
+            inicio = archivo.read(16)
+            archivo.seek(0)
+            if tipo_imagen(inicio) is None:
+                raise forms.ValidationError('La imagen debe ser PNG, JPG, GIF o WEBP.')
+        return archivo
+
+    def save(self, commit=True):
+        producto = super().save(commit)
+        if commit:
+            from .variantes import guardar_imagen
+            if self.cleaned_data.get('imagen_archivo'):
+                guardar_imagen(producto, self.cleaned_data['imagen_archivo'])
+            elif self.cleaned_data.get('quitar_imagen') and producto.imagen_id:
+                producto.imagen = None
+                producto.save(update_fields=['imagen'])
+        return producto
 
     def clean_peso(self):
         peso = self.cleaned_data.get('peso') or Decimal('0')
@@ -217,6 +244,8 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
             self.fields['clase'].disabled = True
             self.fields['clase'].help_text = 'No se cambia después de creado (define el código y las cuentas)'
             self.fields['codigo'].required = True
+        if not self.instance.imagen_id:
+            del self.fields['quitar_imagen']
 
     def pestanas(self):
         return [(clave, titulo, icono, [self[c] for c in campos if c in self.fields])
@@ -285,7 +314,7 @@ class AjusteInventarioForm(BootstrapMixin, forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['producto'].queryset = Producto.objects.filter(activo=True, tipo='BIEN')
+        self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, tipo='BIEN')
         self.initial.setdefault('almacen', Almacen.principal().pk)
 
     def clean_sustento(self):
@@ -330,7 +359,7 @@ class ItemForm(BootstrapMixin, forms.ModelForm):
         self.fields['afectacion'].widget.attrs['class'] = 'form-select form-select-sm js-afectacion'
         self.fields['afectacion'].choices = [('', 'Según doc.'), ('GRAVADA', 'Gravada'),
                                              ('EXONERADA', 'Exonerada'), ('INAFECTA', 'Inafecta')]
-        self.fields['producto'].queryset = Producto.objects.filter(activo=True)
+        self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False)
         self.fields['producto'].widget.attrs['class'] = 'form-select form-select-sm js-producto'
         self.fields['cantidad'].widget.attrs['class'] = 'form-control form-control-sm text-end js-cantidad'
         self.fields['precio_unitario'].widget.attrs['class'] = 'form-control form-control-sm text-end js-precio'

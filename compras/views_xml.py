@@ -34,7 +34,7 @@ class RevisarXMLForm(BootstrapMixin, forms.Form):
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
         self.fields['cuenta_contable'].queryset = CuentaContable.objects.filter(
             imputable=True, activo=True, codigo__regex=r'^(6|3)')
-        productos = Producto.objects.filter(activo=True)
+        productos = Producto.objects.filter(activo=True, es_plantilla=False)
         for i, l in enumerate(lineas):
             self.fields[f'producto_{i}'] = forms.ModelChoiceField(
                 productos, required=False, label=l['descripcion'], initial=l['producto'],

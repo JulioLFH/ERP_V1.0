@@ -1,0 +1,30 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Variantes de {{ p.nombre }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-grid-3x3"></i> Variantes de {{ p.nombre }} <small class="text-muted fs-6">{{ p.codigo }}</small></h1>
+  <a href="{% url 'producto_editar' p.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Producto</a>
+</div>
+{% if motivo %}<div class="alert alert-warning">{{ motivo }}</div>{% else %}
+<div class="card mb-3" style="max-width:720px"><div class="card-body">
+  <form method="post">{% csrf_token %}
+    <label class="form-label" for="atributos">Atributos y valores (uno por línea)</label>
+    <textarea id="atributos" name="atributos" rows="4" class="form-control font-monospace">{{ sugerido }}</textarea>
+    <div class="form-text">Se crea un producto por cada combinación que falte (ej. 3 tallas × 2 colores = 6), con el código <code>{{ p.codigo }}-M-NEGR</code>, el precio, las cuentas y la planificación de este producto. Para agregar un valor nuevo, súmelo a la línea y vuelva a generar.</div>
+    <button class="btn btn-primary mt-3"><i class="bi bi-magic"></i> Generar variantes</button>
+  </form>
+</div></div>
+{% endif %}
+{% if variantes %}
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+  <thead><tr><th>Código</th>{% for a in atributos %}<th>{{ a }}</th>{% endfor %}<th class="num">Precio venta</th><th class="num">Stock</th><th>Estado</th><th></th></tr></thead>
+  <tbody>{% for v in variantes %}<tr class="{% if not v.activo %}text-muted{% endif %}">
+    <td>{{ v.codigo }}</td>{% for a in atributos %}<td>{% for k, val in v.atributos.items %}{% if k == a %}{{ val }}{% endif %}{% endfor %}</td>{% endfor %}
+    <td class="num">{{ v.precio_venta|money }}</td><td class="num">{{ v.stock|money }}</td>
+    <td>{% if v.activo %}Activa{% else %}Inactiva{% endif %}</td>
+    <td class="text-end"><a href="{% url 'producto_editar' v.pk %}" class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-pencil"></i></a></td>
+  </tr>{% endfor %}</tbody>
+  <tfoot><tr class="fw-semibold"><td colspan="{{ atributos|length|add:2 }}">Stock total</td><td class="num">{{ p.stock_variantes|money }}</td><td colspan="2"></td></tr></tfoot>
+</table></div></div>
+{% endif %}
+{% endblock %}

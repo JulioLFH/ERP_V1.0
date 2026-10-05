@@ -25,8 +25,8 @@ class ErrorImportacion(Exception):
 def _producto_sugerido(linea, proveedor):
     codigo, desc = linea['codigo'].strip(), linea['descripcion'].strip()
     if codigo:
-        p = Producto.objects.filter(activo=True).filter(codigo__iexact=codigo).first() or \
-            Producto.objects.filter(activo=True, codigo_barras=codigo).first()
+        p = Producto.objects.filter(activo=True, es_plantilla=False).filter(codigo__iexact=codigo).first() or \
+            Producto.objects.filter(activo=True, es_plantilla=False, codigo_barras=codigo).first()
         if p:
             return p, 'código'
     if desc and proveedor:
@@ -36,7 +36,7 @@ def _producto_sugerido(linea, proveedor):
         if anterior:
             return anterior.producto, 'compra anterior'
     if desc:
-        p = Producto.objects.filter(activo=True, nombre__iexact=desc).first()
+        p = Producto.objects.filter(activo=True, es_plantilla=False, nombre__iexact=desc).first()
         if p:
             return p, 'nombre'
     return None, ''

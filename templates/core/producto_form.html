@@ -3,9 +3,14 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="page-title">{{ titulo }}{% if object.pk %} <small class="text-muted fs-6">{{ object.codigo }}</small>{% endif %}</h1>
-  <a href="{% url 'productos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+  <div class="d-flex gap-2">
+    {% if object.pk and not object.plantilla_id %}<a href="{% url 'producto_variantes' object.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-grid-3x3"></i> Variantes{% if object.es_plantilla %} ({{ variantes|length }}){% endif %}</a>{% endif %}
+    <a href="{% url 'productos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+  </div>
 </div>
-<form method="post" novalidate>
+{% if object.plantilla_id %}<div class="alert alert-info py-2 small" style="max-width:1000px"><i class="bi bi-diagram-2"></i> Variante de <a href="{% url 'producto_editar' object.plantilla_id %}">{{ object.plantilla }}</a>: {% for k, v in object.atributos.items %}<b>{{ k }}</b> {{ v }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+{% if object.es_plantilla %}<div class="alert alert-secondary py-2 small" style="max-width:1000px"><i class="bi bi-grid-3x3"></i> Plantilla de {{ variantes|length }} variantes: no se usa en documentos; se compra, vende y almacena cada variante. Los cambios aquí no se copian a las variantes ya creadas.</div>{% endif %}
+<form method="post" enctype="multipart/form-data" novalidate>
   {% csrf_token %}
   {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
   {% if form.errors %}<div class="alert alert-danger py-2">Revise los campos marcados (pueden estar en otra pestaña).</div>{% endif %}
@@ -30,6 +35,7 @@
           <div class="{% if field.name == 'nombre' or field.name == 'descripcion' %}col-12{% else %}col-md-6{% endif %}" id="campo-{{ field.name }}">{% include 'core/_campo.html' %}</div>
           {% endfor %}
         </div>
+        {% if clave == 'general' and object.imagen_id %}<div class="mt-3"><img src="{% url 'producto_imagen' object.pk %}" alt="{{ object.nombre }}" class="img-thumbnail" style="max-height:160px"></div>{% endif %}
         {% if clave == 'general' and object.pk and object.es_inventariable %}
         <div class="row g-3 mt-1 small text-muted"><div class="col-md-4">Stock actual: <b>{{ object.stock }}</b></div>{% if ver_costos %}<div class="col-md-4">Costo promedio: <b>{{ object.costo_promedio }}</b></div>{% endif %}<div class="col-md-4"><a href="{% url 'kardex' object.pk %}">Ver kardex</a></div></div>
         {% endif %}

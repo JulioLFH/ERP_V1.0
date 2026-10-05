@@ -231,6 +231,14 @@ class Producto(models.Model):
                                                             '(inafectos). Vacío = según el comprobante')
     descripcion = models.TextField('Descripción', blank=True)
     activo = models.BooleanField(default=True)
+    imagen = models.ForeignKey('ArchivoSustento', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                               editable=False)
+    # ---- variantes (talla, color...): cada variante es un producto con su propio stock y kardex
+    es_plantilla = models.BooleanField('Plantilla de variantes', default=False, editable=False,
+                                       help_text='Agrupa variantes; no se usa en documentos ni tiene stock')
+    plantilla = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True, related_name='variantes',
+                                  editable=False, verbose_name='Variante de')
+    atributos = models.JSONField('Atributos', default=dict, blank=True, editable=False)
     # ---- compras
     puede_comprarse = models.BooleanField('Se puede comprar', default=True)
     precio_compra = models.DecimalField('Precio de compra (sin IGV)', max_digits=12, decimal_places=4, default=D0,
@@ -278,6 +286,10 @@ class Producto(models.Model):
 
     def __str__(self):
         return f'{self.codigo} - {self.nombre}'
+
+    @property
+    def stock_variantes(self):
+        return self.variantes.aggregate(t=models.Sum('stock'))['t'] or D0
 
     def save(self, *args, **kwargs):
         self.tipo = tipo_de_clase(self.clase)
@@ -330,7 +342,7 @@ class Producto(models.Model):
     @property
     def requiere_reposicion(self):
         limite = self.punto_reorden or self.stock_minimo
-        return self.es_inventariable and limite > 0 and self.stock <= limite
+        return self.es_inventariable and not self.es_plantilla and limite > 0 and self.stock <= limite
 
     @property
     def valorizado(self):

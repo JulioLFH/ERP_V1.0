@@ -176,7 +176,8 @@ def sugerencias_compra():
     import math
     camino = en_camino()
     filas = []
-    for p in Producto.objects.filter(activo=True, tipo='BIEN', puede_comprarse=True).select_related('proveedor'):
+    for p in Producto.objects.filter(activo=True, tipo='BIEN', puede_comprarse=True, es_plantilla=False) \
+            .select_related('proveedor'):
         limite = p.punto_reorden or p.stock_minimo
         if not limite:
             continue

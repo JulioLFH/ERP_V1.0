@@ -9,7 +9,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.messages.views import SuccessMessageMixin
 from django.core.paginator import Paginator
 from django.db.models import F, Q, Sum
-from django.http import JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -83,7 +83,8 @@ def dashboard(request):
         'cuentas': cuentas,
         'vencidos_cobrar': sorted([v for v in por_cobrar if v.dias_vencido > 0], key=lambda d: -d.dias_vencido)[:6],
         'vencidos_pagar': sorted([c for c in por_pagar if c.dias_vencido >= -7], key=lambda d: d.fecha_vencimiento)[:6],
-        'stock_bajo': Producto.objects.filter(activo=True, tipo='BIEN', stock__lte=F('stock_minimo'))[:6],
+        'stock_bajo': Producto.objects.filter(activo=True, tipo='BIEN', es_plantilla=False,
+                                              stock__lte=F('stock_minimo'))[:6],
         'top_clientes': top_clientes,
         'chart': {'meses': meses, 'ventas': serie_v, 'compras': serie_c},
     }
@@ -450,6 +451,52 @@ class ProductoEditar(FormGenerico, UpdateView):
     model, form_class, titulo = Producto, ProductoForm, 'Editar producto / servicio'
     template_name = 'core/producto_form.html'
     success_url = reverse_lazy('productos')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['variantes'] = self.object.variantes.order_by('codigo') if self.object.es_plantilla else []
+        return ctx
+
+
+@login_required
+def producto_imagen(request, pk):
+    p = get_object_or_404(Producto.objects.select_related('imagen'), pk=pk)
+    if p.imagen is None:
+        raise Http404
+    resp = HttpResponse(bytes(p.imagen.datos), content_type=p.imagen.tipo or 'application/octet-stream')
+    resp['Cache-Control'] = 'private, max-age=3600'
+    resp['X-Content-Type-Options'] = 'nosniff'
+    return resp
+
+
+@login_required
+def producto_variantes(request, pk):
+    """Genera las variantes (combinaciones de atributos) de un producto plantilla."""
+    from . import variantes
+    p = get_object_or_404(Producto, pk=pk)
+    motivo = variantes.puede_ser_plantilla(p)
+    if request.method == 'POST' and not motivo:
+        try:
+            nuevas = variantes.generar(p, variantes.leer_atributos(request.POST.get('atributos')))
+        except variantes.ErrorVariantes as exc:
+            messages.error(request, str(exc))
+        else:
+            if nuevas:
+                messages.success(request, f'{len(nuevas)} variantes creadas. Revise el precio y el código de barras '
+                                          f'de cada una.')
+            else:
+                messages.info(request, 'Todas las combinaciones ya existían.')
+            return redirect('producto_variantes', pk)
+    nombres = {}
+    for v in p.variantes.all():
+        for k, val in v.atributos.items():
+            nombres.setdefault(k, [])
+            if val not in nombres[k]:
+                nombres[k].append(val)
+    sugerido = '\n'.join(f'{k}: {", ".join(vals)}' for k, vals in nombres.items()) or 'Talla: S, M, L\nColor: Negro, Blanco'
+    return render(request, 'core/producto_variantes.html', {
+        'p': p, 'motivo': motivo, 'variantes': p.variantes.order_by('codigo'), 'sugerido': sugerido,
+        'atributos': list(nombres)})
 
 
 @login_required

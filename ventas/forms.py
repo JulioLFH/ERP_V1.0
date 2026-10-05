@@ -159,7 +159,7 @@ class PrecioListaForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from core.models import Producto
-        self.fields['producto'].queryset = Producto.objects.filter(activo=True, puede_venderse=True)
+        self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, puede_venderse=True)
 
     def clean(self):
         data = super().clean()

@@ -126,7 +126,7 @@ class OperacionItemForm(forms.ModelForm):
         self.fields['lote'].widget.attrs.update({'class': 'form-control form-control-sm js-lote',
                                                  'placeholder': 'Lote / series'})
         self.fields['vencimiento'].widget.attrs['class'] = 'form-control form-control-sm js-vence'
-        self.fields['producto'].queryset = Producto.objects.filter(activo=True, tipo='BIEN')
+        self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, tipo='BIEN')
         self.fields['producto'].widget.attrs['class'] = 'form-select form-select-sm js-producto'
         self.fields['cantidad'].widget.attrs['class'] = 'form-control form-control-sm text-end js-cantidad'
         self.fields['costo_unitario'].widget.attrs['class'] = 'form-control form-control-sm text-end js-precio'

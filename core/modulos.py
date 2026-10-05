@@ -229,6 +229,8 @@ RUTAS_CORE = {
     'productos': ['inventario', 'ventas', 'compras', 'manufactura'],
     'producto_nuevo': ['inventario', 'ventas', 'compras', 'manufactura'],
     'producto_editar': ['inventario', 'ventas', 'compras', 'manufactura'], 'kardex': ['inventario'],
+    'producto_imagen': ['inventario', 'ventas', 'compras', 'manufactura'],
+    'producto_variantes': ['inventario', 'ventas', 'compras', 'manufactura'],
     'inv_stock': ['inventario'], 'inv_kardex': ['inventario'], 'inv_libro_sunat': ['inventario', 'contabilidad'],
     'inv_lotes': ['inventario', 'ventas', 'compras'], 'inv_lote': ['inventario', 'ventas', 'compras'], 'inv_ajuste': ['inventario'],
     'inv_valorizacion': ['inventario', 'costos'], 'inv_reposicion': ['inventario', 'compras'], 'almacenes': ['inventario'], 'almacen_nuevo': ['inventario'],

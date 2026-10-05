@@ -10,6 +10,7 @@ urlpatterns = [
     path('openapi.json', api.openapi, name='openapi'),
     path('productos/', api.productos, name='productos'),
     path('productos/<int:pk>/', api.producto, name='producto'),
+    path('productos/<int:pk>/imagen/', api.producto_imagen, name='producto_imagen'),
     path('stock/', api.stock, name='stock'),
     path('terceros/', api.terceros, name='terceros'),
     path('ventas/', api.ventas, name='ventas'),

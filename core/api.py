@@ -108,7 +108,9 @@ def _errores(*formularios):
 def s_producto(p):
     return {'id': p.pk, 'codigo': p.codigo, 'nombre': p.nombre, 'clase': p.clase, 'unidad': p.unidad,
             'marca': p.marca, 'codigo_barras': p.codigo_barras, 'precio_venta': p.precio_venta,
-            'afectacion_igv': p.afectacion_igv, 'stock': p.stock, 'activo': p.activo}
+            'afectacion_igv': p.afectacion_igv, 'stock': p.stock, 'activo': p.activo,
+            'es_plantilla': p.es_plantilla, 'plantilla_id': p.plantilla_id, 'atributos': p.atributos,
+            'imagen': f'/api/v1/productos/{p.pk}/imagen/' if p.imagen_id else None}
 
 
 def s_tercero(t):
@@ -143,7 +145,8 @@ def s_comprobante(d, detalle=False):
 ENDPOINTS = [
     ('GET', '/api/v1/', 'Índice y usuario de la clave'),
     ('GET', '/api/v1/productos/', 'Productos (q, clase, activo, page, page_size)'),
-    ('GET', '/api/v1/productos/{id}/', 'Producto con su stock por almacén'),
+    ('GET', '/api/v1/productos/{id}/', 'Producto con su stock por almacén y sus variantes'),
+    ('GET', '/api/v1/productos/{id}/imagen/', 'Imagen del producto (PNG, JPG, GIF o WEBP)'),
     ('GET', '/api/v1/stock/', 'Stock por producto y almacén (producto, almacen)'),
     ('GET', '/api/v1/terceros/', 'Clientes y proveedores (q, tipo)'),
     ('POST', '/api/v1/terceros/', 'Crear cliente o proveedor'),
@@ -186,7 +189,20 @@ def producto(request, pk):
     datos = s_producto(p)
     datos['stock_por_almacen'] = [{'almacen_id': s.almacen_id, 'almacen': s.almacen.codigo, 'stock': s.cantidad}
                                   for s in StockAlmacen.objects.filter(producto=p).select_related('almacen')]
+    if p.es_plantilla:
+        datos['variantes'] = [s_producto(v) for v in p.variantes.order_by('codigo')]
     return respuesta(datos)
+
+
+@api('inventario')
+def producto_imagen(request, pk):
+    from django.http import HttpResponse
+    p = Producto.objects.select_related('imagen').filter(pk=pk).first()
+    if p is None or p.imagen is None:
+        return error('El producto no tiene imagen.', 404)
+    resp = HttpResponse(bytes(p.imagen.datos), content_type=p.imagen.tipo or 'application/octet-stream')
+    resp['X-Content-Type-Options'] = 'nosniff'
+    return resp
 
 
 @api('inventario')

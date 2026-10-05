@@ -141,7 +141,7 @@ class GuiaItemForm(BootstrapMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['producto'].queryset = Producto.objects.filter(activo=True)
+        self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False)
         self.fields['producto'].widget.attrs['class'] = 'form-select form-select-sm js-producto'
         self.fields['descripcion'].widget.attrs['class'] = 'form-control form-control-sm js-descripcion'
         self.fields['unidad'].widget.attrs['class'] = 'form-select form-select-sm js-unidad'

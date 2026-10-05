@@ -44,7 +44,7 @@ class ListaMaterialesForm(BootstrapMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['producto'].queryset = Producto.objects.filter(activo=True, clase__in=FABRICABLES)
+        self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, clase__in=FABRICABLES)
         self.fields['producto'].help_text = 'Solo productos terminados o semielaborados'
 
     def clean_cantidad_base(self):
@@ -79,7 +79,7 @@ class ComponenteForm(_FilaForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['producto'].queryset = Producto.objects.filter(activo=True, tipo='BIEN')
+        self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, tipo='BIEN')
         self.fields['almacen'].queryset = Almacen.objects.filter(activo=True, uso='')
 
     def clean_cantidad(self):
@@ -145,7 +145,7 @@ class VersionForm(BootstrapMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['producto'].queryset = Producto.objects.filter(activo=True, clase__in=FABRICABLES)
+        self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, clase__in=FABRICABLES)
         self.fields['lista'].queryset = ListaMateriales.objects.exclude(estado='OBSOLETA').select_related('producto')
         self.fields['hoja'].queryset = HojaRuta.objects.exclude(estado='OBSOLETA')
 
@@ -224,4 +224,4 @@ class PlanDemandaForm(BootstrapMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['producto'].queryset = Producto.objects.filter(activo=True, tipo='BIEN')
+        self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, tipo='BIEN')
