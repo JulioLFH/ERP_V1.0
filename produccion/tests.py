@@ -17,7 +17,7 @@ from ventas.models import Venta
 
 from . import servicios
 from .costos import rentabilidad
-from .models import CentroTrabajo, ListaMateriales, OrdenProduccion
+from .models import CentroTrabajo, HojaRuta, ListaMateriales, OrdenProduccion, VersionFabricacion
 
 D = Decimal
 HOY = date.today()
@@ -41,10 +41,13 @@ class ManufacturaTest(TestCase):
         self.kit = Producto.objects.create(nombre='Kit armado', clase='PRODUCTO_TERMINADO', precio_venta=D('500'))
         self.centro = CentroTrabajo.objects.create(codigo='ENS', nombre='Ensamble', costo_hora_mo=D('10'),
                                                    costo_hora_cif=D('5'))
-        # rinde 2 kits: 2 insumos con 10 % de merma y 1 hora de ensamble
+        # rinde 2 kits: 2 insumos con 10 % de merma; ensamble de media hora por kit (1 hora por lote de 2)
         self.receta = ListaMateriales.objects.create(producto=self.kit, codigo='V1', cantidad_base=D('2'))
         self.receta.componentes.create(producto=self.insumo, cantidad=D('2'), merma=D('10'))
-        self.receta.operaciones.create(centro=self.centro, descripcion='Armado', horas=D('1'))
+        self.ruta = HojaRuta.objects.create(codigo='R-KIT', nombre='Ruta kit', estado='APROBADA')
+        self.ruta.operaciones.create(secuencia=10, centro=self.centro, descripcion='Armado', horas_unidad=D('0.5'))
+        self.version = VersionFabricacion.objects.create(producto=self.kit, codigo='V1', lista=self.receta,
+                                                         hoja=self.ruta)
 
     def orden(self, cantidad='4'):
         o = OrdenProduccion.objects.create(producto=self.kit, lista=self.receta, cantidad=D(cantidad), fecha=HOY,
@@ -178,27 +181,48 @@ class ManufacturaTest(TestCase):
             self.assertEqual(self.client.get(url).status_code, 200, url)
         self.assertEqual(self.client.get(reverse('costos:rentabilidad') + '?formato=excel').status_code, 200)
 
-    def test_crear_receta_y_orden_desde_formularios(self):
+    def test_crear_receta_ruta_version_y_orden_desde_formularios(self):
         r = self.client.post(reverse('manufactura:lista_nueva'), {
-            'producto': self.kit.pk, 'codigo': 'V9', 'cantidad_base': '1', 'activa': 'on', 'observaciones': '',
+            'producto': self.kit.pk, 'codigo': 'V9', 'cantidad_base': '1', 'estado': 'APROBADA',
+            'vigente_desde': HOY.isoformat(), 'vigente_hasta': '', 'lote_min': '', 'lote_max': '', 'observaciones': '',
             'comp-TOTAL_FORMS': '1', 'comp-INITIAL_FORMS': '0', 'comp-MIN_NUM_FORMS': '1', 'comp-MAX_NUM_FORMS': '1000',
-            'comp-0-producto': self.insumo.pk, 'comp-0-cantidad': '1', 'comp-0-merma': '0',
-            'oper-TOTAL_FORMS': '1', 'oper-INITIAL_FORMS': '0', 'oper-MIN_NUM_FORMS': '0', 'oper-MAX_NUM_FORMS': '1000',
-            'oper-0-centro': self.centro.pk, 'oper-0-descripcion': 'Armado', 'oper-0-horas': '0.5'})
+            'comp-0-producto': self.insumo.pk, 'comp-0-cantidad': '1', 'comp-0-merma': '0', 'comp-0-operacion': '10',
+            'comp-0-almacen': ''})
         nueva = ListaMateriales.objects.get(codigo='V9')
         self.assertRedirects(r, reverse('manufactura:lista', args=[nueva.pk]))
-        self.receta.refresh_from_db()
-        self.assertFalse(self.receta.activa)  # una sola receta vigente por producto
+        r = self.client.post(reverse('manufactura:hoja_nueva'), {
+            'codigo': 'R-GRANDE', 'nombre': 'Ruta lotes grandes', 'estado': 'APROBADA', 'observaciones': '',
+            'oper-TOTAL_FORMS': '2', 'oper-INITIAL_FORMS': '0', 'oper-MIN_NUM_FORMS': '1', 'oper-MAX_NUM_FORMS': '1000',
+            'oper-0-secuencia': '10', 'oper-0-centro': self.centro.pk, 'oper-0-descripcion': 'Preparar',
+            'oper-0-horas_preparacion': '1', 'oper-0-horas_unidad': '0', 'oper-0-horas_espera': '0',
+            'oper-1-secuencia': '20', 'oper-1-centro': self.centro.pk, 'oper-1-descripcion': 'Armar',
+            'oper-1-horas_preparacion': '0', 'oper-1-horas_unidad': '0.25', 'oper-1-horas_espera': '2'})
+        self.assertRedirects(r, reverse('manufactura:hojas'))
+        ruta = HojaRuta.objects.get(codigo='R-GRANDE')
+        r = self.client.post(reverse('manufactura:version_nueva'), {
+            'producto': self.kit.pk, 'codigo': 'G', 'descripcion': 'Lotes de 10 a más', 'lista': nueva.pk,
+            'hoja': ruta.pk, 'lote_min': '10', 'lote_max': '', 'lote_costeo': '20', 'vigente_desde': HOY.isoformat(),
+            'vigente_hasta': '', 'dias_fabricacion': '2', 'activa': 'on'})
+        self.assertRedirects(r, reverse('manufactura:versiones'))
+        # la orden elige sola la versión según la cantidad: 12 unidades -> versión G (lote desde 10)
         r = self.client.post(reverse('manufactura:orden_nueva'), {
-            'producto': self.kit.pk, 'lista': nueva.pk, 'cantidad': '3', 'fecha': HOY.isoformat(),
+            'producto': self.kit.pk, 'version': '', 'cantidad': '12', 'fecha': HOY.isoformat(),
             'almacen_insumos': self.almacen.pk, 'almacen_destino': self.almacen.pk, 'glosa': ''})
         o = OrdenProduccion.objects.get(lista=nueva)
         self.assertRedirects(r, reverse('manufactura:orden', args=[o.pk]))
-        self.assertEqual(o.horas.get().horas_plan, D('1.5'))
+        self.assertEqual(o.version.codigo, 'G')
+        horas = list(o.horas.order_by('secuencia').values_list('horas_plan', flat=True))
+        self.assertEqual(horas, [D('1'), D('3')])  # preparación 1 h; ejecución 0.25 × 12
+        # 4 unidades -> versión V1
+        self.client.post(reverse('manufactura:orden_nueva'), {
+            'producto': self.kit.pk, 'version': '', 'cantidad': '4', 'fecha': HOY.isoformat(),
+            'almacen_insumos': self.almacen.pk, 'almacen_destino': self.almacen.pk, 'glosa': ''})
+        self.assertEqual(OrdenProduccion.objects.filter(cantidad=D('4')).last().version, self.version)
+        o = OrdenProduccion.objects.get(lista=nueva)
         self.client.post(reverse('manufactura:orden_confirmar', args=[o.pk]))
-        c, h = o.consumos.get(), o.horas.get()
+        c = o.consumos.get()
         self.client.post(reverse('manufactura:orden_terminar', args=[o.pk]),
-                         {f'consumo_{c.pk}': '3', f'hora_{h.pk}': '1.5', 'cantidad_producida': '3'})
+                         {f'consumo_{c.pk}': '12', 'cantidad_producida': '12'})
         o.refresh_from_db()
         self.assertEqual(o.estado, 'TERMINADA')
 

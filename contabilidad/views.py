@@ -420,17 +420,29 @@ def resultados_por_linea(request):
     desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')
     lineas = list(CentroBeneficio.objects.filter(activo=True))
     columnas = [(cb.pk, cb.nombre) for cb in lineas] + [(None, 'Sin línea')]
-    RUBROS = [('ventas', 'Ventas netas', r'^70'), ('costo', 'Costo de ventas', r'^69'),
-              ('gastos', 'Gastos de operación', r'^6[2-8]'), ('otros', 'Otros ingresos y gastos', r'^(7[3-9]|6[0-1])')]
+    planta = Q(centro_costo__tipo__in=['PRODUCCION', 'SERVICIO'])
+    RUBROS = [('ventas', r'^70', Q()), ('costo', r'^69', Q()),
+              ('gastos', r'^6[2-8]', ~planta),  # administración y ventas (la planta va al costo del producto)
+              ('planta', r'^6[2-8]', planta), ('otros', r'^7[3-8]', Q())]
     datos = {clave: {pk: D0 for pk, _ in columnas} for clave, _, _ in RUBROS}
     base = reportes.lineas_rango(desde, hasta).filter(es_destino=False)
-    for clave, _, regex in RUBROS:
-        for f in (base.filter(cuenta__codigo__regex=regex).values('centro_beneficio')
+    for clave, regex, filtro in RUBROS:
+        for f in (base.filter(filtro, cuenta__codigo__regex=regex).values('centro_beneficio')
                   .annotate(d=Sum('debe'), h=Sum('haber'))):
             pk = f['centro_beneficio'] if f['centro_beneficio'] in datos[clave] else None
             datos[clave][pk] += (f['h'] or D0) - (f['d'] or D0)  # ingresos positivos, costos negativos
+    # gasto de planta: solo lo que no absorbieron las órdenes de producción (lo absorbido ya está en el costo)
+    from produccion.models import HoraOrden
+    from contabilidad.centralizar import _rango
+    rango = [_rango(desde)[0], _rango(hasta)[1]]
+    for h in HoraOrden.objects.filter(orden__estado='TERMINADA', orden__fecha_fin__range=rango).select_related(
+            'orden__producto'):
+        pk = h.orden.producto.centro_beneficio_id
+        pk = pk if pk in datos['planta'] else None
+        datos['planta'][pk] += h.costo_mo + h.costo_cif
     margen = {pk: datos['ventas'][pk] + datos['costo'][pk] for pk, _ in columnas}
-    resultado = {pk: margen[pk] + datos['gastos'][pk] + datos['otros'][pk] for pk, _ in columnas}
+    resultado = {pk: margen[pk] + datos['gastos'][pk] + datos['planta'][pk] + datos['otros'][pk]
+                 for pk, _ in columnas}
     # cuentas por cobrar e inventario por línea al cierre
     from contabilidad.centralizar import _fin_mes
     corte = _fin_mes(hasta)
@@ -452,7 +464,8 @@ def resultados_por_linea(request):
         pk = fila['p'].centro_beneficio_id if fila['p'].centro_beneficio_id in inventario else None
         inventario[pk] += fila['valor']
     filas = [('Ventas netas', datos['ventas'], False), ('Costo de ventas', datos['costo'], False),
-             ('Margen bruto', margen, True), ('Gastos de operación', datos['gastos'], False),
+             ('Margen bruto', margen, True), ('Gastos de administración y ventas', datos['gastos'], False),
+             ('Gasto de planta no absorbido (subaplicación)', datos['planta'], False),
              ('Otros ingresos y gastos', datos['otros'], False), ('Resultado de la línea', resultado, True),
              ('Cuentas por cobrar al cierre', cxc, False), ('Inventario al cierre', inventario, False)]
     tabla = [{'rubro': r, 'valores': [v[pk] for pk, _ in columnas], 'total': sum(v.values(), D0), 'fuerte': fuerte}

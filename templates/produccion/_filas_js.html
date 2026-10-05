@@ -1,0 +1,13 @@
+<script>
+// agregar filas a los detalles (botones .js-agregar con data-body y data-template)
+document.querySelectorAll('.js-agregar').forEach(btn => btn.addEventListener('click', () => {
+  const body = document.getElementById(btn.dataset.body), prefix = body.dataset.prefix;
+  const total = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
+  let html = document.getElementById(btn.dataset.template).innerHTML.replace(/__prefix__/g, total.value);
+  body.insertAdjacentHTML('beforeend', html);
+  const filas = body.querySelectorAll('tr');
+  const sec = filas[filas.length - 1].querySelector('input[name$="-secuencia"]');
+  if (sec && !sec.value) sec.value = filas.length * 10;  // operaciones: 10, 20, 30…
+  total.value = parseInt(total.value, 10) + 1;
+}));
+</script>

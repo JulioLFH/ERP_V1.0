@@ -14,29 +14,23 @@
         <div class="{% if field.name == 'glosa' %}col-12{% elif field.name == 'cantidad' or field.name == 'fecha' %}col-6 col-md-3{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>
       {% endfor %}
     </div>
-    <p class="small text-muted mt-3 mb-0">Al guardar se calculan los insumos y las horas según la receta, en proporción a la cantidad a producir (incluye la merma). Los consumos reales se registran al terminar la orden.</p>
+    <p class="small text-muted mt-3 mb-0">El sistema elige la versión de fabricación vigente para la cantidad y la fecha (receta + hoja de ruta) y calcula los insumos (con merma) y las horas de cada operación. Los consumos reales se registran al terminar.</p>
     <div class="mt-4 d-flex gap-2">
       <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar borrador</button>
-      {% if not recetas %}<a href="{% url 'manufactura:lista_nueva' %}" class="btn btn-outline-primary"><i class="bi bi-diagram-3"></i> Crear la primera receta</a>{% endif %}
+      {% if not versiones %}<a href="{% url 'manufactura:versiones' %}" class="btn btn-outline-primary"><i class="bi bi-diagram-3"></i> Crear versiones de fabricación</a>{% endif %}
     </div>
   </form>
 </div></div>
-{{ recetas|json_script:"recetas-data" }}
+{{ versiones|json_script:"versiones-data" }}
 <script>
-// la lista de materiales sigue al producto elegido
+// la lista de versiones muestra solo las del producto elegido
 (function () {
-  const recetas = JSON.parse(document.getElementById('recetas-data').textContent);
-  const prod = document.getElementById('id_producto'), lista = document.getElementById('id_lista');
-  if (!prod || !lista) return;
+  const versiones = JSON.parse(document.getElementById('versiones-data').textContent);
+  const prod = document.getElementById('id_producto'), sel = document.getElementById('id_version');
+  if (!prod || !sel) return;
   function filtrar() {
-    let primera = null;
-    [...lista.options].forEach(o => {
-      if (!o.value) return;
-      const ok = !prod.value || String(recetas[o.value]) === prod.value;
-      o.hidden = !ok;
-      if (ok && primera === null) primera = o.value;
-    });
-    if (prod.value && (!lista.value || String(recetas[lista.value]) !== prod.value)) lista.value = primera || '';
+    [...sel.options].forEach(o => { if (o.value) o.hidden = !!prod.value && String(versiones[o.value]) !== prod.value; });
+    if (sel.value && String(versiones[sel.value]) !== prod.value) sel.value = '';
   }
   prod.addEventListener('change', filtrar);
   filtrar();

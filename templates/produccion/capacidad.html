@@ -1,0 +1,17 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Carga de puestos de trabajo{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Carga y capacidad de puestos de trabajo</h1>
+  <form method="get" class="d-flex gap-2"><input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm"><input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></form>
+</div>
+<div class="card"><div class="table-responsive"><table class="table mb-0">
+  <thead><tr><th>Puesto</th><th>Tipo</th><th class="num">Capacidad h (calendario)</th><th class="num">Carga h (órdenes abiertas)</th><th style="width:30%">Uso</th></tr></thead>
+  <tbody>{% for f in filas %}<tr>
+    <td>{{ f.centro }}</td><td class="small">{{ f.centro.get_tipo_display }} · {{ f.centro.turnos }} turno(s) de {{ f.centro.horas_turno|floatformat:1 }} h · {{ f.centro.eficiencia|floatformat:0 }}%</td>
+    <td class="num">{{ f.capacidad|money }}</td><td class="num">{{ f.carga|money }}</td>
+    <td>{% if f.uso is not None %}<div class="progress" style="height:14px"><div class="progress-bar {% if f.uso > 100 %}bg-danger{% elif f.uso > 85 %}bg-warning{% endif %}" style="width:{% if f.uso > 100 %}100{% else %}{{ f.uso|stringformat:'s' }}{% endif %}%"></div></div><span class="small">{{ f.uso }}%</span>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">Sin puestos de trabajo.</td></tr>{% endfor %}</tbody>
+</table></div>
+<div class="card-body py-2 small text-muted">Capacidad = horas por turno × turnos × eficiencia × días laborables del rango. Carga = horas planificadas de las órdenes en borrador, confirmadas o en proceso con fecha en el rango. Sobre 100 % el puesto no alcanza: reprograme o agregue turnos.</div></div>
+{% endblock %}

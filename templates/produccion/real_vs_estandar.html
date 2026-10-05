@@ -15,18 +15,19 @@
       <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></div>
     </form>
   </div>
-  <div class="table-responsive"><table class="table table-hover mb-0">
-    <thead><tr><th>Orden</th><th>Término</th><th>Producto</th><th class="num">Producido</th><th class="num">Rend. %</th><th class="num">Materiales</th><th class="num">MO</th><th class="num">CIF</th><th class="num">Costo real</th><th class="num">Estándar</th><th class="num">Variación</th><th class="num">%</th></tr></thead>
+  <div class="table-responsive"><table class="table table-hover table-sm mb-0">
+    <thead><tr><th>Orden</th><th>Término</th><th>Producto</th><th class="num">Producido</th><th class="num">Rend. %</th><th class="num">Costo real</th><th class="num">Estándar</th><th class="num">Variación</th>
+      {% for t, nombre in tipos %}<th class="num small" title="{{ nombre }}">{{ nombre|truncatewords:2 }}</th>{% endfor %}</tr></thead>
     <tbody>{% for f in filas %}<tr onclick="location.href='{% url 'manufactura:orden' f.o.pk %}'" style="cursor:pointer">
-      <td>{{ f.o.numero }}</td><td>{{ f.o.fecha_fin|date:'d/m/Y' }}</td><td>{{ f.o.producto.nombre }}</td>
+      <td>{{ f.o.numero }}{% if f.provisional %} <i class="bi bi-exclamation-circle text-warning" title="Estándar provisional (no había estándar liberado)"></i>{% endif %}</td><td>{{ f.o.fecha_fin|date:'d/m/Y' }}</td><td>{{ f.o.producto.nombre }}</td>
       <td class="num">{{ f.o.cantidad_producida|money }}</td><td class="num">{{ f.rendimiento|default_if_none:'' }}</td>
-      <td class="num">{{ f.o.costo_materiales|money }}</td><td class="num">{{ f.o.costo_mano_obra|money }}</td><td class="num">{{ f.o.costo_cif|money }}</td>
       <td class="num fw-semibold">{{ f.real|money }}</td><td class="num">{{ f.estandar|money }}</td>
       <td class="num {% if f.variacion > 0 %}text-danger{% elif f.variacion < 0 %}text-success{% endif %}">{{ f.variacion|money }}</td>
-      <td class="num">{% if f.pct is not None %}{{ f.pct }}%{% endif %}</td>
-    </tr>{% empty %}<tr><td colspan="12" class="text-center text-muted py-4">Sin órdenes terminadas en el rango.</td></tr>{% endfor %}</tbody>
-    {% if filas %}<tfoot><tr class="fw-semibold"><td colspan="8" class="text-end">Total</td><td class="num">{{ totales.real|money }}</td><td class="num">{{ totales.estandar|money }}</td><td class="num {% if totales.variacion > 0 %}text-danger{% elif totales.variacion < 0 %}text-success{% endif %}">{{ totales.variacion|money }}</td><td></td></tr></tfoot>{% endif %}
+      {% for m in f.por_tipo %}<td class="num small {% if m > 0 %}text-danger{% elif m < 0 %}text-success{% endif %}">{% if m %}{{ m|money }}{% endif %}</td>{% endfor %}
+    </tr>{% empty %}<tr><td colspan="14" class="text-center text-muted py-4">Sin órdenes terminadas en el rango.</td></tr>{% endfor %}</tbody>
+    {% if filas %}<tfoot><tr class="fw-semibold"><td colspan="5" class="text-end">Total</td><td class="num">{{ totales.real|money }}</td><td class="num">{{ totales.estandar|money }}</td><td class="num {% if totales.variacion > 0 %}text-danger{% elif totales.variacion < 0 %}text-success{% endif %}">{{ totales.variacion|money }}</td>
+      {% for m in totales.por_tipo %}<td class="num small">{{ m|money }}</td>{% endfor %}</tr></tfoot>{% endif %}
   </table></div>
-  <div class="card-body py-2 small text-muted">Estándar = costo estándar unitario al confirmar la orden × cantidad producida. Variación positiva (rojo) = desfavorable. Rendimiento = producido / planificado.</div>
+  <div class="card-body py-2 small text-muted">Estándar = estándar liberado del periodo (fijado al confirmar la orden) × cantidad producida. La variación se separa por tipo: precio y cantidad de materiales, eficiencia de mano de obra y de máquina/CIF, y tarifa. Positivo (rojo) = desfavorable.</div>
 </div>
 {% endblock %}

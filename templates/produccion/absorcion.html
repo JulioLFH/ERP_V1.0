@@ -1,0 +1,23 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Absorción de costos de planta{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Absorción de costos de planta</h1>
+  <form method="get"><input type="month" name="periodo" value="{{ periodo_input }}" class="form-control form-control-sm" onchange="this.form.submit()"></form>
+</div>
+<div class="card"><div class="table-responsive"><table class="table mb-0">
+  <thead><tr><th>Centro de costo</th><th class="num">Gasto real S/</th><th class="num">Mano de obra absorbida</th><th class="num">Máquina y CIF absorbidos</th><th class="num">Total absorbido</th><th class="num">Sub (+) / sobre (−) aplicación</th><th class="num">% absorbido</th></tr></thead>
+  <tbody>{% for f in filas %}<tr>
+    <td>{{ f.centro.codigo }} {{ f.centro.nombre }} <span class="small text-muted">{{ f.centro.get_tipo_display }}</span></td>
+    <td class="num">{{ f.real|money }}</td><td class="num">{{ f.mo|money }}</td><td class="num">{{ f.cif|money }}</td><td class="num">{{ f.absorbido|money }}</td>
+    <td class="num fw-semibold {% if f.diferencia > 0 %}text-danger{% elif f.diferencia < 0 %}text-success{% endif %}">{{ f.diferencia|money }}</td>
+    <td class="num">{% if f.pct is not None %}{{ f.pct }}%{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin gasto de planta ni absorción en el periodo. Asigne un centro de costo de tipo Producción a cada puesto de trabajo y a los gastos de planta.</td></tr>{% endfor %}</tbody>
+  {% if filas %}<tfoot><tr class="fw-bold"><td>Total</td><td class="num">{{ totales.real|money }}</td><td class="num">{{ totales.mo|money }}</td><td class="num">{{ totales.cif|money }}</td><td class="num">{{ totales.absorbido|money }}</td><td class="num">{{ totales.diferencia|money }}</td><td></td></tr></tfoot>{% endif %}
+</table></div>
+<div class="card-body py-2 small text-muted">
+  Gasto real: cuentas 62 a 68 del periodo con el centro de costo (y los que dependen de él), que van al costo de producción (90). Absorbido: horas reales de las órdenes terminadas por las tarifas de cada puesto.
+  <b>Subaplicación</b> (positivo): la planta costó más de lo que se cargó a los productos — revise tarifas o capacidad ociosa. <b>Sobreaplicación</b> (negativo): las tarifas son altas.
+  {% if sin_centro.0 or sin_centro.1 %}<br><span class="text-warning">S/ {{ sin_centro.0|money }} de mano de obra y S/ {{ sin_centro.1|money }} de CIF se absorbieron en puestos sin centro de costo.</span>{% endif %}
+</div></div>
+{% endblock %}

@@ -5,7 +5,7 @@
   <div>
     <h1 class="page-title"><i class="bi bi-gear-wide-connected"></i> Orden de producción {{ o.numero|default:'(borrador)' }}
       <span class="fs-6 align-middle">{% include 'produccion/_estado.html' with estado=o.estado texto=o.get_estado_display %}</span></h1>
-    <div class="text-muted small">{{ o.producto.codigo }} {{ o.producto.nombre }} · Receta <a href="{% url 'manufactura:lista' o.lista_id %}">{{ o.lista.codigo }}</a></div>
+    <div class="text-muted small">{{ o.producto.codigo }} {{ o.producto.nombre }}{% if o.version %} · Versión {{ o.version.codigo }}{% endif %} · Receta <a href="{% url 'manufactura:lista' o.lista_id %}">{{ o.lista.codigo }}</a>{% if o.version.hoja %} · Ruta {{ o.version.hoja.codigo }}{% endif %}</div>
   </div>
   <div class="d-flex flex-wrap gap-2">
     <a href="{% url 'manufactura:ordenes' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
@@ -96,8 +96,16 @@
           <td class="num {% if v.variacion > 0 %}text-danger{% elif v.variacion < 0 %}text-success{% endif %}">{{ v.variacion|money }}</td>
           <td class="num">{% if v.pct is not None %}{{ v.pct }}%{% endif %}</td></tr>{% endfor %}</tbody>
       </table></div>
-      <div class="card-body py-2 small text-muted">Costo real unitario <b>S/ {{ o.costo_unitario|floatformat:4 }}</b> · estándar al confirmar S/ {{ o.costo_estandar_unit|floatformat:4 }}. Variación positiva = desfavorable (costó más de lo previsto).</div>
+      <div class="card-body py-2 small text-muted">Costo real unitario <b>S/ {{ o.costo_unitario|floatformat:4 }}</b> · estándar S/ {{ o.costo_estandar_unit|floatformat:4 }}{% if o.estandar %} (liberado {{ o.estandar.periodo|slice:'4:' }}/{{ o.estandar.periodo|slice:':4' }}){% elif o.estandar_detalle.provisional %} (provisional: no había estándar liberado){% endif %}. Variación positiva = desfavorable (costó más de lo previsto).</div>
     </div>
+    {% if por_tipo %}
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-list-columns"></i> Variaciones por tipo</div>
+      <table class="table table-sm mb-0">
+        {% for v in por_tipo %}<tr><td>{{ v.get_tipo_display }}</td><td class="num {% if v.monto > 0 %}text-danger{% else %}text-success{% endif %}">{{ v.monto|money }}</td></tr>{% endfor %}
+      </table>
+      <div class="card-body py-2 small text-muted">Precio: lo consumido a un precio distinto del estándar. Cantidad: se consumió más o menos insumo del previsto para lo producido. Eficiencia: horas reales frente a las estándar. Tarifa: costo por hora distinto del estándar.</div>
+    </div>
+    {% endif %}
     {% endif %}
     {% include 'core/_sustentos.html' with objeto=o %}
     {% include 'core/_bitacora.html' with objeto=o %}

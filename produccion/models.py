@@ -10,22 +10,36 @@ from core.models import Almacen, Producto, r2
 D0 = Decimal('0')
 
 
+ESTADOS_MAESTRO = [('BORRADOR', 'Borrador'), ('APROBADA', 'Aprobada'), ('OBSOLETA', 'Obsoleta')]
+DIAS = [('1', 'Lun'), ('2', 'Mar'), ('3', 'Mié'), ('4', 'Jue'), ('5', 'Vie'), ('6', 'Sáb'), ('7', 'Dom')]
+
+
 class CentroTrabajo(models.Model):
-    """Área o máquina donde se produce: su costo por hora se aplica a las órdenes de producción."""
+    """Puesto de trabajo (máquina, línea o puesto manual): capacidad, calendario y tarifas por actividad."""
+    TIPOS = [('MAQUINA', 'Máquina'), ('LINEA', 'Línea de producción'), ('MANUAL', 'Puesto manual')]
+
     codigo = models.CharField('Código', max_length=10, unique=True)
     nombre = models.CharField(max_length=100)
-    costo_hora_mo = models.DecimalField('Mano de obra S/ por hora', max_digits=12, decimal_places=2, default=D0,
+    tipo = models.CharField(max_length=8, choices=TIPOS, default='MAQUINA')
+    costo_hora_mo = models.DecimalField('Tarifa mano de obra S/ h', max_digits=12, decimal_places=2, default=D0,
                                         help_text='Sueldos y cargas sociales del personal / horas productivas')
-    costo_hora_cif = models.DecimalField('Costos indirectos S/ por hora', max_digits=12, decimal_places=2, default=D0,
+    costo_hora_cif = models.DecimalField('Tarifa máquina y CIF S/ h', max_digits=12, decimal_places=2, default=D0,
                                          help_text='Energía, depreciación de máquinas, mantenimiento, etc. por hora')
     centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.SET_NULL, null=True, blank=True,
-                                     verbose_name='Centro de costo')
+                                     verbose_name='Centro de costo',
+                                     help_text='Su gasto real se compara con lo absorbido por las órdenes')
+    horas_turno = models.DecimalField('Horas por turno', max_digits=5, decimal_places=2, default=Decimal('8'))
+    turnos = models.PositiveSmallIntegerField('Turnos por día', default=1)
+    dias_laborables = models.CharField('Días laborables', max_length=7, default='123456',
+                                       help_text='1 = lunes … 7 = domingo')
+    eficiencia = models.DecimalField('Eficiencia %', max_digits=5, decimal_places=2, default=Decimal('100'),
+                                     help_text='Las horas planificadas se dividen entre la eficiencia')
     activo = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['codigo']
-        verbose_name = 'centro de trabajo'
-        verbose_name_plural = 'centros de trabajo'
+        verbose_name = 'puesto de trabajo'
+        verbose_name_plural = 'puestos de trabajo'
 
     def __str__(self):
         return f'{self.codigo} {self.nombre}'
@@ -33,6 +47,63 @@ class CentroTrabajo(models.Model):
     @property
     def costo_hora(self):
         return self.costo_hora_mo + self.costo_hora_cif
+
+    @property
+    def capacidad_dia(self):
+        """Horas productivas disponibles en un día laborable."""
+        return self.horas_turno * self.turnos * self.eficiencia / 100
+
+    def laborable(self, fecha):
+        return str(fecha.isoweekday()) in self.dias_laborables
+
+    def capacidad_entre(self, desde, hasta):
+        from datetime import timedelta
+        dias, d = 0, desde
+        while d <= hasta:
+            dias += self.laborable(d)
+            d += timedelta(days=1)
+        return self.capacidad_dia * dias
+
+
+class HojaRuta(models.Model):
+    """Secuencia de operaciones para fabricar (reutilizable entre productos y recetas)."""
+    codigo = models.CharField('Código', max_length=20, unique=True)
+    nombre = models.CharField(max_length=120)
+    estado = models.CharField(max_length=8, choices=ESTADOS_MAESTRO, default='BORRADOR')
+    observaciones = models.TextField(blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['codigo']
+        verbose_name = 'hoja de ruta'
+        verbose_name_plural = 'hojas de ruta'
+
+    def __str__(self):
+        return f'{self.codigo} {self.nombre}'
+
+    def horas(self, cantidad):
+        """[(operación, horas totales para la cantidad)]: preparación + ejecución por unidad, según eficiencia."""
+        return [(o, o.horas_para(cantidad)) for o in self.operaciones.select_related('centro')]
+
+
+class OperacionRuta(models.Model):
+    hoja = models.ForeignKey(HojaRuta, on_delete=models.CASCADE, related_name='operaciones')
+    secuencia = models.PositiveSmallIntegerField('Op.', help_text='10, 20, 30…')
+    centro = models.ForeignKey(CentroTrabajo, on_delete=models.PROTECT, verbose_name='Puesto de trabajo')
+    descripcion = models.CharField('Operación', max_length=100)
+    horas_preparacion = models.DecimalField('Preparación (h por orden)', max_digits=10, decimal_places=3,
+                                            default=D0)
+    horas_unidad = models.DecimalField('Ejecución (h por unidad)', max_digits=10, decimal_places=4, default=D0)
+    horas_espera = models.DecimalField('Espera (h)', max_digits=10, decimal_places=2, default=D0,
+                                       help_text='Enfriado, secado…: no se costea, sí cuenta en el plazo')
+
+    class Meta:
+        ordering = ['secuencia']
+        unique_together = [('hoja', 'secuencia')]
+
+    def horas_para(self, cantidad):
+        eficiencia = (self.centro.eficiencia or Decimal('100')) / 100
+        return ((self.horas_preparacion + self.horas_unidad * cantidad) / eficiencia).quantize(Decimal('0.01'))
 
 
 class ListaMateriales(models.Model):
@@ -43,7 +114,13 @@ class ListaMateriales(models.Model):
     codigo = models.CharField('Código / versión', max_length=20)
     cantidad_base = models.DecimalField('Rinde (cantidad por lote)', max_digits=14, decimal_places=2,
                                         default=Decimal('1'))
-    activa = models.BooleanField('Vigente', default=True, help_text='Las órdenes nuevas usan la receta vigente')
+    estado = models.CharField(max_length=8, choices=ESTADOS_MAESTRO, default='APROBADA',
+                              help_text='Solo las aprobadas se usan en versiones de fabricación')
+    vigente_desde = models.DateField('Vigente desde', default=timezone.localdate)
+    vigente_hasta = models.DateField('Vigente hasta', null=True, blank=True)
+    lote_min = models.DecimalField('Lote desde', max_digits=14, decimal_places=2, null=True, blank=True)
+    lote_max = models.DecimalField('Lote hasta', max_digits=14, decimal_places=2, null=True, blank=True)
+    activa = models.BooleanField('Vigente', default=True, editable=False)  # = aprobada (compatibilidad)
     observaciones = models.TextField(blank=True)
     creado = models.DateTimeField(auto_now_add=True)
 
@@ -56,6 +133,14 @@ class ListaMateriales(models.Model):
     def __str__(self):
         return f'{self.producto.nombre} ({self.codigo})'
 
+    def save(self, *args, **kwargs):
+        self.activa = self.estado == 'APROBADA'
+        super().save(*args, **kwargs)
+
+    def vigente_en(self, fecha):
+        return self.estado == 'APROBADA' and self.vigente_desde <= fecha and (
+            self.vigente_hasta is None or fecha <= self.vigente_hasta)
+
 
 class ComponenteLista(models.Model):
     lista = models.ForeignKey(ListaMateriales, on_delete=models.CASCADE, related_name='componentes')
@@ -64,6 +149,10 @@ class ComponenteLista(models.Model):
     cantidad = models.DecimalField(max_digits=14, decimal_places=4)
     merma = models.DecimalField('Merma %', max_digits=6, decimal_places=2, default=D0,
                                 help_text='Pérdida normal del insumo en el proceso')
+    operacion = models.PositiveSmallIntegerField('Se consume en la op.', null=True, blank=True,
+                                                 help_text='Secuencia de la hoja de ruta (10, 20…)')
+    almacen = models.ForeignKey(Almacen, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                verbose_name='Almacén de consumo', help_text='Vacío = el de insumos de la orden')
 
     class Meta:
         ordering = ['id']
@@ -83,6 +172,125 @@ class OperacionLista(models.Model):
         ordering = ['id']
 
 
+class VersionFabricacion(models.Model):
+    """Cómo se fabrica un producto: receta + hoja de ruta, para un rango de lote y un periodo de vigencia.
+    La orden de producción y el MRP eligen la versión según la cantidad y la fecha."""
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='versiones_fabricacion',
+                                 limit_choices_to={'clase__in': ['PRODUCTO_TERMINADO', 'SEMIELABORADO']})
+    codigo = models.CharField('Versión', max_length=10)
+    descripcion = models.CharField(max_length=120, blank=True)
+    lista = models.ForeignKey(ListaMateriales, on_delete=models.PROTECT, related_name='versiones',
+                              verbose_name='Lista de materiales')
+    hoja = models.ForeignKey(HojaRuta, on_delete=models.PROTECT, null=True, blank=True, related_name='versiones',
+                             verbose_name='Hoja de ruta')
+    lote_min = models.DecimalField('Lote desde', max_digits=14, decimal_places=2, default=D0)
+    lote_max = models.DecimalField('Lote hasta', max_digits=14, decimal_places=2, null=True, blank=True)
+    lote_costeo = models.DecimalField('Lote de costeo', max_digits=14, decimal_places=2, null=True, blank=True,
+                                      help_text='Cantidad con que se calcula el estándar (reparte la preparación). '
+                                                'Vacío = lo que rinde la receta')
+    vigente_desde = models.DateField('Vigente desde', default=timezone.localdate)
+    vigente_hasta = models.DateField('Vigente hasta', null=True, blank=True)
+    dias_fabricacion = models.PositiveSmallIntegerField('Plazo de fabricación (días)', default=1,
+                                                        help_text='El MRP inicia la orden con esta anticipación')
+    activa = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['producto__nombre', 'codigo']
+        unique_together = [('producto', 'codigo')]
+        verbose_name = 'versión de fabricación'
+        verbose_name_plural = 'versiones de fabricación'
+
+    def __str__(self):
+        return f'{self.producto.nombre} · versión {self.codigo}'
+
+    @property
+    def lote_estandar(self):
+        return self.lote_costeo or self.lista.cantidad_base or Decimal('1')
+
+    def aplica(self, cantidad, fecha):
+        return (self.activa and self.lista.vigente_en(fecha) and self.vigente_desde <= fecha and
+                (self.vigente_hasta is None or fecha <= self.vigente_hasta) and cantidad >= self.lote_min and
+                (self.lote_max is None or cantidad <= self.lote_max) and
+                (self.hoja_id is None or self.hoja.estado == 'APROBADA'))
+
+
+class CostoEstandar(models.Model):
+    """Costo estándar unitario del producto para un periodo. Se calcula (marca) y se libera: liberado queda fijo y
+    las órdenes del periodo se comparan contra él (no se recalcula al confirmar cada orden)."""
+    ESTADOS = [('CALCULADO', 'Calculado (sin liberar)'), ('LIBERADO', 'Liberado')]
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='costos_estandar')
+    periodo = models.CharField(max_length=6)
+    version = models.ForeignKey(VersionFabricacion, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='+')
+    lote_costeo = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('1'))
+    materiales = models.DecimalField('Materiales por unidad', max_digits=14, decimal_places=4, default=D0)
+    mano_obra = models.DecimalField('Mano de obra por unidad', max_digits=14, decimal_places=4, default=D0)
+    cif = models.DecimalField('Máquina y CIF por unidad', max_digits=14, decimal_places=4, default=D0)
+    unitario = models.DecimalField('Costo estándar unitario', max_digits=14, decimal_places=4, default=D0)
+    detalle = models.JSONField(default=dict, blank=True,
+                               help_text='Cantidades y precios estándar por unidad (materiales y actividades)')
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='CALCULADO')
+    calculado_en = models.DateTimeField(auto_now=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+
+    class Meta:
+        ordering = ['-periodo', 'producto__nombre']
+        unique_together = [('producto', 'periodo')]
+        verbose_name = 'costo estándar'
+        verbose_name_plural = 'costos estándar'
+
+    def __str__(self):
+        return f'Estándar {self.producto.nombre} {self.periodo[4:]}/{self.periodo[:4]}'
+
+
+class PlanDemanda(models.Model):
+    """Demanda prevista (pronóstico o plan de ventas) que el MRP suma a los pedidos de venta."""
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='+')
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2)
+    fecha = models.DateField('Fecha requerida')
+    nota = models.CharField(max_length=120, blank=True)
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+
+    class Meta:
+        ordering = ['fecha', 'producto__nombre']
+        verbose_name = 'plan de demanda'
+
+
+class CorridaMRP(models.Model):
+    fecha = models.DateTimeField(auto_now_add=True)
+    horizonte = models.DateField('Planificar hasta')
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+
+    class Meta:
+        ordering = ['-fecha']
+
+
+class PropuestaMRP(models.Model):
+    """Orden planificada del MRP: fabricar (con su versión) o comprar (con su proveedor)."""
+    TIPOS = [('PRODUCIR', 'Fabricar'), ('COMPRAR', 'Comprar')]
+    corrida = models.ForeignKey(CorridaMRP, on_delete=models.CASCADE, related_name='propuestas')
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='+')
+    tipo = models.CharField(max_length=8, choices=TIPOS)
+    nivel = models.PositiveSmallIntegerField(default=0)
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2)
+    fecha_necesidad = models.DateField()
+    fecha_inicio = models.DateField('Iniciar / pedir el')
+    version = models.ForeignKey(VersionFabricacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    proveedor = models.ForeignKey('core.Tercero', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    origen = models.CharField(max_length=250, blank=True)
+    orden_produccion = models.ForeignKey('OrdenProduccion', on_delete=models.SET_NULL, null=True, blank=True,
+                                         related_name='+')
+    orden_compra = models.ForeignKey('compras.OrdenCompra', on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+')
+
+    class Meta:
+        ordering = ['nivel', 'fecha_inicio', 'producto__nombre']
+
+    @property
+    def convertida(self):
+        return bool(self.orden_produccion_id or self.orden_compra_id)
+
+
 class OrdenProduccion(models.Model):
     ESTADOS = [('BORRADOR', 'Borrador'), ('CONFIRMADA', 'Confirmada'), ('EN_PROCESO', 'En proceso'),
                ('TERMINADA', 'Terminada'), ('ANULADA', 'Anulada')]
@@ -90,6 +298,10 @@ class OrdenProduccion(models.Model):
     numero = models.CharField('Número', max_length=20, blank=True, editable=False)
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='ordenes_produccion',
                                  verbose_name='Producto a fabricar')
+    version = models.ForeignKey(VersionFabricacion, on_delete=models.PROTECT, null=True, blank=True,
+                                related_name='ordenes', verbose_name='Versión de fabricación')
+    estandar = models.ForeignKey(CostoEstandar, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                 editable=False)
     lista = models.ForeignKey(ListaMateriales, on_delete=models.PROTECT, related_name='ordenes',
                               verbose_name='Lista de materiales')
     cantidad = models.DecimalField('Cantidad a producir', max_digits=14, decimal_places=2)
@@ -107,6 +319,8 @@ class OrdenProduccion(models.Model):
     cantidad_producida = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
     # costeo
     costo_estandar_unit = models.DecimalField('Costo estándar unitario', max_digits=14, decimal_places=4, default=D0)
+    estandar_detalle = models.JSONField(default=dict, blank=True, editable=False,
+                                        help_text='Estándar por unidad fijado al confirmar (base de las variaciones)')
     costo_materiales = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
     costo_mano_obra = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
     costo_cif = models.DecimalField('Costos indirectos', max_digits=14, decimal_places=2, default=D0)
@@ -144,6 +358,9 @@ class ConsumoOrden(models.Model):
     cantidad_plan = models.DecimalField('Planificado', max_digits=14, decimal_places=4)
     cantidad_real = models.DecimalField('Consumido', max_digits=14, decimal_places=4)
     costo_unitario = models.DecimalField(max_digits=14, decimal_places=4, default=D0)
+    almacen = models.ForeignKey(Almacen, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                verbose_name='Almacén de consumo')
+    operacion = models.PositiveSmallIntegerField(null=True, blank=True)
 
     class Meta:
         ordering = ['id']
@@ -153,12 +370,29 @@ class ConsumoOrden(models.Model):
         return r2(self.cantidad_real * self.costo_unitario)
 
 
+class VariacionOrden(models.Model):
+    """Variación de la orden terminada frente al estándar liberado, separada por tipo."""
+    TIPOS = [('PRECIO_MAT', 'Precio de materiales'), ('CANTIDAD_MAT', 'Cantidad de materiales (consumo)'),
+             ('EFICIENCIA_MO', 'Eficiencia de mano de obra (horas)'),
+             ('EFICIENCIA_CIF', 'Eficiencia de máquina y CIF (horas)'), ('TARIFA', 'Tarifa de actividades'),
+             ('OTRAS', 'Otras (redondeo)')]
+    orden = models.ForeignKey('OrdenProduccion', on_delete=models.CASCADE, related_name='variaciones')
+    tipo = models.CharField(max_length=15, choices=TIPOS)
+    monto = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        ordering = ['id']
+
+
 class HoraOrden(models.Model):
     orden = models.ForeignKey(OrdenProduccion, on_delete=models.CASCADE, related_name='horas')
     centro = models.ForeignKey(CentroTrabajo, on_delete=models.PROTECT)
+    secuencia = models.PositiveSmallIntegerField(null=True, blank=True)
     descripcion = models.CharField(max_length=100, blank=True)
     horas_plan = models.DecimalField('Horas planificadas', max_digits=10, decimal_places=2)
     horas_real = models.DecimalField('Horas reales', max_digits=10, decimal_places=2)
+    costo_mo = models.DecimalField('Mano de obra absorbida', max_digits=14, decimal_places=2, default=D0)
+    costo_cif = models.DecimalField('Máquina y CIF absorbidos', max_digits=14, decimal_places=2, default=D0)
 
     class Meta:
         ordering = ['id']

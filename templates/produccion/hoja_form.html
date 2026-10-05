@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-signpost-split"></i> {{ titulo }}</h1>
+  <a href="{% url 'manufactura:hojas' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Hojas de ruta</a>
+</div>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  {% if form.errors or operaciones.total_error_count %}<div class="alert alert-danger py-2">Revise los campos marcados.</div>{% endif %}
+  <div class="card mb-3"><div class="card-body"><div class="row g-3">
+    {% for field in form %}<div class="{% if field.name == 'observaciones' %}col-12{% elif field.name == 'nombre' %}col-md-6{% else %}col-6 col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div></div></div>
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-list-ol"></i> Operaciones</div>
+    {{ operaciones.management_form }}
+    {% for e in operaciones.non_form_errors %}<div class="alert alert-danger m-3 py-2">{{ e }}</div>{% endfor %}
+    <div class="table-responsive"><table class="table mb-0">
+      <thead><tr><th class="num" style="width:8%">Op.</th><th style="width:22%">Puesto de trabajo</th><th>Operación</th><th class="num" style="width:12%">Preparación (h por orden)</th><th class="num" style="width:12%">Ejecución (h por unidad)</th><th class="num" style="width:10%">Espera (h)</th><th class="text-center" style="width:4%"><i class="bi bi-trash"></i></th></tr></thead>
+      <tbody id="oper-body" data-prefix="{{ operaciones.prefix }}">
+        {% for f in operaciones %}<tr>
+          <td>{{ f.id }}{{ f.secuencia }}{% for e in f.secuencia.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+          <td>{{ f.centro }}{% for e in f.centro.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+          <td>{{ f.descripcion }}{% for e in f.descripcion.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+          <td>{{ f.horas_preparacion }}</td>
+          <td>{{ f.horas_unidad }}{% for e in f.horas_unidad.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+          <td>{{ f.horas_espera }}</td>
+          <td class="text-center">{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td>
+        </tr>{% endfor %}
+      </tbody>
+    </table></div>
+    <template id="oper-template"><tr><td>{{ operaciones.empty_form.id }}{{ operaciones.empty_form.secuencia }}</td><td>{{ operaciones.empty_form.centro }}</td><td>{{ operaciones.empty_form.descripcion }}</td><td>{{ operaciones.empty_form.horas_preparacion }}</td><td>{{ operaciones.empty_form.horas_unidad }}</td><td>{{ operaciones.empty_form.horas_espera }}</td><td class="text-center">{{ operaciones.empty_form.DELETE }}</td></tr></template>
+    <div class="card-body"><button type="button" class="btn btn-sm btn-outline-primary js-agregar" data-body="oper-body" data-template="oper-template"><i class="bi bi-plus-lg"></i> Agregar operación</button>
+      <span class="small text-muted ms-2">Horas de una orden = (preparación + ejecución × cantidad) ÷ eficiencia del puesto. Se costean a la tarifa de mano de obra y de máquina/CIF del puesto.</span></div>
+  </div>
+  <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar hoja de ruta</button>
+</form>
+{% include 'produccion/_filas_js.html' %}
+{% endblock %}

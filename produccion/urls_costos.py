@@ -8,5 +8,6 @@ urlpatterns = [
     path('', views.estandar, name='estandar'),
     path('hoja/<int:pk>/', views.hoja, name='hoja'),
     path('real-vs-estandar/', views.real_vs_estandar, name='real_vs_estandar'),
+    path('absorcion/', views.absorcion, name='absorcion'),
     path('rentabilidad/', views.rentabilidad, name='rentabilidad'),
 ]

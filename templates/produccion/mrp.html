@@ -1,0 +1,52 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Planificación (MRP){% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Planificación de necesidades (MRP)</h1>
+<div class="row g-3 mb-3">
+  <div class="col-lg-7"><div class="card h-100"><div class="card-header"><i class="bi bi-graph-up-arrow"></i> Plan de demanda</div>
+    <div class="card-body">
+      <form method="post" class="row g-2 align-items-end mb-2">{% csrf_token %}<input type="hidden" name="accion" value="demanda">
+        <div class="col-md-5">{{ form.producto }}</div><div class="col-md-2">{{ form.cantidad }}</div><div class="col-md-2">{{ form.fecha }}</div>
+        <div class="col-md-2">{{ form.nota }}</div><div class="col-md-1"><button class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-plus"></i></button></div>
+        {% for f in form %}{% for e in f.errors %}<div class="col-12 text-danger small">{{ f.label }}: {{ e }}</div>{% endfor %}{% endfor %}
+      </form>
+      <table class="table table-sm mb-0 small">{% for p in plan %}<tr><td>{{ p.fecha|date:'d/m/Y' }}</td><td>{{ p.producto.nombre }}</td><td class="num">{{ p.cantidad|money }} {{ p.producto.unidad }}</td><td class="text-muted">{{ p.nota }}</td>
+        <td class="text-end"><form method="post">{% csrf_token %}<input type="hidden" name="accion" value="quitar"><input type="hidden" name="id" value="{{ p.pk }}"><button class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x"></i></button></form></td></tr>
+      {% empty %}<tr><td class="text-muted">Además del plan, el MRP considera los pedidos de venta abiertos (Ventas &gt; Cotizaciones y pedidos, tipo "Orden de pedido").</td></tr>{% endfor %}</table>
+    </div></div></div>
+  <div class="col-lg-5"><div class="card h-100 border-primary"><div class="card-body">
+    <form method="post" class="d-flex gap-2 align-items-end mb-3">{% csrf_token %}<input type="hidden" name="accion" value="ejecutar">
+      <div><label class="form-label small mb-1">Planificar hasta</label><input type="date" name="horizonte" value="{{ horizonte|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+      <button class="btn btn-sm btn-primary"><i class="bi bi-play-circle"></i> Ejecutar MRP</button></form>
+    <p class="small text-muted mb-0">Explota todas las recetas desde la demanda: necesidad bruta − (stock − stock mínimo) − órdenes de producción abiertas − compras en camino = necesidad neta. Primero planifica lo que se vende, luego sus semielaborados y al final las materias primas, con las fechas de inicio según el plazo de fabricación o de entrega.</p>
+    {% if corrida %}<p class="small mb-0 mt-2">Última corrida: {{ corrida.fecha|date:'d/m/Y H:i' }}{% if corrida.usuario %} por {{ corrida.usuario.get_full_name|default:corrida.usuario.username }}{% endif %} · horizonte {{ corrida.horizonte|date:'d/m/Y' }}</p>{% endif %}
+  </div></div></div>
+</div>
+{% if corrida %}
+<form method="post">{% csrf_token %}
+<div class="card">
+  <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+    <span><i class="bi bi-list-task"></i> Órdenes planificadas</span>
+    <span class="d-flex flex-wrap gap-2 align-items-center">
+      <button name="accion" value="fabricar" class="btn btn-sm btn-outline-primary"><i class="bi bi-gear"></i> Crear órdenes de producción</button>
+      <select name="centro_costo" class="form-select form-select-sm" style="width:auto"><option value="">Centro de costo para las OC…</option>{% for c in centros %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}</select>
+      <button name="accion" value="comprar" class="btn btn-sm btn-outline-primary"><i class="bi bi-cart"></i> Crear órdenes de compra</button>
+    </span>
+  </div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+    <thead><tr><th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=propuesta]:not(:disabled)').forEach(c=>c.checked=this.checked)"></th><th>Nivel</th><th>Acción</th><th>Producto</th><th class="num">Cantidad</th><th>Iniciar / pedir</th><th>Se necesita</th><th>Versión / proveedor</th><th>Origen</th><th>Documento</th></tr></thead>
+    <tbody>{% for p in propuestas %}<tr class="{% if p.convertida %}text-muted{% endif %}">
+      <td><input type="checkbox" class="form-check-input" name="propuesta" value="{{ p.pk }}" {% if p.convertida %}disabled{% endif %}></td>
+      <td>{{ p.nivel }}</td>
+      <td><span class="badge {% if p.tipo == 'PRODUCIR' %}text-bg-primary{% else %}text-bg-info{% endif %}">{{ p.get_tipo_display }}</span></td>
+      <td>{{ p.producto.codigo }} {{ p.producto.nombre }}</td><td class="num">{{ p.cantidad|money }} {{ p.producto.unidad }}</td>
+      <td class="{% if p.fecha_inicio <= corrida.fecha.date %}text-danger fw-semibold{% endif %}">{{ p.fecha_inicio|date:'d/m/Y' }}</td><td>{{ p.fecha_necesidad|date:'d/m/Y' }}</td>
+      <td class="small">{% if p.version %}{{ p.version.codigo }}{% elif p.proveedor %}{{ p.proveedor.nombre }}{% else %}<span class="text-warning">sin proveedor</span>{% endif %}</td>
+      <td class="small text-muted">{{ p.origen }}</td>
+      <td class="small">{% if p.orden_produccion %}<a href="{% url 'manufactura:orden' p.orden_produccion_id %}">OP borrador</a>{% elif p.orden_compra %}<a href="{% url 'compras:oc_detalle' p.orden_compra_id %}">{{ p.orden_compra.numero }}</a>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="10" class="text-center text-muted py-4">Sin necesidades: el stock, la producción y las compras en curso cubren la demanda.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+</form>
+{% endif %}
+{% endblock %}

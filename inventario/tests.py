@@ -65,7 +65,7 @@ class OperacionesTest(TestCase):
         codigos = set(TipoOperacion.objects.values_list('codigo', flat=True))
         self.assertEqual(codigos, {'SALDO_INI', 'REC_COMPRA', 'DEV_CLI', 'AJ_ING', 'SAL_VENTA', 'DEV_PROV', 'AJ_SAL',
                                    'CONS_INT', 'CONS_MANT', 'SAL_DESTR', 'TRAS_DESTR', 'TRAS_TRANS', 'REC_TRANS',
-                                   'MANUF'})
+                                   'MANUF', 'TRAS_ALM'})
         self.assertEqual(TipoOperacion.objects.get(codigo='CONS_INT').cuenta_contable.codigo, '6561')
         self.assertIsNone(TipoOperacion.objects.get(codigo='TRAS_TRANS').cuenta_contable)
 

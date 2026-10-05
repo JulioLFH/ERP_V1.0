@@ -9,19 +9,21 @@
   <div class="card-body border-bottom py-2">
     <form class="row g-2 align-items-center" method="get">
       <div class="col-md-4"><input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Producto o versión"></div>
-      <div class="col-auto form-check ms-2"><input type="checkbox" class="form-check-input" name="todas" value="1" id="todas" {% if request.GET.todas %}checked{% endif %} onchange="this.form.submit()"><label class="form-check-label small" for="todas">Incluir versiones no vigentes</label></div>
+      <div class="col-auto form-check ms-2"><input type="checkbox" class="form-check-input" name="todas" value="1" id="todas" {% if request.GET.todas %}checked{% endif %} onchange="this.form.submit()"><label class="form-check-label small" for="todas">Incluir obsoletas</label></div>
       <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></div>
     </form>
   </div>
   <div class="table-responsive"><table class="table table-hover mb-0">
-    <thead><tr><th>Producto</th><th>Versión</th><th class="num">Rinde</th><th class="num">Insumos</th><th class="num">Operaciones</th><th>Estado</th><th></th></tr></thead>
+    <thead><tr><th>Producto</th><th>Receta</th><th class="num">Rinde</th><th class="num">Insumos</th><th>Vigencia</th><th class="num">Versiones</th><th>Estado</th><th></th></tr></thead>
     <tbody>{% for l in listas %}<tr onclick="location.href='{% url 'manufactura:lista' l.pk %}'" style="cursor:pointer">
       <td>{{ l.producto.codigo }} {{ l.producto.nombre }}</td><td>{{ l.codigo }}</td>
       <td class="num">{{ l.cantidad_base|money }} {{ l.producto.unidad }}</td>
-      <td class="num">{{ l.componentes.all|length }}</td><td class="num">{{ l.operaciones.all|length }}</td>
-      <td>{% if l.activa %}<span class="badge text-bg-success">Vigente</span>{% else %}<span class="badge text-bg-secondary">Histórica</span>{% endif %}</td>
-      <td class="text-end">{% if l.activa %}<a href="{% url 'manufactura:orden_nueva' %}?producto={{ l.producto_id }}" class="btn btn-sm btn-outline-primary py-0" onclick="event.stopPropagation()"><i class="bi bi-plus"></i> Orden</a>{% endif %}</td>
-    </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin recetas. Cree la lista de materiales de sus productos terminados o semielaborados.</td></tr>{% endfor %}</tbody>
+      <td class="num">{{ l.componentes.all|length }}</td>
+      <td class="small">{{ l.vigente_desde|date:'d/m/Y' }}{% if l.vigente_hasta %} – {{ l.vigente_hasta|date:'d/m/Y' }}{% endif %}</td>
+      <td class="num">{{ l.versiones.all|length }}</td>
+      <td><span class="badge {% if l.estado == 'APROBADA' %}text-bg-success{% elif l.estado == 'OBSOLETA' %}text-bg-secondary{% else %}text-bg-warning{% endif %}">{{ l.get_estado_display }}</span></td>
+      <td class="text-end">{% if l.estado == 'APROBADA' %}<a href="{% url 'manufactura:orden_nueva' %}?producto={{ l.producto_id }}" class="btn btn-sm btn-outline-primary py-0" onclick="event.stopPropagation()"><i class="bi bi-plus"></i> Orden</a>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Sin recetas. Cree la lista de materiales de sus productos terminados o semielaborados.</td></tr>{% endfor %}</tbody>
   </table></div>
 </div>
 {% endblock %}

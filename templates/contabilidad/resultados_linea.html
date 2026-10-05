@@ -13,7 +13,7 @@
 {% if sin_lineas %}<div class="alert alert-info py-2 small">Cree sus centros de beneficio (Contabilidad &gt; Configuración) y asigne la línea a cada producto (pestaña Contabilidad) y a los centros de costo; después centralice los periodos.</div>{% endif %}
 <div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
   <thead><tr><th>Rubro</th>{% for pk, nombre in columnas %}<th class="num">{{ nombre }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
-  <tbody>{% for t in tabla %}<tr class="{% if t.fuerte %}fw-bold table-light{% endif %}{% if forloop.counter == 7 %} border-top border-2{% endif %}">
+  <tbody>{% for t in tabla %}<tr class="{% if t.fuerte %}fw-bold table-light{% endif %}{% if forloop.counter == 8 %} border-top border-2{% endif %}">
     <td>{{ t.rubro }}</td>{% for v in t.valores %}<td class="num {% if v < 0 %}text-danger{% endif %}">{{ v|money }}</td>{% endfor %}<td class="num">{{ t.total|money }}</td>
   </tr>{% endfor %}</tbody>
 </table></div>

@@ -8,50 +8,35 @@
 <form method="post" novalidate>
   {% csrf_token %}
   {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
-  {% if form.errors or componentes.total_error_count or operaciones.total_error_count %}<div class="alert alert-danger py-2">Revise los campos marcados.</div>{% endif %}
+  {% if form.errors or componentes.total_error_count %}<div class="alert alert-danger py-2">Revise los campos marcados.</div>{% endif %}
   <div class="card mb-3"><div class="card-body"><div class="row g-3">
     {% for field in form %}
-      <div class="{% if field.name == 'producto' %}col-md-6{% elif field.name == 'observaciones' %}col-12{% else %}col-6 col-md-2{% endif %}">{% include 'core/_campo.html' %}</div>
+      <div class="{% if field.name == 'producto' %}col-md-6{% elif field.name == 'observaciones' %}col-12{% else %}col-6 col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>
     {% endfor %}
-  </div></div></div>
+  </div>
+  <p class="small text-muted mt-2 mb-0">Estado: solo las recetas <b>aprobadas</b> y vigentes se usan en las versiones de fabricación. El rango de lote es opcional (ej. receta distinta para lotes grandes).</p>
+  </div></div>
 
   <div class="card mb-3">
     <div class="card-header"><i class="bi bi-box-seam"></i> Insumos por lote</div>
     {{ componentes.management_form }}
     {% for e in componentes.non_form_errors %}<div class="alert alert-danger m-3 py-2">{{ e }}</div>{% endfor %}
     <div class="table-responsive"><table class="table mb-0">
-      <thead><tr><th style="width:50%">Insumo</th><th class="num" style="width:18%">Cantidad</th><th class="num" style="width:15%">Merma %</th><th>U.M.</th><th class="text-center" style="width:5%"><i class="bi bi-trash"></i></th></tr></thead>
+      <thead><tr><th style="width:34%">Insumo</th><th class="num" style="width:13%">Cantidad</th><th class="num" style="width:10%">Merma %</th><th>U.M.</th><th class="num" style="width:9%" title="Operación de la hoja de ruta en que se consume">Op.</th><th style="width:20%">Almacén de consumo</th><th class="text-center" style="width:4%"><i class="bi bi-trash"></i></th></tr></thead>
       <tbody id="comp-body" data-prefix="{{ componentes.prefix }}">
         {% for f in componentes %}<tr>
           <td>{{ f.id }}{{ f.producto }}{% for e in f.producto.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}{% for e in f.non_field_errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
           <td>{{ f.cantidad }}{% for e in f.cantidad.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
           <td>{{ f.merma }}{% for e in f.merma.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
           <td class="small text-muted js-um"></td>
+          <td>{{ f.operacion }}</td><td>{{ f.almacen }}</td>
           <td class="text-center">{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td>
         </tr>{% endfor %}
       </tbody>
     </table></div>
-    <template id="comp-template"><tr><td>{{ componentes.empty_form.id }}{{ componentes.empty_form.producto }}</td><td>{{ componentes.empty_form.cantidad }}</td><td>{{ componentes.empty_form.merma }}</td><td class="small text-muted js-um"></td><td class="text-center">{{ componentes.empty_form.DELETE }}</td></tr></template>
-    <div class="card-body"><button type="button" class="btn btn-sm btn-outline-primary js-agregar" data-body="comp-body" data-template="comp-template"><i class="bi bi-plus-lg"></i> Agregar insumo</button></div>
-  </div>
-
-  <div class="card mb-3">
-    <div class="card-header"><i class="bi bi-tools"></i> Operaciones (horas por lote)</div>
-    {{ operaciones.management_form }}
-    <div class="table-responsive"><table class="table mb-0">
-      <thead><tr><th style="width:35%">Centro de trabajo</th><th>Operación</th><th class="num" style="width:15%">Horas</th><th class="text-center" style="width:5%"><i class="bi bi-trash"></i></th></tr></thead>
-      <tbody id="oper-body" data-prefix="{{ operaciones.prefix }}">
-        {% for f in operaciones %}<tr>
-          <td>{{ f.id }}{{ f.centro }}{% for e in f.centro.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
-          <td>{{ f.descripcion }}</td>
-          <td>{{ f.horas }}{% for e in f.horas.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
-          <td class="text-center">{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td>
-        </tr>{% endfor %}
-      </tbody>
-    </table></div>
-    <template id="oper-template"><tr><td>{{ operaciones.empty_form.id }}{{ operaciones.empty_form.centro }}</td><td>{{ operaciones.empty_form.descripcion }}</td><td>{{ operaciones.empty_form.horas }}</td><td class="text-center">{{ operaciones.empty_form.DELETE }}</td></tr></template>
-    <div class="card-body"><button type="button" class="btn btn-sm btn-outline-primary js-agregar" data-body="oper-body" data-template="oper-template"><i class="bi bi-plus-lg"></i> Agregar operación</button>
-      <span class="small text-muted ms-2">La mano de obra y los costos indirectos se calculan con el costo por hora de cada centro de trabajo.{% if 'manufactura' in mods %} <a href="{% url 'manufactura:centros' %}">Centros de trabajo</a>{% endif %}</span></div>
+    <template id="comp-template"><tr><td>{{ componentes.empty_form.id }}{{ componentes.empty_form.producto }}</td><td>{{ componentes.empty_form.cantidad }}</td><td>{{ componentes.empty_form.merma }}</td><td class="small text-muted js-um"></td><td>{{ componentes.empty_form.operacion }}</td><td>{{ componentes.empty_form.almacen }}</td><td class="text-center">{{ componentes.empty_form.DELETE }}</td></tr></template>
+    <div class="card-body"><button type="button" class="btn btn-sm btn-outline-primary js-agregar" data-body="comp-body" data-template="comp-template"><i class="bi bi-plus-lg"></i> Agregar insumo</button>
+      <span class="small text-muted ms-2">Las operaciones y sus horas se definen en la <a href="{% url 'manufactura:hojas' %}">hoja de ruta</a>; receta + hoja se unen en una <a href="{% url 'manufactura:versiones' %}">versión de fabricación</a>.</span></div>
   </div>
   <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar receta</button>
 </form>
@@ -66,13 +51,7 @@
   const comp = document.getElementById('comp-body');
   comp.querySelectorAll('tr').forEach(um);
   comp.addEventListener('change', e => um(e.target.closest('tr')));
-  document.querySelectorAll('.js-agregar').forEach(btn => btn.addEventListener('click', () => {
-    const body = document.getElementById(btn.dataset.body), prefix = body.dataset.prefix;
-    const total = document.getElementById(`id_${prefix}-TOTAL_FORMS`);
-    const html = document.getElementById(btn.dataset.template).innerHTML.replace(/__prefix__/g, total.value);
-    body.insertAdjacentHTML('beforeend', html);
-    total.value = parseInt(total.value, 10) + 1;
-  }));
 })();
 </script>
+{% include 'produccion/_filas_js.html' %}
 {% endblock %}

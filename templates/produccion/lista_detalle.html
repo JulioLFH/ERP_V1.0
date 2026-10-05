@@ -4,33 +4,33 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
   <div>
     <h1 class="page-title"><i class="bi bi-diagram-3"></i> {{ lista.producto.nombre }} <small class="text-muted">{{ lista.codigo }}</small>
-      {% if lista.activa %}<span class="badge text-bg-success fs-6 align-middle">Vigente</span>{% else %}<span class="badge text-bg-secondary fs-6 align-middle">Histórica</span>{% endif %}</h1>
-    <div class="text-muted small">Rinde {{ lista.cantidad_base|money }} {{ lista.producto.unidad }} por lote</div>
+      <span class="badge {% if lista.estado == 'APROBADA' %}text-bg-success{% elif lista.estado == 'OBSOLETA' %}text-bg-secondary{% else %}text-bg-warning{% endif %} fs-6 align-middle">{{ lista.get_estado_display }}</span></h1>
+    <div class="text-muted small">Rinde {{ lista.cantidad_base|money }} {{ lista.producto.unidad }} por lote · vigente desde {{ lista.vigente_desde|date:'d/m/Y' }}{% if lista.vigente_hasta %} hasta {{ lista.vigente_hasta|date:'d/m/Y' }}{% endif %}{% if lista.lote_min or lista.lote_max %} · lotes {{ lista.lote_min|default:0|money }} a {% if lista.lote_max %}{{ lista.lote_max|money }}{% else %}∞{% endif %}{% endif %}</div>
   </div>
   <div class="d-flex flex-wrap gap-2">
     <a href="{% url 'manufactura:listas' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
     {% if not en_uso %}<a href="{% url 'manufactura:lista_editar' lista.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
-    <form method="post" action="{% url 'manufactura:lista_version' lista.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="bi bi-files"></i> Nueva versión</button></form>
-    {% if lista.activa %}<a href="{% url 'manufactura:orden_nueva' %}?producto={{ lista.producto_id }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Orden de producción</a>{% endif %}
+    <form method="post" action="{% url 'manufactura:lista_version' lista.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="bi bi-files"></i> Copiar como nueva receta</button></form>
+    {% if lista.estado != 'OBSOLETA' %}<form method="post" action="{% url 'manufactura:lista_obsoleta' lista.pk %}" data-confirm="¿Declarar obsoleta esta receta? Sus versiones de fabricación quedan inactivas.">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive"></i> Obsoleta</button></form>{% endif %}
+    {% if lista.estado == 'APROBADA' %}<a href="{% url 'manufactura:orden_nueva' %}?producto={{ lista.producto_id }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Orden de producción</a>{% endif %}
   </div>
 </div>
-{% if en_uso %}<div class="alert alert-info py-2 small"><i class="bi bi-lock"></i> Esta receta ya se usó en órdenes de producción: no se edita para conservar el sustento del costeo. Para cambiarla cree una nueva versión.</div>{% endif %}
+{% if en_uso %}<div class="alert alert-info py-2 small"><i class="bi bi-lock"></i> Esta receta ya se usó en órdenes de producción: no se edita para conservar el sustento del costeo. Cópiela como nueva receta, apruébela y úsela en una versión de fabricación.</div>{% endif %}
 <div class="row g-3">
   <div class="col-lg-8">
-    {% if hoja %}{% include 'produccion/_hoja.html' %}{% else %}
+    {% if hoja %}{% include 'produccion/_hoja.html' %}{% endif %}
     <div class="card mb-3"><div class="card-header"><i class="bi bi-box-seam"></i> Insumos por lote</div>
-      <table class="table table-sm mb-0"><thead><tr><th>Insumo</th><th class="num">Cantidad</th><th class="num">Merma %</th></tr></thead>
-      <tbody>{% for c in componentes %}<tr><td>{{ c.producto.codigo }} {{ c.producto.nombre }}</td><td class="num">{{ c.cantidad|floatformat:4 }} {{ c.producto.unidad }}</td><td class="num">{{ c.merma }}</td></tr>{% endfor %}</tbody></table></div>
-    <div class="card mb-3"><div class="card-header"><i class="bi bi-tools"></i> Operaciones</div>
-      <table class="table table-sm mb-0"><thead><tr><th>Centro</th><th>Operación</th><th class="num">Horas</th></tr></thead>
-      <tbody>{% for o in operaciones %}<tr><td>{{ o.centro }}</td><td>{{ o.descripcion }}</td><td class="num">{{ o.horas }}</td></tr>{% empty %}<tr><td colspan="3" class="text-muted small">Sin operaciones.</td></tr>{% endfor %}</tbody></table></div>
-    {% endif %}
+      <table class="table table-sm mb-0"><thead><tr><th>Insumo</th><th class="num">Cantidad</th><th class="num">Merma %</th><th class="num">Op.</th><th>Almacén de consumo</th></tr></thead>
+      <tbody>{% for c in componentes %}<tr><td>{{ c.producto.codigo }} {{ c.producto.nombre }}</td><td class="num">{{ c.cantidad|floatformat:4 }} {{ c.producto.unidad }}</td><td class="num">{{ c.merma }}</td><td class="num">{{ c.operacion|default:'' }}</td><td class="small">{{ c.almacen|default:'El de la orden' }}</td></tr>{% endfor %}</tbody></table></div>
     {% if lista.observaciones %}<p class="small text-muted">{{ lista.observaciones|linebreaksbr }}</p>{% endif %}
     {% include 'core/_bitacora.html' with objeto=lista %}
   </div>
   <div class="col-lg-4">
-    {% if versiones %}<div class="card mb-3"><div class="card-header">Otras versiones</div><ul class="list-group list-group-flush small">
-      {% for v in versiones %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'manufactura:lista' v.pk %}">{{ v.codigo }}</a><span>{% if v.activa %}Vigente{% else %}Histórica{% endif %}</span></li>{% endfor %}</ul></div>{% endif %}
+    <div class="card mb-3"><div class="card-header">Versiones de fabricación</div><ul class="list-group list-group-flush small">
+      {% for v in versiones_fab %}<li class="list-group-item"><a href="{% url 'manufactura:version_editar' v.pk %}">{{ v.codigo }}</a> · {% if v.hoja %}ruta {{ v.hoja.codigo }}{% else %}<span class="text-warning">sin hoja de ruta</span>{% endif %} · {% if v.activa %}activa{% else %}inactiva{% endif %}</li>
+      {% empty %}<li class="list-group-item text-muted">Ninguna. <a href="{% url 'manufactura:version_nueva' %}">Crear versión</a></li>{% endfor %}</ul></div>
+    {% if otras %}<div class="card mb-3"><div class="card-header">Otras recetas del producto</div><ul class="list-group list-group-flush small">
+      {% for v in otras %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'manufactura:lista' v.pk %}">{{ v.codigo }}</a><span>{{ v.get_estado_display }}</span></li>{% endfor %}</ul></div>{% endif %}
     {% if ordenes %}<div class="card"><div class="card-header">Órdenes con esta receta</div><ul class="list-group list-group-flush small">
       {% for o in ordenes %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'manufactura:orden' o.pk %}">{{ o.numero|default:'(borrador)' }}</a><span>{{ o.fecha|date:'d/m/Y' }} · {{ o.get_estado_display }}</span></li>{% endfor %}</ul></div>{% endif %}
   </div>
