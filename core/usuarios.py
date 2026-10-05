@@ -65,8 +65,9 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
             self.initial['almacenes'] = list(perfil.almacenes.all())
             self.initial['series'] = list(perfil.series.all())
             self.initial['limite_aprobacion'] = perfil.limite_aprobacion
-        elif self.instance.pk:  # sin perfil hoy puede todo en sus módulos: se muestra así
-            self.initial['acciones'] = [c for c, _ in self.fields['acciones'].choices]
+        elif self.instance.pk:  # sin perfil hoy puede todo en sus módulos (salvo las acciones explícitas)
+            from .permisos import EXPLICITAS
+            self.initial['acciones'] = [c for c, _ in self.fields['acciones'].choices if c not in EXPLICITAS]
         else:  # usuario nuevo: las acciones sensibles (anular, aprobar...) se asignan a propósito
             self.initial['acciones'] = [f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, s in lista if not s]
 

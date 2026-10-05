@@ -307,7 +307,7 @@ class Producto(models.Model):
             'cantidad', flat=True).first() or D0
 
     def mover_stock(self, cantidad, referencia, costo=None, fecha=None, almacen=None, origen='', concepto='',
-                    codigo_sunat='', lotes=None, lotes_de=None):
+                    codigo_sunat='', lotes=None, lotes_de=None, centro_costo=None, cuenta_contra=None):
         """cantidad > 0 entrada, < 0 salida. Actualiza costo promedio en entradas y el stock del almacén.
 
         Productos con lote o serie: `lotes` = [(código, cantidad, vencimiento)] indica los lotes; `lotes_de` = la
@@ -348,6 +348,7 @@ class Producto(models.Model):
                     costo_unitario=costo if costo is not None else actual.costo_promedio,
                     costo_promedio=actual.costo_promedio, saldo=saldo, referencia=referencia, origen=origen,
                     concepto=concepto, codigo_sunat=codigo_sunat or _codigo_sunat(origen, concepto, cantidad),
+                    centro_costo=centro_costo, cuenta_contra=cuenta_contra,
                 )
 
     def _repartir_lotes(self, cantidad, signo, almacen, lotes, lotes_de):
@@ -643,6 +644,11 @@ class Kardex(models.Model):
     saldo = models.DecimalField(max_digits=14, decimal_places=2)
     referencia = models.CharField(max_length=120)
     lote = models.ForeignKey('Lote', on_delete=models.PROTECT, null=True, blank=True, related_name='kardex')
+    # consumos: cuenta de gasto y centro de costo propios del movimiento (requerimientos internos)
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='+')
+    cuenta_contra = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                      blank=True, related_name='+')
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:

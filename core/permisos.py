@@ -34,11 +34,15 @@ ACCIONES = {
                     ('anular', 'Anular órdenes de producción', True),
                     ('recetas', 'Recetas, hojas de ruta, versiones, puestos y costo estándar', True)],
     'costos': [('liberar', 'Calcular y liberar el costo estándar', True)],
+    'requerimientos': [('solicitar', 'Pedir materiales al almacén', False),
+                       ('aprobar', 'Aprobar o rechazar requerimientos', True)],
     'activos': [('registrar', 'Registrar activos', False),
                 ('baja', 'Dar de baja o anular activos', True),
                 ('depreciar', 'Calcular y revertir depreciación', True)],
 }
 TODAS = {f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, _ in lista}
+# acciones sensibles nuevas: nunca se dan por defecto (ni a usuarios sin perfil); el administrador las asigna
+EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar'}
 
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
@@ -87,6 +91,8 @@ RUTAS = {
     'manufactura:lista_obsoleta': 'manufactura.recetas', 'manufactura:version_nueva': 'manufactura.recetas',
     'manufactura:version_editar': 'manufactura.recetas', 'manufactura:mrp': {'POST': 'manufactura.ordenes'},
     'costos:estandar': {'POST': 'costos.liberar'},
+    'requerimientos:nuevo': 'requerimientos.solicitar', 'requerimientos:editar': 'requerimientos.solicitar',
+    'requerimientos:enviar': 'requerimientos.solicitar',
     'activos:nuevo': 'activos.registrar', 'activos:editar': 'activos.registrar', 'activos:baja': 'activos.baja',
     'activos:anular': 'activos.baja', 'activos:depreciacion': {'POST': 'activos.depreciar'},
     'activos:proceso_revertir': 'activos.depreciar', 'activos:categoria_nueva': 'activos.depreciar',
@@ -119,7 +125,9 @@ def puede(user, accion):
     if accion.split('.')[0] not in modulos_del_usuario(user):
         return False
     perfil = perfil_de(user)
-    return perfil is None or accion in perfil.acciones
+    if perfil is None:
+        return accion not in EXPLICITAS
+    return accion in perfil.acciones
 
 
 def accion_de_ruta(match, request):

@@ -29,5 +29,6 @@ urlpatterns += [
     path('manufactura/', include('produccion.urls')),
     path('costos/', include('produccion.urls_costos')),
     path('activos/', include('activos.urls')),
+    path('requerimientos/', include('inventario.urls_requerimientos')),
     path('', include('core.urls')),
 ]

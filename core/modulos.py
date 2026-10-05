@@ -61,6 +61,8 @@ MODULOS = [
                              ('Manufactura', 'inventario:lista?grupo=manufactura', 'bi-gear-wide-connected'),
                              ('Todas las operaciones', 'inventario:lista', 'bi-list-ul'),
                              ('Ajuste rápido', 'inv_ajuste', 'bi-sliders'),
+                             ('Requerimientos de las áreas', 'requerimientos:lista?estado=APROBADO',
+                              'bi-clipboard-plus'),
                              ('Carga masiva de saldos y productos', 'carga_masiva?tipo=saldos',
                               'bi-file-earmark-arrow-up')]),
             ('Reportes', [('Kardex', 'inv_kardex', 'bi-list-columns'),
@@ -114,6 +116,16 @@ MODULOS = [
             ('Reportes', [('Registro de activos fijos 7.1', 'activos:registro', 'bi-journal-text'),
                           ('Cuadre con contabilidad', 'activos:cuadre', 'bi-check2-square')]),
             ('Configuración', [('Categorías y cuentas', 'activos:categorias', 'bi-tags')]),
+        ],
+    },
+    {
+        'clave': 'requerimientos', 'nombre': 'Requerimientos', 'icono': 'bi-clipboard-plus', 'color': '#0f766e',
+        'inicio': 'requerimientos:lista', 'descripcion': 'Pedidos de materiales de las áreas al almacén',
+        'menu': [
+            ('Mis requerimientos', 'requerimientos:lista'),
+            ('Nuevo requerimiento', 'requerimientos:nuevo'),
+            ('Por aprobar', 'requerimientos:lista?estado=ENVIADO'),
+            ('Por atender', 'requerimientos:lista?estado=APROBADO'),
         ],
     },
     {
@@ -192,7 +204,8 @@ POR_CLAVE = {m['clave']: m for m in MODULOS}
 GRUPOS = {m['clave']: m['nombre'] for m in MODULOS if m['clave'] != 'contactos'}
 
 # Contactos no tiene grupo propio: lo usan quienes venden, compran, cobran o despachan
-DERIVADOS = {'contactos': {'ventas', 'compras', 'finanzas', 'logistica', 'contabilidad'}}
+DERIVADOS = {'contactos': {'ventas', 'compras', 'finanzas', 'logistica', 'contabilidad'},
+             'requerimientos': {'inventario'}}  # el almacén atiende los requerimientos de las áreas
 
 # Rutas sin espacio de nombres (app core) -> módulos que pueden abrirlas (el primero es el principal)
 RUTAS_CORE = {

@@ -23,7 +23,8 @@ AUDITADOS = [
     ('proveedores', 'FacturaProveedor'), ('proveedores', 'AccesoProveedor'),
     ('produccion', 'OrdenProduccion'), ('produccion', 'ListaMateriales'), ('produccion', 'CentroTrabajo'),
     ('activos', 'ActivoFijo'), ('activos', 'CategoriaActivo'), ('core', 'PerfilUsuario'),
-    ('contabilidad', 'CentroBeneficio'),
+    ('contabilidad', 'CentroBeneficio'), ('inventario', 'RequerimientoInterno'),
+    ('produccion', 'HojaRuta'), ('produccion', 'VersionFabricacion'),
 ]
 # campos que el sistema recalcula solo: no son cambios del usuario
 IGNORAR = {

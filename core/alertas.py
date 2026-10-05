@@ -104,6 +104,19 @@ def calcular(user):
                                    f'{len(lotes)} lote(s) con stock vencen pronto' +
                                    (f' ({vencidos} ya vencidos).' if vencidos else '.'),
                                    reverse('inv_lotes') + '?vencimiento=1', len(lotes)))
+    from inventario.models import RequerimientoInterno
+    if puede(user, 'requerimientos.aprobar'):
+        n = RequerimientoInterno.objects.filter(estado='ENVIADO').exclude(solicitante=user).count()
+        if n:
+            alertas.append(_alerta('info', 'bi-clipboard-check', 'Requerimientos por aprobar',
+                                   f'{n} requerimiento(s) de materiales esperan su aprobación.',
+                                   reverse('requerimientos:lista') + '?estado=ENVIADO', n))
+    if 'inventario' in mods and puede(user, 'inventario.operar'):
+        n = RequerimientoInterno.objects.filter(estado__in=['APROBADO', 'PARCIAL']).count()
+        if n:
+            alertas.append(_alerta('warning', 'bi-box-arrow-up', 'Requerimientos por atender',
+                                   f'{n} requerimiento(s) aprobados esperan la entrega del almacén.',
+                                   reverse('requerimientos:lista') + '?estado=APROBADO', n))
     if 'manufactura' in mods:
         from produccion.servicios import requerimientos
         faltan = [f for f in requerimientos() if f['faltante'] > 0]

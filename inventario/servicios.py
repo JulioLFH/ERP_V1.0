@@ -243,7 +243,8 @@ def _mover(item, cantidad, op, almacen, costo, codigo):
         'TRASLADO', 'TRANSITO_ENVIO', 'TRANSITO_RECEPCION') else None
     item.producto.mover_stock(cantidad, base + (f' | {op.venta}' if op.venta_id else ''),
                               costo=costo, fecha=op.fecha, almacen=almacen, origen='OPERACION',
-                              concepto=op.tipo.codigo, codigo_sunat=codigo, lotes=lotes, lotes_de=lotes_de)
+                              concepto=op.tipo.codigo, codigo_sunat=codigo, lotes=lotes, lotes_de=lotes_de,
+                              centro_costo=op.centro_costo, cuenta_contra=op.cuenta_gasto)
 
 
 def confirmar(op, usuario=None):
@@ -360,7 +361,8 @@ def anular(op, usuario, motivo):
         for i in op.items.select_related('producto'):
             ref = f'Anulación {tipo.nombre} {op.numero}'
             # cada movimiento vuelve a los lotes en que se hizo
-            kw = dict(fecha=op.fecha, origen='OPERACION', concepto=tipo.codigo, lotes_de=f'{tipo.nombre} {op.numero}')
+            kw = dict(fecha=op.fecha, origen='OPERACION', concepto=tipo.codigo, lotes_de=f'{tipo.nombre} {op.numero}',
+                      centro_costo=op.centro_costo, cuenta_contra=op.cuenta_gasto)
             if tipo.clase == 'INGRESO':
                 i.producto.mover_stock(-i.cantidad, ref, almacen=op.almacen_destino, codigo_sunat=tipo.codigo_sunat,
                                        **kw)

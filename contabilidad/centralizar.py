@@ -379,6 +379,9 @@ def asiento_inventario(periodo, cta):
                 glosa = 'Producción almacenada' if k.tipo == 'ENTRADA' else 'Consumo de insumos en producción'
                 grupos[(ex, contra, glosa, linea)] += valor
                 continue
+            if k.cuenta_contra_id:  # consumo con su propia cuenta de gasto y centro de costo (requerimientos)
+                grupos[(ex, k.cuenta_contra, f'Consumo: {k.cuenta_contra.nombre[:50]}', linea, k.centro_costo)] += valor
+                continue
             if not (tipo and tipo.cuenta_contable_id):
                 sin_contra[ex] += valor
                 continue
@@ -388,7 +391,8 @@ def asiento_inventario(periodo, cta):
                 contra = por_recibir(p)
             elif contra.pk == cta['costo_ventas'].pk:
                 contra = costo(p)
-            grupos[(ex, contra, f'Operaciones de inventario ({tipo.cuenta_contable.nombre[:50]})', linea)] += valor
+            grupos[(ex, contra, f'Operaciones de inventario ({tipo.cuenta_contable.nombre[:50]})', linea,
+                    k.centro_costo)] += valor
         elif k.origen == 'COMPRA':
             grupos[(ex, por_recibir(p), 'Ingreso al almacén de compras', linea)] += valor
         elif k.origen in ('VENTA', 'GUIA'):
@@ -403,9 +407,12 @@ def asiento_inventario(periodo, cta):
             grupos[(ex, cta['inventario_merma'], 'Mermas, faltantes y consumo', linea)] += valor
     a = Asiento(fecha=hasta, libro='05', origen='INVENTARIO', glosa=f'Inventario y costo de ventas {periodo} (kardex)')
     b = Borrador(a)
-    for (ex, contra, glosa, linea), valor in sorted(grupos.items(), key=lambda x: (x[0][0].codigo, x[0][1].codigo)):
+    for clave, valor in sorted(grupos.items(), key=lambda x: (x[0][0].codigo, x[0][1].codigo)):
+        ex, contra, glosa, linea = clave[:4]
+        centro = clave[4] if len(clave) > 4 else None
         if valor:
-            b.neto(ex, contra, valor, glosa=glosa, centro_beneficio=linea)
+            b.neto(ex, contra, valor, glosa=glosa, centro_beneficio=linea or (centro.beneficio if centro else None),
+                   centro_costo=centro)
     # diferencia de precio factura vs recepción: liquida la 28 contra el inventario (lo que sigue en stock) y el
     # costo de ventas (lo ya vendido o consumido)
     from compras.models import AjustePrecioCompra

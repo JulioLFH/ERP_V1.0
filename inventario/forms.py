@@ -26,7 +26,7 @@ class OperacionForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Operacion
         fields = ['fecha', 'almacen_origen', 'almacen_destino', 'tercero', 'orden_compra', 'compra', 'venta', 'envio',
-                  'referencia', 'glosa']
+                  'referencia', 'centro_costo', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2})}
 
     def __init__(self, *args, tipo=None, **kwargs):

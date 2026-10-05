@@ -10,7 +10,7 @@
   {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
   {% if form.errors or formset.total_error_count %}<div class="alert alert-danger py-2">Revise los campos marcados.</div>{% endif %}
   <div class="card mb-3"><div class="card-body"><div class="row g-3">
-    {% for field in form|campos:"fecha,orden_compra,compra,venta,envio,almacen_origen,almacen_destino,tercero,referencia" %}
+    {% for field in form|campos:"fecha,orden_compra,compra,venta,envio,almacen_origen,almacen_destino,tercero,referencia,centro_costo" %}
       <div class="{% if field.name == 'fecha' %}col-6 col-md-2{% elif field.name in 'orden_compra,compra,venta,envio,tercero' %}col-md-5{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>
     {% endfor %}
     {% for field in form|campos:"glosa" %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endfor %}

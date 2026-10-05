@@ -113,6 +113,15 @@ class Operacion(models.Model):
                               verbose_name='Traslado a tránsito que se recibe')
     referencia = models.CharField('Documento de referencia', max_length=60, blank=True,
                                   help_text='Guía del proveedor, orden de trabajo, acta de destrucción, etc.')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='+', verbose_name='Centro de costo',
+                                     help_text='Consumos y salidas: el gasto se carga a este centro')
+    cuenta_gasto = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='+', verbose_name='Cuenta de gasto',
+                                     limit_choices_to={'imputable': True},
+                                     help_text='Vacío = la cuenta del tipo de operación')
+    requerimiento = models.ForeignKey('RequerimientoInterno', on_delete=models.PROTECT, null=True, blank=True,
+                                      related_name='atenciones', editable=False)
     glosa = models.TextField('Observaciones', blank=True)
     estado = models.CharField(max_length=10, choices=ESTADOS, default='BORRADOR')
     stock_aplicado = models.BooleanField(default=False, editable=False)
@@ -227,3 +236,60 @@ class OperacionItem(models.Model):
     @property
     def valor(self):
         return (self.cantidad * (self.costo_unitario or self.producto.costo_promedio)).quantize(Decimal('0.01'))
+
+
+class RequerimientoInterno(models.Model):
+    """Pedido de materiales de un área al almacén, contra su centro de costo: se aprueba, se atiende (total o
+    parcial), los faltantes pasan a compras y el consumo va al gasto y centro de costo correctos."""
+    ESTADOS = [('BORRADOR', 'Borrador'), ('ENVIADO', 'Por aprobar'), ('APROBADO', 'Aprobado (por atender)'),
+               ('PARCIAL', 'Atendido parcialmente'), ('ATENDIDO', 'Atendido'), ('RECHAZADO', 'Rechazado'),
+               ('ANULADO', 'Anulado')]
+
+    numero = models.CharField('Número', max_length=20, blank=True, editable=False)
+    fecha = models.DateField(default=timezone.localdate)
+    fecha_requerida = models.DateField('Se necesita el', null=True, blank=True)
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, related_name='+',
+                                     verbose_name='Centro de costo')
+    cuenta_gasto = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='+', verbose_name='Cuenta de gasto',
+                                     limit_choices_to={'imputable': True, 'codigo__startswith': '6'},
+                                     help_text='Ej. 6561 suministros, 6343 mantenimiento. Vacío = consumo interno')
+    almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, related_name='+', verbose_name='Almacén')
+    motivo = models.CharField('Para qué se necesita', max_length=250)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='BORRADOR')
+    solicitante = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+                                    related_name='+')
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+')
+    aprobado_en = models.DateTimeField(null=True, blank=True)
+    motivo_rechazo = models.CharField('Motivo de rechazo / anulación', max_length=250, blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'requerimiento interno'
+        verbose_name_plural = 'requerimientos internos'
+
+    def __str__(self):
+        return f'Requerimiento {self.numero or "(borrador)"}'
+
+    @property
+    def pendiente(self):
+        return sum((i.pendiente for i in self.items.all()), D0)
+
+
+class RequerimientoItem(models.Model):
+    requerimiento = models.ForeignKey(RequerimientoInterno, on_delete=models.CASCADE, related_name='items')
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, limit_choices_to={'tipo': 'BIEN'})
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2)
+    cantidad_atendida = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    orden_compra = models.ForeignKey('compras.OrdenCompra', on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False)
+    observacion = models.CharField(max_length=120, blank=True)
+
+    class Meta:
+        ordering = ['id']
+
+    @property
+    def pendiente(self):
+        return max(self.cantidad - self.cantidad_atendida, D0)
