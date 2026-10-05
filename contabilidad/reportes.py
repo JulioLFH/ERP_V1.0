@@ -78,8 +78,8 @@ def resultado_ejercicio(sumas):
     return ingresos - costo - gastos - renta
 
 
-def estado_resultados(desde, hasta):
-    s = sumas_por_cuenta(desde, hasta)
+def estado_resultados(desde, hasta, sumas=None):
+    s = sumas_por_cuenta(desde, hasta) if sumas is None else sumas
     ventas = -_neto(s, ('70', '71', '72', '73', '74'))
     costo = _neto(s, ('69',))
     bruta = ventas - costo
@@ -178,3 +178,123 @@ def situacion_financiera(hasta, desde_ejercicio):
     t['pasivo_pat'] = t['pasivo'] + t['pat']
     t['diferencia'] = t['activo'] - t['pasivo_pat']
     return {'activo': activo, 'pasivo': pasivo, 'patrimonio': patrimonio, 't': t}
+
+
+# ---------------------------------------------------------------- comparativos y presupuesto
+def _indice(periodo):
+    return int(periodo[:4]) * 12 + int(periodo[4:]) - 1
+
+
+def _periodo_de(indice):
+    return f'{indice // 12:04d}{indice % 12 + 1:02d}'
+
+
+def rango_comparativo(desde, hasta, modo):
+    """Rango contra el que se compara: 'anio' = mismos meses del año anterior; 'previo' = los meses inmediatamente
+    anteriores, de igual duración."""
+    if modo == 'previo':
+        n = _indice(hasta) - _indice(desde) + 1
+        return _periodo_de(_indice(desde) - n), _periodo_de(_indice(desde) - 1)
+    return f'{int(desde[:4]) - 1}{desde[4:]}', f'{int(hasta[:4]) - 1}{hasta[4:]}'
+
+
+def _destinos(cuenta, cache):
+    """Cuentas de destino (9x / 79) de una cuenta de gasto; si no tiene, las de su cuenta superior."""
+    if cuenta.codigo not in cache:
+        c, codigo = cuenta, cuenta.codigo
+        while c is None or not (c.destino_debe_id and c.destino_haber_id):
+            if len(codigo) <= 2:
+                c = None
+                break
+            codigo = codigo[:-1]
+            c = CuentaContable.objects.filter(codigo=codigo).select_related('destino_debe', 'destino_haber').first()
+        cache[cuenta.codigo] = (c.destino_debe, c.destino_haber) if c else (None, None)
+    return cache[cuenta.codigo]
+
+
+def sumas_presupuesto(desde, hasta):
+    """El presupuesto (el principal de cada año) como {codigo: (debe, haber)}, igual que los saldos reales: ingresos
+    al haber, gastos al debe y, para los gastos por naturaleza, su destino por función (9x contra 79)."""
+    from .centralizar import _destino_por_centro
+    from .models import Presupuesto
+    sumas, cache = {}, {}
+
+    def sumar(codigo, d, h):
+        ad, ah = sumas.get(codigo, (D0, D0))
+        sumas[codigo] = (ad + d, ah + h)
+
+    for anio in range(int(desde[:4]), int(hasta[:4]) + 1):
+        pres = Presupuesto.del_anio(anio)
+        if not pres:
+            continue
+        meses = [m for m in range(1, 13) if desde <= f'{anio}{m:02d}' <= hasta]
+        for l in pres.lineas.select_related('cuenta__destino_debe', 'cuenta__destino_haber', 'centro_costo'):
+            importe = sum((l.mes(m) for m in meses), D0)
+            if not importe:
+                continue
+            codigo = l.cuenta.codigo
+            if codigo.startswith('7'):
+                sumar(codigo, D0, importe)
+                continue
+            sumar(codigo, importe, D0)
+            if codigo.startswith(('62', '63', '64', '65', '66', '67', '68')):
+                debe, haber = _destinos(l.cuenta, cache)
+                if debe is not None:
+                    sumar(_destino_por_centro(debe, l.centro_costo).codigo, importe, D0)
+                    sumar(haber.codigo, D0, importe)
+    return sumas
+
+
+ORDEN_RESULTADOS = ['Ventas netas', 'Costo de ventas', 'UTILIDAD BRUTA', 'Gastos de administración',
+                    'Gastos de ventas', 'Otros gastos por función', 'Gastos sin destino asignado',
+                    'Otros ingresos de gestión', 'UTILIDAD OPERATIVA', 'Ingresos financieros', 'Gastos financieros',
+                    'RESULTADO ANTES DE IMPUESTO A LA RENTA', 'Impuesto a la renta', 'RESULTADO DEL EJERCICIO']
+
+
+def _fila(nombre, valor, comp, estilo=''):
+    var = valor - comp
+    return {'nombre': nombre, 'estilo': estilo, 'valor': valor, 'comp': comp, 'var': var,
+            'pct': r2(var / abs(comp) * 100) if comp else None}
+
+
+def resultados_comparativo(desde, hasta, modo):
+    """Estado de resultados con columna comparativa: 'anio' (año anterior), 'previo' (periodo anterior) o
+    'presupuesto'. Devuelve (filas, rango comparado)."""
+    lineas, _ = estado_resultados(desde, hasta)
+    if modo == 'presupuesto':
+        rango = (desde, hasta)
+        otro, _ = estado_resultados(desde, hasta, sumas=sumas_presupuesto(desde, hasta))
+    else:
+        rango = rango_comparativo(desde, hasta, modo)
+        otro, _ = estado_resultados(*rango)
+    # las filas opcionales (otros gastos por función, sin destino) pueden aparecer solo en una de las columnas
+    a = {n: (v, e) for n, v, e in lineas}
+    o = {n: (v, e) for n, v, e in otro}
+    nombres = sorted(set(a) | set(o), key=ORDEN_RESULTADOS.index)
+    return [_fila(n, a.get(n, (D0, ''))[0], o.get(n, (D0, ''))[0], (a.get(n) or o.get(n))[1])
+            for n in nombres], rango
+
+
+def situacion_comparativa(hasta, modo):
+    """Situación financiera al periodo frente al cierre de diciembre del año anterior ('anio') o del mes anterior
+    ('previo'). Devuelve (secciones, periodo comparado)."""
+    comp = _periodo_de(_indice(hasta) - 1) if modo == 'previo' else f'{int(hasta[:4]) - 1}12'
+    actual = situacion_financiera(hasta, f'{hasta[:4]}01')
+    otro = situacion_financiera(comp, f'{comp[:4]}01')
+
+    def filas(lista_a, lista_o):
+        da, do = dict(lista_a), dict(lista_o)
+        nombres = list(da) + [n for n in do if n not in da]
+        return [_fila(n, da.get(n, D0), do.get(n, D0)) for n in nombres]
+
+    secciones = [
+        ('Activo corriente', filas(actual['activo']['corriente'], otro['activo']['corriente']), 'ac'),
+        ('Activo no corriente', filas(actual['activo']['no_corriente'], otro['activo']['no_corriente']), 'anc'),
+        ('TOTAL ACTIVO', [], 'activo'),
+        ('Pasivo corriente', filas(actual['pasivo']['corriente'], otro['pasivo']['corriente']), 'pc'),
+        ('Pasivo no corriente', filas(actual['pasivo']['no_corriente'], otro['pasivo']['no_corriente']), 'pnc'),
+        ('Patrimonio', filas(actual['patrimonio'], otro['patrimonio']), 'pat'),
+        ('TOTAL PASIVO Y PATRIMONIO', [], 'pasivo_pat'),
+    ]
+    return [{'titulo': t, 'filas': f, 'total': _fila(t, actual['t'][k], otro['t'][k])}
+            for t, f, k in secciones], comp

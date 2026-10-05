@@ -7,7 +7,8 @@ from core.forms import BootstrapMixin
 from core.models import Tercero
 from core.sustentos import SustentoField
 
-from .models import Asiento, AsientoLinea, CentroBeneficio, CentroCosto, CuentaContable, CuentaDefecto, PeriodoContable
+from .models import (Asiento, AsientoLinea, CentroBeneficio, CentroCosto, CuentaContable, CuentaDefecto, PeriodoContable,
+                     Presupuesto, PresupuestoLinea)
 
 
 def cuentas_imputables():
@@ -50,6 +51,59 @@ class CentroBeneficioForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = CentroBeneficio
         fields = ['codigo', 'nombre', 'responsable', 'activo']
+
+
+class PresupuestoForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = Presupuesto
+        fields = ['anio', 'nombre', 'estado', 'principal', 'observaciones']
+        widgets = {'observaciones': forms.Textarea(attrs={'rows': 2})}
+
+    def clean_anio(self):
+        anio = self.cleaned_data['anio']
+        if not 2000 <= anio <= 2100:
+            raise forms.ValidationError('Año no válido.')
+        return anio
+
+
+class PresupuestoLineaForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = PresupuestoLinea
+        fields = ['cuenta', 'centro_costo'] + PresupuestoLinea.MESES
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['cuenta'].queryset = cuentas_imputables().filter(codigo__regex=r'^(6[2-9]|7[0-8]|88)')
+        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].required = False
+        for m in PresupuestoLinea.MESES:
+            self.fields[m].required = False
+            self.fields[m].widget.attrs.update({'class': 'form-control form-control-sm text-end px-1', 'step': '0.01'})
+
+    def clean(self):
+        data = super().clean()
+        for m in PresupuestoLinea.MESES:
+            if data.get(m) is None:
+                data[m] = Decimal('0')
+        return data
+
+
+class _LineasPresupuesto(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        vistos = set()
+        for f in self.forms:
+            if not getattr(f, 'cleaned_data', None) or f.cleaned_data.get('DELETE') or not f.cleaned_data.get('cuenta'):
+                continue
+            clave = (f.cleaned_data['cuenta'].pk, getattr(f.cleaned_data.get('centro_costo'), 'pk', None))
+            if clave in vistos:
+                raise forms.ValidationError(f'La cuenta {f.cleaned_data["cuenta"].codigo} se repite con el mismo '
+                                            'centro de costo: súmela en una sola fila.')
+            vistos.add(clave)
+
+
+LineasPresupuestoFormSet = inlineformset_factory(Presupuesto, PresupuestoLinea, form=PresupuestoLineaForm,
+                                                 formset=_LineasPresupuesto, extra=1, can_delete=True)
 
 
 class CuentaDefectoForm(BootstrapMixin, forms.ModelForm):

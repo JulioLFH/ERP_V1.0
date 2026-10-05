@@ -1,0 +1,32 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Ejecución {{ pres }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Ejecución del presupuesto {{ pres }}</h1>
+    <div class="text-muted small">{{ empresa.razon_social }} · acumulado de enero a {% for n, m in meses %}{% if n == hasta_mes %}{{ m|lower }}{% endif %}{% endfor %} · {{ pres.get_estado_display }}</div></div>
+  <form class="d-flex flex-wrap gap-2 d-print-none" method="get">
+    <select name="mes" class="form-select form-select-sm" style="width:auto">{% for n, m in meses %}<option value="{{ n }}" {% if n == hasta_mes %}selected{% endif %}>Hasta {{ m }}</option>{% endfor %}</select>
+    <button class="btn btn-sm btn-primary">Ver</button>
+    <button name="formato" value="excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></button>
+    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary" title="Imprimir o guardar como PDF"><i class="bi bi-file-earmark-pdf"></i></button>
+    {% if puede.contabilidad_presupuesto %}<a href="{% url 'contabilidad:presupuesto_editar' pres.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
+  </form>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0">
+  <thead><tr><th>Cuenta</th><th>Centro de costo</th><th class="num">Anual</th><th class="num">Presupuesto</th><th class="num">Real</th><th class="num">Variación</th><th class="num">% ejec.</th></tr></thead>
+  <tbody>
+    {% for f in filas %}<tr>
+      <td>{{ f.l.cuenta.codigo }} <span class="small">{{ f.l.cuenta.nombre }}</span>{% if f.ingreso %} <span class="badge text-bg-light border">ingreso</span>{% endif %}</td>
+      <td class="small">{{ f.l.centro_costo|default:'—' }}</td>
+      <td class="num text-muted">{{ f.anual|money }}</td>
+      <td class="num">{{ f.pres|money }}</td>
+      <td class="num">{{ f.real|money }}</td>
+      {# mejora: ingreso por encima o gasto por debajo del presupuesto #}
+      <td class="num {% if f.ingreso %}{% if f.var < 0 %}text-danger{% elif f.var > 0 %}text-success{% endif %}{% else %}{% if f.var > 0 %}text-danger{% elif f.var < 0 %}text-success{% endif %}{% endif %}">{{ f.var|money }}</td>
+      <td class="num small">{% if f.pct is not None %}{{ f.pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">El presupuesto no tiene líneas.</td></tr>{% endfor %}
+  </tbody>
+  <tfoot><tr class="fw-bold table-light"><td colspan="2">RESULTADO (ingresos − gastos)</td><td class="num">{{ tot.anual|money }}</td><td class="num">{{ tot.pres|money }}</td><td class="num">{{ tot.real|money }}</td><td class="num {% if tot.var < 0 %}text-danger{% else %}text-success{% endif %}">{{ tot.var|money }}</td><td></td></tr></tfoot>
+</table></div></div>
+<p class="small text-muted mt-2">Real tomado de los asientos (sin las líneas de destino). Una línea sin centro de costo compara con el real de la cuenta en los centros que no tienen línea propia. Para ver el estado de resultados contra el presupuesto use Estado de resultados › «vs Presupuesto».</p>
+{% endblock %}

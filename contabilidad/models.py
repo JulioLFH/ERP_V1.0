@@ -243,3 +243,69 @@ class AsientoLinea(models.Model):
 
     class Meta:
         ordering = ['id']
+
+
+class Presupuesto(models.Model):
+    """Presupuesto anual del estado de resultados: importes por cuenta (y centro de costo) y mes."""
+    ESTADOS = [('BORRADOR', 'Borrador'), ('APROBADO', 'Aprobado')]
+    anio = models.PositiveIntegerField('Año')
+    nombre = models.CharField(max_length=80, default='Presupuesto anual', help_text='Ej. Original, Reforecast junio')
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='BORRADOR')
+    principal = models.BooleanField('Usar en los comparativos', default=True,
+                                    help_text='El presupuesto del año contra el que se comparan los estados')
+    observaciones = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-anio', 'nombre']
+        unique_together = [('anio', 'nombre')]
+
+    def __str__(self):
+        return f'{self.anio} {self.nombre}'
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.principal:  # uno solo por año
+            Presupuesto.objects.filter(anio=self.anio).exclude(pk=self.pk).update(principal=False)
+
+    @classmethod
+    def del_anio(cls, anio):
+        return cls.objects.filter(anio=anio).order_by('-principal', '-estado', '-pk').first()
+
+    @property
+    def total(self):
+        return sum((l.total for l in self.lineas.all()), D0)
+
+
+class PresupuestoLinea(models.Model):
+    MESES = [f'm{m:02d}' for m in range(1, 13)]
+    presupuesto = models.ForeignKey(Presupuesto, on_delete=models.CASCADE, related_name='lineas')
+    cuenta = models.ForeignKey(CuentaContable, on_delete=models.PROTECT, related_name='+',
+                               help_text='Ingresos (70-78), costo de ventas (69) o gastos (62-68, 88)')
+    centro_costo = models.ForeignKey(CentroCosto, on_delete=models.PROTECT, null=True, blank=True,
+                                     verbose_name='Centro de costo')
+    m01 = models.DecimalField('Ene', max_digits=14, decimal_places=2, default=D0)
+    m02 = models.DecimalField('Feb', max_digits=14, decimal_places=2, default=D0)
+    m03 = models.DecimalField('Mar', max_digits=14, decimal_places=2, default=D0)
+    m04 = models.DecimalField('Abr', max_digits=14, decimal_places=2, default=D0)
+    m05 = models.DecimalField('May', max_digits=14, decimal_places=2, default=D0)
+    m06 = models.DecimalField('Jun', max_digits=14, decimal_places=2, default=D0)
+    m07 = models.DecimalField('Jul', max_digits=14, decimal_places=2, default=D0)
+    m08 = models.DecimalField('Ago', max_digits=14, decimal_places=2, default=D0)
+    m09 = models.DecimalField('Set', max_digits=14, decimal_places=2, default=D0)
+    m10 = models.DecimalField('Oct', max_digits=14, decimal_places=2, default=D0)
+    m11 = models.DecimalField('Nov', max_digits=14, decimal_places=2, default=D0)
+    m12 = models.DecimalField('Dic', max_digits=14, decimal_places=2, default=D0)
+
+    class Meta:
+        ordering = ['cuenta__codigo', 'centro_costo__codigo']
+
+    def mes(self, m):
+        return getattr(self, f'm{int(m):02d}')
+
+    @property
+    def meses(self):
+        return [self.mes(m) for m in range(1, 13)]
+
+    @property
+    def total(self):
+        return sum(self.meses, D0)

@@ -5,12 +5,29 @@
   <div><h1 class="page-title">Estado de situación financiera</h1>
     <div class="text-muted small">{{ empresa.razon_social }} · al cierre de {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }} · en soles</div></div>
   <form class="d-flex gap-2 d-print-none" method="get">
-    <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm">
+    <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm" style="width:auto">
+    <select name="comparar" class="form-select form-select-sm" style="width:auto">
+      <option value="">Sin comparativo</option>
+      {% for v, t in opciones %}<option value="{{ v }}" {% if comparar == v %}selected{% endif %}>vs {{ t }}</option>{% endfor %}
+    </select>
     <button class="btn btn-sm btn-primary">Ver</button>
-    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i></button>
+    <button name="formato" value="excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></button>
+    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary" title="Imprimir o guardar como PDF"><i class="bi bi-file-earmark-pdf"></i></button>
   </form>
 </div>
 {% if t.diferencia %}<div class="alert alert-warning small">Diferencia de S/ {{ t.diferencia|money }} entre activo y pasivo + patrimonio. Revise compras de mercadería sin destino 20/61, asientos manuales en clase 6 o 9 sin contrapartida, o centralice los periodos pendientes.</div>{% endif %}
+{% if comparar %}
+<div class="card" style="max-width:980px"><div class="card-body">
+  <table class="table table-sm mb-0">
+    <thead><tr><th></th><th class="num">{{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }}</th><th class="num">{{ comp|slice:"4:" }}/{{ comp|slice:":4" }}</th><th class="num">Variación</th><th class="num">%</th></tr></thead>
+    {% for s in secciones %}
+      {% if s.filas %}<tr><td colspan="5" class="fw-semibold text-muted small pt-3">{{ s.titulo }}</td></tr>{% endif %}
+      {% for f in s.filas %}<tr><td class="ps-3">{{ f.nombre }}</td><td class="num">{{ f.valor|money }}</td><td class="num text-muted">{{ f.comp|money }}</td><td class="num {% if f.var < 0 %}text-danger{% endif %}">{{ f.var|money }}</td><td class="num small">{% if f.pct is not None %}{{ f.pct|floatformat:1 }}%{% else %}—{% endif %}</td></tr>{% endfor %}
+      <tr class="{% if s.filas %}fw-semibold{% else %}fw-bold fs-6 border-top border-dark table-light{% endif %}"><td>{% if s.filas %}Total {{ s.titulo|lower }}{% else %}{{ s.titulo }}{% endif %}</td><td class="num">{{ s.total.valor|money }}</td><td class="num">{{ s.total.comp|money }}</td><td class="num">{{ s.total.var|money }}</td><td class="num small">{% if s.total.pct is not None %}{{ s.total.pct|floatformat:1 }}%{% else %}—{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+</div></div>
+{% else %}
 <div class="row g-3">
   <div class="col-lg-6"><div class="card h-100"><div class="card-body">
     <table class="table table-sm mb-0">
@@ -40,5 +57,6 @@
     </table>
   </div></div></div>
 </div>
+{% endif %}
 <p class="small text-muted mt-2">Saldos acumulados de las clases 1 a 5. El resultado del ejercicio se calcula desde enero del año seleccionado. El capital y los saldos iniciales se registran con un asiento manual de apertura.</p>
 {% endblock %}

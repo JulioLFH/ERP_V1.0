@@ -1,10 +1,15 @@
 from django.urls import path
 
-from . import views
+from . import views, views_presupuesto
 
 app_name = 'contabilidad'
 
 urlpatterns = [
+    path('presupuestos/', views_presupuesto.presupuestos, name='presupuestos'),
+    path('presupuestos/nuevo/', views_presupuesto.presupuesto_nuevo, name='presupuesto_nuevo'),
+    path('presupuestos/<int:pk>/', views_presupuesto.presupuesto_ejecucion, name='presupuesto_ejecucion'),
+    path('presupuestos/<int:pk>/editar/', views_presupuesto.presupuesto_editar, name='presupuesto_editar'),
+    path('presupuestos/<int:pk>/generar/', views_presupuesto.presupuesto_generar, name='presupuesto_generar'),
     path('periodos/', views.periodos, name='periodos'),
     path('asientos/', views.asientos, name='asientos'),
     path('asientos/nuevo/', views.asiento_nuevo, name='asiento_nuevo'),

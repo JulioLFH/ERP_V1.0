@@ -3,21 +3,40 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <div><h1 class="page-title">Estado de resultados (por función)</h1>
-    <div class="text-muted small">{{ empresa.razon_social }} · de {{ desde|slice:"4:" }}/{{ desde|slice:":4" }} a {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }} · en soles</div></div>
-  <form class="d-flex gap-2 d-print-none" method="get">
-    <input type="month" name="desde" value="{{ mes_desde }}" class="form-control form-control-sm">
-    <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm">
+    <div class="text-muted small">{{ empresa.razon_social }} · de {{ desde|slice:"4:" }}/{{ desde|slice:":4" }} a {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }}{% if comparar %} · comparado con {{ etiqueta_comp|lower }}{% endif %} · en soles</div></div>
+  <form class="d-flex flex-wrap gap-2 d-print-none" method="get">
+    <input type="month" name="desde" value="{{ mes_desde }}" class="form-control form-control-sm" style="width:auto">
+    <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm" style="width:auto">
+    <select name="comparar" class="form-select form-select-sm" style="width:auto">
+      <option value="">Sin comparativo</option>
+      {% for v, t in opciones %}<option value="{{ v }}" {% if comparar == v %}selected{% endif %}>vs {{ t }}</option>{% endfor %}
+    </select>
     <button class="btn btn-sm btn-primary">Ver</button>
-    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i></button>
+    <button name="formato" value="excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></button>
+    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary" title="Imprimir o guardar como PDF"><i class="bi bi-file-earmark-pdf"></i></button>
   </form>
 </div>
-<div class="card" style="max-width:720px"><div class="card-body">
+{% if sin_presupuesto %}<div class="alert alert-info small d-print-none">No hay presupuesto para el año. Regístrelo en <a href="{% url 'contabilidad:presupuestos' %}">Contabilidad › Presupuestos</a>.</div>{% endif %}
+<div class="card" style="max-width:{% if comparar %}980px{% else %}720px{% endif %}"><div class="card-body">
   <table class="table table-sm mb-0">
+    {% if comparar %}
+      <thead><tr><th></th><th class="num">{{ desde|slice:"4:" }}/{{ desde|slice:":4" }} - {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }}</th><th class="num">{{ etiqueta_comp }}</th><th class="num">Variación</th><th class="num">%</th></tr></thead>
+      {% for f in filas %}
+        <tr class="{% if f.estilo == 'subtotal' %}fw-semibold border-top{% elif f.estilo == 'total' %}fw-bold fs-6 table-light{% elif f.estilo == 'alerta' %}text-warning-emphasis{% endif %}">
+          <td {% if not f.estilo %}class="ps-4"{% endif %}>{{ f.nombre }}</td>
+          <td class="num {% if f.valor < 0 %}text-danger{% endif %}">{{ f.valor|money }}</td>
+          <td class="num text-muted">{{ f.comp|money }}</td>
+          <td class="num {% if f.var < 0 %}text-danger{% elif f.var > 0 %}text-success{% endif %}">{{ f.var|money }}</td>
+          <td class="num small">{% if f.pct is not None %}{{ f.pct|floatformat:1 }}%{% else %}—{% endif %}</td></tr>
+      {% endfor %}
+    {% else %}
     {% for nombre, valor, estilo in lineas %}
       <tr class="{% if estilo == 'subtotal' %}fw-semibold border-top{% elif estilo == 'total' %}fw-bold fs-6 table-light{% elif estilo == 'alerta' %}text-warning-emphasis{% endif %}">
         <td {% if not estilo %}class="ps-4"{% endif %}>{{ nombre }}{% if estilo == 'alerta' %} <i class="bi bi-exclamation-triangle" title="Cuentas de gasto sin destino 9x / 79"></i>{% endif %}</td>
         <td class="num {% if valor < 0 %}text-danger{% endif %}">{{ valor|money }}</td></tr>
     {% endfor %}
+    {% endif %}
   </table>
 </div></div>
+{% if comparar %}<p class="small text-muted mt-2">Variación = actual − comparativo; en verde mejora el resultado (más ingreso o menos gasto). {% if comparar == 'presupuesto' %}Los gastos presupuestados por naturaleza (62-68) se llevan a su función con el destino de la cuenta y el tipo de centro de costo.{% endif %}</p>{% endif %}
 {% endblock %}

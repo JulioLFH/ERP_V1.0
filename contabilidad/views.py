@@ -348,8 +348,27 @@ def balance(request):
 @al_dia
 def estado_situacion(request):
     hasta = _periodo(request, 'hasta')
+    comparar = request.GET.get('comparar') if request.GET.get('comparar') in ('anio', 'previo') else ''
     datos = reportes.situacion_financiera(hasta, f'{hasta[:4]}01')
-    return render(request, 'contabilidad/situacion.html', {**datos, 'hasta': hasta, 'mes_hasta': _mes_input(hasta)})
+    ctx = {**datos, 'hasta': hasta, 'mes_hasta': _mes_input(hasta), 'comparar': comparar,
+           'opciones': [('anio', 'Cierre del año anterior'), ('previo', 'Mes anterior')]}
+    if comparar or request.GET.get('formato') == 'excel':
+        secciones, comp = reportes.situacion_comparativa(hasta, comparar or 'anio')
+        ctx.update(secciones=secciones, comp=comp)
+        if request.GET.get('formato') == 'excel':
+            datos_xls = []
+            for s in secciones:
+                datos_xls += [['', f['nombre'], f['valor'], f['comp'], f['var']] for f in s['filas']]
+                datos_xls.append([s['titulo'].upper() if s['filas'] else s['titulo'], '', s['total']['valor'],
+                                  s['total']['comp'], s['total']['var']])
+            return excel_response(f'Situacion_financiera_{hasta}', f'ESTADO DE SITUACIÓN FINANCIERA AL {hasta}',
+                                  ['Sección', 'Rubro', _periodo_txt(hasta), _periodo_txt(comp), 'Variación'],
+                                  datos_xls)
+    return render(request, 'contabilidad/situacion.html', ctx)
+
+
+def _periodo_txt(p):
+    return f'{p[4:]}/{p[:4]}'
 
 
 @login_required
@@ -357,10 +376,31 @@ def estado_situacion(request):
 def estado_resultados(request):
     hasta = _periodo(request, 'hasta')
     desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')
+    comparar = request.GET.get('comparar') if request.GET.get('comparar') in ('anio', 'previo', 'presupuesto') else ''
     lineas, neta = reportes.estado_resultados(desde, hasta)
-    return render(request, 'contabilidad/resultados.html', {
-        'lineas': lineas, 'neta': neta, 'desde': desde, 'hasta': hasta,
-        'mes_desde': _mes_input(desde), 'mes_hasta': _mes_input(hasta)})
+    ctx = {'lineas': lineas, 'neta': neta, 'desde': desde, 'hasta': hasta, 'comparar': comparar,
+           'mes_desde': _mes_input(desde), 'mes_hasta': _mes_input(hasta),
+           'opciones': [('anio', 'Mismo periodo del año anterior'), ('previo', 'Periodo anterior'),
+                        ('presupuesto', 'Presupuesto')]}
+    if comparar:
+        filas, rango = reportes.resultados_comparativo(desde, hasta, comparar)
+        etiqueta = 'Presupuesto' if comparar == 'presupuesto' else \
+            f'{_periodo_txt(rango[0])} - {_periodo_txt(rango[1])}'
+        ctx.update(filas=filas, etiqueta_comp=etiqueta)
+        if comparar == 'presupuesto':
+            from .models import Presupuesto
+            ctx['sin_presupuesto'] = not any(Presupuesto.del_anio(a) for a in range(int(desde[:4]), int(hasta[:4]) + 1))
+    if request.GET.get('formato') == 'excel':
+        actual = f'{_periodo_txt(desde)} - {_periodo_txt(hasta)}'
+        if comparar:
+            datos_xls = [[f['nombre'], f['valor'], f['comp'], f['var'], f['pct']] for f in ctx['filas']]
+            encabezados = ['Concepto', actual, ctx['etiqueta_comp'], 'Variación', 'Variación %']
+        else:
+            datos_xls = [[n, v] for n, v, _ in lineas]
+            encabezados = ['Concepto', actual]
+        return excel_response(f'Estado_resultados_{desde}_{hasta}', f'ESTADO DE RESULTADOS {actual}',
+                              encabezados, datos_xls)
+    return render(request, 'contabilidad/resultados.html', ctx)
 
 
 @login_required
