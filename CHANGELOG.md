@@ -3,6 +3,28 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.17.0 — 05/10/2026 · Precios y descuentos, presupuesto, conciliación automática, XML/SIRE, API y variantes
+**Ventas y compras**
+- **Descuento por línea** (%) en ventas, cotizaciones, compras y órdenes de compra; se muestra en el comprobante impreso y viaja a SUNAT como descuento del ítem. El costo de lo comprado es el precio neto del descuento.
+- **Listas de precios** (Ventas > Listas de precios) por cliente o canal, con vigencia y **precios por volumen** (tramos de cantidad). El cliente tiene su lista; la venta la toma sola (o se elige otra) y propone precio y descuento al elegir el producto o cambiar la cantidad.
+- **Factor de conversión de compra**: se compra en cajas (ej. ×12) y se almacena por unidad; órdenes, facturas, recepciones y sugerencias de compra lo respetan.
+- **Registrar compra desde el XML** del proveedor (facturas y notas de crédito/débito): valida que sea para la empresa y que no esté duplicada, crea al proveedor si no existe, sugiere el producto de cada línea (código, compras anteriores o nombre), comprueba el total y guarda el XML como sustento.
+- **Cruce con la propuesta SIRE** (Compras > Reportes): compara la propuesta RCE de SUNAT con el Registro de Compras del periodo: coinciden, diferencias de importe, faltan registrar (o registradas en otro periodo) y solo en el ERP. Exportable a Excel.
+
+**Finanzas y contabilidad**
+- **Conciliación bancaria automática** (Finanzas > Bancos): se carga el estado de cuenta de **BCP, BBVA o Interbank** (Excel o CSV, formato reconocido solo) y cada línea se empareja con tesorería por N° de operación o por importe y fecha cercana. Comisiones e ITF se registran con un clic; enlace manual, ignorar y deshacer; partidas en tránsito y diferencia de saldo con el banco.
+- **Presupuestos** (Contabilidad > Reportes): por cuenta, centro de costo y mes; se generan desde el real del año anterior con un % de variación; **ejecución** (presupuesto vs real acumulado, % de ejecución) exportable a Excel.
+- **Estados financieros comparativos**: Estado de resultados vs mismo periodo del año anterior, periodo anterior o **presupuesto**; Situación financiera vs cierre del año anterior o mes anterior; con variación y %, exportación a **Excel** e impresión / PDF.
+
+**Productos**
+- **Variantes** (talla, color, presentación…): desde un producto plantilla se generan las combinaciones, cada una con su código, stock, kardex y precio. La plantilla no se usa en documentos.
+- **Imagen del producto** (PNG, JPG, GIF o WEBP hasta 2 MB, validada por su contenido).
+
+**Integraciones**
+- **API REST v1** (`/api/v1/`) para tienda online, BI u otros sistemas: productos (con variantes e imagen), stock por almacén, clientes/proveedores (consulta y alta), ventas (consulta y **emisión** con las mismas validaciones de la pantalla), cuentas por cobrar y compras. **Claves de API** por usuario (menú del usuario): actúan con sus módulos y permisos, solo lectura o con registro, vencimiento, revocación y límite de 120 solicitudes por minuto. Documentación en `/api/v1/docs/` y descripción OpenAPI.
+
+**Vista móvil**: revisadas las pantallas principales a 375 px; los comparativos y filtros ya no desbordan.
+
 ## v1.16.0 — 05/10/2026 · Manufactura y costos tipo SAP, estructura organizacional y requerimientos
 **Correcciones**
 - Terminar una orden de producción confirmada ya no da error (fecha como texto con kardex cerrado); se inicia sola.
