@@ -624,6 +624,49 @@ class PerfilUsuario(models.Model):
         return f'Permisos de {self.usuario}'
 
 
+class ApiToken(models.Model):
+    """Clave de acceso a la API (/api/v1/) de un usuario: actúa con sus módulos y permisos. Solo se guarda el hash
+    SHA-256; la clave completa se muestra una sola vez al crearla."""
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='api_tokens')
+    nombre = models.CharField(max_length=80, help_text='Para qué se usa. Ej. Tienda online, Power BI')
+    prefijo = models.CharField(max_length=12, editable=False)
+    clave_hash = models.CharField(max_length=64, unique=True, editable=False)
+    solo_lectura = models.BooleanField('Solo lectura', default=True, help_text='Desmarcado: también puede registrar')
+    expira = models.DateField('Expira el', null=True, blank=True, help_text='Vacío = no expira')
+    activo = models.BooleanField(default=True)
+    creado = models.DateTimeField(auto_now_add=True)
+    ultimo_uso = models.DateTimeField('Último uso', null=True, blank=True, editable=False)
+
+    class Meta:
+        ordering = ['-creado']
+        verbose_name = 'clave de API'
+        verbose_name_plural = 'claves de API'
+
+    def __str__(self):
+        return f'{self.nombre} ({self.prefijo}…)'
+
+    @staticmethod
+    def hash_de(clave):
+        import hashlib
+        return hashlib.sha256(clave.encode()).hexdigest()
+
+    @classmethod
+    def crear(cls, usuario, nombre, solo_lectura=True, expira=None):
+        """(token, clave en claro). La clave no se puede volver a ver."""
+        import secrets
+        clave = 'ceiba_' + secrets.token_urlsafe(32)
+        token = cls.objects.create(usuario=usuario, nombre=nombre, prefijo=clave[:12], clave_hash=cls.hash_de(clave),
+                                   solo_lectura=solo_lectura, expira=expira)
+        return token, clave
+
+    @classmethod
+    def autenticar(cls, clave):
+        token = cls.objects.select_related('usuario').filter(clave_hash=cls.hash_de(clave or ''), activo=True).first()
+        if token is None or not token.usuario.is_active or (token.expira and token.expira < timezone.localdate()):
+            return None
+        return token
+
+
 class SegundoFactor(models.Model):
     """Doble factor (TOTP, app autenticadora): secreto, estado y códigos de respaldo (guardados con hash)."""
     usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='segundo_factor')

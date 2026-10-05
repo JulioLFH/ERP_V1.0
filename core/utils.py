@@ -134,6 +134,34 @@ def faltantes_stock(lineas, almacen, devolver=None):
     return mensajes
 
 
+def procesar_documento(data, form_class, formset_class, instance, al_guardar=None, validar=None):
+    """Valida y guarda cabecera + ítems (pantallas y API). Devuelve (doc o None si hay errores, form, formset)."""
+    form = form_class(data, instance=instance)
+    formset = formset_class(data, instance=form.instance)
+    if form.is_valid() and formset.is_valid() and validar:
+        for mensaje in validar(form, formset):
+            form.add_error(None, mensaje)
+    if not (form.is_valid() and formset.is_valid()):
+        return None, form, formset
+    with transaction.atomic():
+        if instance.pk and getattr(instance, 'stock_aplicado', False):
+            # revertir con los datos guardados (almacén e ítems anteriores); al_guardar vuelve a aplicar
+            type(instance).objects.get(pk=instance.pk).revertir_stock()
+            instance.stock_aplicado = False
+        if getattr(instance, 'moneda', None) == 'USD' and instance.tipo_cambio in (None, 0, 1):
+            from .tipo_cambio import venta_del_dia
+            fecha = getattr(instance, 'fecha_emision', None) or getattr(instance, 'fecha', None)
+            instance.tipo_cambio = venta_del_dia(fecha)
+        doc = form.save()
+        formset.instance = doc
+        formset.save()
+        doc.calcular_totales()
+        doc.save()
+        if al_guardar:
+            al_guardar(doc)
+    return doc, form, formset
+
+
 def guardar_documento(request, form_class, formset_class, instance, template, contexto, al_guardar=None,
                       initial=None, items_iniciales=None, validar=None):
     """Alta/edición de un documento con detalle de ítems (compras, ventas, OC, cotizaciones, guías).
@@ -141,28 +169,9 @@ def guardar_documento(request, form_class, formset_class, instance, template, co
     validar(form, formset) -> [mensajes]: validaciones de negocio antes de guardar (ej. stock).
     """
     if request.method == 'POST':
-        form = form_class(request.POST, instance=instance)
-        formset = formset_class(request.POST, instance=form.instance)
-        if form.is_valid() and formset.is_valid() and validar:
-            for mensaje in validar(form, formset):
-                form.add_error(None, mensaje)
-        if form.is_valid() and formset.is_valid():
-            with transaction.atomic():
-                if instance.pk and getattr(instance, 'stock_aplicado', False):
-                    # revertir con los datos guardados (almacén e ítems anteriores); al_guardar vuelve a aplicar
-                    type(instance).objects.get(pk=instance.pk).revertir_stock()
-                    instance.stock_aplicado = False
-                if getattr(instance, 'moneda', None) == 'USD' and instance.tipo_cambio in (None, 0, 1):
-                    from .tipo_cambio import venta_del_dia
-                    fecha = getattr(instance, 'fecha_emision', None) or getattr(instance, 'fecha', None)
-                    instance.tipo_cambio = venta_del_dia(fecha)
-                doc = form.save()
-                formset.instance = doc
-                formset.save()
-                doc.calcular_totales()
-                doc.save()
-                if al_guardar:
-                    al_guardar(doc)
+        doc, form, formset = procesar_documento(request.POST, form_class, formset_class, instance, al_guardar,
+                                                validar)
+        if doc is not None:
             return redirect(doc_detalle_url(doc))
     else:
         form = form_class(instance=instance, initial=initial)

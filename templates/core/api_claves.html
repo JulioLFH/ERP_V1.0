@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}Claves de API{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-plug"></i> Claves de API</h1>
+  <a href="{% url 'api:docs' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-book"></i> Documentación de la API</a>
+</div>
+{% if nueva %}
+<div class="alert alert-success">
+  <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle"></i> Copie la clave ahora: no se volverá a mostrar.</div>
+  <div class="input-group"><input id="clave-nueva" class="form-control font-monospace" value="{{ nueva }}" readonly>
+    <button type="button" class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('clave-nueva').value)"><i class="bi bi-clipboard"></i> Copiar</button></div>
+</div>
+{% endif %}
+<div class="row g-3">
+  <div class="col-lg-4"><div class="card"><div class="card-header">Nueva clave</div><div class="card-body">
+    <form method="post">{% csrf_token %}
+      {% for field in form %}{% include 'core/_campo.html' %}{% endfor %}
+      <button class="btn btn-primary mt-3"><i class="bi bi-plus-lg"></i> Crear clave</button>
+    </form>
+    <p class="small text-muted mt-3 mb-0">La clave actúa con <b>sus</b> módulos y permisos. Guárdela en el sistema que se conecta (no la envíe por correo ni la publique).</p>
+  </div></div></div>
+  <div class="col-lg-8"><div class="card">
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Nombre</th><th>Clave</th><th>Acceso</th><th>Expira</th><th>Último uso</th><th></th></tr></thead>
+      <tbody>{% for t in tokens %}<tr class="{% if not t.activo %}text-muted{% endif %}">
+        <td>{{ t.nombre }}</td><td class="font-monospace small">{{ t.prefijo }}…</td>
+        <td>{% if t.solo_lectura %}Lectura{% else %}Lectura y registro{% endif %}</td>
+        <td>{{ t.expira|date:'d/m/Y'|default:'—' }}</td><td class="small">{{ t.ultimo_uso|date:'d/m/Y H:i'|default:'nunca' }}</td>
+        <td class="text-end">{% if t.activo %}<form method="post" data-confirm="¿Revocar la clave {{ t.nombre }}? Los sistemas que la usan dejarán de conectarse.">{% csrf_token %}<button name="revocar" value="{{ t.pk }}" class="btn btn-sm btn-outline-danger py-0">Revocar</button></form>{% else %}<span class="badge text-bg-secondary">Revocada</span>{% endif %}</td>
+      </tr>{% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin claves.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div></div>
+</div>
+{% endblock %}

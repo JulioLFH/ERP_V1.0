@@ -238,7 +238,8 @@ RUTAS_CORE = {
 RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'cambiar_clave', 'cambiar_clave_ok',
                 'alertas', 'alertas_json',  # cada alerta ya se filtra por los módulos del usuario
                 'login_2fa', 'recuperar', 'recuperar_confirmar', 'recuperar_listo', 'seguridad',
-                'sustento_subir', 'sustento_ver'}  # los sustentos validan el módulo del documento
+                'sustento_subir', 'sustento_ver',  # los sustentos validan el módulo del documento
+                'api_claves'}  # cada usuario administra sus claves de API (actúan con sus propios permisos)
 
 
 # Permiso especial: ver costos de inventario (costo promedio, valorizado, kardex valorizado)

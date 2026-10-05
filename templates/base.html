@@ -51,6 +51,7 @@
             <li><a class="dropdown-item" href="{% url 'home' %}"><i class="bi bi-grid-3x3-gap me-2"></i>Aplicaciones</a></li>
             <li><a class="dropdown-item" href="{% url 'cambiar_clave' %}"><i class="bi bi-key me-2"></i>Cambiar contraseña</a></li>
             <li><a class="dropdown-item" href="{% url 'seguridad' %}"><i class="bi bi-shield-lock me-2"></i>Verificación en dos pasos</a></li>
+            <li><a class="dropdown-item" href="{% url 'api_claves' %}"><i class="bi bi-plug me-2"></i>Claves de API</a></li>
             {% if admin_django %}<li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-shield-lock me-2"></i>Administración avanzada</a></li>{% endif %}
             <li><hr class="dropdown-divider"></li>
             <li><span class="dropdown-item-text small text-muted">{{ erp_nombre }} versión {{ erp_version }}</span></li>

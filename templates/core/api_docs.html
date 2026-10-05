@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}API v1{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-book"></i> API v1</h1>
+  <div class="d-flex gap-2">
+    <a href="{% url 'api:openapi' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-filetype-json"></i> OpenAPI</a>
+    <a href="{% url 'api_claves' %}" class="btn btn-sm btn-primary"><i class="bi bi-plug"></i> Mis claves</a>
+  </div>
+</div>
+<div class="card mb-3"><div class="card-body small">
+  <p>URL base: <code>{{ base }}</code>. Todas las respuestas son JSON (UTF-8); los importes van como texto decimal (ej. <code>"1180.00"</code>) y las fechas como <code>AAAA-MM-DD</code>.</p>
+  <p><b>Autenticación</b>: cabecera <code>Authorization: Bearer &lt;clave&gt;</code>. La clave actúa con los módulos y permisos de su usuario; las de solo lectura solo admiten <code>GET</code>. Límite: 120 solicitudes por minuto.</p>
+  <p class="mb-0"><b>Listas</b>: paginadas con <code>page</code> y <code>page_size</code> (máx. 200); responden <code>{"count", "page", "pages", "results"}</code>. <b>Errores</b>: <code>{"error": "...", "campos": {...}}</code> con 401 (clave), 403 (permiso), 404, 422 (validación) o 429 (límite).</p>
+</div></div>
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th style="width:80px">Método</th><th>Ruta</th><th>Descripción</th></tr></thead>
+  <tbody>{% for m, r, d in endpoints %}<tr><td><span class="badge {% if m == 'GET' %}text-bg-primary{% else %}text-bg-success{% endif %}">{{ m }}</span></td><td><code>{{ r }}</code></td><td class="small">{{ d }}</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Ejemplo: consultar stock</div><div class="card-body">
+<pre class="small mb-0">curl -H "Authorization: Bearer ceiba_xxxxxxxx" \
+  "{{ base }}productos/?q=harina"</pre></div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Ejemplo: emitir una boleta</div><div class="card-body">
+<pre class="small mb-0">POST {{ base }}ventas/
+{
+  "tipo_comprobante": "03",
+  "tercero_numero_doc": "45678912",
+  "forma_pago": "CONTADO",
+  "items": [
+    {"codigo": "P002", "cantidad": 2},
+    {"descripcion": "Delivery", "cantidad": 1,
+     "precio_unitario": "8.47", "afectacion": "GRAVADA"}
+  ]
+}</pre>
+<p class="small text-muted mt-2 mb-0">Mismas validaciones que la pantalla (serie del usuario, stock, crédito, periodo). Sin <code>precio_unitario</code> se usa el precio de venta del producto; también acepta <code>descuento_pct</code>, <code>fecha_emision</code>, <code>moneda</code>, <code>serie</code> y <code>almacen</code>. Si la facturación electrónica tiene envío automático, el comprobante se envía a SUNAT.</p>
+</div></div></div>
+</div>
+{% endblock %}

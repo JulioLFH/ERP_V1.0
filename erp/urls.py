@@ -19,6 +19,7 @@ urlpatterns += [
         template_name='registration/recuperar_listo.html'), name='recuperar_listo'),
     path('cuenta/seguridad/', doble_factor.seguridad, name='seguridad'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
+    path('api/v1/', include('core.urls_api')),
     path('compras/', include('compras.urls')),
     path('ventas/', include('ventas.urls')),
     path('finanzas/', include('finanzas.urls')),
