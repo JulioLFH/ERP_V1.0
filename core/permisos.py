@@ -72,6 +72,7 @@ RUTAS = {
     'logistica:enviar_sunat': 'logistica.emitir', 'logistica:anular': 'logistica.anular',
     'finanzas:movimiento_nuevo': 'finanzas.registrar', 'finanzas:cobranza': 'finanzas.registrar',
     'finanzas:pago': 'finanzas.registrar', 'finanzas:importar': 'finanzas.registrar',
+    'finanzas:extractos': {'POST': 'finanzas.registrar'}, 'finanzas:extracto_accion': 'finanzas.registrar',
     'finanzas:transferencia': 'finanzas.transferir', 'finanzas:movimiento_eliminar': 'finanzas.anular',
     'finanzas:cuenta_nueva': 'finanzas.cuentas', 'finanzas:cuenta_editar': 'finanzas.cuentas',
     'finanzas:saldo_inicial': {'POST': 'finanzas.cuentas'}, 'finanzas:saldo_inicial_sustento': 'finanzas.cuentas',

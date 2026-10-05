@@ -233,3 +233,49 @@ class Movimiento(models.Model):
                     self.monto_doc = r2(self.monto * doc.tipo_cambio)
             self.monto_doc_pen = r2(self.monto_doc * doc.tc_efectivo)
         super().save(*args, **kwargs)
+
+
+class Extracto(models.Model):
+    """Estado de cuenta del banco cargado (BCP, BBVA, Interbank o plantilla) para conciliar automáticamente."""
+    cuenta = models.ForeignKey(Cuenta, on_delete=models.PROTECT, related_name='extractos')
+    formato = models.CharField(max_length=12, blank=True, help_text='Formato detectado del archivo')
+    nombre_archivo = models.CharField(max_length=200, blank=True)
+    desde = models.DateField(null=True, blank=True)
+    hasta = models.DateField(null=True, blank=True)
+    saldo_final = models.DecimalField('Saldo final según banco', max_digits=14, decimal_places=2, null=True,
+                                      blank=True)
+    cargado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado']
+
+    def __str__(self):
+        return f'{self.cuenta.nombre} {self.desde or ""} - {self.hasta or ""}'
+
+    @property
+    def resumen(self):
+        conteo = dict(self.lineas.values_list('estado').annotate(n=models.Count('id')))
+        return {e: conteo.get(e, 0) for e, _ in LineaExtracto.ESTADOS}
+
+
+class LineaExtracto(models.Model):
+    ESTADOS = [('PENDIENTE', 'Pendiente'), ('CONCILIADA', 'Conciliada'), ('CREADA', 'Movimiento creado'),
+               ('IGNORADA', 'Ignorada')]
+    extracto = models.ForeignKey(Extracto, on_delete=models.CASCADE, related_name='lineas')
+    fecha = models.DateField()
+    descripcion = models.CharField(max_length=250, blank=True)
+    operacion = models.CharField('N° operación', max_length=40, blank=True)
+    monto = models.DecimalField(max_digits=14, decimal_places=2, help_text='Abono positivo, cargo negativo')
+    saldo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    movimiento = models.ForeignKey(Movimiento, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='lineas_extracto')
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='PENDIENTE')
+    regla = models.CharField('Cómo se concilió', max_length=60, blank=True)
+
+    class Meta:
+        ordering = ['fecha', 'id']
+
+    @property
+    def tipo(self):
+        return 'INGRESO' if self.monto > 0 else 'EGRESO'

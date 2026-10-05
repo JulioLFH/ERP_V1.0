@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Conciliación automática{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3"><i class="bi bi-magic"></i> Conciliación bancaria automática</h1>
+<div class="row g-3 mb-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="row g-3">{% for field in form %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endfor %}</div>
+      <button class="btn btn-primary mt-3"><i class="bi bi-upload"></i> Cargar y conciliar</button>
+      <a href="{% url 'finanzas:importar' %}?plantilla=1" class="btn btn-outline-success mt-3"><i class="bi bi-file-earmark-excel"></i> Plantilla</a>
+    </form>
+  </div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Cómo funciona</div><div class="card-body small text-muted">
+    <ol class="mb-2 ps-3">
+      <li>Descargue el estado de cuenta en Excel o CSV desde la banca por internet: <b>BCP</b>, <b>BBVA</b> o <b>Interbank</b> (el formato se reconoce solo; también sirve la plantilla del ERP).</li>
+      <li>Cada línea del banco se empareja con un movimiento de tesorería sin conciliar del mismo tipo e importe: primero por <b>N° de operación</b> y si no, por la <b>fecha más cercana</b> (±5 días).</li>
+      <li>Revise las líneas pendientes: enlácelas a mano, registre las comisiones / ITF con un clic o márquelas como ignoradas.</li>
+    </ol>
+    Si vuelve a cargar un archivo que se superpone, las líneas ya cargadas se omiten.
+  </div></div></div>
+</div>
+<div class="card">
+  <div class="card-header">Estados de cuenta cargados</div>
+  <div class="table-responsive"><table class="table table-hover mb-0">
+    <thead><tr><th>Cuenta</th><th>Formato</th><th>Del</th><th>Al</th><th class="num">Conciliadas</th><th class="num">Pendientes</th><th>Cargado</th></tr></thead>
+    <tbody>
+      {% for e in extractos %}{% with r=e.resumen %}<tr>
+        <td><a href="{% url 'finanzas:extracto' e.pk %}">{{ e.cuenta }}</a></td><td>{{ e.formato }}</td>
+        <td>{{ e.desde|date:'d/m/Y' }}</td><td>{{ e.hasta|date:'d/m/Y' }}</td>
+        <td class="num">{{ r.CONCILIADA|add:r.CREADA }}</td>
+        <td class="num">{% if r.PENDIENTE %}<span class="badge text-bg-warning">{{ r.PENDIENTE }}</span>{% else %}0{% endif %}</td>
+        <td class="small text-muted">{{ e.creado|date:'d/m/Y H:i' }}{% if e.cargado_por %} · {{ e.cargado_por }}{% endif %}</td>
+      </tr>{% endwith %}{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Aún no se cargaron estados de cuenta.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

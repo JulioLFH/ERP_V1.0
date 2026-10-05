@@ -1,0 +1,60 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Extracto {{ ext.cuenta.nombre }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Estado de cuenta {{ ext.cuenta }}</h1>
+    <div class="text-muted small">{{ ext.formato }} · del {{ ext.desde|date:'d/m/Y' }} al {{ ext.hasta|date:'d/m/Y' }}{% if ext.nombre_archivo %} · {{ ext.nombre_archivo }}{% endif %}</div></div>
+  <div class="d-flex gap-2">
+    {% if puede.finanzas_registrar %}
+    <form method="post" action="{% url 'finanzas:extracto_accion' ext.pk %}">{% csrf_token %}<button name="accion" value="conciliar" class="btn btn-sm btn-outline-primary"><i class="bi bi-magic"></i> Volver a conciliar</button></form>
+    {% if gastos_pendientes %}<form method="post" action="{% url 'finanzas:extracto_accion' ext.pk %}" data-confirm="¿Registrar {{ gastos_pendientes }} comisiones / ITF como gastos bancarios?">{% csrf_token %}<button name="accion" value="gastos" class="btn btn-sm btn-outline-secondary"><i class="bi bi-receipt"></i> Registrar {{ gastos_pendientes }} comisiones / ITF</button></form>{% endif %}
+    {% endif %}
+    <a href="{% url 'finanzas:extractos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Extractos</a>
+  </div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Conciliadas</div><div class="fs-5 fw-semibold text-success">{{ resumen.CONCILIADA }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Creadas desde el extracto</div><div class="fs-5 fw-semibold">{{ resumen.CREADA }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Pendientes</div><div class="fs-5 fw-semibold {% if resumen.PENDIENTE %}text-warning{% endif %}">{{ resumen.PENDIENTE }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Saldo banco / libros al {{ ext.hasta|date:'d/m' }}</div>
+    <div class="fw-semibold">{% if ext.saldo_final is not None %}{{ ext.saldo_final|money }}{% else %}—{% endif %} / {{ saldo_libros|money }}</div>
+    {% if diferencia %}<div class="small text-danger">Diferencia {{ diferencia|money }}</div>{% endif %}</div></div></div>
+</div>
+<div class="card mb-3">
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Fecha</th><th>Descripción del banco</th><th>Operación</th><th class="num">Abono</th><th class="num">Cargo</th><th>Movimiento del ERP</th><th></th></tr></thead>
+    <tbody>
+      {% for l in lineas %}<tr class="{% if l.estado == 'PENDIENTE' %}table-warning{% elif l.estado == 'IGNORADA' %}text-muted{% endif %}">
+        <td class="text-nowrap">{{ l.fecha|date:'d/m/Y' }}</td>
+        <td class="small">{{ l.descripcion }}</td>
+        <td class="small">{{ l.operacion }}</td>
+        <td class="num">{% if l.monto > 0 %}{{ l.monto|money }}{% endif %}</td>
+        <td class="num">{% if l.monto < 0 %}{{ l.monto|money }}{% endif %}</td>
+        <td class="small">
+          {% if l.movimiento %}<i class="bi bi-check-circle text-success"></i> {{ l.movimiento.voucher }} · {{ l.movimiento.fecha|date:'d/m' }} · {{ l.movimiento.glosa|truncatechars:40 }}<div class="text-muted">{{ l.regla }}</div>
+          {% elif l.estado == 'IGNORADA' %}{{ l.regla }}
+          {% elif puede.finanzas_registrar %}
+            {% if l.candidatos %}<form method="post" action="{% url 'finanzas:extracto_accion' ext.pk %}" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="linea" value="{{ l.pk }}">
+              <select name="movimiento" class="form-select form-select-sm">{% for m in l.candidatos %}<option value="{{ m.pk }}">{{ m.voucher }} · {{ m.fecha|date:'d/m' }} · {{ m.monto|money }} · {{ m.glosa|truncatechars:30 }}</option>{% endfor %}</select>
+              <button name="accion" value="enlazar" class="btn btn-sm btn-outline-primary text-nowrap" title="Conciliar con este movimiento"><i class="bi bi-link-45deg"></i></button></form>
+            {% else %}<span class="text-muted">Sin movimiento en tesorería</span>{% endif %}
+          {% endif %}
+        </td>
+        <td class="text-end text-nowrap">{% if puede.finanzas_registrar %}
+          <form method="post" action="{% url 'finanzas:extracto_accion' ext.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="linea" value="{{ l.pk }}">
+            {% if l.estado == 'PENDIENTE' %}
+              <button name="accion" value="crear" class="btn btn-sm btn-outline-success py-0" title="Registrar en tesorería{% if l.gasto %} como gasto bancario{% endif %}"><i class="bi bi-plus-lg"></i>{% if l.gasto %} Gasto{% endif %}</button>
+              <button name="accion" value="ignorar" class="btn btn-sm btn-outline-secondary py-0" title="Ignorar"><i class="bi bi-eye-slash"></i></button>
+            {% else %}<button name="accion" value="quitar" class="btn btn-sm btn-outline-secondary py-0" title="Deshacer"><i class="bi bi-arrow-counterclockwise"></i></button>{% endif %}
+          </form>{% endif %}</td>
+      </tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% if en_transito %}
+<div class="card"><div class="card-header">Movimientos del ERP sin conciliar hasta el {{ ext.hasta|date:'d/m/Y' }} (en tránsito: cheques no cobrados, depósitos por acreditar)</div>
+  <div class="table-responsive"><table class="table table-sm mb-0">
+    <tbody>{% for m in en_transito %}<tr><td>{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.voucher }}</td><td class="small">{{ m.glosa }}</td><td>{{ m.numero_operacion }}</td><td class="num">{% if m.tipo == 'INGRESO' %}{{ m.monto|money }}{% else %}-{{ m.monto|money }}{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+{% endif %}
+{% endblock %}
