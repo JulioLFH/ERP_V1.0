@@ -32,10 +32,10 @@
             {% if not f.estado.cerrado %}
               <button name="accion" value="centralizar" class="btn btn-sm btn-outline-primary" title="Volver a centralizar"><i class="bi bi-arrow-repeat"></i></button>
               <button name="accion" value="cerrar" class="btn btn-sm btn-outline-dark" onclick="return confirm('¿Cerrar el periodo {{ f.periodo }}? No se podrán modificar sus documentos ni asientos.')"><i class="bi bi-lock"></i> Cerrar</button>
-            {% elif user.is_superuser %}
+            {% elif puede_reabrir %}
               <input name="motivo" class="form-control form-control-sm d-inline-block" style="width: 220px" minlength="10" maxlength="250" placeholder="Motivo de la reapertura" required>
               <button name="accion" value="abrir" class="btn btn-sm btn-outline-secondary" onclick="return confirm('¿Reabrir el periodo {{ f.periodo }}? Quedará registrado en la auditoría.')"><i class="bi bi-unlock"></i> Reabrir</button>
-            {% else %}<span class="small text-muted">Solo el administrador reabre</span>
+            {% else %}<span class="small text-muted" title="Pida el permiso &quot;Reabrir periodos cerrados&quot;">Reapertura con permiso</span>
             {% endif %}
           </form>
         </td>

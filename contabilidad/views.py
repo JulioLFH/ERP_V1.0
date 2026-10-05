@@ -90,8 +90,11 @@ def periodos(request):
             # reapertura controlada: solo administrador, con motivo, queda en la auditoría
             motivo = request.POST.get('motivo', '').strip()
             p = PeriodoContable.objects.filter(periodo=periodo, cerrado=True).first()
-            if not request.user.is_superuser:
-                messages.error(request, 'Solo un administrador puede reabrir un periodo cerrado.')
+            from core.permisos import perfil_de, puede
+            # sin perfil configurado solo el administrador reabre (es una acción sensible)
+            if not (request.user.is_superuser or (perfil_de(request.user) and
+                                                  puede(request.user, 'contabilidad.reabrir'))):
+                messages.error(request, 'Su usuario no tiene permiso para reabrir periodos cerrados.')
             elif len(motivo) < 10:
                 messages.error(request, 'Indique el motivo de la reapertura (mínimo 10 caracteres).')
             elif p:
@@ -105,6 +108,7 @@ def periodos(request):
     meses = set(Compra.objects.values_list('periodo', flat=True)) | set(Venta.objects.values_list('periodo', flat=True))
     meses |= {f.strftime('%Y%m') for f in Movimiento.objects.dates('fecha', 'month')}
     meses |= set(Asiento.objects.values_list('periodo', flat=True))
+    meses |= set(PeriodoContable.objects.values_list('periodo', flat=True))  # cerrados aunque no tengan movimientos
     meses.add(date.today().strftime('%Y%m'))
     estado = {p.periodo: p for p in PeriodoContable.objects.all()}
     asientos = dict(Asiento.objects.values('periodo').annotate(n=Count('id')).values_list('periodo', 'n'))
@@ -116,8 +120,11 @@ def periodos(request):
             'ventas': Venta.objects.filter(periodo=p, estado='REGISTRADO').count(),
             'movs': Movimiento.objects.filter(fecha__year=int(p[:4]), fecha__month=int(p[4:])).count(),
         })
+    from core.permisos import perfil_de, puede
     return render(request, 'contabilidad/periodos.html', {
-        'filas': filas, 'apertura': Asiento.objects.filter(origen='APERTURA').first()})
+        'filas': filas, 'apertura': Asiento.objects.filter(origen='APERTURA').first(),
+        'puede_reabrir': request.user.is_superuser or (perfil_de(request.user) is not None and
+                                                       puede(request.user, 'contabilidad.reabrir'))})
 
 
 # ---------------------------------------------------------------- asientos

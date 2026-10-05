@@ -211,6 +211,9 @@ class ComprobanteViews:
             else:
                 with transaction.atomic():
                     doc.anular(request.user, motivo)
+                    if doc._meta.model_name == 'compra':
+                        from compras.precios import liquidar
+                        liquidar(doc)  # se revierte la diferencia de precio que hubiera liquidado
                 messages.success(request, f'{doc} anulado.')
         return redirect(self._url('detalle', pk))
 

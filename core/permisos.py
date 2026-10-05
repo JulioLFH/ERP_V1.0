@@ -28,6 +28,7 @@ ACCIONES = {
     'contabilidad': [('asientos', 'Asientos manuales', False),
                      ('extornar', 'Extornar asientos', True),
                      ('periodos', 'Centralizar y cerrar periodos', True),
+                     ('reabrir', 'Reabrir periodos cerrados (con motivo)', True),
                      ('configurar', 'Plan de cuentas y configuración', True)],
     'manufactura': [('ordenes', 'Órdenes de producción', False),
                     ('anular', 'Anular órdenes de producción', True),
@@ -68,7 +69,8 @@ RUTAS = {
     'finanzas:saldo_inicial': {'POST': 'finanzas.cuentas'}, 'finanzas:saldo_inicial_sustento': 'finanzas.cuentas',
     'contabilidad:asiento_nuevo': 'contabilidad.asientos', 'contabilidad:asiento_editar': 'contabilidad.asientos',
     'contabilidad:asiento_eliminar': 'contabilidad.extornar', 'contabilidad:asiento_extornar': 'contabilidad.extornar',
-    'contabilidad:periodos': {'POST': 'contabilidad.periodos'},
+    'contabilidad:periodos': lambda r: (None if r.method != 'POST' else 'contabilidad.reabrir'
+                                        if r.POST.get('accion') == 'abrir' else 'contabilidad.periodos'),
     'contabilidad:cuenta_nueva': 'contabilidad.configurar', 'contabilidad:cuenta_editar': 'contabilidad.configurar',
     'contabilidad:configuracion': {'POST': 'contabilidad.configurar'},
     'contabilidad:cc_nuevo': 'contabilidad.configurar', 'contabilidad:cc_editar': 'contabilidad.configurar',

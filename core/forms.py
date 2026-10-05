@@ -152,10 +152,19 @@ class TerceroForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
         model = Tercero
         fields = '__all__'
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        t = self.instance
+        if t.pk and t.tipo_doc == '6' and error_ruc(t.numero_doc or ''):
+            # registro antiguo (ej. datos de demostración): se puede editar; se avisa que conviene corregirlo
+            self.fields['numero_doc'].help_text = (f'Atención: {error_ruc(t.numero_doc)} Puede guardar otros cambios, '
+                                                   'pero SUNAT rechazará facturas a este RUC.')
+
     def clean(self):
         data = super().clean()
         doc, num = data.get('tipo_doc'), (data.get('numero_doc') or '').strip()
-        if doc == '6' and error_ruc(num):
+        sin_cambio = (self.instance.pk and doc == self.instance.tipo_doc and num == self.instance.numero_doc)
+        if doc == '6' and error_ruc(num) and not sin_cambio:  # se valida al crear o al cambiar el número
             self.add_error('numero_doc', error_ruc(num))
         if doc == '1' and (len(num) != 8 or not num.isdigit()):
             self.add_error('numero_doc', 'El DNI debe tener 8 dígitos.')

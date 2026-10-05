@@ -120,7 +120,18 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None):
         raise ErrorProduccion('Solo se terminan órdenes confirmadas o en proceso.')
     if not cantidad_producida or cantidad_producida <= 0:
         raise ErrorProduccion('Indique la cantidad producida.')
+    if isinstance(fecha, str):
+        from datetime import date
+        try:
+            fecha = date.fromisoformat(fecha) if fecha else None
+        except ValueError:
+            raise ErrorProduccion('Fecha de término no válida.')
     fecha = fecha or timezone.localdate()
+    if fecha > timezone.localdate():
+        raise ErrorProduccion('La fecha de término no puede ser futura.')
+    from inventario.cierre import error_cierre
+    if error_cierre(fecha):
+        raise ErrorProduccion(error_cierre(fecha))
     with transaction.atomic():
         lineas = list(orden.consumos.select_related('producto'))
         for c in lineas:

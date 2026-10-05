@@ -113,3 +113,21 @@ class Compra(ComprobanteBase):
 
 class CompraItem(ItemBase):
     documento = models.ForeignKey(Compra, on_delete=models.CASCADE, related_name='items')
+
+
+class AjustePrecioCompra(models.Model):
+    """Liquidación de la diferencia entre el precio de la factura y el costo con que se recibió la mercadería
+    (cuenta 28 por recibir): lo que sigue en stock revaloriza el inventario; lo ya vendido va al costo de ventas."""
+    compra = models.ForeignKey(Compra, on_delete=models.PROTECT, related_name='ajustes_precio')
+    producto = models.ForeignKey('core.Producto', on_delete=models.PROTECT, related_name='+')
+    fecha = models.DateField()
+    cantidad = models.DecimalField('Cantidad conciliada', max_digits=14, decimal_places=2)
+    diferencia = models.DecimalField('Diferencia S/', max_digits=14, decimal_places=2)
+    a_inventario = models.DecimalField('Al inventario S/', max_digits=14, decimal_places=2)
+    a_costo = models.DecimalField('Al costo de ventas S/', max_digits=14, decimal_places=2)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['fecha', 'id']
+        verbose_name = 'diferencia de precio de compra'
+        verbose_name_plural = 'diferencias de precio de compra'

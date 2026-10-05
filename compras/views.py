@@ -49,6 +49,8 @@ class ComprasViews(ComprobanteViews):
         if doc.orden_compra_id and doc.orden_compra.estado != 'ANULADO':
             OrdenCompra.objects.filter(pk=doc.orden_compra_id).update(estado='ATENDIDO')
             doc.orden_compra.actualizar_vencimientos()  # vence desde el ingreso de la mercadería
+        from .precios import liquidar
+        liquidar(doc)  # diferencia entre el precio facturado y el costo con que se recibió
 
     def ingresar_almacen(self, request, pk):
         from inventario.servicios import tiene_recepciones

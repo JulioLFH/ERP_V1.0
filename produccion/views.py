@@ -122,16 +122,12 @@ def orden_terminar(request, pk):
         horas = {h.pk: _decimal(request.POST.get(f'hora_{h.pk}'), h.horas_real) for h in orden.horas.all()}
         cantidad = _decimal(request.POST.get('cantidad_producida'))
         fecha = request.POST.get('fecha') or None
+        from inventario.cierre import KardexCerrado
         try:
             servicios.terminar(orden, request.user, cantidad, consumos, horas, fecha)
             messages.success(request, f'Orden {orden.numero} terminada: ingresaron {orden.cantidad_producida:,.2f} '
                                       f'{orden.producto.unidad} de {orden.producto.nombre} al almacén.')
-        except servicios.ErrorProduccion as exc:
-            messages.error(request, f'No se pudo terminar: {exc}')
-        except Exception as exc:  # kardex cerrado u otra validación del almacén
-            from inventario.cierre import KardexCerrado
-            if not isinstance(exc, KardexCerrado):
-                raise
+        except (servicios.ErrorProduccion, KardexCerrado) as exc:
             messages.error(request, f'No se pudo terminar: {exc}')
     return redirect('manufactura:orden', pk)
 

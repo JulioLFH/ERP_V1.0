@@ -310,11 +310,19 @@ def orden_de(op):
 
 
 def _actualizar_vencimientos(op):
-    """Las facturas de la orden vencen desde la fecha de ingreso de la mercadería."""
+    """Las facturas de la orden vencen desde la fecha de ingreso de la mercadería; además se liquida la diferencia
+    entre el precio facturado y el costo de la recepción (cuenta 28)."""
     if op.tipo.clase == 'INGRESO':
         oc = orden_de(op)
         if oc:
             oc.actualizar_vencimientos()
+        from compras.models import Compra
+        from compras.precios import liquidar
+        facturas = Compra.objects.filter(pk=op.compra_id) if op.compra_id else Compra.objects.none()
+        if oc:
+            facturas = facturas | Compra.objects.filter(orden_compra=oc)
+        for f in facturas.distinct():
+            liquidar(f)
 
 
 def errores_anulacion(op):

@@ -31,6 +31,8 @@ def fecha_cierre():
 
 def error_cierre(fecha):
     """Mensaje si la fecha cae en un periodo con el kardex cerrado; '' si se puede mover el almacén."""
+    if isinstance(fecha, str):  # fechas que llegan del formulario como texto (AAAA-MM-DD)
+        fecha = date.fromisoformat(fecha) if fecha else None
     corte = fecha_cierre()
     if corte and fecha and fecha <= corte:
         return (f'El kardex está cerrado hasta el {corte:%d/%m/%Y}: no se pueden registrar ni revertir movimientos '

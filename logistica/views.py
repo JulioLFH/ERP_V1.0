@@ -54,10 +54,43 @@ def _initial_desde_venta(venta):
         # si la venta ya descontó stock la guía no vuelve a moverlo
         'efecto_stock': 'NINGUNO' if venta.stock_aplicado else 'SALIDA',
     }
-    items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,
-              'unidad': i.producto.unidad if i.producto else 'NIU'}
-             for i in venta.items.select_related('producto') if not i.producto or i.producto.es_inventariable]
+    # solo el saldo pendiente de despacho (lo facturado menos devoluciones y guías ya emitidas)
+    vendido, despachado, _ = _saldos_despacho(venta)
+    items = []
+    for i in venta.items.select_related('producto'):
+        if i.producto and not i.producto.es_inventariable:
+            continue
+        cantidad = i.cantidad
+        if i.producto_id:
+            pendiente = vendido[i.producto_id] - despachado[i.producto_id]
+            cantidad = min(i.cantidad, max(pendiente, 0))
+            despachado[i.producto_id] += cantidad  # productos repetidos en varias líneas
+        if cantidad > 0:
+            items.append({'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': cantidad,
+                          'unidad': i.producto.unidad if i.producto else 'NIU'})
     return initial, items
+
+
+def _saldos_despacho(venta, excluir=None):
+    """({producto: facturado neto de devoluciones}, {producto: despachado en guías emitidas}, {producto: nombre})."""
+    from collections import defaultdict
+    from decimal import Decimal
+    vendido, nombres = defaultdict(Decimal), {}
+    for i in venta.items.select_related('producto'):
+        if i.producto_id:
+            vendido[i.producto_id] += i.cantidad
+            nombres[i.producto_id] = i.producto.nombre
+    for nota in venta.notas.filter(estado='REGISTRADO', tipo_comprobante='07'):  # devoluciones
+        for i in nota.items.filter(producto__isnull=False):
+            vendido[i.producto_id] -= i.cantidad
+    despachado = defaultdict(Decimal)
+    guias = venta.guias.filter(estado='EMITIDA')
+    if excluir is not None and excluir.pk:
+        guias = guias.exclude(pk=excluir.pk)
+    for otra in guias:
+        for i in otra.items.filter(producto__isnull=False):
+            despachado[i.producto_id] += i.cantidad
+    return vendido, despachado, nombres
 
 
 @login_required
@@ -82,20 +115,7 @@ def _validar_despacho(form, formset):
     venta = form.cleaned_data.get('venta')
     if guia.tipo != '09' or not venta:
         return []
-    from collections import defaultdict
-    from decimal import Decimal
-    vendido, nombres = defaultdict(Decimal), {}
-    for i in venta.items.select_related('producto'):
-        if i.producto_id:
-            vendido[i.producto_id] += i.cantidad
-            nombres[i.producto_id] = i.producto.nombre
-    for nota in venta.notas.filter(estado='REGISTRADO', tipo_comprobante='07'):  # devoluciones
-        for i in nota.items.filter(producto__isnull=False):
-            vendido[i.producto_id] -= i.cantidad
-    despachado = defaultdict(Decimal)
-    for otra in venta.guias.filter(estado='EMITIDA').exclude(pk=guia.pk):
-        for i in otra.items.filter(producto__isnull=False):
-            despachado[i.producto_id] += i.cantidad
+    vendido, despachado, nombres = _saldos_despacho(venta, excluir=guia)
     errores = []
     for producto, cantidad in lineas_formset(formset):
         if not producto:
@@ -149,7 +169,10 @@ def nueva(request):
                    'partida_direccion': principal.direccion or empresa.direccion,
                    'almacen_origen': principal.pk, 'efecto_stock': 'SALIDA'}
     if request.GET.get('venta'):
-        initial, items = _initial_desde_venta(get_object_or_404(Venta, pk=request.GET['venta']))
+        venta = get_object_or_404(Venta, pk=request.GET['venta'])
+        initial, items = _initial_desde_venta(venta)
+        if not items and request.method == 'GET':
+            messages.warning(request, f'{venta}: ya se despachó todo lo facturado con guías emitidas.')
     titulo = 'Nueva guía de remisión ' + ('transportista' if tipo == '31' else 'remitente')
     return guardar_documento(request, _form_class(tipo), guia_formset(), GuiaRemision(tipo=tipo),
                              'logistica/guia_form.html', _ctx(titulo, tipo), al_guardar=_al_guardar,
