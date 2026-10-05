@@ -2,11 +2,14 @@ from django.urls import path
 
 from proveedores import views_erp as portal
 
-from . import views
+from . import views, views_sire, views_xml
 
 app_name = 'compras'
 
 urlpatterns = views.compras_views.urls() + [
+    path('importar-xml/', views_xml.importar, name='importar_xml'),
+    path('importar-xml/revisar/', views_xml.revisar, name='importar_xml_revisar'),
+    path('sire/', views_sire.comparar, name='sire'),
     path('ordenes/', views.oc_lista, name='oc_lista'),
     path('ordenes/nueva/', views.oc_nuevo, name='oc_nuevo'),
     path('ordenes/<int:pk>/', views.oc_detalle, name='oc_detalle'),

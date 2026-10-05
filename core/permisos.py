@@ -54,6 +54,7 @@ RUTAS = {
     'ventas:lista_precios_nueva': 'ventas.precios', 'ventas:lista_precios_editar': 'ventas.precios',
     'ventas:cot_nuevo': 'ventas.emitir', 'ventas:cot_editar': 'ventas.emitir', 'ventas:cot_estado': 'ventas.emitir',
     'compras:nuevo': 'compras.registrar', 'compras:editar': 'compras.registrar', 'compras:importar': 'compras.registrar',
+    'compras:importar_xml': 'compras.registrar', 'compras:importar_xml_revisar': 'compras.registrar',
     'compras:trasladar': 'compras.registrar', 'compras:notas': 'compras.registrar',
     'compras:ingresar_almacen': 'compras.registrar',
     'compras:anular': 'compras.anular', 'compras:eliminar': 'compras.anular',

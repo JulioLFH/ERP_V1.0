@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Registrar compra desde XML{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-filetype-xml"></i> Registrar compra desde el XML</h1>
+  <a href="{% url 'compras:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Compras</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card"><div class="card-body">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% for field in form %}{% include 'core/_campo.html' %}{% endfor %}
+      <button class="btn btn-primary mt-3"><i class="bi bi-upload"></i> Leer XML</button>
+    </form>
+  </div></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header">Qué hace</div><div class="card-body small text-muted">
+    <ul class="mb-0 ps-3">
+      <li>Lee serie, número, fecha, moneda, líneas, afectación del IGV y total de la factura, nota de crédito o débito electrónica (UBL 2.1).</li>
+      <li>Comprueba que esté emitida al RUC de la empresa y que no esté registrada.</li>
+      <li>Busca al proveedor por RUC (si no existe, lo crea con la razón social del XML).</li>
+      <li>Sugiere el producto de cada línea por código, compras anteriores al mismo proveedor o nombre; usted confirma.</li>
+      <li>El XML queda como sustento de la compra.</li>
+    </ul>
+  </div></div></div>
+</div>
+{% endblock %}

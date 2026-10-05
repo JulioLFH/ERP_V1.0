@@ -1,0 +1,37 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Revisar XML {{ xml.serie }}-{{ xml.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-filetype-xml"></i> Revisar {{ xml.serie }}-{{ xml.numero }}</h1>
+  <a href="{% url 'compras:importar_xml' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Otro XML</a>
+</div>
+<div class="card mb-3"><div class="card-body"><div class="row g-3 small">
+  <div class="col-md-4"><div class="text-muted">Proveedor</div><b>{{ xml.ruc_emisor }}</b> {{ xml.nombre_emisor }}
+    {% if not proveedor %}<div class="text-warning-emphasis"><i class="bi bi-person-plus"></i> No está registrado: se creará como proveedor.</div>{% endif %}</div>
+  <div class="col-6 col-md-2"><div class="text-muted">Tipo</div>{% if xml.tipo == '07' %}Nota de crédito{% elif xml.tipo == '08' %}Nota de débito{% else %}Factura{% endif %}{% if xml.referencia %} de {{ xml.referencia }}{% endif %}</div>
+  <div class="col-6 col-md-2"><div class="text-muted">Emisión</div>{{ xml.fecha|date:'d/m/Y' }}{% if xml.vencimiento %}<div>Vence {{ xml.vencimiento }}</div>{% endif %}</div>
+  <div class="col-6 col-md-2"><div class="text-muted">Valor venta / IGV</div>{{ xml.valor_venta|money }} / {{ xml.igv|money }}</div>
+  <div class="col-6 col-md-2"><div class="text-muted">Total</div><span class="fs-5 fw-semibold">{{ xml.moneda }} {{ xml.total|money }}</span></div>
+</div></div></div>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  <div class="card mb-3">
+    <div class="card-header">Líneas: elija el producto del catálogo (vacío = gasto o servicio sin producto)</div>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Descripción del proveedor</th><th>Código</th><th class="num">Cantidad</th><th class="num">Valor unit.</th><th class="num">Valor venta</th><th>IGV</th><th style="width:30%">Producto</th></tr></thead>
+      <tbody>{% for l, campo in filas %}<tr>
+        <td class="small">{{ l.descripcion }}</td><td class="small">{{ l.codigo }}</td>
+        <td class="num">{{ l.cantidad|money }} <span class="small text-muted">{{ l.unidad }}</span></td>
+        <td class="num">{{ l.precio|floatformat:4 }}</td><td class="num">{{ l.valor|money }}</td>
+        <td class="small">{{ l.afectacion|default:'—'|lower }}</td>
+        <td>{{ campo }}{% if l.criterio %}<div class="small text-success">Sugerido por {{ l.criterio }}</div>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+  <div class="card mb-3"><div class="card-body"><div class="row g-3">
+    {% for field in form %}{% if not field.name|slice:':9' == 'producto_' %}<div class="col-6 col-md-4">{% include 'core/_campo.html' %}</div>{% endif %}{% endfor %}
+  </div></div></div>
+  <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Registrar compra</button>
+</form>
+{% endblock %}

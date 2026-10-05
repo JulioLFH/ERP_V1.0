@@ -1,0 +1,38 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Cruce con SIRE{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3"><i class="bi bi-arrow-left-right"></i> Registro de Compras vs propuesta SIRE</h1>
+<div class="card mb-3"><div class="card-body">
+  <form method="post" enctype="multipart/form-data" class="row g-3 align-items-end">
+    {% csrf_token %}
+    {% for field in form %}<div class="{% if field.name == 'periodo' %}col-md-3{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-md-3"><button class="btn btn-primary"><i class="bi bi-search"></i> Cruzar</button></div>
+  </form>
+</div></div>
+{% if r %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <div class="small text-muted">Periodo {{ r.periodo|slice:'4:' }}/{{ r.periodo|slice:':4' }} · {{ r.total }} comprobantes en la propuesta</div>
+  <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Exportar cruce</a>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Coinciden</div><div class="fs-5 fw-semibold text-success">{{ r.coinciden|length }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Con diferencia de importe</div><div class="fs-5 fw-semibold {% if r.diferencias %}text-danger{% endif %}">{{ r.diferencias|length }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Solo en SUNAT (faltan registrar)</div><div class="fs-5 fw-semibold {% if r.solo_sunat %}text-warning{% endif %}">{{ r.solo_sunat|length }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Solo en el ERP</div><div class="fs-5 fw-semibold">{{ r.solo_erp|length }}</div></div></div></div>
+</div>
+{% if r.diferencias %}<div class="card mb-3"><div class="card-header text-danger">Diferencias de importe</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Proveedor</th><th>Comprobante</th><th class="num">Total SUNAT</th><th class="num">Total ERP</th><th class="num">Diferencia</th></tr></thead>
+  <tbody>{% for x in r.diferencias %}<tr><td>{{ x.ruc }} {{ x.nombre }}</td><td><a href="{% url 'compras:detalle' x.compra.pk %}">{{ x.tipo }} {{ x.serie }}-{{ x.numero }}</a></td><td class="num">{{ x.total|money }}</td><td class="num">{{ x.compra.total|money }}</td><td class="num text-danger">{{ x.dif|money }}</td></tr>{% endfor %}</tbody>
+</table></div></div>{% endif %}
+{% if r.solo_sunat %}<div class="card mb-3"><div class="card-header text-warning-emphasis">En la propuesta de SUNAT pero no registradas en el periodo</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Proveedor</th><th>Comprobante</th><th>Emisión</th><th class="num">Base</th><th class="num">IGV</th><th class="num">Total</th><th></th></tr></thead>
+  <tbody>{% for x in r.solo_sunat %}<tr><td>{{ x.ruc }} {{ x.nombre }}</td><td>{{ x.tipo }} {{ x.serie }}-{{ x.numero }}</td><td>{{ x.fecha|date:'d/m/Y' }}</td><td class="num">{{ x.base|money }}</td><td class="num">{{ x.igv|money }}</td><td class="num">{{ x.total|money }}</td>
+    <td class="small">{% if x.otro_periodo %}Registrada en {{ x.otro_periodo.periodo }} · <a href="{% url 'compras:detalle' x.otro_periodo.pk %}">ver</a>{% else %}<a href="{% url 'compras:importar_xml' %}">Registrar con su XML</a>{% endif %}</td></tr>{% endfor %}</tbody>
+</table></div></div>{% endif %}
+{% if r.solo_erp %}<div class="card mb-3"><div class="card-header">Registradas en el ERP pero no están en la propuesta</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Proveedor</th><th>Comprobante</th><th>Emisión</th><th class="num">Total</th></tr></thead>
+  <tbody>{% for c in r.solo_erp %}<tr><td>{{ c.tercero.numero_doc }} {{ c.tercero.nombre }}</td><td><a href="{% url 'compras:detalle' c.pk %}">{{ c.tipo_comprobante }} {{ c.serie }}-{{ c.numero }}</a></td><td>{{ c.fecha_emision|date:'d/m/Y' }}</td><td class="num">{{ c.total|money }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<div class="card-body small text-muted py-2">Normal para comprobantes físicos, recibos por honorarios, tickets o documentos no electrónicos; si es una factura electrónica, revise el RUC, la serie y el número.</div></div>{% endif %}
+{% endif %}
+{% endblock %}
