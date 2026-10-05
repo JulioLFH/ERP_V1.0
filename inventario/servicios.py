@@ -27,6 +27,15 @@ def _cantidades(items):
     return total
 
 
+def _cantidades_compra(items):
+    """{producto_id: cantidad en unidad de almacén} de ítems de documentos de compra (vienen en unidad de compra)."""
+    total = defaultdict(lambda: D0)
+    for i in items:
+        if i.producto_id and i.producto.es_inventariable:
+            total[i.producto_id] += i.producto.a_stock(i.cantidad)
+    return total
+
+
 def _de_operaciones(filtro, clases, excluir=None):
     qs = OperacionItem.objects.filter(operacion__estado='CONFIRMADO', operacion__tipo__clase__in=clases, **filtro)
     if excluir is not None and excluir.pk:
@@ -36,9 +45,10 @@ def _de_operaciones(filtro, clases, excluir=None):
 
 def _notas_con_stock(doc):
     notas = doc.notas.filter(estado='REGISTRADO', tipo_comprobante='07', stock_aplicado=True)
+    contar = _cantidades_compra if doc._meta.model_name == 'compra' else _cantidades
     total = defaultdict(lambda: D0)
     for n in notas:
-        for k, v in _cantidades(n.items.select_related('producto')).items():
+        for k, v in contar(n.items.select_related('producto')).items():
             total[k] += v
     return total
 
@@ -52,16 +62,16 @@ def pendientes(op):
         tc = doc.tipo_cambio if doc.moneda == 'USD' else Decimal('1')
         pedido, costo = defaultdict(lambda: D0), {}
         for i in doc.items.select_related('producto'):
-            if i.producto_id and i.producto.es_inventariable:
-                pedido[i.producto_id] += i.cantidad
-                costo[i.producto_id] = (i.precio_unitario * tc).quantize(Decimal('0.0001'))
+            if i.producto_id and i.producto.es_inventariable:  # unidad de compra -> unidad de almacén
+                pedido[i.producto_id] += i.producto.a_stock(i.cantidad)
+                costo[i.producto_id] = (i.precio_unitario * tc / i.producto.factor).quantize(Decimal('0.0001'))
         filtro = {'operacion__orden_compra': doc} if op.orden_compra_id else {'operacion__compra': doc}
         recibido = _de_operaciones(filtro, ['INGRESO'], excluir=op)
         if op.orden_compra_id:  # facturas de la orden ya recibidas o que ingresaron al almacén directamente
             for k, v in _de_operaciones({'operacion__compra__orden_compra': doc}, ['INGRESO'], excluir=op).items():
                 recibido[k] = recibido.get(k, D0) + v
             for c in doc.compras.filter(estado='REGISTRADO', stock_aplicado=True).exclude(tipo_comprobante='07'):
-                for k, v in _cantidades(c.items.select_related('producto')).items():
+                for k, v in _cantidades_compra(c.items.select_related('producto')).items():
                     recibido[k] = recibido.get(k, D0) + v
         elif op.compra.stock_aplicado:
             recibido = dict(pedido)
@@ -74,13 +84,13 @@ def pendientes(op):
     elif tipo.clase == 'SALIDA' and op.compra_id:  # devolución a proveedor
         c = op.compra
         if c.stock_aplicado:
-            recibido = _cantidades(c.items.select_related('producto'))
+            recibido = _cantidades_compra(c.items.select_related('producto'))
         else:
             recibido = _de_operaciones({'operacion__compra': c}, ['INGRESO'])
             if c.orden_compra_id:
                 for k, v in _de_operaciones({'operacion__orden_compra_id': c.orden_compra_id}, ['INGRESO']).items():
                     recibido[k] = recibido.get(k, D0) + v
-            facturado = _cantidades(c.items.select_related('producto'))
+            facturado = _cantidades_compra(c.items.select_related('producto'))
             recibido = {k: min(v, facturado.get(k, D0)) for k, v in recibido.items()}
         devuelto = _de_operaciones({'operacion__compra': c}, ['SALIDA'], excluir=op)
         for k, v in _notas_con_stock(c).items():

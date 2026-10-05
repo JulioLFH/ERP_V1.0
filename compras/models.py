@@ -101,7 +101,11 @@ class Compra(ComprobanteBase):
         return -1 if self.es_nota_credito else 1
 
     def _costo_entrada(self, item):
-        return item.precio_unitario * self.tipo_cambio
+        # precio por unidad de compra -> costo por unidad de almacén
+        return item.precio_unitario * self.tipo_cambio / item.producto.factor
+
+    def _cantidad_stock(self, item):
+        return item.producto.a_stock(item.cantidad)
 
     def calcular_totales(self):
         super().calcular_totales()

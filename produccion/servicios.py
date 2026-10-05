@@ -635,9 +635,10 @@ def convertir_en_compras(propuestas, usuario, centro_costo):
             oc = OrdenCompra.objects.create(numero=f'{serie}-{numero}', tercero_id=proveedor_id,
                                             fecha=timezone.localdate(), fecha_entrega=min(f.fecha_necesidad for f in filas),
                                             centro_costo=centro_costo, glosa='Generada por el MRP')
-            for f in filas:
+            for f in filas:  # la necesidad está en unidad de almacén; se pide en unidad de compra
                 OrdenCompraItem.objects.create(documento=oc, producto=f.producto, descripcion=f.producto.nombre,
-                                               cantidad=f.cantidad, precio_unitario=f.producto.precio_compra or D0)
+                                               cantidad=f.producto.a_compra(f.cantidad),
+                                               precio_unitario=f.producto.precio_compra or D0)
                 f.orden_compra = oc
                 f.save(update_fields=['orden_compra'])
             oc.calcular_totales()

@@ -225,6 +225,11 @@ class Producto(models.Model):
                                   verbose_name='Proveedor habitual', limit_choices_to={'tipo__in': ['PROVEEDOR', 'AMBOS']})
     unidad_compra = models.CharField('Unidad de compra', max_length=5, choices=UNIDADES, blank=True,
                                      help_text='Vacío = la misma unidad de medida')
+    factor_compra = models.DecimalField('Unidades por unidad de compra', max_digits=12, decimal_places=4,
+                                        default=Decimal('1'),
+                                        help_text='Ej. se compra por caja de 12 y se almacena por unidad: 12. Las '
+                                                  'órdenes y facturas de compra van en unidad de compra; el almacén '
+                                                  'en unidad de medida')
     # ---- ventas
     puede_venderse = models.BooleanField('Se puede vender', default=True)
     precio_venta = models.DecimalField('Precio venta (sin IGV)', max_digits=12, decimal_places=2, default=D0)
@@ -283,6 +288,25 @@ class Producto(models.Model):
     @property
     def es_inventariable(self):
         return self.tipo == 'BIEN'
+
+    @property
+    def factor(self):
+        return self.factor_compra if self.factor_compra and self.factor_compra > 0 else Decimal('1')
+
+    def a_stock(self, cantidad_compra):
+        """Cantidad de compra (cajas) -> unidades de almacén."""
+        return cantidad_compra * self.factor
+
+    def a_compra(self, cantidad_stock):
+        """Unidades de almacén -> unidades de compra (redondeo hacia arriba a unidades enteras si hay factor)."""
+        from decimal import ROUND_CEILING
+        if self.factor == 1:
+            return cantidad_stock
+        return (cantidad_stock / self.factor).quantize(Decimal('1'), rounding=ROUND_CEILING)
+
+    @property
+    def unidad_de_compra(self):
+        return self.unidad_compra or self.unidad
 
     @property
     def precio_referencia(self):
@@ -991,6 +1015,10 @@ class ComprobanteBase(TotalesMixin):
     def _costo_entrada(self, item):
         return None
 
+    def _cantidad_stock(self, item):
+        """Cantidad que mueve el almacén (las compras convierten de unidad de compra a unidad de almacén)."""
+        return item.cantidad
+
     def aplicar_stock(self):
         if self.stock_aplicado or self.estado == 'ANULADO':
             return
@@ -1002,7 +1030,8 @@ class ComprobanteBase(TotalesMixin):
         for item in self.items.select_related('producto'):
             if item.producto and item.producto.es_inventariable:
                 costo = self._costo_entrada(item) if signo > 0 else None
-                item.producto.mover_stock(signo * item.cantidad, str(self), costo=costo, fecha=self.fecha_emision,
+                item.producto.mover_stock(signo * self._cantidad_stock(item), str(self), costo=costo,
+                                          fecha=self.fecha_emision,
                                           almacen=self.almacen, origen=self._meta.model_name.upper(), lotes_de=ref)
         self.stock_aplicado = True
         self.save(update_fields=['stock_aplicado', 'almacen'])
@@ -1014,7 +1043,8 @@ class ComprobanteBase(TotalesMixin):
         for item in self.items.select_related('producto'):
             if item.producto and item.producto.es_inventariable:
                 # con la fecha del documento: el costo del periodo queda neto y coincide con la contabilidad
-                item.producto.mover_stock(signo * item.cantidad, f'Reversión {self}', fecha=self.fecha_emision,
+                item.producto.mover_stock(signo * self._cantidad_stock(item), f'Reversión {self}',
+                                          fecha=self.fecha_emision,
                                           almacen=self.almacen, origen=self._meta.model_name.upper(),
                                           lotes_de=str(self))
         self.stock_aplicado = False

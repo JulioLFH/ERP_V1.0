@@ -22,14 +22,17 @@ class ErrorPortal(Exception):
 
 # ---------------------------------------------------------------- cantidades
 def recibido_por_producto(oc):
-    """{producto_id: cantidad} ingresada al almacén para la orden (recepciones y facturas con ingreso directo)."""
+    """{producto_id: cantidad EN UNIDAD DE COMPRA} ingresada al almacén para la orden (recepciones y facturas con
+    ingreso directo). Las recepciones están en unidad de almacén y se dividen entre el factor de compra."""
     from inventario.models import OperacionItem
     total = defaultdict(lambda: D0)
     filas = OperacionItem.objects.filter(
         Q(operacion__orden_compra=oc) | Q(operacion__compra__orden_compra=oc), operacion__estado='CONFIRMADO',
-        operacion__tipo__clase='INGRESO').values('producto_id').annotate(c=Sum('cantidad'))
+        operacion__tipo__clase='INGRESO').values('producto_id', 'producto__factor_compra').annotate(c=Sum('cantidad'))
     for f in filas:
-        total[f['producto_id']] += f['c']
+        factor = f['producto__factor_compra'] if f['producto__factor_compra'] and f['producto__factor_compra'] > 0 \
+            else Decimal('1')
+        total[f['producto_id']] += f['c'] / factor
     for c in oc.compras.filter(estado='REGISTRADO', stock_aplicado=True).exclude(tipo_comprobante__in=['07', '08']):
         for i in c.items.filter(producto__isnull=False):
             total[i.producto_id] += i.cantidad

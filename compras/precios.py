@@ -39,9 +39,9 @@ def _recibido(compra):
     resultado = {}
     for f in facturas:
         pedido = defaultdict(lambda: D0)
-        for i in f.items.all():
+        for i in f.items.select_related('producto'):
             if i.producto_id:
-                pedido[i.producto_id] += i.cantidad
+                pedido[i.producto_id] += i.producto.a_stock(i.cantidad)  # en unidad de almacén
         for pid, falta in pedido.items():
             ya = directas[pid][0] if f.pk == compra.pk else D0
             falta -= ya
@@ -68,8 +68,8 @@ def liquidar(compra):
     esperado = {}
     if compra.estado == 'REGISTRADO':
         facturado = defaultdict(lambda: [D0, D0])
-        for i in compra.items.filter(producto__isnull=False):
-            facturado[i.producto_id][0] += i.cantidad
+        for i in compra.items.filter(producto__isnull=False).select_related('producto'):
+            facturado[i.producto_id][0] += i.producto.a_stock(i.cantidad)  # en unidad de almacén, como lo recibido
             facturado[i.producto_id][1] += r2(i.subtotal * compra.tc_efectivo)
         for pid, (cant_rec, valor_rec) in _recibido(compra).items():
             cant_fac, valor_fac = facturado.get(pid, (D0, D0))

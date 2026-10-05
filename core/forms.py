@@ -177,7 +177,8 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
         ('general', 'General', 'bi-info-circle',
          ['clase', 'codigo', 'nombre', 'unidad', 'marca', 'codigo_barras', 'peso', 'control', 'descripcion',
           'activo']),
-        ('compras', 'Compras', 'bi-bag', ['puede_comprarse', 'precio_compra', 'proveedor', 'unidad_compra']),
+        ('compras', 'Compras', 'bi-bag', ['puede_comprarse', 'precio_compra', 'proveedor', 'unidad_compra',
+                                          'factor_compra']),
         ('ventas', 'Ventas', 'bi-receipt', ['puede_venderse', 'precio_venta', 'afectacion_igv']),
         ('contabilidad', 'Contabilidad', 'bi-journal-bookmark',
          ['centro_beneficio', 'cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo']),
@@ -196,9 +197,16 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
             raise forms.ValidationError('No puede ser negativo.')
         return peso
 
+    def clean_factor_compra(self):
+        factor = self.cleaned_data.get('factor_compra') or Decimal('1')
+        if factor <= 0:
+            raise forms.ValidationError('Debe ser mayor a cero.')
+        return factor
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['peso'].required = False
+        self.fields['factor_compra'].required = False
         from contabilidad.models import CuentaContable
         for campo in ('cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo'):
             self.fields[campo].queryset = CuentaContable.objects.filter(imputable=True).order_by('codigo')

@@ -152,19 +152,21 @@ def en_camino():
     from compras.models import OrdenCompra
     from proveedores.servicios import recibido_por_producto
     pendiente = defaultdict(lambda: D0)
+    factores = {}
     for oc in OrdenCompra.objects.exclude(estado='ANULADO').exclude(estado_proveedor='RECHAZADA').prefetch_related(
-            'items'):
+            'items__producto'):
         pedido = defaultdict(lambda: D0)
         for i in oc.items.all():
             if i.producto_id:
                 pedido[i.producto_id] += i.cantidad
+                factores[i.producto_id] = i.producto.factor
         if not pedido:
             continue
-        recibido = recibido_por_producto(oc)
+        recibido = recibido_por_producto(oc)  # en unidad de compra, como el pedido
         for pid, cant in pedido.items():
             falta = cant - recibido.get(pid, D0)
             if falta > 0:
-                pendiente[pid] += falta
+                pendiente[pid] += falta * factores.get(pid, 1)  # en unidad de almacén
     return pendiente
 
 
@@ -182,13 +184,15 @@ def sugerencias_compra():
         if disponible > limite:
             continue
         objetivo = p.stock_maximo if p.stock_maximo > limite else limite * 2
-        cantidad = objetivo - disponible
+        # se pide en unidad de compra (cajas) y en múltiplos del lote mínimo de compra
+        cantidad = p.a_compra(objetivo - disponible)
         if p.lote_compra and p.lote_compra > 0:
             cantidad = Decimal(math.ceil(cantidad / p.lote_compra)) * p.lote_compra
         if cantidad <= 0:
             continue
         filas.append({'p': p, 'limite': limite, 'camino': camino.get(p.pk, D0), 'disponible': disponible,
-                      'objetivo': objetivo, 'cantidad': cantidad, 'precio': p.precio_compra,
+                      'objetivo': objetivo, 'cantidad': cantidad, 'unidad_compra': p.unidad_de_compra,
+                      'unidades': p.a_stock(cantidad), 'precio': p.precio_compra,
                       'importe': r2(cantidad * p.precio_compra)})
     return filas
 

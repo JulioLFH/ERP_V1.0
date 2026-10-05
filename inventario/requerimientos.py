@@ -126,9 +126,10 @@ def pasar_a_compras(req, usuario):
                                             fecha=timezone.localdate(), fecha_entrega=req.fecha_requerida,
                                             centro_costo=req.centro_costo,
                                             glosa=f'Faltantes del requerimiento {req.numero}')
-            for item, cantidad in filas:
+            for item, cantidad in filas:  # en unidad de compra
                 OrdenCompraItem.objects.create(documento=oc, producto=item.producto, descripcion=item.producto.nombre,
-                                               cantidad=cantidad, precio_unitario=item.producto.precio_compra or D0)
+                                               cantidad=item.producto.a_compra(cantidad),
+                                               precio_unitario=item.producto.precio_compra or D0)
                 item.orden_compra = oc
                 item.save(update_fields=['orden_compra'])
             oc.calcular_totales()
