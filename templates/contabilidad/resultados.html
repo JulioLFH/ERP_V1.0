@@ -17,7 +17,7 @@
   </form>
 </div>
 {% if sin_presupuesto %}<div class="alert alert-info small d-print-none">No hay presupuesto para el año. Regístrelo en <a href="{% url 'contabilidad:presupuestos' %}">Contabilidad › Presupuestos</a>.</div>{% endif %}
-<div class="card" style="max-width:{% if comparar %}980px{% else %}720px{% endif %}"><div class="card-body">
+<div class="card" style="max-width:{% if comparar %}980px{% else %}720px{% endif %}"><div class="card-body table-responsive">
   <table class="table table-sm mb-0">
     {% if comparar %}
       <thead><tr><th></th><th class="num">{{ desde|slice:"4:" }}/{{ desde|slice:":4" }} - {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }}</th><th class="num">{{ etiqueta_comp }}</th><th class="num">Variación</th><th class="num">%</th></tr></thead>

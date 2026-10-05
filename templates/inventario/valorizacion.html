@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title">Inventario valorizado al {{ corte|date:'d/m/Y' }}</h1>
-  <form class="d-flex gap-2" method="get">
+  <form class="d-flex flex-wrap gap-2" method="get">
     <input type="month" name="mes" value="{{ mes }}" class="form-control form-control-sm">
     <select name="almacen" class="form-select form-select-sm"><option value="">Todos los almacenes</option>{% for a in almacenes %}<option value="{{ a.pk }}" {% if almacen and almacen.pk == a.pk %}selected{% endif %}>{{ a.nombre }}</option>{% endfor %}</select>
     <button class="btn btn-sm btn-primary">Ver</button>

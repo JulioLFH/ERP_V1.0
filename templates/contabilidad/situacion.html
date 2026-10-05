@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <div><h1 class="page-title">Estado de situación financiera</h1>
     <div class="text-muted small">{{ empresa.razon_social }} · al cierre de {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }} · en soles</div></div>
-  <form class="d-flex gap-2 d-print-none" method="get">
+  <form class="d-flex flex-wrap gap-2 d-print-none" method="get">
     <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm" style="width:auto">
     <select name="comparar" class="form-select form-select-sm" style="width:auto">
       <option value="">Sin comparativo</option>
@@ -17,7 +17,7 @@
 </div>
 {% if t.diferencia %}<div class="alert alert-warning small">Diferencia de S/ {{ t.diferencia|money }} entre activo y pasivo + patrimonio. Revise compras de mercadería sin destino 20/61, asientos manuales en clase 6 o 9 sin contrapartida, o centralice los periodos pendientes.</div>{% endif %}
 {% if comparar %}
-<div class="card" style="max-width:980px"><div class="card-body">
+<div class="card" style="max-width:980px"><div class="card-body table-responsive">
   <table class="table table-sm mb-0">
     <thead><tr><th></th><th class="num">{{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }}</th><th class="num">{{ comp|slice:"4:" }}/{{ comp|slice:":4" }}</th><th class="num">Variación</th><th class="num">%</th></tr></thead>
     {% for s in secciones %}
