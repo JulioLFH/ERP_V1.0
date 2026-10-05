@@ -45,7 +45,7 @@ class Borrador:
         self.tc = tc or Decimal('1')
 
     def add(self, cuenta, debe=D0, haber=D0, tercero=None, documento='', glosa='', centro_costo=None,
-            importe_me=None):
+            importe_me=None, centro_beneficio=None):
         debe, haber = r2(debe), r2(haber)
         # importes negativos pasan al lado contrario
         if debe < 0:
@@ -54,8 +54,10 @@ class Borrador:
             debe, haber = debe - haber, D0
         if not debe and not haber:
             return None
+        if centro_beneficio is None and centro_costo is not None:
+            centro_beneficio = centro_costo.beneficio  # la línea de negocio sale del centro de costo
         linea = AsientoLinea(cuenta=cuenta, debe=debe, haber=haber, tercero=tercero, documento=documento,
-                             glosa=glosa[:200], centro_costo=centro_costo)
+                             glosa=glosa[:200], centro_costo=centro_costo, centro_beneficio=centro_beneficio)
         if self.moneda == 'USD' and importe_me is not None:
             linea.debe_me = r2(abs(importe_me)) if debe else D0
             linea.haber_me = r2(abs(importe_me)) if haber else D0
@@ -83,9 +85,10 @@ class Borrador:
             if c.destino_debe_id and c.destino_haber_id:
                 neto = l.debe - l.haber
                 if neto:
-                    destinos.append(AsientoLinea(cuenta=c.destino_debe, debe=max(neto, D0), haber=max(-neto, D0),
+                    destino = _destino_por_centro(c.destino_debe, l.centro_costo)
+                    destinos.append(AsientoLinea(cuenta=destino, debe=max(neto, D0), haber=max(-neto, D0),
                                                  glosa=f'Destino {c.codigo}', centro_costo=l.centro_costo,
-                                                 es_destino=True))
+                                                 centro_beneficio=l.centro_beneficio, es_destino=True))
                     destinos.append(AsientoLinea(cuenta=c.destino_haber, debe=max(-neto, D0), haber=max(neto, D0),
                                                  glosa=f'Destino {c.codigo}', es_destino=True))
         self.lineas.extend(destinos)
@@ -102,6 +105,23 @@ class Borrador:
             l.asiento = self.asiento
         AsientoLinea.objects.bulk_create(self.lineas)
         return self.asiento
+
+
+_DESTINOS = {}
+
+
+def _destino_por_centro(destino, centro):
+    """Gastos de un centro de producción van al costo de producción (90), de ventas a la 95 y de administración a
+    la 94, en vez del destino general de la cuenta (gastos financieros 97 se respetan)."""
+    if centro is None or not destino.codigo.startswith(('94', '95')):
+        return destino
+    codigo = centro.DESTINO.get(centro.tipo)
+    if not codigo or destino.codigo.startswith(codigo[:2]):
+        return destino
+    if codigo not in _DESTINOS:
+        from .models import CuentaContable
+        _DESTINOS[codigo] = CuentaContable.objects.filter(codigo=codigo).first()
+    return _DESTINOS[codigo] or destino
 
 
 def _fin_mes(periodo):
@@ -164,19 +184,23 @@ def asiento_venta(v, cta):
     b.add(cta['icbper'], haber=v.icbper_pen, documento=doc, importe_me=v.icbper)
     # ingresos: cuenta de ventas de cada producto (sin producto o sin cuenta -> bienes / servicios)
     ingreso = v.base_pen + v.nograv_pen
+    # el ingreso se separa por cuenta de ventas y por línea de negocio de cada producto (resultado por línea)
+    centro = v.centro_costo
+    linea_defecto = centro.beneficio if centro else None
     subt = defaultdict(lambda: D0)
-    for i in v.items.select_related('producto__cuenta_venta'):
+    for i in v.items.select_related('producto__cuenta_venta', 'producto__centro_beneficio'):
         p = i.producto
         if p and p.cuenta_venta_id:
             cuenta = p.cuenta_venta
         else:
             cuenta = cta['ventas_servicios'] if p and p.tipo == 'SERVICIO' else cta['ventas_bienes']
-        subt[cuenta] += i.subtotal
+        subt[(cuenta, (p.centro_beneficio if p and p.centro_beneficio_id else linea_defecto))] += i.subtotal
     if not sum(subt.values(), D0):
-        subt = {cta['ventas_bienes']: Decimal('1')}
+        subt = {(cta['ventas_bienes'], linea_defecto): Decimal('1')}
     total_items = sum(subt.values(), D0)
-    for cuenta, parte in _repartir(ingreso, subt):
-        b.add(cuenta, haber=parte, documento=doc, importe_me=(v.total - v.igv) * subt[cuenta] / total_items)
+    for (cuenta, linea), parte in _repartir(ingreso, subt):
+        b.add(cuenta, haber=parte, documento=doc, centro_costo=centro, centro_beneficio=linea,
+              importe_me=(v.total - v.igv) * subt[(cuenta, linea)] / total_items)
     if v.ret_pen:
         b.add(cta['igv_retencion'], debe=v.ret_pen, documento=doc, glosa='Retención de IGV del cliente')
         b.add(cta['cliente'], haber=v.ret_pen, tercero=v.tercero, documento=doc, glosa='Retención de IGV del cliente')
@@ -317,7 +341,7 @@ def asiento_inventario(periodo, cta):
     tipos = {t.codigo: t for t in TipoOperacion.objects.select_related('cuenta_contable')}
     merc_def = cta['mercaderias']
     productos = {p.pk: p for p in Producto.objects.select_related(
-        'cuenta_existencias', 'cuenta_costo', 'cuenta_compra__destino_debe')}
+        'cuenta_existencias', 'cuenta_costo', 'cuenta_compra__destino_debe', 'centro_beneficio')}
 
     def existencias(p):
         return p.cuenta_existencias if p and p.cuenta_existencias_id else merc_def
@@ -341,18 +365,19 @@ def asiento_inventario(periodo, cta):
         codigo = (PRODUCCION.get(ex.codigo[:2], '7111') if entrada else VARIACION.get(ex.codigo[:2], '6111'))
         return por_codigo.get(codigo)
 
-    grupos = defaultdict(lambda: D0)   # (existencias, contrapartida, glosa) -> variación del inventario
+    grupos = defaultdict(lambda: D0)   # (existencias, contrapartida, glosa, línea) -> variación del inventario
     sin_contra = defaultdict(lambda: D0)  # traslados: solo cambian de almacén o de cuenta de existencias
     for k in Kardex.objects.filter(fecha__range=[desde, hasta]):
         p = productos.get(k.producto_id)
         ex = existencias(p)
+        linea = p.centro_beneficio if p and p.centro_beneficio_id else None  # inventario y costo por línea
         valor = r2(k.cantidad * k.costo_unitario) * (1 if k.tipo == 'ENTRADA' else -1)
         if k.origen == 'OPERACION':
             tipo = tipos.get(k.concepto)
             if tipo and tipo.clase == 'MANUFACTURA' and contra_manufactura(ex, k.tipo == 'ENTRADA'):
                 contra = contra_manufactura(ex, k.tipo == 'ENTRADA')
                 glosa = 'Producción almacenada' if k.tipo == 'ENTRADA' else 'Consumo de insumos en producción'
-                grupos[(ex, contra, glosa)] += valor
+                grupos[(ex, contra, glosa, linea)] += valor
                 continue
             if not (tipo and tipo.cuenta_contable_id):
                 sin_contra[ex] += valor
@@ -363,24 +388,24 @@ def asiento_inventario(periodo, cta):
                 contra = por_recibir(p)
             elif contra.pk == cta['costo_ventas'].pk:
                 contra = costo(p)
-            grupos[(ex, contra, f'Operaciones de inventario ({tipo.cuenta_contable.nombre[:50]})')] += valor
+            grupos[(ex, contra, f'Operaciones de inventario ({tipo.cuenta_contable.nombre[:50]})', linea)] += valor
         elif k.origen == 'COMPRA':
-            grupos[(ex, por_recibir(p), 'Ingreso al almacén de compras')] += valor
+            grupos[(ex, por_recibir(p), 'Ingreso al almacén de compras', linea)] += valor
         elif k.origen in ('VENTA', 'GUIA'):
-            grupos[(ex, costo(p), 'Costo de ventas y despachos')] += valor
+            grupos[(ex, costo(p), 'Costo de ventas y despachos', linea)] += valor
         elif k.origen == 'AJUSTE' and k.concepto == 'INICIAL':
-            grupos[(ex, cta['inventario_inicial'], 'Inventario inicial')] += valor
+            grupos[(ex, cta['inventario_inicial'], 'Inventario inicial', linea)] += valor
         elif k.origen == 'AJUSTE' and k.concepto in ('MERMA', 'CONSUMO'):
-            grupos[(ex, cta['inventario_merma'], 'Mermas, faltantes y consumo')] += valor
+            grupos[(ex, cta['inventario_merma'], 'Mermas, faltantes y consumo', linea)] += valor
         elif valor > 0:  # sobrantes y movimientos sin origen
-            grupos[(ex, cta['inventario_sobrante'], 'Sobrantes de inventario')] += valor
+            grupos[(ex, cta['inventario_sobrante'], 'Sobrantes de inventario', linea)] += valor
         else:
-            grupos[(ex, cta['inventario_merma'], 'Mermas, faltantes y consumo')] += valor
+            grupos[(ex, cta['inventario_merma'], 'Mermas, faltantes y consumo', linea)] += valor
     a = Asiento(fecha=hasta, libro='05', origen='INVENTARIO', glosa=f'Inventario y costo de ventas {periodo} (kardex)')
     b = Borrador(a)
-    for (ex, contra, glosa), valor in sorted(grupos.items(), key=lambda x: (x[0][0].codigo, x[0][1].codigo)):
+    for (ex, contra, glosa, linea), valor in sorted(grupos.items(), key=lambda x: (x[0][0].codigo, x[0][1].codigo)):
         if valor:
-            b.neto(ex, contra, valor, glosa=glosa)
+            b.neto(ex, contra, valor, glosa=glosa, centro_beneficio=linea)
     # diferencia de precio factura vs recepción: liquida la 28 contra el inventario (lo que sigue en stock) y el
     # costo de ventas (lo ya vendido o consumido)
     from compras.models import AjustePrecioCompra
@@ -403,7 +428,7 @@ def asiento_inventario(periodo, cta):
     objetivo = defaultdict(lambda: D0)
     for fila in valor_inventario(hasta)[0]:
         objetivo[existencias(productos.get(fila['p'].pk))] += fila['valor']
-    cuentas_ex = set(objetivo) | {merc_def} | {ex for ex, _, _ in grupos} | set(sin_contra)
+    cuentas_ex = set(objetivo) | {merc_def} | {clave[0] for clave in grupos} | set(sin_contra)
     for ex in sorted(cuentas_ex, key=lambda c: c.codigo):
         agg = AsientoLinea.objects.filter(cuenta=ex, asiento__fecha__lte=hasta).aggregate(d=Sum('debe'), h=Sum('haber'))
         libro = (agg['d'] or D0) - (agg['h'] or D0) + sum(l.debe - l.haber for l in b.lineas if l.cuenta_id == ex.pk)
@@ -456,6 +481,7 @@ def centralizar_periodo(periodo):
     if PeriodoContable.esta_cerrado(periodo):
         raise ErrorContable(f'El periodo {periodo} está cerrado.')
     cta = CuentaDefecto.mapa()
+    _DESTINOS.clear()
     from core.tipo_cambio import obtener, venta_del_dia
     cache_tc = {}
 

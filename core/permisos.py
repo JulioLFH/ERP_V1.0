@@ -74,6 +74,7 @@ RUTAS = {
     'contabilidad:cuenta_nueva': 'contabilidad.configurar', 'contabilidad:cuenta_editar': 'contabilidad.configurar',
     'contabilidad:configuracion': {'POST': 'contabilidad.configurar'},
     'contabilidad:cc_nuevo': 'contabilidad.configurar', 'contabilidad:cc_editar': 'contabilidad.configurar',
+    'contabilidad:cb_nuevo': 'contabilidad.configurar', 'contabilidad:cb_editar': 'contabilidad.configurar',
     'manufactura:orden_nueva': 'manufactura.ordenes', 'manufactura:orden_editar': 'manufactura.ordenes',
     'manufactura:orden_confirmar': 'manufactura.ordenes', 'manufactura:orden_iniciar': 'manufactura.ordenes',
     'manufactura:orden_terminar': 'manufactura.ordenes', 'manufactura:orden_eliminar': 'manufactura.ordenes',

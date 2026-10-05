@@ -79,9 +79,38 @@ class CuentaDefecto(models.Model):
         return {d.clave: d.cuenta for d in cls.objects.select_related('cuenta')}
 
 
-class CentroCosto(models.Model):
+class CentroBeneficio(models.Model):
+    """Línea de negocio: agrupa ventas, costos e inventario para el resultado por línea."""
     codigo = models.CharField('Código', max_length=10, unique=True)
     nombre = models.CharField(max_length=100)
+    responsable = models.CharField(max_length=120, blank=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['codigo']
+        verbose_name = 'centro de beneficio'
+        verbose_name_plural = 'centros de beneficio'
+
+    def __str__(self):
+        return f'{self.codigo} {self.nombre}'
+
+
+class CentroCosto(models.Model):
+    TIPOS = [('PRODUCCION', 'Producción'), ('SERVICIO', 'Servicio / apoyo a producción'),
+             ('ADMINISTRACION', 'Administración'), ('VENTAS', 'Ventas'), ('FINANZAS', 'Finanzas')]
+    # destino analítico del gasto según el tipo de centro (el resto usa el destino de la cuenta)
+    DESTINO = {'PRODUCCION': '901', 'SERVICIO': '901', 'ADMINISTRACION': '941', 'VENTAS': '951'}
+
+    codigo = models.CharField('Código', max_length=10, unique=True)
+    nombre = models.CharField(max_length=100)
+    tipo = models.CharField(max_length=15, choices=TIPOS, default='ADMINISTRACION',
+                            help_text='Producción y servicio: el gasto va al costo de producción (90); '
+                                      'administración (94); ventas (95)')
+    padre = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True, related_name='hijos',
+                              verbose_name='Depende de')
+    centro_beneficio = models.ForeignKey(CentroBeneficio, on_delete=models.SET_NULL, null=True, blank=True,
+                                         related_name='centros_costo', verbose_name='Centro de beneficio')
+    responsable = models.CharField(max_length=120, blank=True)
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -91,6 +120,32 @@ class CentroCosto(models.Model):
 
     def __str__(self):
         return f'{self.codigo} {self.nombre}'
+
+    @property
+    def nivel(self):
+        n, c = 0, self.padre
+        while c is not None and n < 20:
+            n, c = n + 1, c.padre
+        return n
+
+    def descendientes_ids(self):
+        """IDs del centro y de todos los que dependen de él."""
+        todos = list(CentroCosto.objects.values_list('pk', 'padre_id'))
+        ids, nuevos = {self.pk}, {self.pk}
+        while nuevos:
+            nuevos = {pk for pk, padre in todos if padre in nuevos} - ids
+            ids |= nuevos
+        return ids
+
+    @property
+    def beneficio(self):
+        """Centro de beneficio propio o heredado del centro superior."""
+        c, n = self, 0
+        while c is not None and n < 20:
+            if c.centro_beneficio_id:
+                return c.centro_beneficio
+            c, n = c.padre, n + 1
+        return None
 
 
 class PeriodoContable(models.Model):
@@ -176,6 +231,8 @@ class AsientoLinea(models.Model):
     tercero = models.ForeignKey(Tercero, on_delete=models.PROTECT, null=True, blank=True)
     centro_costo = models.ForeignKey(CentroCosto, on_delete=models.PROTECT, null=True, blank=True,
                                      verbose_name='Centro de costo')
+    centro_beneficio = models.ForeignKey(CentroBeneficio, on_delete=models.PROTECT, null=True, blank=True,
+                                         verbose_name='Centro de beneficio')
     documento = models.CharField('Documento', max_length=40, blank=True)
     glosa = models.CharField(max_length=200, blank=True)
     debe = models.DecimalField(max_digits=14, decimal_places=2, default=D0)

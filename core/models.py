@@ -205,6 +205,9 @@ class Producto(models.Model):
     codigo_barras = models.CharField('Código de barras', max_length=40, blank=True)
     peso = models.DecimalField('Peso por unidad (kg)', max_digits=12, decimal_places=3, default=D0,
                                help_text='Calcula el peso bruto de las guías de remisión')
+    centro_beneficio = models.ForeignKey('contabilidad.CentroBeneficio', on_delete=models.SET_NULL, null=True,
+                                         blank=True, related_name='+', verbose_name='Línea de negocio',
+                                         help_text='Ventas, costo de ventas e inventario del producto van a esta línea')
     control = models.CharField('Control de existencias', max_length=5, blank=True, default='',
                                choices=[('', 'Sin lote ni serie'), ('LOTE', 'Por lote (con vencimiento)'),
                                         ('SERIE', 'Por número de serie (unidad por unidad)')],

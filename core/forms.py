@@ -180,7 +180,7 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
         ('compras', 'Compras', 'bi-bag', ['puede_comprarse', 'precio_compra', 'proveedor', 'unidad_compra']),
         ('ventas', 'Ventas', 'bi-receipt', ['puede_venderse', 'precio_venta', 'afectacion_igv']),
         ('contabilidad', 'Contabilidad', 'bi-journal-bookmark',
-         ['cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo']),
+         ['centro_beneficio', 'cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo']),
         ('planificacion', 'Planificación', 'bi-calendar-check',
          ['stock_minimo', 'punto_reorden', 'stock_maximo', 'lote_compra', 'tiempo_entrega', 'almacen_defecto']),
     ]

@@ -9,13 +9,18 @@
     <button class="btn btn-sm btn-primary">Ver</button>
   </form>
 </div>
-<div class="row g-3">
-  {% for codigo, g in grupos.items %}
-  <div class="col-lg-6"><div class="card h-100">
-    <div class="card-header d-flex justify-content-between"><span>{% if codigo != '—' %}{{ codigo }} {% endif %}{{ g.nombre }}</span><span class="num">S/ {{ g.total|money }}</span></div>
-    <table class="table table-sm mb-0">{% for f in g.filas %}<tr><td class="small">{{ f.codigo }} {{ f.nombre|truncatechars:45 }}</td><td class="num">{{ f.importe|money }}</td></tr>{% endfor %}</table>
-  </div></div>
-  {% empty %}<div class="col"><div class="alert alert-info">Sin gastos en el rango. Asigne centros de costo en las compras o movimientos y centralice el periodo.</div></div>{% endfor %}
+<div class="card">
+  <div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Centro de costo</th><th>Tipo</th><th>Cuenta</th><th class="num">Propio S/</th><th class="num">Acumulado S/</th></tr></thead>
+    <tbody>
+    {% for codigo, g in grupos.items %}
+      <tr class="table-light fw-semibold"><td style="padding-left: {{ g.nivel|add:1 }}rem">{% if g.tiene_hijos %}<i class="bi bi-diagram-3 text-muted"></i> {% endif %}{% if codigo != '—' %}{{ codigo }} {% endif %}{{ g.nombre }}</td><td class="small fw-normal">{{ g.tipo }}</td><td></td>
+        <td class="num">{{ g.total|money }}</td><td class="num">{% if g.tiene_hijos %}{{ g.acumulado|money }}{% endif %}</td></tr>
+      {% for f in g.filas %}<tr><td></td><td></td><td class="small">{{ f.codigo }} {{ f.nombre|truncatechars:50 }}</td><td class="num small">{{ f.importe|money }}</td><td></td></tr>{% endfor %}
+    {% empty %}<tr><td colspan="5"><div class="alert alert-info m-2">Sin gastos en el rango. Asigne centros de costo en las compras o movimientos y centralice el periodo.</div></td></tr>{% endfor %}
+    </tbody>
+    {% if grupos %}<tfoot><tr class="fw-bold"><td colspan="3" class="text-end">Total gastos e inversiones</td><td class="num">{{ total|money }}</td><td></td></tr></tfoot>{% endif %}
+  </table></div>
+  <div class="card-body py-2 small text-muted">"Acumulado" suma el centro y todos los que dependen de él. Los gastos de centros de producción y servicio van al costo de producción (90); los de administración a la 94 y los de ventas a la 95.</div>
 </div>
-{% if grupos %}<p class="fw-bold mt-3">Total gastos e inversiones: S/ {{ total|money }}</p>{% endif %}
 {% endblock %}

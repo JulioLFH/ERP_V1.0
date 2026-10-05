@@ -21,8 +21,10 @@ from ventas.models import Venta
 
 from . import automatico, pcge, reportes
 from .centralizar import ErrorContable, centralizar_periodo
-from .forms import (AsientoForm, CentroCostoForm, CuentaContableForm, CuentaDefectoFormSet, lineas_formset)
-from .models import LIBROS, ORIGENES, Asiento, AsientoLinea, CentroCosto, CuentaContable, CuentaDefecto, PeriodoContable
+from .forms import (AsientoForm, CentroBeneficioForm, CentroCostoForm, CuentaContableForm, CuentaDefectoFormSet,
+                    lineas_formset)
+from .models import (LIBROS, ORIGENES, Asiento, AsientoLinea, CentroBeneficio, CentroCosto, CuentaContable,
+                     CuentaDefecto, PeriodoContable)
 
 D0 = Decimal('0')
 
@@ -369,17 +371,100 @@ def centros_costo_reporte(request):
     filas = (reportes.lineas_rango(desde, hasta).filter(es_destino=False, cuenta__codigo__regex=r'^(6|3)')
              .values('centro_costo__codigo', 'centro_costo__nombre', 'cuenta__codigo', 'cuenta__nombre')
              .annotate(d=Sum('debe'), h=Sum('haber')).order_by('centro_costo__codigo', 'cuenta__codigo'))
-    grupos = OrderedDict()
+    propios = {}
     for f in filas:
         clave = f['centro_costo__codigo'] or '—'
-        g = grupos.setdefault(clave, {'nombre': f['centro_costo__nombre'] or 'Sin centro de costo', 'filas': [],
-                                      'total': D0})
+        g = propios.setdefault(clave, {'filas': [], 'total': D0})
         neto = (f['d'] or D0) - (f['h'] or D0)
         g['filas'].append({'codigo': f['cuenta__codigo'], 'nombre': f['cuenta__nombre'], 'importe': neto})
         g['total'] += neto
+    # árbol: cada centro con su gasto propio y el acumulado de los que dependen de él
+    centros = list(CentroCosto.objects.select_related('padre'))
+    hijos = {}
+    for c in centros:
+        hijos.setdefault(c.padre_id, []).append(c)
+
+    def acumulado(c, n=0):
+        return propios.get(c.codigo, {'total': D0})['total'] + sum(
+            (acumulado(h, n + 1) for h in hijos.get(c.pk, []) if n < 20), D0)
+
+    grupos = OrderedDict()
+
+    def recorrer(padre_id, nivel):
+        for c in sorted(hijos.get(padre_id, []), key=lambda x: x.codigo):
+            total = acumulado(c)
+            if total or c.codigo in propios:
+                grupos[c.codigo] = {'nombre': c.nombre, 'tipo': c.get_tipo_display(), 'nivel': nivel,
+                                    'filas': propios.get(c.codigo, {}).get('filas', []),
+                                    'total': propios.get(c.codigo, {'total': D0})['total'], 'acumulado': total,
+                                    'tiene_hijos': bool(hijos.get(c.pk))}
+            if nivel < 20:
+                recorrer(c.pk, nivel + 1)
+    recorrer(None, 0)
+    if '—' in propios:
+        grupos['—'] = {'nombre': 'Sin centro de costo', 'tipo': '', 'nivel': 0, 'filas': propios['—']['filas'],
+                       'total': propios['—']['total'], 'acumulado': propios['—']['total'], 'tiene_hijos': False}
     return render(request, 'contabilidad/centros_reporte.html', {
         'grupos': grupos, 'desde': desde, 'hasta': hasta, 'mes_desde': _mes_input(desde),
-        'mes_hasta': _mes_input(hasta), 'total': sum((g['total'] for g in grupos.values()), D0)})
+        'mes_hasta': _mes_input(hasta), 'total': sum((g['total'] for g in propios.values()), D0)})
+
+
+@login_required
+@al_dia
+def resultados_por_linea(request):
+    """Estado de resultados por centro de beneficio (línea de negocio), con la cuenta por cobrar y el inventario
+    de cada línea al cierre del rango."""
+    from core.inventario import valor_inventario
+    from ventas.models import Venta
+    hasta = _periodo(request, 'hasta')
+    desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')
+    lineas = list(CentroBeneficio.objects.filter(activo=True))
+    columnas = [(cb.pk, cb.nombre) for cb in lineas] + [(None, 'Sin línea')]
+    RUBROS = [('ventas', 'Ventas netas', r'^70'), ('costo', 'Costo de ventas', r'^69'),
+              ('gastos', 'Gastos de operación', r'^6[2-8]'), ('otros', 'Otros ingresos y gastos', r'^(7[3-9]|6[0-1])')]
+    datos = {clave: {pk: D0 for pk, _ in columnas} for clave, _, _ in RUBROS}
+    base = reportes.lineas_rango(desde, hasta).filter(es_destino=False)
+    for clave, _, regex in RUBROS:
+        for f in (base.filter(cuenta__codigo__regex=regex).values('centro_beneficio')
+                  .annotate(d=Sum('debe'), h=Sum('haber'))):
+            pk = f['centro_beneficio'] if f['centro_beneficio'] in datos[clave] else None
+            datos[clave][pk] += (f['h'] or D0) - (f['d'] or D0)  # ingresos positivos, costos negativos
+    margen = {pk: datos['ventas'][pk] + datos['costo'][pk] for pk, _ in columnas}
+    resultado = {pk: margen[pk] + datos['gastos'][pk] + datos['otros'][pk] for pk, _ in columnas}
+    # cuentas por cobrar e inventario por línea al cierre
+    from contabilidad.centralizar import _fin_mes
+    corte = _fin_mes(hasta)
+    cxc = {pk: D0 for pk, _ in columnas}
+    for v in (Venta.objects.con_saldos().filter(estado='REGISTRADO', fecha_emision__lte=corte)
+              .exclude(tipo_comprobante__in=['07', '08']).prefetch_related('items__producto')):
+        saldo = v.saldo_pen
+        if saldo <= 0:
+            continue
+        pesos = {}
+        for i in v.items.all():
+            pk = i.producto.centro_beneficio_id if i.producto and i.producto.centro_beneficio_id in cxc else None
+            pesos[pk] = pesos.get(pk, D0) + i.subtotal
+        total = sum(pesos.values(), D0) or Decimal('1')
+        for pk, peso in pesos.items():
+            cxc[pk] += saldo * peso / total
+    inventario = {pk: D0 for pk, _ in columnas}
+    for fila in valor_inventario(corte)[0]:
+        pk = fila['p'].centro_beneficio_id if fila['p'].centro_beneficio_id in inventario else None
+        inventario[pk] += fila['valor']
+    filas = [('Ventas netas', datos['ventas'], False), ('Costo de ventas', datos['costo'], False),
+             ('Margen bruto', margen, True), ('Gastos de operación', datos['gastos'], False),
+             ('Otros ingresos y gastos', datos['otros'], False), ('Resultado de la línea', resultado, True),
+             ('Cuentas por cobrar al cierre', cxc, False), ('Inventario al cierre', inventario, False)]
+    tabla = [{'rubro': r, 'valores': [v[pk] for pk, _ in columnas], 'total': sum(v.values(), D0), 'fuerte': fuerte}
+             for r, v, fuerte in filas]
+    if request.GET.get('formato') == 'excel':
+        from core.utils import excel_response
+        return excel_response(f'Resultados_por_linea_{desde}_{hasta}', f'Estado de resultados por línea {desde}-{hasta}',
+                              ['Rubro'] + [n for _, n in columnas] + ['Total'],
+                              [[t['rubro']] + t['valores'] + [t['total']] for t in tabla])
+    return render(request, 'contabilidad/resultados_linea.html', {
+        'columnas': columnas, 'tabla': tabla, 'desde': desde, 'hasta': hasta, 'mes_desde': _mes_input(desde),
+        'mes_hasta': _mes_input(hasta), 'sin_lineas': not lineas})
 
 
 # ---------------------------------------------------------------- plan de cuentas y configuración
@@ -430,9 +515,31 @@ def configuracion(request):
 class CentroCostoLista(ListaGenerica):
     model = CentroCosto
     titulo = 'Centros de costo'
-    columnas = [('Código', 'codigo'), ('Nombre', 'nombre'), ('Activo', 'activo')]
+    columnas = [('Código', 'codigo'), ('Nombre', 'nombre'), ('Tipo', 'get_tipo_display'), ('Depende de', 'padre'),
+                ('Centro de beneficio', 'beneficio'), ('Responsable', 'responsable'), ('Activo', 'activo')]
     url_nuevo, url_editar = 'contabilidad:cc_nuevo', 'contabilidad:cc_editar'
+    buscar_en = ['codigo', 'nombre', 'responsable']
+
+    def get_queryset(self):
+        return super().get_queryset().select_related('padre', 'centro_beneficio')
+
+
+class CentroBeneficioLista(ListaGenerica):
+    model = CentroBeneficio
+    titulo = 'Centros de beneficio (líneas de negocio)'
+    columnas = [('Código', 'codigo'), ('Nombre', 'nombre'), ('Responsable', 'responsable'), ('Activo', 'activo')]
+    url_nuevo, url_editar = 'contabilidad:cb_nuevo', 'contabilidad:cb_editar'
     buscar_en = ['codigo', 'nombre']
+
+
+class CentroBeneficioNuevo(FormGenerico, CreateView):
+    model, form_class, titulo = CentroBeneficio, CentroBeneficioForm, 'Nuevo centro de beneficio'
+    success_url = reverse_lazy('contabilidad:beneficios')
+
+
+class CentroBeneficioEditar(FormGenerico, UpdateView):
+    model, form_class, titulo = CentroBeneficio, CentroBeneficioForm, 'Editar centro de beneficio'
+    success_url = reverse_lazy('contabilidad:beneficios')
 
 
 class CentroCostoNuevo(FormGenerico, CreateView):

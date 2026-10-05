@@ -39,6 +39,9 @@ class Venta(ComprobanteBase, ElectronicoMixin):
     detraccion_codigo = models.CharField('Bien/servicio con detracción', max_length=3, blank=True, default='35',
                                          help_text='Catálogo 54 SUNAT; solo si la venta tiene detracción')
     descontar_stock = models.BooleanField('Mover almacén', default=True)
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
+                                     verbose_name='Centro de costo',
+                                     help_text='Canal o sucursal de la venta; la línea de negocio sale del producto')
 
     class Meta(ComprobanteBase.Meta):
         verbose_name = 'venta'

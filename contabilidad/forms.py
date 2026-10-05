@@ -7,7 +7,7 @@ from core.forms import BootstrapMixin
 from core.models import Tercero
 from core.sustentos import SustentoField
 
-from .models import Asiento, AsientoLinea, CentroCosto, CuentaContable, CuentaDefecto, PeriodoContable
+from .models import Asiento, AsientoLinea, CentroBeneficio, CentroCosto, CuentaContable, CuentaDefecto, PeriodoContable
 
 
 def cuentas_imputables():
@@ -34,7 +34,22 @@ class CuentaContableForm(BootstrapMixin, forms.ModelForm):
 class CentroCostoForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = CentroCosto
-        fields = '__all__'
+        fields = ['codigo', 'nombre', 'tipo', 'padre', 'centro_beneficio', 'responsable', 'activo']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        qs = CentroCosto.objects.filter(activo=True)
+        if self.instance.pk:  # no puede depender de sí mismo ni de uno de sus dependientes (ciclo)
+            qs = qs.exclude(pk__in=self.instance.descendientes_ids())
+        self.fields['padre'].queryset = qs
+        self.fields['centro_beneficio'].queryset = CentroBeneficio.objects.filter(activo=True)
+        self.fields['centro_beneficio'].help_text = 'Vacío = el del centro del que depende'
+
+
+class CentroBeneficioForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = CentroBeneficio
+        fields = ['codigo', 'nombre', 'responsable', 'activo']
 
 
 class CuentaDefectoForm(BootstrapMixin, forms.ModelForm):

@@ -127,6 +127,7 @@ PCGE = [
     ('88', 'IMPUESTO A LA RENTA'), ('881', 'Impuesto a la renta - corriente'), ('8811', 'Impuesto a la renta corriente'),
     ('89', 'DETERMINACIÓN DEL RESULTADO DEL EJERCICIO'), ('891', 'Utilidad'), ('8911', 'Utilidad del ejercicio'),
     ('892', 'Pérdida'), ('8921', 'Pérdida del ejercicio'),
+    ('90', 'COSTO DE PRODUCCIÓN'), ('901', 'Costo de producción (gastos de planta)'),
     ('94', 'GASTOS ADMINISTRATIVOS'), ('941', 'Gastos administrativos'),
     ('95', 'GASTOS DE VENTAS'), ('951', 'Gastos de ventas'),
     ('97', 'GASTOS FINANCIEROS (DESTINO)'), ('971', 'Gastos financieros'),

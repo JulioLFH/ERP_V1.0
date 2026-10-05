@@ -15,7 +15,7 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         fields = ['tipo_comprobante', 'serie', 'numero', 'tercero', 'fecha_emision', 'fecha_vencimiento',
                   'forma_pago', 'moneda', 'tipo_cambio', 'tipo_operacion', 'detraccion_pct', 'retencion_pct',
                   'percepcion_pct', 'icbper', 'detraccion_codigo', 'vendedor', 'cotizacion', 'doc_referencia',
-                  'motivo_nota', 'descontar_stock', 'almacen', 'glosa']
+                  'motivo_nota', 'descontar_stock', 'almacen', 'centro_costo', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2}),
                    'detraccion_codigo': forms.Select(choices=[('', '---')] + DETRACCION_TIPOS)}
         labels = {'tercero': 'Cliente', 'numero': 'Número (vacío = automático)'}

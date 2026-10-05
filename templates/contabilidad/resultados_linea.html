@@ -1,0 +1,21 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Resultados por línea de negocio{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Estado de resultados por línea de negocio</h1>
+  <form class="d-flex gap-2" method="get">
+    <input type="month" name="desde" value="{{ mes_desde }}" class="form-control form-control-sm">
+    <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm">
+    <button class="btn btn-sm btn-primary">Ver</button>
+    <a href="?desde={{ mes_desde }}&hasta={{ mes_hasta }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
+  </form>
+</div>
+{% if sin_lineas %}<div class="alert alert-info py-2 small">Cree sus centros de beneficio (Contabilidad &gt; Configuración) y asigne la línea a cada producto (pestaña Contabilidad) y a los centros de costo; después centralice los periodos.</div>{% endif %}
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Rubro</th>{% for pk, nombre in columnas %}<th class="num">{{ nombre }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
+  <tbody>{% for t in tabla %}<tr class="{% if t.fuerte %}fw-bold table-light{% endif %}{% if forloop.counter == 7 %} border-top border-2{% endif %}">
+    <td>{{ t.rubro }}</td>{% for v in t.valores %}<td class="num {% if v < 0 %}text-danger{% endif %}">{{ v|money }}</td>{% endfor %}<td class="num">{{ t.total|money }}</td>
+  </tr>{% endfor %}</tbody>
+</table></div>
+<div class="card-body py-2 small text-muted">Ventas y costo de ventas toman la línea del producto vendido; los gastos, la del centro de costo (o la de su centro superior). Cuentas por cobrar repartidas según los ítems de cada comprobante pendiente; inventario según la línea de cada producto.</div></div>
+{% endblock %}
