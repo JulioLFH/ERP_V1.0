@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Listas de precios{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-tags"></i> Listas de precios</h1>
+  {% if puede.ventas_precios %}<a href="{% url 'ventas:lista_precios_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva lista</a>{% endif %}
+</div>
+<div class="card">
+  <div class="table-responsive"><table class="table table-hover mb-0">
+    <thead><tr><th>Código</th><th>Nombre</th><th>Vigencia</th><th class="num">Precios</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+      {% for l in listas %}<tr>
+        <td><b>{{ l.codigo }}</b></td><td>{{ l.nombre }}</td>
+        <td>{% if l.vigente_desde or l.vigente_hasta %}{{ l.vigente_desde|date:'d/m/Y'|default:'…' }} – {{ l.vigente_hasta|date:'d/m/Y'|default:'…' }}{% else %}Sin límite{% endif %}</td>
+        <td class="num">{{ l.n }}</td>
+        <td>{% if l.activa %}<span class="badge text-bg-success">Activa</span>{% else %}<span class="badge text-bg-secondary">Inactiva</span>{% endif %}</td>
+        <td class="text-end">{% if puede.ventas_precios %}<a href="{% url 'ventas:lista_precios_editar' l.pk %}" class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-pencil"></i></a>{% endif %}</td>
+      </tr>{% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin listas de precios. Cree una (ej. Mayoristas) y asígnela al cliente: la venta tomará el precio y el descuento por tramo de cantidad.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+<p class="small text-muted mt-2">El precio de una venta se toma de la lista elegida en el comprobante o, si está vacía, de la lista del cliente (ficha del contacto). Sin lista, se usa el precio de venta del producto.</p>
+{% endblock %}

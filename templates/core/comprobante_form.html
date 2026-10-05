@@ -34,14 +34,15 @@
     {% for e in formset.non_form_errors %}<div class="alert alert-danger m-3 py-2">{{ e }}</div>{% endfor %}
     <div class="table-responsive">
       <table class="table items-table mb-0">
-        <thead><tr><th style="width:22%">Producto / servicio</th><th>Descripción</th><th style="width:9%" class="num">Cantidad</th><th style="width:12%" class="num">Valor unit. (sin IGV)</th><th style="width:11%" title="Afectación del IGV de la línea">IGV</th><th style="width:10%" class="num">Subtotal</th><th class="text-center" style="width:4%"><i class="bi bi-trash"></i></th></tr></thead>
-        <tbody id="items-body" data-prefix="{{ formset.prefix }}" data-precio-campo="{{ precio_campo }}" data-igv="{{ igv_tasa|stringformat:'s' }}">
+        <thead><tr><th style="width:22%">Producto / servicio</th><th>Descripción</th><th style="width:9%" class="num">Cantidad</th><th style="width:12%" class="num">Valor unit. (sin IGV)</th><th style="width:7%" class="num">Desc. %</th><th style="width:11%" title="Afectación del IGV de la línea">IGV</th><th style="width:10%" class="num">Subtotal</th><th class="text-center" style="width:4%"><i class="bi bi-trash"></i></th></tr></thead>
+        <tbody id="items-body" data-prefix="{{ formset.prefix }}" data-precio-campo="{{ precio_campo }}" data-igv="{{ igv_tasa|stringformat:'s' }}"{% if precio_url %} data-precio-url="{{ precio_url }}"{% endif %}>
           {% for f in formset %}
             <tr class="item-row">
               <td>{{ f.id }}{{ f.producto }}{% for e in f.producto.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
               <td>{{ f.descripcion }}{% for e in f.descripcion.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
               <td>{{ f.cantidad }}</td>
               <td>{{ f.precio_unitario }}</td>
+              <td>{{ f.descuento_pct }}{% for e in f.descuento_pct.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
               <td>{{ f.afectacion }}</td>
               <td class="num js-subtotal">0.00</td>
               <td class="text-center">{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td>
@@ -56,6 +57,7 @@
         <td>{{ formset.empty_form.descripcion }}</td>
         <td>{{ formset.empty_form.cantidad }}</td>
         <td>{{ formset.empty_form.precio_unitario }}</td>
+        <td>{{ formset.empty_form.descuento_pct }}</td>
         <td>{{ formset.empty_form.afectacion }}</td>
         <td class="num js-subtotal">0.00</td>
         <td class="text-center">{{ formset.empty_form.DELETE }}</td>

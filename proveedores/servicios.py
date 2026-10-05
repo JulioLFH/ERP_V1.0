@@ -77,7 +77,7 @@ def lineas_por_facturar(oc):
             por_producto[item.producto_id] -= usado
             ya += usado
         pendiente = base - ya
-        lineas.append({'item': item, 'esperado': max(pendiente, D0), 'precio': item.precio_unitario,
+        lineas.append({'item': item, 'esperado': max(pendiente, D0), 'precio': item.precio_neto.quantize(Decimal('0.0001')),
                        'recibido': bool(item.producto_id and item.producto.es_inventariable)})
     return lineas
 

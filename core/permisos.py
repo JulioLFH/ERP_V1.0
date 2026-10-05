@@ -9,7 +9,8 @@ from decimal import Decimal
 ACCIONES = {
     'ventas': [('emitir', 'Emitir comprobantes y cotizaciones', False),
                ('notas', 'Emitir notas de crédito y débito', True),
-               ('anular', 'Anular comprobantes', True)],
+               ('anular', 'Anular comprobantes', True),
+               ('precios', 'Mantener listas de precios y descuentos', True)],
     'compras': [('registrar', 'Registrar facturas de compra', False),
                 ('oc', 'Crear y editar órdenes de compra', False),
                 ('aprobar_oc', 'Aprobar órdenes de compra', True),
@@ -49,6 +50,7 @@ RUTAS = {
     'ventas:nuevo': lambda r: 'ventas.notas' if _tipo(r) in ('07', '08') else 'ventas.emitir',
     'ventas:editar': 'ventas.emitir', 'ventas:anular': 'ventas.anular', 'ventas:eliminar': 'ventas.anular',
     'ventas:importar': 'ventas.emitir', 'ventas:notas': 'ventas.notas', 'ventas:trasladar': 'ventas.emitir',
+    'ventas:lista_precios_nueva': 'ventas.precios', 'ventas:lista_precios_editar': 'ventas.precios',
     'ventas:cot_nuevo': 'ventas.emitir', 'ventas:cot_editar': 'ventas.emitir', 'ventas:cot_estado': 'ventas.emitir',
     'compras:nuevo': 'compras.registrar', 'compras:editar': 'compras.registrar', 'compras:importar': 'compras.registrar',
     'compras:trasladar': 'compras.registrar', 'compras:notas': 'compras.registrar',

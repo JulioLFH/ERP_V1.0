@@ -3,7 +3,10 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q
+from django.db.models import Count
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from core import sunat
 from core.comprobantes import ComprobanteViews, ple_num
@@ -11,8 +14,8 @@ from core.forms import item_formset
 from core.models import Empresa, FacturacionConfig
 from core.utils import fmt_fecha, guardar_documento
 
-from .forms import CotizacionForm, VentaForm
-from .models import Cotizacion, CotizacionItem, Venta, VentaItem
+from .forms import CotizacionForm, ListaPreciosForm, PreciosListaFormSet, VentaForm
+from .models import Cotizacion, CotizacionItem, ListaPrecios, Venta, VentaItem
 
 
 class VentasViews(ComprobanteViews):
@@ -33,8 +36,11 @@ class VentasViews(ComprobanteViews):
                    'tipo_cambio': cot.tipo_cambio, 'tipo_operacion': cot.tipo_operacion,
                    'tipo_comprobante': '01' if cot.tercero.tipo_doc == '6' else '03'}
         items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,
-                  'precio_unitario': i.precio_unitario} for i in cot.items.all()]
+                  'precio_unitario': i.precio_unitario, 'descuento_pct': i.descuento_pct} for i in cot.items.all()]
         return initial, items
+
+    def _form_ctx(self, titulo, doc=None):
+        return {**super()._form_ctx(titulo, doc), 'precio_url': reverse('ventas:precio')}
 
     def validar_stock(self, form, formset):
         return super().validar_stock(form, formset) + self.validar_credito(form, formset)
@@ -61,12 +67,13 @@ class VentasViews(ComprobanteViews):
                 errores.append(f'{cliente.nombre} tiene {len(vencidos)} comprobante(s) vencido(s) e impago(s): '
                                f'{lista}. Cobre la deuda o emita la venta al contado.')
         if cliente.limite_credito:
-            subtotal = sum((Decimal(c) * Decimal(f.cleaned_data.get('precio_unitario') or 0)
-                            for f in formset.forms for c in [f.cleaned_data.get('cantidad') or 0]
+            def neto(f):
+                c = f.cleaned_data
+                return (Decimal(c.get('cantidad') or 0) * Decimal(c.get('precio_unitario') or 0) *
+                        (1 - Decimal(c.get('descuento_pct') or 0) / 100))
+            subtotal = sum((neto(f) for f in formset.forms
                             if getattr(f, 'cleaned_data', None) and not f.cleaned_data.get('DELETE')), Decimal('0'))
-            gravado = sum((Decimal(f.cleaned_data.get('cantidad') or 0) * Decimal(f.cleaned_data.get('precio_unitario')
-                                                                                   or 0)
-                           for f in formset.forms if getattr(f, 'cleaned_data', None) and not
+            gravado = sum((neto(f) for f in formset.forms if getattr(f, 'cleaned_data', None) and not
                            f.cleaned_data.get('DELETE') and (f.cleaned_data.get('afectacion') or
                                                              datos.get('tipo_operacion')) == 'GRAVADA'), Decimal('0'))
             igv = gravado * empresa.igv_tasa / 100
@@ -178,7 +185,7 @@ def cot_lista(request):
 
 def _cot_ctx(titulo, doc=None):
     return {'titulo': titulo, 'doc': doc, 'app': 'ventas', 'igv_tasa': Empresa.actual().igv_tasa,
-            'precio_campo': 'precio_venta', 'volver': 'ventas:cot_lista'}
+            'precio_campo': 'precio_venta', 'volver': 'ventas:cot_lista', 'precio_url': reverse('ventas:precio')}
 
 
 @login_required
@@ -219,3 +226,57 @@ def cot_estado(request, pk):
         cot.save(update_fields=['estado'])
         messages.success(request, f'{cot.numero}: {cot.get_estado_display()}.')
     return redirect('ventas:cot_detalle', pk)
+
+
+# ---------------------------------------------------------------- listas de precios
+@login_required
+def precio(request):
+    """Precio y descuento de un producto según la lista (la del documento o la del cliente) y la cantidad."""
+    from datetime import date
+    from decimal import Decimal, InvalidOperation
+    from core.models import Producto, Tercero
+    producto = get_object_or_404(Producto, pk=request.GET.get('producto') or 0)
+    tercero = Tercero.objects.filter(pk=request.GET.get('tercero') or 0).first()
+    lista = ListaPrecios.objects.filter(pk=request.GET.get('lista') or 0).first() or (
+        tercero.lista_precios if tercero else None)
+    try:
+        cantidad = Decimal(request.GET.get('cantidad') or '1')
+    except InvalidOperation:
+        cantidad = Decimal('1')
+    try:
+        fecha = date.fromisoformat(request.GET.get('fecha') or '')
+    except ValueError:
+        fecha = None
+    valor, descuento = producto.precio_para(lista, cantidad, fecha)
+    return JsonResponse({'precio': str(valor), 'descuento': str(descuento), 'lista': lista.codigo if lista else None})
+
+
+@login_required
+def listas_precios(request):
+    listas = ListaPrecios.objects.annotate(n=Count('precios'))
+    return render(request, 'ventas/listas_precios.html', {'listas': listas})
+
+
+def _guardar_lista(request, lista, titulo):
+    form = ListaPreciosForm(request.POST or None, instance=lista)
+    precios = PreciosListaFormSet(request.POST or None, instance=lista, prefix='precios')
+    if request.method == 'POST' and form.is_valid() and precios.is_valid():
+        with transaction.atomic():
+            lista = form.save()
+            precios.instance = lista
+            precios.save()
+        messages.success(request, f'Lista de precios {lista.codigo} guardada.')
+        return redirect('ventas:listas_precios')
+    return render(request, 'ventas/lista_precios_form.html', {'form': form, 'precios': precios, 'titulo': titulo,
+                                                               'lista': lista})
+
+
+@login_required
+def lista_precios_nueva(request):
+    return _guardar_lista(request, ListaPrecios(), 'Nueva lista de precios')
+
+
+@login_required
+def lista_precios_editar(request, pk):
+    lista = get_object_or_404(ListaPrecios, pk=pk)
+    return _guardar_lista(request, lista, f'Editar lista {lista}')

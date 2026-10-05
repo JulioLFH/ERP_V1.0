@@ -64,7 +64,7 @@ def pendientes(op):
         for i in doc.items.select_related('producto'):
             if i.producto_id and i.producto.es_inventariable:  # unidad de compra -> unidad de almacén
                 pedido[i.producto_id] += i.producto.a_stock(i.cantidad)
-                costo[i.producto_id] = (i.precio_unitario * tc / i.producto.factor).quantize(Decimal('0.0001'))
+                costo[i.producto_id] = (i.precio_neto * tc / i.producto.factor).quantize(Decimal('0.0001'))
         filtro = {'operacion__orden_compra': doc} if op.orden_compra_id else {'operacion__compra': doc}
         recibido = _de_operaciones(filtro, ['INGRESO'], excluir=op)
         if op.orden_compra_id:  # facturas de la orden ya recibidas o que ingresaron al almacén directamente

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-tags"></i> {{ titulo }}</h1>
+  <a href="{% url 'ventas:listas_precios' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Listas de precios</a>
+</div>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  {% if form.errors or precios.total_error_count %}<div class="alert alert-danger py-2">Revise los campos marcados.</div>{% endif %}
+  <div class="card mb-3"><div class="card-body"><div class="row g-3">
+    {% for field in form %}<div class="{% if field.name == 'nombre' %}col-md-5{% else %}col-6 col-md{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div></div></div>
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-list-ul"></i> Precios por producto y tramo de cantidad</div>
+    {{ precios.management_form }}
+    {% for e in precios.non_form_errors %}<div class="alert alert-danger m-3 py-2">{{ e }}</div>{% endfor %}
+    <div class="table-responsive"><table class="table mb-0">
+      <thead><tr><th>Producto</th><th class="num" style="width:14%">Desde cantidad</th><th class="num" style="width:16%">Precio sin IGV</th><th class="num" style="width:12%">Descuento %</th><th class="text-center" style="width:4%"><i class="bi bi-trash"></i></th></tr></thead>
+      <tbody id="precios-body" data-prefix="{{ precios.prefix }}">
+        {% for f in precios %}<tr>
+          <td>{{ f.id }}{{ f.producto }}{% for e in f.producto.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}{% for e in f.non_field_errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+          <td>{{ f.cantidad_minima }}{% for e in f.cantidad_minima.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+          <td>{{ f.precio }}{% for e in f.precio.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+          <td>{{ f.descuento_pct }}{% for e in f.descuento_pct.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+          <td class="text-center">{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td>
+        </tr>{% endfor %}
+      </tbody>
+    </table></div>
+    <template id="precios-template"><tr><td>{{ precios.empty_form.id }}{{ precios.empty_form.producto }}</td><td>{{ precios.empty_form.cantidad_minima }}</td><td>{{ precios.empty_form.precio }}</td><td>{{ precios.empty_form.descuento_pct }}</td><td class="text-center">{{ precios.empty_form.DELETE }}</td></tr></template>
+    <div class="card-body"><button type="button" class="btn btn-sm btn-outline-primary js-agregar" data-body="precios-body" data-template="precios-template"><i class="bi bi-plus-lg"></i> Agregar precio</button>
+      <span class="small text-muted ms-2">Varios tramos del mismo producto = precios por volumen (ej. desde 1, desde 12, desde 100). Precio vacío = precio de venta del producto con el descuento indicado.</span></div>
+  </div>
+  <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar lista</button>
+</form>
+{% include 'produccion/_filas_js.html' %}
+{% endblock %}

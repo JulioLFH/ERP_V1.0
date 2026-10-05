@@ -12,4 +12,8 @@ urlpatterns = views.ventas_views.urls() + [
     path('cotizaciones/<int:pk>/', views.cot_detalle, name='cot_detalle'),
     path('cotizaciones/<int:pk>/editar/', views.cot_editar, name='cot_editar'),
     path('cotizaciones/<int:pk>/estado/', views.cot_estado, name='cot_estado'),
+    path('precio/', views.precio, name='precio'),
+    path('listas-precios/', views.listas_precios, name='listas_precios'),
+    path('listas-precios/nueva/', views.lista_precios_nueva, name='lista_precios_nueva'),
+    path('listas-precios/<int:pk>/', views.lista_precios_editar, name='lista_precios_editar'),
 ]

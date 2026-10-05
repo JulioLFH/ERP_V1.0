@@ -4,7 +4,7 @@ from core.forms import BootstrapMixin, validar_periodo_abierto
 from core.sunat import DETRACCION_TIPOS
 from core.models import Serie, Tercero
 
-from .models import Cotizacion, Venta
+from .models import Cotizacion, ListaPrecios, PrecioLista, Venta
 
 SERIES_DEFECTO = {'01': 'F001', '03': 'B001', '07': 'FC01', '08': 'FD01', '12': 'T001', '00': 'NV01'}
 
@@ -15,7 +15,7 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         fields = ['tipo_comprobante', 'serie', 'numero', 'tercero', 'fecha_emision', 'fecha_vencimiento',
                   'forma_pago', 'moneda', 'tipo_cambio', 'tipo_operacion', 'detraccion_pct', 'retencion_pct',
                   'percepcion_pct', 'icbper', 'detraccion_codigo', 'vendedor', 'cotizacion', 'doc_referencia',
-                  'motivo_nota', 'descontar_stock', 'almacen', 'centro_costo', 'glosa']
+                  'motivo_nota', 'descontar_stock', 'almacen', 'centro_costo', 'lista_precios', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2}),
                    'detraccion_codigo': forms.Select(choices=[('', '---')] + DETRACCION_TIPOS)}
         labels = {'tercero': 'Cliente', 'numero': 'Número (vacío = automático)'}
@@ -28,6 +28,7 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['CLIENTE', 'AMBOS'])
         self.fields['serie'].widget.attrs['list'] = 'series-venta'
         self.fields['cotizacion'].queryset = Cotizacion.objects.exclude(estado='ANULADO')
+        self.fields['lista_precios'].queryset = ListaPrecios.objects.filter(activa=True)
         self.fields['doc_referencia'].queryset = Venta.objects.filter(
             estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
         self.series = Serie.objects.filter(activo=True, tipo__in=['01', '03', '07', '08', '12', '00'])
@@ -135,3 +136,42 @@ class CotizacionForm(BootstrapMixin, forms.ModelForm):
             serie, numero = Serie.siguiente(tipo, 'CT01' if tipo == 'COT' else 'PD01')
             self.instance.numero = f'{serie}-{numero}'
         return super().save(commit)
+
+
+class ListaPreciosForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = ListaPrecios
+        fields = ['codigo', 'nombre', 'vigente_desde', 'vigente_hasta', 'activa']
+
+    def clean(self):
+        data = super().clean()
+        desde, hasta = data.get('vigente_desde'), data.get('vigente_hasta')
+        if desde and hasta and hasta < desde:
+            self.add_error('vigente_hasta', 'Debe ser posterior a la fecha de inicio.')
+        return data
+
+
+class PrecioListaForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = PrecioLista
+        fields = ['producto', 'cantidad_minima', 'precio', 'descuento_pct']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from core.models import Producto
+        self.fields['producto'].queryset = Producto.objects.filter(activo=True, puede_venderse=True)
+
+    def clean(self):
+        data = super().clean()
+        if data.get('cantidad_minima') is not None and data['cantidad_minima'] <= 0:
+            self.add_error('cantidad_minima', 'Debe ser mayor que cero.')
+        d = data.get('descuento_pct')
+        if d is not None and not 0 <= d < 100:
+            self.add_error('descuento_pct', 'Entre 0 y 99.99 %.')
+        if data.get('precio') is not None and data['precio'] < 0:
+            self.add_error('precio', 'No puede ser negativo.')
+        return data
+
+
+PreciosListaFormSet = forms.inlineformset_factory(ListaPrecios, PrecioLista, form=PrecioListaForm, extra=1,
+                                                  can_delete=True)

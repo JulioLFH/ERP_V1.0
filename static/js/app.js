@@ -32,7 +32,8 @@
       tr.classList.toggle('opacity-50', !!(borrar && borrar.checked));
       const celda = tr.querySelector('.js-subtotal');
       if (!celda) return; // guías: sin importes
-      const st = Math.round(num(tr.querySelector('.js-cantidad')) * num(tr.querySelector('.js-precio')) * 100) / 100;
+      const desc = Math.min(num(tr.querySelector('.js-descuento')), 100);
+      const st = Math.round(num(tr.querySelector('.js-cantidad')) * num(tr.querySelector('.js-precio')) * (1 - desc / 100) * 100) / 100;
       celda.textContent = fmt(st);
       if (!(borrar && borrar.checked)) sumas[afectacion(tr)] += st;
     });
@@ -59,6 +60,24 @@
     }
   }
 
+  // lista de precios (ventas): precio y descuento según cliente / lista, producto y cantidad
+  const precioUrl = tabla.dataset.precioUrl;
+  function precioLista(tr, alElegir) {
+    const sel = tr.querySelector('.js-producto');
+    if (!precioUrl || !sel || !sel.value) return;
+    const val = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+    const q = new URLSearchParams({ producto: sel.value, cantidad: num(tr.querySelector('.js-cantidad')) || 1,
+      tercero: val('id_tercero'), lista: val('id_lista_precios'), fecha: val('id_fecha_emision') });
+    fetch(${precioUrl}?+q).then((r) => r.ok ? r.json() : null).then((d) => {
+      if (!d || (!d.lista && !alElegir)) return;
+      const precio = tr.querySelector('.js-precio');
+      if (precio && d.precio !== null) precio.value = parseFloat(d.precio).toFixed(2);
+      const dcto = tr.querySelector('.js-descuento');
+      if (dcto) dcto.value = parseFloat(d.descuento || 0).toFixed(2);
+      recalcular();
+    }).catch(() => {});
+  }
+
   function enlazar(tr) {
     const sel = tr.querySelector('.js-producto');
     if (sel) {
@@ -75,8 +94,13 @@
         if (afec && p.afectacion_igv !== undefined) afec.value = p.afectacion_igv || '';
         const cant = tr.querySelector('.js-cantidad');
         if (!num(cant)) cant.value = 1;
+        const dcto = tr.querySelector('.js-descuento');
+        if (dcto) dcto.value = '0';
         recalcular();
+        precioLista(tr, true);
       });
+      const cant = tr.querySelector('.js-cantidad');
+      if (cant) cant.addEventListener('change', () => precioLista(tr, false));
     }
     tr.querySelectorAll('input').forEach((i) => i.addEventListener('input', recalcular));
     tr.querySelectorAll('.js-afectacion').forEach((s) => s.addEventListener('change', recalcular));

@@ -34,7 +34,7 @@ class ComprasViews(ComprobanteViews):
         if tiene_recepciones(orden=oc):
             initial['ingresar_almacen'] = False  # ya se recibió en Inventario
         items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,
-                  'precio_unitario': i.precio_unitario} for i in oc.items.all()]
+                  'precio_unitario': i.precio_unitario, 'descuento_pct': i.descuento_pct} for i in oc.items.all()]
         return initial, items
 
     def es_salida(self, tipo, mueve_stock):

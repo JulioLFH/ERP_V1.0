@@ -137,6 +137,9 @@ class Tercero(models.Model):
     dias_credito = models.PositiveIntegerField('Días de crédito', default=0)
     limite_credito = models.DecimalField('Límite de crédito S/', max_digits=14, decimal_places=2, default=D0,
                                          help_text='Deuda máxima permitida en ventas al crédito. 0 = sin límite')
+    lista_precios = models.ForeignKey('ventas.ListaPrecios', on_delete=models.SET_NULL, null=True, blank=True,
+                                      related_name='clientes', verbose_name='Lista de precios',
+                                      help_text='Precios especiales del cliente (mayorista, distribuidor…)')
     ubigeo = models.CharField(max_length=6, blank=True, help_text='Ubigeo de la dirección (para guías)')
     registro_mtc = models.CharField('Registro MTC', max_length=20, blank=True,
                                     help_text='Solo empresas de transporte (guía transportista)')
@@ -190,6 +193,17 @@ def asignar_cuentas(producto, CuentaContable):
 
 class Producto(models.Model):
     TIPOS = [('BIEN', 'Bien (inventariable)'), ('SERVICIO', 'Servicio'), ('ACTIVO', 'Activo fijo (no inventariable)')]
+
+    def precio_para(self, lista=None, cantidad=Decimal('1'), fecha=None):
+        """(precio sin IGV, descuento %) según la lista de precios y el tramo de cantidad; si no hay, el precio de
+        venta del producto."""
+        fecha = fecha or timezone.localdate()
+        if lista is not None and lista.vigente(fecha):
+            tramo = (lista.precios.filter(producto=self, cantidad_minima__lte=cantidad)
+                     .order_by('-cantidad_minima').first())
+            if tramo:
+                return (tramo.precio if tramo.precio is not None else self.precio_venta), tramo.descuento_pct
+        return self.precio_venta, D0
     CLASES = CLASES_PRODUCTO
     UNIDADES = [('NIU', 'Unidad'), ('KGM', 'Kilogramo'), ('LTR', 'Litro'), ('MTR', 'Metro'),
                 ('BX', 'Caja'), ('PK', 'Paquete'), ('GLL', 'Galón'), ('ZZ', 'Servicio')]
@@ -756,6 +770,7 @@ class ItemBase(models.Model):
     descripcion = models.CharField('Descripción', max_length=250)
     cantidad = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('1'))
     precio_unitario = models.DecimalField('Valor unit. (sin IGV)', max_digits=14, decimal_places=4, default=D0)
+    descuento_pct = models.DecimalField('Desc. %', max_digits=5, decimal_places=2, default=D0)
     subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
     afectacion = models.CharField('IGV', max_length=10, choices=AFECTACION_LINEA, blank=True, default='')
 
@@ -763,8 +778,22 @@ class ItemBase(models.Model):
         abstract = True
 
     def save(self, *args, **kwargs):
-        self.subtotal = r2(self.cantidad * self.precio_unitario)
+        self.subtotal = r2(self.cantidad * self.precio_neto)
         super().save(*args, **kwargs)
+
+    @property
+    def precio_neto(self):
+        """Valor unitario después del descuento de la línea (base del costo de compra)."""
+        return self.precio_unitario * (1 - (self.descuento_pct or D0) / 100)
+
+    @property
+    def bruto(self):
+        return r2(self.cantidad * self.precio_unitario)
+
+    @property
+    def descuento(self):
+        """Importe del descuento de la línea (sin IGV)."""
+        return self.bruto - self.subtotal
 
     def afectacion_en(self, doc):
         """Afectación real de la línea: exportación y operaciones gratuitas mandan sobre la línea; los

@@ -219,7 +219,8 @@ def payload_comprobante(venta):
             'cantidad': _num(i.cantidad, 4),
             'valor_unitario': _num(i.precio_unitario, 4),
             'precio_unitario': _num(i.precio_unitario * (1 + tasa), 4),
-            'descuento': '',
+            # descuento de la línea (sin IGV): subtotal = cantidad × valor unitario − descuento
+            'descuento': _num(i.descuento) if i.descuento else '',
             'subtotal': _num(i.subtotal),
             'tipo_de_igv': tipo_igv,
             'igv': _num(igv),

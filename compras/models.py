@@ -102,7 +102,7 @@ class Compra(ComprobanteBase):
 
     def _costo_entrada(self, item):
         # precio por unidad de compra -> costo por unidad de almacén
-        return item.precio_unitario * self.tipo_cambio / item.producto.factor
+        return item.precio_neto * self.tipo_cambio / item.producto.factor
 
     def _cantidad_stock(self, item):
         return item.producto.a_stock(item.cantidad)

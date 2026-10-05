@@ -28,7 +28,7 @@
   </table>
   <table class="table table-sm table-bordered">
     <thead class="table-light"><tr><th>Cant.</th><th>U.M.</th><th>Descripción</th><th class="num">V. unit.</th><th class="num">Importe</th></tr></thead>
-    <tbody>{% for i in items %}<tr><td>{{ i.cantidad|money }}</td><td>{{ i.producto.unidad|default:'NIU' }}</td><td>{{ i.descripcion }}{% if i.afectacion == 'EXONERADA' or i.afectacion == 'INAFECTA' %} ({{ i.get_afectacion_display|lower }}){% endif %}</td><td class="num">{{ i.precio_unitario|money }}</td><td class="num">{{ i.subtotal|money }}</td></tr>{% endfor %}</tbody>
+    <tbody>{% for i in items %}<tr><td>{{ i.cantidad|money }}</td><td>{{ i.producto.unidad|default:'NIU' }}</td><td>{{ i.descripcion }}{% if i.afectacion == 'EXONERADA' or i.afectacion == 'INAFECTA' %} ({{ i.get_afectacion_display|lower }}){% endif %}</td><td class="num">{{ i.precio_unitario|money }}{% if i.descuento_pct %}<div class="small text-muted">Dcto. {{ i.descuento_pct|floatformat:2 }}%</div>{% endif %}</td><td class="num">{{ i.subtotal|money }}</td></tr>{% endfor %}</tbody>
   </table>
   <div class="row">
     <div class="col-7 small text-muted">

@@ -136,7 +136,7 @@ class ComprobanteViews:
             'glosa': request.GET.get('sustento', ''),
         }
         items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,
-                  'precio_unitario': i.precio_unitario} for i in ref.items.all()]
+                  'precio_unitario': i.precio_unitario, 'descuento_pct': i.descuento_pct} for i in ref.items.all()]
         if request.GET.get('op'):
             # NC de una devolución ya registrada en Inventario: el almacén ya se movió
             from inventario.models import Operacion

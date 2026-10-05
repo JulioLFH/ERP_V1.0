@@ -321,10 +321,12 @@ class AjusteInventarioForm(BootstrapMixin, forms.Form):
 
 class ItemForm(BootstrapMixin, forms.ModelForm):
     class Meta:
-        fields = ['producto', 'descripcion', 'cantidad', 'precio_unitario', 'afectacion']
+        fields = ['producto', 'descripcion', 'cantidad', 'precio_unitario', 'descuento_pct', 'afectacion']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['descuento_pct'].required = False
+        self.fields['descuento_pct'].widget.attrs['class'] = 'form-control form-control-sm text-end js-descuento'
         self.fields['afectacion'].widget.attrs['class'] = 'form-select form-select-sm js-afectacion'
         self.fields['afectacion'].choices = [('', 'Según doc.'), ('GRAVADA', 'Gravada'),
                                              ('EXONERADA', 'Exonerada'), ('INAFECTA', 'Inafecta')]
@@ -333,6 +335,12 @@ class ItemForm(BootstrapMixin, forms.ModelForm):
         self.fields['cantidad'].widget.attrs['class'] = 'form-control form-control-sm text-end js-cantidad'
         self.fields['precio_unitario'].widget.attrs['class'] = 'form-control form-control-sm text-end js-precio'
         self.fields['descripcion'].widget.attrs['class'] = 'form-control form-control-sm js-descripcion'
+
+    def clean_descuento_pct(self):
+        valor = self.cleaned_data.get('descuento_pct') or Decimal('0')
+        if not 0 <= valor < 100:
+            raise forms.ValidationError('Entre 0 y 99.99 %.')
+        return valor
 
 
 def item_formset(parent_model, item_model, extra=1):
