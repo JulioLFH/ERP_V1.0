@@ -222,7 +222,7 @@ def cobrar_pagar(request, modo):
     pendientes = []
     if tercero:
         qs = (cfg['modelo'].objects.con_saldos().cobrables().filter(tercero=tercero, estado='REGISTRADO')
-              .exclude(tipo_comprobante__in=['07', '08']).order_by('fecha_vencimiento'))
+              .exclude(tipo_comprobante='07').order_by('fecha_vencimiento'))
         pendientes = [d for d in qs if d.saldo > 0]
 
     form = OperacionForm(request.POST or None, request.FILES or None, initial={

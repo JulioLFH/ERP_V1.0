@@ -28,7 +28,7 @@ def _alerta(nivel, icono, titulo, detalle, url, cantidad=0, monto=None):
 def _vencimientos(modelo, hoy):
     """(vencidos, por vencer en DIAS_AVISO días) con saldo pendiente: [(documento, saldo S/)]."""
     vencidos, por_vencer = [], []
-    qs = (modelo.objects.con_saldos().cobrables().filter(estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
+    qs = (modelo.objects.con_saldos().cobrables().filter(estado='REGISTRADO').exclude(tipo_comprobante='07')
           .select_related('tercero'))
     for d in qs:
         if d.saldo <= 0 or not d.fecha_vencimiento:

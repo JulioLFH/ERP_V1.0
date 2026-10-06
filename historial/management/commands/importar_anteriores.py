@@ -23,6 +23,7 @@ from decimal import Decimal
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.db.models import Max, Sum
 
 from core.management.commands.migrar_excels import _dec, _fecha, _txt
 
@@ -30,7 +31,11 @@ D0 = Decimal('0')
 IGV = Decimal('0.18')
 MARCA = '[Sistema anterior]'
 EMPRESA = 'PRODUCTORA DE ALIMENTOS UNO'
-PASOS = ['posiciones', 'oc', 'pedidos', 'fabricacion', 'kardex', 'contable', 'compras']
+PASOS = ['posiciones', 'oc', 'pedidos', 'fabricacion', 'kardex', 'contable', 'compras', 'por_pagar', 'bancos']
+CUENTAS_POR_PAGAR = r'^(4212|424)'  # facturas emitidas y honorarios (las 4211 son provisiones sin comprobante)
+CUENTAS_PUENTE = {'1041002', '1041003', '1041004', '10300010', '1051001'}  # transitorias: no son cuentas de dinero
+BANCOS = [('BBVA', 'BBVA'), ('BCP', 'BCP'), ('INTERBANK', 'INTERBANK'), ('SCOTIABANK', 'SCOTIABANK'),
+          ('NACION', 'BN'), ('NACIÓN', 'BN')]
 DIARIOS_COMPRA = ['Facturas de proveedores', 'Facturas de proveedores servicios', 'Recibos por Honorarios']
 TIPOS_COMPRA = {'01', '02', '03', '07', '08', '12', '14'}
 ARCHIVOS = {
@@ -41,6 +46,8 @@ ARCHIVOS = {
     'kardex': ['Data_Kardex_API_2025.xlsx', 'Data_Kardex_API_2026.xlsx'],
     'contable': ['Data_Contable_2026.xlsx'],
     'compras': [],  # se arma desde los asientos ya importados (paso contable)
+    'por_pagar': [],
+    'bancos': [],
 }
 MESES = {m: i for i, m in enumerate(['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto',
                                      'septiembre', 'octubre', 'noviembre', 'diciembre'], 1)}
@@ -609,6 +616,148 @@ class Command(BaseCommand):
         self.resumen['Facturas de compra'] = (f'{len(cabeceras)} armadas desde los asientos (S/ {total:,.2f}); '
                                               f'{omitidos} ya estaban; {creados} proveedores creados')
         self.log(f'Facturas de compra: {self.resumen["Facturas de compra"]}')
+
+    # ---------------------------------------------------------------- cuentas por pagar (saldos iniciales)
+    def paso_por_pagar(self):
+        """Saldo de cada proveedor en las cuentas 4212 y 424 al cierre de los asientos, asignado a sus comprobantes
+        con saldo, del más reciente al más antiguo: el total por proveedor cuadra con el libro. El comprobante
+        queda como saldo inicial (lo ya pagado en el sistema anterior se descuenta)."""
+        from compras.models import Compra, CompraItem
+        from core.models import Tercero
+        from historial.models import AsientoAnterior
+        if not AsientoAnterior.objects.exists():
+            self.resumen['Por pagar'] = 'sin asientos: importe primero el paso contable'
+            return
+        if self.rehacer:
+            Compra.objects.filter(es_saldo_inicial=True, es_historico=False, glosa__startswith=MARCA).delete()
+            Compra.objects.filter(es_saldo_inicial=True, es_historico=True).update(es_saldo_inicial=False,
+                                                                                    pagado_anterior=D0)
+        elif Compra.objects.filter(es_saldo_inicial=True).exists():
+            self.resumen['Por pagar'] = 'ya estaba cargado (use --rehacer para volver a calcularlo)'
+            return
+        por_proveedor, por_doc, datos_doc = defaultdict(Decimal), defaultdict(Decimal), {}
+        for a in AsientoAnterior.objects.filter(cuenta__regex=CUENTAS_POR_PAGAR).order_by('fecha', 'id').iterator(
+                chunk_size=10000):
+            neto = a.haber - a.debe
+            por_proveedor[a.contacto_doc] += neto
+            por_doc[(a.contacto_doc, a.comprobante)] += neto
+            datos_doc.setdefault((a.contacto_doc, a.comprobante), (a.fecha, a.tipo_comprobante, a.contacto,
+                                                                  a.cuenta, a.cuenta_nombre))
+        terceros = dict(Tercero.objects.values_list('numero_doc', 'pk'))
+        compras = {(c.tercero_id, c.tipo_comprobante, c.serie, c.numero): c
+                   for c in Compra.objects.filter(estado='REGISTRADO')}
+        actualizados, nuevos, total, a_favor = 0, [], D0, D0
+        for doc_prov, saldo_prov in por_proveedor.items():
+            if saldo_prov < Decimal('0.05'):
+                if saldo_prov < Decimal('-0.05'):
+                    a_favor += -saldo_prov
+                    self.observar('Por pagar', doc_prov, f'Saldo a favor de la empresa S/ {-saldo_prov:,.2f} '
+                                                         '(anticipos o pagos de más): no es deuda')
+                continue
+            restante = saldo_prov
+            documentos = sorted(((k, v) for k, v in por_doc.items() if k[0] == doc_prov and v > Decimal('0.05')),
+                                key=lambda x: datos_doc[x[0]][0], reverse=True)
+            for (doc, comprobante), saldo_doc in documentos:
+                if restante <= Decimal('0.05'):
+                    break
+                pendiente = min(saldo_doc, restante).quantize(Decimal('0.01'))
+                restante -= pendiente
+                total += pendiente
+                fecha, tipo_texto, nombre, cuenta, cuenta_nombre = datos_doc[(doc, comprobante)]
+                m = re.match(r'\((\d+)\)', tipo_texto)
+                tipo = m.group(1) if m and m.group(1) in TIPOS_COMPRA else '00'
+                serie, _, numero = comprobante.rpartition('-') if '-' in comprobante else ('', '', comprobante or '0')
+                serie, numero = serie.upper()[-4:], (numero.lstrip('0') or '0')[-10:]
+                if doc not in terceros:
+                    t = Tercero.objects.create(tipo='PROVEEDOR', tipo_doc='6' if len(doc) == 11 else '0',
+                                               numero_doc=doc[:15] or '-', nombre=(nombre or doc)[:200])
+                    terceros[t.numero_doc] = t.pk
+                tercero = terceros[doc]
+                compra = compras.get((tercero, tipo, serie, numero))
+                if compra is not None and compra.neto >= pendiente:
+                    # la 42 guarda el neto (sin retenciones): lo pagado antes es el neto menos lo pendiente
+                    Compra.objects.filter(pk=compra.pk).update(
+                        es_saldo_inicial=True, pagado_anterior=compra.neto - pendiente,
+                        fecha_vencimiento=compra.fecha_vencimiento or compra.fecha_emision)
+                    actualizados += 1
+                    continue
+                if compra is not None:  # el libro dice más de lo que muestra la factura: se registra aparte
+                    numero = f'{numero[-8:]}S'
+                nuevos.append((Compra(
+                    tipo_comprobante=tipo, serie=serie, numero=numero, tercero_id=tercero, fecha_emision=fecha,
+                    fecha_vencimiento=fecha, periodo=fecha.strftime('%Y%m'), forma_pago='CREDITO', moneda='PEN',
+                    tipo_cambio=Decimal('1'), tipo_operacion='INAFECTA', clasificacion='GASTO', inafecto=pendiente,
+                    no_gravado=pendiente, total=pendiente, total_pen=pendiente, nograv_pen=pendiente,
+                    ingresar_almacen=False, es_saldo_inicial=True,
+                    glosa=f'{MARCA} Saldo por pagar según {cuenta} {cuenta_nombre}'), comprobante))
+            if restante > Decimal('0.05'):
+                self.observar('Por pagar', doc_prov, f'S/ {restante:,.2f} del saldo sin comprobante identificable')
+        for compra, comprobante in nuevos:
+            compra.save()
+            CompraItem.objects.create(documento=compra, descripcion=f'Saldo pendiente {comprobante}'[:250],
+                                      cantidad=1, precio_unitario=compra.total)
+        provisiones = AsientoAnterior.objects.filter(cuenta__startswith='4211').aggregate(d=Sum('debe'), h=Sum('haber'))
+        if provisiones['h']:
+            self.observar('Por pagar', '4211', f'Provisiones sin comprobante (facturas no emitidas) '
+                                               f'S/ {provisiones["h"] - provisiones["d"]:,.2f}: no se cargan como deuda')
+        self.resumen['Por pagar'] = (f'S/ {total:,.2f} en {actualizados + len(nuevos)} comprobantes '
+                                     f'({actualizados} facturas ya cargadas, {len(nuevos)} nuevas); saldo a favor de '
+                                     f'proveedores S/ {a_favor:,.2f} (ver observaciones)')
+        self.log(f'Por pagar: {self.resumen["Por pagar"]}')
+
+    # ---------------------------------------------------------------- caja y bancos
+    def paso_bancos(self):
+        """Una cuenta de caja o banco por cada cuenta 10 con saldo, enlazada a su cuenta contable, con el saldo del
+        libro como saldo inicial (las de moneda extranjera se convierten al tipo de cambio de la fecha)."""
+        from contabilidad import automatico
+        from contabilidad.models import CuentaContable
+        from core.tipo_cambio import venta_del_dia
+        from finanzas.models import Cuenta
+        from historial.models import AsientoAnterior
+        filas = (AsientoAnterior.objects.filter(cuenta__startswith='10').values('cuenta', 'cuenta_nombre')
+                 .annotate(d=Sum('debe'), h=Sum('haber')).order_by('cuenta'))
+        if not filas:
+            self.resumen['Caja y bancos'] = 'sin asientos: importe primero el paso contable'
+            return
+        corte = AsientoAnterior.objects.aggregate(f=Max('fecha'))['f']
+        tc = venta_del_dia(corte)
+        plan = {c.codigo: c for c in CuentaContable.objects.filter(codigo__startswith='10')}
+        creadas, total = 0, D0
+        for r in filas:
+            codigo, nombre, saldo = r['cuenta'], r['cuenta_nombre'], (r['d'] or D0) - (r['h'] or D0)
+            if codigo in CUENTAS_PUENTE:
+                if saldo:
+                    self.observar('Caja y bancos', codigo, f'{nombre}: cuenta puente con saldo S/ {saldo:,.2f}; '
+                                                           'no es una cuenta de dinero (regularícela)')
+                continue
+            if not saldo:
+                continue
+            usd = ' ME ' in f' {nombre.upper()} '
+            nombre_u = unicodedata.normalize('NFKD', nombre.upper()).encode('ascii', 'ignore').decode()
+            banco = next((b for clave, b in BANCOS if clave in nombre_u), 'OTRO')
+            if codigo not in plan:
+                plan[codigo] = CuentaContable.objects.create(codigo=codigo, nombre=nombre[:200], naturaleza='DEUDORA')
+            cuenta = Cuenta.objects.filter(cuenta_contable=plan[codigo]).first()
+            if cuenta is None:
+                cuenta = Cuenta(cuenta_contable=plan[codigo])
+                creadas += 1
+            cuenta.nombre = nombre[:100]
+            cuenta.tipo = 'CAJA' if codigo.startswith('101') else 'BANCO'
+            cuenta.banco = '' if cuenta.tipo == 'CAJA' else banco
+            cuenta.numero = (re.findall(r'\d{4,}', nombre) or [''])[-1]
+            cuenta.moneda = 'USD' if usd else 'PEN'
+            cuenta.es_detracciones = codigo.startswith('1042')
+            cuenta.saldo_inicial = (saldo / tc).quantize(Decimal('0.01')) if usd else saldo
+            cuenta.permite_sobregiro = saldo < 0
+            cuenta.save()
+            total += saldo
+            if saldo < 0:
+                self.observar('Caja y bancos', codigo, f'{nombre}: saldo negativo S/ {saldo:,.2f} en el libro anterior '
+                                                       '(revise con el estado de cuenta)')
+        automatico.generar_apertura()
+        self.resumen['Caja y bancos'] = (f'{creadas} cuentas creadas; saldo total S/ {total:,.2f} al '
+                                         f'{corte:%d/%m/%Y} (dólares al T.C. {tc})')
+        self.log(f'Caja y bancos: {self.resumen["Caja y bancos"]}')
 
     # ---------------------------------------------------------------- reporte
     def _reporte(self, ruta):

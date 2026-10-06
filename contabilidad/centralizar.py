@@ -162,12 +162,14 @@ def asiento_saldo_inicial(d, cta, es_venta):
     doc = f'{d.tipo_comprobante} {d.numero_completo}'
     tercero_cta = cta['cliente'] if es_venta else (cta['honorarios_por_pagar'] if d.tipo_comprobante == '02'
                                                    else cta['proveedor'])
+    # solo lo pendiente: lo ya cobrado o pagado en el sistema anterior no se abre
+    pen, me = d.total_pen - d.pagado_anterior_pen, d.total - d.pagado_anterior
     if es_venta:
-        b.add(tercero_cta, debe=d.total_pen, tercero=d.tercero, documento=doc, importe_me=d.total)
-        b.add(cta['apertura_patrimonio'], haber=d.total_pen, documento=doc, glosa='Apertura: cuentas por cobrar')
+        b.add(tercero_cta, debe=pen, tercero=d.tercero, documento=doc, importe_me=me)
+        b.add(cta['apertura_patrimonio'], haber=pen, documento=doc, glosa='Apertura: cuentas por cobrar')
     else:
-        b.add(cta['apertura_patrimonio'], debe=d.total_pen, documento=doc, glosa='Apertura: cuentas por pagar')
-        b.add(tercero_cta, haber=d.total_pen, tercero=d.tercero, documento=doc, importe_me=d.total)
+        b.add(cta['apertura_patrimonio'], debe=pen, documento=doc, glosa='Apertura: cuentas por pagar')
+        b.add(tercero_cta, haber=pen, tercero=d.tercero, documento=doc, importe_me=me)
     return b.grabar()
 
 

@@ -161,8 +161,10 @@ def en_camino():
     from proveedores.servicios import recibido_por_producto
     pendiente = defaultdict(lambda: D0)
     factores = {}
-    for oc in OrdenCompra.objects.exclude(estado='ANULADO').exclude(estado_proveedor='RECHAZADA').prefetch_related(
-            'items__producto'):
+    # del sistema anterior solo cuentan las órdenes abiertas (las cerradas ya se recibieron allá)
+    ocs = (OrdenCompra.objects.exclude(estado='ANULADO').exclude(estado_proveedor='RECHAZADA')
+           .exclude(Q(glosa__startswith='[Sistema anterior]') & ~Q(estado='APROBADO')))
+    for oc in ocs.prefetch_related('items__producto'):
         pedido = defaultdict(lambda: D0)
         for i in oc.items.all():
             if i.producto_id:

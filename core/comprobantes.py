@@ -340,7 +340,7 @@ class ComprobanteViews:
     # ------------------------------------------------------------ cuentas pendientes
     def pendientes(self, request):
         qs = (self.modelo.objects.con_saldos().cobrables().filter(estado='REGISTRADO')
-              .exclude(tipo_comprobante__in=['07', '08']).select_related('tercero').order_by('fecha_vencimiento'))
+              .exclude(tipo_comprobante='07').select_related('tercero').order_by('fecha_vencimiento'))
         q = request.GET.get('q', '').strip()
         if q:
             qs = qs.filter(Q(tercero__nombre__icontains=q) | Q(tercero__numero_doc__icontains=q))

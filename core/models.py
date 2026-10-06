@@ -980,6 +980,9 @@ class ComprobanteBase(TotalesMixin):
         'Saldo inicial', default=False, editable=False,
         help_text='Documento pendiente de antes de usar el sistema: se cobra/paga, pero no va a los registros '
                   'de ventas/compras ni a SUNAT y se contabiliza contra la apertura (5911)')
+    pagado_anterior = models.DecimalField(
+        'Pagado en el sistema anterior', max_digits=14, decimal_places=2, default=D0, editable=False,
+        help_text='Saldos iniciales: lo ya cobrado o pagado antes de usar el sistema (el saldo es el resto)')
     es_historico = models.BooleanField(
         'Histórico', default=False, editable=False,
         help_text='Importado del sistema anterior para consulta y reportes: no va al registro/PLE ni a SUNAT, no '
@@ -1092,7 +1095,11 @@ class ComprobanteBase(TotalesMixin):
     def saldo(self):
         if self.estado == 'ANULADO' or self.es_nota_aplicada or self.historico_cancelado:
             return D0
-        return self.neto - self.pagado
+        return self.neto - self.pagado - self.pagado_anterior
+
+    @property
+    def pagado_anterior_pen(self):
+        return r2(self.pagado_anterior * self.tc_efectivo)
 
     @property
     def saldo_pen(self):
@@ -1102,7 +1109,7 @@ class ComprobanteBase(TotalesMixin):
         pagado = self._anotado('ann_pagado_pen', lambda: self.movimientos.aggregate(s=Sum('monto_doc_pen'))['s'])
         return (self.total_pen - self._anotado('ann_nc_pen', lambda: self._notas('07', 'total_pen'))
                 + self._anotado('ann_nd_pen', lambda: self._notas('08', 'total_pen'))
-                - self.ret_pen + self.perc_pen - pagado)
+                - self.ret_pen + self.perc_pen - pagado - self.pagado_anterior_pen)
 
     @property
     def dias_vencido(self):

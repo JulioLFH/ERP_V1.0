@@ -86,8 +86,10 @@ def fecha_inicio():
     from core.models import Kardex
     from finanzas.models import Movimiento
     from ventas.models import Venta
+    # ni el historial del sistema anterior ni los saldos iniciales (documentos de antes) marcan el inicio
     fechas = [qs.order_by(campo).values_list(campo, flat=True).first() for qs, campo in (
-        (Compra.objects.all(), 'fecha_emision'), (Venta.objects.all(), 'fecha_emision'),
+        (Compra.objects.filter(es_historico=False, es_saldo_inicial=False), 'fecha_emision'),
+        (Venta.objects.filter(es_historico=False, es_saldo_inicial=False), 'fecha_emision'),
         (Movimiento.objects.all(), 'fecha'), (Kardex.objects.all(), 'fecha'))]
     fechas = [f for f in fechas if f]
     inicio = min(fechas) if fechas else date.today()

@@ -323,7 +323,7 @@ def venta(request, pk):
 def cuentas_por_cobrar(request):
     from ventas.models import Venta
     qs = _filtrar_comprobantes(request, Venta.objects.con_saldos().cobrables().filter(estado='REGISTRADO').exclude(
-        tipo_comprobante__in=['07', '08']))
+        tipo_comprobante='07'))
     pendientes = [v for v in qs if v.saldo > 0]
     return respuesta(_pagina(request, pendientes, s_comprobante))
 

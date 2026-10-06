@@ -41,6 +41,9 @@ class HistorialTest(TestCase):
 
     def setUp(self):
         self.client.force_login(self.admin)
+        p = patch('core.tipo_cambio.venta_del_dia', return_value=D('3.450'))
+        p.start()
+        self.addCleanup(p.stop)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.c = c = tmp.name
@@ -124,7 +127,20 @@ class HistorialTest(TestCase):
             ['Facturas de proveedores', '000002', '15/08/2025', self.prov.numero_doc, 'MOLINOS', '(01) Factura',
              'F001-00000077', '', 'IGV', '', '40111002', 'IGV - Compras', 18, 0, 'SIN_CC', 'Ana', '2025-07-01'],
             ['Facturas de proveedores', '000002', '15/08/2025', self.prov.numero_doc, 'MOLINOS', '(01) Factura',
-             'F001-00000077', '', 'TOTAL', '', '42120001', 'Facturas', 0, 118, 'SIN_CC', 'Ana', '2025-07-01']])
+             'F001-00000077', '', 'TOTAL', '', '42120001', 'Facturas', 0, 118, 'SIN_CC', 'Ana', '2025-07-01'],
+            # pago parcial de 18 desde el BCP: quedan 100 por pagar
+            ['BCP MN 044069', '000003', '20/08/2025', self.prov.numero_doc, 'MOLINOS', '', 'F001-00000077', '',
+             'PAGO', '', '42120001', 'Facturas', 18, 0, 'SIN_CC', 'Ana', '2025-07-01'],
+            ['BCP MN 044069', '000003', '20/08/2025', self.prov.numero_doc, 'MOLINOS', '', '', '', 'PAGO', '',
+             '10410004', 'BCP MN 044069', 0, 18, 'SIN_CC', 'Ana', '2025-07-01'],
+            ['Apertura', '000004', '01/07/2025', '', '', '', '', '', 'APERTURA', '', '10410004', 'BCP MN 044069',
+             5018, 0, 'SIN_CC', 'Ana', '2025-07-01'],
+            ['Apertura', '000004', '01/07/2025', '', '', '', '', '', 'APERTURA', '', '10410002', 'BBVA ME 53111',
+             345, 0, 'SIN_CC', 'Ana', '2025-07-01'],
+            ['Apertura', '000004', '01/07/2025', '', '', '', '', '', 'APERTURA', '', '1041002', 'Cuenta transitoria',
+             10, 0, 'SIN_CC', 'Ana', '2025-07-01'],
+            ['Apertura', '000004', '01/07/2025', '', '', '', '', '', 'APERTURA', '', '59110000', 'Resultados',
+             0, 5373, 'SIN_CC', 'Ana', '2025-07-01']])
         guardar(c, 'Data_Posiciones_Presupuestarias.xlsx', [
             ['Nombre de la Posición Presupuestaria', 'Código', 'Nombre de la Cuenta'],
             ['Marketing', '95210000', 'Publicidad'], ['Marketing', '95220000', 'Promociones']])
@@ -157,14 +173,26 @@ class HistorialTest(TestCase):
                          (self.prod, D('300.46'), D('370.46'), 1))
         self.assertEqual(MovimientoAnterior.objects.count(), 2)
         self.assertEqual(MovimientoAnterior.objects.get(id_origen=1).fecha, date(2025, 11, 4))
-        self.assertEqual(AsientoAnterior.objects.filter(periodo='202507').count(), 2)
-        self.assertEqual(AsientoAnterior.objects.filter(periodo='202508').count(), 3)
+        self.assertEqual(AsientoAnterior.objects.filter(periodo='202507').count(), 6)
+        self.assertEqual(AsientoAnterior.objects.filter(periodo='202508').count(), 5)
+        # por pagar: la factura queda como saldo inicial con lo pagado antes descontado
+        from compras.models import Compra as C
+        f77 = C.objects.con_saldos().get(tercero=self.prov, serie='F001', numero='77')
+        self.assertEqual((f77.es_saldo_inicial, f77.pagado_anterior, f77.saldo), (True, D('18'), D('100')))
+        # caja y bancos: con su cuenta contable; dólares al tipo de cambio; sin las cuentas puente
+        from finanzas.models import Cuenta
+        bcp = Cuenta.objects.get(nombre='BCP MN 044069')
+        self.assertEqual((bcp.banco, bcp.moneda, bcp.saldo_inicial, bcp.cuenta_contable.codigo),
+                         ('BCP', 'PEN', D('5000.00'), '10410004'))
+        bbva = Cuenta.objects.get(nombre='BBVA ME 53111')
+        self.assertEqual((bbva.moneda, bbva.saldo_inicial), ('USD', D('100.00')))  # 345 / 3.45
+        self.assertFalse(Cuenta.objects.filter(nombre='Cuenta transitoria').exists())
         # factura de compra histórica armada desde los asientos
         from compras.models import Compra
         compra = Compra.objects.get(tercero=self.prov, serie='F001', numero='77')
         self.assertEqual((compra.es_historico, compra.base_imponible, compra.igv, compra.total, compra.periodo,
                           compra.clasificacion, compra.saldo, compra.stock_aplicado),
-                         (True, D('100'), D('18'), D('118'), '202508', 'MERCADERIA', D('0'), False))
+                         (True, D('100'), D('18'), D('118'), '202508', 'MERCADERIA', D('100'), False))
         self.assertEqual(AsientoAnterior.objects.get(cuenta='70211100').centro_costo, '[951003] CANAL MODERNO')
         self.assertEqual(PosicionPresupuestaria.objects.count(), 2)
         # no toca el stock de Ceiba
@@ -174,7 +202,7 @@ class HistorialTest(TestCase):
         call_command('importar_anteriores', self.c, '--reporte', os.path.join(self.c, 'r.xlsx'), stdout=salida)
         self.assertEqual((OrdenCompra.objects.filter(numero__startswith='P0000').count(),
                           Cotizacion.objects.filter(numero__startswith='S000').count(), MovimientoAnterior.objects.count(),
-                          AsientoAnterior.objects.count()), (2, 2, 2, 5))
+                          AsientoAnterior.objects.count()), (2, 2, 2, 11))
         self.assertEqual(Compra.objects.filter(es_historico=True).count(), 1)
         # pantallas
         for nombre in ('hist_kardex', 'hist_asientos', 'hist_balance', 'hist_fabricacion', 'hist_posiciones'):

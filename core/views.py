@@ -50,9 +50,9 @@ def dashboard(request):
     ventas_mov, compras_mov = ventas.de_gestion(), compras.de_gestion()
 
     # una sola consulta por lista (pagos y notas anotados), sin consultas por documento
-    por_cobrar = [v for v in ventas.con_saldos().cobrables().exclude(tipo_comprobante__in=['07', '08']).select_related('tercero')
+    por_cobrar = [v for v in ventas.con_saldos().cobrables().exclude(tipo_comprobante='07').select_related('tercero')
                   if v.saldo > 0]
-    por_pagar = [c for c in compras.con_saldos().cobrables().exclude(tipo_comprobante__in=['07', '08']).select_related('tercero')
+    por_pagar = [c for c in compras.con_saldos().cobrables().exclude(tipo_comprobante='07').select_related('tercero')
                  if c.saldo > 0]
 
     meses, serie_v, serie_c = [], [], []
@@ -82,7 +82,8 @@ def dashboard(request):
         'total_pagar': sum((c.saldo_pen for c in por_pagar), D0),
         'cuentas': cuentas,
         'vencidos_cobrar': sorted([v for v in por_cobrar if v.dias_vencido > 0], key=lambda d: -d.dias_vencido)[:6],
-        'vencidos_pagar': sorted([c for c in por_pagar if c.dias_vencido >= -7], key=lambda d: d.fecha_vencimiento)[:6],
+        'vencidos_pagar': sorted([c for c in por_pagar if c.dias_vencido >= -7],
+                                 key=lambda d: d.fecha_vencimiento or d.fecha_emision)[:6],
         'stock_bajo': Producto.objects.filter(activo=True, tipo='BIEN', es_plantilla=False,
                                               stock__lte=F('stock_minimo'))[:6],
         'top_clientes': top_clientes,

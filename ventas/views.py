@@ -57,7 +57,7 @@ class VentasViews(ComprobanteViews):
             return []
         empresa = Empresa.actual()
         deuda = [v for v in Venta.objects.con_saldos().cobrables().filter(tercero=cliente, estado='REGISTRADO').exclude(
-            tipo_comprobante__in=['07', '08']).exclude(pk=doc.pk) if v.saldo > 0]
+            tipo_comprobante='07').exclude(pk=doc.pk) if v.saldo > 0]
         errores = []
         if empresa.bloquear_deuda_vencida:
             limite_fecha = timezone.localdate() - timedelta(days=empresa.dias_gracia)
