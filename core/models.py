@@ -206,7 +206,8 @@ class Producto(models.Model):
         return self.precio_venta, D0
     CLASES = CLASES_PRODUCTO
     UNIDADES = [('NIU', 'Unidad'), ('KGM', 'Kilogramo'), ('LTR', 'Litro'), ('MTR', 'Metro'),
-                ('BX', 'Caja'), ('PK', 'Paquete'), ('GLL', 'Galón'), ('ZZ', 'Servicio')]
+                ('BX', 'Caja'), ('PK', 'Paquete'), ('GLL', 'Galón'), ('MIL', 'Millar'), ('RO', 'Rollo'),
+                ('MTQ', 'Metro cúbico'), ('HUR', 'Hora'), ('ZZ', 'Servicio')]
 
     # ---- general
     codigo = models.CharField('Código', max_length=30, unique=True, blank=True,
