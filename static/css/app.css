@@ -41,28 +41,36 @@ body { background: var(--erp-bg); font-size: .875rem; font-family: var(--bs-font
 .marca-oscura .marca-erp { color: var(--hoja-clara); }
 .min-vw-0 { min-width: 0; }
 
-.sidebar {
-  width: 250px; min-height: 100vh; background: var(--erp-sidebar); color: var(--erp-sidebar-text);
-  position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 0 0 2rem; flex-shrink: 0;
+/* menú lateral del módulo: todas las opciones visibles a la izquierda */
+.cuerpo { display: flex; align-items: flex-start; }
+.principal { flex: 1 1 auto; min-width: 0; }
+.lateral { --mod-color: var(--hoja); background: var(--erp-sidebar); color: var(--erp-sidebar-text); }
+.lateral-menu { padding: .5rem 0 2rem; }
+.lateral-grupo { text-transform: uppercase; font-size: .66rem; font-weight: 600; letter-spacing: .08em;
+  color: rgba(198,214,205,.6); padding: 1rem 1.1rem .3rem; }
+.lateral-link { display: flex; align-items: center; gap: .55rem; color: var(--erp-sidebar-text); text-decoration: none;
+  padding: .36rem 1rem .36rem .95rem; font-size: .84rem; border-left: 3px solid transparent; line-height: 1.25; }
+.lateral-link i { width: 1.1rem; text-align: center; opacity: .75; flex-shrink: 0; }
+.lateral-link:hover { color: #fff; background: rgba(255,255,255,.06); }
+.lateral-link.active { color: #fff; background: rgba(255,255,255,.1); border-left-color: var(--mod-color); font-weight: 600; }
+.lateral-link.active i { opacity: 1; color: var(--mod-color); filter: brightness(1.4); }
+.lateral-raiz { font-weight: 500; margin-top: .25rem; }
+.lateral-titulo { color: #fff; font-weight: 600; }
+.lateral-titulo i { color: var(--mod-color); filter: brightness(1.35); }
+@media (min-width: 992px) {
+  /* Bootstrap deja offcanvas-lg transparente en escritorio; se fuerza el fondo del menú */
+  .lateral.offcanvas-lg { background-color: var(--erp-sidebar) !important; }
+  .con-lateral .topnav { position: sticky; top: 0; z-index: 1030; }
+  .lateral { width: 240px; flex-shrink: 0; position: sticky; top: 54px; height: calc(100vh - 54px); overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
 }
-.sidebar .brand {
-  display: block; padding: 1rem 1.25rem .5rem; font-size: 1.25rem; font-weight: 700; color: #fff; text-decoration: none;
+@media (max-width: 991.98px) {
+  .lateral.offcanvas-lg { --bs-offcanvas-width: 280px; background: var(--erp-sidebar); }
+  .lateral .offcanvas-header { border-bottom: 1px solid rgba(255,255,255,.1); }
+  .lateral.offcanvas-lg .offcanvas-body, .lateral .lateral-menu { overflow-y: auto; }
 }
-.sidebar .brand span { color: #5fb3ff; font-weight: 400; }
-.empresa-chip {
-  margin: 0 1rem .75rem; padding: .5rem .75rem; border-radius: .5rem; background: rgba(255,255,255,.06);
-  color: #fff; font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.empresa-chip small { display: block; color: var(--erp-sidebar-text); }
-.nav-section {
-  text-transform: uppercase; font-size: .68rem; letter-spacing: .08em; color: #6f86a3; padding: 1rem 1.25rem .3rem;
-}
-.sidebar .nav-link { color: var(--erp-sidebar-text); padding: .35rem 1.25rem; font-size: .85rem; border-left: 3px solid transparent; }
-.sidebar .nav-link i { width: 1.3rem; display: inline-block; }
-.sidebar .nav-link:hover { color: #fff; background: rgba(255,255,255,.05); }
-.sidebar .nav-link.active { color: #fff; background: rgba(95,179,255,.12); border-left-color: #5fb3ff; }
+.topnav .btn-menu { color: #fff; font-size: 1.35rem; padding: 0 .35rem; border: 0; line-height: 1; }
 
-.topbar { display: flex; align-items: center; padding: .6rem 1.5rem; background: #fff; border-bottom: 1px solid #e3e7ed; }
 .content { padding: 1.5rem; max-width: 1600px; margin: 0 auto; }
 
 /* barra superior por módulo (estilo Odoo) */
@@ -116,8 +124,6 @@ body { background: var(--erp-bg); font-size: .875rem; font-family: var(--bs-font
 .doc-box { border: 2px solid #1d2b3a; border-radius: .5rem; padding: .75rem 1rem; text-align: center; }
 
 @media (max-width: 991.98px) {
-  .sidebar { position: fixed; left: -260px; z-index: 1050; transition: left .2s; }
-  .sidebar.open { left: 0; }
   .content { padding: 1rem; }
 }
 @media print {
