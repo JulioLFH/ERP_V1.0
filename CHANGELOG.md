@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.21.0 — 06/10/2026 · Manuales de usuario
+- **Manuales de usuario** en Ajustes → Ayuda: un PDF por módulo con diagramas de flujo, pantallas paso a paso y el logo en cada página. Solo los administradores los ven y descargan.
+- Ventas: se quita "Trasladar a periodo" del comprobante de venta (queda solo en compras, para el crédito fiscal).
+- Historial: el detalle de una orden de fabricación del sistema anterior abre más rápido (de 4 s a 0.6 s).
+
 ## v1.20.0 — 06/10/2026 · Funciones faltantes del alcance Base y multiempresa
 **Plataforma**
 - **Multiempresa**: cada empresa en su propia base de datos (usuarios, datos y configuración separados). Se elige la empresa al iniciar sesión y se cambia desde el menú del usuario. Nuevas empresas con la variable `EMPRESAS_EXTRA` y `python manage.py migrar_empresas`. La API usa la cabecera `X-Empresa` y los enlaces del portal de proveedores llevan su empresa.
