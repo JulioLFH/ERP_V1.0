@@ -115,7 +115,16 @@ class HistorialTest(TestCase):
             ['Ventas', '000001', '02/07/2025', '20100070970', 'SPSA', '(01) Factura', 'FF01-1', 'R', 'VENTA', 'X',
              '12120001', 'Facturas', 118, 0, 'SIN_CC', 'Juan', '2025-07-01'],
             ['Ventas', '000001', '02/07/2025', '20100070970', 'SPSA', '(01) Factura', 'FF01-1', 'R', 'VENTA', 'X',
-             '70211100', 'Ventas', 0, 118, '[951003] CANAL MODERNO', 'Juan', '2025-07-01']])
+             '70211100', 'Ventas', 0, 118, '[951003] CANAL MODERNO', 'Juan', '2025-07-01'],
+            # factura de proveedor: base en 60, IGV en 4011 y total en 42 (el periodo sale de la fecha, no del
+            # trimestre de PeriodoMes)
+            ['Facturas de proveedores', '000002', '15/08/2025', self.prov.numero_doc, 'MOLINOS', '(01) Factura',
+             'F001-00000077', '', 'HARINA', '', '60210100', 'Compra materias primas', 100, 0, 'SIN_CC', 'Ana',
+             '2025-07-01'],
+            ['Facturas de proveedores', '000002', '15/08/2025', self.prov.numero_doc, 'MOLINOS', '(01) Factura',
+             'F001-00000077', '', 'IGV', '', '40111002', 'IGV - Compras', 18, 0, 'SIN_CC', 'Ana', '2025-07-01'],
+            ['Facturas de proveedores', '000002', '15/08/2025', self.prov.numero_doc, 'MOLINOS', '(01) Factura',
+             'F001-00000077', '', 'TOTAL', '', '42120001', 'Facturas', 0, 118, 'SIN_CC', 'Ana', '2025-07-01']])
         guardar(c, 'Data_Posiciones_Presupuestarias.xlsx', [
             ['Nombre de la Posición Presupuestaria', 'Código', 'Nombre de la Cuenta'],
             ['Marketing', '95210000', 'Publicidad'], ['Marketing', '95220000', 'Promociones']])
@@ -149,6 +158,13 @@ class HistorialTest(TestCase):
         self.assertEqual(MovimientoAnterior.objects.count(), 2)
         self.assertEqual(MovimientoAnterior.objects.get(id_origen=1).fecha, date(2025, 11, 4))
         self.assertEqual(AsientoAnterior.objects.filter(periodo='202507').count(), 2)
+        self.assertEqual(AsientoAnterior.objects.filter(periodo='202508').count(), 3)
+        # factura de compra histórica armada desde los asientos
+        from compras.models import Compra
+        compra = Compra.objects.get(tercero=self.prov, serie='F001', numero='77')
+        self.assertEqual((compra.es_historico, compra.base_imponible, compra.igv, compra.total, compra.periodo,
+                          compra.clasificacion, compra.saldo, compra.stock_aplicado),
+                         (True, D('100'), D('18'), D('118'), '202508', 'MERCADERIA', D('0'), False))
         self.assertEqual(AsientoAnterior.objects.get(cuenta='70211100').centro_costo, '[951003] CANAL MODERNO')
         self.assertEqual(PosicionPresupuestaria.objects.count(), 2)
         # no toca el stock de Ceiba
@@ -158,7 +174,8 @@ class HistorialTest(TestCase):
         call_command('importar_anteriores', self.c, '--reporte', os.path.join(self.c, 'r.xlsx'), stdout=salida)
         self.assertEqual((OrdenCompra.objects.filter(numero__startswith='P0000').count(),
                           Cotizacion.objects.filter(numero__startswith='S000').count(), MovimientoAnterior.objects.count(),
-                          AsientoAnterior.objects.count()), (2, 2, 2, 2))
+                          AsientoAnterior.objects.count()), (2, 2, 2, 5))
+        self.assertEqual(Compra.objects.filter(es_historico=True).count(), 1)
         # pantallas
         for nombre in ('hist_kardex', 'hist_asientos', 'hist_balance', 'hist_fabricacion', 'hist_posiciones'):
             self.assertEqual(self.client.get(reverse(nombre)).status_code, 200, nombre)

@@ -30,7 +30,9 @@ D0 = Decimal('0')
 IGV = Decimal('0.18')
 MARCA = '[Sistema anterior]'
 EMPRESA = 'PRODUCTORA DE ALIMENTOS UNO'
-PASOS = ['posiciones', 'oc', 'pedidos', 'fabricacion', 'kardex', 'contable']
+PASOS = ['posiciones', 'oc', 'pedidos', 'fabricacion', 'kardex', 'contable', 'compras']
+DIARIOS_COMPRA = ['Facturas de proveedores', 'Facturas de proveedores servicios', 'Recibos por Honorarios']
+TIPOS_COMPRA = {'01', '02', '03', '07', '08', '12', '14'}
 ARCHIVOS = {
     'posiciones': ['Data_Posiciones_Presupuestarias.xlsx'],
     'oc': ['Data_OrdenCompra_Scraping_2026.xlsx', 'Data_Contactos_API.xlsx'],
@@ -38,6 +40,7 @@ ARCHIVOS = {
     'fabricacion': ['Data_Orden_de_Fabricación_Scraping_2026.xlsx', 'Reporte de Producción (report.simple.mrp).xlsx'],
     'kardex': ['Data_Kardex_API_2025.xlsx', 'Data_Kardex_API_2026.xlsx'],
     'contable': ['Data_Contable_2026.xlsx'],
+    'compras': [],  # se arma desde los asientos ya importados (paso contable)
 }
 MESES = {m: i for i, m in enumerate(['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto',
                                      'septiembre', 'octubre', 'noviembre', 'diciembre'], 1)}
@@ -486,7 +489,7 @@ class Command(BaseCommand):
             fecha = fecha_flexible(r['fecha_contable'])
             if fecha is None:
                 continue
-            periodo_mes = fecha_flexible(r['PeriodoMes']) or fecha
+            periodo_mes = fecha  # la columna PeriodoMes del archivo es el trimestre, no el mes
             glosa = ' · '.join(x for x in (_txt(r['glosa']), _txt(r['etiqueta']), _txt(r['referencia'])) if x)
             d, h = _dec(r['debito_soles']), _dec(r['credito_soles'])
             debe, haber = debe + d, haber + h
@@ -513,6 +516,99 @@ class Command(BaseCommand):
         self.resumen['Asientos del sistema anterior'] = (f'{n:,} líneas · debe S/ {debe:,.2f} · haber '
                                                          f'S/ {haber:,.2f}')
         self.log(f'Asientos: {self.resumen["Asientos del sistema anterior"]}')
+
+    # ---------------------------------------------------------------- facturas de compra (desde los asientos)
+    def paso_compras(self):
+        """Facturas, recibos por honorarios y notas de proveedores del sistema anterior, armadas desde sus asientos
+        (diarios de proveedores y honorarios): base por cuenta, IGV (4011), retenciones (otras 40) y total. Quedan
+        como históricas: se ven en Compras y en los reportes, no van al registro de compras ni a la contabilidad
+        de Ceiba y no tienen saldo por pagar."""
+        from compras.models import Compra, CompraItem
+        from core.models import Tercero
+        from historial.models import AsientoAnterior
+        if not AsientoAnterior.objects.filter(diario__in=DIARIOS_COMPRA).exists():
+            self.resumen['Facturas de compra'] = 'sin asientos de proveedores: importe primero el paso contable'
+            return
+        if self.rehacer:
+            Compra.objects.filter(es_historico=True, es_saldo_inicial=False).delete()
+        grupos = OrderedDict()
+        for a in AsientoAnterior.objects.filter(diario__in=DIARIOS_COMPRA).order_by('fecha', 'id').iterator(
+                chunk_size=10000):
+            m = re.match(r'\((\d+)\)', a.tipo_comprobante)
+            tipo_origen = m.group(1) if m else '00'
+            clave = (a.contacto_doc, tipo_origen, a.comprobante)
+            grupos.setdefault(clave, []).append(a)
+        self.log(f'Comprobantes de compra en los asientos: {len(grupos)}')
+        por_doc = dict(Tercero.objects.values_list('numero_doc', 'pk'))
+        existentes = set(Compra.objects.values_list('tercero_id', 'tipo_comprobante', 'serie', 'numero'))
+        cabeceras, detalle, creados, omitidos = [], [], 0, 0
+        for (doc, tipo_origen, comprobante), lineas in grupos.items():
+            if not doc or not comprobante:
+                self.observar('Facturas de compra', comprobante or lineas[0].voucher, 'Sin proveedor o sin número')
+                continue
+            signo = -1 if tipo_origen in ('07', '97') else 1
+            por_cuenta, igv, retencion = OrderedDict(), D0, D0
+            for a in lineas:
+                if a.cuenta.startswith('42'):
+                    continue
+                if a.cuenta.startswith('4011'):
+                    igv += (a.debe - a.haber) * signo
+                elif a.cuenta.startswith('40'):
+                    retencion += (a.haber - a.debe) * signo
+                else:
+                    f = por_cuenta.setdefault(a.cuenta, {'monto': D0, 'nombre': a.cuenta_nombre,
+                                                         'glosa': a.glosa.split(' · ')[0]})
+                    f['monto'] += (a.debe - a.haber) * signo
+            base = sum((f['monto'] for f in por_cuenta.values()), D0)
+            if base + igv <= 0:
+                self.observar('Facturas de compra', comprobante, f'Importe cero o negativo ({base + igv}): no se armó')
+                continue
+            if doc not in por_doc:
+                t = Tercero.objects.create(tipo='PROVEEDOR', tipo_doc='6' if len(doc) == 11 else '1' if len(doc) == 8
+                                           else '0', numero_doc=doc[:15], nombre=(lineas[0].contacto or doc)[:200])
+                por_doc[t.numero_doc] = t.pk
+                creados += 1
+            tercero = por_doc[doc]
+            tipo = tipo_origen if tipo_origen in TIPOS_COMPRA else ('07' if tipo_origen == '97' else '00')
+            serie, _, numero = comprobante.rpartition('-') if '-' in comprobante else ('', '', comprobante)
+            serie = serie.upper()[-4:]
+            numero = (numero.lstrip('0') or '0')[-10:]
+            if (tercero, tipo, serie, numero) in existentes:
+                omitidos += 1
+                continue
+            existentes.add((tercero, tipo, serie, numero))
+            primera = next(iter(por_cuenta), '')
+            clasificacion = ('HONORARIOS' if tipo == '02' else 'MERCADERIA' if primera.startswith('60') else
+                             'ACTIVO_FIJO' if primera.startswith(('33', '34')) else 'GASTO')
+            gravada = igv > 0
+            fecha = min(a.fecha for a in lineas)
+            base_imponible, no_gravado = (base, D0) if gravada else (D0, base)
+            total = base + igv
+            glosa = f'{MARCA} {lineas[0].diario}' + (f' · tipo {tipo_origen}' if tipo != tipo_origen else '')
+            cabeceras.append(Compra(
+                tipo_comprobante=tipo, serie=serie, numero=numero, tercero_id=tercero, fecha_emision=fecha,
+                periodo=fecha.strftime('%Y%m'), forma_pago='CREDITO', moneda='PEN', tipo_cambio=Decimal('1'),
+                tipo_operacion='GRAVADA' if gravada else 'INAFECTA', clasificacion=clasificacion,
+                base_imponible=base_imponible, no_gravado=no_gravado, inafecto=no_gravado, igv=igv, total=total,
+                retencion_monto=retencion, total_pen=total, base_pen=base_imponible, nograv_pen=no_gravado,
+                igv_pen=igv, ret_pen=retencion, ingresar_almacen=False, es_historico=True, glosa=glosa))
+            detalle.append([dict(descripcion=f'{cuenta} {f["nombre"]} · {f["glosa"]}'[:250], cantidad=1,
+                                 precio_unitario=f['monto'], subtotal=f['monto'],
+                                 afectacion='' if gravada else 'INAFECTA')
+                            for cuenta, f in por_cuenta.items() if f['monto']])
+        for i in range(0, len(cabeceras), 1000):
+            bloque = cabeceras[i:i + 1000]
+            Compra.objects.bulk_create(bloque)
+            if bloque[0].pk is None:
+                for c in bloque:
+                    c.pk = Compra.objects.get(tercero_id=c.tercero_id, tipo_comprobante=c.tipo_comprobante,
+                                              serie=c.serie, numero=c.numero).pk
+            self._bulk(CompraItem, [CompraItem(documento_id=c.pk, **it)
+                                    for c, its in zip(bloque, detalle[i:i + 1000]) for it in its])
+        total = sum((c.total for c in cabeceras), D0)
+        self.resumen['Facturas de compra'] = (f'{len(cabeceras)} armadas desde los asientos (S/ {total:,.2f}); '
+                                              f'{omitidos} ya estaban; {creados} proveedores creados')
+        self.log(f'Facturas de compra: {self.resumen["Facturas de compra"]}')
 
     # ---------------------------------------------------------------- reporte
     def _reporte(self, ruta):
