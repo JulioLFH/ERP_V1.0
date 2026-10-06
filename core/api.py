@@ -40,6 +40,13 @@ def api(modulo=None, metodos=('GET',), escribir=None):
             from .permisos import puede
             if request.method not in metodos:
                 return error(f'Método no permitido. Use: {", ".join(metodos)}.', 405)
+            # multiempresa: la cabecera X-Empresa elige la base (la clave pertenece a un usuario de esa empresa)
+            from erp.empresas import activar, empresas
+            alias = request.META.get('HTTP_X_EMPRESA', '').strip()
+            if alias:
+                if alias not in empresas():
+                    return error(f'Empresa desconocida: {alias}.', 400)
+                activar(alias)
             cabecera = request.META.get('HTTP_AUTHORIZATION', '')
             token = ApiToken.autenticar(cabecera[7:].strip()) if cabecera.startswith('Bearer ') else None
             if token is None:

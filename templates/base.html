@@ -34,6 +34,7 @@
         <a class="nav-link dropdown-toggle px-2" href="#" data-bs-toggle="dropdown"><i class="bi bi-person-circle"></i> <span class="d-none d-md-inline">{{ user.get_full_name|default:user.get_username }}</span></a>
         <ul class="dropdown-menu dropdown-menu-end shadow-sm position-absolute">
           <li><a class="dropdown-item" href="{% url 'home' %}"><i class="bi bi-grid-3x3-gap me-2"></i>Aplicaciones</a></li>
+          {% for alias, nombre in otras_empresas %}<li><form method="post" action="{% url 'cambiar_empresa' %}">{% csrf_token %}<button name="empresa" value="{{ alias }}" class="dropdown-item"><i class="bi bi-building me-2"></i>Ir a {{ nombre|truncatechars:30 }}</button></form></li>{% endfor %}
           <li><a class="dropdown-item" href="{% url 'cambiar_clave' %}"><i class="bi bi-key me-2"></i>Cambiar contraseña</a></li>
           <li><a class="dropdown-item" href="{% url 'seguridad' %}"><i class="bi bi-shield-lock me-2"></i>Verificación en dos pasos</a></li>
           <li><a class="dropdown-item" href="{% url 'api_claves' %}"><i class="bi bi-plug me-2"></i>Claves de API</a></li>

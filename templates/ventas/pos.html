@@ -1,0 +1,129 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Punto de venta{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Punto de venta</h1>
+  <div class="small text-muted">Mis cobros de hoy: <strong>S/ {{ total_dia|money }}</strong></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card mb-3"><div class="card-body py-2">
+      <div class="row g-2">
+        <div class="col-md-8"><input id="buscar" class="form-control" placeholder="Código de barras, código o nombre del producto" autocomplete="off" autofocus></div>
+        <div class="col-md-4"><select id="almacen" class="form-select">{% for a in almacenes %}<option value="{{ a.pk }}" {% if a.pk == almacen.pk %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></div>
+      </div>
+    </div>
+      <div class="list-group list-group-flush" id="resultados" style="max-height:420px; overflow:auto"></div>
+    </div>
+    {% if resumen %}<div class="card"><div class="card-header">Resumen de mis cobros de hoy</div>
+      <table class="table table-sm mb-0"><tbody>{% for clave, monto in resumen %}<tr><td>{{ clave.0 }}</td><td>{{ clave.1 }}</td><td class="num">{{ monto|money }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+  </div>
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">Venta <button type="button" class="btn btn-sm btn-link text-danger" id="limpiar">Vaciar</button></div>
+      <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+        <thead><tr><th>Producto</th><th style="width:80px" class="num">Cant.</th><th class="num">P. unit.</th><th class="num">Total</th><th></th></tr></thead>
+        <tbody id="carrito"><tr><td colspan="5" class="text-center text-muted py-4">Busque y agregue productos.</td></tr></tbody>
+      </table></div>
+      <div class="card-body border-top">
+        <div class="d-flex justify-content-between fs-4 fw-bold mb-2"><span>Total</span><span>S/ <span id="total">0.00</span></span></div>
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label small mb-0">Comprobante</label><select id="tipo" class="form-select form-select-sm"><option value="03">Boleta</option><option value="01">Factura</option><option value="00">Nota de venta</option></select></div>
+          <div class="col-6"><label class="form-label small mb-0">Caja</label><select id="caja" class="form-select form-select-sm">{% for c in cajas %}<option value="{{ c.pk }}">{{ c.nombre }}</option>{% endfor %}</select></div>
+          <div class="col-12"><label class="form-label small mb-0">Cliente</label><select id="cliente" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'clientes' %}" data-perezoso="1"><option value="{{ varios.pk }}" selected>CLIENTES VARIOS</option></select></div>
+          <div class="col-6"><label class="form-label small mb-0">Medio de pago</label><select id="medio" class="form-select form-select-sm">{% for v, n in medios %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
+          <div class="col-6" id="caja-recibido"><label class="form-label small mb-0">Recibido</label><input id="recibido" type="number" step="0.10" min="0" class="form-control form-control-sm text-end"></div>
+          <div class="col-6 d-none" id="caja-operacion"><label class="form-label small mb-0">N° operación</label><input id="operacion" class="form-control form-control-sm"></div>
+          <div class="col-12 small">Vuelto: <strong>S/ <span id="vuelto">0.00</span></strong></div>
+        </div>
+        <div id="mensaje" class="mt-2"></div>
+        <button class="btn btn-success w-100 mt-2 py-2 fs-5" id="cobrar" {% if not puede.ventas_emitir %}disabled{% endif %}><i class="bi bi-cash-coin"></i> Cobrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const urlProductos = "{% url 'ventas:pos_productos' %}";
+  const csrf = "{{ csrf_token }}";
+  const carrito = [];
+  const $ = (id) => document.getElementById(id);
+  const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const dinero = (n) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  let ultimos = [];
+
+  function pintarResultados(lista) {
+    ultimos = lista;
+    $('resultados').innerHTML = lista.map((p, i) => `<button type="button" class="list-group-item list-group-item-action d-flex justify-content-between" data-i="${i}">
+      <span><span class="text-muted small">${esc(p.codigo)}</span> ${esc(p.nombre)}</span>
+      <span class="text-nowrap">S/ ${dinero(p.precio_igv)}${p.bien ? ` <span class="badge ${Number(p.stock) > 0 ? 'text-bg-light' : 'text-bg-danger'}">${dinero(p.stock)}</span>` : ''}</span></button>`).join('')
+      || '<div class="list-group-item text-muted">Sin resultados.</div>';
+  }
+  let temporizador;
+  async function buscar(enter) {
+    const q = $('buscar').value.trim();
+    const r = await fetch(`${urlProductos}?q=${encodeURIComponent(q)}&almacen=${$('almacen').value}`, { credentials: 'same-origin' });
+    const lista = r.ok ? await r.json() : [];
+    // lector de código de barras: código exacto + Enter agrega directo
+    const exacto = lista.find((p) => p.codigo.toLowerCase() === q.toLowerCase());
+    if (enter && exacto) { agregar(exacto); $('buscar').value = ''; pintarResultados([]); return; }
+    pintarResultados(lista);
+  }
+  $('buscar').addEventListener('input', () => { clearTimeout(temporizador); temporizador = setTimeout(() => buscar(false), 250); });
+  $('buscar').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); buscar(true); } });
+  $('resultados').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) agregar(ultimos[b.dataset.i]); });
+
+  function agregar(p) {
+    const fila = carrito.find((f) => f.id === p.id);
+    if (fila) fila.cantidad += 1; else carrito.push({ id: p.id, nombre: p.nombre, precio: Number(p.precio), precio_igv: Number(p.precio_igv), cantidad: 1 });
+    pintar();
+    $('buscar').focus();
+  }
+  function total() { return carrito.reduce((t, f) => t + f.precio_igv * f.cantidad, 0); }
+  function pintar() {
+    $('carrito').innerHTML = carrito.length ? carrito.map((f, i) => `<tr><td class="small">${esc(f.nombre)}</td>
+      <td><input type="number" min="0.01" step="any" value="${f.cantidad}" data-i="${i}" class="form-control form-control-sm text-end js-cant"></td>
+      <td class="num">${dinero(f.precio_igv)}</td><td class="num">${dinero(f.precio_igv * f.cantidad)}</td>
+      <td><button type="button" class="btn btn-sm btn-link text-danger p-0 js-quitar" data-i="${i}"><i class="bi bi-x"></i></button></td></tr>`).join('')
+      : '<tr><td colspan="5" class="text-center text-muted py-4">Busque y agregue productos.</td></tr>';
+    $('total').textContent = dinero(total());
+    vuelto();
+  }
+  $('carrito').addEventListener('change', (e) => { if (e.target.classList.contains('js-cant')) { carrito[e.target.dataset.i].cantidad = Math.max(Number(e.target.value) || 0, 0); pintar(); } });
+  $('carrito').addEventListener('click', (e) => { const b = e.target.closest('.js-quitar'); if (b) { carrito.splice(b.dataset.i, 1); pintar(); } });
+  $('limpiar').addEventListener('click', () => { carrito.length = 0; pintar(); });
+  function vuelto() { const r = Number($('recibido').value) || 0; $('vuelto').textContent = dinero(Math.max(r - total(), 0)); }
+  $('recibido').addEventListener('input', vuelto);
+  $('medio').addEventListener('change', () => {
+    const efectivo = $('medio').value === 'EFECTIVO';
+    $('caja-recibido').classList.toggle('d-none', !efectivo);
+    $('caja-operacion').classList.toggle('d-none', efectivo);
+  });
+  $('cobrar').addEventListener('click', async () => {
+    if (!carrito.length) return;
+    if ($('medio').value === 'EFECTIVO' && $('recibido').value && Number($('recibido').value) < total()) {
+      $('mensaje').innerHTML = '<div class="alert alert-warning py-1 small mb-0">El monto recibido es menor que el total.</div>'; return;
+    }
+    $('cobrar').disabled = true;
+    const cuerpo = { tipo_comprobante: $('tipo').value, caja: $('caja').value, cliente: $('cliente').value, almacen: $('almacen').value,
+      medio: $('medio').value, recibido: $('recibido').value, operacion: $('operacion').value,
+      items: carrito.map((f) => ({ id: f.id, cantidad: f.cantidad, precio: f.precio })) };
+    try {
+      const r = await fetch(window.location.pathname, { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }, body: JSON.stringify(cuerpo) });
+      const d = await r.json();
+      if (!d.ok) { $('mensaje').innerHTML = `<div class="alert alert-danger py-1 small mb-0">${esc(d.error)}</div>`; return; }
+      $('mensaje').innerHTML = `<div class="alert alert-success py-1 small mb-0">${esc(d.numero)} emitido por S/ ${dinero(d.total)}${Number(d.vuelto) ? ` · vuelto S/ ${dinero(d.vuelto)}` : ''}.
+        <a href="${d.imprimir}" target="_blank" class="alert-link">Imprimir</a> · <a href="${d.detalle}" class="alert-link">Ver</a></div>`;
+      window.open(d.imprimir, '_blank');
+      carrito.length = 0; $('recibido').value = ''; $('operacion').value = ''; pintar();
+    } catch (err) {
+      $('mensaje').innerHTML = '<div class="alert alert-danger py-1 small mb-0">No se pudo registrar la venta. Revise la conexión.</div>';
+    } finally { $('cobrar').disabled = false; }
+  });
+  buscar(false);
+})();
+</script>
+{% endblock %}

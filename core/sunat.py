@@ -243,7 +243,10 @@ def payload_comprobante(venta):
         'serie': venta.serie,
         'numero': _sin_ceros(venta.numero),
         'sunat_transaction': transaccion,
-        'cliente_tipo_de_documento': cli.tipo_doc if cli.tipo_doc not in ('', None) else '-',
+        # boletas a "clientes varios" (sin documento): tipo "-" VARIOS
+        'cliente_tipo_de_documento': '-' if cli.tipo_doc in ('', None) or (cli.tipo_doc == '0' and
+                                                                           cli.numero_doc == '00000000')
+        else cli.tipo_doc,
         'cliente_numero_de_documento': cli.numero_doc,
         'cliente_denominacion': cli.nombre[:100],
         'cliente_direccion': (cli.direccion or '')[:100],

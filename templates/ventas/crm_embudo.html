@@ -1,0 +1,66 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Embudo comercial{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Embudo comercial (CRM)</h1>
+  <div class="d-flex gap-2 align-items-center">
+    <form method="get" class="d-flex gap-2"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Buscar">
+      <div class="form-check mt-1"><input type="checkbox" class="form-check-input" name="mias" value="1" id="mias" {% if request.GET.mias %}checked{% endif %} onchange="this.form.submit()"><label for="mias" class="form-check-label small">Solo mías</label></div></form>
+    <a href="{% url 'ventas:crm_lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ul"></i> Lista</a>
+    <a href="{% url 'ventas:crm_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Oportunidad</a>
+  </div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="kpi"><div class="label">En negociación (abierto)</div><div class="value">S/ {{ total_abierto|money }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Pronóstico ponderado</div><div class="value">S/ {{ total_ponderado|money }}</div></div></div>
+  <div class="col-md-6"><div class="kpi"><div class="label">Actividades vencidas o para hoy</div>
+    {% for a in pendientes %}<div class="small"><a href="{% url 'ventas:crm_oportunidad' a.oportunidad_id %}">{{ a.get_tipo_display }}: {{ a.descripcion|truncatechars:50 }}</a> <span class="text-muted">{{ a.fecha|date:'d/m' }} · {{ a.oportunidad }}</span></div>{% empty %}<div class="small text-muted">Al día.</div>{% endfor %}</div></div>
+</div>
+<div class="d-flex gap-2 overflow-auto pb-2" style="min-height:60vh">
+  {% for c in columnas %}
+  <div class="flex-shrink-0" style="width:240px">
+    <div class="card h-100 {% if c.etapa == 'GANADA' %}border-success{% elif c.etapa == 'PERDIDA' %}border-danger{% endif %}">
+      <div class="card-header py-2"><div class="fw-semibold small">{{ c.nombre }} <span class="badge text-bg-light">{{ c.tarjetas|length }}</span></div><div class="small text-muted">S/ {{ c.monto|money }}</div></div>
+      <div class="card-body p-2 js-columna" data-etapa="{{ c.etapa }}" style="min-height:120px">
+        {% for o in c.tarjetas %}
+        <div class="card mb-2 js-tarjeta" draggable="true" data-id="{{ o.pk }}" data-url="{% url 'ventas:crm_etapa' o.pk %}" style="cursor:grab">
+          <div class="card-body p-2 small"><a href="{% url 'ventas:crm_oportunidad' o.pk %}" class="fw-semibold">{{ o.nombre|truncatechars:40 }}</a>
+            <div class="text-muted">{{ o.cliente|truncatechars:30 }}</div>
+            <div class="d-flex justify-content-between"><span>S/ {{ o.monto|money }}</span><span class="text-muted">{{ o.prob }}%</span></div>
+            {% if o.fecha_cierre %}<div class="text-muted">Cierre {{ o.fecha_cierre|date:'d/m/Y' }}</div>{% endif %}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<p class="small text-muted mt-2">Arrastre las tarjetas para cambiar de etapa. Ganadas y perdidas del mes en curso.</p>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const csrf = "{{ csrf_token }}";
+  let arrastrada = null;
+  document.querySelectorAll('.js-tarjeta').forEach((t) => t.addEventListener('dragstart', () => { arrastrada = t; }));
+  document.querySelectorAll('.js-columna').forEach((col) => {
+    col.addEventListener('dragover', (e) => e.preventDefault());
+    col.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      if (!arrastrada || arrastrada.parentElement === col) return;
+      const origen = arrastrada.parentElement;
+      col.prepend(arrastrada);
+      const r = await fetch(arrastrada.dataset.url, { method: 'POST', credentials: 'same-origin',
+        headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `etapa=${encodeURIComponent(col.dataset.etapa)}` });
+      const d = await r.json().catch(() => ({ ok: false }));
+      if (!d.ok) {
+        origen.prepend(arrastrada);
+        if (d.url && confirm(`${d.error} ¿Abrir la oportunidad?`)) window.location = d.url;
+        else if (!d.url) alert(d.error || 'No se pudo cambiar la etapa.');
+      } else { window.location.reload(); }
+    });
+  });
+})();
+</script>
+{% endblock %}

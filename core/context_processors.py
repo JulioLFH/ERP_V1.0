@@ -12,7 +12,10 @@ def empresa(request):
     mods = modulos_del_usuario(request.user)
     clave = getattr(request, 'modulo_actual', None)
     modulo = POR_CLAVE.get(clave)
+    from erp.empresas import actual, empresas, es_multiempresa, razon_social
+    otras = [(a, razon_social(a)) for a in empresas() if a != actual()] if es_multiempresa() else []
     return {
+        'otras_empresas': otras,
         'empresa': Empresa.actual(),
         'admin_django': bool(settings.ADMIN_URL) and request.user.is_superuser,
         'erp_version': settings.ERP_VERSION,

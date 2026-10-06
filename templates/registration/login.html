@@ -4,6 +4,12 @@
 {% if form.errors %}<div class="alert alert-danger py-2 small">{% for e in form.non_field_errors %}{{ e }}{% empty %}Usuario o contraseña incorrectos.{% endfor %}</div>{% endif %}
 <form method="post">
   {% csrf_token %}
+  {% if empresas %}
+  <div class="mb-3">
+    <label for="id_empresa">Empresa</label>
+    <select name="empresa" id="id_empresa" class="form-select">{% for alias, nombre in empresas %}<option value="{{ alias }}" {% if alias == empresa_elegida %}selected{% endif %}>{{ nombre }}</option>{% endfor %}</select>
+  </div>
+  {% endif %}
   <div class="mb-3">
     <label for="id_username">Usuario</label>
     <input type="text" name="username" id="id_username" class="form-control" autofocus required>

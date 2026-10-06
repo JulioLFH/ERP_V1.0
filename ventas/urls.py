@@ -1,10 +1,17 @@
 from django.urls import path
 
-from . import envio, views
+from . import crm, envio, pos, views
 
 app_name = 'ventas'
 
 urlpatterns = views.ventas_views.urls() + [
+    path('pos/', pos.pos, name='pos'),
+    path('pos/productos/', pos.pos_productos, name='pos_productos'),
+    path('crm/', crm.embudo, name='crm'),
+    path('crm/lista/', crm.oportunidades, name='crm_lista'),
+    path('crm/nueva/', crm.oportunidad_nueva, name='crm_nueva'),
+    path('crm/<int:pk>/', crm.oportunidad, name='crm_oportunidad'),
+    path('crm/<int:pk>/etapa/', crm.cambiar_etapa, name='crm_etapa'),
     path('<int:pk>/enviar/', envio.enviar_correo, name='enviar_correo'),
     path('<int:pk>/whatsapp/', envio.whatsapp, name='whatsapp'),
     path('cotizaciones/', views.cot_lista, name='cot_lista'),

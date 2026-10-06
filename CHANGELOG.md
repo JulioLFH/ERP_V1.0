@@ -3,6 +3,34 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.20.0 — 06/10/2026 · Funciones faltantes del alcance Base y multiempresa
+**Plataforma**
+- **Multiempresa**: cada empresa en su propia base de datos (usuarios, datos y configuración separados). Se elige la empresa al iniciar sesión y se cambia desde el menú del usuario. Nuevas empresas con la variable `EMPRESAS_EXTRA` y `python manage.py migrar_empresas`. La API usa la cabecera `X-Empresa` y los enlaces del portal de proveedores llevan su empresa.
+- **Menú lateral** con todas las opciones del módulo (v1.19).
+
+**Finanzas**
+- **Anticipos** de clientes y a proveedores aplicados a sus comprobantes (sin mover caja), con anulación y contabilidad 122/422 contra 12/42.
+- **Letras por cobrar y por pagar**: canje de facturas por letras (123/423), cobro y pago desde Cobranzas/Pagos, estados (cartera, cobranza, descuento, protesto), renovación y anulación del canje.
+- **Cheques** emitidos y recibidos: cartera de diferidos, depósito, cobrado, rechazado o anulado (anula sus movimientos y el comprobante vuelve a deber).
+- **Entregas a rendir y caja chica**: entrega, rendición con tickets o facturas registradas, devolución, reembolso, reposición del fondo y liquidación (1413 / 1021).
+- **Pagos masivos a bancos**: lote de facturas de proveedores, archivo Excel con banco, cuenta o CCI de cada proveedor y registro de los pagos. Las fichas de proveedores tienen banco, cuenta, CCI y cuenta de detracciones.
+
+**Ventas**
+- **CRM**: embudo de oportunidades por etapa (tablero para arrastrar), pronóstico ponderado y actividades de seguimiento.
+- **Punto de venta**: búsqueda o lector de código de barras, boleta, factura o nota de venta, cobro en caja con vuelto y resumen del día.
+- **Ventas al crédito en cuotas** (cronograma que exige SUNAT) y boletas a "clientes varios". El límite de crédito considera las letras pendientes.
+
+**Compras, inventario y manufactura**
+- **Importaciones**: gastos vinculados (flete, seguro, ad valorem, agente, almacenaje) prorrateados por valor, cantidad o peso al costo de cada producto (6091 → 2811 → inventario).
+- **Ubicaciones dentro del almacén** (zona-rack-nivel), ubicación habitual por producto, importación desde Excel, hoja de conteo y ubicación en las notas impresas (picking).
+- **Maquila** (tercerización): envío de materiales al almacén del maquilador y costo del servicio sumado al producto.
+- **Calidad**: plan de calidad por producto, inspecciones con resultado conforme/no conforme y cuarentena de lo rechazado.
+- **Mantenimiento**: equipos, planes preventivos, órdenes de trabajo preventivas y correctivas, horas de parada y repuestos descargados del almacén (6343 al centro de costo).
+
+**Contabilidad y planillas**
+- **Libro de Inventarios y Balances** (formatos 3.x) con saldos por cuenta, tercero o documento, en Excel.
+- **Vacaciones** (récord vacacional, goce y venta), **liquidación de beneficios sociales** (CTS, gratificación y vacaciones truncas, no gozadas, indemnizaciones) y **costo de planilla por centro de costo**.
+
 ## v1.18.0 — 05/10/2026 · Planillas y migración desde el sistema anterior
 **Planillas** (módulo nuevo)
 - **Trabajadores** con datos personales y laborales: régimen (general, pequeña o microempresa), centro de costo, sueldo, asignación familiar, ONP o AFP (comisión flujo o mixta, CUSPP) y cuentas de sueldo y CTS. Carga masiva desde Excel.

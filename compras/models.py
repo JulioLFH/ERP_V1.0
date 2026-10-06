@@ -33,15 +33,23 @@ class OrdenCompra(DocumentoBase):
 
     def token_aceptacion(self):
         from django.core import signing
-        return signing.dumps({'oc': self.pk}, salt='oc-aceptacion')
+
+        from erp.empresas import actual
+        datos = {'oc': self.pk}
+        if actual() != 'default':  # multiempresa: el enlace del proveedor abre la base de su empresa
+            datos['e'] = actual()
+        return signing.dumps(datos, salt='oc-aceptacion')
 
     @classmethod
     def desde_token(cls, token, dias=120):
         from django.core import signing
+
+        from erp.empresas import activar
         try:
             datos = signing.loads(token, salt='oc-aceptacion', max_age=dias * 86400)
         except signing.BadSignature:
             return None
+        activar(datos.get('e', 'default'))  # el middleware restaura la empresa al terminar la petición
         return cls.objects.filter(pk=datos.get('oc')).first()
 
     def fecha_ingreso(self):

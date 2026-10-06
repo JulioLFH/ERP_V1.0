@@ -3,7 +3,9 @@
 Variables de entorno (ver .env.example):
   SECRET_KEY, DEBUG, ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS, DATABASE_URL
 """
+import json
 import os
+import sys
 from pathlib import Path
 
 import dj_database_url
@@ -12,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Versión visible en el menú del usuario; actualizarla junto con CHANGELOG.md y la etiqueta de git
 ERP_NOMBRE = 'Ceiba ERP'
-ERP_VERSION = '1.19.0'
+ERP_VERSION = '1.20.0'
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insegura-cambiar-en-produccion')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
@@ -53,6 +55,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'erp.empresas.EmpresaMiddleware',  # multiempresa: activa la base de la empresa de la sesión
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -93,6 +96,20 @@ DATABASES = {
 # Solo para trasladar una base migrada en local a la nube (manage.py trasladar_migracion)
 if os.environ.get('MIGRACION_ORIGEN'):
     DATABASES['origen'] = {'ENGINE': 'django.db.backends.sqlite3', 'NAME': os.environ['MIGRACION_ORIGEN']}
+
+# Multiempresa (erp/empresas.py): una base de datos por empresa. EMPRESAS_EXTRA = JSON
+# {"alias": {"nombre": "Razón social", "url": "postgres://…"}}; la principal es 'default'.
+EMPRESAS = {'default': os.environ.get('EMPRESA_PRINCIPAL', 'Empresa principal')}
+for _alias, _cfg in json.loads(os.environ.get('EMPRESAS_EXTRA') or '{}').items():
+    DATABASES[_alias] = dj_database_url.parse(_cfg['url'], conn_max_age=600)
+    EMPRESAS[_alias] = _cfg.get('nombre', _alias)
+if 'test' in sys.argv[1:2]:  # una segunda empresa para las pruebas de multiempresa
+    DATABASES.setdefault('empresa2', {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'empresa2.sqlite3',
+                                      'TEST': {'NAME': None}})
+    EMPRESAS.setdefault('empresa2', 'Empresa de prueba 2')
+DATABASE_ROUTERS = ['erp.empresas.EmpresaRouter']
+CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+                      'KEY_FUNCTION': 'erp.empresas.clave_cache'}}
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},

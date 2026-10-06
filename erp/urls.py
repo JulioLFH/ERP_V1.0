@@ -4,7 +4,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
 from core import doble_factor
-from core.acceso import LoginSeguroView
+from core.acceso import LoginSeguroView, cambiar_empresa
 
 # el panel de Django solo se publica con ADMIN_URL (en producción no hay /admin/)
 urlpatterns = [path(f'{settings.ADMIN_URL}/', admin.site.urls)] if settings.ADMIN_URL else []
@@ -19,6 +19,7 @@ urlpatterns += [
         template_name='registration/recuperar_listo.html'), name='recuperar_listo'),
     path('cuenta/seguridad/', doble_factor.seguridad, name='seguridad'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
+    path('cambiar-empresa/', cambiar_empresa, name='cambiar_empresa'),
     path('api/v1/', include('core.urls_api')),
     path('compras/', include('compras.urls')),
     path('ventas/', include('ventas.urls')),

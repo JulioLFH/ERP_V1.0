@@ -1,0 +1,37 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ o }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{{ o.nombre }} <span class="badge text-bg-light">{{ o.get_etapa_display }}</span></h1>
+  <div class="d-flex gap-2">
+    {% if o.tercero and not o.cotizacion and puede.ventas_emitir %}<a href="{% url 'ventas:cot_nuevo' %}?tercero={{ o.tercero_id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text"></i> Crear cotización</a>{% endif %}
+    {% if o.cotizacion %}<a href="{% url 'ventas:cot_detalle' o.cotizacion_id %}" class="btn btn-sm btn-outline-secondary">{{ o.cotizacion }}</a>{% endif %}
+    <a href="{% url 'ventas:crm' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-kanban"></i> Embudo</a>
+  </div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="kpi"><div class="label">Cliente / prospecto</div><div class="fw-semibold">{{ o.cliente }}</div><div class="small text-muted">{{ o.contacto }} {{ o.telefono }} {{ o.email }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Monto estimado</div><div class="value">S/ {{ o.monto|money }}</div></div></div>
+  <div class="col-md-2"><div class="kpi"><div class="label">Probabilidad</div><div class="value">{{ o.prob }}%</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Ponderado</div><div class="value">S/ {{ o.ponderado|money }}</div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card"><div class="card-header">Datos</div><div class="card-body">
+    <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="datos">
+      {% for field in form %}<div class="{% if field.name == 'notas' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-success"><i class="bi bi-save"></i> Guardar</button></div>
+    </form>
+  </div></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header">Actividades de seguimiento</div>
+    <ul class="list-group list-group-flush">
+      {% for a in actividades %}<li class="list-group-item d-flex justify-content-between align-items-start {% if a.hecha %}text-muted{% endif %}">
+        <div><span class="badge text-bg-light">{{ a.get_tipo_display }}</span> {{ a.fecha|date:'d/m/Y' }} — {{ a.descripcion }}<div class="small text-muted">{{ a.usuario|default:'' }}</div></div>
+        {% if not a.hecha %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="hecha"><button name="actividad" value="{{ a.pk }}" class="btn btn-sm btn-outline-success py-0" title="Marcar como realizada"><i class="bi bi-check2"></i></button></form>{% else %}<i class="bi bi-check2-circle text-success"></i>{% endif %}</li>
+      {% empty %}<li class="list-group-item text-muted">Sin actividades.</li>{% endfor %}
+    </ul>
+    <div class="card-body border-top"><form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="actividad">
+      {% for field in actividad %}<div class="{% if field.name == 'descripcion' %}col-12{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar actividad</button></div></form></div>
+  </div></div>
+</div>
+{% endblock %}

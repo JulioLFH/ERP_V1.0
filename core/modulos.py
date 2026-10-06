@@ -18,6 +18,10 @@ MODULOS = [
         'clave': 'ventas', 'nombre': 'Ventas', 'icono': 'bi-receipt', 'color': '#2f9e44',
         'inicio': 'ventas:lista', 'descripcion': 'Cotizaciones, comprobantes y cobranzas',
         'menu': [
+            ('Comercial (CRM)', [('Embudo de oportunidades', 'ventas:crm', 'bi-kanban'),
+                                 ('Oportunidades', 'ventas:crm_lista', 'bi-list-stars'),
+                                 ('Nueva oportunidad', 'ventas:crm_nueva', 'bi-plus-circle')]),
+            ('Punto de venta', 'ventas:pos'),
             ('Ventas', [('Cotizaciones y pedidos', 'ventas:cot_lista', 'bi-file-earmark-text'),
                         ('Comprobantes', 'ventas:lista', 'bi-receipt'),
                         ('Notas de crédito / débito', 'ventas:notas', 'bi-file-earmark-diff'),
@@ -276,6 +280,7 @@ RUTAS_CORE = {
 }
 # Rutas abiertas a cualquier usuario autenticado
 RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'cambiar_clave', 'cambiar_clave_ok',
+                'cambiar_empresa',
                 'alertas', 'alertas_json',  # cada alerta ya se filtra por los módulos del usuario
                 'login_2fa', 'recuperar', 'recuperar_confirmar', 'recuperar_listo', 'seguridad',
                 'sustento_subir', 'sustento_ver',  # los sustentos validan el módulo del documento

@@ -49,8 +49,45 @@ class LoginSeguroForm(AuthenticationForm):
         return datos
 
 
+def cambiar_empresa(request):
+    """Multiempresa: cada empresa tiene sus propios usuarios, así que se cierra la sesión y se ingresa a la otra."""
+    from django.contrib.auth import logout
+    from django.shortcuts import redirect
+    from django.urls import reverse
+
+    from erp.empresas import empresas
+    alias = request.POST.get('empresa', 'default')
+    if request.method == 'POST':
+        logout(request)
+    destino = reverse('login')
+    return redirect(f'{destino}?empresa={alias}' if alias in empresas() else destino)
+
+
 class LoginSeguroView(LoginView):
     authentication_form = LoginSeguroForm
+
+    def _empresa(self):
+        from erp.empresas import empresas
+        alias = self.request.POST.get('empresa') or self.request.GET.get('empresa') or \
+            self.request.session.get('empresa') or 'default'
+        return alias if alias in empresas() else 'default'
+
+    def get_context_data(self, **kwargs):
+        from erp.empresas import empresas, es_multiempresa, razon_social
+        ctx = super().get_context_data(**kwargs)
+        if es_multiempresa():
+            ctx['empresas'] = [(alias, razon_social(alias)) for alias in empresas()]
+            ctx['empresa_elegida'] = self._empresa()
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        # multiempresa: el usuario se valida en la base de la empresa elegida
+        from erp.empresas import activar, restaurar
+        token = activar(self._empresa())
+        try:
+            return super().post(request, *args, **kwargs)
+        finally:
+            restaurar(token)
 
     def form_valid(self, form):
         """Con doble factor activo la sesión se abre recién después de validar el código."""
@@ -58,9 +95,13 @@ class LoginSeguroView(LoginView):
 
         from .doble_factor import SESION_PENDIENTE, tiene_doble_factor
         usuario = form.get_user()
+        alias = self._empresa()
         if tiene_doble_factor(usuario):
             self.request.session.cycle_key()
+            self.request.session['empresa'] = alias
             self.request.session[SESION_PENDIENTE] = {'id': usuario.pk, 'backend': usuario.backend,
                                                       'next': self.get_redirect_url()}
             return redirect('login_2fa')
-        return super().form_valid(form)
+        respuesta = super().form_valid(form)
+        self.request.session['empresa'] = alias  # después de login(): si cambió de usuario, la sesión se limpió
+        return respuesta

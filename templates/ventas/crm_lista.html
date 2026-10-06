@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Oportunidades{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Oportunidades</h1>
+  <div class="d-flex gap-2"><a href="{% url 'ventas:crm' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-kanban"></i> Embudo</a><a href="{% url 'ventas:crm_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Oportunidad</a></div>
+</div>
+<div class="card">
+  <div class="card-body border-bottom py-2"><form class="row g-2" method="get">
+    <div class="col-auto"><select name="etapa" class="form-select form-select-sm"><option value="">Todas las etapas</option>{% for v, n in etapas %}<option value="{{ v }}" {% if request.GET.etapa == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+    <div class="col-auto"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Buscar"></div>
+    <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i></button><button name="formato" value="excel" class="btn btn-sm btn-success ms-1"><i class="bi bi-file-earmark-excel"></i></button></div></form></div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+    <thead><tr><th>Oportunidad</th><th>Cliente / prospecto</th><th>Etapa</th><th class="num">Monto</th><th class="num">Prob.</th><th>Cierre</th><th>Responsable</th></tr></thead>
+    <tbody>{% for o in oportunidades %}<tr><td><a href="{% url 'ventas:crm_oportunidad' o.pk %}">{{ o.nombre }}</a></td><td class="small">{{ o.cliente }}</td><td><span class="badge text-bg-light">{{ o.get_etapa_display }}</span></td><td class="num">{{ o.monto|money }}</td><td class="num">{{ o.prob }}%</td><td>{{ o.fecha_cierre|date:'d/m/Y' }}</td><td class="small">{{ o.responsable|default:'' }}</td></tr>
+    {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin oportunidades.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}

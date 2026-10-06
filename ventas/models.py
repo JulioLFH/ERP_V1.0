@@ -111,3 +111,71 @@ class Venta(ComprobanteBase, ElectronicoMixin):
 
 class VentaItem(ItemBase):
     documento = models.ForeignKey(Venta, on_delete=models.CASCADE, related_name='items')
+
+
+# ---------------------------------------------------------------- CRM
+class Oportunidad(models.Model):
+    """Negocio en seguimiento (embudo comercial): de prospecto a ganado o perdido."""
+    ETAPAS = [('PROSPECTO', 'Prospecto'), ('CALIFICADO', 'Calificado'), ('PROPUESTA', 'Propuesta / cotización'),
+              ('NEGOCIACION', 'Negociación'), ('GANADA', 'Ganada'), ('PERDIDA', 'Perdida')]
+    ABIERTAS = ('PROSPECTO', 'CALIFICADO', 'PROPUESTA', 'NEGOCIACION')
+    PROBABILIDAD = {'PROSPECTO': 10, 'CALIFICADO': 25, 'PROPUESTA': 50, 'NEGOCIACION': 75, 'GANADA': 100,
+                    'PERDIDA': 0}
+    ORIGENES = [('', '---'), ('REFERIDO', 'Referido'), ('WEB', 'Web / redes'), ('LLAMADA', 'Llamada'),
+                ('VISITA', 'Visita'), ('FERIA', 'Feria / evento'), ('CARTERA', 'Cliente de la cartera'),
+                ('OTRO', 'Otro')]
+    nombre = models.CharField('Oportunidad', max_length=150)
+    tercero = models.ForeignKey('core.Tercero', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                verbose_name='Cliente')
+    prospecto = models.CharField('Prospecto (aún no es cliente)', max_length=150, blank=True)
+    contacto = models.CharField('Persona de contacto', max_length=120, blank=True)
+    telefono = models.CharField('Teléfono', max_length=40, blank=True)
+    email = models.EmailField(blank=True)
+    etapa = models.CharField(max_length=12, choices=ETAPAS, default='PROSPECTO')
+    monto = models.DecimalField('Monto estimado S/', max_digits=14, decimal_places=2, default=0)
+    probabilidad = models.PositiveSmallIntegerField('Probabilidad %', null=True, blank=True,
+                                                    help_text='Vacío = la de la etapa')
+    fecha_cierre = models.DateField('Cierre estimado', null=True, blank=True)
+    origen = models.CharField(max_length=10, choices=ORIGENES, blank=True)
+    responsable = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                    verbose_name='Vendedor responsable')
+    cotizacion = models.ForeignKey(Cotizacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    motivo_perdida = models.CharField('Motivo de pérdida', max_length=200, blank=True)
+    notas = models.TextField(blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-actualizado']
+        verbose_name = 'oportunidad'
+        verbose_name_plural = 'oportunidades'
+
+    def __str__(self):
+        return self.nombre
+
+    @property
+    def cliente(self):
+        return self.tercero.nombre if self.tercero_id else self.prospecto
+
+    @property
+    def prob(self):
+        return self.probabilidad if self.probabilidad is not None else self.PROBABILIDAD[self.etapa]
+
+    @property
+    def ponderado(self):
+        return self.monto * self.prob / 100
+
+
+class ActividadCRM(models.Model):
+    TIPOS = [('LLAMADA', 'Llamada'), ('REUNION', 'Reunión'), ('VISITA', 'Visita'), ('CORREO', 'Correo / WhatsApp'),
+             ('TAREA', 'Tarea'), ('NOTA', 'Nota')]
+    oportunidad = models.ForeignKey(Oportunidad, on_delete=models.CASCADE, related_name='actividades')
+    tipo = models.CharField(max_length=8, choices=TIPOS, default='LLAMADA')
+    fecha = models.DateField()
+    descripcion = models.CharField('Descripción', max_length=250)
+    hecha = models.BooleanField('Realizada', default=False)
+    usuario = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['hecha', 'fecha', 'id']
