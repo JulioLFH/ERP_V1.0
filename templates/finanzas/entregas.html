@@ -1,0 +1,34 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Entregas a rendir y caja chica{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Entregas a rendir y caja chica</h1>
+  <div class="d-flex gap-2">
+    <a href="{% url 'finanzas:entrega_nueva' %}?tipo=ENTREGA" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Entrega a rendir</a>
+    <a href="{% url 'finanzas:entrega_nueva' %}?tipo=CAJA_CHICA" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Fondo de caja chica</a>
+  </div>
+</div>
+<div class="card">
+  <div class="card-body border-bottom py-2">
+    <form class="row g-2" method="get">
+      <div class="col-auto"><select name="tipo" class="form-select form-select-sm"><option value="">Entregas y cajas chicas</option><option value="ENTREGA" {% if request.GET.tipo == 'ENTREGA' %}selected{% endif %}>Entregas a rendir</option><option value="CAJA_CHICA" {% if request.GET.tipo == 'CAJA_CHICA' %}selected{% endif %}>Cajas chicas</option></select></div>
+      <div class="col-auto"><select name="estado" class="form-select form-select-sm"><option value="ABIERTA" {% if estado == 'ABIERTA' %}selected{% endif %}>Abiertas</option><option value="LIQUIDADA" {% if estado == 'LIQUIDADA' %}selected{% endif %}>Liquidadas</option><option value="" {% if not estado %}selected{% endif %}>Todas</option></select></div>
+      <div class="col-auto"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Responsable o N°"></div>
+      <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i></button></div>
+    </form>
+  </div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+    <thead><tr><th>N°</th><th>Tipo</th><th>Fecha</th><th>Responsable</th><th>Motivo</th><th class="num">Entregado</th><th class="num">Rendido</th><th class="num">Saldo en su poder</th><th>Estado</th></tr></thead>
+    <tbody>
+    {% for e in page_obj %}
+      <tr><td><a href="{% url 'finanzas:entrega' e.pk %}">{{ e.numero }}</a></td><td class="small">{{ e.get_tipo_display }}</td><td>{{ e.fecha|date:'d/m/Y' }}</td>
+        <td class="small">{{ e.responsable.nombre|truncatechars:35 }}</td><td class="small">{{ e.motivo|truncatechars:40 }}</td>
+        <td class="num">{{ e.simbolo }} {{ e.entregado|money }}</td><td class="num">{{ e.rendido|money }}</td>
+        <td class="num fw-semibold {% if e.saldo < 0 %}text-danger{% endif %}">{{ e.saldo|money }}</td><td><span class="badge text-bg-light">{{ e.get_estado_display }}</span></td></tr>
+    {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No hay entregas con este filtro.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% include 'core/_paginacion.html' %}
+</div>
+<p class="small text-muted mt-2">Contabilidad: la entrega va a la 1413 (entregas a rendir) o 1021 (caja chica); cada gasto rendido se carga a su cuenta contra esa cuenta, y las facturas registradas en compras pagadas por el responsable se cancelan (42) contra el fondo.</p>
+{% endblock %}

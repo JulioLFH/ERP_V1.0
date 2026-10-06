@@ -1,0 +1,47 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Nuevo pago masivo{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Nuevo pago masivo</h1>
+<div class="card mb-3"><div class="card-body py-2">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-3"><label class="small">Cuenta de cargo</label><select name="cuenta" class="form-select form-select-sm">{% for b in bancos %}<option value="{{ b.pk }}" {% if cuenta and cuenta.pk == b.pk %}selected{% endif %}>{{ b }}</option>{% endfor %}</select></div>
+    <div class="col-auto"><label class="small">Vencidas hasta</label><input type="date" name="hasta" value="{{ hasta }}" class="form-control form-control-sm"></div>
+    <div class="col-md-4"><label class="small">Proveedor (opcional)</label><select name="proveedor" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'proveedores' %}"><option value="">Todos</option>{% if proveedor %}<option value="{{ proveedor.pk }}" selected>{{ proveedor }}</option>{% endif %}</select></div>
+    <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i> Buscar</button></div>
+  </form>
+</div></div>
+{% if not cuenta %}<div class="alert alert-warning">Registre primero una cuenta bancaria en Caja y bancos.</div>{% else %}
+<form method="post">{% csrf_token %}
+  <div class="card mb-3"><div class="card-header d-flex justify-content-between">Facturas pendientes en {{ cuenta.moneda }} <span class="small text-muted">{{ docs|length }} comprobante(s){% if docs|length == 400 %} (primeros 400: filtre por fecha o proveedor){% endif %}</span></div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th><input type="checkbox" class="form-check-input" id="todos"></th><th>Proveedor</th><th>Comprobante</th><th>Venc.</th><th>Abono</th><th class="num">Saldo</th><th style="width:150px" class="num">Pagar</th></tr></thead>
+      <tbody>
+      {% for d in docs %}
+        <tr><td><input type="checkbox" class="form-check-input js-sel" data-saldo="{{ d.saldo|stringformat:'s' }}"></td><td class="small">{{ d.tercero.nombre|truncatechars:35 }}</td><td class="small">{{ d }}</td>
+          <td {% if d.dias_vencido > 0 %}class="text-danger"{% endif %}>{{ d.fecha_vencimiento|date:'d/m/Y' }}</td>
+          <td class="small">{% if d.abono.1 %}{{ d.abono.0 }}{% else %}<span class="text-danger">Sin cuenta bancaria</span>{% endif %}</td>
+          <td class="num">{{ d.saldo|money }}</td><td><input type="number" step="0.01" min="0" name="monto_{{ d.pk }}" class="form-control form-control-sm text-end js-monto"></td></tr>
+      {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No hay facturas pendientes con este filtro.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr class="fw-bold"><td colspan="6" class="text-end">Total del lote</td><td class="num" id="total">0.00</td></tr></tfoot>
+    </table></div>
+  </div>
+  {% if docs %}
+  <div class="row g-2 align-items-end">
+    <div class="col-auto"><label class="form-label small">Fecha de pago</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+    <div class="col-md-4"><label class="form-label small">Glosa</label><input name="glosa" class="form-control form-control-sm" placeholder="Pago a proveedores semana…"></div>
+    <div class="col-auto"><button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Generar lote</button></div>
+  </div>
+  <p class="small text-muted mt-2">Las cuentas de cada proveedor (banco, N° de cuenta, CCI) se registran en su ficha de Contactos.</p>
+  {% endif %}
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  const total = () => { let t = 0; document.querySelectorAll('.js-monto').forEach(i => t += parseFloat(i.value) || 0); const el = document.getElementById('total'); if (el) el.textContent = t.toLocaleString('en-US', {minimumFractionDigits: 2}); };
+  document.querySelectorAll('.js-sel').forEach(c => c.addEventListener('change', () => { const i = c.closest('tr').querySelector('.js-monto'); i.value = c.checked ? parseFloat(c.dataset.saldo).toFixed(2) : ''; total(); }));
+  document.querySelectorAll('.js-monto').forEach(i => i.addEventListener('input', total));
+  const t = document.getElementById('todos'); if (t) t.addEventListener('change', () => document.querySelectorAll('.js-sel').forEach(c => { c.checked = t.checked; c.dispatchEvent(new Event('change')); }));
+</script>
+{% endblock %}

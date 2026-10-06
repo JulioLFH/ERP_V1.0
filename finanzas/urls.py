@@ -1,10 +1,25 @@
 from django.urls import path
 
-from . import views, views_extractos
+from . import views, views_extractos, views_tesoreria as vt
 
 app_name = 'finanzas'
 
 urlpatterns = [
+    path('anticipos/', vt.anticipos, name='anticipos'),
+    path('anticipos/<int:pk>/aplicar/', vt.anticipo_aplicar, name='anticipo_aplicar'),
+    path('aplicaciones/<int:pk>/anular/', vt.aplicacion_anular, name='aplicacion_anular'),
+    path('letras/', vt.letras, name='letras'),
+    path('letras/<int:pk>/', vt.letra, name='letra'),
+    path('letras/canje/', vt.canje_nuevo, name='canje_nuevo'),
+    path('letras/canje/<int:pk>/', vt.canje, name='canje'),
+    path('cheques/', vt.cheques, name='cheques'),
+    path('cheques/<int:pk>/estado/', vt.cheque_estado, name='cheque_estado'),
+    path('entregas/', vt.entregas, name='entregas'),
+    path('entregas/nueva/', vt.entrega_nueva, name='entrega_nueva'),
+    path('entregas/<int:pk>/', vt.entrega, name='entrega'),
+    path('pagos-masivos/', vt.pagos_masivos, name='pagos_masivos'),
+    path('pagos-masivos/nuevo/', vt.pago_masivo_nuevo, name='pago_masivo_nuevo'),
+    path('pagos-masivos/<int:pk>/', vt.pago_masivo, name='pago_masivo'),
     path('extractos/', views_extractos.extractos, name='extractos'),
     path('extractos/<int:pk>/', views_extractos.extracto, name='extracto'),
     path('extractos/<int:pk>/accion/', views_extractos.extracto_accion, name='extracto_accion'),

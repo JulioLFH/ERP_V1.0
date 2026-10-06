@@ -2,18 +2,25 @@
 {% block title %}{{ cfg.titulo }}{% endblock %}
 {% block content %}
 <h1 class="page-title mb-3">{{ cfg.titulo }}{% if detraccion %} — depósito de detracción{% endif %}</h1>
+{% if cheque %}<div class="alert alert-info py-2"><i class="bi bi-credit-card-2-front"></i> Depósito del cheque <strong>{{ cheque.numero }}</strong> ({{ cheque.banco_emisor }}) por <strong>{{ cheque.simbolo }} {{ cheque.monto|money }}</strong>: aplique ese importe a los comprobantes o letras del cliente.</div>{% endif %}
 <div class="card mb-3"><div class="card-body py-2">
   <form method="get" class="row g-2 align-items-center">
     <div class="col-auto"><label class="small">{{ cfg.etiqueta }}</label></div>
-    <div class="col-md-5"><select name="tercero" class="form-select form-select-sm" onchange="this.form.submit()">
+    <div class="col-md-5"><select name="tercero" class="form-select form-select-sm" onchange="this.form.submit()" data-opciones="{% url 'opciones' fuente %}">
       <option value="">— Seleccione —</option>
-      {% for t in terceros %}<option value="{{ t.pk }}" {% if tercero and tercero.pk == t.pk %}selected{% endif %}>{{ t }}</option>{% endfor %}
+      {% if tercero %}<option value="{{ tercero.pk }}" selected>{{ tercero.numero_doc }} - {{ tercero.nombre }}</option>{% endif %}
     </select></div>
     {% if detraccion %}<input type="hidden" name="detraccion" value="1">{% endif %}
+    {% if cheque %}<input type="hidden" name="cheque" value="{{ cheque.pk }}">{% endif %}
   </form>
 </div></div>
 
 {% if tercero %}
+{% if anticipos %}
+<div class="alert alert-warning py-2 small"><i class="bi bi-info-circle"></i> {{ tercero.nombre }} tiene anticipos sin aplicar:
+  {% for a in anticipos %}<a href="{% url 'finanzas:anticipo_aplicar' a.pk %}" class="ms-1">{{ a.voucher }} ({{ a.cuenta.simbolo }} {{ a.anticipo_disponible|money }})</a>{% endfor %}
+  — aplíquelos a sus comprobantes en vez de registrar un nuevo {% if modo == 'cobranza' %}cobro{% else %}pago{% endif %}.</div>
+{% endif %}
 <form method="post" enctype="multipart/form-data">
   {% csrf_token %}
   {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
@@ -31,16 +38,31 @@
             <input type="number" step="0.01" min="0" name="monto_{{ d.pk }}" class="form-control text-end js-monto" value="{% if doc_ini and doc_ini.pk == d.pk %}{% if detraccion %}{{ d.detraccion_monto|stringformat:'s' }}{% else %}{{ d.saldo|stringformat:'s' }}{% endif %}{% endif %}">
           </div></td>
         </tr>
-      {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No tiene documentos pendientes.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No tiene comprobantes pendientes.</td></tr>{% endfor %}
+      {% if letras and not detraccion %}
+        <tr class="table-light"><td colspan="9" class="small fw-semibold">Letras {% if modo == 'cobranza' %}por cobrar{% else %}por pagar{% endif %}</td></tr>
+        {% for l in letras %}
+        <tr>
+          <td><a href="{% url 'finanzas:letra' l.pk %}">Letra {{ l.numero }}</a> <span class="badge text-bg-light">{{ l.get_estado_display }}</span></td><td>{{ l.fecha_giro|date:'d/m/Y' }}</td>
+          <td {% if l.dias_vencido > 0 %}class="text-danger"{% endif %}>{{ l.fecha_vencimiento|date:'d/m/Y' }}</td><td>{{ l.moneda }}</td>
+          <td class="num">{{ l.monto|money }}</td><td></td><td class="num">{{ l.pagado|money }}</td><td class="num fw-semibold">{{ l.saldo|money }}</td>
+          <td><div class="input-group input-group-sm">
+            <button type="button" class="btn btn-outline-secondary js-llenar" data-valor="{{ l.saldo|stringformat:'s' }}" title="Aplicar saldo"><i class="bi bi-arrow-right"></i></button>
+            <input type="number" step="0.01" min="0" name="letra_{{ l.pk }}" class="form-control text-end js-monto">
+          </div></td>
+        </tr>
+        {% endfor %}
+      {% endif %}
       </tbody>
-      {% if pendientes %}<tfoot><tr class="fw-bold"><td colspan="8" class="text-end">Total a aplicar</td><td class="num" id="total-aplicar">0.00</td></tr></tfoot>{% endif %}
+      {% if pendientes or letras %}<tfoot><tr class="fw-bold"><td colspan="8" class="text-end">Total a aplicar</td><td class="num" id="total-aplicar">0.00</td></tr></tfoot>{% endif %}
     </table></div>
   </div>
-  {% if pendientes %}
+  {% if pendientes or letras %}
   <div class="card"><div class="card-header">Datos del {% if modo == 'cobranza' %}ingreso{% else %}egreso{% endif %}</div><div class="card-body">
     <div class="row g-3">
       {% for field in form %}<div class="col-md-4">{% include 'core/_campo.html' %}</div>{% endfor %}
     </div>
+    <p class="small text-muted mt-2 mb-0">Con medio de pago <strong>Cheque</strong> el cheque queda registrado en Finanzas &gt; Cheques (indique su número).</p>
     <button class="btn btn-success mt-3"><i class="bi bi-check-lg"></i> Registrar {% if modo == 'cobranza' %}cobranza{% else %}pago{% endif %}</button>
   </div></div>
   {% endif %}

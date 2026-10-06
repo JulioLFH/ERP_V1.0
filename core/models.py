@@ -122,6 +122,11 @@ class Empresa(models.Model):
         return tercero
 
 
+BANCOS = [('', '---'), ('BCP', 'BCP'), ('BBVA', 'BBVA'), ('SCOTIABANK', 'Scotiabank'), ('INTERBANK', 'Interbank'),
+          ('BN', 'Banco de la Nación'), ('BANBIF', 'BanBif'), ('PICHINCHA', 'Pichincha'), ('GNB', 'GNB'),
+          ('OTRO', 'Otro')]
+
+
 class Tercero(models.Model):
     TIPOS = [('CLIENTE', 'Cliente'), ('PROVEEDOR', 'Proveedor'), ('AMBOS', 'Cliente y proveedor')]
     TIPOS_DOC = [('6', 'RUC'), ('1', 'DNI'), ('4', 'Carné de extranjería'), ('7', 'Pasaporte'), ('0', 'Otros')]
@@ -143,6 +148,12 @@ class Tercero(models.Model):
     ubigeo = models.CharField(max_length=6, blank=True, help_text='Ubigeo de la dirección (para guías)')
     registro_mtc = models.CharField('Registro MTC', max_length=20, blank=True,
                                     help_text='Solo empresas de transporte (guía transportista)')
+    # cuenta donde se le paga (pagos masivos a bancos)
+    banco = models.CharField(max_length=12, choices=BANCOS, blank=True)
+    cuenta_bancaria = models.CharField('N° de cuenta', max_length=30, blank=True,
+                                       help_text='Cuenta en el mismo banco desde el que se paga')
+    cci = models.CharField('CCI', max_length=20, blank=True, help_text='Código de cuenta interbancario (20 dígitos)')
+    cuenta_detracciones = models.CharField('Cuenta de detracciones (BN)', max_length=20, blank=True)
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -937,12 +948,15 @@ class ComprobanteQuerySet(models.QuerySet):
     def con_saldos(self):
         """Anota pagos y notas en una sola consulta (evita una consulta por documento al calcular saldos)."""
         movimiento = apps.get_model('finanzas', 'Movimiento')
+        aplicacion = apps.get_model('finanzas', 'Aplicacion')
         fk = self.model._meta.model_name
         movs = movimiento.objects.filter(**{fk: OuterRef('pk')}).values(fk)
+        apls = aplicacion.objects.filter(**{fk: OuterRef('pk')}).values(fk)
         notas = self.model.objects.filter(doc_referencia=OuterRef('pk'), estado='REGISTRADO').values('doc_referencia')
         nc, nd = notas.filter(tipo_comprobante='07'), notas.filter(tipo_comprobante='08')
         return self.annotate(
-            ann_pagado=_suma_sub(movs, 'monto_doc'), ann_pagado_pen=_suma_sub(movs, 'monto_doc_pen'),
+            ann_pagado=_suma_sub(movs, 'monto_doc') + _suma_sub(apls, 'monto_doc'),
+            ann_pagado_pen=_suma_sub(movs, 'monto_doc_pen') + _suma_sub(apls, 'monto_doc_pen'),
             ann_nc=_suma_sub(nc, 'total'), ann_nd=_suma_sub(nd, 'total'),
             ann_nc_pen=_suma_sub(nc, 'total_pen'), ann_nd_pen=_suma_sub(nd, 'total_pen'))
 
@@ -1079,9 +1093,14 @@ class ComprobanteBase(TotalesMixin):
     def neto(self):
         return self.total_documento - self.retencion_monto + self.percepcion_monto
 
+    def _cancelado(self, campo):
+        """Cobrado/pagado con caja y bancos más lo cancelado sin caja (anticipos, canje por letras, rendiciones)."""
+        return ((self.movimientos.aggregate(s=Sum(campo))['s'] or D0)
+                + (self.aplicaciones.aggregate(s=Sum(campo))['s'] or D0))
+
     @property
     def pagado(self):
-        return self._anotado('ann_pagado', lambda: self.movimientos.aggregate(s=Sum('monto_doc'))['s'])
+        return self._anotado('ann_pagado', lambda: self._cancelado('monto_doc'))
 
     @property
     def historico_cancelado(self):
@@ -1106,7 +1125,7 @@ class ComprobanteBase(TotalesMixin):
         """Saldo en soles con los mismos importes que usa la contabilidad (cuentas 12 y 42)."""
         if self.estado == 'ANULADO' or self.es_nota_aplicada or self.historico_cancelado:
             return D0
-        pagado = self._anotado('ann_pagado_pen', lambda: self.movimientos.aggregate(s=Sum('monto_doc_pen'))['s'])
+        pagado = self._anotado('ann_pagado_pen', lambda: self._cancelado('monto_doc_pen'))
         return (self.total_pen - self._anotado('ann_nc_pen', lambda: self._notas('07', 'total_pen'))
                 + self._anotado('ann_nd_pen', lambda: self._notas('08', 'total_pen'))
                 - self.ret_pen + self.perc_pen - pagado - self.pagado_anterior_pen)

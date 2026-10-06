@@ -1,0 +1,21 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Costo de planilla por centro de costo{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Costo de planilla por centro de costo</h1>
+  <form class="d-flex gap-2" method="get">
+    <input type="number" name="anio" value="{{ anio }}" class="form-control form-control-sm" style="width:100px">
+    <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i></button>
+    <button name="formato" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i></button>
+  </form>
+</div>
+<p class="small text-muted">Ingresos del trabajador más aportes del empleador (EsSalud) de todas las planillas calculadas del año, según el centro de costo de cada trabajador.</p>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
+  <thead><tr><th>Centro de costo</th>{% for m in meses %}<th class="num">{{ m|stringformat:'02d' }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
+  <tbody>
+  {% for centro, valores in datos %}<tr><td class="text-nowrap">{{ centro }}</td>{% for v in valores %}<td class="num {% if forloop.last %}fw-semibold{% endif %}">{% if v %}{{ v|money }}{% endif %}</td>{% endfor %}</tr>
+  {% empty %}<tr><td colspan="14" class="text-center text-muted py-4">Sin planillas calculadas en {{ anio }}.</td></tr>{% endfor %}
+  </tbody>
+  {% if datos %}<tfoot><tr class="fw-bold table-light"><td>Total</td>{% for v in totales %}<td class="num">{{ v|money }}</td>{% endfor %}</tr></tfoot>{% endif %}
+</table></div></div>
+{% endblock %}

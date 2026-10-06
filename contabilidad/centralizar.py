@@ -262,7 +262,7 @@ def asiento_movimiento(m, cta, tc_func):
     if m.concepto == 'TRANSFERENCIA' and m.tipo == 'INGRESO' and m.transferencia_par_id:
         return None  # se contabiliza una sola vez desde el egreso
     usd = m.cuenta.moneda == 'USD'
-    doc_obj = m.venta or m.compra
+    doc_obj = m.venta or m.compra or m.letra
     tc_dia = tc_func(m.fecha) if usd else Decimal('1')
     a = Asiento(fecha=m.fecha, libro='01', origen='TESORERIA', movimiento=m, moneda=m.cuenta.moneda,
                 tipo_cambio=tc_dia, glosa=f'{m.voucher} {m.get_concepto_display()} {m.glosa}'[:250])
@@ -278,6 +278,10 @@ def asiento_movimiento(m, cta, tc_func):
         contra = cta['cliente']
     elif m.compra_id:
         contra = cta['honorarios_por_pagar'] if m.compra.tipo_comprobante == '02' else cta['proveedor']
+    elif m.letra_id:
+        contra = cta['letras_cobrar'] if m.letra.tipo == 'COBRAR' else cta['letras_pagar']
+    elif m.entrega_id:
+        contra = m.entrega.cuenta(cta)  # entrega al responsable (egreso) o devolución del saldo (ingreso)
     elif m.concepto == 'TRANSFERENCIA':
         par = Movimiento.objects.filter(transferencia_par=m).select_related('cuenta').first()
         contra = cuenta_caja(par.cuenta, cta) if par else cta['egreso_otro']
@@ -306,6 +310,86 @@ def asiento_movimiento(m, cta, tc_func):
             b.add(cta['dif_cambio_ganancia'], haber=-diferencia, documento=doc, glosa='Diferencia de cambio')
     b.agregar_destinos()
     return b.grabar()
+
+
+def _cuenta_tercero(doc, cta):
+    if doc._meta.model_name == 'venta':
+        return cta['cliente']
+    return cta['honorarios_por_pagar'] if doc.tipo_comprobante == '02' else cta['proveedor']
+
+
+def asiento_aplicacion(ap, cta, tc_func):
+    """Cancelación sin caja: anticipo (122/422), canje por letras (123/423) o rendición (141/102) contra 12 / 42.
+
+    El documento se cancela por su importe en soles (su propio T.C.); la otra cuenta va al T.C. con que se registró
+    (día del anticipo o del canje) y la diferencia es diferencia de cambio."""
+    doc = ap.documento
+    es_venta = ap.venta_id is not None
+    if ap.origen == 'ANTICIPO':
+        mov = ap.anticipo
+        contra = mov.cuenta_contable or (cta['mov_ANTICIPO_INGRESO'] if es_venta else cta['mov_ANTICIPO_EGRESO'])
+        tc_contra = tc_func(mov.fecha) if doc.moneda == 'USD' else Decimal('1')
+        glosa = f'Aplicación del anticipo {mov.voucher}'
+    elif ap.origen == 'CANJE':
+        contra = cta['letras_cobrar'] if es_venta else cta['letras_pagar']
+        tc_contra, glosa = ap.canje.tc_efectivo, f'Canje por letras {ap.canje.numero}'
+    else:
+        contra, tc_contra = ap.entrega.cuenta(cta), doc.tc_efectivo
+        glosa = f'Pagado con {ap.entrega.get_tipo_display().lower()} {ap.entrega.numero}'
+    a = Asiento(fecha=ap.fecha, libro='05', origen='APLICACION', moneda=doc.moneda, tipo_cambio=doc.tc_efectivo,
+                glosa=f'{glosa} - {doc} {doc.tercero.nombre}'[:250])
+    b = Borrador(a, doc.moneda, doc.tc_efectivo)
+    documento = f'{doc.tipo_comprobante} {doc.numero_completo}'
+    importe_doc, importe_contra = ap.monto_doc_pen, r2(ap.monto_doc * tc_contra)
+    tercero = ap.entrega.responsable if ap.origen == 'RENDICION' else doc.tercero
+    diferencia = importe_contra - importe_doc
+    if es_venta:  # 122/123 al debe, 12 al haber
+        b.add(contra, debe=importe_contra, tercero=tercero, documento=documento, glosa=glosa, importe_me=ap.monto_doc)
+        b.add(_cuenta_tercero(doc, cta), haber=importe_doc, tercero=doc.tercero, documento=documento, glosa=glosa,
+              importe_me=ap.monto_doc)
+        if diferencia > 0:
+            b.add(cta['dif_cambio_ganancia'], haber=diferencia, documento=documento, glosa='Diferencia de cambio')
+        elif diferencia < 0:
+            b.add(cta['dif_cambio_perdida'], debe=-diferencia, documento=documento, glosa='Diferencia de cambio')
+    else:  # 42 al debe, 422/423/141 al haber
+        b.add(_cuenta_tercero(doc, cta), debe=importe_doc, tercero=doc.tercero, documento=documento, glosa=glosa,
+              importe_me=ap.monto_doc)
+        b.add(contra, haber=importe_contra, tercero=tercero, documento=documento, glosa=glosa, importe_me=ap.monto_doc)
+        if diferencia > 0:
+            b.add(cta['dif_cambio_perdida'], debe=diferencia, documento=documento, glosa='Diferencia de cambio')
+        elif diferencia < 0:
+            b.add(cta['dif_cambio_ganancia'], haber=-diferencia, documento=documento, glosa='Diferencia de cambio')
+    return b.grabar()
+
+
+def asiento_rendiciones(periodo, cta, tc_func):
+    """Gastos rendidos sin factura (tickets, movilidad…): gasto (con su destino) contra la entrega a rendir."""
+    from finanzas.models import GastoRendicion
+    desde, hasta = _rango(periodo)
+    gastos = list(GastoRendicion.objects.filter(fecha__range=[desde, hasta]).select_related(
+        'entrega__responsable', 'entrega__cuenta_contable', 'cuenta_contable__destino_debe',
+        'cuenta_contable__destino_haber', 'centro_costo').order_by('entrega_id', 'fecha', 'id'))
+    asientos = 0
+    for entrega_id in dict.fromkeys(g.entrega_id for g in gastos):
+        lista = [g for g in gastos if g.entrega_id == entrega_id]
+        e = lista[0].entrega
+        tc = tc_func(hasta) if e.moneda == 'USD' else Decimal('1')
+        a = Asiento(fecha=max(g.fecha for g in lista), libro='05', origen='APLICACION', moneda=e.moneda,
+                    tipo_cambio=tc, glosa=f'Rendición {e.numero} {e.responsable.nombre} {periodo}'[:250])
+        b = Borrador(a, e.moneda, tc)
+        total = D0
+        for g in lista:
+            importe = r2(g.monto * tc)
+            total += importe
+            doc = f'{g.tipo_documento} {g.numero_documento}'.strip()
+            b.add(g.cuenta_contable, debe=importe, documento=doc, centro_costo=g.centro_costo or e.centro_costo,
+                  glosa=g.descripcion, importe_me=g.monto)
+        b.add(e.cuenta(cta), haber=total, tercero=e.responsable, documento=e.numero, glosa=f'Rendición {e.numero}',
+              importe_me=sum(g.monto for g in lista))
+        b.agregar_destinos()
+        if b.grabar():
+            asientos += 1
+    return asientos
 
 
 def asiento_cambio_cierre(periodo, cta, tc_obj):
@@ -522,13 +606,27 @@ def centralizar_periodo(periodo):
             except ErrorContable as exc:
                 resumen['errores'].append(str(exc))
         for m in (Movimiento.objects.filter(fecha__range=[desde, hasta])
-                  .select_related('cuenta', 'venta', 'compra', 'tercero', 'cuenta_contable', 'centro_costo')
+                  .select_related('cuenta', 'venta', 'compra', 'letra', 'entrega', 'tercero', 'cuenta_contable',
+                                  'centro_costo')
                   .order_by('fecha', 'id')):
             try:
                 if asiento_movimiento(m, cta, tc_func):
                     resumen['tesoreria'] += 1
             except ErrorContable as exc:
                 resumen['errores'].append(str(exc))
+        from finanzas.models import Aplicacion
+        for ap in (Aplicacion.objects.filter(fecha__range=[desde, hasta])
+                   .select_related('venta__tercero', 'compra__tercero', 'anticipo__cuenta_contable', 'canje',
+                                   'entrega__responsable').order_by('fecha', 'id')):
+            try:
+                if asiento_aplicacion(ap, cta, tc_func):
+                    resumen['tesoreria'] += 1
+            except ErrorContable as exc:
+                resumen['errores'].append(str(exc))
+        try:
+            resumen['tesoreria'] += asiento_rendiciones(periodo, cta, tc_func)
+        except ErrorContable as exc:
+            resumen['errores'].append(str(exc))
         try:
             if asiento_inventario(periodo, cta):
                 resumen['costo'] = 1

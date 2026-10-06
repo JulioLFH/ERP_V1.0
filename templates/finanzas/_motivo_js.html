@@ -1,0 +1,8 @@
+<script>
+// formularios que piden un motivo antes de enviarse (anular, rechazar…)
+document.querySelectorAll('form.js-motivo').forEach((f) => f.addEventListener('submit', (e) => {
+  const motivo = prompt(f.dataset.pregunta || 'Motivo (mínimo 10 caracteres):');
+  if (!motivo || motivo.trim().length < 10) { e.preventDefault(); if (motivo !== null) alert('Indique un motivo de al menos 10 caracteres.'); return; }
+  f.querySelector('input[name=motivo]').value = motivo.trim();
+}));
+</script>

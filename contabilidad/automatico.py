@@ -148,6 +148,13 @@ def _conectar():
     def kardex_cambio(sender, instance, **kwargs):
         marcar_pendiente(instance.fecha.strftime('%Y%m'))
 
+    from finanzas.models import Aplicacion, GastoRendicion
+
+    @receiver([post_save, post_delete], sender=Aplicacion, weak=False)
+    @receiver([post_save, post_delete], sender=GastoRendicion, weak=False)
+    def aplicacion_cambio(sender, instance, **kwargs):
+        marcar_pendiente(instance.fecha.strftime('%Y%m'))
+
     @receiver(post_save, sender=Cuenta, weak=False)
     def cuenta_cambio(sender, instance, created, **kwargs):
         if not instance.cuenta_contable_id:

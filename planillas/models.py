@@ -170,7 +170,7 @@ class Trabajador(models.Model):
 
 class Planilla(models.Model):
     TIPOS = [('MENSUAL', 'Remuneraciones del mes'), ('GRATIFICACION', 'Gratificación (julio / diciembre)'),
-             ('CTS', 'CTS (mayo / noviembre)')]
+             ('CTS', 'CTS (mayo / noviembre)'), ('LIQUIDACION', 'Liquidación de beneficios sociales (ceses del mes)')]
     ESTADOS = [('BORRADOR', 'Borrador'), ('CALCULADA', 'Calculada'), ('CERRADA', 'Cerrada'),
                ('PAGADA', 'Pagada')]
     tipo = models.CharField(max_length=14, choices=TIPOS, default='MENSUAL')
@@ -211,6 +211,12 @@ class FilaPlanilla(models.Model):
     dias_laborados = models.DecimalField('Días del periodo', max_digits=5, decimal_places=2, default=Decimal('30'))
     dias_falta = models.DecimalField('Faltas', max_digits=5, decimal_places=2, default=D0)
     dias_vacaciones = models.DecimalField('Vacaciones', max_digits=5, decimal_places=2, default=D0)
+    dias_vacaciones_vendidas = models.DecimalField(
+        'Vacaciones vendidas', max_digits=5, decimal_places=2, default=D0,
+        help_text='Días de descanso compensados con remuneración (máx. 15 por año, art. 19 D. Leg. 713)')
+    despido_arbitrario = models.BooleanField('Despido arbitrario (indemnización)', default=False,
+                                             help_text='Solo liquidaciones: calcula la indemnización del art. 38 '
+                                                       'del D. S. 003-97-TR')
     dias_subsidio = models.DecimalField('Descanso médico subsidiado', max_digits=5, decimal_places=2, default=D0,
                                         help_text='Días pagados por EsSalud (desde el día 21 de incapacidad)')
     horas_extra_25 = models.DecimalField('Horas extra 25%', max_digits=6, decimal_places=2, default=D0)
@@ -236,6 +242,36 @@ class FilaPlanilla(models.Model):
 
     def monto(self, clave):
         return sum((l.monto for l in self.lineas.all() if l.concepto.clave == clave), D0)
+
+
+class Vacacion(models.Model):
+    """Días de vacaciones gozados o vendidos; el récord vacacional se calcula en calculo.record_vacacional."""
+    TIPOS = [('GOCE', 'Goce vacacional (descanso)'), ('VENTA', 'Venta / compensación (trabaja y cobra)')]
+    trabajador = models.ForeignKey(Trabajador, on_delete=models.CASCADE, related_name='vacaciones')
+    tipo = models.CharField(max_length=5, choices=TIPOS, default='GOCE')
+    fecha_inicio = models.DateField('Desde')
+    fecha_fin = models.DateField('Hasta')
+    anio_servicio = models.PositiveIntegerField('Año de servicio que se descuenta', null=True, blank=True,
+                                                help_text='Vacío = el periodo pendiente más antiguo')
+    observaciones = models.CharField(max_length=200, blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_inicio']
+        verbose_name = 'vacaciones'
+        verbose_name_plural = 'vacaciones'
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} {self.trabajador.nombre_completo} {self.fecha_inicio:%d/%m/%Y}'
+
+    @property
+    def dias(self):
+        return (self.fecha_fin - self.fecha_inicio).days + 1
+
+    def dias_en(self, desde, hasta):
+        """Días del registro dentro del rango (para la planilla del mes)."""
+        inicio, fin = max(self.fecha_inicio, desde), min(self.fecha_fin, hasta)
+        return max((fin - inicio).days + 1, 0)
 
 
 class LineaPlanilla(models.Model):

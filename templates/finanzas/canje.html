@@ -1,0 +1,28 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Canje {{ c.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Canje {{ c.numero }} {% if c.estado == 'ANULADO' %}<span class="badge badge-ANULADO">Anulado</span>{% endif %}</h1>
+  {% if c.estado == 'VIGENTE' and puede.finanzas_anular %}
+  <form method="post" class="js-motivo" data-pregunta="Motivo de la anulación del canje (mínimo 10 caracteres):">{% csrf_token %}<input type="hidden" name="motivo"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular canje</button></form>
+  {% endif %}
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="kpi"><div class="label">{{ c.get_tipo_display }}</div><div class="fw-semibold">{{ c.tercero }}</div></div></div>
+  <div class="col-md-2"><div class="kpi"><div class="label">Fecha</div><div class="fw-semibold">{{ c.fecha|date:'d/m/Y' }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Total ({{ c.moneda }}{% if c.moneda == 'USD' %} · T.C. {{ c.tipo_cambio }}{% endif %})</div><div class="value">{{ c.total|money }}</div></div></div>
+</div>
+{% if c.glosa %}<p class="small text-muted">{{ c.glosa }}</p>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card"><div class="card-header">Comprobantes canjeados</div>
+    <table class="table table-sm mb-0"><thead><tr><th>Comprobante</th><th class="num">Canjeado</th></tr></thead><tbody>
+    {% for ap in aplicaciones %}<tr {% if ap.estado == 'ANULADO' %}class="text-muted text-decoration-line-through"{% endif %}><td>{% if ap.venta %}<a href="{% url 'ventas:detalle' ap.venta_id %}">{{ ap.venta }}</a>{% else %}<a href="{% url 'compras:detalle' ap.compra_id %}">{{ ap.compra }}</a>{% endif %}</td><td class="num">{{ ap.monto_doc|money }}</td></tr>{% endfor %}
+    </tbody></table></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header">Letras</div>
+    <table class="table table-sm mb-0"><thead><tr><th>Letra</th><th>Vence</th><th class="num">Monto</th><th class="num">Saldo</th><th>Estado</th></tr></thead><tbody>
+    {% for l in letras %}<tr><td><a href="{% url 'finanzas:letra' l.pk %}">{{ l.numero }}</a></td><td>{{ l.fecha_vencimiento|date:'d/m/Y' }}</td><td class="num">{{ l.monto|money }}</td><td class="num">{{ l.saldo|money }}</td><td><span class="badge text-bg-light">{{ l.get_estado_display }}</span></td></tr>{% endfor %}
+    </tbody></table></div></div>
+</div>
+<a href="{% url 'finanzas:letras' %}" class="btn btn-sm btn-link mt-3"><i class="bi bi-arrow-left"></i> Letras</a>
+{% include 'finanzas/_motivo_js.html' %}
+{% endblock %}

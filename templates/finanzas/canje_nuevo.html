@@ -1,0 +1,82 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Canje por letras{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Canje de facturas por letras {% if tipo == 'COBRAR' %}por cobrar{% else %}por pagar{% endif %}</h1>
+<div class="card mb-3"><div class="card-body py-2">
+  <form method="get" class="row g-2 align-items-center">
+    <input type="hidden" name="tipo" value="{{ tipo }}">
+    <div class="col-auto"><label class="small">{% if tipo == 'COBRAR' %}Cliente{% else %}Proveedor{% endif %}</label></div>
+    <div class="col-md-5"><select name="tercero" class="form-select form-select-sm" onchange="this.form.submit()" data-opciones="{% url 'opciones' fuente %}">
+      <option value="">— Seleccione —</option>{% if tercero %}<option value="{{ tercero.pk }}" selected>{{ tercero.numero_doc }} - {{ tercero.nombre }}</option>{% endif %}
+    </select></div>
+    <div class="col-auto"><select name="moneda" class="form-select form-select-sm" onchange="this.form.submit()"><option value="PEN" {% if moneda == 'PEN' %}selected{% endif %}>Soles</option><option value="USD" {% if moneda == 'USD' %}selected{% endif %}>Dólares</option></select></div>
+  </form>
+</div></div>
+{% if tercero %}
+<form method="post">{% csrf_token %}
+  <input type="hidden" name="tipo" value="{{ tipo }}">
+  <div class="card mb-3"><div class="card-header">1. Comprobantes a canjear</div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>Comprobante</th><th>Emisión</th><th>Venc.</th><th class="num">Saldo</th><th style="width:170px" class="num">Canjear</th></tr></thead>
+      <tbody>
+      {% for d in docs %}
+        <tr><td>{{ d }}</td><td>{{ d.fecha_emision|date:'d/m/Y' }}</td><td>{{ d.fecha_vencimiento|date:'d/m/Y' }}</td><td class="num">{{ d.saldo|money }}</td>
+          <td><div class="input-group input-group-sm"><button type="button" class="btn btn-outline-secondary js-llenar" data-valor="{{ d.saldo|stringformat:'s' }}"><i class="bi bi-arrow-right"></i></button>
+            <input type="number" step="0.01" min="0" name="monto_{{ d.pk }}" class="form-control text-end js-doc"></div></td></tr>
+      {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No tiene comprobantes pendientes en {{ moneda }}.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr class="fw-bold"><td colspan="4" class="text-end">Total canjeado</td><td class="num" id="t-docs">0.00</td></tr></tfoot>
+    </table></div>
+  </div>
+  {% if docs %}
+  <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center">2. Letras giradas
+      <div class="d-flex gap-2 align-items-center small">Dividir en <input type="number" min="1" max="36" value="3" id="n-letras" class="form-control form-control-sm" style="width:70px"> letras cada <input type="number" min="1" value="30" id="dias" class="form-control form-control-sm" style="width:70px"> días <button type="button" class="btn btn-sm btn-outline-primary" id="generar">Generar</button></div></div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>N° de letra (vacío = automático)</th><th>Vencimiento</th><th class="num">Monto</th><th></th></tr></thead>
+      <tbody id="letras"></tbody>
+      <tfoot><tr><td colspan="2"><button type="button" class="btn btn-sm btn-link" id="agregar"><i class="bi bi-plus"></i> Agregar letra</button></td><td class="num fw-bold" id="t-letras">0.00</td><td></td></tr></tfoot>
+    </table></div>
+  </div>
+  <div class="row g-2 align-items-end">
+    <div class="col-auto"><label class="form-label small">Fecha del canje</label><input type="date" name="fecha" id="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+    {% if moneda == 'USD' %}<div class="col-auto"><label class="form-label small">T.C. (vacío = del día)</label><input type="number" step="0.001" name="tipo_cambio" class="form-control form-control-sm"></div>{% endif %}
+    <div class="col-md-4"><label class="form-label small">Glosa</label><input name="glosa" class="form-control form-control-sm" maxlength="250"></div>
+    <div class="col-auto"><button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Registrar canje</button></div>
+  </div>
+  {% endif %}
+</form>
+<template id="fila"><tr><td><input name="l_numero" class="form-control form-control-sm" maxlength="20"></td><td><input type="date" name="l_vencimiento" class="form-control form-control-sm" required></td><td><input type="number" step="0.01" min="0" name="l_monto" class="form-control form-control-sm text-end js-letra"></td><td><button type="button" class="btn btn-sm btn-link text-danger js-quitar"><i class="bi bi-x"></i></button></td></tr></template>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const tb = document.getElementById('letras'); if (!tb) return;
+  const suma = (sel) => [...document.querySelectorAll(sel)].reduce((t, i) => t + (parseFloat(i.value) || 0), 0);
+  const totales = () => { document.getElementById('t-docs').textContent = suma('.js-doc').toFixed(2); document.getElementById('t-letras').textContent = suma('.js-letra').toFixed(2); };
+  const agregar = (venc, monto) => {
+    const f = document.getElementById('fila').content.cloneNode(true);
+    if (venc) f.querySelector('[name=l_vencimiento]').value = venc;
+    if (monto) f.querySelector('[name=l_monto]').value = monto;
+    tb.appendChild(f);
+  };
+  document.getElementById('agregar').addEventListener('click', () => agregar());
+  tb.addEventListener('click', (e) => { const b = e.target.closest('.js-quitar'); if (b) { b.closest('tr').remove(); totales(); } });
+  document.addEventListener('input', totales);
+  document.querySelectorAll('.js-llenar').forEach(b => b.addEventListener('click', () => { b.nextElementSibling.value = parseFloat(b.dataset.valor).toFixed(2); totales(); }));
+  document.getElementById('generar').addEventListener('click', () => {
+    const total = Math.round(suma('.js-doc') * 100), n = parseInt(document.getElementById('n-letras').value) || 1, dias = parseInt(document.getElementById('dias').value) || 30;
+    if (!total) { alert('Primero indique los montos a canjear.'); return; }
+    tb.innerHTML = '';
+    const base = Math.floor(total / n), inicio = new Date(document.getElementById('fecha').value + 'T00:00:00');
+    for (let i = 1; i <= n; i++) {
+      const d = new Date(inicio); d.setDate(d.getDate() + dias * i);
+      const cents = i === n ? total - base * (n - 1) : base;
+      agregar(d.toISOString().slice(0, 10), (cents / 100).toFixed(2));
+    }
+    totales();
+  });
+  agregar(); totales();
+})();
+</script>
+{% endblock %}

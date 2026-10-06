@@ -9,9 +9,9 @@ from core.models import Empresa
 from core.utils import excel_response
 
 from . import calculo, servicios
-from .forms import (AFPFormSet, ConceptosFormSet, FilasFormSet, PagoForm, ParametrosFormSet, PlanillaForm,
-                    TrabajadorForm)
-from .models import ConceptoPlanilla, FilaPlanilla, Planilla, Trabajador
+from .forms import (AFPFormSet, ConceptosFormSet, FilasFormSet, LiquidacionFormSet, PagoForm, ParametrosFormSet,
+                    PlanillaForm, TrabajadorForm, VacacionForm)
+from .models import ConceptoPlanilla, FilaPlanilla, Planilla, Trabajador, Vacacion
 
 
 # ---------------------------------------------------------------- trabajadores
@@ -93,8 +93,8 @@ def planilla_detalle(request, pk):
     editable = planilla.estado in ('BORRADOR', 'CALCULADA')
     filas_qs = planilla.filas.select_related('trabajador__afp', 'trabajador__centro_costo') \
         .prefetch_related('lineas__concepto')
-    formset = FilasFormSet(request.POST or None, queryset=filas_qs, prefix='filas') \
-        if editable and planilla.tipo == 'MENSUAL' else None
+    clase = {'MENSUAL': FilasFormSet, 'LIQUIDACION': LiquidacionFormSet}.get(planilla.tipo)
+    formset = clase(request.POST or None, queryset=filas_qs, prefix='filas') if editable and clase else None
     if request.method == 'POST':
         accion = request.POST.get('accion')
         try:
@@ -149,7 +149,9 @@ def _ctx(planilla, formset, filas_qs):
     formularios = {f.instance.pk: f for f in formset.forms} if formset is not None else {}
     for f in filas:
         f.form = formularios.get(f.pk)
+    columnas = formset.form.COLUMNAS if formset is not None else []
     return {'planilla': planilla, 'formset': formset, 'filas': filas, 'conceptos': conceptos,
+            'columnas_form': columnas, 'n_columnas': len(columnas),
             'totales': planilla.totales(), 'pago_form': PagoForm(),
             'totales_concepto': [sum((x or 0) for x in col) for col in zip(*[f.columnas for f in filas])]
             if filas else []}
@@ -207,6 +209,79 @@ def aportes_afp(request, periodo):
     return excel_response(f'Aportes_AFP_{periodo}', f'APORTES AFP {periodo}', [
         'AFP', 'CUSPP', 'DNI', 'Trabajador', 'Remuneración asegurable', 'Aporte obligatorio', 'Prima de seguro',
         'Comisión', 'Total'], datos)
+
+
+# ---------------------------------------------------------------- vacaciones
+@login_required
+def vacaciones(request):
+    """Récord vacacional de cada trabajador activo y registro de goces / ventas."""
+    from datetime import date
+    form = VacacionForm(request.POST or None, initial={'fecha_inicio': date.today(), 'fecha_fin': date.today()})
+    if request.method == 'POST':
+        if request.POST.get('eliminar'):
+            v = get_object_or_404(Vacacion, pk=request.POST['eliminar'])
+            if FilaPlanilla.objects.filter(trabajador=v.trabajador, planilla__estado__in=('CERRADA', 'PAGADA'),
+                                           planilla__periodo=v.fecha_inicio.strftime('%Y%m')).exists():
+                messages.error(request, 'Esas vacaciones ya están en una planilla cerrada.')
+            else:
+                v.delete()
+                messages.success(request, 'Registro de vacaciones eliminado.')
+            return redirect(request.get_full_path())
+        if form.is_valid():
+            v = form.save()
+            messages.success(request, f'{v.get_tipo_display()} registrado ({v.dias} días). Se toma en la planilla '
+                                      f'del mes al "Actualizar trabajadores" (o ingrese los días en la fila).')
+            return redirect(request.get_full_path())
+    q = request.GET.get('q', '').strip()
+    hoy = date.today()
+    qs = Trabajador.objects.filter(Q(fecha_cese__isnull=True) | Q(fecha_cese__gte=hoy)).exclude(
+        fecha_ingreso__isnull=True).prefetch_related('vacaciones')
+    if q:
+        qs = qs.filter(Q(numero_doc__startswith=q) | Q(apellido_paterno__icontains=q) | Q(nombres__icontains=q))
+    filas = []
+    for t in qs:
+        anios, trunco = calculo.record_vacacional(t, hoy)
+        filas.append({'t': t, 'anios': anios, 'trunco': trunco,
+                      'pendientes': sum(a['pendientes'] for a in anios),
+                      'vencidos': sum(a['pendientes'] for a in anios if a['vencido']),
+                      'gozados': sum(a['gozados'] for a in anios), 'vendidos': sum(a['vendidos'] for a in anios)})
+    if request.GET.get('formato') == 'excel':
+        return excel_response('Record_vacacional', 'RÉCORD VACACIONAL', [
+            'Documento', 'Trabajador', 'Ingreso', 'Años cumplidos', 'Días gozados', 'Días vendidos', 'Pendientes',
+            'Vencidos'], [[f['t'].numero_doc, f['t'].nombre_completo, f['t'].fecha_ingreso, len(f['anios']),
+                           f['gozados'], f['vendidos'], f['pendientes'], f['vencidos']] for f in filas])
+    detalle = None
+    if request.GET.get('trabajador'):
+        detalle = next((f for f in filas if str(f['t'].pk) == request.GET['trabajador']), None)
+    return render(request, 'planillas/vacaciones.html', {
+        'form': form, 'filas': filas, 'q': q, 'detalle': detalle,
+        'registros': Vacacion.objects.select_related('trabajador')[:30]})
+
+
+# ---------------------------------------------------------------- costo por centro de costo
+@login_required
+def costo_centros(request):
+    """Costo de la planilla (ingresos + aportes del empleador) por centro de costo y mes."""
+    from collections import defaultdict
+    from datetime import date
+    anio = int(request.GET.get('anio') or date.today().year)
+    filas = (FilaPlanilla.objects.filter(planilla__periodo__startswith=str(anio),
+                                         planilla__estado__in=('CALCULADA', 'CERRADA', 'PAGADA'))
+             .select_related('trabajador__centro_costo', 'planilla'))
+    tabla = defaultdict(lambda: [0] * 13)
+    for f in filas:
+        centro = str(f.trabajador.centro_costo or 'Sin centro de costo')
+        costo = f.total_ingresos + f.total_aportes
+        tabla[centro][int(f.planilla.periodo[4:]) - 1] += costo
+        tabla[centro][12] += costo
+    datos = sorted(tabla.items())
+    totales = [sum(v[i] for _, v in datos) for i in range(13)]
+    if request.GET.get('formato') == 'excel':
+        return excel_response(f'Costo_planilla_{anio}', f'COSTO DE PLANILLA POR CENTRO DE COSTO {anio}',
+                              ['Centro de costo'] + [f'{m:02d}' for m in range(1, 13)] + ['Total'],
+                              [[c] + v for c, v in datos] + [['TOTAL'] + totales])
+    return render(request, 'planillas/costo_centros.html', {'anio': anio, 'datos': datos, 'totales': totales,
+                                                             'meses': range(1, 13)})
 
 
 # ---------------------------------------------------------------- configuración

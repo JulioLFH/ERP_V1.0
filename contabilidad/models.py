@@ -20,6 +20,7 @@ ORIGENES = [
     ('COMPRA', 'Compra'),
     ('VENTA', 'Venta'),
     ('TESORERIA', 'Caja y bancos'),
+    ('APLICACION', 'Anticipos, letras y rendiciones'),
     ('INVENTARIO', 'Inventario y costo de ventas'),
     ('CAMBIO', 'Diferencia de cambio'),
     ('ACTIVOS', 'Activos fijos (depreciación y bajas)'),

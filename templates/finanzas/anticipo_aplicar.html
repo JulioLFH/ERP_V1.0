@@ -1,0 +1,47 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Aplicar anticipo{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Aplicar anticipo {{ anticipo.voucher }}</h1>
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="kpi"><div class="label">{% if es_cliente %}Cliente{% else %}Proveedor{% endif %}</div><div class="fw-semibold">{{ anticipo.tercero.nombre|default:'— sin tercero —' }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Anticipo del {{ anticipo.fecha|date:'d/m/Y' }}</div><div class="value">{{ anticipo.cuenta.simbolo }} {{ anticipo.monto|money }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Disponible</div><div class="value text-success">{{ anticipo.cuenta.simbolo }} {{ anticipo.anticipo_disponible|money }}</div></div></div>
+</div>
+{% if not anticipo.tercero %}
+  <div class="alert alert-warning">El anticipo no tiene cliente / proveedor; no se puede aplicar.</div>
+{% else %}
+<form method="post">{% csrf_token %}
+  <div class="card mb-3"><div class="card-header">Comprobantes pendientes en {{ anticipo.cuenta.moneda }}</div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>Comprobante</th><th>Emisión</th><th>Venc.</th><th class="num">Saldo</th><th style="width:170px" class="num">Aplicar</th></tr></thead>
+      <tbody>
+      {% for d in docs %}
+        <tr><td>{{ d }}</td><td>{{ d.fecha_emision|date:'d/m/Y' }}</td><td>{{ d.fecha_vencimiento|date:'d/m/Y' }}</td><td class="num">{{ d.saldo|money }}</td>
+          <td><input type="number" step="0.01" min="0" name="monto_{{ d.pk }}" class="form-control form-control-sm text-end js-monto" data-saldo="{{ d.saldo|stringformat:'s' }}"></td></tr>
+      {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No hay comprobantes pendientes en la moneda del anticipo.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr class="fw-bold"><td colspan="4" class="text-end">Total a aplicar</td><td class="num" id="total">0.00</td></tr></tfoot>
+    </table></div>
+  </div>
+  {% if docs %}
+  <div class="d-flex gap-2 align-items-end">
+    <div><label class="form-label small">Fecha de aplicación</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="llenar">Llenar hasta el disponible</button>
+    <button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Aplicar anticipo</button>
+  </div>
+  {% endif %}
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  const total = () => { let t = 0; document.querySelectorAll('.js-monto').forEach(i => t += parseFloat(i.value) || 0); document.getElementById('total').textContent = t.toFixed(2); };
+  document.querySelectorAll('.js-monto').forEach(i => i.addEventListener('input', total));
+  const b = document.getElementById('llenar');
+  if (b) b.addEventListener('click', () => {
+    let resto = {{ anticipo.anticipo_disponible|stringformat:'s' }};
+    document.querySelectorAll('.js-monto').forEach(i => { const v = Math.min(resto, parseFloat(i.dataset.saldo)); i.value = v > 0 ? v.toFixed(2) : ''; resto -= Math.max(v, 0); });
+    total();
+  });
+</script>
+{% endblock %}

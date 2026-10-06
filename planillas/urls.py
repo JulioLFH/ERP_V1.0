@@ -15,4 +15,6 @@ urlpatterns = [
     path('trabajadores/nuevo/', views.trabajador_nuevo, name='trabajador_nuevo'),
     path('trabajadores/<int:pk>/', views.trabajador_editar, name='trabajador_editar'),
     path('configuracion/', views.configuracion, name='configuracion'),
+    path('vacaciones/', views.vacaciones, name='vacaciones'),
+    path('costo-centros/', views.costo_centros, name='costo_centros'),
 ]

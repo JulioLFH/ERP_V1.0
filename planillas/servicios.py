@@ -12,6 +12,8 @@ from .models import ConceptoPlanilla, FilaPlanilla, Planilla
 
 D0 = Decimal('0')
 TIPO_DOC_PLAME = {'01': '01', '04': '04', '07': '07'}
+# indemnizaciones (no remunerativas): sin código propio, no se exigen en el PLAME
+NO_PLAME = {'INDEMNIZACION', 'INDEMN_VACACIONAL'}
 
 
 def _marcar(periodo):
@@ -132,7 +134,8 @@ def archivos_plame(periodo, ruc):
         doc = (TIPO_DOC_PLAME.get(t.tipo_doc, '01'), t.numero_doc)
         for l in fila.lineas.all():
             if not l.concepto.codigo_plame:
-                sin_codigo.add(l.concepto.nombre)
+                if l.concepto.clave not in NO_PLAME:
+                    sin_codigo.add(l.concepto.nombre)
                 continue
             rem[(doc, l.concepto.codigo_plame)] += l.monto
         if fila.planilla.tipo == 'MENSUAL':

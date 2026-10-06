@@ -1,0 +1,78 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ e.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{{ e.get_tipo_display }} {{ e.numero }} <span class="badge text-bg-light">{{ e.get_estado_display }}</span></h1>
+  {% if e.estado == 'ABIERTA' and puede.finanzas_registrar %}
+  <form method="post" class="d-flex gap-2 align-items-center">{% csrf_token %}<input type="hidden" name="accion" value="liquidar"><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"><button class="btn btn-sm btn-outline-dark" {% if e.saldo != 0 %}disabled title="El saldo debe ser cero"{% endif %}><i class="bi bi-lock"></i> Liquidar</button></form>
+  {% endif %}
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="kpi"><div class="label">Responsable</div><div class="fw-semibold">{{ e.responsable.nombre }}</div><div class="small text-muted">{{ e.motivo }}</div></div></div>
+  <div class="col-md-2"><div class="kpi"><div class="label">Entregado</div><div class="value">{{ e.simbolo }} {{ e.entregado|money }}</div></div></div>
+  <div class="col-md-2"><div class="kpi"><div class="label">Rendido</div><div class="value">{{ e.rendido|money }}</div></div></div>
+  <div class="col-md-2"><div class="kpi"><div class="label">Devuelto</div><div class="value">{{ e.devuelto|money }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">{% if e.saldo < 0 %}La empresa le debe{% else %}Saldo en su poder{% endif %}</div><div class="value {% if e.saldo < 0 %}text-danger{% else %}text-success{% endif %}">{{ e.saldo|money }}</div>{% if e.tipo == 'CAJA_CHICA' %}<div class="small text-muted">Fondo {{ e.monto_fondo|money }} · por reponer {{ e.por_reponer|money }}</div>{% endif %}</div></div>
+</div>
+
+<div class="card mb-3"><div class="card-header">Rendición de gastos</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>Fecha</th><th>Documento</th><th>Proveedor</th><th>Descripción</th><th>Cuenta</th><th>C. costo</th><th class="num">Monto</th><th></th></tr></thead>
+    <tbody>
+    {% for g in gastos %}
+      <tr><td>{{ g.fecha|date:'d/m/Y' }}</td><td class="small">{{ g.get_tipo_documento_display }} {{ g.numero_documento }}</td><td class="small">{{ g.proveedor }}</td><td class="small">{{ g.descripcion }}</td>
+        <td class="small">{{ g.cuenta_contable.codigo }}</td><td class="small">{{ g.centro_costo.codigo|default:'' }}</td><td class="num">{{ g.monto|money }}</td>
+        <td>{% if e.estado == 'ABIERTA' %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="eliminar_gasto"><input type="hidden" name="gasto" value="{{ g.pk }}"><button class="btn btn-sm btn-link text-danger p-0" data-confirm="¿Quitar este gasto de la rendición?"><i class="bi bi-trash"></i></button></form>{% endif %}</td></tr>
+    {% endfor %}
+    {% for ap in aplicaciones %}
+      <tr><td>{{ ap.fecha|date:'d/m/Y' }}</td><td class="small"><a href="{% url 'compras:detalle' ap.compra_id %}">{{ ap.compra }}</a></td><td class="small">{{ ap.compra.tercero.nombre|truncatechars:30 }}</td><td class="small">Factura registrada en compras</td><td class="small">42</td><td></td><td class="num">{{ ap.monto_doc|money }}</td>
+        <td>{% if e.estado == 'ABIERTA' %}<form method="post" action="{% url 'finanzas:aplicacion_anular' ap.pk %}" class="js-motivo">{% csrf_token %}<input type="hidden" name="motivo"><input type="hidden" name="next" value="{{ request.path }}"><button class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x-circle"></i></button></form>{% endif %}</td></tr>
+    {% endfor %}
+    {% if not gastos and not aplicaciones %}<tr><td colspan="8" class="text-center text-muted py-3">Aún no rinde gastos.</td></tr>{% endif %}
+    </tbody>
+  </table></div>
+</div>
+
+{% if e.estado == 'ABIERTA' and puede.finanzas_registrar %}
+<div class="row g-3 mb-3">
+  <div class="col-lg-7"><div class="card h-100"><div class="card-header">Rendir gasto sin factura en compras (ticket, boleta, movilidad…)</div><div class="card-body">
+    <form method="post" enctype="multipart/form-data" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="gasto">
+      {% for field in gasto_form %}<div class="col-md-4">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-success"><i class="bi bi-plus-lg"></i> Agregar gasto</button></div>
+    </form>
+  </div></div></div>
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-header">Factura registrada en compras pagada con el fondo</div><div class="card-body">
+      <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="compra">
+        <div class="col-12"><select name="compra" class="form-select form-select-sm" required data-opciones="{% url 'opciones' 'compras' %}" data-perezoso="1"><option value="">— Comprobante de compra —</option></select></div>
+        <div class="col-6"><input type="number" step="0.01" min="0" name="monto" class="form-control form-control-sm" placeholder="Monto (vacío = saldo)"></div>
+        <div class="col-6"><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+        <div class="col-12"><button class="btn btn-sm btn-outline-success">Rendir factura</button></div>
+      </form>
+    </div></div>
+    <div class="card"><div class="card-header">Dinero: devolución, reembolso{% if e.tipo == 'CAJA_CHICA' %}, reposición{% endif %}</div><div class="card-body">
+      <form method="post" class="row g-2">{% csrf_token %}
+        <div class="col-12"><select name="accion" class="form-select form-select-sm">
+          <option value="devolver">Devuelve el saldo no usado (ingreso)</option>
+          <option value="reembolsar">Reembolso al responsable (egreso)</option>
+          {% if e.tipo == 'CAJA_CHICA' %}<option value="reponer" selected>Reposición del fondo (egreso por {{ e.por_reponer|money }})</option>{% endif %}
+          <option value="ampliar">Entrega adicional (egreso)</option></select></div>
+        <div class="col-12"><select name="cuenta" class="form-select form-select-sm">{% for c in cuentas %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}</select></div>
+        <div class="col-6"><input type="number" step="0.01" min="0" name="monto" class="form-control form-control-sm" placeholder="Monto" value="{% if e.tipo == 'CAJA_CHICA' and e.por_reponer %}{{ e.por_reponer|stringformat:'s' }}{% elif e.saldo > 0 %}{{ e.saldo|stringformat:'s' }}{% endif %}"></div>
+        <div class="col-6"><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+        <div class="col-12"><input name="numero_operacion" class="form-control form-control-sm" placeholder="N° operación (opcional)"></div>
+        <div class="col-12"><button class="btn btn-sm btn-outline-primary">Registrar</button></div>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card"><div class="card-header">Movimientos de caja y bancos</div>
+  <table class="table table-sm mb-0"><thead><tr><th>Voucher</th><th>Fecha</th><th>Cuenta</th><th>Glosa</th><th class="num">Entrega</th><th class="num">Devolución</th></tr></thead><tbody>
+  {% for m in movimientos %}<tr><td><a href="{% url 'finanzas:voucher' m.pk %}" target="_blank">{{ m.voucher }}</a></td><td>{{ m.fecha|date:'d/m/Y' }}</td><td class="small">{{ m.cuenta.nombre }}</td><td class="small">{{ m.glosa }}</td><td class="num">{% if m.tipo == 'EGRESO' %}{{ m.monto|money }}{% endif %}</td><td class="num">{% if m.tipo == 'INGRESO' %}{{ m.monto|money }}{% endif %}</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+<a href="{% url 'finanzas:entregas' %}" class="btn btn-sm btn-link mt-3"><i class="bi bi-arrow-left"></i> Entregas a rendir</a>
+{% include 'finanzas/_motivo_js.html' %}
+{% endblock %}

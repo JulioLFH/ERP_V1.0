@@ -1,0 +1,18 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Pagos masivos{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Pagos masivos a bancos</h1>
+  <a href="{% url 'finanzas:pago_masivo_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo pago masivo</a>
+</div>
+<p class="small text-muted">Elija las facturas de proveedores a pagar, descargue el archivo con las cuentas de cada proveedor para cargarlo en la banca por internet y, cuando el banco procese el lote, registre los pagos: cada factura queda pagada desde la cuenta del lote.</p>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>N°</th><th>Fecha</th><th>Cuenta</th><th>Glosa</th><th class="num">Comprobantes</th><th class="num">Total</th><th>Estado</th></tr></thead>
+  <tbody>
+  {% for p in page_obj %}
+    <tr><td><a href="{% url 'finanzas:pago_masivo' p.pk %}">{{ p.numero }}</a></td><td>{{ p.fecha|date:'d/m/Y' }}</td><td class="small">{{ p.cuenta }}</td><td class="small">{{ p.glosa }}</td>
+      <td class="num">{{ p.lineas.count }}</td><td class="num">{{ p.cuenta.simbolo }} {{ p.total|money }}</td><td><span class="badge text-bg-light">{{ p.get_estado_display }}</span></td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin pagos masivos.</td></tr>{% endfor %}
+  </tbody>
+</table></div>{% include 'core/_paginacion.html' %}</div>
+{% endblock %}

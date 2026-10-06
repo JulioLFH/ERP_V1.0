@@ -1,0 +1,49 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Letra {{ l.numero }}{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Letra {{ l.numero }} <span class="badge text-bg-light">{{ l.get_estado_display }}</span></h1>
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="kpi"><div class="label">{{ l.get_tipo_display }}</div><div class="fw-semibold">{{ l.tercero }}</div></div></div>
+  <div class="col-md-2"><div class="kpi"><div class="label">Giro / vencimiento</div><div class="fw-semibold">{{ l.fecha_giro|date:'d/m/Y' }} → <span {% if l.dias_vencido > 0 and l.saldo > 0 %}class="text-danger"{% endif %}>{{ l.fecha_vencimiento|date:'d/m/Y' }}</span></div></div></div>
+  <div class="col-md-2"><div class="kpi"><div class="label">Monto</div><div class="value">{{ l.simbolo }} {{ l.monto|money }}</div></div></div>
+  <div class="col-md-2"><div class="kpi"><div class="label">Saldo</div><div class="value">{{ l.saldo|money }}</div></div></div>
+</div>
+<p class="small text-muted">{% if l.canje %}Canje <a href="{% url 'finanzas:canje' l.canje_id %}">{{ l.canje.numero }}</a>.{% endif %}
+  {% if l.renovada_de %} Renueva a <a href="{% url 'finanzas:letra' l.renovada_de_id %}">{{ l.renovada_de.numero }}</a>.{% endif %}
+  {% if l.banco %} Banco: {{ l.banco.nombre }} {{ l.codigo_banco }}.{% endif %} {{ l.glosa }}</p>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card mb-3"><div class="card-header">{% if l.tipo == 'COBRAR' %}Cobros{% else %}Pagos{% endif %}</div>
+      <table class="table table-sm mb-0"><thead><tr><th>Voucher</th><th>Fecha</th><th>Cuenta</th><th class="num">Aplicado</th></tr></thead><tbody>
+      {% for m in movimientos %}<tr><td><a href="{% url 'finanzas:voucher' m.pk %}" target="_blank">{{ m.voucher }}</a></td><td>{{ m.fecha|date:'d/m/Y' }}</td><td class="small">{{ m.cuenta.nombre }}</td><td class="num">{{ m.monto_doc|money }}</td></tr>
+      {% empty %}<tr><td colspan="4" class="text-muted text-center py-3">Sin {% if l.tipo == 'COBRAR' %}cobros{% else %}pagos{% endif %}.</td></tr>{% endfor %}
+      </tbody></table>
+      {% if l.saldo > 0 %}<div class="card-body py-2"><a class="btn btn-sm btn-success" href="{% if l.tipo == 'COBRAR' %}{% url 'finanzas:cobranza' %}{% else %}{% url 'finanzas:pago' %}{% endif %}?tercero={{ l.tercero_id }}"><i class="bi bi-cash-coin"></i> Registrar {% if l.tipo == 'COBRAR' %}cobro{% else %}pago{% endif %}</a></div>{% endif %}
+    </div>
+    {% if renovaciones %}<div class="card"><div class="card-header">Renovada por</div><ul class="list-group list-group-flush">{% for r in renovaciones %}<li class="list-group-item small"><a href="{% url 'finanzas:letra' r.pk %}">{{ r.numero }}</a> · vence {{ r.fecha_vencimiento|date:'d/m/Y' }} · {{ r.monto|money }} · {{ r.get_estado_display }}</li>{% endfor %}</ul></div>{% endif %}
+  </div>
+  {% if l.estado in 'CARTERA COBRANZA DESCUENTO PROTESTADA' and puede.finanzas_registrar %}
+  <div class="col-lg-6">
+    <div class="card mb-3"><div class="card-header">Cambiar estado</div><div class="card-body">
+      <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="estado">
+        <div class="col-md-6"><select name="estado" class="form-select form-select-sm">{% for v, n in estados_manuales %}<option value="{{ v }}" {% if v == l.estado %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+        <div class="col-md-6"><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+        <div class="col-md-6"><select name="banco" class="form-select form-select-sm"><option value="">Banco (cobranza / descuento)</option>{% for b in bancos %}<option value="{{ b.pk }}" {% if l.banco_id == b.pk %}selected{% endif %}>{{ b }}</option>{% endfor %}</select></div>
+        <div class="col-md-6"><input name="codigo" value="{{ l.codigo_banco }}" class="form-control form-control-sm" placeholder="N° único del banco"></div>
+        <div class="col-12"><button class="btn btn-sm btn-primary">Guardar estado</button></div>
+      </form>
+    </div></div>
+    <div class="card"><div class="card-header">Renovar (refinanciar el saldo)</div><div class="card-body">
+      <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="renovar">
+        <div class="row g-2 mb-2"><div class="col-md-6"><label class="small">Fecha de renovación</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div></div>
+        {% for i in '12' %}<div class="row g-2 mb-1"><div class="col-6"><input type="date" name="l_vencimiento" class="form-control form-control-sm"></div><div class="col-6"><input type="number" step="0.01" min="0" name="l_monto" class="form-control form-control-sm text-end" placeholder="Monto"{% if forloop.first %} value="{{ l.saldo|stringformat:'s' }}"{% endif %}></div></div>{% endfor %}
+        <p class="small text-muted mb-2">Las nuevas letras deben sumar el saldo ({{ l.saldo|money }}). Los intereses de la renovación se facturan aparte (nota de débito).</p>
+        <button class="btn btn-sm btn-outline-primary">Renovar letra</button>
+      </form>
+    </div></div>
+  </div>
+  {% endif %}
+</div>
+<a href="{% url 'finanzas:letras' %}" class="btn btn-sm btn-link mt-3"><i class="bi bi-arrow-left"></i> Letras</a>
+{% endblock %}

@@ -1,10 +1,12 @@
+from decimal import Decimal
+
 from django import forms
 
 from core.forms import remoto, BootstrapMixin, validar_periodo_abierto
 from core.models import Tercero
 from core.sustentos import SustentoField
 
-from .models import Cuenta, Movimiento
+from .models import Cheque, Cuenta, EntregaRendir, GastoRendicion, Movimiento
 
 
 MAX_SUSTENTO = 5 * 1024 * 1024
@@ -205,6 +207,79 @@ class AnularMovimientoForm(forms.Form):
         if len(motivo) < 10:
             raise forms.ValidationError('Explique el motivo de la anulación (mínimo 10 caracteres).')
         return motivo
+
+
+def _cuentas_activas(campo):
+    campo.queryset = Cuenta.objects.filter(activo=True)
+
+
+class EntregaForm(BootstrapMixin, forms.ModelForm):
+    """Nueva entrega a rendir o fondo de caja chica: se registra con el egreso que entrega el dinero."""
+    cuenta = forms.ModelChoiceField(Cuenta.objects.filter(activo=True), label='Sale de (caja / banco)')
+    monto = forms.DecimalField(label='Monto entregado', max_digits=14, decimal_places=2, min_value=Decimal('0.01'))
+    medio_pago = forms.ChoiceField(choices=Movimiento.MEDIOS, initial='TRANSFERENCIA')
+    numero_operacion = forms.CharField(label='N° operación / cheque', required=False)
+
+    class Meta:
+        model = EntregaRendir
+        fields = ['tipo', 'responsable', 'fecha', 'motivo', 'cuenta', 'monto', 'medio_pago', 'numero_operacion',
+                  'monto_fondo', 'centro_costo', 'cuenta_contable']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _cuentas_activas(self.fields['cuenta'])
+        self.fields['responsable'].queryset = Tercero.objects.filter(activo=True)
+        remoto(self.fields['responsable'], 'terceros')
+        remoto(self.fields['cuenta_contable'], 'cuentas', perezoso=True)
+        self.fields['monto_fondo'].required = False
+
+    def clean(self):
+        data = super().clean()
+        validar_periodo_abierto(self, 'fecha')
+        if data.get('cuenta'):
+            self.instance.moneda = data['cuenta'].moneda
+        return data
+
+
+class GastoRendicionForm(BootstrapMixin, forms.ModelForm):
+    sustento = SustentoField(required=False, help_text='Foto o PDF del ticket, recibo o planilla de movilidad')
+
+    class Meta:
+        model = GastoRendicion
+        fields = ['fecha', 'tipo_documento', 'numero_documento', 'proveedor', 'descripcion', 'cuenta_contable',
+                  'centro_costo', 'monto']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        remoto(self.fields['cuenta_contable'], 'cuentas')
+
+    def clean(self):
+        data = super().clean()
+        validar_periodo_abierto(self, 'fecha')
+        return data
+
+
+class ChequeForm(BootstrapMixin, forms.ModelForm):
+    """Cheque recibido en cartera (p. ej. diferido) antes de depositarlo."""
+
+    class Meta:
+        model = Cheque
+        fields = ['numero', 'banco_emisor', 'tercero', 'moneda', 'monto', 'fecha_emision', 'fecha_pago', 'cuenta',
+                  'glosa']
+        labels = {'cuenta': 'Cuenta donde se depositará', 'tercero': 'Cliente (girador)'}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['tercero'].required = True
+        self.fields['tercero'].queryset = Tercero.objects.filter(activo=True)
+        remoto(self.fields['tercero'], 'clientes')
+        _cuentas_activas(self.fields['cuenta'])
+
+    def clean_monto(self):
+        monto = self.cleaned_data['monto']
+        if monto <= 0:
+            raise forms.ValidationError('El monto debe ser mayor a cero.')
+        return monto
 
 
 class ImportarExtractoForm(BootstrapMixin, forms.Form):

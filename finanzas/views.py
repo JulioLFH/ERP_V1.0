@@ -137,6 +137,9 @@ def movimiento_nuevo(request):
             mov.creado_por = request.user
             mov.save()
             adjuntar(mov, form.cleaned_data['sustento'], request.user, mov.glosa[:200])
+            if mov.medio_pago == 'CHEQUE' and mov.numero_operacion:
+                from .operaciones import registrar_cheque
+                registrar_cheque([mov], mov.numero_operacion, request.user)
         messages.success(request, f'Movimiento {mov.voucher} registrado con su sustento.')
         return redirect('finanzas:movimientos')
     return render(request, 'core/form.html', {'form': form, 'titulo': 'Ingreso / egreso de caja y bancos'})
@@ -171,12 +174,18 @@ def movimiento_eliminar(request, pk):
             messages.error(request, 'No se puede anular: el periodo contable está cerrado.')
         elif _error_al_eliminar(mov):
             messages.error(request, f'No se puede anular: {_error_al_eliminar(mov)}')
+        elif mov.aplicaciones_anticipo.exists():
+            messages.error(request, 'No se puede anular: el anticipo ya se aplicó a comprobantes. Anule primero esas '
+                                    'aplicaciones (Finanzas > Anticipos).')
         else:
             with transaction.atomic():
                 for m in [mov] + ([par] if par else []):
                     m.estado, m.motivo_anulacion = 'ANULADO', form.cleaned_data['motivo']
                     m.anulado_por, m.anulado_en = request.user, timezone.now()
                     m.save()
+                if mov.letra_id:
+                    from .operaciones import actualizar_letra
+                    actualizar_letra(mov.letra)
             messages.success(request, f'Movimiento {mov.voucher} anulado{" junto con su transferencia par" if par else ""}.')
     return redirect(request.POST.get('next') or 'finanzas:movimientos')
 
@@ -219,19 +228,49 @@ def cobrar_pagar(request, modo):
     tercero_id = request.GET.get('tercero') or (doc_ini.tercero_id if doc_ini else None)
     tercero = Tercero.objects.filter(pk=tercero_id).first() if tercero_id else None
 
-    pendientes = []
+    from .models import Cheque, Letra
+    from .operaciones import ErrorTesoreria, actualizar_letra, anticipos_disponibles, registrar_cheque
+    pendientes, letras, anticipos = [], [], []
     if tercero:
         qs = (cfg['modelo'].objects.con_saldos().cobrables().filter(tercero=tercero, estado='REGISTRADO')
               .exclude(tipo_comprobante='07').order_by('fecha_vencimiento'))
         pendientes = [d for d in qs if d.saldo > 0]
+        letras = [l for l in Letra.objects.filter(tercero=tercero, tipo='COBRAR' if modo == 'cobranza' else 'PAGAR',
+                                                   estado__in=Letra.ABIERTAS) if l.saldo > 0]
+        anticipos = anticipos_disponibles(tercero, cfg['tipo'])
+    # cheque recibido que estaba en cartera (diferido) y ahora se deposita
+    cheque = Cheque.objects.filter(pk=request.GET.get('cheque'), tipo='RECIBIDO', estado='CARTERA').first() \
+        if modo == 'cobranza' and request.GET.get('cheque') else None
 
-    form = OperacionForm(request.POST or None, request.FILES or None, initial={
-        'fecha': date.today(), 'es_detraccion': request.GET.get('detraccion') == '1'})
+    inicial = {'fecha': date.today(), 'es_detraccion': request.GET.get('detraccion') == '1'}
+    if cheque:
+        inicial.update(medio_pago='CHEQUE', numero_operacion=cheque.numero, cuenta=cheque.cuenta_id,
+                       fecha=max(date.today(), cheque.fecha_pago or date.today()))
+    form = OperacionForm(request.POST or None, request.FILES or None, initial=inicial)
     if request.method == 'POST' and form.is_valid():
         data = form.cleaned_data
         creados = []
         errores = []
         with transaction.atomic():
+            for l in letras:
+                valor = request.POST.get(f'letra_{l.pk}', '').strip()
+                if not valor:
+                    continue
+                try:
+                    monto = Decimal(valor)
+                except InvalidOperation:
+                    errores.append(f'{l}: monto inválido')
+                    continue
+                if monto <= 0:
+                    continue
+                if monto > l.saldo:
+                    errores.append(f'{l}: el monto supera el saldo ({l.saldo})')
+                    continue
+                creados.append(Movimiento.objects.create(
+                    cuenta=data['cuenta'], fecha=data['fecha'], tipo=cfg['tipo'], concepto=cfg['concepto'],
+                    medio_pago=data['medio_pago'], numero_operacion=data['numero_operacion'], tercero=tercero,
+                    monto=_monto_en_cuenta(monto, l, data['cuenta'], data['fecha']), monto_doc=monto, letra=l,
+                    glosa=data['glosa'] or f'{cfg["concepto"].title()} {l}', creado_por=request.user))
             for d in pendientes:
                 valor = request.POST.get(f'monto_{d.pk}', '').strip()
                 if not valor:
@@ -262,13 +301,21 @@ def cobrar_pagar(request, modo):
                     errores.append(f'Saldo insuficiente en {cuenta}: con los pagos ({cuenta.simbolo} {total:,.2f}) '
                                    f'la cuenta quedaría en {cuenta.simbolo} {negativo[1]:,.2f} el '
                                    f'{negativo[0]:%d/%m/%Y}.')
+            if creados and not errores and (data['medio_pago'] == 'CHEQUE' or cheque):
+                try:
+                    registrar_cheque(creados, data['numero_operacion'], request.user, cheque=cheque)
+                except ErrorTesoreria as exc:
+                    errores.append(str(exc))
             if errores:
                 transaction.set_rollback(True)
-            elif creados and data.get('sustento'):
-                from core.sustentos import guardar_archivo, vincular
-                archivo = guardar_archivo(data['sustento'], request.user)  # un archivo para todos los movimientos
-                for m in creados:
-                    vincular(m, archivo, request.user, data['glosa'] or '')
+            else:
+                for l in {m.letra for m in creados if m.letra_id}:
+                    actualizar_letra(l)
+                if creados and data.get('sustento'):
+                    from core.sustentos import guardar_archivo, vincular
+                    archivo = guardar_archivo(data['sustento'], request.user)  # un archivo para todos los movimientos
+                    for m in creados:
+                        vincular(m, archivo, request.user, data['glosa'] or '')
         if errores:
             for e in errores:
                 messages.error(request, e)
@@ -281,10 +328,10 @@ def cobrar_pagar(request, modo):
                 return redirect('ventas:detalle' if modo == 'cobranza' else 'compras:detalle', doc_ini.pk)
             return redirect('finanzas:movimientos')
 
-    terceros = Tercero.objects.filter(activo=True, tipo__in=cfg['tercero_tipos'])
     return render(request, 'finanzas/cobrar_pagar.html', {
-        'cfg': cfg, 'modo': modo, 'form': form, 'tercero': tercero, 'terceros': terceros,
-        'pendientes': pendientes, 'doc_ini': doc_ini,
+        'cfg': cfg, 'modo': modo, 'form': form, 'tercero': tercero, 'pendientes': pendientes, 'letras': letras,
+        'anticipos': anticipos, 'doc_ini': doc_ini, 'cheque': cheque,
+        'fuente': 'clientes' if modo == 'cobranza' else 'proveedores',
         'detraccion': request.GET.get('detraccion') == '1'})
 
 

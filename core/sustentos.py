@@ -14,7 +14,9 @@ EXTENSIONES = ('.pdf', '.png', '.jpg', '.jpeg', '.webp', '.xlsx', '.xls', '.xml'
 MODULO_DE = {'contabilidad.asiento': 'contabilidad', 'finanzas.movimiento': 'finanzas', 'finanzas.cuenta': 'finanzas',
              'inventario.operacion': 'inventario', 'ventas.venta': 'ventas', 'compras.compra': 'compras',
              'compras.ordencompra': 'compras', 'logistica.guiaremision': 'logistica',
-             'produccion.ordenproduccion': 'manufactura', 'activos.activofijo': 'activos'}
+             'produccion.ordenproduccion': 'manufactura', 'activos.activofijo': 'activos',
+             'finanzas.gastorendicion': 'finanzas', 'finanzas.entregarendir': 'finanzas', 'finanzas.letra': 'finanzas',
+             'finanzas.cheque': 'finanzas', 'finanzas.canjeletras': 'finanzas'}
 
 
 class ErrorSustento(Exception):
