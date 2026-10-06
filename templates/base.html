@@ -57,9 +57,9 @@
       {% for item in menu_modulo %}
         {% if item.hijos %}
           <div class="lateral-grupo">{{ item.etiqueta }}</div>
-          {% for h in item.hijos %}<a class="lateral-link {% if h.url == request.get_full_path %}active{% endif %}" href="{{ h.url }}"><i class="bi {{ h.icono }}"></i><span>{{ h.etiqueta }}</span></a>{% endfor %}
+          {% for h in item.hijos %}<a class="lateral-link {% if h.activo %}active{% endif %}" href="{{ h.url }}"><i class="bi {{ h.icono }}"></i><span>{{ h.etiqueta }}</span></a>{% endfor %}
         {% else %}
-          <a class="lateral-link lateral-raiz {% if item.url == request.get_full_path %}active{% endif %}" href="{{ item.url }}"><i class="bi {% if forloop.first %}bi-speedometer2{% else %}bi-chevron-right{% endif %}"></i><span>{{ item.etiqueta }}</span></a>
+          <a class="lateral-link lateral-raiz {% if item.activo %}active{% endif %}" href="{{ item.url }}"><i class="bi {% if forloop.first %}bi-speedometer2{% else %}bi-chevron-right{% endif %}"></i><span>{{ item.etiqueta }}</span></a>
         {% endif %}
       {% endfor %}
     </nav>

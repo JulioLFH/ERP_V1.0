@@ -318,8 +318,29 @@ def resolver_url(destino):
 RUTAS_COSTOS = {'inv_valorizacion', 'inventario:cierres'}  # solo con el permiso de ver costos
 
 
-def menu_de(modulo, ver_costos=True):
-    """Menú del módulo con las URLs ya resueltas."""
+def marcar_activo(items, ruta_completa):
+    """Marca la opción del menú de la página actual: coincidencia exacta o, si no hay, la URL más
+    larga que sea prefijo de la ruta (p. ej. el detalle /ventas/5/ marca «Comprobantes» /ventas/)."""
+    enlaces = [e for i in items for e in (i.get('hijos') or [i])]
+    activo = next((e for e in enlaces if e['url'] == ruta_completa), None)
+    if activo is None:
+        ruta = ruta_completa.partition('?')[0]
+        largos = {}
+        for e in enlaces:
+            base = e['url'].partition('?')[0]
+            if ruta.startswith(base):
+                largos.setdefault(len(base), []).append(e)
+        if largos:
+            mejores = largos[max(largos)]
+            activo = mejores[0] if len(mejores) == 1 else next(
+                (e for e in mejores if '?' not in e['url']), None)
+    if activo is not None:
+        activo['activo'] = True
+    return items
+
+
+def menu_de(modulo, ver_costos=True, ruta=None):
+    """Menú del módulo con las URLs ya resueltas (y la opción actual marcada si se da la ruta)."""
     items = []
     for etiqueta, destino in modulo['menu']:
         if isinstance(destino, list):
@@ -328,4 +349,4 @@ def menu_de(modulo, ver_costos=True):
                 if ver_costos or d not in RUTAS_COSTOS]})
         else:
             items.append({'etiqueta': etiqueta, 'url': resolver_url(destino)})
-    return items
+    return marcar_activo(items, ruta) if ruta else items

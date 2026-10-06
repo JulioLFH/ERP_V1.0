@@ -54,6 +54,17 @@ class ModulosTest(TestCase):
         self.assertNotIn('Configuración', etiquetas)
         self.assertEqual(self.client.get(reverse('terceros') + '?tipo=CLIENTE').status_code, 200)
 
+    def test_menu_lateral_marca_la_opcion_actual(self):
+        self.client.force_login(self.vendedor)
+        venta = Venta.objects.first()
+        r = self.client.get(reverse('ventas:detalle', args=[venta.pk]))  # el detalle marca su lista
+        self.assertContains(r, 'class="lateral offcanvas-lg')
+        activos = [h['etiqueta'] for i in r.context['menu_modulo'] for h in (i.get('hijos') or [i]) if h.get('activo')]
+        self.assertEqual(activos, ['Comprobantes'])
+        r = self.client.get(reverse('ventas:pendientes'))  # la URL más específica gana
+        activos = [h['url'] for i in r.context['menu_modulo'] for h in (i.get('hijos') or [i]) if h.get('activo')]
+        self.assertEqual(activos, [reverse('ventas:pendientes')])
+
     def test_oculta_botones_de_otros_modulos(self):
         self.client.force_login(self.vendedor)
         venta = Venta.objects.filter(tipo_comprobante='01').first()

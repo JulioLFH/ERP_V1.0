@@ -20,7 +20,7 @@ def empresa(request):
         'mods': mods,
         'apps': [m for m in MODULOS if m['clave'] in mods],
         'modulo': modulo,
-        'menu_modulo': menu_de(modulo, puede_ver_costos(request.user)) if modulo else [],
+        'menu_modulo': menu_de(modulo, puede_ver_costos(request.user), request.get_full_path()) if modulo else [],
         'ver_costos': puede_ver_costos(request.user),
         'puede': Permisos(request.user),  # {% if puede.ventas_anular %}
     }
