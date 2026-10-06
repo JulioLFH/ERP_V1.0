@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'produccion',
     'activos',
     'planillas',
+    'historial',
 ]
 
 MIDDLEWARE = [
