@@ -172,6 +172,8 @@ def asiento_saldo_inicial(d, cta, es_venta):
 
 
 def asiento_venta(v, cta):
+    if v.historico_cancelado:  # historial del sistema anterior: ya está en su contabilidad
+        return None
     if v.es_saldo_inicial:
         return asiento_saldo_inicial(v, cta, es_venta=True)
     a = Asiento(fecha=v.fecha_emision, libro='14', origen='VENTA', venta=v, moneda=v.moneda,
@@ -214,6 +216,8 @@ def asiento_venta(v, cta):
 
 # ---------------------------------------------------------------- compras
 def asiento_compra(c, cta):
+    if c.historico_cancelado:
+        return None
     if c.es_saldo_inicial:
         return asiento_saldo_inicial(c, cta, es_venta=False)
     a = Asiento(fecha=c.fecha_emision, libro='08', origen='COMPRA', compra=c, moneda=c.moneda,

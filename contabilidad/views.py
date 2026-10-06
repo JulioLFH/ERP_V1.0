@@ -487,7 +487,7 @@ def resultados_por_linea(request):
     from contabilidad.centralizar import _fin_mes
     corte = _fin_mes(hasta)
     cxc = {pk: D0 for pk, _ in columnas}
-    for v in (Venta.objects.con_saldos().filter(estado='REGISTRADO', fecha_emision__lte=corte)
+    for v in (Venta.objects.con_saldos().cobrables().filter(estado='REGISTRADO', fecha_emision__lte=corte)
               .exclude(tipo_comprobante__in=['07', '08']).prefetch_related('items__producto')):
         saldo = v.saldo_pen
         if saldo <= 0:

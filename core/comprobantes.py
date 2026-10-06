@@ -57,7 +57,7 @@ class ComprobanteViews:
         """Hook: mover almacén luego de guardar."""
 
     def puede_editar(self, doc):
-        return (doc.estado == 'REGISTRADO' and not doc.movimientos.exists() and not doc.notas.exists()
+        return (doc.estado == 'REGISTRADO' and not doc.es_historico and not doc.movimientos.exists() and not doc.notas.exists()
                 and not periodo_cerrado(doc.periodo))
 
     def es_salida(self, tipo, mueve_stock):
@@ -183,6 +183,8 @@ class ComprobanteViews:
     def motivo_bloqueo_anulacion(self, doc):
         if doc.estado == 'ANULADO':
             return 'El comprobante ya está anulado.'
+        if doc.es_historico:
+            return 'Es historial importado del sistema anterior: se anula allí.'
         if periodo_cerrado(doc.periodo):
             return f'El periodo contable {doc.periodo} está cerrado.'
         if doc.movimientos.exists():
@@ -265,7 +267,7 @@ class ComprobanteViews:
 
     # ------------------------------------------------------------ registro formal / PLE
     def _registro_qs(self, periodo):
-        return (self.modelo.objects.filter(periodo=periodo, es_saldo_inicial=False)
+        return (self.modelo.objects.filter(periodo=periodo, es_saldo_inicial=False, es_historico=False)
                 .select_related('tercero', 'doc_referencia')
                 .order_by('fecha_emision', 'tipo_comprobante', 'serie', 'numero'))
 
@@ -322,7 +324,7 @@ class ComprobanteViews:
 
     # ------------------------------------------------------------ cuentas pendientes
     def pendientes(self, request):
-        qs = (self.modelo.objects.con_saldos().filter(estado='REGISTRADO')
+        qs = (self.modelo.objects.con_saldos().cobrables().filter(estado='REGISTRADO')
               .exclude(tipo_comprobante__in=['07', '08']).select_related('tercero').order_by('fecha_vencimiento'))
         q = request.GET.get('q', '').strip()
         if q:
@@ -348,8 +350,7 @@ class ComprobanteViews:
     def reportes(self, request):
         desde, hasta = rango_por_defecto(request, self.modelo.objects.filter(estado='REGISTRADO'), 'fecha_emision')
         agrupar = request.GET.get('agrupar') or self.agrupaciones[0][0]
-        base = self.modelo.objects.filter(estado='REGISTRADO', fecha_emision__range=[desde, hasta],
-                                          es_saldo_inicial=False)
+        base = self.modelo.objects.de_gestion().filter(estado='REGISTRADO', fecha_emision__range=[desde, hasta])
         if agrupar == 'producto':
             filas = (self.item_modelo.objects.filter(documento__in=base.exclude(tipo_comprobante='07'))
                      .values('descripcion').annotate(cantidad=Sum('cantidad'), total=Sum('subtotal'),

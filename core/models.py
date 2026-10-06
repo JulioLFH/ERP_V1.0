@@ -4,7 +4,7 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.db import models, transaction
-from django.db.models import OuterRef, Subquery, Sum, Value
+from django.db.models import OuterRef, Q, Subquery, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -946,6 +946,15 @@ class ComprobanteQuerySet(models.QuerySet):
             ann_nc=_suma_sub(nc, 'total'), ann_nd=_suma_sub(nd, 'total'),
             ann_nc_pen=_suma_sub(nc, 'total_pen'), ann_nd_pen=_suma_sub(nd, 'total_pen'))
 
+    def cobrables(self):
+        """Sin el historial ya cancelado del sistema anterior (nunca tiene saldo: no hace falta recorrerlo)."""
+        return self.exclude(es_historico=True, es_saldo_inicial=False)
+
+    def de_gestion(self):
+        """Ventas/compras para reportes y análisis: las del sistema y el historial importado (sin los saldos
+        iniciales de una sola línea, que no tienen detalle)."""
+        return self.filter(Q(es_saldo_inicial=False) | Q(es_historico=True))
+
 
 class ComprobanteBase(TotalesMixin):
     """Comprobante de pago SUNAT (compras y ventas)."""
@@ -971,6 +980,10 @@ class ComprobanteBase(TotalesMixin):
         'Saldo inicial', default=False, editable=False,
         help_text='Documento pendiente de antes de usar el sistema: se cobra/paga, pero no va a los registros '
                   'de ventas/compras ni a SUNAT y se contabiliza contra la apertura (5911)')
+    es_historico = models.BooleanField(
+        'Histórico', default=False, editable=False,
+        help_text='Importado del sistema anterior para consulta y reportes: no va al registro/PLE ni a SUNAT, no '
+                  'mueve stock ni genera asientos, y no se edita. Si no es además saldo inicial, ya está cancelado')
     # Importes en soles calculados una sola vez (registro, cuentas por cobrar/pagar y contabilidad usan los mismos)
     total_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
     base_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
@@ -1068,19 +1081,23 @@ class ComprobanteBase(TotalesMixin):
         return self._anotado('ann_pagado', lambda: self.movimientos.aggregate(s=Sum('monto_doc'))['s'])
 
     @property
+    def historico_cancelado(self):
+        return self.es_historico and not self.es_saldo_inicial
+
+    @property
     def es_nota_aplicada(self):
         return self.tipo_comprobante in ('07', '08') and bool(self.doc_referencia_id)
 
     @property
     def saldo(self):
-        if self.estado == 'ANULADO' or self.es_nota_aplicada:
+        if self.estado == 'ANULADO' or self.es_nota_aplicada or self.historico_cancelado:
             return D0
         return self.neto - self.pagado
 
     @property
     def saldo_pen(self):
         """Saldo en soles con los mismos importes que usa la contabilidad (cuentas 12 y 42)."""
-        if self.estado == 'ANULADO' or self.es_nota_aplicada:
+        if self.estado == 'ANULADO' or self.es_nota_aplicada or self.historico_cancelado:
             return D0
         pagado = self._anotado('ann_pagado_pen', lambda: self.movimientos.aggregate(s=Sum('monto_doc_pen'))['s'])
         return (self.total_pen - self._anotado('ann_nc_pen', lambda: self._notas('07', 'total_pen'))

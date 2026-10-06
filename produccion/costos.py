@@ -24,7 +24,7 @@ def _costos_por_documento(ventas):
 def rentabilidad(desde, hasta, agrupar='producto'):
     """Filas ordenadas por margen con ventas netas, costo de ventas, margen y % (importes en soles, sin IGV)."""
     from inventario.servicios import costo_de_venta
-    ventas = list(Venta.objects.filter(estado='REGISTRADO', es_saldo_inicial=False,
+    ventas = list(Venta.objects.filter(estado='REGISTRADO', es_saldo_inicial=False, es_historico=False,
                                        fecha_emision__range=[desde, hasta])
                   .exclude(tipo_comprobante='08').select_related('tercero', 'doc_referencia')
                   .prefetch_related('items__producto'))

@@ -147,6 +147,74 @@ class MigracionTest(TestCase):
         self.assertIn('Stock no cargado', hojas)
         self.assertIn('Por cobrar no cargado', hojas)
 
+    def test_historial_de_ventas(self):
+        carpeta = self._carpeta()
+        call_command('migrar_excels', carpeta, '--corte', '2026-09-27', '--reporte', os.path.join(carpeta, 'o.xlsx'),
+                     stdout=StringIO())
+        guardar(carpeta, 'Data_FacturacionVentas_API_2025_2026.xlsx', [
+            ['nro_documento_completo', 'tipo_de_documento', 'fecha_de_factura', 'fecha_vencimiento', 'estado',
+             'estado_pago', 'contacto_factura', 'tipo_documento', 'numero_documento', 'vendedor', 'tipo_de_cambio',
+             'moneda', 'monto_total_factura', 'factura_relacionada', 'codigo_producto', 'producto', 'cantidad',
+             'impuestos', 'precio_unitario', 'descuento', 'monto_sin_igv_linea', 'nro_orden_pedido',
+             'termino_de_pago'],
+            # sin pagar (ya está como saldo inicial de 1180): recibe su detalle
+            # (el sistema anterior redondeó el IGV por línea: 1180 aunque 999.97 × 1.18 = 1179.96)
+            ['FX01-00000120', 'Factura', '2026-09-01', '2026-10-01', 'Publicado', 'Sin Pagar', 'ANDINA SAC', 'RUC',
+             self.ruc, 'Juan', 3.5, 'PEN', 1180, None, 'X9001', 'YOGURT FRESA 1L', 100, 'IGV-VEN', 9.9997, 0,
+             999.97, 'S001', '30 días'],
+            # cobrada: dos líneas, una con 2% de descuento y una bonificación gratuita
+            ['FX01-00000121', 'Factura', '2026-05-10', '2026-05-10', 'Publicado', 'Pagado', 'ANDINA SAC', 'RUC',
+             self.ruc, 'Juan', 3.5, 'PEN', 719.8, None, 'X9001', 'YOGURT FRESA 1L', 50, 'IGV-VEN', 10, 2, 490, None,
+             None],
+            ['FX01-00000121', 'Factura', '2026-05-10', '2026-05-10', 'Publicado', 'Pagado', 'ANDINA SAC', 'RUC',
+             self.ruc, 'Juan', 3.5, 'PEN', 719.8, None, 'X9002', 'AZUCAR', 10, 'IGV-INC-V', 11.8, 0, 100, None,
+             None],
+            ['FX01-00000121', 'Factura', '2026-05-10', '2026-05-10', 'Publicado', 'Pagado', 'ANDINA SAC', 'RUC',
+             self.ruc, 'Juan', 3.5, 'PEN', 719.8, None, 'X9001', 'YOGURT FRESA 1L', 2, 'IGV-TRG', 10, 0, 20, None,
+             None],
+            # bonificación: todo el comprobante es gratuito (el sistema anterior suma el valor al total)
+            ['FX01-00000123', 'Factura', '2026-05-12', None, 'Publicado', 'Pagado', 'ANDINA SAC', 'RUC', self.ruc,
+             None, 3.5, 'PEN', 118, None, 'X9001', 'YOGURT FRESA 1L', 10, 'IGV-TRG', 10, 0, 100, None, None],
+            # anulada en el sistema anterior
+            ['BX01-00000010', 'Boleta', '2026-05-11', None, 'Cancelado', 'Revertido', 'CLIENTE NUEVO', 'DNI',
+             '40002222', None, 3.5, 'PEN', 59, None, 'X9001', 'YOGURT', 5, 'IGV-VEN', 10, 0, 50, None, None]])
+        call_command('importar_historial_ventas', carpeta, '--reporte', os.path.join(carpeta, 'h.xlsx'),
+                     stdout=StringIO())
+        pendiente = Venta.objects.get(serie='FX01', numero='120')
+        self.assertEqual((pendiente.es_historico, pendiente.es_saldo_inicial, pendiente.items.count(),
+                          pendiente.total, pendiente.saldo), (True, True, 1, D('1180.00'), D('1180.00')))
+        cobrada = Venta.objects.get(serie='FX01', numero='121')
+        self.assertEqual((cobrada.base_imponible, cobrada.total, cobrada.saldo, cobrada.stock_aplicado),
+                         (D('590.00'), D('696.20'), D('0'), False))
+        self.assertEqual(Venta.objects.get(serie='BX01', numero='10').estado, 'ANULADO')
+        gratis = Venta.objects.get(serie='FX01', numero='123')
+        self.assertEqual((gratis.tipo_operacion, gratis.total, gratis.items.get().precio_unitario),
+                         ('GRATUITA', D('0.00'), D('10.0000')))
+        from openpyxl import load_workbook
+        obs = list(load_workbook(os.path.join(carpeta, 'h.xlsx'))['Observaciones'].iter_rows(values_only=True))
+        self.assertEqual(len(obs), 1)  # solo el encabezado: las bonificaciones no son diferencias
+        # en la lista y en los reportes; no en el registro de ventas ni en la contabilidad
+        from ventas.views import ventas_views
+        self.assertIn(cobrada, Venta.objects.de_gestion())
+        self.assertNotIn(cobrada, ventas_views._registro_qs('202605'))
+        from contabilidad.centralizar import centralizar_periodo
+        from contabilidad.models import Asiento
+        centralizar_periodo('202605')
+        self.assertFalse(Asiento.objects.filter(venta=cobrada).exists())
+        self.assertNotIn(cobrada, list(Venta.objects.con_saldos().cobrables()))
+        # idempotente
+        salida = StringIO()
+        call_command('importar_historial_ventas', carpeta, '--reporte', os.path.join(carpeta, 'h.xlsx'),
+                     stdout=salida)
+        self.assertIn('Ya importados (omitidos): 4', salida.getvalue())
+        # rehacer: borra el historial cancelado y lo vuelve a importar (los saldos iniciales se conservan)
+        salida = StringIO()
+        call_command('importar_historial_ventas', carpeta, '--rehacer', '--reporte', os.path.join(carpeta, 'h.xlsx'),
+                     stdout=salida)
+        self.assertIn('Comprobantes importados: 3', salida.getvalue())
+        self.assertTrue(Venta.objects.filter(serie='FX01', numero='120', es_saldo_inicial=True).exists())
+        self.assertEqual(Venta.objects.get(serie='FX01', numero='120').total, D('1180.00'))
+
     def test_simulacion_no_graba(self):
         carpeta = self._carpeta()
         call_command('migrar_excels', carpeta, '--reporte', os.path.join(carpeta, 'o.xlsx'), '--simular',

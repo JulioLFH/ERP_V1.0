@@ -28,7 +28,7 @@ def _alerta(nivel, icono, titulo, detalle, url, cantidad=0, monto=None):
 def _vencimientos(modelo, hoy):
     """(vencidos, por vencer en DIAS_AVISO días) con saldo pendiente: [(documento, saldo S/)]."""
     vencidos, por_vencer = [], []
-    qs = (modelo.objects.con_saldos().filter(estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
+    qs = (modelo.objects.con_saldos().cobrables().filter(estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
           .select_related('tercero'))
     for d in qs:
         if d.saldo <= 0 or not d.fecha_vencimiento:
@@ -57,7 +57,7 @@ def calcular(user):
                                    reverse('ventas:pendientes'), len(por_vencer), sum((s for _, s in por_vencer), D0)))
         from .models import FacturacionConfig
         if FacturacionConfig.actual().activa:
-            sin_sunat = Venta.objects.filter(estado='REGISTRADO', es_saldo_inicial=False,
+            sin_sunat = Venta.objects.filter(estado='REGISTRADO', es_saldo_inicial=False, es_historico=False,
                                              tipo_comprobante__in=['01', '03', '07', '08'],
                                              estado_sunat__in=['ERROR', 'RECHAZADO', 'NO_ENVIADO']).count()
             if sin_sunat:

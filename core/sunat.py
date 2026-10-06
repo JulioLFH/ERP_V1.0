@@ -304,8 +304,8 @@ def payload_comprobante(venta):
 
 
 def enviar_comprobante(venta):
-    if venta.es_saldo_inicial:
-        raise ErrorFacturacion('Es un saldo inicial (documento emitido antes de usar el sistema): no se envía a SUNAT.')
+    if venta.es_saldo_inicial or venta.es_historico:
+        raise ErrorFacturacion('Es un documento emitido con el sistema anterior: no se envía a SUNAT.')
     try:
         return _guardar_respuesta(venta, _post(payload_comprobante(venta)))
     except ErrorFacturacion as exc:

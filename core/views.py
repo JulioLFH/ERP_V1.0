@@ -47,12 +47,12 @@ def dashboard(request):
     periodo = hoy.strftime('%Y%m')
     ventas = Venta.objects.filter(estado='REGISTRADO')
     compras = Compra.objects.filter(estado='REGISTRADO')
-    ventas_mov, compras_mov = ventas.filter(es_saldo_inicial=False), compras.filter(es_saldo_inicial=False)
+    ventas_mov, compras_mov = ventas.de_gestion(), compras.de_gestion()
 
     # una sola consulta por lista (pagos y notas anotados), sin consultas por documento
-    por_cobrar = [v for v in ventas.con_saldos().exclude(tipo_comprobante__in=['07', '08']).select_related('tercero')
+    por_cobrar = [v for v in ventas.con_saldos().cobrables().exclude(tipo_comprobante__in=['07', '08']).select_related('tercero')
                   if v.saldo > 0]
-    por_pagar = [c for c in compras.con_saldos().exclude(tipo_comprobante__in=['07', '08']).select_related('tercero')
+    por_pagar = [c for c in compras.con_saldos().cobrables().exclude(tipo_comprobante__in=['07', '08']).select_related('tercero')
                  if c.saldo > 0]
 
     meses, serie_v, serie_c = [], [], []

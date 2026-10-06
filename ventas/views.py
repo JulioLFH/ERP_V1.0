@@ -56,7 +56,7 @@ class VentasViews(ComprobanteViews):
         if not cliente or datos.get('forma_pago') != 'CREDITO' or datos.get('tipo_comprobante') in ('07', '08'):
             return []
         empresa = Empresa.actual()
-        deuda = [v for v in Venta.objects.con_saldos().filter(tercero=cliente, estado='REGISTRADO').exclude(
+        deuda = [v for v in Venta.objects.con_saldos().cobrables().filter(tercero=cliente, estado='REGISTRADO').exclude(
             tipo_comprobante__in=['07', '08']).exclude(pk=doc.pk) if v.saldo > 0]
         errores = []
         if empresa.bloquear_deuda_vencida:
