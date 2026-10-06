@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from django import forms
 
-from core.forms import BootstrapMixin
+from core.forms import remoto, BootstrapMixin
 from core.models import Tercero
 from core.sustentos import SustentoField
 
@@ -43,6 +43,7 @@ class ActivoForm(BootstrapMixin, forms.ModelForm):
         self.maximo = maximo
         self.fields['categoria'].queryset = CategoriaActivo.objects.filter(activo=True)
         self.fields['proveedor'].queryset = Tercero.objects.filter(tipo__in=['PROVEEDOR', 'AMBOS'])
+        remoto(self.fields['proveedor'], 'proveedores')
         self.fields['proveedor'].required = False
         if self.compra:
             self.fields['origen'].choices = [('COMPRA', 'Compra registrada en el sistema')]

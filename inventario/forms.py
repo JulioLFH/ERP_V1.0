@@ -2,7 +2,7 @@ from django import forms
 from django.forms import inlineformset_factory
 
 from compras.models import Compra, OrdenCompra
-from core.forms import BootstrapMixin, validar_periodo_abierto
+from core.forms import remoto, BootstrapMixin, validar_periodo_abierto
 from core.sustentos import SustentoField
 from core.models import Almacen, Producto, Tercero
 from ventas.models import Venta
@@ -71,6 +71,7 @@ class OperacionForm(BootstrapMixin, forms.ModelForm):
         if tipo.origen == 'VENTA':
             self.fields['venta'].queryset = Venta.objects.filter(estado='REGISTRADO').exclude(
                 tipo_comprobante__in=['07', '08']).select_related('tercero')
+            remoto(self.fields['venta'], 'ventas', perezoso=True)
             self.fields['venta'].required = True
         else:
             quitar.append('venta')
@@ -84,6 +85,7 @@ class OperacionForm(BootstrapMixin, forms.ModelForm):
             quitar.append('tercero')  # el proveedor/cliente sale del documento de origen
         else:
             self.fields['tercero'].queryset = Tercero.objects.filter(activo=True)
+            remoto(self.fields['tercero'], 'terceros')
             self.fields['tercero'].label = 'Proveedor / cliente / responsable (opcional)'
         for nombre in quitar:
             self.fields.pop(nombre, None)
@@ -128,6 +130,7 @@ class OperacionItemForm(forms.ModelForm):
         self.fields['vencimiento'].widget.attrs['class'] = 'form-control form-control-sm js-vence'
         self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, tipo='BIEN')
         self.fields['producto'].widget.attrs['class'] = 'form-select form-select-sm js-producto'
+        remoto(self.fields['producto'], 'productos_bienes')
         self.fields['cantidad'].widget.attrs['class'] = 'form-control form-control-sm text-end js-cantidad'
         self.fields['costo_unitario'].widget.attrs['class'] = 'form-control form-control-sm text-end js-precio'
         self.fields['rol'].widget.attrs['class'] = 'form-select form-select-sm'

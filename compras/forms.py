@@ -1,7 +1,7 @@
 from django import forms
 
 from contabilidad.models import CentroCosto
-from core.forms import BootstrapMixin, validar_periodo_abierto
+from core.forms import remoto, BootstrapMixin, validar_periodo_abierto
 from core.models import Tercero
 
 from .models import Compra, OrdenCompra
@@ -20,11 +20,13 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS'])
+        remoto(self.fields['tercero'], 'proveedores')
         self.fields['serie'].required = True
         self.fields['numero'].required = True
         self.fields['orden_compra'].queryset = OrdenCompra.objects.exclude(estado='ANULADO')
         self.fields['doc_referencia'].queryset = Compra.objects.filter(
             estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
+        remoto(self.fields['doc_referencia'], 'compras', perezoso=True)
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
 
     def clean(self):
@@ -65,6 +67,7 @@ class OrdenCompraForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS'])
+        remoto(self.fields['tercero'], 'proveedores')
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
         self.fields['centro_costo'].required = True
         if not CentroCosto.objects.filter(activo=True).exists():

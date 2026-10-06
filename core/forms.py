@@ -19,6 +19,44 @@ def validar_periodo_abierto(form, campo_fecha, periodo=None):
         form.add_error(campo_fecha, f'El periodo contable {periodo[4:]}/{periodo[:4]} está cerrado.')
 
 
+class SelectRemoto(forms.Select):
+    """Selector de listas grandes (productos, clientes, cuentas…): la página solo trae la opción elegida y el navegador
+    llena el resto desde /opciones/<fuente>/ (una vez por página, compartido por todas las filas). La validación
+    sigue siendo la del campo en el servidor."""
+
+    def __init__(self, fuente, perezoso=False, attrs=None):
+        super().__init__(attrs)
+        self.fuente, self.perezoso = fuente, perezoso
+
+    def optgroups(self, name, value, attrs=None):
+        elegidos = [v for v in value if v not in ('', None)]
+        opciones = [('', '---------')]
+        completas = self.choices
+        if elegidos and hasattr(completas, 'queryset'):
+            opciones += [(str(o.pk), completas.field.label_from_instance(o))
+                         for o in completas.queryset.filter(pk__in=elegidos)]
+        self.choices = opciones
+        try:
+            return super().optgroups(name, value, attrs)
+        finally:
+            self.choices = completas
+
+    def get_context(self, name, value, attrs):
+        from django.urls import reverse
+        contexto = super().get_context(name, value, attrs)
+        contexto['widget']['attrs']['data-opciones'] = reverse('opciones', args=[self.fuente])
+        if self.perezoso:
+            contexto['widget']['attrs']['data-perezoso'] = '1'
+        return contexto
+
+
+def remoto(campo, fuente, perezoso=False):
+    """Cambia el selector del campo por uno liviano (conserva clases y la validación del queryset)."""
+    widget = SelectRemoto(fuente, perezoso, attrs=dict(campo.widget.attrs))
+    widget.choices = campo.choices
+    campo.widget = widget
+
+
 class BootstrapMixin:
     """Aplica clases Bootstrap a todos los widgets."""
 
@@ -361,6 +399,7 @@ class ItemForm(BootstrapMixin, forms.ModelForm):
                                              ('EXONERADA', 'Exonerada'), ('INAFECTA', 'Inafecta')]
         self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False)
         self.fields['producto'].widget.attrs['class'] = 'form-select form-select-sm js-producto'
+        remoto(self.fields['producto'], 'productos')
         self.fields['cantidad'].widget.attrs['class'] = 'form-control form-control-sm text-end js-cantidad'
         self.fields['precio_unitario'].widget.attrs['class'] = 'form-control form-control-sm text-end js-precio'
         self.fields['descripcion'].widget.attrs['class'] = 'form-control form-control-sm js-descripcion'

@@ -48,8 +48,13 @@ def al_dia(vista):
     @wraps(vista)
     def envoltura(request, *args, **kwargs):
         if request.method == 'GET' and automatico.periodos_pendientes():
-            for error in automatico.actualizar_pendientes():
+            for error in automatico.actualizar_pendientes(limite_segundos=8):
                 messages.warning(request, error)
+            quedan = automatico.periodos_pendientes()
+            if quedan:
+                messages.info(request, f'Contabilizando: faltan {len(quedan)} periodo(s) '
+                                       f'({quedan[0][4:]}/{quedan[0][:4]} en adelante). Recargue la página en unos '
+                                       f'segundos para continuar.')
         return vista(request, *args, **kwargs)
     return envoltura
 

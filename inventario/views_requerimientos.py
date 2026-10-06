@@ -38,8 +38,10 @@ class ItemForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['producto'].queryset = Producto.objects.filter(activo=True, tipo='BIEN')
+        self.fields['producto'].queryset = Producto.objects.filter(activo=True, tipo='BIEN', es_plantilla=False)
         self.fields['producto'].widget.attrs['class'] = 'form-select form-select-sm'
+        from core.forms import remoto
+        remoto(self.fields['producto'], 'productos_bienes')
         self.fields['cantidad'].widget.attrs['class'] = 'form-control form-control-sm text-end'
         self.fields['observacion'].widget.attrs['class'] = 'form-control form-control-sm'
 

@@ -31,8 +31,14 @@ def _sin_permiso_costos(request):
 def stock(request):
     from .modulos import puede_ver_costos
     costos = puede_ver_costos(request.user)
-    almacenes = list(Almacen.objects.filter(activo=True))
-    productos = Producto.objects.filter(activo=True, tipo='BIEN').prefetch_related('stocks')
+    from core.models import StockAlmacen
+    todos = request.GET.get('todos') == '1'
+    productos = Producto.objects.filter(activo=True, tipo='BIEN', es_plantilla=False).prefetch_related('stocks')
+    if not todos:  # por defecto solo lo que tiene stock (la lista completa puede tener miles de productos)
+        productos = productos.exclude(stock=0)
+    # columnas: solo los almacenes con mercadería (o todos los activos si se piden todos los productos)
+    con_stock = set(StockAlmacen.objects.exclude(cantidad=0).values_list('almacen_id', flat=True))
+    almacenes = [a for a in Almacen.objects.filter(activo=True) if todos or a.pk in con_stock]
     q = request.GET.get('q', '').strip()
     if q:
         productos = productos.filter(Q(codigo__icontains=q) | Q(nombre__icontains=q))
@@ -50,8 +56,10 @@ def stock(request):
         datos = [[f['p'].codigo, f['p'].nombre, f['p'].unidad] + f['cantidades'] + [f['p'].stock, f['p'].stock_minimo]
                  + ([f['p'].costo_promedio, f['p'].valorizado] if costos else []) for f in filas]
         return excel_response('Stock_por_almacen', 'Stock por almacén', enc, datos)
+    from django.core.paginator import Paginator
     return render(request, 'inventario/stock.html', {
-        'almacenes': almacenes, 'filas': filas, 'q': q, 'solo_bajo': solo_bajo,
+        'almacenes': almacenes, 'page_obj': Paginator(filas, 100).get_page(request.GET.get('page')),
+        'n_filas': len(filas), 'q': q, 'solo_bajo': solo_bajo, 'todos': todos,
         'total_valor': total_valor if costos else None,
         'n_bajo': sum(1 for p in Producto.objects.filter(activo=True, tipo='BIEN') if p.bajo_minimo)})
 

@@ -1,6 +1,6 @@
 from django import forms
 
-from core.forms import BootstrapMixin, validar_periodo_abierto
+from core.forms import remoto, BootstrapMixin, validar_periodo_abierto
 from core.sunat import DETRACCION_TIPOS
 from core.models import Serie, Tercero
 
@@ -26,11 +26,13 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         self.fields['tipo_comprobante'].choices = [c for c in self.fields['tipo_comprobante'].choices
                                                    if c[0] in ('01', '03', '07', '08', '12', '00')]
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['CLIENTE', 'AMBOS'])
+        remoto(self.fields['tercero'], 'clientes')
         self.fields['serie'].widget.attrs['list'] = 'series-venta'
         self.fields['cotizacion'].queryset = Cotizacion.objects.exclude(estado='ANULADO')
         self.fields['lista_precios'].queryset = ListaPrecios.objects.filter(activa=True)
         self.fields['doc_referencia'].queryset = Venta.objects.filter(
             estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
+        remoto(self.fields['doc_referencia'], 'ventas', perezoso=True)
         self.series = Serie.objects.filter(activo=True, tipo__in=['01', '03', '07', '08', '12', '00'])
         if self.instance.pk:
             # no se renumeran comprobantes emitidos
@@ -129,6 +131,7 @@ class CotizacionForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['CLIENTE', 'AMBOS'])
+        remoto(self.fields['tercero'], 'clientes')
 
     def save(self, commit=True):
         if not self.instance.numero:
@@ -160,6 +163,7 @@ class PrecioListaForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         from core.models import Producto
         self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, puede_venderse=True)
+        remoto(self.fields['producto'], 'productos_venta')
 
     def clean(self):
         data = super().clean()

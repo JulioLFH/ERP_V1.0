@@ -1,7 +1,7 @@
 from django import forms
 from django.forms import inlineformset_factory
 
-from core.forms import BootstrapMixin, validar_periodo_abierto
+from core.forms import remoto, BootstrapMixin, validar_periodo_abierto
 from core.models import Almacen, Producto
 
 from .models import (DIAS, CentroTrabajo, ComponenteLista, HojaRuta, ListaMateriales, OperacionRuta,
@@ -80,6 +80,7 @@ class ComponenteForm(_FilaForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, tipo='BIEN')
+        remoto(self.fields['producto'], 'productos_bienes')
         self.fields['almacen'].queryset = Almacen.objects.filter(activo=True, uso='')
 
     def clean_cantidad(self):
@@ -225,3 +226,4 @@ class PlanDemandaForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, tipo='BIEN')
+        remoto(self.fields['producto'], 'productos_bienes')

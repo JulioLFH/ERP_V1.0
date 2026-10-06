@@ -1,7 +1,7 @@
 from django import forms
 from django.forms import inlineformset_factory
 
-from core.forms import BootstrapMixin
+from core.forms import remoto, BootstrapMixin
 from core.models import Empresa, Producto, Serie, Tercero
 from ventas.models import Venta
 
@@ -21,14 +21,16 @@ class GuiaBaseForm(BootstrapMixin, forms.ModelForm):
         terceros = Tercero.objects.filter(activo=True)
         for campo in ('destinatario', 'remitente', 'transportista'):
             if campo in self.fields:
-                self.fields[campo].queryset = terceros
-        if 'transportista' in self.fields:
-            self.fields['transportista'].queryset = terceros.filter(tipo_doc='6')
+                self.fields[campo].queryset = terceros.filter(tipo_doc='6') if campo == 'transportista' else terceros
+                remoto(self.fields[campo], 'terceros')
         self.fields['vehiculo'].queryset = Vehiculo.objects.filter(activo=True)
         self.fields['conductor'].queryset = Conductor.objects.filter(activo=True)
         if 'venta' in self.fields:
             self.fields['venta'].queryset = Venta.objects.filter(estado='REGISTRADO').exclude(
                 tipo_comprobante__in=['07', '08'])
+            remoto(self.fields['venta'], 'ventas', perezoso=True)
+        if 'compra' in self.fields:
+            remoto(self.fields['compra'], 'compras', perezoso=True)
         if self.instance.pk:
             self.fields['serie'].disabled = True
         self.fields['serie'].required = False
@@ -143,6 +145,7 @@ class GuiaItemForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False)
         self.fields['producto'].widget.attrs['class'] = 'form-select form-select-sm js-producto'
+        remoto(self.fields['producto'], 'productos')
         self.fields['descripcion'].widget.attrs['class'] = 'form-control form-control-sm js-descripcion'
         self.fields['unidad'].widget.attrs['class'] = 'form-select form-select-sm js-unidad'
         self.fields['cantidad'].widget.attrs['class'] = 'form-control form-control-sm text-end js-cantidad'

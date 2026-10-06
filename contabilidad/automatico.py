@@ -35,13 +35,20 @@ def periodos_pendientes():
                 .values_list('periodo', flat=True))
 
 
-def actualizar_pendientes():
-    """Centraliza en orden los periodos abiertos con cambios. Devuelve los errores encontrados."""
+def actualizar_pendientes(limite_segundos=None):
+    """Centraliza en orden los periodos abiertos con cambios. Devuelve los errores encontrados.
+
+    limite_segundos: deja de empezar periodos nuevos pasado ese tiempo (las pantallas no deben exceder el tiempo
+    máximo de respuesta del servidor); los que quedan se centralizan en la siguiente visita."""
+    import time
     from .centralizar import ErrorContable, centralizar_periodo
+    inicio = time.monotonic()
     errores = []
     if not Asiento.objects.filter(origen='APERTURA').exists():
         generar_apertura()
     for periodo in periodos_pendientes():
+        if limite_segundos is not None and time.monotonic() - inicio > limite_segundos:
+            break
         try:
             resumen = centralizar_periodo(periodo)
             errores += resumen['errores']

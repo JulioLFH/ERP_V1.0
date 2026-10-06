@@ -1,6 +1,6 @@
 from django import forms
 
-from core.forms import BootstrapMixin, validar_periodo_abierto
+from core.forms import remoto, BootstrapMixin, validar_periodo_abierto
 from core.models import Tercero
 from core.sustentos import SustentoField
 
@@ -130,6 +130,7 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['cuenta'].queryset = Cuenta.objects.filter(activo=True)
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True)
+        remoto(self.fields['tercero'], 'terceros')
         self.fields['concepto'].choices = [c for c in Movimiento.CONCEPTOS if c[0] not in ('COBRANZA', 'PAGO',
                                                                                            'TRANSFERENCIA')]
 

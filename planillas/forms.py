@@ -3,7 +3,7 @@ from datetime import date
 from django import forms
 
 from contabilidad.models import CentroCosto, CuentaContable
-from core.forms import BootstrapMixin
+from core.forms import remoto, BootstrapMixin
 from finanzas.models import Cuenta
 
 from .models import AFP, ConceptoPlanilla, FilaPlanilla, Parametro, Planilla, Trabajador
@@ -132,7 +132,9 @@ class ConceptoForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         qs = CuentaContable.objects.filter(imputable=True, activo=True)
         self.fields['cuenta'].queryset = qs
+        remoto(self.fields['cuenta'], 'cuentas')
         self.fields['cuenta_pasivo'].queryset = qs.filter(codigo__startswith='4')
+        remoto(self.fields['cuenta_pasivo'], 'cuentas')
 
 
 ParametrosFormSet = forms.modelformset_factory(Parametro, form=ParametroForm, extra=1)

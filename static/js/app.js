@@ -1,3 +1,48 @@
+// Selectores de listas grandes (data-opciones): la página trae solo la opción elegida y aquí se completa la lista,
+// descargada una vez y compartida por todas las filas (también las que se agregan después).
+(function () {
+  const cache = {};
+  const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  function html(url) {
+    if (!cache[url]) {
+      cache[url] = fetch(url, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : []))
+        .then((lista) => '<option value="">---------</option>' +
+          lista.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join(''))
+        .catch(() => null);
+    }
+    return cache[url];
+  }
+  function llenar(sel) {
+    if (sel.dataset.llenado) return;
+    sel.dataset.llenado = '1';
+    const actual = sel.value;
+    const elegida = sel.selectedOptions[0] && actual ? sel.selectedOptions[0].outerHTML : '';
+    html(sel.dataset.opciones).then((opciones) => {
+      if (!opciones) { delete sel.dataset.llenado; return; }
+      sel.innerHTML = opciones;
+      if (actual) {
+        sel.value = actual;
+        if (sel.value !== actual && elegida) { sel.insertAdjacentHTML('beforeend', elegida); sel.value = actual; }
+      }
+    });
+  }
+  function preparar(raiz) {
+    raiz.querySelectorAll('select[data-opciones]').forEach((sel) => {
+      if (sel.dataset.perezoso) {  // lista grande y poco usada: se llena después de mostrar la página
+        ['focus', 'mousedown', 'touchstart'].forEach((ev) => sel.addEventListener(ev, () => llenar(sel), { once: true }));
+        setTimeout(() => llenar(sel), 1200);
+      } else {
+        llenar(sel);
+      }
+    });
+  }
+  window.prepararSelectores = preparar;
+  preparar(document);
+  new MutationObserver((cambios) => cambios.forEach((c) => c.addedNodes.forEach((n) => {
+    if (n.nodeType === 1) preparar(n.matches && n.matches('select[data-opciones]') ? n.parentNode : n);
+  }))).observe(document.body, { childList: true, subtree: true });
+})();
+
 // ERP — detalle de ítems (agregar filas, autocompletar producto y totales en vivo)
 (function () {
   const tabla = document.getElementById('items-body');
@@ -68,7 +113,7 @@
     const val = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
     const q = new URLSearchParams({ producto: sel.value, cantidad: num(tr.querySelector('.js-cantidad')) || 1,
       tercero: val('id_tercero'), lista: val('id_lista_precios'), fecha: val('id_fecha_emision') });
-    fetch(${precioUrl}?+q).then((r) => r.ok ? r.json() : null).then((d) => {
+    fetch(`${precioUrl}?${q}`).then((r) => r.ok ? r.json() : null).then((d) => {
       if (!d || (!d.lista && !alElegir)) return;
       const precio = tr.querySelector('.js-precio');
       if (precio && d.precio !== null) precio.value = parseFloat(d.precio).toFixed(2);

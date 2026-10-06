@@ -3,7 +3,7 @@ from decimal import Decimal
 from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory, modelformset_factory
 
-from core.forms import BootstrapMixin
+from core.forms import remoto, BootstrapMixin
 from core.models import Tercero
 from core.sustentos import SustentoField
 
@@ -74,6 +74,7 @@ class PresupuestoLineaForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['cuenta'].queryset = cuentas_imputables().filter(codigo__regex=r'^(6[2-9]|7[0-8]|88)')
+        remoto(self.fields['cuenta'], 'cuentas')
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
         self.fields['centro_costo'].required = False
         for m in PresupuestoLinea.MESES:
@@ -114,6 +115,7 @@ class CuentaDefectoForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['cuenta'].queryset = cuentas_imputables()
+        remoto(self.fields['cuenta'], 'cuentas')
 
 
 CuentaDefectoFormSet = modelformset_factory(CuentaDefecto, form=CuentaDefectoForm, extra=0)
@@ -161,7 +163,9 @@ class AsientoLineaForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['cuenta'].queryset = cuentas_imputables()
+        remoto(self.fields['cuenta'], 'cuentas')
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True)
+        remoto(self.fields['tercero'], 'terceros')
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
         self.fields['debe'].widget.attrs['class'] = 'form-control form-control-sm text-end js-debe'
         self.fields['haber'].widget.attrs['class'] = 'form-control form-control-sm text-end js-haber'
