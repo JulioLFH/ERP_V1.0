@@ -17,7 +17,7 @@ class MovimientoAnterior(models.Model):
     almacen = models.CharField('Almacén', max_length=80)
     transaccion = models.CharField('Transacción', max_length=60)
     documento = models.CharField(max_length=60, blank=True, db_index=True)
-    orden_fabricacion = models.CharField('Orden de fabricación', max_length=40, blank=True)
+    orden_fabricacion = models.CharField('Orden de fabricación', max_length=40, blank=True, db_index=True)
     orden_compra = models.CharField('Orden de compra', max_length=40, blank=True)
     guia = models.CharField('Guía', max_length=40, blank=True)
     comprobante = models.CharField(max_length=40, blank=True)
