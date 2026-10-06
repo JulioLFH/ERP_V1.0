@@ -89,6 +89,9 @@ DATABASES = {
         conn_max_age=600,
     )
 }
+# Solo para trasladar una base migrada en local a la nube (manage.py trasladar_migracion)
+if os.environ.get('MIGRACION_ORIGEN'):
+    DATABASES['origen'] = {'ENGINE': 'django.db.backends.sqlite3', 'NAME': os.environ['MIGRACION_ORIGEN']}
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
