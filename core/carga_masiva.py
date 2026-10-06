@@ -154,6 +154,32 @@ DEFINICIONES = OrderedDict([
             ('costo_unitario', 'Costo unitario S/ sin IGV', True, '92.30', ''),
             ('fecha', 'Fecha', False, '', 'dd/mm/aaaa. Vacío = hoy'),
         ]}),
+    ('trabajadores', {
+        'titulo': 'Trabajadores (planillas)', 'icono': 'bi-person-badge', 'modulos': ['planillas'],
+        'descripcion': 'Datos laborales para la planilla. Si el documento ya existe se actualiza (marque '
+                       '"Actualizar existentes").',
+        'columnas': [
+            ('numero_doc', 'N° documento', True, '45678912', ''),
+            ('tipo_doc', 'Tipo de documento', False, 'DNI', 'DNI, CE o Pasaporte. Vacío = DNI'),
+            ('apellido_paterno', 'Apellido paterno', True, 'QUISPE', ''),
+            ('apellido_materno', 'Apellido materno', False, 'MAMANI', ''),
+            ('nombres', 'Nombres', True, 'ROSA ELENA', ''),
+            ('fecha_ingreso', 'Fecha de ingreso', True, '01/03/2024', 'dd/mm/aaaa'),
+            ('cargo', 'Cargo', False, 'Operaria de producción', ''),
+            ('tipo', 'Tipo', False, 'Obrero', 'Empleado u Obrero. Vacío = Empleado'),
+            ('regimen', 'Régimen laboral', False, 'General', 'General, Pequeña o Micro. Vacío = General'),
+            ('centro_costo', 'Centro de costo (código)', False, '924001', ''),
+            ('sueldo', 'Remuneración básica', True, '1500', ''),
+            ('asignacion_familiar', 'Asignación familiar', False, 'SI', 'SI o NO'),
+            ('sistema_pensiones', 'Sistema de pensiones', True, 'AFP', 'ONP, AFP o Ninguno'),
+            ('afp', 'AFP', False, 'INTEGRA', 'Código de la AFP: HABITAT, INTEGRA, PRIMA o PROFUTURO'),
+            ('comision', 'Tipo de comisión AFP', False, 'Flujo', 'Flujo o Mixta. Vacío = Flujo'),
+            ('cuspp', 'CUSPP', False, '', ''),
+            ('banco', 'Banco', False, 'BCP', ''), ('cuenta_sueldo', 'Cuenta de sueldo', False, '', ''),
+            ('quinta_remuneracion_previa', 'Remuneraciones previas del año', False, '0',
+             'Quinta: lo percibido en el año antes de usar el sistema (incluye gratificaciones)'),
+            ('quinta_retencion_previa', 'Retenciones de quinta previas', False, '0', ''),
+        ]}),
     # maestros de costos y manufactura: cárguelos en este orden (cada uno usa los anteriores)
     ('centros_beneficio', {
         'titulo': '1. Centros de beneficio', 'icono': 'bi-briefcase', 'modulos': ['contabilidad', 'manufactura'],
@@ -523,7 +549,68 @@ def _fila_version(d, actualizar):
         'resumen': f'{producto.codigo} versión {version} · receta {lista.codigo}' + (f' · ruta {hoja.codigo}' if hoja else '')}
 
 
-VALIDADORES = {'productos': _fila_producto, 'terceros': _fila_tercero, 'saldos': _fila_saldo,
+def _fila_trabajador(d, actualizar):
+    from contabilidad.models import CentroCosto
+    from planillas.models import AFP, Trabajador
+    from .utils import a_fecha
+    numero = _txt(d.get('numero_doc'))
+    tipo_doc = {'': '01', 'DNI': '01', 'CE': '04', 'CARNE DE EXTRANJERIA': '04', 'PASAPORTE': '07'}.get(
+        normalizar(d.get('tipo_doc')))
+    if tipo_doc is None:
+        raise ErrorFila('Tipo de documento: DNI, CE o Pasaporte.')
+    if tipo_doc == '01':
+        numero = numero.zfill(8)
+        if len(numero) != 8 or not numero.isdigit():
+            raise ErrorFila('El DNI debe tener 8 dígitos.')
+    if not numero:
+        raise ErrorFila('N° documento: obligatorio.')
+    existente = Trabajador.objects.filter(numero_doc=numero).first()
+    if existente and not actualizar:
+        raise ErrorFila(f'El trabajador {numero} ya existe (marque "Actualizar existentes").')
+    paterno, nombres = _txt(d.get('apellido_paterno')), _txt(d.get('nombres'))
+    if not paterno or not nombres:
+        raise ErrorFila('Apellido paterno y nombres son obligatorios.')
+    try:
+        ingreso = a_fecha(d.get('fecha_ingreso'))
+    except ValueError as exc:
+        raise ErrorFila(str(exc))
+    sueldo = _dec(d.get('sueldo'), 'Remuneración básica', requerido=True, minimo=D0)
+    pensiones = {'ONP': 'ONP', 'AFP': 'AFP', 'NINGUNO': 'NINGUNO', 'SIN': 'NINGUNO'}.get(
+        normalizar(d.get('sistema_pensiones')))
+    if not pensiones:
+        raise ErrorFila('Sistema de pensiones: ONP, AFP o Ninguno.')
+    afp = None
+    if pensiones == 'AFP':
+        afp = AFP.objects.filter(codigo__iexact=_txt(d.get('afp'))).first() or \
+            AFP.objects.filter(nombre__icontains=_txt(d.get('afp')) or '-').first()
+        if afp is None:
+            raise ErrorFila(f'AFP "{_txt(d.get("afp"))}" no existe (use HABITAT, INTEGRA, PRIMA o PROFUTURO).')
+    centro = _txt(d.get('centro_costo'))
+    if centro and not CentroCosto.objects.filter(codigo=centro).exists():
+        raise ErrorFila(f'Centro de costo {centro} no existe.')
+    regimen = {'': 'GENERAL', 'GENERAL': 'GENERAL', 'PEQUENA': 'PEQUENA', 'PEQUENA EMPRESA': 'PEQUENA',
+               'MICRO': 'MICRO', 'MICROEMPRESA': 'MICRO'}.get(normalizar(d.get('regimen')))
+    if regimen is None:
+        raise ErrorFila('Régimen laboral: General, Pequeña o Micro.')
+    datos = {'tipo_doc': tipo_doc, 'apellido_paterno': paterno[:60], 'apellido_materno': _txt(
+        d.get('apellido_materno'))[:60], 'nombres': nombres[:80], 'fecha_ingreso': ingreso.isoformat(),
+        'cargo': _txt(d.get('cargo'))[:80], 'tipo': 'OBRERO' if normalizar(d.get('tipo')) == 'OBRERO' else 'EMPLEADO',
+        'regimen': regimen, 'centro_costo': centro, 'sueldo': str(sueldo),
+        'asignacion_familiar': normalizar(d.get('asignacion_familiar')) in ('SI', 'S', 'X', '1'),
+        'sistema_pensiones': pensiones, 'afp': afp.pk if afp else None,
+        'comision_afp': 'MIXTA' if normalizar(d.get('comision')) == 'MIXTA' else 'FLUJO',
+        'cuspp': _txt(d.get('cuspp'))[:12], 'banco': _txt(d.get('banco'))[:30],
+        'cuenta_sueldo': _txt(d.get('cuenta_sueldo'))[:30]}
+    previa = _dec(d.get('quinta_remuneracion_previa'), 'Remuneraciones previas', minimo=D0) or D0
+    retencion = _dec(d.get('quinta_retencion_previa'), 'Retenciones previas', minimo=D0) or D0
+    if previa or retencion:
+        datos.update(quinta_anio=date.today().year, quinta_remuneracion_previa=str(previa),
+                     quinta_retencion_previa=str(retencion))
+    return {'accion': 'Actualizar' if existente else 'Nuevo', 'codigo': numero, 'datos': datos,
+            'resumen': f'{numero} · {paterno} {nombres} · S/ {sueldo:,.2f} · {pensiones}'}
+
+
+VALIDADORES = {'trabajadores': _fila_trabajador, 'productos': _fila_producto, 'terceros': _fila_tercero, 'saldos': _fila_saldo,
                'saldos_cxc': lambda d, a: _fila_documento(d, True), 'saldos_cxp': lambda d, a: _fila_documento(d, False),
                'centros_beneficio': _fila_beneficio, 'centros_costo': _fila_centro_costo, 'puestos': _fila_puesto,
                'recetas': _fila_receta, 'hojas_ruta': _fila_hoja, 'versiones': _fila_version}
@@ -675,6 +762,21 @@ def cargar(tipo, filas, usuario, adjunto=None):
                 servicios.confirmar(op, usuario)
                 numeros.append(op.numero)
             return f'{len(filas)} saldos cargados en {len(numeros)} operación(es): {", ".join(numeros)}.'
+        if tipo == 'trabajadores':
+            from contabilidad.models import CentroCosto
+            from planillas.models import Trabajador
+            for f in filas:
+                d = dict(f['datos'])
+                d['fecha_ingreso'] = date.fromisoformat(d['fecha_ingreso'])
+                d['sueldo'] = Decimal(d['sueldo'])
+                for campo in ('quinta_remuneracion_previa', 'quinta_retencion_previa'):
+                    if campo in d:
+                        d[campo] = Decimal(d[campo])
+                d['centro_costo'] = CentroCosto.objects.filter(codigo=d['centro_costo']).first() \
+                    if d['centro_costo'] else None
+                d['afp_id'] = d.pop('afp')
+                Trabajador.objects.update_or_create(numero_doc=f['codigo'], defaults=d)
+            return f'{len(filas)} trabajadores cargados.'
         if tipo in ('centros_beneficio', 'centros_costo', 'puestos', 'recetas', 'hojas_ruta', 'versiones'):
             return _cargar_maestro(tipo, filas)
     raise ValueError(tipo)

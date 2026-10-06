@@ -83,6 +83,8 @@ class Command(BaseCommand):
         parser.add_argument('--corte', default='', help='Fecha de los saldos (AAAA-MM-DD). Vacío = hoy')
         parser.add_argument('--reporte', default='observaciones_migracion.xlsx')
         parser.add_argument('--simular', action='store_true', help='Valida y genera el reporte sin grabar')
+        parser.add_argument('--ruc', default=EMPRESA_RUC, help='RUC de la empresa')
+        parser.add_argument('--razon-social', default=EMPRESA_NOMBRE)
 
     # ---------------------------------------------------------------- utilidades
     def _filas(self, nombre, columnas=None):
@@ -112,8 +114,9 @@ class Command(BaseCommand):
         self.stdout.write(f'[{time.time() - self.inicio:6.0f}s] {texto}')
 
     # ---------------------------------------------------------------- principal
-    def handle(self, carpeta, corte, reporte, simular, **_):
+    def handle(self, carpeta, corte, reporte, simular, ruc, razon_social, **_):
         self.carpeta, self.inicio = carpeta, time.time()
+        self.ruc, self.razon_social = ruc, razon_social
         self.corte = date.fromisoformat(corte) if corte else date.today()
         if self.corte > date.today():
             raise CommandError('La fecha de corte no puede ser futura.')
@@ -143,9 +146,9 @@ class Command(BaseCommand):
     def empresa(self):
         from core.models import Empresa
         e = Empresa.actual()
-        e.ruc, e.razon_social = EMPRESA_RUC, EMPRESA_NOMBRE
+        e.ruc, e.razon_social = self.ruc, self.razon_social
         e.save()
-        self.resumen['Empresa'] = f'{EMPRESA_NOMBRE} (RUC {EMPRESA_RUC})'
+        self.resumen['Empresa'] = f'{self.razon_social} (RUC {self.ruc})'
 
     def almacenes(self):
         """Ubicaciones de Odoo ('LPROD/Existencias', 'LPROD/TRANSITO') -> almacén por código; nombre desde el kardex."""
@@ -200,7 +203,7 @@ class Command(BaseCommand):
                     m = re.match(r'\[(\d+)\]\s*(.+)', cc)
                     if m:
                         centros.setdefault(m.group(1), ' '.join(m.group(2).split()))
-            if os.path.isdir('migracion_local'):
+            if os.path.isdir('migracion_local') and os.path.getsize(origen) > 10_000_000:  # solo archivos grandes
                 with open(cache, 'w', encoding='utf-8') as fh:
                     json.dump([cuentas, centros], fh, ensure_ascii=False)
         for r in self._filas('Data_Cuenta_Planillas.xlsx'):  # cuentas de planilla y su centro de costo
@@ -299,7 +302,7 @@ class Command(BaseCommand):
         from core import ubigeo
         from ventas.models import ListaPrecios
         self.paso('Clientes y proveedores…')
-        listas = {}
+        listas, self.empleados = {}, {}
         por_doc = OrderedDict()
         for r in self._filas('Data_Contactos_API.xlsx'):
             if _txt(r['tipo_contacto']) != 'Contacto':
@@ -307,10 +310,12 @@ class Command(BaseCommand):
             cliente, proveedor = _txt(r['es_cliente']) == 'SI', _txt(r['es_proveedor']) == 'SI'
             numero = re.sub(r'\s', '', _txt(r['numero_documento']))
             nombre = ' '.join((_txt(r['nombre_completo']) or _txt(r['nombre'])).split())
+            if numero and _txt(r['es_empleado']) == 'SI' and _txt(r['tipo_documento']) in ('DNI', 'Cédula Extranjera'):
+                self.empleados.setdefault(numero, (nombre, _txt(r['tipo_documento']), _txt(r['email'])))
             if not (cliente or proveedor):
                 if _txt(r['es_empleado']) != 'SI':
                     self.observar('Contactos omitidos', numero, nombre, 'Ni cliente ni proveedor')
-                continue  # los trabajadores se cargan en planillas
+                continue  # los trabajadores van al módulo de planillas
             if not numero:
                 self.observar('Contactos omitidos', '', nombre, 'Sin número de documento')
                 continue
@@ -337,7 +342,8 @@ class Command(BaseCommand):
                 t, nuevos = Tercero(numero_doc=numero[:15]), nuevos + 1
             else:
                 actualizados += 1
-            t.tipo = 'AMBOS' if d['cliente'] and d['proveedor'] else 'CLIENTE' if d['cliente'] else 'PROVEEDOR'
+            tipo = 'AMBOS' if d['cliente'] and d['proveedor'] else 'CLIENTE' if d['cliente'] else 'PROVEEDOR'
+            t.tipo = tipo if not t.pk or t.tipo == tipo else 'AMBOS'  # al volver a migrar no se le quita un rol
             t.tipo_doc = tipo_doc
             t.nombre = d['nombre'][:200] or numero
             t.direccion = (_txt(r['direccion_completa']) or _txt(r['calle']))[:250]
@@ -354,8 +360,31 @@ class Command(BaseCommand):
                 t.lista_precios = listas[lista]
             t.save()
         self.resumen['Clientes y proveedores'] = f'{nuevos} nuevos, {actualizados} actualizados'
+        self.trabajadores()
         self.resumen['Listas de precios'] = f'{len(listas)} creadas (sin precios: cárguelos en Ventas › Listas de precios)'
         self.paso(self.resumen['Clientes y proveedores'])
+
+    def trabajadores(self):
+        """Contactos marcados como empleados en Odoo -> trabajadores 'por completar' (sin sueldo ni ingreso: los
+        datos laborales se cargan con Carga masiva › Trabajadores)."""
+        from planillas.models import Trabajador
+        nuevos = 0
+        for numero, (nombre, tipo, email) in self.empleados.items():
+            numero = numero.rstrip('.')
+            if tipo == 'DNI' and (len(numero) != 8 or not numero.isdigit()):
+                self.observar('Contactos con observación', numero, nombre, 'Trabajador no creado: DNI inválido')
+                continue
+            if Trabajador.objects.filter(numero_doc=numero).exists():
+                continue
+            partes = nombre.replace(',', ' ').split()
+            paterno, materno = (partes[0], partes[1]) if len(partes) >= 3 else (partes[0] if partes else numero, '')
+            nombres = ' '.join(partes[2:] if len(partes) >= 3 else partes[1:]) or '-'
+            Trabajador.objects.create(tipo_doc='01' if tipo == 'DNI' else '04', numero_doc=numero,
+                                      apellido_paterno=paterno[:60], apellido_materno=materno[:60],
+                                      nombres=nombres[:80], email=email[:254] if '@' in email else '')
+            nuevos += 1
+        self.resumen['Trabajadores'] = (f'{nuevos} creados como "por completar" (cargue sueldo, ingreso y AFP con '
+                                        f'Carga masiva › Trabajadores)')
 
     def stock(self):
         from core.models import Producto

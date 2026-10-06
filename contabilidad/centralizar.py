@@ -527,6 +527,8 @@ def centralizar_periodo(periodo):
             if asiento_inventario(periodo, cta):
                 resumen['costo'] = 1
             asiento_activos(periodo, cta)
+            from planillas.servicios import asiento_planillas
+            asiento_planillas(periodo, cta)
             asiento_cambio_cierre(periodo, cta, obtener(hasta) if Cuenta.objects.filter(moneda='USD').exists()
                                   else None)
         except ErrorContable as exc:

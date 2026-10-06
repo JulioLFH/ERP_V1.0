@@ -23,6 +23,7 @@ AUDITADOS = [
     ('proveedores', 'FacturaProveedor'), ('proveedores', 'AccesoProveedor'),
     ('produccion', 'OrdenProduccion'), ('produccion', 'ListaMateriales'), ('produccion', 'CentroTrabajo'),
     ('activos', 'ActivoFijo'), ('activos', 'CategoriaActivo'), ('core', 'PerfilUsuario'),
+    ('planillas', 'Trabajador'), ('planillas', 'Planilla'), ('planillas', 'AFP'), ('planillas', 'Parametro'),
     ('contabilidad', 'CentroBeneficio'), ('inventario', 'RequerimientoInterno'),
     ('produccion', 'HojaRuta'), ('produccion', 'VersionFabricacion'),
 ]

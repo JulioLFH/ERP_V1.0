@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-person-badge"></i> {{ titulo }}</h1>
+  <a href="{% url 'planillas:trabajadores' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Trabajadores</a>
+</div>
+<form method="post" novalidate style="max-width:1000px">
+  {% csrf_token %}
+  {% if form.errors %}<div class="alert alert-danger py-2">Revise los campos marcados.</div>{% endif %}
+  {% for titulo_s, campos in form.secciones %}
+  <div class="card mb-3"><div class="card-header">{{ titulo_s }}</div><div class="card-body"><div class="row g-3">
+    {% for field in campos %}<div class="{% if field.name == 'direccion' or field.name == 'nombres' %}col-md-6{% else %}col-6 col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div></div></div>
+  {% endfor %}
+  {% if puede.planillas_calcular %}<button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>{% endif %}
+</form>
+{% endblock %}

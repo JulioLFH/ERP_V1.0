@@ -1,0 +1,33 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Trabajadores{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-person-badge"></i> Trabajadores</h1>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="?estado={{ estado }}&q={{ q }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
+    {% if puede.planillas_calcular %}<a href="{% url 'carga_masiva' %}?tipo=trabajadores" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-arrow-up"></i> Cargar desde Excel</a>
+    <a href="{% url 'planillas:trabajador_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo trabajador</a>{% endif %}
+  </div>
+</div>
+{% if incompletos %}<div class="alert alert-warning small py-2"><i class="bi bi-exclamation-triangle"></i> {{ incompletos }} trabajadores activos sin fecha de ingreso o sin sueldo: no entran a la planilla hasta completarlos. <a href="?estado=incompletos">Verlos</a></div>{% endif %}
+<form class="d-flex flex-wrap gap-2 mb-3" method="get">
+  <select name="estado" class="form-select form-select-sm" style="width:auto">
+    {% for v, t in estados %}<option value="{{ v }}" {% if estado == v %}selected{% endif %}>{{ t }}</option>{% endfor %}
+  </select>
+  <input name="q" value="{{ q }}" class="form-control form-control-sm" style="width:auto" placeholder="DNI, apellido, cargo">
+  <button class="btn btn-sm btn-outline-primary">Buscar</button>
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+  <thead><tr><th>Documento</th><th>Apellidos y nombres</th><th>Cargo</th><th>Centro de costo</th><th>Ingreso</th><th>Pensiones</th><th class="num">Sueldo</th><th></th></tr></thead>
+  <tbody>{% for t in page_obj %}<tr class="{% if t.fecha_cese %}text-muted{% endif %}">
+    <td>{{ t.numero_doc }}</td>
+    <td><a href="{% url 'planillas:trabajador_editar' t.pk %}">{{ t.nombre_completo }}</a>{% if not t.datos_completos and not t.fecha_cese %} <span class="badge text-bg-warning">por completar</span>{% endif %}</td>
+    <td class="small">{{ t.cargo }}</td><td class="small">{{ t.centro_costo|default:'' }}</td>
+    <td>{{ t.fecha_ingreso|date:'d/m/Y'|default:'—' }}{% if t.fecha_cese %}<div class="small">Cese {{ t.fecha_cese|date:'d/m/Y' }}</div>{% endif %}</td>
+    <td class="small">{% if t.sistema_pensiones == 'AFP' %}{{ t.afp|default:'AFP' }}{% else %}{{ t.sistema_pensiones }}{% endif %}</td>
+    <td class="num">{{ t.sueldo|money }}</td>
+    <td class="text-end"><a href="{% url 'planillas:trabajador_editar' t.pk %}" class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-pencil"></i></a></td>
+  </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Sin trabajadores.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% include 'core/_paginacion.html' %}
+{% endblock %}

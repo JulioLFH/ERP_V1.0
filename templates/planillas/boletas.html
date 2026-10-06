@@ -1,0 +1,40 @@
+{% load erp_tags %}<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boletas {{ planilla }}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 0; background: #f3f4f6; }
+  .boleta { background: #fff; max-width: 780px; margin: 16px auto; padding: 20px 24px; border: 1px solid #ddd; page-break-after: always; }
+  .boleta:last-child { page-break-after: auto; }
+  h1 { font-size: 15px; margin: 0; } h2 { font-size: 13px; margin: 4px 0 12px; font-weight: normal; }
+  table { width: 100%; border-collapse: collapse; } td, th { padding: 3px 6px; vertical-align: top; }
+  .datos td { border: 1px solid #ccc; } .datos td.k { background: #f5f5f5; width: 18%; font-weight: bold; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .cols th { text-align: left; border-bottom: 1px solid #333; } .num { text-align: right; white-space: nowrap; }
+  .tot { border-top: 1px solid #333; font-weight: bold; } .neto { margin-top: 12px; font-size: 14px; text-align: right; font-weight: bold; }
+  .firmas { display: flex; justify-content: space-between; margin-top: 48px; } .firmas div { width: 40%; border-top: 1px solid #333; text-align: center; padding-top: 4px; }
+  .barra { text-align: center; margin: 12px; } @media print { body { background: #fff; } .boleta { border: 0; margin: 0 auto; } .barra { display: none; } }
+  @media (max-width: 600px) { .cols { grid-template-columns: 1fr; } .boleta { padding: 12px; } }
+</style></head><body>
+<div class="barra"><button onclick="window.print()">Imprimir / guardar PDF</button></div>
+{% for f in filas %}{% with t=f.trabajador %}
+<div class="boleta">
+  <h1>{{ empresa.razon_social }} · RUC {{ empresa.ruc }}</h1>
+  <h2>Boleta de pago · {{ planilla.get_tipo_display }} · {{ planilla.periodo|slice:'4:' }}/{{ planilla.periodo|slice:':4' }}</h2>
+  <table class="datos">
+    <tr><td class="k">Trabajador</td><td>{{ t.nombre_completo }}</td><td class="k">{{ t.get_tipo_doc_display }}</td><td>{{ t.numero_doc }}</td></tr>
+    <tr><td class="k">Cargo</td><td>{{ t.cargo }}</td><td class="k">Ingreso</td><td>{{ t.fecha_ingreso|date:'d/m/Y' }}</td></tr>
+    <tr><td class="k">Pensiones</td><td>{% if t.sistema_pensiones == 'AFP' %}{{ t.afp }} · CUSPP {{ t.cuspp }}{% else %}{{ t.get_sistema_pensiones_display }}{% endif %}</td><td class="k">Remuneración</td><td>S/ {{ t.sueldo|money }}</td></tr>
+    {% if planilla.tipo == 'MENSUAL' %}<tr><td class="k">Días laborados</td><td>{{ f.dias_laborados|floatformat:0 }}{% if f.dias_falta %} · faltas {{ f.dias_falta|floatformat:0 }}{% endif %}{% if f.dias_vacaciones %} · vacaciones {{ f.dias_vacaciones|floatformat:0 }}{% endif %}</td><td class="k">Horas extra</td><td>25%: {{ f.horas_extra_25|floatformat:2 }} · 35%: {{ f.horas_extra_35|floatformat:2 }}</td></tr>{% endif %}
+  </table>
+  <div class="cols">
+    {% for tipo, titulo in tipos %}<table><tr><th>{{ titulo }}</th><th class="num">S/</th></tr>
+      {% for l in f.lineas.all %}{% if l.concepto.tipo == tipo %}<tr><td>{{ l.concepto.nombre }}</td><td class="num">{{ l.monto|money }}</td></tr>{% endif %}{% endfor %}
+      <tr class="tot"><td>Total</td><td class="num">{% if tipo == 'INGRESO' %}{{ f.total_ingresos|money }}{% elif tipo == 'DESCUENTO' %}{{ f.total_descuentos|money }}{% else %}{{ f.total_aportes|money }}{% endif %}</td></tr>
+    </table>{% endfor %}
+  </div>
+  <div class="neto">Neto a pagar: S/ {{ f.neto|money }}</div>
+  {% if t.cuenta_sueldo %}<div>Abono en {{ t.banco }} cuenta {{ t.cuenta_sueldo }}</div>{% endif %}
+  <div class="firmas"><div>Empleador</div><div>Trabajador</div></div>
+</div>
+{% endwith %}{% endfor %}
+</body></html>

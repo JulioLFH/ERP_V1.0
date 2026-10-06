@@ -3,6 +3,17 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.18.0 — 05/10/2026 · Planillas y migración desde el sistema anterior
+**Planillas** (módulo nuevo)
+- **Trabajadores** con datos personales y laborales: régimen (general, pequeña o microempresa), centro de costo, sueldo, asignación familiar, ONP o AFP (comisión flujo o mixta, CUSPP) y cuentas de sueldo y CTS. Carga masiva desde Excel.
+- **Planilla mensual**: básico por días (ingresos y ceses en el mes, faltas, vacaciones, descanso médico), asignación familiar, horas extra 25% y 35%, otros ingresos afectos y no afectos, ONP o AFP (aporte, prima con tope y comisión), **renta de quinta categoría** por proyección anual (con lo percibido y retenido antes de usar el sistema), adelantos y otros descuentos, y **EsSalud** del empleador (base mínima la RMV).
+- **Gratificación** de julio y diciembre con la **bonificación extraordinaria del 9%** y **CTS** de mayo y noviembre (con 1/6 de la gratificación); pequeña empresa al 50% y microempresa sin estos beneficios.
+- **Boletas de pago** imprimibles, Excel de la planilla, **archivos PLAME** (.rem, .jor y .snl) y aportes por AFP.
+- Al cerrar, la planilla se **contabiliza** al centralizar el periodo (gasto 62 por centro de costo con su destino 90/94/95, ONP, AFP, quinta, EsSalud y neto a 4111); el **pago** se registra en tesorería. Permisos: calcular, cerrar/pagar y configurar.
+- Configuración editable: RMV, UIT y tasas por año, tasas de cada AFP y código PLAME y cuenta de cada concepto.
+
+**Migración desde el sistema anterior** (`python manage.py migrar_excels <carpeta>`): lee los Excel tal como están y carga almacenes, plan de cuentas, centros de costo, productos, clientes y proveedores (con su lista de precios), trabajadores, stock inicial valorizado por almacén y lote, comprobantes por cobrar y los correlativos de las series; con simulación previa y un Excel de observaciones.
+
 ## v1.17.0 — 05/10/2026 · Precios y descuentos, presupuesto, conciliación automática, XML/SIRE, API y variantes
 **Ventas y compras**
 - **Descuento por línea** (%) en ventas, cotizaciones, compras y órdenes de compra; se muestra en el comprobante impreso y viaja a SUNAT como descuento del ítem. El costo de lo comprado es el precio neto del descuento.

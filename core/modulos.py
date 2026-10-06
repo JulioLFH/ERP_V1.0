@@ -124,6 +124,16 @@ MODULOS = [
         ],
     },
     {
+        'clave': 'planillas', 'nombre': 'Planillas', 'icono': 'bi-person-badge', 'color': '#9333ea',
+        'inicio': 'planillas:lista', 'descripcion': 'Trabajadores, remuneraciones, gratificaciones, CTS y PLAME',
+        'menu': [
+            ('Planillas', [('Planillas', 'planillas:lista', 'bi-cash-stack'),
+                           ('Nueva planilla', 'planillas:nueva', 'bi-plus-circle')]),
+            ('Trabajadores', 'planillas:trabajadores'),
+            ('Configuración', [('Parámetros, AFP y conceptos', 'planillas:configuracion', 'bi-gear')]),
+        ],
+    },
+    {
         'clave': 'requerimientos', 'nombre': 'Requerimientos', 'icono': 'bi-clipboard-plus', 'color': '#0f766e',
         'inicio': 'requerimientos:lista', 'descripcion': 'Pedidos de materiales de las áreas al almacén',
         'menu': [
@@ -220,7 +230,7 @@ RUTAS_CORE = {
     'empresa': ['ajustes'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
     'auditoria': ['ajustes'],
     'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'finanzas', 'contactos', 'manufactura',
-                     'contabilidad'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
+                     'contabilidad', 'planillas'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
     'tipos_cambio': ['ajustes', 'finanzas'],

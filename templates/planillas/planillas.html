@@ -1,0 +1,22 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Planillas{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-cash-stack"></i> Planillas</h1>
+  {% if puede.planillas_calcular %}<div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'planillas:nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Planilla del mes</a>
+    <a href="{% url 'planillas:nueva' %}?tipo=GRATIFICACION" class="btn btn-sm btn-outline-primary">Gratificación</a>
+    <a href="{% url 'planillas:nueva' %}?tipo=CTS" class="btn btn-sm btn-outline-primary">CTS</a>
+  </div>{% endif %}
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-hover align-middle mb-0">
+  <thead><tr><th>Periodo</th><th>Planilla</th><th>Estado</th><th class="num">Trabajadores</th><th class="num">Neto a pagar</th><th class="num">Aportes</th><th></th></tr></thead>
+  <tbody>{% for p in planillas %}{% with t=p.totales %}<tr>
+    <td>{{ p.periodo|slice:'4:' }}/{{ p.periodo|slice:':4' }}</td>
+    <td><a href="{% url 'planillas:detalle' p.pk %}">{{ p.get_tipo_display }}</a></td>
+    <td><span class="badge {% if p.estado == 'PAGADA' %}text-bg-success{% elif p.estado == 'CERRADA' %}text-bg-primary{% elif p.estado == 'CALCULADA' %}text-bg-info{% else %}text-bg-secondary{% endif %}">{{ p.get_estado_display }}</span></td>
+    <td class="num">{{ p.filas.count }}</td><td class="num">{{ t.n|money }}</td><td class="num">{{ t.a|money }}</td>
+    <td class="text-end text-nowrap">{% if p.tipo == 'MENSUAL' %}<a href="{% url 'planillas:plame' p.periodo %}" class="btn btn-sm btn-outline-secondary py-0" title="Archivos PLAME del periodo">PLAME</a>{% endif %}</td>
+  </tr>{% endwith %}{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin planillas. Registre a los trabajadores y cree la planilla del mes.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

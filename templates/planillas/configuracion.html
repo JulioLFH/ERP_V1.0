@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Configuración de planillas{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3"><i class="bi bi-gear"></i> Configuración de planillas</h1>
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="alert alert-info small py-2">Revise estos valores al iniciar cada año y cuando la SBS publique nuevas tasas de las AFP: la planilla usa los parámetros del año del periodo.</div>
+  <div class="card mb-3"><div class="card-header">Parámetros por año</div>
+    {{ parametros.management_form }}
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>Año</th><th>RMV S/</th><th>UIT S/</th><th>Asig. familiar %</th><th>EsSalud %</th><th>ONP %</th><th>Bonif. extra %</th><th>Horas jornada</th></tr></thead>
+      <tbody>{% for f in parametros %}<tr>{% for campo in f.visible_fields %}<td>{{ campo }}{% for e in campo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>{% endfor %}{{ f.id }}</tr>{% endfor %}</tbody>
+    </table></div></div>
+  <div class="card mb-3"><div class="card-header">AFP (tasas de la SBS)</div>
+    {{ afps.management_form }}
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>Código</th><th>Nombre</th><th>Aporte %</th><th>Prima %</th><th>Comisión flujo %</th><th>Comisión mixta %</th><th>Rem. máxima asegurable</th><th>Activa</th></tr></thead>
+      <tbody>{% for f in afps %}<tr>{% for campo in f.visible_fields %}<td>{{ campo }}{% for e in campo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>{% endfor %}{{ f.id }}</tr>{% endfor %}</tbody>
+    </table></div></div>
+  <div class="card mb-3"><div class="card-header">Conceptos: código PLAME (tabla 22) y cuenta contable</div>
+    {{ conceptos.management_form }}
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>Tipo</th><th>Concepto</th><th>Código PLAME</th><th>Cuenta</th><th>Cuenta por pagar (aportes)</th></tr></thead>
+      <tbody>{% for f in conceptos %}<tr><td class="small">{{ f.instance.get_tipo_display }}</td>{% for campo in f.visible_fields %}<td>{% if campo.name == 'cuenta_pasivo' and f.instance.tipo != 'APORTE' %}<span class="d-none">{{ campo }}</span>{% else %}{{ campo }}{% endif %}{% for e in campo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>{% endfor %}{{ f.id }}</tr>{% endfor %}</tbody>
+    </table></div></div>
+  {% if puede.planillas_configurar %}<button class="btn btn-primary"><i class="bi bi-save"></i> Guardar</button>{% endif %}
+</form>
+{% endblock %}

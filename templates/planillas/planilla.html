@@ -1,0 +1,66 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ planilla }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">{{ planilla }}</h1>
+    <div class="small text-muted"><span class="badge {% if planilla.estado == 'PAGADA' %}text-bg-success{% elif planilla.estado == 'CERRADA' %}text-bg-primary{% elif planilla.estado == 'CALCULADA' %}text-bg-info{% else %}text-bg-secondary{% endif %}">{{ planilla.get_estado_display }}</span>
+      {% if planilla.movimiento_pago %} · pagada con {{ planilla.movimiento_pago.voucher }} el {{ planilla.fecha_pago|date:'d/m/Y' }}{% endif %}</div></div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    {% if planilla.estado != 'BORRADOR' %}<a href="{% url 'planillas:boletas' planilla.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Boletas</a>{% endif %}
+    {% if planilla.tipo == 'MENSUAL' and planilla.estado != 'BORRADOR' %}
+      <a href="{% url 'planillas:plame' planilla.periodo %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-zip"></i> PLAME</a>
+      <a href="{% url 'planillas:afp' planilla.periodo %}" class="btn btn-sm btn-outline-secondary">Aportes AFP</a>
+    {% endif %}
+    <a href="{% url 'planillas:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+  </div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Trabajadores</div><div class="fs-5 fw-semibold">{{ filas|length }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Total ingresos</div><div class="fs-5 fw-semibold">{{ totales.i|money }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Neto a pagar</div><div class="fs-5 fw-semibold text-success">{{ totales.n|money }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Aportes del empleador</div><div class="fs-5 fw-semibold">{{ totales.a|money }}</div></div></div></div>
+</div>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if formset %}{{ formset.management_form }}{% for e in formset.non_form_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}{% endif %}
+  <div class="d-flex flex-wrap gap-2 mb-2 d-print-none">
+    {% if planilla.estado == 'BORRADOR' or planilla.estado == 'CALCULADA' %}
+      {% if puede.planillas_calcular %}
+      <button name="accion" value="generar" class="btn btn-sm btn-outline-secondary"><i class="bi bi-people"></i> Actualizar trabajadores</button>
+      {% if formset %}<button name="accion" value="guardar" class="btn btn-sm btn-outline-primary"><i class="bi bi-save"></i> Guardar datos</button>{% endif %}
+      <button name="accion" value="calcular" class="btn btn-sm btn-primary"><i class="bi bi-calculator"></i> Calcular</button>
+      {% endif %}
+      {% if planilla.estado == 'CALCULADA' and puede.planillas_cerrar %}<button name="accion" value="cerrar" class="btn btn-sm btn-success" data-confirm="¿Cerrar la planilla? Se contabiliza al centralizar el periodo y ya no se modifica."><i class="bi bi-lock"></i> Cerrar</button>{% endif %}
+    {% elif planilla.estado == 'CERRADA' and puede.planillas_cerrar %}
+      <button name="accion" value="reabrir" class="btn btn-sm btn-outline-secondary"><i class="bi bi-unlock"></i> Reabrir</button>
+    {% endif %}
+  </div>
+  <div class="card mb-3"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0 small">
+    <thead><tr><th>Trabajador</th>
+      {% if formset %}<th class="num" title="Días del periodo">Días</th><th class="num">Faltas</th><th class="num">Vacac.</th><th class="num" title="Descanso médico subsidiado">D.M.</th><th class="num">HE 25%</th><th class="num">HE 35%</th><th class="num">Otros afectos</th><th class="num">No afectos</th><th class="num">Adelantos</th><th class="num">Otros desc.</th>{% endif %}
+      {% for c in conceptos %}<th class="num">{{ c.nombre }}</th>{% endfor %}
+      <th class="num">Neto</th><th></th></tr></thead>
+    <tbody>{% for f in filas %}<tr>
+      <td class="text-nowrap">{{ f.trabajador.nombre_completo }}<div class="text-muted">{{ f.trabajador.numero_doc }} · {{ f.trabajador.sueldo|money }}</div>{% if f.form %}{{ f.form.id }}{% for e in f.form.non_field_errors %}<div class="text-danger">{{ e }}</div>{% endfor %}{% endif %}</td>
+      {% if f.form %}{% for campo in f.form.visible_fields %}<td style="min-width:70px">{{ campo }}{% for e in campo.errors %}<div class="text-danger">{{ e }}</div>{% endfor %}</td>{% endfor %}{% elif formset %}<td colspan="10"></td>{% endif %}
+      {% for m in f.columnas %}<td class="num">{% if m %}{{ m|money }}{% endif %}</td>{% endfor %}
+      <td class="num fw-semibold">{{ f.neto|money }}</td>
+      <td class="text-end text-nowrap">{% if planilla.estado != 'BORRADOR' %}<a href="{% url 'planillas:boletas' planilla.pk %}?fila={{ f.pk }}" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Boleta"><i class="bi bi-receipt"></i></a>{% endif %}
+        {% if f.detalle_calculo %}<span class="btn btn-sm btn-outline-secondary py-0" title="{{ f.detalle_calculo }}"><i class="bi bi-info-circle"></i></span>{% endif %}
+        {% if formset and puede.planillas_calcular %}<button name="accion" value="quitar" onclick="this.form.fila.value='{{ f.pk }}'" class="btn btn-sm btn-outline-danger py-0" title="Quitar de la planilla" data-confirm="¿Quitar a {{ f.trabajador.nombre_completo }} de esta planilla?"><i class="bi bi-x"></i></button>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="20" class="text-center text-muted py-4">Sin trabajadores. Use «Actualizar trabajadores».</td></tr>{% endfor %}</tbody>
+    {% if filas and conceptos %}<tfoot><tr class="fw-semibold table-light"><td>Totales</td>{% if formset %}<td colspan="10"></td>{% endif %}{% for t in totales_concepto %}<td class="num">{{ t|money }}</td>{% endfor %}<td class="num">{{ totales.n|money }}</td><td></td></tr></tfoot>{% endif %}
+  </table></div></div>
+  <input type="hidden" name="fila" value="">
+</form>
+{% if planilla.estado == 'CERRADA' and puede.planillas_cerrar %}
+<div class="card" style="max-width:640px"><div class="card-header">Registrar el pago (tesorería)</div><div class="card-body">
+  <form method="post" class="row g-2 align-items-end">{% csrf_token %}
+    {% for field in pago_form %}<div class="col-md-5">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-md-2"><button name="accion" value="pagar" class="btn btn-success w-100" data-confirm="¿Registrar el egreso de S/ {{ totales.n|money }}?">Pagar</button></div>
+  </form>
+  <div class="small text-muted mt-2">Crea un egreso por el neto total (concepto Planilla → 4111). Para abonar a cada trabajador use el Excel con las cuentas de sueldo.</div>
+</div></div>
+{% endif %}
+{% endblock %}

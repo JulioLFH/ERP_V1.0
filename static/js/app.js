@@ -239,3 +239,7 @@
 document.querySelectorAll('form[data-confirm]').forEach((f) => {
   f.addEventListener('submit', (e) => { if (!confirm(f.dataset.confirm)) e.preventDefault(); });
 });
+// botones con confirmación propia (varias acciones en un mismo formulario)
+document.querySelectorAll('button[data-confirm]').forEach((b) => {
+  b.addEventListener('click', (e) => { if (!confirm(b.dataset.confirm)) e.preventDefault(); });
+});
