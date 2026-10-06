@@ -240,6 +240,7 @@ MODULOS = [
                                ('Correo saliente', 'correo', 'bi-envelope'),
                                ('Carga masiva (Excel)', 'carga_masiva', 'bi-file-earmark-arrow-up'),
                                ('Respaldo de datos', 'respaldo', 'bi-shield-check')]),
+            ('Ayuda', [('Manuales de usuario', 'manuales', 'bi-book')]),
         ],
     },
 ]
@@ -256,7 +257,7 @@ DERIVADOS = {'contactos': {'ventas', 'compras', 'finanzas', 'logistica', 'contab
 RUTAS_CORE = {
     'dashboard': ['tablero'],
     'empresa': ['ajustes'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
-    'auditoria': ['ajustes'],
+    'auditoria': ['ajustes'], 'manuales': ['ajustes'], 'manual_pdf': ['ajustes'],
     'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'finanzas', 'contactos', 'manufactura',
                      'contabilidad', 'planillas'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'],
@@ -340,6 +341,7 @@ def resolver_url(destino):
 
 
 RUTAS_COSTOS = {'inv_valorizacion', 'inventario:cierres'}  # solo con el permiso de ver costos
+RUTAS_ADMIN = {'manuales'}  # solo los administradores (superusuarios) ven estas opciones
 
 
 def marcar_activo(items, ruta_completa):
@@ -363,14 +365,15 @@ def marcar_activo(items, ruta_completa):
     return items
 
 
-def menu_de(modulo, ver_costos=True, ruta=None):
+def menu_de(modulo, ver_costos=True, ruta=None, es_admin=True):
     """Menú del módulo con las URLs ya resueltas (y la opción actual marcada si se da la ruta)."""
     items = []
     for etiqueta, destino in modulo['menu']:
         if isinstance(destino, list):
-            items.append({'etiqueta': etiqueta, 'hijos': [
-                {'etiqueta': e, 'url': resolver_url(d), 'icono': i} for e, d, i in destino
-                if ver_costos or d not in RUTAS_COSTOS]})
+            hijos = [{'etiqueta': e, 'url': resolver_url(d), 'icono': i} for e, d, i in destino
+                     if (ver_costos or d not in RUTAS_COSTOS) and (es_admin or d not in RUTAS_ADMIN)]
+            if hijos:
+                items.append({'etiqueta': etiqueta, 'hijos': hijos})
         else:
             items.append({'etiqueta': etiqueta, 'url': resolver_url(destino)})
     return marcar_activo(items, ruta) if ruta else items
