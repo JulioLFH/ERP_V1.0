@@ -179,13 +179,13 @@
         {% endif %}
       </table>
     </div></div>
-    <div class="card"><div class="card-body">
+    {% if app != 'ventas' %}<div class="card"><div class="card-body">
       <form method="post" action="{% url app|add:':trasladar' doc.pk %}" class="d-flex gap-2 align-items-end">
         {% csrf_token %}
         <div class="flex-grow-1"><label class="form-label small mb-1">Trasladar a periodo</label><input name="periodo" class="form-control form-control-sm" placeholder="AAAAMM" maxlength="6" value="{{ doc.periodo }}"></div>
         <button class="btn btn-sm btn-outline-secondary">Trasladar</button>
       </form>
-    </div></div>
+    </div></div>{% endif %}
   </div>
 </div>
 {% endblock %}

@@ -111,6 +111,12 @@ class VentasViews(ComprobanteViews):
         except sunat.ErrorFacturacion:
             pass  # queda en estado ERROR con el detalle; se puede reenviar desde el comprobante
 
+    def trasladar(self, request, pk):
+        """La venta va al periodo de su fecha de emisión (no se traslada; eso es solo para el crédito fiscal de
+        las compras)."""
+        messages.error(request, 'Los comprobantes de venta se registran en el periodo de su fecha de emisión.')
+        return redirect('ventas:detalle', pk)
+
     def puede_editar(self, doc):
         # el comprobante emitido es inmutable: se corrige con nota de crédito o anulación. Solo se edita el que
         # falló al enviarse (no llegó a SUNAT) para corregirlo y reenviarlo.
