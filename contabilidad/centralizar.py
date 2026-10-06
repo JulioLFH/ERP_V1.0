@@ -506,14 +506,18 @@ def asiento_inventario(periodo, cta):
     # diferencia de precio factura vs recepción: liquida la 28 contra el inventario (lo que sigue en stock) y el
     # costo de ventas (lo ya vendido o consumido)
     from compras.models import AjustePrecioCompra
-    for aj in AjustePrecioCompra.objects.filter(fecha__range=[desde, hasta]).select_related('compra'):
+    vinculados = CuentaContable.objects.filter(codigo='6091').select_related('destino_debe').first()
+    for aj in AjustePrecioCompra.objects.filter(fecha__range=[desde, hasta]).select_related('compra', 'importacion'):
         p = productos.get(aj.producto_id)
         doc = f'{aj.compra.tipo_comprobante} {aj.compra.numero_completo}'
+        # gastos de importación: salen de la cuenta por recibir a la que los llevó el destino de la 6091
+        contra = (vinculados.destino_debe if aj.importacion_id and vinculados and vinculados.destino_debe_id
+                  else por_recibir(p))
+        glosa = f'Gastos de {aj.importacion}' if aj.importacion_id else 'Diferencia de precio de compra'
         if aj.a_inventario:
-            b.neto(existencias(p), por_recibir(p), aj.a_inventario, documento=doc, glosa='Diferencia de precio de compra')
+            b.neto(existencias(p), contra, aj.a_inventario, documento=doc, glosa=glosa)
         if aj.a_costo:
-            b.neto(costo(p), por_recibir(p), aj.a_costo, documento=doc,
-                   glosa='Diferencia de precio de compra (mercadería ya vendida)')
+            b.neto(costo(p), contra, aj.a_costo, documento=doc, glosa=f'{glosa} (mercadería ya vendida)')
     # traslados entre cuentas de existencias (ej. manufactura: 2411 -> 2111); el redondeo va al ajuste final
     for ex, valor in sorted(sin_contra.items(), key=lambda x: x[0].codigo):
         b.add(ex, debe=valor, glosa='Traslados y manufactura')

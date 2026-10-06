@@ -1,0 +1,57 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Ubicaciones del almacén{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Ubicaciones dentro del almacén</h1>
+  <form method="get" class="d-flex gap-2"><select name="almacen" class="form-select form-select-sm" onchange="this.form.submit()">{% for a in almacenes %}<option value="{{ a.pk }}" {% if a.pk == almacen.pk %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></form>
+</div>
+<p class="small text-muted">Defina las ubicaciones (zona-rack-nivel) y la ubicación habitual de cada producto: aparece en las notas de salida, traslados e ingresos impresas (para el picking) y en la hoja de conteo físico.</p>
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card mb-3"><div class="card-header">Ubicaciones de {{ almacen }}</div>
+      <ul class="list-group list-group-flush small">
+        <li class="list-group-item d-flex justify-content-between"><a href="?almacen={{ almacen.pk }}">Todas</a></li>
+        <li class="list-group-item d-flex justify-content-between"><a href="?almacen={{ almacen.pk }}&ubic=sin">Productos con stock sin ubicación</a><span class="badge text-bg-warning">{{ sin_ubicacion }}</span></li>
+        {% for u in ubicaciones %}<li class="list-group-item d-flex justify-content-between align-items-center {% if not u.activo %}text-muted{% endif %}"><span><a href="?almacen={{ almacen.pk }}&ubic={{ u.pk }}">{{ u.codigo }}</a> <span class="text-muted">{{ u.descripcion }}</span></span>
+          <span class="d-flex gap-1 align-items-center"><span class="badge text-bg-light">{{ u.n }}</span>{% if puede.inventario_operar %}<form method="post">{% csrf_token %}<input type="hidden" name="almacen" value="{{ almacen.pk }}"><input type="hidden" name="accion" value="eliminar"><button name="ubicacion" value="{{ u.pk }}" class="btn btn-sm btn-link text-danger p-0" data-confirm="¿Eliminar la ubicación {{ u.codigo }}?"><i class="bi bi-trash"></i></button></form>{% endif %}</span></li>
+        {% empty %}<li class="list-group-item text-muted">Aún no hay ubicaciones.</li>{% endfor %}
+      </ul>
+    </div>
+    {% if puede.inventario_operar %}
+    <div class="card mb-3"><div class="card-header">Nueva ubicación</div><div class="card-body">
+      <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="almacen" value="{{ almacen.pk }}"><input type="hidden" name="accion" value="nueva">
+        <div class="col-5"><input name="codigo" class="form-control form-control-sm" placeholder="A-01-01" required></div>
+        <div class="col-7"><input name="descripcion" class="form-control form-control-sm" placeholder="Descripción (opcional)"></div>
+        <div class="col-12"><button class="btn btn-sm btn-success"><i class="bi bi-plus-lg"></i> Crear</button></div>
+      </form>
+    </div></div>
+    <div class="card mb-3"><div class="card-header">Ubicar un producto</div><div class="card-body">
+      <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="almacen" value="{{ almacen.pk }}"><input type="hidden" name="accion" value="asignar">
+        <div class="col-12"><select name="producto" class="form-select form-select-sm" required data-opciones="{% url 'opciones' 'productos_bienes' %}"><option value="">— Producto —</option></select></div>
+        <div class="col-12"><select name="ubicacion" class="form-select form-select-sm"><option value="">(sin ubicación)</option>{% for u in ubicaciones %}{% if u.activo %}<option value="{{ u.pk }}">{{ u.codigo }}</option>{% endif %}{% endfor %}</select></div>
+        <div class="col-12"><button class="btn btn-sm btn-primary">Guardar</button></div>
+      </form>
+    </div></div>
+    <div class="card"><div class="card-header">Importar ubicaciones (Excel)</div><div class="card-body">
+      <form method="post" enctype="multipart/form-data" class="row g-2">{% csrf_token %}<input type="hidden" name="almacen" value="{{ almacen.pk }}"><input type="hidden" name="accion" value="importar">
+        <div class="col-12"><input type="file" name="archivo" accept=".xlsx" class="form-control form-control-sm" required></div>
+        <div class="col-12 d-flex gap-2"><button class="btn btn-sm btn-outline-primary">Importar</button><a href="?plantilla=1" class="btn btn-sm btn-link">Plantilla</a></div>
+      </form>
+    </div></div>
+    {% endif %}
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">Productos por ubicación <a href="?almacen={{ almacen.pk }}&ubic={{ filtro }}&formato=excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i> Hoja de conteo</a></div>
+      <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+        <thead><tr><th>Ubicación</th><th>Código</th><th>Producto</th><th>U.M.</th><th class="num">Stock</th></tr></thead>
+        <tbody>
+        {% for s in page_obj %}<tr><td>{% if s.ubicacion %}<span class="badge text-bg-light">{{ s.ubicacion.codigo }}</span>{% else %}<span class="text-warning small">sin ubicación</span>{% endif %}</td><td>{{ s.producto.codigo }}</td><td class="small">{{ s.producto.nombre }}</td><td>{{ s.producto.unidad }}</td><td class="num">{{ s.cantidad|money }}</td></tr>
+        {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">Sin productos.</td></tr>{% endfor %}
+        </tbody>
+      </table></div>
+      {% include 'core/_paginacion.html' %}
+    </div>
+  </div>
+</div>
+{% endblock %}

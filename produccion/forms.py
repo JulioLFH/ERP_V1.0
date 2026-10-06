@@ -168,7 +168,7 @@ class OrdenProduccionForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = OrdenProduccion
         fields = ['producto', 'cantidad', 'fecha', 'version', 'almacen_insumos', 'almacen_destino', 'centro_costo',
-                  'glosa']
+                  'maquilador', 'costo_servicio', 'compra_servicio', 'glosa']
         widgets = {'fecha': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
                    'glosa': forms.Textarea(attrs={'rows': 2})}
 
@@ -180,7 +180,16 @@ class OrdenProduccionForm(BootstrapMixin, forms.ModelForm):
         self.fields['version'].required = False
         self.fields['version'].help_text = 'Vacío = la versión vigente para la cantidad y la fecha'
         normales = Almacen.objects.filter(activo=True, uso='')
-        self.fields['almacen_insumos'].queryset = self.fields['almacen_destino'].queryset = normales
+        self.fields['almacen_insumos'].queryset = Almacen.objects.filter(activo=True, uso__in=['', 'TERCEROS'])
+        self.fields['almacen_destino'].queryset = normales
+        from compras.models import Compra
+        from core.forms import remoto
+        from core.models import Tercero
+        self.fields['maquilador'].queryset = Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS'])
+        remoto(self.fields['maquilador'], 'proveedores')
+        self.fields['compra_servicio'].queryset = Compra.objects.filter(estado='REGISTRADO')
+        remoto(self.fields['compra_servicio'], 'compras', perezoso=True)
+        self.fields['costo_servicio'].required = False
         if not self.instance.pk:
             self.initial.setdefault('almacen_insumos', Almacen.principal().pk)
             self.initial.setdefault('almacen_destino', Almacen.principal().pk)
@@ -194,6 +203,11 @@ class OrdenProduccionForm(BootstrapMixin, forms.ModelForm):
     def clean(self):
         from .servicios import version_para
         datos = super().clean()
+        datos['costo_servicio'] = datos.get('costo_servicio') or 0
+        if datos['costo_servicio'] < 0:
+            self.add_error('costo_servicio', 'No puede ser negativo.')
+        if (datos.get('costo_servicio') or datos.get('compra_servicio')) and not datos.get('maquilador'):
+            self.add_error('maquilador', 'Indique el maquilador del servicio.')
         validar_periodo_abierto(self, 'fecha')
         producto, version = datos.get('producto'), datos.get('version')
         cantidad, fecha = datos.get('cantidad'), datos.get('fecha')

@@ -79,7 +79,7 @@ def liquidar(compra):
             diferencia = r2(valor_fac / cant_fac * conciliada - valor_rec / cant_rec * conciliada)
             esperado[pid] = (conciliada, diferencia)
     hechos = defaultdict(lambda: D0)
-    for a in compra.ajustes_precio.all():
+    for a in compra.ajustes_precio.filter(importacion__isnull=True):  # los gastos de importación van aparte
         hechos[a.producto_id] += a.diferencia
     nuevos = []
     with transaction.atomic():
@@ -92,7 +92,7 @@ def liquidar(compra):
     return nuevos
 
 
-def _aplicar(compra, producto, cantidad, diferencia):
+def _aplicar(compra, producto, cantidad, diferencia, importacion=None):
     """Reparte la diferencia: la parte de lo que sigue en stock revaloriza el costo promedio (queda en el kardex);
     el resto va al costo de ventas."""
     from django.utils import timezone
@@ -115,6 +115,8 @@ def _aplicar(compra, producto, cantidad, diferencia):
         Kardex.objects.create(  # ajuste de valor sin cantidad: deja el nuevo costo promedio en el kardex
             producto=actual, almacen=None, fecha=fecha, tipo='ENTRADA', cantidad=D0, costo_unitario=D0,
             costo_promedio=actual.costo_promedio, saldo=actual.stock, origen='AJUSTE', concepto='PRECIO',
-            referencia=f'Diferencia de precio {compra}', codigo_sunat='99')
+            referencia=(f'Gastos de {importacion}' if importacion else f'Diferencia de precio {compra}')[:100],
+            codigo_sunat='99')
     return AjustePrecioCompra.objects.create(compra=compra, producto=producto, fecha=fecha, cantidad=cantidad,
-                                             diferencia=diferencia, a_inventario=a_inventario, a_costo=a_costo)
+                                             diferencia=diferencia, a_inventario=a_inventario, a_costo=a_costo,
+                                             importacion=importacion)

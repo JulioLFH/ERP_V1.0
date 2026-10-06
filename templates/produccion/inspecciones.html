@@ -1,0 +1,25 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Inspecciones de calidad{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Inspecciones de calidad</h1>
+  <a href="{% url 'manufactura:inspeccion_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva inspección</a>
+</div>
+<div class="row g-3 mb-3">{% for n, cantidad in resumen %}<div class="col-6 col-md-3"><div class="kpi"><div class="label">{{ n }}</div><div class="value">{{ cantidad }}</div></div></div>{% endfor %}</div>
+<div class="card">
+  <div class="card-body border-bottom py-2"><form class="row g-2" method="get">
+    <div class="col-auto"><select name="tipo" class="form-select form-select-sm"><option value="">Todos los tipos</option>{% for v, n in tipos %}<option value="{{ v }}" {% if request.GET.tipo == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+    <div class="col-auto"><select name="resultado" class="form-select form-select-sm"><option value="">Todos los resultados</option>{% for v, n in resultados %}<option value="{{ v }}" {% if request.GET.resultado == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+    <div class="col-auto"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="N°, producto, lote"></div>
+    <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i></button></div></form></div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+    <thead><tr><th>N°</th><th>Fecha</th><th>Tipo</th><th>Producto</th><th>Lote</th><th class="num">Cantidad</th><th>Resultado</th></tr></thead>
+    <tbody>
+    {% for i in page_obj %}<tr><td><a href="{% url 'manufactura:inspeccion' i.pk %}">{{ i.numero }}</a></td><td>{{ i.fecha|date:'d/m/Y' }}</td><td class="small">{{ i.get_tipo_display }}</td><td class="small">{{ i.producto.nombre }}</td><td>{{ i.lote }}</td><td class="num">{{ i.cantidad|money }}</td>
+      <td><span class="badge {% if i.resultado == 'APROBADO' %}text-bg-success{% elif i.resultado == 'RECHAZADO' %}text-bg-danger{% elif i.resultado == 'OBSERVADO' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ i.get_resultado_display }}</span>{% if i.cuarentena_id %} <span class="badge text-bg-dark">cuarentena</span>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin inspecciones.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% include 'core/_paginacion.html' %}
+</div>
+{% endblock %}

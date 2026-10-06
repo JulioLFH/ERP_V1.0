@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Plan de calidad{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Plan de calidad: {{ producto.codigo }} {{ producto.nombre }}</h1>
+<p class="small text-muted">Las características se copian a cada nueva inspección del producto. Con mínimo y máximo, el sistema marca si el valor medido es conforme.</p>
+<form method="post">{% csrf_token %}{{ formset.management_form }}
+  {% for e in formset.non_form_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  <div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>Característica</th><th>Unidad</th><th>Mínimo</th><th>Máximo</th><th>Especificación (texto)</th><th style="width:70px">Orden</th><th>Quitar</th></tr></thead>
+    <tbody>
+    {% for f in formset %}<tr>{{ f.id }}
+      {% for campo in f.visible_fields %}{% if campo.name != 'DELETE' %}<td>{{ campo }}{% for e in campo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>{% endif %}{% endfor %}
+      <td>{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td></tr>{% endfor %}
+    </tbody>
+  </table></div></div>
+  {% if puede.manufactura_calidad %}<button class="btn btn-sm btn-success"><i class="bi bi-save"></i> Guardar plan</button>{% endif %}
+  <a href="{% url 'manufactura:planes_calidad' %}" class="btn btn-sm btn-link">Volver</a>
+</form>
+{% endblock %}
+{% block scripts %}<script>document.querySelectorAll('table input:not([type=checkbox])').forEach(i => i.classList.add('form-control', 'form-control-sm'));</script>{% endblock %}

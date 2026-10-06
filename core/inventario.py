@@ -289,3 +289,95 @@ class AlmacenNuevo(FormGenerico, CreateView):
 class AlmacenEditar(FormGenerico, UpdateView):
     model, form_class, titulo = Almacen, AlmacenForm, 'Editar almacén'
     success_url = reverse_lazy('almacenes')
+
+
+# ---------------------------------------------------------------- ubicaciones dentro del almacén
+def _asignar_ubicacion(almacen, producto, ubicacion):
+    from .models import StockAlmacen
+    s, _ = StockAlmacen.objects.get_or_create(producto=producto, almacen=almacen)
+    s.ubicacion = ubicacion
+    s.save(update_fields=['ubicacion'])
+
+
+@login_required
+def ubicaciones(request):
+    """Ubicaciones (zona-rack-nivel) de cada almacén, ubicación habitual de cada producto y hoja de conteo."""
+    from .models import StockAlmacen, Ubicacion
+    almacenes = Almacen.objects.filter(activo=True)
+    almacen = almacenes.filter(pk=request.GET.get('almacen') or request.POST.get('almacen')).first() or \
+        Almacen.principal()
+    if request.GET.get('plantilla'):
+        return excel_response('Plantilla_ubicaciones', 'plantilla', ['codigo_producto', 'ubicacion'],
+                              [['MP000001', 'A-01-01']])
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        if accion == 'nueva':
+            codigo = request.POST.get('codigo', '').strip().upper()[:20]
+            if not codigo:
+                messages.error(request, 'Indique el código de la ubicación.')
+            else:
+                _, creada = Ubicacion.objects.get_or_create(almacen=almacen, codigo=codigo, defaults={
+                    'descripcion': request.POST.get('descripcion', '')[:100]})
+                messages.success(request, f'Ubicación {codigo} {"creada" if creada else "ya existía"}.')
+        elif accion == 'asignar':
+            producto = Producto.objects.filter(pk=request.POST.get('producto')).first()
+            ubic = Ubicacion.objects.filter(pk=request.POST.get('ubicacion'), almacen=almacen).first()
+            if producto is None:
+                messages.error(request, 'Elija el producto.')
+            else:
+                _asignar_ubicacion(almacen, producto, ubic)
+                messages.success(request, f'{producto.codigo} → {ubic or "sin ubicación"} en {almacen}.')
+        elif accion == 'importar' and request.FILES.get('archivo'):
+            from .utils import leer_excel
+            ok, errores = 0, []
+            try:
+                filas = leer_excel(request.FILES['archivo'])
+            except Exception as exc:
+                filas, errores = [], [f'No se pudo leer el archivo: {exc}']
+            productos = {p.codigo.upper(): p for p in Producto.objects.filter(
+                codigo__in=[str(f.get('codigo_producto') or '').strip().upper() for f in filas])}
+            with transaction.atomic():
+                for n, f in enumerate(filas, 2):
+                    codigo = str(f.get('codigo_producto') or '').strip().upper()
+                    lugar = str(f.get('ubicacion') or '').strip().upper()[:20]
+                    if not codigo:
+                        continue
+                    p = productos.get(codigo)
+                    if p is None:
+                        errores.append(f'Fila {n}: no existe el producto {codigo}')
+                        continue
+                    ubic = Ubicacion.objects.get_or_create(almacen=almacen, codigo=lugar)[0] if lugar else None
+                    _asignar_ubicacion(almacen, p, ubic)
+                    ok += 1
+            messages.success(request, f'{ok} productos ubicados en {almacen}.')
+            for e in errores[:10]:
+                messages.warning(request, e)
+        elif accion == 'eliminar':
+            ubic = Ubicacion.objects.filter(pk=request.POST.get('ubicacion'), almacen=almacen).first()
+            if ubic and ubic.stocks.exists():
+                ubic.activo = False
+                ubic.save(update_fields=['activo'])
+                messages.info(request, f'{ubic} tiene productos asignados: quedó inactiva.')
+            elif ubic:
+                ubic.delete()
+                messages.success(request, 'Ubicación eliminada.')
+        return redirect(f'{reverse("ubicaciones")}?almacen={almacen.pk}')
+    from django.db.models import Count
+    lista = Ubicacion.objects.filter(almacen=almacen).annotate(n=Count('stocks'))
+    stocks = (StockAlmacen.objects.filter(almacen=almacen).filter(Q(ubicacion__isnull=False) | ~Q(cantidad=0))
+              .select_related('producto', 'ubicacion').order_by('ubicacion__codigo', 'producto__nombre'))
+    filtro = request.GET.get('ubic', '')
+    if filtro == 'sin':
+        stocks = stocks.filter(ubicacion=None)
+    elif filtro:
+        stocks = stocks.filter(ubicacion_id=filtro)
+    if request.GET.get('formato') == 'excel':  # hoja de conteo físico por ubicación
+        return excel_response(f'Conteo_{almacen.codigo}', f'HOJA DE CONTEO - {almacen}', [
+            'Ubicación', 'Código', 'Producto', 'U.M.', 'Stock sistema', 'Conteo físico', 'Diferencia'],
+            [[s.ubicacion.codigo if s.ubicacion else '(sin ubicación)', s.producto.codigo, s.producto.nombre,
+              s.producto.unidad, s.cantidad, '', ''] for s in stocks])
+    from django.core.paginator import Paginator
+    return render(request, 'inventario/ubicaciones.html', {
+        'almacenes': almacenes, 'almacen': almacen, 'ubicaciones': lista, 'filtro': filtro,
+        'page_obj': Paginator(stocks, 100).get_page(request.GET.get('page')),
+        'sin_ubicacion': StockAlmacen.objects.filter(almacen=almacen, ubicacion=None).exclude(cantidad=0).count()})

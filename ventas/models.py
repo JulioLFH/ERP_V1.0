@@ -80,6 +80,10 @@ class Venta(ComprobanteBase, ElectronicoMixin):
     lista_precios = models.ForeignKey(ListaPrecios, on_delete=models.SET_NULL, null=True, blank=True,
                                       related_name='+', verbose_name='Lista de precios',
                                       help_text='Vacío = la lista del cliente')
+    cuotas = models.PositiveSmallIntegerField('N° de cuotas', default=1,
+                                              help_text='Venta al crédito: cuotas iguales; la primera vence en la '
+                                                        'fecha de vencimiento')
+    dias_entre_cuotas = models.PositiveSmallIntegerField('Días entre cuotas', default=30)
 
     class Meta(ComprobanteBase.Meta):
         verbose_name = 'venta'
@@ -87,6 +91,22 @@ class Venta(ComprobanteBase, ElectronicoMixin):
 
     def _signo_stock(self):
         return 1 if self.es_nota_credito else -1
+
+    @property
+    def cronograma_cuotas(self):
+        """[(n, fecha, importe)] del crédito (lo que se informa a SUNAT: neto de detracción y retención)."""
+        from datetime import timedelta
+        from decimal import Decimal
+        if self.forma_pago != 'CREDITO' or not self.fecha_vencimiento:
+            return []
+        pendiente = self.total - self.detraccion_monto - self.retencion_monto
+        n = max(self.cuotas or 1, 1)
+        base = (pendiente / n).quantize(Decimal('0.01'))
+        salida = []
+        for i in range(1, n + 1):
+            importe = pendiente - base * (n - 1) if i == n else base
+            salida.append((i, self.fecha_vencimiento + timedelta(days=self.dias_entre_cuotas * (i - 1)), importe))
+        return salida
 
 
 class VentaItem(ItemBase):

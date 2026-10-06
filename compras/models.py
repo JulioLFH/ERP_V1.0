@@ -129,9 +129,58 @@ class AjustePrecioCompra(models.Model):
     diferencia = models.DecimalField('Diferencia S/', max_digits=14, decimal_places=2)
     a_inventario = models.DecimalField('Al inventario S/', max_digits=14, decimal_places=2)
     a_costo = models.DecimalField('Al costo de ventas S/', max_digits=14, decimal_places=2)
+    importacion = models.ForeignKey('Importacion', on_delete=models.CASCADE, null=True, blank=True,
+                                    related_name='ajustes', help_text='Gastos de importación prorrateados al costo')
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['fecha', 'id']
         verbose_name = 'diferencia de precio de compra'
         verbose_name_plural = 'diferencias de precio de compra'
+
+
+class Importacion(models.Model):
+    """Expediente de importación: la factura comercial (FOB) más los gastos vinculados (flete, seguro, ad valorem,
+    agente de aduanas, almacenaje…) que se prorratean al costo de cada producto al liquidar."""
+    METODOS = [('VALOR', 'Por valor FOB'), ('CANTIDAD', 'Por cantidad'), ('PESO', 'Por peso')]
+    ESTADOS = [('ABIERTA', 'Abierta'), ('LIQUIDADA', 'Liquidada')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    descripcion = models.CharField('Descripción', max_length=150)
+    dua = models.CharField('N° DUA / DAM', max_length=40, blank=True)
+    fecha_llegada = models.DateField('Llegada / levante', null=True, blank=True)
+    compra = models.ForeignKey(Compra, on_delete=models.PROTECT, related_name='importaciones',
+                               verbose_name='Factura comercial (proveedor del exterior)')
+    metodo = models.CharField('Prorrateo', max_length=8, choices=METODOS, default='VALOR')
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='ABIERTA')
+    fecha_liquidacion = models.DateField(null=True, blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado']
+        verbose_name = 'importación'
+        verbose_name_plural = 'importaciones'
+
+    def __str__(self):
+        return f'Importación {self.numero}'
+
+    @property
+    def total_gastos(self):
+        return self.gastos.aggregate(s=models.Sum('monto'))['s'] or 0
+
+
+class GastoImportacion(models.Model):
+    CONCEPTOS = [('FLETE', 'Flete internacional'), ('SEGURO', 'Seguro'), ('AD_VALOREM', 'Ad valorem y derechos'),
+                 ('AGENTE', 'Agente de aduanas'), ('ALMACEN', 'Almacenaje / terminal'),
+                 ('TRANSPORTE', 'Transporte local'), ('OTRO', 'Otros gastos vinculados')]
+    importacion = models.ForeignKey(Importacion, on_delete=models.CASCADE, related_name='gastos')
+    concepto = models.CharField(max_length=12, choices=CONCEPTOS)
+    compra = models.ForeignKey(Compra, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                               verbose_name='Factura del gasto')
+    movimiento = models.ForeignKey('finanzas.Movimiento', on_delete=models.PROTECT, null=True, blank=True,
+                                   related_name='+', verbose_name='Pago de caja / bancos',
+                                   help_text='Gastos sin factura (ej. tributos de la DUA pagados al banco)')
+    descripcion = models.CharField(max_length=150, blank=True)
+    monto = models.DecimalField('Monto S/ (sin IGV)', max_digits=14, decimal_places=2)
+
+    class Meta:
+        ordering = ['id']

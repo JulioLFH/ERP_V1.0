@@ -485,8 +485,10 @@ class Almacen(models.Model):
     codigo_sunat = models.CharField('Cód. establecimiento SUNAT', max_length=4, default='0000')
     es_principal = models.BooleanField('Principal', default=False)
     USOS = [('', 'Almacén normal'), ('TRANSITO', 'Mercadería en tránsito'),
-            ('DESTRUCCION', 'Cuarentena / por destruir')]
+            ('DESTRUCCION', 'Cuarentena / por destruir'), ('TERCEROS', 'En poder de terceros (maquila)')]
     uso = models.CharField('Uso', max_length=12, choices=USOS, blank=True)
+    tercero = models.ForeignKey('Tercero', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                help_text='Solo almacenes en poder de terceros: el maquilador que tiene la mercadería')
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -509,6 +511,15 @@ class Almacen(models.Model):
         return alm
 
     @classmethod
+    def de_tercero(cls, tercero):
+        """Almacén virtual con la mercadería entregada al maquilador (se crea la primera vez)."""
+        alm = cls.objects.filter(uso='TERCEROS', tercero=tercero).first()
+        if alm is None:
+            alm = cls.objects.create(codigo=f'MQ{tercero.pk:06d}'[:10], nombre=f'En poder de {tercero.nombre}'[:100],
+                                     uso='TERCEROS', tercero=tercero)
+        return alm
+
+    @classmethod
     def principal(cls):
         alm = cls.objects.filter(es_principal=True, activo=True).first() or cls.objects.filter(activo=True).first()
         if alm is None:
@@ -516,13 +527,38 @@ class Almacen(models.Model):
         return alm
 
 
+class Ubicacion(models.Model):
+    """Lugar dentro del almacén (zona, pasillo, rack, nivel): ej. A-01-03."""
+    almacen = models.ForeignKey(Almacen, on_delete=models.CASCADE, related_name='ubicaciones')
+    codigo = models.CharField('Código', max_length=20, help_text='Ej. A-01-03 (zona-rack-nivel)')
+    descripcion = models.CharField('Descripción', max_length=100, blank=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['almacen', 'codigo']
+        unique_together = [('almacen', 'codigo')]
+        verbose_name = 'ubicación'
+        verbose_name_plural = 'ubicaciones'
+
+    def __str__(self):
+        return self.codigo
+
+
 class StockAlmacen(models.Model):
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='stocks')
     almacen = models.ForeignKey(Almacen, on_delete=models.CASCADE, related_name='stocks')
     cantidad = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    ubicacion = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='stocks',
+                                  verbose_name='Ubicación habitual')
 
     class Meta:
         unique_together = [('producto', 'almacen')]
+
+    @staticmethod
+    def ubicaciones(almacen_id, productos_ids):
+        """{producto_id: código de ubicación} en el almacén."""
+        return dict(StockAlmacen.objects.filter(almacen_id=almacen_id, producto_id__in=productos_ids)
+                    .exclude(ubicacion=None).values_list('producto_id', 'ubicacion__codigo'))
 
 
 class TipoCambio(models.Model):

@@ -44,6 +44,11 @@
       <div class="col-md-3"><div class="text-muted">Fecha planificada</div>{{ o.fecha|date:'d/m/Y' }}</div>
       <div class="col-md-3"><div class="text-muted">A producir</div>{{ o.cantidad|money }} {{ o.producto.unidad }}</div>
       <div class="col-md-3"><div class="text-muted">Almacén de insumos</div>{{ o.almacen_insumos }}</div>
+      {% if o.maquilador %}<div class="col-md-6"><div class="text-muted">Maquila (tercerizada)</div>{{ o.maquilador.nombre }}
+        {% if o.costo_servicio %} · servicio S/ {{ o.costo_servicio|money }}{% endif %}{% if o.compra_servicio %} · <a href="{% url 'compras:detalle' o.compra_servicio_id %}">{{ o.compra_servicio }}</a>{% endif %}
+        {% if o.almacen_insumos.uso != 'TERCEROS' and o.estado in 'CONFIRMADA EN_PROCESO' and puede.manufactura_ordenes %}
+          <form method="post" action="{% url 'manufactura:orden_maquila' o.pk %}" class="mt-1">{% csrf_token %}<button class="btn btn-sm btn-outline-primary" data-confirm="¿Trasladar los insumos planificados al almacén de {{ o.maquilador.nombre }}?"><i class="bi bi-truck"></i> Enviar materiales al maquilador</button></form>
+        {% endif %}</div>{% endif %}
       <div class="col-md-3"><div class="text-muted">Almacén de productos</div>{{ o.almacen_destino }}</div>
       {% if o.centro_costo %}<div class="col-md-3"><div class="text-muted">Centro de costo</div>{{ o.centro_costo }}</div>{% endif %}
       {% if o.fecha_inicio %}<div class="col-md-3"><div class="text-muted">Inicio</div>{{ o.fecha_inicio|date:'d/m/Y' }}</div>{% endif %}

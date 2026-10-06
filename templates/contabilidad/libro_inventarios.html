@@ -1,0 +1,32 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Libro de Inventarios y Balances{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Libro de Inventarios y Balances</h1>
+<div class="card mb-3"><div class="card-body py-2">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-7"><label class="small">Formato</label><select name="formato" class="form-select form-select-sm" onchange="this.form.submit()">
+      {% for c, t, p, r in formatos %}<option value="{{ c }}" {% if c == formato %}selected{% endif %}>{{ c }} {{ t }}</option>{% endfor %}</select></div>
+    <div class="col-auto"><label class="small">Al cierre de</label><input type="month" name="periodo" value="{{ mes }}" class="form-control form-control-sm"></div>
+    <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i></button>
+      {% if prefijos %}<button name="formato_salida" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i> Excel</button>{% endif %}</div>
+  </form>
+</div></div>
+<h2 class="h6 mb-2">Formato {{ formato }}: {{ titulo }} — al {{ periodo|slice:'4:' }}/{{ periodo|slice:':4' }}</h2>
+{% if not prefijos %}
+  <div class="alert alert-info">Este formato es un estado financiero: ábralo en <a href="{% url por %}">su reporte</a> (permite exportar a Excel).</div>
+{% else %}
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
+  <thead><tr><th>Cuenta</th>{% if por != 'cuenta' %}<th>Doc.</th><th>Apellidos y nombres / razón social</th>{% endif %}{% if por == 'documento' %}<th>Comprobante</th><th>Emisión</th>{% endif %}<th class="num">Saldo deudor</th><th class="num">Saldo acreedor</th></tr></thead>
+  <tbody>
+  {% for f in filas %}
+    <tr><td class="text-nowrap">{{ f.cuenta__codigo }} <span class="text-muted">{{ f.cuenta__nombre|truncatechars:30 }}</span></td>
+      {% if por != 'cuenta' %}<td>{{ f.tercero__numero_doc|default:'' }}</td><td>{{ f.tercero__nombre|default:'— sin tercero —'|truncatechars:45 }}</td>{% endif %}
+      {% if por == 'documento' %}<td>{{ f.documento }}</td><td>{{ f.desde|date:'d/m/Y' }}</td>{% endif %}
+      <td class="num">{% if f.deudor %}{{ f.deudor|money }}{% endif %}</td><td class="num">{% if f.acreedor %}{{ f.acreedor|money }}{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin saldos en las cuentas del formato.</td></tr>{% endfor %}
+  </tbody>
+  {% if filas %}<tfoot><tr class="fw-bold table-light"><td colspan="{% if por == 'documento' %}5{% elif por == 'tercero' %}3{% else %}1{% endif %}">Total</td><td class="num">{{ tot.d|money }}</td><td class="num">{{ tot.a|money }}</td></tr></tfoot>{% endif %}
+</table></div></div>
+<p class="small text-muted mt-2">Saldos según los asientos contables al cierre del periodo (los auxiliares de cuentas por cobrar y pagar coinciden con la contabilidad porque usan los mismos importes en soles).</p>
+{% endif %}
+{% endblock %}

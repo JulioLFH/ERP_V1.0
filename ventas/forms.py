@@ -13,8 +13,8 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Venta
         fields = ['tipo_comprobante', 'serie', 'numero', 'tercero', 'fecha_emision', 'fecha_vencimiento',
-                  'forma_pago', 'moneda', 'tipo_cambio', 'tipo_operacion', 'detraccion_pct', 'retencion_pct',
-                  'percepcion_pct', 'icbper', 'detraccion_codigo', 'vendedor', 'cotizacion', 'doc_referencia',
+                  'forma_pago', 'cuotas', 'dias_entre_cuotas', 'moneda', 'tipo_cambio', 'tipo_operacion',
+                  'detraccion_pct', 'retencion_pct', 'percepcion_pct', 'icbper', 'detraccion_codigo', 'vendedor', 'cotizacion', 'doc_referencia',
                   'motivo_nota', 'descontar_stock', 'almacen', 'centro_costo', 'lista_precios', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2}),
                    'detraccion_codigo': forms.Select(choices=[('', '---')] + DETRACCION_TIPOS)}
@@ -33,6 +33,8 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         self.fields['doc_referencia'].queryset = Venta.objects.filter(
             estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
         remoto(self.fields['doc_referencia'], 'ventas', perezoso=True)
+        for campo in ('cuotas', 'dias_entre_cuotas'):  # opcionales: vacío = 1 cuota / 30 días
+            self.fields[campo].required = False
         self.series = Serie.objects.filter(activo=True, tipo__in=['01', '03', '07', '08', '12', '00'])
         if self.instance.pk:
             # no se renumeran comprobantes emitidos
@@ -42,6 +44,12 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
 
     def clean(self):
         data = super().clean()
+        data['cuotas'] = data.get('cuotas') or 1
+        data['dias_entre_cuotas'] = data.get('dias_entre_cuotas') or 30
+        if data['cuotas'] > 36:
+            self.add_error('cuotas', 'Máximo 36 cuotas.')
+        if data['cuotas'] > 1 and data.get('forma_pago') != 'CREDITO':
+            self.add_error('cuotas', 'Las cuotas son solo para ventas al crédito.')
         tipo = data.get('tipo_comprobante')
         if tipo in ('07', '08') and not data.get('doc_referencia'):
             self.add_error('doc_referencia', 'Indique el comprobante que modifica la nota.')

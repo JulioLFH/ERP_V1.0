@@ -313,6 +313,14 @@ class OrdenProduccion(models.Model):
     centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.SET_NULL, null=True, blank=True,
                                      verbose_name='Centro de costo')
     glosa = models.TextField('Observaciones', blank=True)
+    maquilador = models.ForeignKey('core.Tercero', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                   help_text='Tercerización: el proveedor que fabrica con los materiales que se le '
+                                             'envían')
+    costo_servicio = models.DecimalField('Servicio de maquila S/', max_digits=14, decimal_places=2, default=D0,
+                                         help_text='Se suma al costo del producto. 0 = la base de la factura del '
+                                                   'maquilador')
+    compra_servicio = models.ForeignKey('compras.Compra', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='+', verbose_name='Factura del maquilador')
     estado = models.CharField(max_length=10, choices=ESTADOS, default='BORRADOR')
     fecha_inicio = models.DateField(null=True, blank=True)
     fecha_fin = models.DateField('Fecha de término', null=True, blank=True)
@@ -393,6 +401,181 @@ class HoraOrden(models.Model):
     horas_real = models.DecimalField('Horas reales', max_digits=10, decimal_places=2)
     costo_mo = models.DecimalField('Mano de obra absorbida', max_digits=14, decimal_places=2, default=D0)
     costo_cif = models.DecimalField('Máquina y CIF absorbidos', max_digits=14, decimal_places=2, default=D0)
+
+    class Meta:
+        ordering = ['id']
+
+
+# ================================================================ calidad
+class ParametroCalidad(models.Model):
+    """Plan de calidad del producto: lo que se mide en cada inspección y su especificación."""
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='parametros_calidad')
+    nombre = models.CharField('Característica', max_length=80, help_text='Ej. Humedad, pH, peso neto, color')
+    unidad = models.CharField(max_length=20, blank=True)
+    minimo = models.DecimalField('Mínimo', max_digits=14, decimal_places=4, null=True, blank=True)
+    maximo = models.DecimalField('Máximo', max_digits=14, decimal_places=4, null=True, blank=True)
+    especificacion = models.CharField('Especificación (texto)', max_length=120, blank=True,
+                                      help_text='Para características que no se miden con un número')
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['producto', 'orden', 'id']
+        verbose_name = 'parámetro de calidad'
+        verbose_name_plural = 'parámetros de calidad'
+
+    def __str__(self):
+        return self.nombre
+
+
+class InspeccionCalidad(models.Model):
+    TIPOS = [('RECEPCION', 'Recepción (materia prima / compras)'), ('PROCESO', 'En proceso'),
+             ('TERMINADO', 'Producto terminado'), ('DEVOLUCION', 'Devolución de clientes')]
+    RESULTADOS = [('PENDIENTE', 'Pendiente'), ('APROBADO', 'Aprobado'), ('OBSERVADO', 'Aprobado con observaciones'),
+                  ('RECHAZADO', 'Rechazado')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    tipo = models.CharField(max_length=10, choices=TIPOS, default='RECEPCION')
+    fecha = models.DateField(default=timezone.localdate)
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='inspecciones')
+    lote = models.CharField(max_length=40, blank=True)
+    cantidad = models.DecimalField('Cantidad inspeccionada', max_digits=14, decimal_places=2, default=D0)
+    almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                help_text='Dónde está la mercadería (para enviarla a cuarentena si se rechaza)')
+    operacion = models.ForeignKey('inventario.Operacion', on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='inspecciones', verbose_name='Operación de almacén')
+    orden = models.ForeignKey(OrdenProduccion, on_delete=models.SET_NULL, null=True, blank=True,
+                              related_name='inspecciones', verbose_name='Orden de producción')
+    resultado = models.CharField(max_length=10, choices=RESULTADOS, default='PENDIENTE')
+    observaciones = models.TextField(blank=True)
+    cuarentena = models.ForeignKey('inventario.Operacion', on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', editable=False)
+    inspector = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+',
+                                  editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'inspección de calidad'
+        verbose_name_plural = 'inspecciones de calidad'
+
+    def __str__(self):
+        return f'Inspección {self.numero}'
+
+
+class ResultadoCalidad(models.Model):
+    inspeccion = models.ForeignKey(InspeccionCalidad, on_delete=models.CASCADE, related_name='resultados')
+    caracteristica = models.CharField(max_length=80)
+    unidad = models.CharField(max_length=20, blank=True)
+    minimo = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    maximo = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    especificacion = models.CharField(max_length=120, blank=True)
+    valor = models.DecimalField('Valor medido', max_digits=14, decimal_places=4, null=True, blank=True)
+    texto = models.CharField('Resultado (texto)', max_length=120, blank=True)
+    conforme = models.BooleanField(null=True)
+
+    class Meta:
+        ordering = ['id']
+
+    def evaluar(self):
+        """Conforme si el valor está dentro de la especificación (si no hay rango, lo decide el inspector)."""
+        if self.valor is not None and (self.minimo is not None or self.maximo is not None):
+            self.conforme = ((self.minimo is None or self.valor >= self.minimo) and
+                             (self.maximo is None or self.valor <= self.maximo))
+        return self.conforme
+
+
+# ================================================================ mantenimiento
+class Equipo(models.Model):
+    codigo = models.CharField('Código', max_length=20, unique=True)
+    nombre = models.CharField(max_length=120)
+    centro = models.ForeignKey(CentroTrabajo, on_delete=models.SET_NULL, null=True, blank=True, related_name='equipos',
+                               verbose_name='Puesto de trabajo')
+    activo_fijo = models.ForeignKey('activos.ActivoFijo', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+', verbose_name='Activo fijo')
+    marca_modelo = models.CharField('Marca / modelo / serie', max_length=120, blank=True)
+    ubicacion = models.CharField('Ubicación', max_length=80, blank=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['codigo']
+        verbose_name = 'equipo'
+
+    def __str__(self):
+        return f'{self.codigo} {self.nombre}'
+
+
+class PlanMantenimiento(models.Model):
+    """Tarea preventiva periódica del equipo."""
+    equipo = models.ForeignKey(Equipo, on_delete=models.CASCADE, related_name='planes')
+    tarea = models.CharField(max_length=150, help_text='Ej. Cambio de aceite y filtros')
+    frecuencia_dias = models.PositiveIntegerField('Cada (días)', default=30)
+    ultima_fecha = models.DateField('Última ejecución', null=True, blank=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['equipo', 'tarea']
+        verbose_name = 'plan de mantenimiento'
+        verbose_name_plural = 'planes de mantenimiento'
+
+    def __str__(self):
+        return f'{self.equipo.codigo}: {self.tarea}'
+
+    @property
+    def proxima(self):
+        """Fecha en que toca: última ejecución + frecuencia (sin ejecuciones registradas, toca hoy)."""
+        from datetime import timedelta
+        if not self.ultima_fecha:
+            return timezone.localdate()
+        return self.ultima_fecha + timedelta(days=self.frecuencia_dias)
+
+
+class OrdenMantenimiento(models.Model):
+    TIPOS = [('PREVENTIVO', 'Preventivo'), ('CORRECTIVO', 'Correctivo (falla)')]
+    ESTADOS = [('PROGRAMADA', 'Programada'), ('EN_EJECUCION', 'En ejecución'), ('CERRADA', 'Cerrada'),
+               ('ANULADA', 'Anulada')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    equipo = models.ForeignKey(Equipo, on_delete=models.PROTECT, related_name='ordenes')
+    tipo = models.CharField(max_length=10, choices=TIPOS, default='CORRECTIVO')
+    plan = models.ForeignKey(PlanMantenimiento, on_delete=models.SET_NULL, null=True, blank=True, related_name='ordenes')
+    fecha_programada = models.DateField(default=timezone.localdate)
+    fecha_inicio = models.DateField(null=True, blank=True)
+    fecha_fin = models.DateField('Fecha de cierre', null=True, blank=True)
+    estado = models.CharField(max_length=12, choices=ESTADOS, default='PROGRAMADA')
+    descripcion = models.TextField('Falla / trabajo a realizar')
+    trabajo_realizado = models.TextField(blank=True)
+    responsable = models.CharField(max_length=80, blank=True)
+    proveedor = models.ForeignKey('core.Tercero', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                  verbose_name='Servicio externo')
+    horas_parada = models.DecimalField('Horas de parada', max_digits=8, decimal_places=2, default=D0)
+    costo_mano_obra = models.DecimalField('Mano de obra S/', max_digits=14, decimal_places=2, default=D0)
+    costo_servicios = models.DecimalField('Servicios externos S/', max_digits=14, decimal_places=2, default=D0)
+    consumo = models.OneToOneField('inventario.Operacion', on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='orden_mantenimiento', editable=False)
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+',
+                                   editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_programada', '-id']
+        verbose_name = 'orden de mantenimiento'
+        verbose_name_plural = 'órdenes de mantenimiento'
+
+    def __str__(self):
+        return f'OT {self.numero}'
+
+    @property
+    def costo_repuestos(self):
+        return sum((i.valor for i in self.consumo.items.all()), D0) if self.consumo_id else D0
+
+    @property
+    def costo_total(self):
+        return self.costo_mano_obra + self.costo_servicios + self.costo_repuestos
+
+
+class RepuestoOrden(models.Model):
+    orden = models.ForeignKey(OrdenMantenimiento, on_delete=models.CASCADE, related_name='repuestos')
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='+')
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2)
+    almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, related_name='+')
 
     class Meta:
         ordering = ['id']

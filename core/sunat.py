@@ -294,10 +294,9 @@ def payload_comprobante(venta):
                         'total_percepcion': _num(venta.percepcion_monto),
                         'total_incluido_percepcion': _num(venta.total + venta.percepcion_monto)})
     if venta.forma_pago == 'CREDITO' and venta.tipo_comprobante == '01':
-        pendiente = venta.total - venta.detraccion_monto - venta.retencion_monto
         payload['medio_de_pago'] = 'credito'
-        payload['venta_al_credito'] = [{'cuota': 1, 'fecha_de_pago': _fecha(venta.fecha_vencimiento),
-                                        'importe': _num(pendiente)}]
+        payload['venta_al_credito'] = [{'cuota': n, 'fecha_de_pago': _fecha(fecha), 'importe': _num(importe)}
+                                       for n, fecha, importe in venta.cronograma_cuotas]
     for g in venta.guias.filter(estado='EMITIDA'):
         payload.setdefault('guias', []).append({'guia_tipo': 1, 'guia_serie_numero': g.numero_completo})
     return payload

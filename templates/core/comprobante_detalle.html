@@ -140,7 +140,8 @@
       <table class="table table-sm mb-0">
         <tr><td class="text-muted">Emisión</td><td class="text-end">{{ doc.fecha_emision|date:'d/m/Y' }}</td></tr>
         <tr><td class="text-muted">Vencimiento</td><td class="text-end">{{ doc.fecha_vencimiento|date:'d/m/Y' }}</td></tr>
-        <tr><td class="text-muted">Forma de pago</td><td class="text-end">{{ doc.get_forma_pago_display }}</td></tr>
+        <tr><td class="text-muted">Forma de pago</td><td class="text-end">{{ doc.get_forma_pago_display }}{% if doc.cuotas > 1 %} en {{ doc.cuotas }} cuotas{% endif %}</td></tr>
+        {% if doc.cuotas > 1 %}{% for n, fecha, importe in doc.cronograma_cuotas %}<tr><td class="text-muted small ps-3">Cuota {{ n }}</td><td class="text-end small">{{ fecha|date:'d/m/Y' }} · {{ importe|money }}</td></tr>{% endfor %}{% endif %}
         <tr><td class="text-muted">Operación</td><td class="text-end">{{ doc.get_tipo_operacion_display }}</td></tr>
         <tr><td class="text-muted">Moneda / T.C.</td><td class="text-end">{{ doc.moneda }} / {{ doc.tipo_cambio }}</td></tr>
         {% if doc.almacen %}<tr><td class="text-muted">Almacén</td><td class="text-end">{{ doc.almacen }}</td></tr>{% endif %}

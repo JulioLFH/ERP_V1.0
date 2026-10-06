@@ -79,7 +79,11 @@ class VentasViews(ComprobanteViews):
             igv = gravado * empresa.igv_tasa / 100
             tc = (datos.get('tipo_cambio') or 1) if datos.get('moneda') == 'USD' else 1
             nuevo = r2((subtotal + igv) * tc)
-            actual = sum((v.saldo_pen for v in deuda), Decimal('0'))
+            from finanzas.models import Letra
+            # la deuda incluye las letras aceptadas pendientes (las facturas canjeadas ya no tienen saldo)
+            letras = sum((r2(l.saldo * l.tc_efectivo) for l in Letra.objects.filter(
+                tercero=cliente, tipo='COBRAR', estado__in=Letra.ABIERTAS)), Decimal('0'))
+            actual = sum((v.saldo_pen for v in deuda), Decimal('0')) + letras
             if actual + nuevo > cliente.limite_credito:
                 errores.append(f'Se supera el límite de crédito de {cliente.nombre}: deuda S/ {actual:,.2f} + esta venta '
                                f'S/ {nuevo:,.2f} = S/ {actual + nuevo:,.2f} (límite S/ {cliente.limite_credito:,.2f}).')

@@ -1,16 +1,28 @@
 from django.urls import path
 
-from . import views
+from . import views, views_planta as vp
 
 app_name = 'manufactura'
 
 urlpatterns = [
+    path('calidad/', vp.inspecciones, name='inspecciones'),
+    path('calidad/nueva/', vp.inspeccion_nueva, name='inspeccion_nueva'),
+    path('calidad/<int:pk>/', vp.inspeccion, name='inspeccion'),
+    path('calidad/planes/', vp.planes_calidad, name='planes_calidad'),
+    path('calidad/planes/<int:pk>/', vp.plan_calidad, name='plan_calidad'),
+    path('mantenimiento/equipos/', vp.equipos, name='equipos'),
+    path('mantenimiento/equipos/nuevo/', vp.equipo, name='equipo_nuevo'),
+    path('mantenimiento/equipos/<int:pk>/', vp.equipo, name='equipo'),
+    path('mantenimiento/', vp.ordenes_mantenimiento, name='ordenes_mant'),
+    path('mantenimiento/nueva/', vp.orden_mant_nueva, name='orden_mant_nueva'),
+    path('mantenimiento/<int:pk>/', vp.orden_mant, name='orden_mant'),
     path('', views.ordenes, name='ordenes'),
     path('ordenes/nueva/', views.orden_nueva, name='orden_nueva'),
     path('ordenes/<int:pk>/', views.orden_detalle, name='orden'),
     path('ordenes/<int:pk>/editar/', views.orden_editar, name='orden_editar'),
     path('ordenes/<int:pk>/confirmar/', views.orden_confirmar, name='orden_confirmar'),
     path('ordenes/<int:pk>/iniciar/', views.orden_iniciar, name='orden_iniciar'),
+    path('ordenes/<int:pk>/maquila/', views.orden_maquila, name='orden_maquila'),
     path('ordenes/<int:pk>/terminar/', views.orden_terminar, name='orden_terminar'),
     path('ordenes/<int:pk>/anular/', views.orden_anular, name='orden_anular'),
     path('ordenes/<int:pk>/eliminar/', views.orden_eliminar, name='orden_eliminar'),

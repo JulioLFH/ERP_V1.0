@@ -55,6 +55,7 @@ urlpatterns = [
     path('inventario/valorizacion/', inventario.valorizacion, name='inv_valorizacion'),
     path('inventario/reposicion/', inventario.reposicion, name='inv_reposicion'),
     path('inventario/almacenes/', inventario.AlmacenLista.as_view(), name='almacenes'),
+    path('inventario/ubicaciones/', inventario.ubicaciones, name='ubicaciones'),
     path('inventario/almacenes/nuevo/', inventario.AlmacenNuevo.as_view(), name='almacen_nuevo'),
     path('inventario/almacenes/<int:pk>/', inventario.AlmacenEditar.as_view(), name='almacen_editar'),
 ]

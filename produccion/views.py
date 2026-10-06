@@ -114,6 +114,12 @@ def orden_confirmar(request, pk):
 
 
 @login_required
+def orden_maquila(request, pk):
+    return _accion(request, pk, lambda o: servicios.enviar_a_maquilador(o, request.user),
+                   'Materiales de {o.numero} enviados al maquilador: se consumen de su almacén al terminar la orden.')
+
+
+@login_required
 def orden_iniciar(request, pk):
     return _accion(request, pk, servicios.iniciar, 'Orden {o.numero} en proceso.')
 

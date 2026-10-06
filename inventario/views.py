@@ -272,7 +272,14 @@ def eliminar(request, pk):
 def imprimir(request, pk):
     op = get_object_or_404(Operacion.objects.select_related('tipo'), pk=pk)
     items = list(op.items.select_related('producto'))
+    # ubicación habitual en el almacén donde se toma (salidas, traslados) o se guarda (ingresos) la mercadería
+    from core.models import StockAlmacen
+    almacen_id = op.almacen_origen_id or op.almacen_destino_id
+    lugares = StockAlmacen.ubicaciones(almacen_id, [i.producto_id for i in items]) if almacen_id else {}
+    for i in items:
+        i.ubicacion = lugares.get(i.producto_id, '')
     return render(request, 'inventario/operacion_imprimir.html', {
+        'con_ubicacion': bool(lugares),
         'op': op, 'items': items, 'total': sum((i.valor for i in items), 0), 'empresa': Empresa.actual()})
 
 

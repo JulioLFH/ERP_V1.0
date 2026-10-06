@@ -148,8 +148,9 @@ def naturaleza(codigo):
 
 def destinos(codigo):
     """(destino_debe, destino_haber) para cuentas de gasto por naturaleza."""
-    if codigo.startswith('6011'):
-        # la compra queda "por recibir"; el ingreso al almacén (kardex) la pasa a 20111
+    if codigo.startswith(('6011', '6091')):
+        # la compra queda "por recibir"; el ingreso al almacén (kardex) la pasa a 20111. Los costos vinculados
+        # (gastos de importación) también: la liquidación de la importación los lleva al costo de cada producto
         return '2811', '6111'
     if codigo.startswith('6021'):
         return '2841', '6121'

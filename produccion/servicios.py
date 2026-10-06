@@ -314,6 +314,10 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None):
             h.save(update_fields=['horas_real', 'costo_mo', 'costo_cif'])
             mo += h.costo_mo
             cif += h.costo_cif
+        # maquila: el servicio del tercero se suma al costo del producto (base de su factura si no se indicó)
+        if orden.maquilador_id and not orden.costo_servicio and orden.compra_servicio_id:
+            c = orden.compra_servicio
+            orden.costo_servicio = c.total_pen - c.igv_pen
         tipo = TipoOperacion.objects.get(codigo='MANUF')
         # insumos que se consumen en otro almacén: salen con su propia operación de consumo a producción
         por_almacen = defaultdict(list)
@@ -323,7 +327,7 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None):
         principal = orden.almacen_insumos_id
         op = Operacion.objects.create(
             tipo=tipo, fecha=fecha, almacen_origen_id=principal, almacen_destino=orden.almacen_destino,
-            referencia=orden.numero, creado_por=usuario, costo_adicional=mo + cif,
+            referencia=orden.numero, creado_por=usuario, costo_adicional=mo + cif + orden.costo_servicio,
             glosa=f'Orden de producción {orden.numero}: {orden.producto.nombre}')
         for c in por_almacen.pop(principal, []):
             op.items.create(producto=c.producto, cantidad=r2(c.cantidad_real), rol='INSUMO')
@@ -362,6 +366,46 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None):
         orden.save()
         registrar_variaciones(orden)
     return orden
+
+
+def enviar_a_maquilador(orden, usuario, fecha=None):
+    """Traslada los insumos de la orden al almacén del maquilador (en poder de terceros) y desde ahí se consumen al
+    terminarla. Lo que sobre se devuelve con un traslado normal."""
+    from core.models import Almacen
+    from inventario import servicios as inv
+    from inventario.models import Operacion, TipoOperacion
+    if not orden.maquilador_id:
+        raise ErrorProduccion('La orden no tiene maquilador.')
+    if orden.estado not in ('CONFIRMADA', 'EN_PROCESO'):
+        raise ErrorProduccion('Confirme la orden antes de enviar los materiales.')
+    destino = Almacen.de_tercero(orden.maquilador)
+    if orden.almacen_insumos_id == destino.pk:
+        raise ErrorProduccion('Los materiales ya se enviaron al maquilador.')
+    fecha = fecha or timezone.localdate()
+    with transaction.atomic():
+        lineas = list(orden.consumos.select_related('producto', 'almacen'))
+        por_origen = defaultdict(list)
+        for c in lineas:
+            if c.cantidad_plan > 0:
+                por_origen[c.almacen_id or orden.almacen_insumos_id].append(c)
+        tipo = TipoOperacion.objects.get(codigo='TRAS_ALM')
+        for origen, filas in por_origen.items():
+            op = Operacion.objects.create(
+                tipo=tipo, fecha=fecha, almacen_origen_id=origen, almacen_destino=destino, tercero=orden.maquilador,
+                referencia=orden.numero, creado_por=usuario,
+                glosa=f'Materiales para maquila {orden.numero} ({orden.maquilador.nombre})')
+            for c in filas:
+                op.items.create(producto=c.producto, cantidad=r2(c.cantidad_plan))
+            try:
+                inv.confirmar(op, usuario)
+            except inv.ErrorOperacion as exc:
+                raise ErrorProduccion(f'Envío de materiales: {exc}') from exc
+        orden.consumos.update(almacen=None)
+        orden.almacen_insumos = destino
+        orden.estado = 'EN_PROCESO'
+        orden.fecha_inicio = orden.fecha_inicio or fecha
+        orden.save(update_fields=['almacen_insumos', 'estado', 'fecha_inicio'])
+    return destino
 
 
 def anular(orden, usuario, motivo):
