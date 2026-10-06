@@ -22,6 +22,21 @@ from .utils import (a_fecha, excel_response, faltantes_stock, fmt_fecha, guardar
                     lineas_formset, periodo_actual, rango_por_defecto, txt_response)
 
 
+def normalizar_periodo(texto):
+    """'202606', '2026-06', '06/2026' o '6/2026' -> '202606'; vacío o inválido -> ''."""
+    import re
+    texto = (texto or '').strip()
+    m = re.fullmatch(r'(\d{4})-?(\d{1,2})', texto) or None
+    if m:
+        anio, mes = m.group(1), m.group(2)
+    else:
+        m = re.fullmatch(r'(\d{1,2})[/-](\d{4})', texto)
+        if not m:
+            return ''
+        mes, anio = m.group(1), m.group(2)
+    return f'{anio}{int(mes):02d}' if 1 <= int(mes) <= 12 else ''
+
+
 def _dec(v):
     if v in (None, ''):
         return D0
@@ -89,7 +104,7 @@ class ComprobanteViews:
     # ------------------------------------------------------------ vistas
     def lista(self, request):
         qs = self.modelo.objects.con_saldos().select_related('tercero')
-        periodo = request.GET.get('periodo', '')
+        periodo = normalizar_periodo(request.GET.get('periodo', ''))
         if periodo:
             qs = qs.filter(periodo=periodo)
         for campo in ('tipo_comprobante', 'estado', 'moneda'):
