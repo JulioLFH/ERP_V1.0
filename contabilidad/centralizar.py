@@ -272,6 +272,22 @@ def asiento_movimiento(m, cta, tc_func):
     importe_caja = r2(m.monto * tc_dia) if usd else m.monto
     doc = f'{doc_obj.tipo_comprobante} {doc_obj.numero_completo}' if doc_obj else m.numero_operacion
     tercero = m.tercero or (doc_obj.tercero if doc_obj else None)
+    if m.cuota_id and m.tipo == 'EGRESO':  # cuota de préstamo o leasing: amortización, interés, comisión e IGV
+        c, leasing = m.cuota, m.cuota.prestamo.tipo == 'LEASING'
+        doc = f'{c.prestamo.numero} cuota {c.numero}'
+        partes = [(cta['leasing_pasivo' if leasing else 'prestamo_pasivo'], c.capital, 'Amortización'),
+                  (cta['leasing_interes' if leasing else 'prestamo_interes'], c.interes, 'Intereses'),
+                  (cta['mov_GASTO_BANCARIO'], c.comision, 'Comisiones y seguros'), (cta['igv'], c.igv, 'IGV')]
+        resto = importe_caja
+        for n, (cuenta, importe, glosa) in enumerate(p for p in partes if p[1]):
+            en_soles = r2(importe * tc_dia)
+            resto -= en_soles
+            b.add(cuenta, debe=en_soles, tercero=tercero, documento=doc, glosa=glosa, importe_me=importe)
+        if resto:  # redondeo del tipo de cambio: al interés
+            b.add(partes[1][0], debe=resto, documento=doc, glosa='Redondeo')
+        b.add(caja, haber=importe_caja, documento=doc, importe_me=m.monto)
+        b.agregar_destinos()
+        return b.grabar()
     if m.cuenta_contable_id:
         contra = m.cuenta_contable
     elif m.venta_id:
@@ -577,6 +593,54 @@ def asiento_activos(periodo, cta):
     return b.grabar()
 
 
+# ---------------------------------------------------------------- préstamos y provisiones
+def asiento_prestamos(periodo, cta, tc_func):
+    """Leasing firmado en el mes: el bien (32) contra la deuda por arrendamiento financiero (4521)."""
+    from finanzas.models import Prestamo
+    desde, hasta = _rango(periodo)
+    a = Asiento(fecha=hasta, libro='05', origen='PRESTAMO', glosa=f'Leasing {periodo}: bienes recibidos')
+    b = Borrador(a)
+    for p in (Prestamo.objects.filter(tipo='LEASING', fecha_desembolso__range=[desde, hasta])
+              .exclude(estado='ANULADO').select_related('entidad', 'cuenta_activo')):
+        importe = r2(p.monto * (tc_func(p.fecha_desembolso) if p.moneda == 'USD' else 1))
+        b.add(p.cuenta_activo or cta['leasing_activo'], debe=importe, documento=p.numero, glosa=f'{p}: {p.descripcion}')
+        b.add(cta['leasing_pasivo'], haber=importe, tercero=p.entidad, documento=p.numero, glosa=str(p))
+    return b.grabar()
+
+
+def asiento_provisiones(periodo, cta):
+    """Provisión mensual de gratificaciones (con su bonificación extraordinaria), CTS y vacaciones. Cuando en el
+    mes se paga el beneficio en planilla, se revierte lo provisionado hasta lo pagado: el gasto del año queda igual
+    a lo devengado."""
+    from planillas.provisiones import provisiones_del_mes
+    if not PeriodoContable.objects.filter(periodo=periodo, provisiones=True).exists():
+        return None
+    desde, hasta = _rango(periodo)
+    a = Asiento(fecha=hasta, libro='05', origen='PROVISION', glosa=f'Provisión de beneficios sociales {periodo}')
+    b = Borrador(a)
+    datos = provisiones_del_mes(periodo)
+    for clave, (gasto_cta, pasivo_cta) in {'gratificacion': ('prov_gratificacion', 'prov_gratificacion_pasivo'),
+                                           'cts': ('prov_cts', 'prov_cts_pasivo'),
+                                           'vacaciones': ('prov_vacaciones', 'prov_vacaciones_pasivo')}.items():
+        gasto, pasivo = cta[gasto_cta], cta[pasivo_cta]
+        total = D0
+        for centro, monto in datos['por_centro'][clave].items():
+            b.add(gasto, debe=monto, centro_costo=centro, glosa=f'Provisión {clave}')
+            total += monto
+        b.add(pasivo, haber=total, glosa=f'Provisión {clave}')
+        # lo pagado este mes en planillas con la cuenta de gasto del beneficio consume lo provisionado antes
+        provisionado = AsientoLinea.objects.filter(
+            asiento__origen='PROVISION', cuenta=pasivo, asiento__fecha__lt=desde).aggregate(
+            d=Sum('debe'), h=Sum('haber'))
+        saldo = (provisionado['h'] or D0) - (provisionado['d'] or D0)
+        revertir = min(saldo, datos['pagado'].get(gasto.pk, D0))
+        if revertir > 0:
+            b.add(pasivo, debe=revertir, glosa=f'Aplicación de la provisión de {clave} pagada')
+            b.add(gasto, haber=revertir, glosa=f'Aplicación de la provisión de {clave} pagada')
+    b.agregar_destinos()
+    return b.grabar()
+
+
 # ---------------------------------------------------------------- proceso del periodo
 def centralizar_periodo(periodo):
     if PeriodoContable.esta_cerrado(periodo):
@@ -611,7 +675,7 @@ def centralizar_periodo(periodo):
                 resumen['errores'].append(str(exc))
         for m in (Movimiento.objects.filter(fecha__range=[desde, hasta])
                   .select_related('cuenta', 'venta', 'compra', 'letra', 'entrega', 'tercero', 'cuenta_contable',
-                                  'centro_costo')
+                                  'centro_costo', 'cuota__prestamo')
                   .order_by('fecha', 'id')):
             try:
                 if asiento_movimiento(m, cta, tc_func):
@@ -637,6 +701,8 @@ def centralizar_periodo(periodo):
             asiento_activos(periodo, cta)
             from planillas.servicios import asiento_planillas
             asiento_planillas(periodo, cta)
+            asiento_provisiones(periodo, cta)
+            asiento_prestamos(periodo, cta, tc_func)
             asiento_cambio_cierre(periodo, cta, obtener(hasta) if Cuenta.objects.filter(moneda='USD').exists()
                                   else None)
         except ErrorContable as exc:

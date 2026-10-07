@@ -1,0 +1,40 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Cierre guiado del mes{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Cierre guiado del mes</h1>
+  <form method="get" class="d-flex gap-2"><input type="month" name="periodo" value="{{ mes }}" class="form-control form-control-sm" onchange="this.form.submit()"></form>
+</div>
+<div class="card mb-3"><div class="card-body py-2">
+  <div class="d-flex justify-content-between small mb-1"><span>{{ hechos }} de {{ pasos|length }} pasos completos</span><span>{{ avance }}%</span></div>
+  <div class="progress" style="height:10px"><div class="progress-bar {% if avance == 100 %}bg-success{% endif %}" style="width:{{ avance }}%"></div></div>
+</div></div>
+<div class="list-group mb-3">
+  {% for s in pasos %}<div class="list-group-item d-flex gap-3 align-items-start">
+    <span class="fs-4 lh-1">{% if s.estado == 'ok' %}<i class="bi bi-check-circle-fill text-success"></i>{% elif s.estado == 'na' %}<i class="bi bi-dash-circle text-muted"></i>{% elif s.estado == 'aviso' %}<i class="bi bi-exclamation-circle-fill text-warning"></i>{% else %}<i class="bi bi-circle text-danger"></i>{% endif %}</span>
+    <div class="flex-grow-1"><div class="fw-semibold">{{ forloop.counter }}. {{ s.titulo }}</div><div class="small text-muted">{{ s.detalle }}</div></div>
+    {% if s.url and s.estado != 'ok' and s.estado != 'na' %}<a href="{{ s.url }}" class="btn btn-sm btn-outline-primary">Ir</a>{% endif %}
+  </div>{% endfor %}
+</div>
+{% if puede.contabilidad_periodos and not p.cerrado %}
+<div class="row g-3 mb-3">
+  <div class="col-lg-7"><div class="card h-100"><div class="card-header">Provisiones de beneficios sociales del mes</div>
+    <div class="table-responsive"><table class="table table-sm mb-0">
+      <thead><tr><th>Concepto</th><th class="num">Provisión S/</th></tr></thead>
+      <tbody><tr><td>Gratificaciones (con bonificación extraordinaria)</td><td class="num">{{ prov.total.gratificacion|money }}</td></tr>
+        <tr><td>CTS</td><td class="num">{{ prov.total.cts|money }}</td></tr>
+        <tr><td>Vacaciones</td><td class="num">{{ prov.total.vacaciones|money }}</td></tr></tbody>
+    </table></div>
+    <div class="card-body py-2 small text-muted">{{ prov.por_trabajador|length }} trabajador(es), según su régimen (general, pequeña o microempresa) y los días con vínculo en el mes. Cuando el beneficio se paga en planilla, se aplica lo provisionado.</div>
+    <form method="post" class="card-body pt-0">{% csrf_token %}<input type="hidden" name="periodo" value="{{ periodo }}">
+      {% if p.provisiones %}<button name="accion" value="no_provisionar" class="btn btn-sm btn-outline-secondary">Quitar provisiones del mes</button>{% else %}<button name="accion" value="provisionar" class="btn btn-sm btn-primary"><i class="bi bi-plus-circle"></i> Provisionar este mes</button>{% endif %}</form>
+  </div></div>
+  <div class="col-lg-5"><div class="card h-100"><div class="card-header">Acciones</div><div class="card-body d-grid gap-2">
+    <form method="post">{% csrf_token %}<input type="hidden" name="periodo" value="{{ periodo }}"><button name="accion" value="centralizar" class="btn btn-outline-primary w-100"><i class="bi bi-arrow-repeat"></i> Centralizar el periodo</button></form>
+    <form method="post">{% csrf_token %}<input type="hidden" name="periodo" value="{{ periodo }}">
+      <label class="small mb-1"><input type="checkbox" name="forzar" value="1"> Cerrar aunque falten pasos</label>
+      <button name="accion" value="cerrar" class="btn btn-success w-100" data-confirm="¿Cerrar el periodo {{ periodo|slice:'4:' }}/{{ periodo|slice:':4' }}? Ya no se podrán registrar documentos con esa fecha."><i class="bi bi-lock"></i> Cerrar el periodo</button></form>
+  </div></div></div>
+</div>
+{% elif p.cerrado %}<div class="alert alert-success py-2"><i class="bi bi-lock"></i> Periodo cerrado. Para corregir, reábralo con motivo en <a href="{% url 'contabilidad:periodos' %}">Centralización y periodos</a>.</div>{% endif %}
+{% endblock %}

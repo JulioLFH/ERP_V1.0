@@ -1,10 +1,13 @@
 from django.urls import path
 
-from . import views
+from . import views, views_asistencia
 
 app_name = 'planillas'
 
 urlpatterns = [
+    path('asistencia/', views_asistencia.asistencia_mes, name='asistencia'),
+    path('turnos/', views_asistencia.turnos, name='turnos'),
+    path('turnos/<int:pk>/', views_asistencia.turnos, name='turno'),
     path('', views.planillas, name='lista'),
     path('nueva/', views.planilla_nueva, name='nueva'),
     path('<int:pk>/', views.planilla_detalle, name='detalle'),

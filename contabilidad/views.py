@@ -24,7 +24,16 @@ from .centralizar import ErrorContable, centralizar_periodo
 from .forms import (AsientoForm, CentroBeneficioForm, CentroCostoForm, CuentaContableForm, CuentaDefectoFormSet,
                     lineas_formset)
 from .models import (LIBROS, ORIGENES, Asiento, AsientoLinea, CentroBeneficio, CentroCosto, CuentaContable,
-                     CuentaDefecto, PeriodoContable)
+                     CuentaDefecto, PeriodoContable, norma_excluida, usar_norma)
+
+
+def con_norma(vista):
+    """Reportes de libros paralelos: ?norma=TRIBUTARIO lee el libro tributario (por defecto el NIIF, oficial)."""
+    @wraps(vista)
+    def envoltura(request, *args, **kwargs):
+        with usar_norma(request.GET.get('norma', 'NIIF')):
+            return vista(request, *args, **kwargs)
+    return envoltura
 
 D0 = Decimal('0')
 
@@ -177,6 +186,7 @@ def asiento_nuevo(request):
             a.save()
             formset.instance = a
             formset.save()
+            a.lineas.update(norma=a.norma)
             adjuntar(a, form.cleaned_data['sustento'], request.user, form.cleaned_data.get('descripcion_sustento', ''))
         messages.success(request, f'Asiento {a.numero} registrado con su sustento.')
         return redirect('contabilidad:asiento_detalle', a.pk)
@@ -215,11 +225,12 @@ def asiento_extornar(request, pk):
         with transaction.atomic():
             ext = Asiento.objects.create(fecha=form.cleaned_data['fecha'], libro=a.libro, origen='MANUAL', extorna=a,
                                          moneda=a.moneda, tipo_cambio=a.tipo_cambio, creado_por=request.user,
+                                         norma=a.norma,
                                          glosa=f'Extorno de {a.numero}: {form.cleaned_data["motivo"]}'[:250])
             AsientoLinea.objects.bulk_create([AsientoLinea(
                 asiento=ext, cuenta=l.cuenta, tercero=l.tercero, centro_costo=l.centro_costo, documento=l.documento,
                 glosa=l.glosa, debe=l.haber, haber=l.debe, debe_me=l.haber_me, haber_me=l.debe_me,
-                es_destino=l.es_destino) for l in a.lineas.all()])
+                es_destino=l.es_destino, norma=l.norma) for l in a.lineas.all()])
             if form.cleaned_data.get('sustento'):
                 adjuntar(ext, form.cleaned_data['sustento'], request.user, 'Sustento del extorno')
             registrar('EXTORNAR', a, {'extorno': ext.numero}, form.cleaned_data['motivo'])
@@ -231,9 +242,11 @@ def asiento_extornar(request, pk):
 # ---------------------------------------------------------------- libros
 @login_required
 @al_dia
+@con_norma
 def libro_diario(request):
     periodo = _periodo(request)
-    asientos_qs = (Asiento.objects.filter(periodo=periodo).order_by('fecha', 'libro', 'numero')
+    asientos_qs = (Asiento.objects.filter(periodo=periodo).exclude(norma=norma_excluida())
+                   .order_by('fecha', 'libro', 'numero')
                    .prefetch_related('lineas__cuenta', 'lineas__tercero', 'lineas__centro_costo'))
     formato = request.GET.get('formato')
     if formato == 'ple':
@@ -284,7 +297,7 @@ def _diario_ple(periodo, asientos_qs):
 
 def _mayor_ple(periodo):
     """Libro Mayor formato 6.1 (PLE): los movimientos del mes agrupados por cuenta."""
-    asientos = (Asiento.objects.filter(periodo=periodo)
+    asientos = (Asiento.objects.filter(periodo=periodo).exclude(norma=norma_excluida())
                 .prefetch_related('lineas__cuenta', 'lineas__tercero', 'lineas__centro_costo'))
     movs = []
     for a in asientos:
@@ -298,6 +311,7 @@ def _mayor_ple(periodo):
 
 @login_required
 @al_dia
+@con_norma
 def libro_mayor(request):
     cuentas = CuentaContable.objects.filter(imputable=True)
     cuenta = cuentas.filter(pk=request.GET.get('cuenta')).first() if request.GET.get('cuenta') else None
@@ -330,6 +344,7 @@ def libro_mayor(request):
 
 @login_required
 @al_dia
+@con_norma
 def balance(request):
     hasta = _periodo(request, 'hasta')
     desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')
@@ -351,6 +366,7 @@ def balance(request):
 
 @login_required
 @al_dia
+@con_norma
 def estado_situacion(request):
     hasta = _periodo(request, 'hasta')
     comparar = request.GET.get('comparar') if request.GET.get('comparar') in ('anio', 'previo') else ''
@@ -378,6 +394,7 @@ def _periodo_txt(p):
 
 @login_required
 @al_dia
+@con_norma
 def estado_resultados(request):
     hasta = _periodo(request, 'hasta')
     desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')

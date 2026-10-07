@@ -12,7 +12,7 @@
     {% for field in form|campos:"fecha,libro,glosa,moneda,tipo_cambio" %}<div class="{% if field.name == 'glosa' %}col-md-6{% else %}col-6 col-md{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
   </div>
   <div class="row g-3 mt-1 border-top pt-2">
-    {% for field in form|campos:"sustento,descripcion_sustento" %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}
+    {% for field in form|campos:"sustento,descripcion_sustento,norma" %}<div class="col-md-4">{% include 'core/_campo.html' %}</div>{% endfor %}
   </div>
   <p class="small text-muted mt-2 mb-0"><i class="bi bi-info-circle"></i> El asiento no se podrá editar ni eliminar: si hay un error se corrige con un extorno (asiento inverso con motivo).</p>
   </div></div>

@@ -121,6 +121,8 @@ class Trabajador(models.Model):
                                      help_text='Define el destino del gasto: producción (90), administración '
                                                '(94) o ventas (95)')
     sueldo = models.DecimalField('Remuneración básica mensual S/', max_digits=10, decimal_places=2, default=D0)
+    turno = models.ForeignKey('Turno', on_delete=models.SET_NULL, null=True, blank=True, related_name='trabajadores',
+                              help_text='Horario para el control de asistencia (tardanzas, faltas y horas extra)')
     asignacion_familiar = models.BooleanField('Asignación familiar', default=False,
                                               help_text='Tiene hijos menores de 18 años (o estudiando hasta los 24)')
     # ---- pensiones
@@ -272,6 +274,56 @@ class Vacacion(models.Model):
         """Días del registro dentro del rango (para la planilla del mes)."""
         inicio, fin = max(self.fecha_inicio, desde), min(self.fecha_fin, hasta)
         return max((fin - inicio).days + 1, 0)
+
+
+class Turno(models.Model):
+    """Horario de trabajo: entrada, salida, refrigerio y tolerancia para las tardanzas."""
+    nombre = models.CharField(max_length=60, help_text='Ej. Mañana, Tarde, Noche, Administrativo')
+    hora_entrada = models.TimeField('Entrada')
+    hora_salida = models.TimeField('Salida', help_text='Si es menor que la entrada, el turno termina al día siguiente')
+    refrigerio_min = models.PositiveSmallIntegerField('Refrigerio (minutos)', default=60,
+                                                      help_text='No se cuenta como tiempo trabajado')
+    tolerancia_min = models.PositiveSmallIntegerField('Tolerancia (minutos)', default=5)
+    dias = models.CharField('Días laborables', max_length=7, default='123456', help_text='1 = lunes … 7 = domingo')
+
+    class Meta:
+        ordering = ['hora_entrada', 'nombre']
+        verbose_name = 'turno'
+
+    def __str__(self):
+        return f'{self.nombre} ({self.hora_entrada:%H:%M}-{self.hora_salida:%H:%M})'
+
+    @property
+    def horas_jornada(self):
+        """Horas efectivas del turno (sin refrigerio)."""
+        from datetime import datetime, timedelta
+        inicio = datetime.combine(date.today(), self.hora_entrada)
+        fin = datetime.combine(date.today(), self.hora_salida)
+        if fin <= inicio:
+            fin += timedelta(days=1)
+        return Decimal((fin - inicio).seconds - self.refrigerio_min * 60) / 3600
+
+    def laborable(self, fecha):
+        return str(fecha.isoweekday()) in self.dias
+
+
+class Marcacion(models.Model):
+    """Entrada y salida del trabajador en un día (del reloj marcador, importadas de Excel, o registradas a mano)."""
+    ORIGENES = [('RELOJ', 'Reloj / Excel'), ('MANUAL', 'Manual')]
+    trabajador = models.ForeignKey(Trabajador, on_delete=models.CASCADE, related_name='marcaciones')
+    fecha = models.DateField()
+    entrada = models.TimeField(null=True, blank=True)
+    salida = models.TimeField(null=True, blank=True)
+    origen = models.CharField(max_length=6, choices=ORIGENES, default='MANUAL')
+    observacion = models.CharField(max_length=120, blank=True,
+                                   help_text='Ej. Permiso, descanso médico, comisión de servicio (no cuenta como falta)')
+    justificada = models.BooleanField('Falta o tardanza justificada', default=False)
+
+    class Meta:
+        ordering = ['-fecha', 'trabajador']
+        unique_together = [('trabajador', 'fecha')]
+        verbose_name = 'marcación'
+        verbose_name_plural = 'marcaciones'
 
 
 class LineaPlanilla(models.Model):

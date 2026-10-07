@@ -3,6 +3,30 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.23.0 — 07/10/2026 · Funciones de gran empresa
+**Plataforma**
+- **Segregación de funciones**: reporte de usuarios con permisos incompatibles (crear y aprobar órdenes, registrar facturas y pagarlas…), aviso al guardar un usuario y opción «estricta» en Ajustes › Empresa: nadie aprueba lo que registró (órdenes de compra, requerimientos, planillas).
+- **Estados financieros consolidados** del grupo (solo administradores): suma las empresas y elimina las operaciones entre ellas por RUC.
+
+**Finanzas y contabilidad**
+- **Libros paralelos NIIF y tributario**: asientos manuales «solo NIIF» o «solo tributario»; libros y reportes con selector de libro; conciliación NIIF - tributaria (base de adiciones y deducciones).
+- **Cierre guiado del mes**: lista de verificación (tipo de cambio, conciliación, kardex, depreciación, planilla, provisiones, centralización, cuadre y cierre) y **provisión mensual de gratificaciones, CTS y vacaciones** por régimen laboral.
+- **Préstamos y leasing**: cronograma de cuota fija (TEA), desembolso, pago de cuotas y contabilidad (45 / 673 / 32; IGV en el leasing).
+
+**Manufactura y costos**
+- **Programación detallada de planta** con capacidad finita por puesto, prioridades y diagrama por días.
+- **Reporte de planta en tablets**: producción buena, merma y horas por operación; alimenta el término de la orden.
+- **Cambios de ingeniería** (ECO): receta propuesta, diferencias, aprobación por otra persona y fecha efectiva.
+- **Costeo por actividades (ABC)**: actividades, centros de costo e inductores; costo ABC por producto frente al absorbido.
+
+**Inventario y compras**
+- **Picking por olas**: varios pedidos en un recorrido ordenado por ubicación y separación por pedido.
+- **Inventario cíclico ABC**: clasificación por valor, programa de conteo, conteo a ciegas y ajuste con acta.
+- **Licitaciones** con cuadro comparativo y adjudicación que genera las órdenes de compra; **contratos marco** con precios pactados y saldo.
+
+**Planillas**
+- **Asistencia y turnos**: marcaciones (Excel del reloj o manual), faltas, tardanzas y horas extra 25 % / 35 % que pasan a la planilla.
+
 ## v1.22.1 — 06/10/2026 · EMPRESAS_EXTRA más simple
 - `EMPRESAS_EXTRA` acepta solo el nombre de la empresa (varias separadas por `;`), tolera comillas tipográficas y, si el valor no se entiende, el despliegue sigue con la empresa principal en vez de fallar.
 

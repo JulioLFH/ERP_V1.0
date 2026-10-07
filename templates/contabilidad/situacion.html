@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <div><h1 class="page-title">Estado de situación financiera</h1>
     <div class="text-muted small">{{ empresa.razon_social }} · al cierre de {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }} · en soles</div></div>
-  <form class="d-flex flex-wrap gap-2 d-print-none" method="get">
+  <form class="d-flex flex-wrap gap-2 d-print-none" method="get">{% include 'contabilidad/_norma.html' %}
     <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm" style="width:auto">
     <select name="comparar" class="form-select form-select-sm" style="width:auto">
       <option value="">Sin comparativo</option>

@@ -127,8 +127,15 @@ class AsientoForm(BootstrapMixin, forms.ModelForm):
 
     class Meta:
         model = Asiento
-        fields = ['fecha', 'libro', 'glosa', 'moneda', 'tipo_cambio']
+        fields = ['fecha', 'libro', 'glosa', 'moneda', 'tipo_cambio', 'norma']
         widgets = {'moneda': forms.Select(choices=[('PEN', 'Soles'), ('USD', 'Dólares')])}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['norma'].required = False  # lo normal: va a los dos libros
+
+    def clean_norma(self):
+        return self.cleaned_data.get('norma') or 'AMBOS'
 
 
 class ExtornoForm(BootstrapMixin, forms.Form):

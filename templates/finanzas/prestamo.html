@@ -1,0 +1,34 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ p }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title mb-0">{{ p }} <span class="badge fs-6 align-middle {% if p.estado == 'VIGENTE' %}text-bg-primary{% elif p.estado == 'CANCELADO' %}text-bg-success{% else %}text-bg-danger{% endif %}">{{ p.get_estado_display }}</span></h1>
+    <div class="small text-muted">{{ p.entidad.nombre }} · {{ p.descripcion }}{% if p.referencia %} · contrato {{ p.referencia }}{% endif %}</div></div>
+  <div class="d-flex gap-2"><a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Cronograma</a>
+    <a href="{% url 'finanzas:prestamos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a></div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2"><div class="small text-muted">{% if p.tipo == 'LEASING' %}Valor del bien{% else %}Capital{% endif %}</div><div class="fs-5 fw-semibold">{{ p.simbolo }} {{ p.monto|money }}</div><div class="small text-muted">TEA {{ p.tasa_anual|floatformat:2 }}% · {{ p.plazo }} cuotas</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2"><div class="small text-muted">Saldo de capital</div><div class="fs-5 fw-semibold">{{ p.simbolo }} {{ p.saldo_capital|money }}</div></div></div></div>
+  <div class="col-md-6"><div class="card h-100"><div class="card-body py-2 small">
+    <div>Caja / banco: {{ p.cuenta }}</div>
+    {% if desembolso %}<div>Desembolso: {{ desembolso.voucher }} del {{ desembolso.fecha|date:'d/m/Y' }}</div>{% elif p.tipo == 'LEASING' %}<div>Bien reconocido en {{ p.cuenta_activo|default:'la cuenta de leasing configurada' }} (al centralizar {{ p.fecha_desembolso|date:'m/Y' }}){% if p.opcion_compra %} · opción de compra {{ p.simbolo }} {{ p.opcion_compra|money }}{% endif %}</div>{% endif %}
+    <div class="text-muted">Intereses y comisiones al gasto financiero al pagar cada cuota.</div>
+  </div></div></div>
+</div>
+{% if siguiente and p.estado == 'VIGENTE' and puede.finanzas_registrar %}
+<form method="post" class="card mb-3 border-primary">{% csrf_token %}<input type="hidden" name="accion" value="pagar"><input type="hidden" name="cuota" value="{{ siguiente.pk }}">
+  <div class="card-body row g-2 align-items-end">
+    <div class="col-md-4"><div class="small text-muted">Próxima cuota</div><b>N° {{ siguiente.numero }} · vence {{ siguiente.fecha|date:'d/m/Y' }}</b>{% if siguiente.vencida %} <span class="badge text-bg-danger">Vencida</span>{% endif %}<div>{{ p.simbolo }} {{ siguiente.cuota|money }}</div></div>
+    <div class="col-md-3"><label class="form-label small">Fecha de pago</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+    <div class="col-md-3"><label class="form-label small">N° operación</label><input name="numero_operacion" maxlength="40" class="form-control form-control-sm"></div>
+    <div class="col-md-2"><button class="btn btn-sm btn-success w-100" data-confirm="¿Registrar el pago de la cuota {{ siguiente.numero }} desde {{ p.cuenta }}?"><i class="bi bi-cash"></i> Pagar</button></div>
+  </div></form>{% endif %}
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>N°</th><th>Vence</th><th class="num">Amortización</th><th class="num">Interés</th><th class="num">Comisiones</th>{% if p.tipo == 'LEASING' %}<th class="num">IGV</th>{% endif %}<th class="num">Cuota</th><th class="num">Saldo</th><th>Pago</th></tr></thead>
+  <tbody>{% for c in cuotas %}<tr class="{% if c.pagada %}text-muted{% elif c.vencida %}table-danger{% endif %}"><td>{{ c.numero }}</td><td>{{ c.fecha|date:'d/m/Y' }}</td><td class="num">{{ c.capital|money }}</td><td class="num">{{ c.interes|money }}</td><td class="num">{{ c.comision|money }}</td>{% if p.tipo == 'LEASING' %}<td class="num">{{ c.igv|money }}</td>{% endif %}<td class="num fw-semibold">{{ c.cuota|money }}</td><td class="num">{{ c.saldo|money }}</td>
+    <td class="small">{% if c.pagada %}<i class="bi bi-check2 text-success"></i> {{ c.pago.voucher }} {{ c.pago.fecha|date:'d/m/Y' }}{% endif %}</td></tr>{% endfor %}</tbody>
+  <tfoot><tr class="fw-semibold"><td colspan="2">Total</td><td class="num">{{ totales.capital|money }}</td><td class="num">{{ totales.interes|money }}</td><td class="num">{{ totales.comision|money }}</td>{% if p.tipo == 'LEASING' %}<td class="num">{{ totales.igv|money }}</td>{% endif %}<td class="num">{{ totales.cuota|money }}</td><td colspan="2"></td></tr></tfoot>
+</table></div></div>
+{% if p.estado == 'VIGENTE' and puede.finanzas_anular %}<form method="post" class="d-flex gap-2 justify-content-end">{% csrf_token %}<input type="hidden" name="accion" value="anular"><input name="motivo" class="form-control form-control-sm w-auto" placeholder="Motivo de la anulación" minlength="10"><button class="btn btn-sm btn-outline-danger" data-confirm="¿Anular el préstamo y su desembolso? Solo si no tiene cuotas pagadas.">Anular</button></form>{% endif %}
+{% endblock %}

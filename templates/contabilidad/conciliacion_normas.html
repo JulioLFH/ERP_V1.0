@@ -1,0 +1,23 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Conciliación NIIF - tributaria{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title">Conciliación NIIF - tributaria</h1>
+  <form class="d-flex flex-wrap gap-2" method="get"><input type="month" name="desde" value="{{ mes_desde }}" class="form-control form-control-sm"><input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button>
+    <a href="?desde={{ mes_desde }}&hasta={{ mes_hasta }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a></form>
+</div>
+<p class="small text-muted mb-3">Libros paralelos: los asientos manuales pueden ser «solo NIIF» (ajustes contables que la ley tributaria no reconoce, ej. deterioro, valor razonable) o «solo tributario» (ej. depreciación acelerada aceptada, gastos reparables). Los libros oficiales y los estados financieros usan el libro NIIF; el tributario sirve para la renta. Aquí se ven las cuentas que difieren.</p>
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="card h-100"><div class="card-body py-2"><div class="small text-muted">Resultado NIIF</div><div class="fs-5 fw-semibold">{{ res_niif|money }}</div></div></div></div>
+  <div class="col-md-4"><div class="card h-100"><div class="card-body py-2"><div class="small text-muted">Resultado tributario</div><div class="fs-5 fw-semibold">{{ res_trib|money }}</div></div></div></div>
+  <div class="col-md-4"><div class="card h-100 {% if dif_resultado %}border-warning{% endif %}"><div class="card-body py-2"><div class="small text-muted">Diferencia (adiciones − deducciones)</div><div class="fs-5 fw-semibold">{{ dif_resultado|money }}</div></div></div></div>
+</div>
+<div class="card mb-3"><div class="card-header">Cuentas con saldo distinto</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Cuenta</th><th>Denominación</th><th class="num">Saldo NIIF</th><th class="num">Saldo tributario</th><th class="num">Diferencia</th></tr></thead>
+  <tbody>{% for f in filas %}<tr><td>{{ f.codigo }}</td><td>{{ f.nombre }}</td><td class="num">{{ f.niif|money }}</td><td class="num">{{ f.trib|money }}</td><td class="num fw-semibold">{{ f.diferencia|money }}</td></tr>
+  {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">Los dos libros son iguales en el rango: no hay asientos solo NIIF ni solo tributarios.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if asientos %}<div class="card"><div class="card-header">Asientos de un solo libro</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <tbody>{% for a in asientos %}<tr><td><a href="{% url 'contabilidad:asiento_detalle' a.pk %}">{{ a.numero }}</a></td><td>{{ a.fecha|date:'d/m/Y' }}</td><td>{{ a.glosa }}</td><td><span class="badge {% if a.norma == 'NIIF' %}text-bg-info{% else %}text-bg-warning{% endif %}">{{ a.get_norma_display }}</span></td></tr>{% endfor %}</tbody>
+</table></div></div>{% endif %}
+{% endblock %}

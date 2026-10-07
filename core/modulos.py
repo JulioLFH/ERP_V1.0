@@ -156,7 +156,9 @@ MODULOS = [
                            ('Liquidación de beneficios (ceses)', 'planillas:nueva?tipo=LIQUIDACION',
                             'bi-box-arrow-right')]),
             ('Personal', [('Trabajadores', 'planillas:trabajadores', 'bi-people'),
-                          ('Vacaciones y récord vacacional', 'planillas:vacaciones', 'bi-sun')]),
+                          ('Vacaciones y récord vacacional', 'planillas:vacaciones', 'bi-sun'),
+                          ('Asistencia y marcaciones', 'planillas:asistencia', 'bi-fingerprint'),
+                          ('Turnos de trabajo', 'planillas:turnos', 'bi-clock')]),
             ('Reportes', [('Costo por centro de costo', 'planillas:costo_centros', 'bi-diagram-3')]),
             ('Configuración', [('Parámetros, AFP y conceptos', 'planillas:configuracion', 'bi-gear')]),
         ],
@@ -197,7 +199,8 @@ MODULOS = [
             ('Documentos', [('Anticipos', 'finanzas:anticipos', 'bi-hourglass-split'),
                             ('Letras por cobrar y pagar', 'finanzas:letras', 'bi-file-earmark-ruled'),
                             ('Canje de facturas por letras', 'finanzas:canje_nuevo', 'bi-arrow-repeat'),
-                            ('Cheques', 'finanzas:cheques', 'bi-credit-card-2-front')]),
+                            ('Cheques', 'finanzas:cheques', 'bi-credit-card-2-front'),
+                            ('Préstamos y leasing', 'finanzas:prestamos', 'bi-piggy-bank')]),
             ('Bancos', [('Conciliación automática (extracto)', 'finanzas:extractos', 'bi-magic'),
                         ('Conciliación bancaria', 'finanzas:conciliacion', 'bi-check2-square'),
                         ('Importar estado de cuenta', 'finanzas:importar', 'bi-upload')]),
@@ -211,7 +214,8 @@ MODULOS = [
         'menu': [
             ('Asientos', [('Asientos contables', 'contabilidad:asientos', 'bi-journal-plus'),
                           ('Nuevo asiento manual', 'contabilidad:asiento_nuevo', 'bi-plus-circle'),
-                          ('Centralización y periodos', 'contabilidad:periodos', 'bi-arrow-repeat')]),
+                          ('Centralización y periodos', 'contabilidad:periodos', 'bi-arrow-repeat'),
+                          ('Cierre guiado del mes', 'contabilidad:cierre', 'bi-list-check')]),
             ('Libros', [('Libro diario', 'contabilidad:diario', 'bi-journal-text'),
                         ('Libro mayor', 'contabilidad:mayor', 'bi-journal-bookmark'),
                         ('Inventarios y Balances (3.x)', 'contabilidad:libro_inventarios', 'bi-journal-richtext'),
@@ -221,7 +225,9 @@ MODULOS = [
                           ('Estado de resultados', 'contabilidad:resultados', 'bi-graph-up-arrow'),
                           ('Resultados por línea de negocio', 'contabilidad:resultados_linea', 'bi-bar-chart-steps'),
                           ('Gastos por centro de costo', 'contabilidad:centros_reporte', 'bi-diagram-3'),
-                          ('Presupuestos y ejecución', 'contabilidad:presupuestos', 'bi-clipboard-data')]),
+                          ('Presupuestos y ejecución', 'contabilidad:presupuestos', 'bi-clipboard-data'),
+                          ('Conciliación NIIF - tributaria', 'contabilidad:conciliacion_normas', 'bi-intersect'),
+                          ('Estados consolidados del grupo', 'contabilidad:consolidacion', 'bi-buildings')]),
             ('Sistema anterior', [('Asientos del sistema anterior', 'hist_asientos', 'bi-clock-history'),
                                   ('Balance del sistema anterior', 'hist_balance', 'bi-table'),
                                   ('Posiciones presupuestarias', 'hist_posiciones', 'bi-collection')]),
@@ -352,7 +358,7 @@ def resolver_url(destino):
 
 
 RUTAS_COSTOS = {'inv_valorizacion', 'inventario:cierres'}  # solo con el permiso de ver costos
-RUTAS_ADMIN = {'manuales'}  # solo los administradores (superusuarios) ven estas opciones
+RUTAS_ADMIN = {'manuales', 'contabilidad:consolidacion'}  # solo los administradores (superusuarios) las ven
 
 
 def marcar_activo(items, ruta_completa):

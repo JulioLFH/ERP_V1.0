@@ -6,7 +6,7 @@ from core.forms import remoto, BootstrapMixin, validar_periodo_abierto
 from core.models import Tercero
 from core.sustentos import SustentoField
 
-from .models import Cheque, Cuenta, EntregaRendir, GastoRendicion, Movimiento
+from .models import Cheque, Cuenta, EntregaRendir, GastoRendicion, Movimiento, Prestamo
 
 
 MAX_SUSTENTO = 5 * 1024 * 1024
@@ -280,6 +280,36 @@ class ChequeForm(BootstrapMixin, forms.ModelForm):
         if monto <= 0:
             raise forms.ValidationError('El monto debe ser mayor a cero.')
         return monto
+
+
+class PrestamoForm(BootstrapMixin, forms.ModelForm):
+    comision_cuota = forms.DecimalField(label='Comisiones y seguros por cuota', required=False, min_value=0,
+                                        max_digits=14, decimal_places=2, initial=0,
+                                        help_text='Seguro de desgravamen, portes, etc. (se suman a cada cuota)')
+
+    class Meta:
+        model = Prestamo
+        fields = ['tipo', 'entidad', 'descripcion', 'referencia', 'moneda', 'monto', 'tasa_anual', 'plazo',
+                  'meses_entre_cuotas', 'fecha_desembolso', 'primera_cuota', 'opcion_compra', 'cuenta',
+                  'cuenta_activo']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['entidad'].queryset = Tercero.objects.filter(activo=True)
+        remoto(self.fields['entidad'], 'terceros')
+        self.fields['cuenta'].queryset = Cuenta.objects.filter(activo=True)
+        from contabilidad.models import CuentaContable
+        self.fields['cuenta_activo'].queryset = CuentaContable.objects.filter(imputable=True, codigo__startswith='32')
+
+    def clean(self):
+        data = super().clean()
+        if data.get('tipo') == 'PRESTAMO' and data.get('opcion_compra'):
+            self.add_error('opcion_compra', 'Solo en leasing.')
+        if data.get('monto') is not None and data['monto'] <= 0:
+            self.add_error('monto', 'Debe ser mayor a cero.')
+        if data.get('plazo') == 0:
+            self.add_error('plazo', 'Indique el número de cuotas.')
+        return data
 
 
 class ImportarExtractoForm(BootstrapMixin, forms.Form):

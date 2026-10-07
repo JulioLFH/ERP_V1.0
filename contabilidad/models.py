@@ -1,3 +1,4 @@
+from contextvars import ContextVar
 from decimal import Decimal
 
 from django.db import models
@@ -7,6 +8,42 @@ from django.utils import timezone
 from core.models import Tercero
 
 D0 = Decimal('0')
+
+# Libros paralelos: cada asiento es de ambos libros (lo normal), solo NIIF (ajuste contable que no reconoce la ley
+# tributaria) o solo tributario (no va a los libros oficiales). Los reportes leen el libro activo: NIIF por defecto.
+NORMAS = [('AMBOS', 'NIIF y tributario'), ('NIIF', 'Solo NIIF (ajuste contable)'),
+          ('TRIBUTARIO', 'Solo tributario (fuera de los libros oficiales)')]
+_NORMA = ContextVar('norma_contable', default='NIIF')
+
+
+def norma_activa():
+    return _NORMA.get()
+
+
+def norma_excluida():
+    """La norma que no entra en el libro activo."""
+    return 'TRIBUTARIO' if _NORMA.get() == 'NIIF' else 'NIIF'
+
+
+class usar_norma:
+    """with usar_norma('TRIBUTARIO'): los reportes leen el libro tributario."""
+
+    def __init__(self, norma):
+        self.norma = norma if norma in ('NIIF', 'TRIBUTARIO') else 'NIIF'
+
+    def __enter__(self):
+        self.token = _NORMA.set(self.norma)
+        return self
+
+    def __exit__(self, *exc):
+        _NORMA.reset(self.token)
+
+
+class LineasLibroManager(models.Manager):
+    """AsientoLinea.objects: solo las líneas del libro activo (NIIF por defecto)."""
+
+    def get_queryset(self):
+        return super().get_queryset().exclude(norma=norma_excluida())
 
 LIBROS = [
     ('01', 'Caja y bancos'),
@@ -25,6 +62,8 @@ ORIGENES = [
     ('CAMBIO', 'Diferencia de cambio'),
     ('ACTIVOS', 'Activos fijos (depreciación y bajas)'),
     ('PLANILLA', 'Planillas'),
+    ('PRESTAMO', 'Préstamos y leasing'),
+    ('PROVISION', 'Provisiones de beneficios sociales'),
     ('COSTO', 'Costo de ventas (versión anterior)'),
 ]
 # asientos que el sistema no regenera al centralizar
@@ -155,6 +194,9 @@ class PeriodoContable(models.Model):
     cerrado = models.BooleanField(default=False)
     pendiente = models.BooleanField('Pendiente de centralizar', default=True,
                                     help_text='Hubo cambios en compras, ventas, caja/bancos o almacén')
+    provisiones = models.BooleanField('Provisiona beneficios sociales', default=False,
+                                      help_text='La centralización registra la provisión mensual de gratificaciones, '
+                                                'CTS y vacaciones (cierre guiado)')
     fecha_centralizacion = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -175,6 +217,8 @@ class Asiento(models.Model):
     libro = models.CharField(max_length=2, choices=LIBROS, default='05')
     glosa = models.CharField(max_length=250)
     origen = models.CharField(max_length=10, choices=ORIGENES, default='MANUAL', editable=False)
+    norma = models.CharField('Libro', max_length=10, choices=NORMAS, default='AMBOS',
+                             help_text='Ajustes que solo reconoce la NIIF o solo la ley tributaria (libros paralelos)')
     compra = models.ForeignKey('compras.Compra', on_delete=models.CASCADE, null=True, blank=True,
                                related_name='asientos')
     venta = models.ForeignKey('ventas.Venta', on_delete=models.CASCADE, null=True, blank=True, related_name='asientos')
@@ -242,9 +286,15 @@ class AsientoLinea(models.Model):
     debe_me = models.DecimalField('Debe US$', max_digits=14, decimal_places=2, default=D0)
     haber_me = models.DecimalField('Haber US$', max_digits=14, decimal_places=2, default=D0)
     es_destino = models.BooleanField(default=False)
+    norma = models.CharField(max_length=10, choices=NORMAS, default='AMBOS', editable=False)  # copia del asiento
+
+    todas = models.Manager()
+    objects = LineasLibroManager()
 
     class Meta:
         ordering = ['id']
+        default_manager_name = 'todas'
+        base_manager_name = 'todas'
 
 
 class Presupuesto(models.Model):

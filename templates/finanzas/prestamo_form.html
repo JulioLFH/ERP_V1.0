@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Nuevo préstamo / leasing{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Nuevo préstamo / leasing</h1>
+<form method="post" style="max-width:1000px">{% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  <div class="card mb-3"><div class="card-body"><div class="row g-3">
+    {% for field in form %}<div class="{% if field.name == 'descripcion' %}col-md-8{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div>
+  <p class="small text-muted mt-3 mb-0">Cuota fija (método francés) con la tasa del periodo equivalente a la TEA. El préstamo ingresa a la caja o banco elegido; en el leasing el banco paga al proveedor del bien: se registra el bien (cuenta 32) contra la deuda (4521) y cada cuota lleva IGV.</p></div></div>
+  <div class="d-flex gap-2 mb-3"><button name="accion" value="simular" class="btn btn-outline-primary"><i class="bi bi-calculator"></i> Ver cronograma</button>
+    <button name="accion" value="guardar" class="btn btn-primary"><i class="bi bi-check-lg"></i> Registrar</button>
+    <a href="{% url 'finanzas:prestamos' %}" class="btn btn-link">Cancelar</a></div>
+</form>
+{% if simulacion %}<div class="card" style="max-width:1000px"><div class="card-header">Cronograma (simulación)</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>N°</th><th>Vence</th><th class="num">Amortización</th><th class="num">Interés</th><th class="num">IGV</th><th class="num">Cuota (sin comisiones)</th><th class="num">Saldo</th></tr></thead>
+  <tbody>{% for f in simulacion %}<tr><td>{{ f.numero }}</td><td>{{ f.fecha|date:'d/m/Y' }}</td><td class="num">{{ f.capital|money }}</td><td class="num">{{ f.interes|money }}</td><td class="num">{{ f.igv|money }}</td><td class="num">{{ f.cuota|money }}</td><td class="num">{{ f.saldo|money }}</td></tr>{% endfor %}</tbody>
+</table></div></div>{% endif %}
+{% endblock %}

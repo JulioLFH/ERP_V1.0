@@ -1,0 +1,4 @@
+<select name="norma" class="form-select form-select-sm w-auto" title="Libros paralelos" onchange="this.form.submit()">
+  <option value="NIIF" {% if request.GET.norma != 'TRIBUTARIO' %}selected{% endif %}>Libro NIIF (oficial)</option>
+  <option value="TRIBUTARIO" {% if request.GET.norma == 'TRIBUTARIO' %}selected{% endif %}>Libro tributario</option>
+</select>

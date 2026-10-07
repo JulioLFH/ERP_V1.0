@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Turnos de trabajo{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Turnos de trabajo</h1>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0">
+    <thead><tr><th>Turno</th><th>Horario</th><th class="num">Jornada (h)</th><th class="num">Refrigerio</th><th class="num">Tolerancia</th><th>Días</th><th class="num">Trabajadores</th></tr></thead>
+    <tbody>{% for t in turnos %}<tr><td><a href="{% url 'planillas:turno' t.pk %}">{{ t.nombre }}</a></td><td>{{ t.hora_entrada|time:'H:i' }} – {{ t.hora_salida|time:'H:i' }}</td><td class="num">{{ t.horas_jornada|floatformat:2 }}</td><td class="num">{{ t.refrigerio_min }} min</td><td class="num">{{ t.tolerancia_min }} min</td><td>{{ t.dias }}</td><td class="num">{{ t.n }}</td></tr>
+    {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin turnos. Cree el primero.</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+  <p class="small text-muted mt-2">Asigne el turno a cada trabajador en <a href="{% url 'planillas:trabajadores' %}">Trabajadores</a> (Datos laborales). Sin turno no se calculan tardanzas ni horas extra.</p></div>
+  <div class="col-lg-5"><div class="card"><div class="card-header">{% if turno.pk %}Editar {{ turno.nombre }}{% else %}Nuevo turno{% endif %}</div><div class="card-body">
+    <form method="post">{% csrf_token %}<div class="row g-2">{% for field in form %}<div class="col-6">{% include 'core/_campo.html' %}</div>{% endfor %}</div>
+      {% if puede.planillas_configurar %}<button class="btn btn-sm btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>{% endif %}
+      {% if turno.pk %}<a href="{% url 'planillas:turnos' %}" class="btn btn-sm btn-link mt-3">Nuevo</a>{% endif %}</form>
+  </div></div></div>
+</div>
+{% endblock %}

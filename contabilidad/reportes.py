@@ -143,10 +143,12 @@ RUBROS_PATRIMONIO = [
 ]
 
 
-def situacion_financiera(hasta, desde_ejercicio):
-    """Saldos acumulados hasta el periodo; el resultado del ejercicio se calcula desde enero."""
-    saldos = sumas_por_cuenta('000000', hasta)
-    resultado = resultado_ejercicio(sumas_por_cuenta(desde_ejercicio, hasta))
+def situacion_financiera(hasta, desde_ejercicio, saldos=None, sumas_ejercicio=None, anterior=None):
+    """Saldos acumulados hasta el periodo; el resultado del ejercicio se calcula desde enero. La consolidación pasa
+    los saldos ya sumados de las empresas del grupo."""
+    saldos = sumas_por_cuenta('000000', hasta) if saldos is None else saldos
+    resultado = resultado_ejercicio(sumas_por_cuenta(desde_ejercicio, hasta) if sumas_ejercicio is None
+                                    else sumas_ejercicio)
     activo = {'corriente': [], 'no_corriente': []}
     pasivo = {'corriente': [], 'no_corriente': []}
     for grupo, nombre, prefijos in RUBROS_ACTIVO:
@@ -161,7 +163,8 @@ def situacion_financiera(hasta, desde_ejercicio):
             pasivo[grupo].append((nombre, v))
     patrimonio = [(n, -_neto(saldos, p)) for n, p in RUBROS_PATRIMONIO if _neto(saldos, p)]
     # ejercicios anteriores aún no trasladados a la cuenta 59 con el asiento de cierre
-    anterior = sumas_por_cuenta('000000', f'{int(desde_ejercicio) - 1:06d}')
+    if anterior is None:
+        anterior = sumas_por_cuenta('000000', f'{int(desde_ejercicio) - 1:06d}')
     pendiente = -_neto(anterior, ('6', '7', '8', '9'))
     if pendiente:
         patrimonio.append(('Resultados de ejercicios anteriores (sin asiento de cierre)', pendiente))

@@ -1,0 +1,34 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Estados consolidados{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title">Estados financieros consolidados del grupo</h1>
+  <form class="d-flex gap-2" method="get"><input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm" onchange="this.form.submit()"></form>
+</div>
+{% if sin_grupo %}
+<div class="alert alert-info">Para consolidar se necesitan dos o más empresas en el sistema (multiempresa). Hoy solo hay una.</div>
+{% else %}
+<p class="small text-muted mb-3">Suma los libros (NIIF) de todas las empresas del grupo y elimina las operaciones entre ellas: ventas, compras, cobros y pagos cuyo cliente o proveedor es otra empresa del grupo (por su RUC). Al {{ hasta|slice:'4:' }}/{{ hasta|slice:':4' }}; el resultado es del ejercicio {{ hasta|slice:':4' }}. La utilidad no realizada en inventarios comprados dentro del grupo no se elimina.</p>
+{% if sin_ruc %}<div class="alert alert-warning py-2 small">Sin RUC registrado (no se detectan sus operaciones con el grupo): {{ sin_ruc|join:', ' }}.</div>{% endif %}
+<div class="card mb-3"><div class="card-header">Empresas del grupo</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Empresa</th><th>RUC</th><th class="num">Resultado del ejercicio</th><th class="num">Ventas al grupo (eliminadas)</th><th class="num">Por cobrar al grupo</th><th class="num">Por pagar al grupo</th></tr></thead>
+  <tbody>{% for e in empresas %}<tr><td>{{ e.nombre }}</td><td>{{ e.ruc }}</td><td class="num">{{ e.resultado|money }}</td><td class="num">{{ e.ventas_grupo|money }}</td><td class="num">{{ e.cxc_grupo|money }}</td><td class="num">{{ e.cxp_grupo|money }}</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Situación financiera consolidada</div><div class="card-body small">
+    {% with s=situacion %}
+    <div class="fw-semibold">Activo corriente</div>{% for n, v in s.activo.corriente %}<div class="d-flex justify-content-between"><span>{{ n }}</span><span>{{ v|money }}</span></div>{% endfor %}
+    <div class="fw-semibold mt-2">Activo no corriente</div>{% for n, v in s.activo.no_corriente %}<div class="d-flex justify-content-between"><span>{{ n }}</span><span>{{ v|money }}</span></div>{% endfor %}
+    <div class="d-flex justify-content-between fw-semibold border-top mt-1 pt-1"><span>TOTAL ACTIVO</span><span>{{ s.t.activo|money }}</span></div>
+    <div class="fw-semibold mt-3">Pasivo</div>{% for n, v in s.pasivo.corriente %}<div class="d-flex justify-content-between"><span>{{ n }}</span><span>{{ v|money }}</span></div>{% endfor %}{% for n, v in s.pasivo.no_corriente %}<div class="d-flex justify-content-between"><span>{{ n }}</span><span>{{ v|money }}</span></div>{% endfor %}
+    <div class="fw-semibold mt-2">Patrimonio</div>{% for n, v in s.patrimonio %}<div class="d-flex justify-content-between"><span>{{ n }}</span><span>{{ v|money }}</span></div>{% endfor %}
+    <div class="d-flex justify-content-between fw-semibold border-top mt-1 pt-1"><span>TOTAL PASIVO Y PATRIMONIO</span><span>{{ s.t.pasivo_pat|money }}</span></div>
+    {% if s.t.diferencia %}<div class="text-danger mt-1">Diferencia: {{ s.t.diferencia|money }}</div>{% endif %}
+    {% endwith %}
+  </div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Resultados consolidados</div><div class="card-body small">
+    {% for n, v, estilo in resultados %}<div class="d-flex justify-content-between {% if estilo %}fw-semibold{% endif %} {% if estilo == 'total' %}border-top pt-1{% endif %}"><span>{{ n }}</span><span>{{ v|money }}</span></div>{% endfor %}
+  </div></div></div>
+</div>
+{% endif %}
+{% endblock %}

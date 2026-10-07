@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Asistencia{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title">Asistencia y marcaciones</h1>
+  <form method="get" class="d-flex gap-2"><input type="month" name="periodo" value="{{ mes }}" class="form-control form-control-sm" onchange="this.form.submit()">
+    <a href="?periodo={{ mes }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a></form>
+</div>
+<p class="small text-muted mb-3">Faltas: días laborables del turno sin marcación (salvo vacaciones o justificación). Tardanza: entrada después de la hora del turno más la tolerancia. Horas extra: lo trabajado sobre la jornada; las 2 primeras del día al 25 % y las siguientes al 35 %.</p>
+{% if sin_turno %}<div class="alert alert-warning py-2 small">{{ sin_turno }} trabajador(es) sin turno asignado: no se calculan sus tardanzas ni horas extra. <a href="{% url 'planillas:turnos' %}">Turnos</a></div>{% endif %}
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Trabajador</th><th>Turno</th><th class="num">Laborables</th><th class="num">Asistidos</th><th class="num">Faltas</th><th class="num">Tardanzas (min)</th><th class="num">Vacaciones</th><th class="num">H. extra 25%</th><th class="num">H. extra 35%</th></tr></thead>
+  <tbody>{% for f in filas %}<tr><td>{{ f.t.nombre_completo }}</td><td class="small">{{ f.turno|default:'—' }}</td><td class="num">{{ f.laborables }}</td><td class="num">{{ f.asistidos }}</td>
+    <td class="num {% if f.faltas %}text-danger fw-semibold{% endif %}">{{ f.faltas }}</td><td class="num">{% if f.tardanzas %}{{ f.tardanzas }} ({{ f.tardanza_min }}){% else %}0{% endif %}</td><td class="num">{{ f.vacaciones }}</td><td class="num">{{ f.he25 }}</td><td class="num">{{ f.he35 }}</td></tr>
+  {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">Sin trabajadores con vínculo en el mes.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% if puede.planillas_calcular and filas %}<form method="post" class="card-body py-2">{% csrf_token %}<input type="hidden" name="periodo" value="{{ periodo }}"><button name="accion" value="planilla" class="btn btn-sm btn-success" data-confirm="¿Llevar las faltas y horas extra del mes a la planilla mensual? Reemplaza lo ingresado a mano."><i class="bi bi-box-arrow-in-right"></i> Pasar a la planilla del mes</button></form>{% endif %}
+</div>
+{% if puede.planillas_calcular %}
+<div class="row g-3 mb-3">
+  <div class="col-lg-7"><div class="card h-100"><div class="card-header">Registrar marcación</div><div class="card-body">
+    <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="marcar"><input type="hidden" name="periodo" value="{{ periodo }}">
+      {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+      <div class="row g-2">{% for field in form %}<div class="{% if field.name == 'trabajador' or field.name == 'observacion' %}col-md-6{% else %}col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}</div>
+      <button class="btn btn-sm btn-primary mt-2"><i class="bi bi-check-lg"></i> Guardar</button></form>
+  </div></div></div>
+  <div class="col-lg-5"><div class="card h-100"><div class="card-header">Importar del reloj marcador (Excel)</div><div class="card-body">
+    <form method="post" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="accion" value="importar"><input type="hidden" name="periodo" value="{{ periodo }}">
+      <input type="file" name="archivo" accept=".xlsx" class="form-control form-control-sm mb-2" required>
+      <button class="btn btn-sm btn-primary"><i class="bi bi-upload"></i> Importar</button> <a href="?plantilla=1" class="btn btn-sm btn-link">Plantilla</a></form>
+    <div class="small text-muted mt-2">Columnas: dni, fecha, entrada, salida, observacion. Reemplaza la marcación del día.</div>
+  </div></div></div>
+</div>{% endif %}
+{% if recientes %}<div class="card"><div class="card-header">Marcaciones del mes</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <tbody>{% for m in recientes %}<tr><td>{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.trabajador.nombre_completo }}</td><td>{{ m.entrada|time:'H:i'|default:'—' }} – {{ m.salida|time:'H:i'|default:'—' }}</td><td class="small">{{ m.get_origen_display }}{% if m.justificada %} · justificada{% endif %}</td><td class="small text-muted">{{ m.observacion }}</td></tr>{% endfor %}</tbody>
+</table></div></div>{% endif %}
+{% endblock %}

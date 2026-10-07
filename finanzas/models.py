@@ -194,6 +194,11 @@ class Movimiento(models.Model):
     entrega = models.ForeignKey('EntregaRendir', on_delete=models.PROTECT, null=True, blank=True,
                                 related_name='movimientos', editable=False,
                                 help_text='Entrega a rendir o fondo de caja chica que entrega o devuelve')
+    prestamo = models.ForeignKey('Prestamo', on_delete=models.PROTECT, null=True, blank=True,
+                                 related_name='movimientos', editable=False,
+                                 help_text='Desembolso del préstamo o pago de una de sus cuotas')
+    cuota = models.ForeignKey('CuotaPrestamo', on_delete=models.PROTECT, null=True, blank=True,
+                              related_name='pagos', editable=False)
     estado = models.CharField(max_length=8, choices=ESTADOS, default='VIGENTE', editable=False)
     motivo_anulacion = models.CharField('Motivo de anulación', max_length=250, blank=True, editable=False)
     anulado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
@@ -629,3 +634,92 @@ class LineaPagoMasivo(models.Model):
 
     class Meta:
         ordering = ['id']
+
+
+# ---------------------------------------------------------------- préstamos y leasing
+class Prestamo(models.Model):
+    """Préstamo bancario o arrendamiento financiero (leasing) con su cronograma de cuotas (método francés: cuota
+    fija). El préstamo se desembolsa en una caja o banco; el leasing registra el bien contra la deuda."""
+    TIPOS = [('PRESTAMO', 'Préstamo bancario'), ('LEASING', 'Arrendamiento financiero (leasing)')]
+    ESTADOS = [('VIGENTE', 'Vigente'), ('CANCELADO', 'Cancelado'), ('ANULADO', 'Anulado')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    tipo = models.CharField(max_length=8, choices=TIPOS, default='PRESTAMO')
+    entidad = models.ForeignKey(Tercero, on_delete=models.PROTECT, related_name='+',
+                                verbose_name='Banco / entidad financiera')
+    descripcion = models.CharField('Descripción', max_length=150, help_text='Ej. Capital de trabajo, Camión Volvo')
+    referencia = models.CharField('N° de contrato / pagaré', max_length=40, blank=True)
+    moneda = models.CharField(max_length=3, choices=MONEDAS, default='PEN')
+    monto = models.DecimalField('Capital (o valor del bien)', max_digits=14, decimal_places=2)
+    tasa_anual = models.DecimalField('TEA %', max_digits=7, decimal_places=4,
+                                     help_text='Tasa efectiva anual del contrato')
+    plazo = models.PositiveSmallIntegerField('N° de cuotas')
+    meses_entre_cuotas = models.PositiveSmallIntegerField('Meses entre cuotas', default=1)
+    fecha_desembolso = models.DateField('Desembolso / firma', default=timezone.localdate)
+    primera_cuota = models.DateField('Vence la primera cuota')
+    opcion_compra = models.DecimalField('Opción de compra (leasing)', max_digits=14, decimal_places=2, default=D0)
+    cuenta = models.ForeignKey(Cuenta, on_delete=models.PROTECT, related_name='+', verbose_name='Caja / banco',
+                               help_text='Donde ingresa el desembolso y desde donde se pagan las cuotas')
+    cuenta_activo = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                      blank=True, related_name='+', limit_choices_to={'imputable': True},
+                                      verbose_name='Cuenta del bien (leasing)',
+                                      help_text='Leasing: cuenta 32 del activo. Vacío = la configurada')
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='VIGENTE')
+    creado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, related_name='+',
+                                   editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_desembolso', '-id']
+        verbose_name = 'préstamo / leasing'
+        verbose_name_plural = 'préstamos y leasing'
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} {self.numero}'
+
+    @property
+    def simbolo(self):
+        return 'US$' if self.moneda == 'USD' else 'S/'
+
+    def cuotas_pagadas(self):
+        return self.cuotas.filter(pagos__estado='VIGENTE').distinct()
+
+    @property
+    def saldo_capital(self):
+        pagado = sum((c.capital for c in self.cuotas_pagadas()), D0)
+        return self.monto - pagado
+
+    @property
+    def desembolso(self):
+        return self.movimientos.filter(tipo='INGRESO', cuota=None).first()
+
+
+class CuotaPrestamo(models.Model):
+    prestamo = models.ForeignKey(Prestamo, on_delete=models.CASCADE, related_name='cuotas')
+    numero = models.PositiveSmallIntegerField('N°')
+    fecha = models.DateField('Vence')
+    capital = models.DecimalField('Amortización', max_digits=14, decimal_places=2)
+    interes = models.DecimalField('Interés', max_digits=14, decimal_places=2)
+    comision = models.DecimalField('Comisiones y seguros', max_digits=14, decimal_places=2, default=D0)
+    igv = models.DecimalField('IGV (leasing)', max_digits=14, decimal_places=2, default=D0)
+    saldo = models.DecimalField('Saldo de capital', max_digits=14, decimal_places=2)
+
+    class Meta:
+        ordering = ['prestamo', 'numero']
+        unique_together = [('prestamo', 'numero')]
+
+    @property
+    def cuota(self):
+        return self.capital + self.interes + self.comision + self.igv
+
+    @property
+    def pago(self):
+        """Movimiento vigente con que se pagó (los anulados no cuentan)."""
+        return self.pagos.first()
+
+    @property
+    def pagada(self):
+        return self.pago is not None
+
+    @property
+    def vencida(self):
+        return not self.pagada and self.fecha < timezone.localdate()

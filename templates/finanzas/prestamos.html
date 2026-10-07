@@ -1,0 +1,24 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Préstamos y leasing{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Préstamos y leasing</h1>
+  {% if puede.finanzas_cuentas %}<div class="d-flex gap-2"><a href="{% url 'finanzas:prestamo_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Préstamo</a>
+    <a href="{% url 'finanzas:prestamo_nuevo' %}?tipo=LEASING" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Leasing</a></div>{% endif %}
+</div>
+<div class="row g-3 mb-3">
+  {% for moneda, saldo in saldos.items %}<div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2"><div class="small text-muted">Deuda de capital ({{ moneda }})</div><div class="fs-5 fw-semibold">{{ saldo|money }}</div></div></div></div>{% endfor %}
+  <div class="col-md-6"><div class="card h-100"><div class="card-body py-2"><div class="small text-muted mb-1">Próximas cuotas</div>
+    {% for c in proximas|slice:':4' %}<div class="small d-flex justify-content-between {% if c.vencida %}text-danger{% endif %}"><span>{{ c.fecha|date:'d/m/Y' }} · <a href="{% url 'finanzas:prestamo' c.prestamo_id %}">{{ c.prestamo.numero }}</a> {{ c.prestamo.entidad.nombre|truncatechars:24 }}</span><b>{{ c.prestamo.simbolo }} {{ c.cuota|money }}</b></div>{% empty %}<span class="small text-muted">Sin cuotas pendientes.</span>{% endfor %}
+  </div></div></div>
+</div>
+<div class="card">
+  <div class="card-body border-bottom py-2"><form class="d-flex gap-2" method="get"><select name="estado" class="form-select form-select-sm w-auto" onchange="this.form.submit()"><option value="">Todos</option>{% for v, n in estados %}<option value="{{ v }}" {% if estado == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></form></div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+    <thead><tr><th>N°</th><th>Tipo</th><th>Entidad</th><th>Descripción</th><th class="num">Capital</th><th class="num">TEA</th><th class="num">Saldo de capital</th><th>Estado</th></tr></thead>
+    <tbody>{% for p in prestamos %}<tr><td><a href="{% url 'finanzas:prestamo' p.pk %}">{{ p.numero }}</a></td><td class="small">{{ p.get_tipo_display }}</td><td>{{ p.entidad.nombre }}</td><td class="small">{{ p.descripcion }}</td>
+      <td class="num">{{ p.simbolo }} {{ p.monto|money }}</td><td class="num">{{ p.tasa_anual|floatformat:2 }}%</td><td class="num">{{ p.simbolo }} {{ p.saldo_capital|money }}</td><td>{{ p.get_estado_display }}</td></tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Sin préstamos.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}

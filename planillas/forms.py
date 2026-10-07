@@ -20,7 +20,7 @@ class TrabajadorForm(BootstrapMixin, forms.ModelForm):
         ('Datos personales', ['tipo_doc', 'numero_doc', 'apellido_paterno', 'apellido_materno', 'nombres',
                               'fecha_nacimiento', 'sexo', 'email', 'telefono', 'direccion']),
         ('Datos laborales', ['fecha_ingreso', 'fecha_cese', 'motivo_cese', 'cargo', 'tipo', 'regimen',
-                             'centro_costo', 'sueldo', 'asignacion_familiar']),
+                             'centro_costo', 'sueldo', 'asignacion_familiar', 'turno']),
         ('Pensiones', ['sistema_pensiones', 'afp', 'comision_afp', 'cuspp']),
         ('Quinta categoría: datos del año antes del sistema', ['quinta_anio', 'quinta_remuneracion_previa',
                                                               'quinta_retencion_previa']),
