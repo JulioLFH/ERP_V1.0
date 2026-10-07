@@ -25,8 +25,6 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 D0 = Decimal('0')
-EMPRESA_RUC = '20344552364'
-EMPRESA_NOMBRE = 'PRODUCTORA DE ALIMENTOS UNO S.A.C.'
 
 UNIDADES = {'unidades': 'NIU', 'kg': 'KGM', 'm': 'MTR', 'gal': 'GLL', 'l': 'LTR', 'horas': 'HUR', 'm³': 'MTQ',
             'millares': 'MIL', 'rollo': 'RO', 'paquete': 'PK'}
@@ -83,8 +81,8 @@ class Command(BaseCommand):
         parser.add_argument('--corte', default='', help='Fecha de los saldos (AAAA-MM-DD). Vacío = hoy')
         parser.add_argument('--reporte', default='observaciones_migracion.xlsx')
         parser.add_argument('--simular', action='store_true', help='Valida y genera el reporte sin grabar')
-        parser.add_argument('--ruc', default=EMPRESA_RUC, help='RUC de la empresa')
-        parser.add_argument('--razon-social', default=EMPRESA_NOMBRE)
+        parser.add_argument('--ruc', default='', help='RUC de la empresa (vacío = el registrado en Ajustes › Empresa)')
+        parser.add_argument('--razon-social', default='', help='Vacío = la registrada en Ajustes › Empresa')
 
     # ---------------------------------------------------------------- utilidades
     def _filas(self, nombre, columnas=None):
@@ -116,7 +114,9 @@ class Command(BaseCommand):
     # ---------------------------------------------------------------- principal
     def handle(self, carpeta, corte, reporte, simular, ruc, razon_social, **_):
         self.carpeta, self.inicio = carpeta, time.time()
-        self.ruc, self.razon_social = ruc, razon_social
+        from core.models import Empresa
+        actual = Empresa.actual()  # los datos de la empresa no van en el código: parámetros o los ya registrados
+        self.ruc, self.razon_social = ruc or actual.ruc, razon_social or actual.razon_social
         self.corte = date.fromisoformat(corte) if corte else date.today()
         if self.corte > date.today():
             raise CommandError('La fecha de corte no puede ser futura.')

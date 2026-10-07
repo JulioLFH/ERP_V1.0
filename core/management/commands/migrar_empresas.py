@@ -1,7 +1,7 @@
 """Multiempresa: aplica las migraciones y crea el administrador en la base de cada empresa configurada.
 
     python manage.py migrar_empresas            # todas las empresas (EMPRESAS_EXTRA + la principal)
-    python manage.py migrar_empresas --solo pauno2
+    python manage.py migrar_empresas --solo empresa2
 """
 from django.conf import settings
 from django.core.management import call_command

@@ -5,7 +5,8 @@
 
 - Órdenes de compra -> Compras (documentos del sistema anterior; las que siguen abiertas quedan aprobadas por lo
   pendiente de recibir). Los proveedores se buscan por nombre (y su RUC en el Excel de contactos).
-- Pedidos y cotizaciones de venta -> Ventas (de PRODUCTORA DE ALIMENTOS UNO; se omite la otra empresa).
+- Pedidos y cotizaciones de venta -> Ventas (solo los de la empresa registrada en Ajustes › Empresa, o la indicada
+  con --compania; los de otras compañías del sistema anterior se omiten).
 - Órdenes de fabricación con sus consumos y costos, kardex y asientos contables -> Historial (solo consulta: no
   cambian el stock ni la contabilidad de Ceiba, que parten de los saldos iniciales).
 - Posiciones presupuestarias -> Historial (agrupación de cuentas).
@@ -30,7 +31,6 @@ from core.management.commands.migrar_excels import _dec, _fecha, _txt
 D0 = Decimal('0')
 IGV = Decimal('0.18')
 MARCA = '[Sistema anterior]'
-EMPRESA = 'PRODUCTORA DE ALIMENTOS UNO'
 PASOS = ['posiciones', 'oc', 'pedidos', 'fabricacion', 'kardex', 'contable', 'compras', 'por_pagar', 'bancos']
 CUENTAS_POR_PAGAR = r'^(4212|424)'  # facturas emitidas y honorarios (las 4211 son provisiones sin comprobante)
 CUENTAS_PUENTE = {'1041002', '1041003', '1041004', '10300010', '1051001'}  # transitorias: no son cuentas de dinero
@@ -115,9 +115,13 @@ class Command(BaseCommand):
         parser.add_argument('--reporte', default='anteriores.xlsx')
         parser.add_argument('--dias-abiertas', type=int, default=120,
                             help='Órdenes de compra con saldo por recibir más antiguas se importan cerradas')
+        parser.add_argument('--compania', default='',
+                            help='Compañía de los pedidos a importar (vacío = la razón social de Ajustes › Empresa)')
 
-    def handle(self, carpeta, solo, rehacer, reporte, dias_abiertas, **_):
+    def handle(self, carpeta, solo, rehacer, reporte, dias_abiertas, compania='', **_):
         self.dias_abiertas = dias_abiertas
+        from core.models import Empresa
+        self.compania = nombre_clave(compania or Empresa.actual().razon_social)
         pasos = [p.strip() for p in solo.split(',') if p.strip()]
         desconocidos = set(pasos) - set(PASOS)
         if desconocidos:
@@ -326,7 +330,8 @@ class Command(BaseCommand):
         pedidos = OrderedDict()
         otra_empresa = 0
         for r in self.filas('Data_OrdenVenta_API_2026.xlsx'):
-            if EMPRESA not in _txt(r['compañia']).upper():
+            compania = nombre_clave(_txt(r['compañia']))  # con o sin la forma societaria
+            if not compania or not (compania.startswith(self.compania) or self.compania.startswith(compania)):
                 otra_empresa += 1
                 continue
             pedidos.setdefault(_txt(r['referencia']), []).append(r)

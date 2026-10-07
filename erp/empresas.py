@@ -4,9 +4,9 @@
 - Al iniciar sesión se elige la empresa; queda en la sesión (las sesiones viven en la base principal) y el
   middleware la activa en cada petición. El enrutador manda todas las consultas a la base de la empresa activa.
 - Se agrega una empresa con la variable de entorno EMPRESAS_EXTRA (JSON), con su propio servidor:
-    {"pauno2": {"nombre": "Otra empresa S.A.C.", "url": "postgres://usuario:clave@host/base"}}
+    {"empresa2": {"nombre": "Otra empresa S.A.C.", "url": "postgres://usuario:clave@host/base"}}
   o como otra base dentro del mismo servidor de la principal (sin otra clave ni otro costo):
-    {"pauno2": {"nombre": "Otra empresa S.A.C.", "base": "erp_pauno2"}}
+    {"empresa2": {"nombre": "Otra empresa S.A.C.", "base": "erp_empresa2"}}
   y luego: python manage.py migrar_empresas (crea la base si falta, las tablas y el administrador en cada una).
 """
 import re

@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.23.4 — 07/10/2026 · Sin datos de clientes en el código
+- Los comandos de migración ya no traen el RUC ni la razón social de ninguna empresa: los toman de Ajustes › Empresa o de los parámetros `--ruc`, `--razon-social` (migrar_excels) y `--compania` (importar_anteriores).
+- Ajustes locales de revisión renombrados a `erp.settings_cliente` (base `cliente.sqlite3`); pruebas con datos genéricos.
+- «Diseño del ERP» regenerado sin el nombre de la empresa.
+
 ## v1.23.3 — 07/10/2026 · Contabilidad del sistema anterior hasta la fecha de corte
 - **Libros iguales al sistema anterior:** comando `contabilidad_anterior --corte AAAA-MM-DD` que importa a los libros del ERP cada asiento del sistema anterior desde su apertura del ejercicio hasta el corte (mismas cuentas, terceros y centros de costo), cierra esos periodos y deja al ERP contabilizando desde el día siguiente. Un asiento de ajustes de migración al corte pasa las facturas por cobrar y por pagar a las cuentas del ERP y lleva las existencias al valor del kardex.
 - **Corrección:** los saldos de por pagar, caja y bancos migrados (y el «Balance del sistema anterior») sumaban también los meses previos a la apertura del ejercicio, que ya estaban resumidos en ella: se duplicaban saldos.

@@ -78,13 +78,13 @@ class HistorialTest(TestCase):
             ['referencia', 'compañia', 'fecha_orden', 'estado', 'nro_documento_cliente', 'vendedor', 'tipo_de_cambio',
              'moneda', 'cod_producto', 'producto', 'cantidad', 'impuestos', 'precio_unitario', 'descuento',
              'lista_de_precio', 'termino_de_pago', 'direccion_de_entrega'],
-            ['S00010', 'PRODUCTORA DE ALIMENTOS UNO S.A.C.', '2026-05-02 00:00:00', 'Orden de venta',
+            ['S00010', 'EMPRESA DEMO S.A.C.', '2026-05-02 00:00:00', 'Orden de venta',
              self.cli.numero_doc, 'Juan', 3.5, 'PEN', 'HX01', 'Harina', 10, 'IGV-VEN', 10, 2, 'Base', '30 días', 'Av'],
-            ['S00010', 'PRODUCTORA DE ALIMENTOS UNO S.A.C.', '2026-05-02 00:00:00', 'Orden de venta',
+            ['S00010', 'EMPRESA DEMO S.A.C.', '2026-05-02 00:00:00', 'Orden de venta',
              self.cli.numero_doc, 'Juan', 3.5, 'PEN', 'HX01', 'Harina', 1, 'IGV-TRG', 10, 0, 'Base', '30 días', 'Av'],
             ['S00011', 'ITS SOLUCIONES DE EMBALAJE S.A.C.', '2026-05-02 00:00:00', 'Orden de venta',
              self.cli.numero_doc, 'X', 3.5, 'USD', 'HX01', 'Harina', 1, 'IGV-VEN', 1, 0, '', '', ''],
-            ['S00012', 'PRODUCTORA DE ALIMENTOS UNO S.A.C.', '2026-05-03 00:00:00', 'Cancelada',
+            ['S00012', 'EMPRESA DEMO S.A.C.', '2026-05-03 00:00:00', 'Cancelada',
              self.cli.numero_doc, 'Juan', 3.5, 'PEN', 'HX01', 'Harina', 1, 'IGV-VEN', 5, 0, '', '', '']])
         guardar(c, 'Data_Orden_de_Fabricación_Scraping_2026.xlsx', [
             ['Referencia', 'Producto', 'Lista de materiales', 'Número de serie/lote', 'Fecha de Inicio de Fabricación',
@@ -152,7 +152,8 @@ class HistorialTest(TestCase):
     def test_importacion_completa_e_idempotente(self):
         stock_antes = list(StockAlmacen.objects.values_list('pk', 'cantidad'))
         salida = StringIO()
-        call_command('importar_anteriores', self.c, '--reporte', os.path.join(self.c, 'r.xlsx'), stdout=salida)
+        call_command('importar_anteriores', self.c, '--reporte', os.path.join(self.c, 'r.xlsx'), '--compania',
+                     'EMPRESA DEMO S.A.C.', stdout=salida)
         # órdenes de compra
         abierta = OrdenCompra.objects.get(numero='P00001')
         self.assertEqual((abierta.tercero, abierta.estado, abierta.items.get().cantidad), (self.prov, 'APROBADO', D('40')))
@@ -199,7 +200,8 @@ class HistorialTest(TestCase):
         self.assertEqual(list(StockAlmacen.objects.values_list('pk', 'cantidad')), stock_antes)
         # idempotente
         salida = StringIO()
-        call_command('importar_anteriores', self.c, '--reporte', os.path.join(self.c, 'r.xlsx'), stdout=salida)
+        call_command('importar_anteriores', self.c, '--reporte', os.path.join(self.c, 'r.xlsx'), '--compania',
+                     'EMPRESA DEMO S.A.C.', stdout=salida)
         self.assertEqual((OrdenCompra.objects.filter(numero__startswith='P0000').count(),
                           Cotizacion.objects.filter(numero__startswith='S000').count(), MovimientoAnterior.objects.count(),
                           AsientoAnterior.objects.count()), (2, 2, 2, 11))
