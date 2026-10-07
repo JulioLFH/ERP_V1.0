@@ -60,10 +60,11 @@ def kardex(request):
                              'KARDEX DEL SISTEMA ANTERIOR',
                              ['Fecha', 'Almacén', 'Transacción', 'Documento', 'O. fabricación', 'O. compra', 'Guía',
                               'Comprobante', 'Código', 'Producto', 'Unidad', 'Lote', 'Vence', 'Ingreso', 'Salida',
-                              'Costo unit.', 'Doc. contacto', 'Contacto', 'Usuario'],
+                              'Costo unit.', 'Costo total S/', 'Doc. contacto', 'Contacto', 'Usuario'],
                              lambda m: [m.fecha, m.almacen, m.transaccion, m.documento, m.orden_fabricacion,
                                         m.orden_compra, m.guia, m.comprobante, m.codigo, m.descripcion, m.unidad,
-                                        m.lote, m.vencimiento, m.ingreso, m.salida, m.costo, m.contacto_doc,
+                                        m.lote, m.vencimiento, m.ingreso, m.salida, m.costo_unitario, m.costo,
+                                        m.contacto_doc,
                                         m.contacto, m.usuario])
         if resp:
             return resp
@@ -196,9 +197,16 @@ def fabricacion(request):
 @login_required
 def orden(request, pk):
     o = get_object_or_404(OrdenFabricacionAnterior, pk=pk)
-    movimientos = MovimientoAnterior.objects.filter(Q(orden_fabricacion=o.referencia) | Q(documento=o.referencia)) \
-        .order_by('fecha', 'id_origen')[:500]
-    return render(request, 'historial/orden.html', {'o': o, 'consumos': o.consumos.all(), 'movimientos': movimientos})
+    movimientos = list(MovimientoAnterior.objects.filter(Q(orden_fabricacion=o.referencia) | Q(documento=o.referencia))
+                       .order_by('fecha', 'id_origen')[:500])
+    # costo según el kardex: lo que salió de insumos (el reporte de órdenes a veces trae los costos en cero)
+    insumos = sum((m.costo for m in movimientos if m.salida and m.codigo != o.codigo), Decimal('0'))
+    producido = sum((m.ingreso for m in movimientos if m.ingreso and m.codigo == o.codigo), Decimal('0')) or o.producida
+    kardex = {'materiales': insumos.quantize(Decimal('0.01')),
+              'unitario': (insumos / producido).quantize(Decimal('0.0001')) if producido else None,
+              'producido': producido} if insumos else None
+    return render(request, 'historial/orden.html', {'o': o, 'consumos': o.consumos.all(), 'movimientos': movimientos,
+                                                    'kardex': kardex})
 
 
 @login_required

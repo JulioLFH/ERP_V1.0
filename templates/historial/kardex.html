@@ -19,15 +19,15 @@
     {% if totales.i is not None %}<div class="small mt-2">Ingresos <b>{{ totales.i|money }}</b> · Salidas <b>{{ totales.s|money }}</b> (con el filtro aplicado)</div>{% endif %}
   </div>
   <div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
-    <thead><tr><th>Fecha</th><th>Almacén</th><th>Transacción</th><th>Documento</th><th>Producto</th><th>Lote</th><th class="num">Ingreso</th><th class="num">Salida</th><th class="num">Costo unit.</th><th>Contacto / usuario</th></tr></thead>
+    <thead><tr><th>Fecha</th><th>Almacén</th><th>Transacción</th><th>Documento</th><th>Producto</th><th>Lote</th><th class="num">Ingreso</th><th class="num">Salida</th><th class="num">Costo unit.</th><th class="num">Costo total S/</th><th>Contacto / usuario</th></tr></thead>
     <tbody>{% for m in page_obj %}<tr>
       <td class="text-nowrap">{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.almacen }}</td><td>{{ m.transaccion }}</td>
       <td>{{ m.documento }}{% if m.comprobante %}<div class="text-muted">{{ m.comprobante }}</div>{% endif %}{% if m.guia %}<div class="text-muted">{{ m.guia }}</div>{% endif %}</td>
       <td><b>{{ m.codigo }}</b> {{ m.descripcion }}</td>
       <td>{{ m.lote }}{% if m.vencimiento %}<div class="text-muted">vence {{ m.vencimiento|date:'d/m/Y' }}</div>{% endif %}</td>
       <td class="num">{% if m.ingreso %}{{ m.ingreso|money }}{% endif %}</td><td class="num">{% if m.salida %}{{ m.salida|money }}{% endif %}</td>
-      <td class="num">{{ m.costo|floatformat:4 }}</td><td>{{ m.contacto|default:m.usuario }}</td>
-    </tr>{% empty %}<tr><td colspan="10" class="text-center text-muted py-4">Sin movimientos.</td></tr>{% endfor %}</tbody>
+      <td class="num">{{ m.costo_unitario|floatformat:4 }}</td><td class="num">{{ m.costo|money }}</td><td>{{ m.contacto|default:m.usuario }}</td>
+    </tr>{% empty %}<tr><td colspan="11" class="text-center text-muted py-4">Sin movimientos.</td></tr>{% endfor %}</tbody>
   </table></div>
   {% include 'core/_paginacion.html' %}
 </div>

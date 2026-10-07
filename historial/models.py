@@ -29,7 +29,8 @@ class MovimientoAnterior(models.Model):
     vencimiento = models.DateField(null=True, blank=True)
     ingreso = models.DecimalField(max_digits=16, decimal_places=4, default=D0)
     salida = models.DecimalField(max_digits=16, decimal_places=4, default=D0)
-    costo = models.DecimalField('Costo unitario', max_digits=16, decimal_places=6, default=D0)
+    # el sistema anterior exporta el valor total de la línea (cantidad × costo unitario), no el unitario
+    costo = models.DecimalField('Costo total S/', max_digits=16, decimal_places=6, default=D0)
     contacto_doc = models.CharField(max_length=20, blank=True)
     contacto = models.CharField(max_length=200, blank=True)
     usuario = models.CharField(max_length=80, blank=True)
@@ -38,6 +39,11 @@ class MovimientoAnterior(models.Model):
         ordering = ['-fecha', '-id_origen']
         indexes = [models.Index(fields=['codigo', 'fecha']), models.Index(fields=['almacen', 'fecha'])]
         verbose_name = 'movimiento del sistema anterior'
+
+    @property
+    def costo_unitario(self):
+        cantidad = self.ingreso or self.salida
+        return (self.costo / cantidad).quantize(Decimal('0.0001')) if cantidad else D0
 
 
 class AsientoAnterior(models.Model):

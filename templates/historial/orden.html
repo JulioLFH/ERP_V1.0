@@ -15,13 +15,14 @@
   <div class="col-6 col-md-2"><div class="text-muted">Mano de obra</div>S/ {{ o.costo_mano_obra|money }}</div>
   <div class="col-6 col-md-2"><div class="text-muted">Gasto indirecto</div>S/ {{ o.costo_indirecto|money }}</div>
   <div class="col-6 col-md-2"><div class="text-muted">Costo total</div><b>S/ {{ o.costo_total|money }}</b></div>
+  {% if kardex %}<div class="col-md-4"><div class="text-muted">Según el kardex (insumos consumidos)</div><b>S/ {{ kardex.materiales|money }}</b>{% if kardex.unitario is not None %} ÷ {{ kardex.producido|money }} = <b class="fs-6">S/ {{ kardex.unitario|floatformat:4 }} por unidad</b>{% endif %}</div>{% endif %}
 </div></div></div>
 <div class="card mb-3"><div class="card-header">Componentes</div><div class="table-responsive"><table class="table table-sm mb-0 small">
   <thead><tr><th>Componente</th><th class="num">Requerida</th><th class="num">Reservada</th><th>Lotes</th></tr></thead>
   <tbody>{% for c in consumos %}<tr><td><b>{{ c.codigo }}</b> {{ c.descripcion }}</td><td class="num">{{ c.requerida|money }}</td><td class="num">{{ c.reservada|money }}</td><td>{{ c.lotes }}</td></tr>{% empty %}<tr><td colspan="4" class="text-center text-muted py-3">Sin detalle de componentes en el archivo.</td></tr>{% endfor %}</tbody>
 </table></div></div>
 <div class="card"><div class="card-header">Movimientos de almacén de la orden</div><div class="table-responsive"><table class="table table-sm mb-0 small">
-  <thead><tr><th>Fecha</th><th>Almacén</th><th>Producto</th><th>Lote</th><th class="num">Ingreso</th><th class="num">Salida</th><th class="num">Costo unit.</th></tr></thead>
-  <tbody>{% for m in movimientos %}<tr><td>{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.almacen }}</td><td><b>{{ m.codigo }}</b> {{ m.descripcion }}</td><td>{{ m.lote }}</td><td class="num">{% if m.ingreso %}{{ m.ingreso|money }}{% endif %}</td><td class="num">{% if m.salida %}{{ m.salida|money }}{% endif %}</td><td class="num">{{ m.costo|floatformat:4 }}</td></tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-3">Sin movimientos en el kardex del sistema anterior.</td></tr>{% endfor %}</tbody>
+  <thead><tr><th>Fecha</th><th>Almacén</th><th>Producto</th><th>Lote</th><th class="num">Ingreso</th><th class="num">Salida</th><th class="num">Costo unit.</th><th class="num">Costo total S/</th></tr></thead>
+  <tbody>{% for m in movimientos %}<tr><td>{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.almacen }}</td><td><b>{{ m.codigo }}</b> {{ m.descripcion }}</td><td>{{ m.lote }}</td><td class="num">{% if m.ingreso %}{{ m.ingreso|money }}{% endif %}</td><td class="num">{% if m.salida %}{{ m.salida|money }}{% endif %}</td><td class="num">{{ m.costo_unitario|floatformat:4 }}</td><td class="num">{{ m.costo|money }}</td></tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-3">Sin movimientos en el kardex del sistema anterior.</td></tr>{% endfor %}</tbody>
 </table></div></div>
 {% endblock %}

@@ -6,6 +6,7 @@ El número de versión instalada se ve en el sistema, en el menú del usuario (a
 ## v1.24.2 — 07/10/2026 · Todas las órdenes de producción del sistema anterior
 - `cargar_manufactura` carga también las órdenes **terminadas y canceladas** del sistema anterior como órdenes del ERP marcadas «Del sistema anterior»: con su número, fechas, cantidad producida, costos y consumo real (cuando el reporte lo trae), sin operación de almacén ni asiento, porque su producción ya está en el inventario y la contabilidad migrados.
 - Esas órdenes son de consulta: no se anulan en el ERP y no entran al costo real vs estándar ni a la liquidación del costo real. Los productos sin detalle de componentes reciben una receta de referencia obsoleta (no la usan el MRP ni las órdenes nuevas).
+- **Corrección** en el kardex y las órdenes del sistema anterior: la columna «Costo unit.» mostraba el costo total de la línea (así lo exporta el sistema anterior). Ahora se ven el costo unitario y el total, y cada orden muestra su costo según el kardex (insumos consumidos ÷ cantidad producida) aunque el reporte de órdenes lo traiga en cero.
 
 ## v1.24.1 — 07/10/2026 · Carga de manufactura del sistema anterior
 - Comando `cargar_manufactura` que lee el reporte de producción del sistema anterior (Excel) y crea las **recetas** (lista de materiales aprobada y versión de fabricación) de cada producto fabricado, con la proporción de componentes que más se repite entre sus órdenes (las órdenes divididas -001/-002 conservan lo planificado de la original y no se usan como referencia).
