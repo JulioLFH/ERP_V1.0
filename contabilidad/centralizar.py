@@ -642,9 +642,23 @@ def asiento_provisiones(periodo, cta):
 
 
 # ---------------------------------------------------------------- proceso del periodo
+def periodo_migrado(periodo):
+    """¿El periodo termina antes o en la fecha de corte? Sus libros son los del sistema anterior."""
+    from core.models import Empresa
+    corte = Empresa.actual().fecha_corte_contable
+    return bool(corte and _fin_mes(periodo) <= corte)
+
+
 def centralizar_periodo(periodo):
     if PeriodoContable.esta_cerrado(periodo):
         raise ErrorContable(f'El periodo {periodo} está cerrado.')
+    if periodo_migrado(periodo):
+        # hasta la fecha de corte los libros son los importados: el ERP no genera asientos (no se duplica)
+        with transaction.atomic():
+            Asiento.objects.filter(periodo=periodo).exclude(origen__in=ORIGENES_FIJOS).delete()
+            PeriodoContable.objects.update_or_create(
+                periodo=periodo, defaults={'fecha_centralizacion': timezone.now(), 'pendiente': False})
+        return {'compras': 0, 'ventas': 0, 'tesoreria': 0, 'costo': 0, 'errores': [], 'migrado': True}
     cta = CuentaDefecto.mapa()
     _DESTINOS.clear()
     from core.tipo_cambio import obtener, venta_del_dia

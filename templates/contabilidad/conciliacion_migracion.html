@@ -1,0 +1,17 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Conciliación de la migración{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title">Conciliación de la migración</h1>
+  <form method="get" class="d-flex gap-2"><input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" onchange="this.form.submit()"></form>
+</div>
+{% if corte %}<div class="alert alert-info py-2 small"><i class="bi bi-info-circle"></i> Hasta el <b>{{ corte|date:'d/m/Y' }}</b> los libros son los del sistema anterior (asientos importados tal cual, periodos cerrados). Desde el día siguiente contabiliza el ERP.</div>
+{% else %}<div class="alert alert-warning py-2 small">Aún no se importó la contabilidad del sistema anterior (comando <code>contabilidad_anterior --corte AAAA-MM-DD</code>).</div>{% endif %}
+<p class="small text-muted">Cada auxiliar del ERP (documentos pendientes, cajas y bancos, kardex) debe coincidir con su cuenta contable. Una diferencia indica partidas de la contabilidad anterior sin documento en el ERP (o al revés) que el contador debe regularizar con un asiento manual o corrigiendo el documento.</p>
+<div class="card"><div class="table-responsive"><table class="table mb-0">
+  <thead><tr><th>Concepto</th><th class="num">Auxiliar del ERP S/</th><th class="num">Libros S/</th><th class="num">Diferencia S/</th><th>Cuentas</th></tr></thead>
+  <tbody>{% for f in filas %}<tr><td><b>{{ f.concepto }}</b></td><td class="num">{{ f.auxiliar|money }}</td><td class="num">{{ f.libros|money }}</td>
+    <td class="num fw-semibold {% if f.diferencia > 1 or f.diferencia < -1 %}text-danger{% else %}text-success{% endif %}">{{ f.diferencia|money }}</td><td class="small text-muted">{{ f.detalle }}</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<div class="small text-muted mt-2">Para ver el detalle: Libro de Inventarios y Balances 3.3 (por cobrar) y 3.12 (por pagar) frente a Ventas › Cuentas por cobrar y Compras › Cuentas por pagar; libro mayor de cada banco frente a Caja y bancos; valorización del inventario frente a las cuentas 20 a 26.</div>
+{% endblock %}

@@ -126,6 +126,10 @@ def balance(request):
     """Balance de comprobación del sistema anterior por cuenta y rango de periodos."""
     qs = AsientoAnterior.objects.all()
     desde, hasta = _periodo(request, 'desde'), _periodo(request, 'hasta')
+    if not desde and not request.GET.get('todo'):
+        # por defecto desde la última apertura del ejercicio: sumar los meses anteriores duplica los saldos
+        from .contabilidad_anterior import periodo_apertura
+        desde = periodo_apertura()
     if desde:
         qs = qs.filter(periodo__gte=desde)
     if hasta:

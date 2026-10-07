@@ -96,6 +96,11 @@ class Empresa(models.Model):
         help_text='Credenciales de "Consulta de validez de comprobantes" (SUNAT Operaciones en Línea > '
                   'Empresas > Comprobantes de pago > Credenciales de API SUNAT)')
     sunat_client_secret = models.CharField('SUNAT API: client_secret', max_length=200, blank=True)
+    # ---- migración: hasta esta fecha la contabilidad es la del sistema anterior (se importa tal cual)
+    fecha_corte_contable = models.DateField(
+        'Contabilidad del sistema anterior hasta', null=True, blank=True, editable=False,
+        help_text='Hasta esta fecha los libros son los asientos importados del sistema anterior; el ERP contabiliza '
+                  'desde el día siguiente')
     # ---- control interno
     segregacion_estricta = models.BooleanField(
         'Segregación de funciones estricta', default=False,

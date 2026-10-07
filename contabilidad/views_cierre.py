@@ -68,6 +68,21 @@ def conciliacion_normas(request):
 
 
 @login_required
+def conciliacion_migracion(request):
+    """Auxiliares del ERP (documentos por cobrar y pagar, caja y bancos, kardex) frente a sus cuentas contables."""
+    from datetime import date
+
+    from historial.contabilidad_anterior import conciliacion
+    try:
+        hasta = date.fromisoformat(request.GET.get('hasta') or '')
+    except ValueError:
+        hasta = None
+    filas, corte = conciliacion(hasta)
+    return render(request, 'contabilidad/conciliacion_migracion.html', {
+        'filas': filas, 'corte': corte, 'hasta': hasta or date.today()})
+
+
+@login_required
 def consolidacion(request):
     """Solo administradores: lee los libros de todas las empresas del grupo."""
     if not request.user.is_superuser:

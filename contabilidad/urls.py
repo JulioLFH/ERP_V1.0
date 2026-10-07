@@ -8,6 +8,7 @@ urlpatterns = [
     path('cierre/', views_cierre.cierre_mes, name='cierre'),
     path('conciliacion-niif-tributaria/', views_cierre.conciliacion_normas, name='conciliacion_normas'),
     path('consolidacion/', views_cierre.consolidacion, name='consolidacion'),
+    path('conciliacion-migracion/', views_cierre.conciliacion_migracion, name='conciliacion_migracion'),
     path('libro-inventarios-balances/', views_libro3.libro_inventarios, name='libro_inventarios'),
     path('presupuestos/', views_presupuesto.presupuestos, name='presupuestos'),
     path('presupuestos/nuevo/', views_presupuesto.presupuesto_nuevo, name='presupuesto_nuevo'),

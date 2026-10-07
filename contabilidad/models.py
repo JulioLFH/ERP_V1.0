@@ -64,10 +64,12 @@ ORIGENES = [
     ('PLANILLA', 'Planillas'),
     ('PRESTAMO', 'Préstamos y leasing'),
     ('PROVISION', 'Provisiones de beneficios sociales'),
+    ('ANTERIOR', 'Sistema anterior (hasta la fecha de corte)'),
+    ('MIGRACION', 'Ajustes de migración (fecha de corte)'),
     ('COSTO', 'Costo de ventas (versión anterior)'),
 ]
 # asientos que el sistema no regenera al centralizar
-ORIGENES_FIJOS = ('MANUAL', 'APERTURA')
+ORIGENES_FIJOS = ('MANUAL', 'APERTURA', 'ANTERIOR', 'MIGRACION')
 
 
 class CuentaContable(models.Model):

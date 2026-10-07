@@ -44,7 +44,8 @@ def actualizar_pendientes(limite_segundos=None):
     from .centralizar import ErrorContable, centralizar_periodo
     inicio = time.monotonic()
     errores = []
-    if not Asiento.objects.filter(origen='APERTURA').exists():
+    from core.models import Empresa
+    if not Asiento.objects.filter(origen='APERTURA').exists() and not Empresa.actual().fecha_corte_contable:
         generar_apertura()
     for periodo in periodos_pendientes():
         if limite_segundos is not None and time.monotonic() - inicio > limite_segundos:
@@ -98,9 +99,12 @@ def fecha_inicio():
 
 def generar_apertura():
     """Asiento de apertura con los saldos iniciales de caja y bancos (se regenera si cambian)."""
+    from core.models import Empresa
     from core.tipo_cambio import venta_del_dia
     from finanzas.models import Cuenta
     Asiento.objects.filter(origen='APERTURA').delete()
+    if Empresa.actual().fecha_corte_contable:
+        return None  # los saldos de caja y bancos vienen en los asientos del sistema anterior
     cuentas = [c for c in Cuenta.objects.all() if c.saldo_inicial]
     if not cuentas:
         return None

@@ -635,8 +635,10 @@ class Command(BaseCommand):
         elif Compra.objects.filter(es_saldo_inicial=True).exists():
             self.resumen['Por pagar'] = 'ya estaba cargado (use --rehacer para volver a calcularlo)'
             return
+        from historial.contabilidad_anterior import desde_apertura
         por_proveedor, por_doc, datos_doc = defaultdict(Decimal), defaultdict(Decimal), {}
-        for a in AsientoAnterior.objects.filter(cuenta__regex=CUENTAS_POR_PAGAR).order_by('fecha', 'id').iterator(
+        # desde la última apertura del ejercicio: sumar los meses anteriores duplicaría los saldos
+        for a in desde_apertura().filter(cuenta__regex=CUENTAS_POR_PAGAR).order_by('fecha', 'id').iterator(
                 chunk_size=10000):
             neto = a.haber - a.debe
             por_proveedor[a.contacto_doc] += neto
@@ -696,7 +698,7 @@ class Command(BaseCommand):
             compra.save()
             CompraItem.objects.create(documento=compra, descripcion=f'Saldo pendiente {comprobante}'[:250],
                                       cantidad=1, precio_unitario=compra.total)
-        provisiones = AsientoAnterior.objects.filter(cuenta__startswith='4211').aggregate(d=Sum('debe'), h=Sum('haber'))
+        provisiones = desde_apertura().filter(cuenta__startswith='4211').aggregate(d=Sum('debe'), h=Sum('haber'))
         if provisiones['h']:
             self.observar('Por pagar', '4211', f'Provisiones sin comprobante (facturas no emitidas) '
                                                f'S/ {provisiones["h"] - provisiones["d"]:,.2f}: no se cargan como deuda')
@@ -713,14 +715,19 @@ class Command(BaseCommand):
         from contabilidad.models import CuentaContable
         from core.tipo_cambio import venta_del_dia
         from finanzas.models import Cuenta
+        from core.models import Empresa
+        from historial.contabilidad_anterior import desde_apertura
         from historial.models import AsientoAnterior
-        filas = (AsientoAnterior.objects.filter(cuenta__startswith='10').values('cuenta', 'cuenta_nombre')
+        corte = Empresa.actual().fecha_corte_contable or AsientoAnterior.objects.aggregate(f=Max('fecha'))['f']
+        filas = (desde_apertura().filter(cuenta__startswith='10', fecha__lte=corte).values('cuenta', 'cuenta_nombre')
                  .annotate(d=Sum('debe'), h=Sum('haber')).order_by('cuenta'))
         if not filas:
             self.resumen['Caja y bancos'] = 'sin asientos: importe primero el paso contable'
             return
-        corte = AsientoAnterior.objects.aggregate(f=Max('fecha'))['f']
         tc = venta_del_dia(corte)
+        # las cuentas del sistema anterior parten de cero y toman el saldo a la fecha de corte
+        Cuenta.objects.filter(cuenta_contable__codigo__in=AsientoAnterior.objects.filter(
+            cuenta__startswith='10').values('cuenta')).update(saldo_inicial=0)
         plan = {c.codigo: c for c in CuentaContable.objects.filter(codigo__startswith='10')}
         creadas, total = 0, D0
         for r in filas:
@@ -730,7 +737,8 @@ class Command(BaseCommand):
                     self.observar('Caja y bancos', codigo, f'{nombre}: cuenta puente con saldo S/ {saldo:,.2f}; '
                                                            'no es una cuenta de dinero (regularícela)')
                 continue
-            if not saldo:
+            if not saldo:  # una cuenta que quedó en cero no conserva un saldo inicial anterior
+                Cuenta.objects.filter(cuenta_contable__codigo=codigo).exclude(saldo_inicial=0).update(saldo_inicial=0)
                 continue
             usd = ' ME ' in f' {nombre.upper()} '
             nombre_u = unicodedata.normalize('NFKD', nombre.upper()).encode('ascii', 'ignore').decode()

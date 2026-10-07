@@ -3,6 +3,12 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.23.3 — 07/10/2026 · Contabilidad del sistema anterior hasta la fecha de corte
+- **Libros iguales al sistema anterior:** comando `contabilidad_anterior --corte AAAA-MM-DD` que importa a los libros del ERP cada asiento del sistema anterior desde su apertura del ejercicio hasta el corte (mismas cuentas, terceros y centros de costo), cierra esos periodos y deja al ERP contabilizando desde el día siguiente. Un asiento de ajustes de migración al corte pasa las facturas por cobrar y por pagar a las cuentas del ERP y lleva las existencias al valor del kardex.
+- **Corrección:** los saldos de por pagar, caja y bancos migrados (y el «Balance del sistema anterior») sumaban también los meses previos a la apertura del ejercicio, que ya estaban resumidos en ella: se duplicaban saldos.
+- **Estados financieros:** el resultado incluye compras, variación de existencias y producción almacenada (60/61/71/72), igual por naturaleza y por función; la clase 9 que no cancela con la 79 se muestra como «Costos por asignar» y el balance cuadra.
+- Contabilidad › Sistema anterior › **Conciliación de la migración**: documentos por cobrar y por pagar, caja y bancos e inventario frente a sus cuentas.
+
 ## v1.23.2 — 07/10/2026 · Carga de listas de precios desde Excel
 - **Carga masiva › Listas de precios**: precio, tramo por cantidad y descuento de cada producto en cada lista, hasta 30,000 filas. Acepta la lista por código o nombre (si no existe se crea) y el producto por código o como lo exporta Odoo («[A2820] Nombre»). Validación previa, «Actualizar existentes» y grabación en bloque.
 - Ventas › Listas de precios: botón «Cargar precios desde Excel» y aviso de las listas sin precios.

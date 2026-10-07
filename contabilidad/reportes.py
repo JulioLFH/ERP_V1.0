@@ -70,25 +70,34 @@ def balance_comprobacion(desde, hasta, nivel=None):
 
 
 def resultado_ejercicio(sumas):
-    """Ingresos (7 sin 79) - costo de ventas (69) - gastos por naturaleza (62-68) - impuesto a la renta (88)."""
-    ingresos = -_neto(sumas, ('7',), excluir=('79',))
-    costo = _neto(sumas, ('69',))
-    gastos = _neto(sumas, ('62', '63', '64', '65', '66', '67', '68'))
-    renta = _neto(sumas, ('88',))
-    return ingresos - costo - gastos - renta
+    """Ingresos y gastos por naturaleza: -(clase 6 + clase 7 sin la 79) - impuesto a la renta (88).
+
+    Incluye compras y variación de existencias (60/61) y la producción almacenada (71/72): con inventario permanente
+    se compensan con las existencias, y así el resultado es correcto tanto para los asientos del ERP como para los
+    importados del sistema anterior."""
+    return -_neto(sumas, ('6', '7'), excluir=('79',)) - _neto(sumas, ('88',))
 
 
 def estado_resultados(desde, hasta, sumas=None):
+    """Estado de resultados por función. El costo de ventas suma al 69 lo consumido (60/61) y los gastos destinados a
+    producción (9x salvo 94, 95 y 97) y resta la producción almacenada (71/72): así el resultado siempre es igual al
+    de la naturaleza (resultado_ejercicio)."""
     s = sumas_por_cuenta(desde, hasta) if sumas is None else sumas
-    ventas = -_neto(s, ('70', '71', '72', '73', '74'))
-    costo = _neto(s, ('69',))
-    bruta = ventas - costo
+    ventas = -_neto(s, ('70', '74'))
+    produccion = -_neto(s, ('71', '72'))
+    gasto_produccion = _neto(s, ('9',), excluir=('94', '95', '97'))
     adm, vtas, fin = _neto(s, ('94',)), _neto(s, ('95',)), _neto(s, ('97',))
-    otros_9 = _neto(s, ('9',), excluir=('94', '95', '97'))
     gastos_nat = _neto(s, ('62', '63', '64', '65', '66', '67', '68'))
-    sin_destino = gastos_nat - (adm + vtas + fin + otros_9)
-    otros_ing = -_neto(s, ('75', '76', '78'))
-    operativa = bruta - adm - vtas - otros_9 - sin_destino + otros_ing
+    sin_destino = gastos_nat - (adm + vtas + fin + gasto_produccion)
+    costo = _neto(s, ('69',)) + _neto(s, ('60', '61')) + gasto_produccion - produccion
+    if sin_destino < 0:
+        # destinos de producción mayores que los gastos 62-68: también recibieron compras (60/61), que ya están en
+        # el costo (pasa con los asientos del sistema anterior)
+        costo += sin_destino
+        sin_destino = D0
+    bruta = ventas - costo
+    otros_ing = -_neto(s, ('73', '75', '76', '78'))
+    operativa = bruta - adm - vtas - sin_destino + otros_ing
     ing_fin = -_neto(s, ('77',))
     antes = operativa + ing_fin - fin
     renta = _neto(s, ('88',))
@@ -100,8 +109,6 @@ def estado_resultados(desde, hasta, sumas=None):
         ('Gastos de administración', -adm, ''),
         ('Gastos de ventas', -vtas, ''),
     ]
-    if otros_9:
-        lineas.append(('Otros gastos por función', -otros_9, ''))
     if sin_destino:
         lineas.append(('Gastos sin destino asignado', -sin_destino, 'alerta'))
     lineas += [
@@ -155,6 +162,11 @@ def situacion_financiera(hasta, desde_ejercicio, saldos=None, sumas_ejercicio=No
         v = _neto(saldos, prefijos)
         if v:
             activo[grupo].append((nombre, v))
+    # clase 9 que no se canceló con la 79 (costos de producción trasladados a otras cuentas en el sistema anterior):
+    # es un saldo abierto del libro; se muestra para que el balance cuadre y el contador lo regularice
+    por_asignar = _neto(saldos, ('9',)) + _neto(saldos, ('79',))
+    if abs(por_asignar) >= Decimal('0.5'):
+        activo['corriente'].append(('Costos por asignar (clase 9 sin su contrapartida 79)', por_asignar))
     for grupo, nombre, prefijos in RUBROS_PASIVO:
         v = -_neto(saldos, prefijos)
         if v < 0 and prefijos == ('40',):  # saldo a favor (crédito fiscal) se muestra como activo
