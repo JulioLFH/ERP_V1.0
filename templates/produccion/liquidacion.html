@@ -1,0 +1,65 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Liquidación de costo real{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Liquidación de costo real</h1>
+  <div class="d-flex gap-2">
+    <form method="get"><input type="month" name="periodo" value="{{ periodo_input }}" class="form-control form-control-sm" onchange="this.form.submit()"></form>
+    {% if liq %}<a href="?periodo={{ periodo_input }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>{% endif %}
+  </div>
+</div>
+<div class="card mb-3 border-primary"><div class="card-body d-flex flex-wrap gap-2 align-items-center">
+  <form method="post" data-confirm="¿Liquidar el costo real de {{ periodo|slice:'4:' }}/{{ periodo|slice:':4' }}? Se centraliza el periodo, se revaloriza el inventario de lo producido y se registra el asiento.">{% csrf_token %}<input type="hidden" name="periodo" value="{{ periodo }}"><button name="accion" value="liquidar" class="btn btn-sm btn-primary"><i class="bi bi-calculator"></i> {% if liq %}Volver a liquidar{% else %}Liquidar el periodo{% endif %}</button></form>
+  {% if liq %}<form method="post" data-confirm="¿Anular la liquidación? El inventario y los costos vuelven a las tarifas.">{% csrf_token %}<input type="hidden" name="periodo" value="{{ periodo }}"><button name="accion" value="anular" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular</button></form>
+  <span class="small text-muted">Liquidado el {{ liq.fecha|date:'d/m/Y H:i' }}{% if liq.usuario %} por {{ liq.usuario }}{% endif %}.</span>{% endif %}
+  <span class="small text-muted ms-2">Hágalo al cierre del mes, con las planillas, provisiones y depreciación ya registradas y antes de cerrar el kardex. Configure la <a href="{% url 'manufactura:centros' %}">capacidad normal de cada puesto</a> y <a href="{% url 'costos:comportamiento' %}">qué gastos son fijos o variables</a>.</span>
+</div></div>
+{% if datos %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg"><div class="card"><div class="card-body py-2"><div class="small text-muted">Gasto real de planta</div><div class="fs-5 fw-semibold">S/ {{ datos.tot.real|money }}</div></div></div></div>
+  <div class="col-6 col-lg"><div class="card"><div class="card-body py-2"><div class="small text-muted">Cargado con tarifas</div><div class="fs-5 fw-semibold">S/ {{ datos.tot.absorbido|money }}</div></div></div></div>
+  <div class="col-6 col-lg"><div class="card"><div class="card-body py-2"><div class="small text-muted">Liquidado al producto</div><div class="fs-5 fw-semibold">S/ {{ datos.tot.diferencia|money }}</div><div class="small text-muted">inventario {{ datos.tot.a_inventario|money }} · costo de ventas {{ datos.tot.a_costo|money }}</div></div></div></div>
+  <div class="col-6 col-lg"><div class="card border-warning"><div class="card-body py-2"><div class="small text-muted">Gasto del periodo (capacidad ociosa)</div><div class="fs-5 fw-semibold">S/ {{ datos.tot.gasto|money }}</div></div></div></div>
+</div>
+<div class="card mb-3"><div class="card-header"><i class="bi bi-diagram-3"></i> Por centro de costo de planta</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Centro de costo</th><th class="num">Horas</th><th class="num">Capacidad normal</th><th class="num">Uso</th><th class="num">Mano de obra</th><th class="num">CIF variable</th><th class="num">CIF fijo</th><th class="num">Al producto</th><th class="num">Cargado con tarifas</th><th class="num">Diferencia</th><th class="num">Gasto del periodo</th></tr></thead>
+  <tbody>{% for c in datos.centros %}<tr>
+    <td>{{ c.centro_costo.codigo }} {{ c.centro_costo.nombre }}</td><td class="num">{{ c.horas|floatformat:2 }}</td>
+    <td class="num">{% if c.horas_normales %}{{ c.horas_normales|floatformat:2 }}{% else %}<span class="text-warning" title="Sin capacidad normal: todo el CIF fijo va al producto">—</span>{% endif %}</td>
+    <td class="num">{% if c.uso_capacidad is not None %}{{ c.uso_capacidad }}%{% endif %}</td>
+    <td class="num">{{ c.mo_real|money }}</td><td class="num">{{ c.variable_real|money }}</td><td class="num">{{ c.fijo_real|money }}</td>
+    <td class="num fw-semibold">{{ c.inventariable|money }}</td><td class="num">{{ c.absorbido|money }}</td>
+    <td class="num {% if c.diferencia > 0 %}text-danger{% elif c.diferencia < 0 %}text-success{% endif %}">{{ c.diferencia|money }}</td>
+    <td class="num">{{ c.gasto_periodo|money }}</td>
+  </tr>{% empty %}<tr><td colspan="11" class="text-center text-muted py-3">Ningún puesto de trabajo tiene centro de costo.</td></tr>{% endfor %}</tbody>
+</table></div>
+<div class="card-body py-2 small text-muted">Al producto = mano de obra + CIF variable + CIF fijo × (horas ÷ capacidad normal, hasta 100 %). Si un centro no tuvo producción, todo su gasto queda en el periodo. Diferencia positiva: costó más de lo cargado con las tarifas.</div></div>
+<div class="card mb-3"><div class="card-header"><i class="bi bi-box-seam"></i> Por producto</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Producto</th><th class="num">Producido</th><th class="num">Sigue en stock</th><th class="num">Consumido en otras órdenes</th><th class="num">Diferencia</th><th class="num">Al inventario</th><th class="num">A otras órdenes</th><th class="num">A costo de ventas</th><th>Fecha</th></tr></thead>
+  <tbody>{% for p in datos.productos %}<tr>
+    <td>{{ p.producto.codigo }} {{ p.producto.nombre }}</td><td class="num">{{ p.producido|floatformat:2 }}</td><td class="num">{{ p.en_stock|floatformat:2 }}</td><td class="num">{{ p.consumido|floatformat:2 }}</td>
+    <td class="num fw-semibold">{{ p.diferencia|money }}</td><td class="num">{{ p.a_inventario|money }}</td><td class="num">{{ p.a_produccion|money }}</td><td class="num">{{ p.a_costo|money }}</td><td>{{ p.fecha|date:'d/m/Y' }}</td>
+  </tr>{% empty %}<tr><td colspan="9" class="text-center text-muted py-3">Sin diferencias por liquidar.</td></tr>{% endfor %}</tbody>
+</table></div>
+<div class="card-body py-2 small text-muted">Se reparte de los semielaborados a los productos finales: lo que sigue en stock revaloriza su costo promedio (cuenta 21/23), lo consumido por otras órdenes del periodo pasa a ellas y lo ya vendido va al costo de ventas (69), por línea de negocio. Contrapartida: variación de la producción almacenada (71).</div></div>
+<div class="card"><div class="card-header"><i class="bi bi-clipboard-data"></i> Por orden de producción</div><div class="table-responsive"><table class="table table-sm table-hover mb-0">
+  <thead><tr><th>Orden</th><th>Producto</th><th class="num">Producido</th><th class="num">Costo estándar</th><th class="num">Costo con tarifas</th><th class="num">Mano de obra</th><th class="num">CIF</th><th class="num">De semielaborados</th><th class="num">Costo real final</th><th class="num">Unitario real</th></tr></thead>
+  <tbody>{% for lo in datos.ordenes %}{% with o=lo.orden %}<tr>
+    <td><a href="{% url 'manufactura:orden' o.pk %}">{{ o.numero }}</a></td><td>{{ o.producto.nombre }}</td><td class="num">{{ o.cantidad_producida|floatformat:2 }}</td>
+    <td class="num">{{ o.costo_estandar_total|money }}</td>
+    <td class="num">{{ o.costo_total|money }}</td><td class="num">{{ lo.mano_obra|money }}</td><td class="num">{{ lo.cif|money }}</td><td class="num">{{ lo.de_insumos|money }}</td>
+    <td class="num fw-semibold">{{ o.costo_real_final|money }}</td><td class="num">{{ o.costo_real_unitario|floatformat:4 }}</td>
+  </tr>{% endwith %}{% empty %}<tr><td colspan="10" class="text-center text-muted py-3">Ninguna orden recibió diferencia.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% else %}
+<div class="card"><div class="card-body text-muted">
+  <p>El periodo {{ periodo|slice:'4:' }}/{{ periodo|slice:':4' }} aún no se liquida. Al liquidar:</p>
+  <ol class="mb-2">
+    <li>Se toma el gasto real de cada centro de costo de planta (cuentas 62 a 68) y se separa en mano de obra, CIF variable y CIF fijo según la cuenta ({% for p, t in reglas %}{{ p }}: {{ t }}{% if not forloop.last %}, {% endif %}{% endfor %}; lo demás, CIF fijo).</li>
+    <li>El CIF fijo va al producto solo en la proporción de las horas trabajadas frente a la capacidad normal; la capacidad ociosa queda como gasto del periodo (NIC 2 párr. 13).</li>
+    <li>La diferencia contra lo cargado con las tarifas se reparte a las órdenes terminadas del periodo por sus horas y, por producto, al inventario o al costo de ventas.</li>
+  </ol>
+  <p class="mb-0 small">La merma anormal (consumo por encima de la receta con su merma normal) ya se lleva a gasto al terminar cada orden.</p>
+</div></div>
+{% endif %}
+{% endblock %}

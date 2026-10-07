@@ -37,6 +37,11 @@ PCGE = [
     ('28', 'INVENTARIOS POR RECIBIR'), ('281', 'Mercaderías'), ('2811', 'Mercaderías por recibir'),
     ('284', 'Materias primas'), ('2841', 'Materias primas por recibir'),
     ('285', 'Materiales auxiliares, suministros y repuestos'), ('2851', 'Suministros por recibir'),
+    ('29', 'DESVALORIZACIÓN DE EXISTENCIAS'), ('291', 'Mercaderías'), ('2911', 'Mercaderías'),
+    ('292', 'Productos terminados'), ('2921', 'Productos terminados'),
+    ('294', 'Productos en proceso'), ('2941', 'Productos en proceso'),
+    ('295', 'Materias primas'), ('2951', 'Materias primas'),
+    ('296', 'Materiales auxiliares, suministros y repuestos'), ('2961', 'Materiales auxiliares, suministros y repuestos'),
     ('32', 'ACTIVOS ADQUIRIDOS EN ARRENDAMIENTO FINANCIERO'),
     ('322', 'Propiedad, planta y equipo - arrendamiento financiero'),
     ('3223', 'Maquinarias y equipos de explotación (leasing)'), ('3224', 'Unidades de transporte (leasing)'),
@@ -117,6 +122,9 @@ PCGE = [
     ('682', 'Amortización de intangibles'), ('6821', 'Amortización de intangibles - costo'),
     ('69', 'COSTO DE VENTAS'), ('691', 'Mercaderías'), ('6911', 'Mercaderías'), ('69111', 'Mercaderías - terceros'),
     ('692', 'Productos terminados'), ('6921', 'Productos manufacturados'),
+    ('695', 'Gastos por desvalorización de existencias'), ('6951', 'Mercaderías'), ('6952', 'Productos terminados'),
+    ('6954', 'Productos en proceso'), ('6955', 'Materias primas'),
+    ('6956', 'Materiales auxiliares, suministros y repuestos'),
     ('70', 'VENTAS'), ('701', 'Mercaderías'), ('7011', 'Mercaderías'), ('70111', 'Mercaderías - terceros'),
     ('702', 'Productos terminados'), ('7021', 'Productos manufacturados'),
     ('704', 'Prestación de servicios'), ('7041', 'Prestación de servicios - terceros'),
@@ -140,7 +148,11 @@ PCGE = [
 ]
 
 # Cuentas de saldo acreedor dentro de clases normalmente deudoras (y viceversa)
-ACREEDORAS = ('19', '39', '122', '4', '5', '7')
+ACREEDORAS = ('19', '29', '39', '122', '4', '5', '7')
+
+# desvalorización de existencias (NIC 2, VNR) según la cuenta de existencias del producto: (provisión 29, gasto 695)
+DESVALORIZACION = {'20': ('2911', '6951'), '21': ('2921', '6952'), '23': ('2941', '6954'), '24': ('2951', '6955'),
+                   '25': ('2961', '6956')}
 DEUDORAS_EXCEPCION = ('422', '709')
 
 

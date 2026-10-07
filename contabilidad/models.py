@@ -64,6 +64,7 @@ ORIGENES = [
     ('PLANILLA', 'Planillas'),
     ('PRESTAMO', 'Préstamos y leasing'),
     ('PROVISION', 'Provisiones de beneficios sociales'),
+    ('VNR', 'Desvalorización de existencias (valor neto realizable)'),
     ('ANTERIOR', 'Sistema anterior (hasta la fecha de corte)'),
     ('MIGRACION', 'Ajustes de migración (fecha de corte)'),
     ('COSTO', 'Costo de ventas (versión anterior)'),

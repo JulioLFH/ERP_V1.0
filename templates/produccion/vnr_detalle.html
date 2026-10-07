@@ -1,0 +1,17 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ prueba }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{{ prueba }}</h1>
+  <a href="{% url 'costos:vnr' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Pruebas de VNR</a>
+</div>
+<p class="text-muted small">{{ prueba.get_norma_display }} · gastos de venta {{ prueba.gasto_venta }}% · precio promedio de los últimos {{ prueba.dias_precio }} días · registrada {{ prueba.creado|date:'d/m/Y H:i' }}{% if prueba.usuario %} por {{ prueba.usuario }}{% endif %}.</p>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0">
+  <thead><tr><th>Producto</th><th class="num">Cantidad</th><th class="num">Costo unit.</th><th class="num">Precio estimado</th><th>Fuente</th><th class="num">VNR unit.</th><th class="num">Desvalorización acumulada</th><th class="num">Ajuste del periodo</th></tr></thead>
+  <tbody>{% for l in lineas %}<tr>
+    <td>{{ l.producto.codigo }} {{ l.producto.nombre }}</td><td class="num">{{ l.cantidad|floatformat:2 }}</td><td class="num">{{ l.costo|floatformat:4 }}</td><td class="num">{{ l.precio|floatformat:4 }}</td><td class="small text-muted">{{ l.fuente }}</td><td class="num">{{ l.vnr|floatformat:4 }}</td>
+    <td class="num fw-semibold">{{ l.deterioro|money }}</td><td class="num">{{ l.ajuste|money }}</td>
+  </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-3">Ningún producto quedó por debajo de su costo.</td></tr>{% endfor %}</tbody>
+  {% if lineas %}<tfoot><tr class="fw-bold"><td colspan="6">Total</td><td class="num">{{ total_deterioro|money }}</td><td class="num">{{ total_ajuste|money }}</td></tr></tfoot>{% endif %}
+</table></div></div>
+{% endblock %}

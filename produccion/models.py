@@ -34,6 +34,10 @@ class CentroTrabajo(models.Model):
                                        help_text='1 = lunes … 7 = domingo')
     eficiencia = models.DecimalField('Eficiencia %', max_digits=5, decimal_places=2, default=Decimal('100'),
                                      help_text='Las horas planificadas se dividen entre la eficiencia')
+    horas_normales_mes = models.DecimalField(
+        'Capacidad normal (horas al mes)', max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='NIC 2: horas que el puesto trabaja en un mes normal. Si se trabaja menos, el CIF fijo de la '
+                  'capacidad ociosa va a gasto y no al producto. Vacío = todo el CIF fijo va al producto')
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -335,6 +339,12 @@ class OrdenProduccion(models.Model):
     costo_mano_obra = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
     costo_cif = models.DecimalField('Costos indirectos', max_digits=14, decimal_places=2, default=D0)
     costo_unitario = models.DecimalField('Costo real unitario', max_digits=14, decimal_places=4, default=D0)
+    merma_anormal = models.DecimalField(
+        'Merma anormal S/', max_digits=14, decimal_places=2, default=D0, editable=False,
+        help_text='NIC 2: consumo por encima de la receta con su merma normal; va a gasto, no al producto')
+    ajuste_liquidacion = models.DecimalField(
+        'Liquidación de costo real S/', max_digits=14, decimal_places=2, default=D0, editable=False,
+        help_text='Diferencia entre el gasto real de planta y lo cargado con las tarifas (cierre del periodo)')
     operacion = models.OneToOneField('inventario.Operacion', on_delete=models.PROTECT, null=True, blank=True,
                                      related_name='orden_produccion', editable=False)
     creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
@@ -354,7 +364,23 @@ class OrdenProduccion(models.Model):
 
     @property
     def costo_total(self):
-        return self.costo_materiales + self.costo_mano_obra + self.costo_cif
+        """Lo que entró al almacén: materiales + mano de obra + CIF, sin la merma anormal (va a gasto)."""
+        return self.costo_materiales + self.costo_mano_obra + self.costo_cif - self.merma_anormal
+
+    @property
+    def costo_real_final(self):
+        """Costo de la orden después de la liquidación del periodo (gasto real de planta)."""
+        return self.costo_total + self.ajuste_liquidacion
+
+    @property
+    def costo_estandar_total(self):
+        return r2(self.costo_estandar_unit * self.cantidad_producida)
+
+    @property
+    def costo_real_unitario(self):
+        if not self.cantidad_producida:
+            return D0
+        return (self.costo_real_final / self.cantidad_producida).quantize(Decimal('0.0001'))
 
     @property
     def editable(self):
@@ -385,7 +411,7 @@ class VariacionOrden(models.Model):
     TIPOS = [('PRECIO_MAT', 'Precio de materiales'), ('CANTIDAD_MAT', 'Cantidad de materiales (consumo)'),
              ('EFICIENCIA_MO', 'Eficiencia de mano de obra (horas)'),
              ('EFICIENCIA_CIF', 'Eficiencia de máquina y CIF (horas)'), ('TARIFA', 'Tarifa de actividades'),
-             ('OTRAS', 'Otras (redondeo)')]
+             ('MERMA_ANORMAL', 'Merma anormal llevada a gasto (NIC 2)'), ('OTRAS', 'Otras (redondeo)')]
     orden = models.ForeignKey('OrdenProduccion', on_delete=models.CASCADE, related_name='variaciones')
     tipo = models.CharField(max_length=15, choices=TIPOS)
     monto = models.DecimalField(max_digits=14, decimal_places=2)
@@ -669,3 +695,150 @@ class RecursoActividad(models.Model):
 
     class Meta:
         ordering = ['id']
+
+
+# ================================================================ cierre de costos NIC 2
+class ComportamientoGasto(models.Model):
+    """Cómo se comporta un gasto de planta (por prefijo de cuenta, el más largo manda): mano de obra y CIF variables
+    se liquidan completos al producto; el CIF fijo según la capacidad normal (NIC 2 párr. 13)."""
+    TIPOS = [('MO', 'Mano de obra directa'), ('VARIABLE', 'CIF variable'), ('FIJO', 'CIF fijo')]
+    prefijo = models.CharField('Cuenta (prefijo)', max_length=12, unique=True, help_text='Ej. 62, 6361, 681')
+    tipo = models.CharField(max_length=8, choices=TIPOS)
+
+    class Meta:
+        ordering = ['prefijo']
+        verbose_name = 'comportamiento de gasto de planta'
+
+    def __str__(self):
+        return f'{self.prefijo}: {self.get_tipo_display()}'
+
+
+class LiquidacionCosto(models.Model):
+    """Cierre de costos del periodo: lleva el gasto real de planta (62-68 por centro de costo) a las órdenes
+    terminadas y, por producto, a inventario (21/23) o costo de ventas (69). La capacidad ociosa queda en gasto."""
+    periodo = models.CharField(max_length=6, unique=True)
+    fecha = models.DateTimeField(auto_now_add=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+
+    class Meta:
+        ordering = ['-periodo']
+        verbose_name = 'liquidación de costo real'
+        verbose_name_plural = 'liquidaciones de costo real'
+
+    def __str__(self):
+        return f'Liquidación de costo real {self.periodo[4:]}/{self.periodo[:4]}'
+
+
+class LiquidacionCentro(models.Model):
+    liquidacion = models.ForeignKey(LiquidacionCosto, on_delete=models.CASCADE, related_name='centros')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, related_name='+')
+    horas = models.DecimalField(max_digits=12, decimal_places=2, default=D0)
+    horas_normales = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    mo_real = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    variable_real = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    fijo_real = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    fijo_inventariable = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    absorbido_mo = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    absorbido_cif = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+
+    class Meta:
+        ordering = ['centro_costo__codigo']
+
+    @property
+    def real(self):
+        return self.mo_real + self.variable_real + self.fijo_real
+
+    @property
+    def inventariable(self):
+        return self.mo_real + self.variable_real + self.fijo_inventariable if self.horas else D0
+
+    @property
+    def gasto_periodo(self):
+        """No va al producto: capacidad ociosa (o todo el gasto si no hubo producción)."""
+        return self.real - self.inventariable
+
+    @property
+    def absorbido(self):
+        return self.absorbido_mo + self.absorbido_cif
+
+    @property
+    def diferencia(self):
+        return self.inventariable - self.absorbido
+
+    @property
+    def uso_capacidad(self):
+        if not self.horas_normales:
+            return None
+        return (self.horas / self.horas_normales * 100).quantize(Decimal('0.1'))
+
+
+class LiquidacionOrden(models.Model):
+    liquidacion = models.ForeignKey(LiquidacionCosto, on_delete=models.CASCADE, related_name='ordenes')
+    orden = models.ForeignKey(OrdenProduccion, on_delete=models.CASCADE, related_name='liquidaciones')
+    mano_obra = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    cif = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    de_insumos = models.DecimalField('De sus semielaborados', max_digits=14, decimal_places=2, default=D0)
+
+    class Meta:
+        ordering = ['orden__fecha_fin', 'orden_id']
+
+    @property
+    def total(self):
+        return self.mano_obra + self.cif + self.de_insumos
+
+
+class LiquidacionProducto(models.Model):
+    """Reparto de la diferencia de un producto: lo que sigue en stock revaloriza su costo promedio; lo consumido
+    por otras órdenes pasa a ellas (multinivel); lo vendido va al costo de ventas."""
+    liquidacion = models.ForeignKey(LiquidacionCosto, on_delete=models.CASCADE, related_name='productos')
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='+')
+    fecha = models.DateField(help_text='Fecha del ajuste en el kardex y en la contabilidad')
+    producido = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    en_stock = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    consumido = models.DecimalField('Consumido por otras órdenes', max_digits=14, decimal_places=2, default=D0)
+    diferencia = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    a_inventario = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    a_produccion = models.DecimalField('A otras órdenes', max_digits=14, decimal_places=2, default=D0)
+    a_costo = models.DecimalField('A costo de ventas', max_digits=14, decimal_places=2, default=D0)
+    kardex = models.ForeignKey('core.Kardex', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        ordering = ['producto__nombre']
+
+
+class PruebaVNR(models.Model):
+    """NIC 2 párr. 9 y 28-33: el inventario se mide al menor entre su costo y su valor neto realizable (precio de
+    venta estimado − gastos de venta). La diferencia se provisiona (29) contra gasto (695) y se revierte si el
+    precio se recupera."""
+    NORMAS = [('NIIF', 'Solo libro NIIF (no deducible hasta la venta o destrucción)'), ('AMBOS', 'NIIF y tributario')]
+    fecha = models.DateField('Fecha de la prueba')
+    norma = models.CharField('Libro', max_length=5, choices=NORMAS, default='NIIF')
+    gasto_venta = models.DecimalField('Gastos de venta %', max_digits=5, decimal_places=2, default=D0,
+                                      help_text='Comisiones, fletes y demás gastos para vender, en % del precio')
+    dias_precio = models.PositiveSmallIntegerField('Precio: promedio de los últimos días', default=90)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'prueba de valor neto realizable'
+        verbose_name_plural = 'pruebas de valor neto realizable'
+
+    def __str__(self):
+        return f'Valor neto realizable al {self.fecha:%d/%m/%Y}'
+
+
+class PruebaVNRLinea(models.Model):
+    prueba = models.ForeignKey(PruebaVNR, on_delete=models.CASCADE, related_name='lineas')
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='+')
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    costo = models.DecimalField('Costo unitario', max_digits=14, decimal_places=4, default=D0)
+    precio = models.DecimalField('Precio de venta estimado', max_digits=14, decimal_places=4, default=D0)
+    fuente = models.CharField(max_length=40, blank=True)
+    vnr = models.DecimalField('VNR unitario', max_digits=14, decimal_places=4, default=D0)
+    deterioro = models.DecimalField('Desvalorización acumulada', max_digits=14, decimal_places=2, default=D0)
+    ajuste = models.DecimalField('Ajuste del periodo', max_digits=14, decimal_places=2, default=D0,
+                                 help_text='Positivo: provisión; negativo: reversión')
+
+    class Meta:
+        ordering = ['-deterioro', 'producto__nombre']

@@ -14,4 +14,8 @@ urlpatterns = [
     path('real-vs-estandar/', views.real_vs_estandar, name='real_vs_estandar'),
     path('absorcion/', views.absorcion, name='absorcion'),
     path('rentabilidad/', views.rentabilidad, name='rentabilidad'),
+    path('liquidacion/', views.liquidacion, name='liquidacion'),
+    path('liquidacion/gastos-de-planta/', views.comportamiento, name='comportamiento'),
+    path('valor-neto-realizable/', views.vnr, name='vnr'),
+    path('valor-neto-realizable/<int:pk>/', views.vnr_detalle, name='vnr_detalle'),
 ]

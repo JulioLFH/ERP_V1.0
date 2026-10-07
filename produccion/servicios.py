@@ -318,6 +318,15 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None):
         if orden.maquilador_id and not orden.costo_servicio and orden.compra_servicio_id:
             c = orden.compra_servicio
             orden.costo_servicio = c.total_pen - c.igv_pen
+        # NIC 2 párr. 16: lo consumido por encima de la receta (ya con su merma normal) para lo realmente producido
+        # es merma anormal: sale del almacén pero no entra al costo del producto (queda en gasto, cuenta 61)
+        merma = D0
+        if orden.cantidad:
+            for c in lineas:
+                permitido = c.cantidad_plan * cantidad_producida / orden.cantidad
+                if c.cantidad_real > permitido:
+                    merma += (c.cantidad_real - permitido) * c.producto.costo_promedio
+        merma = r2(merma)
         tipo = TipoOperacion.objects.get(codigo='MANUF')
         # insumos que se consumen en otro almacén: salen con su propia operación de consumo a producción
         por_almacen = defaultdict(list)
@@ -327,7 +336,7 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None):
         principal = orden.almacen_insumos_id
         op = Operacion.objects.create(
             tipo=tipo, fecha=fecha, almacen_origen_id=principal, almacen_destino=orden.almacen_destino,
-            referencia=orden.numero, creado_por=usuario, costo_adicional=mo + cif + orden.costo_servicio,
+            referencia=orden.numero, creado_por=usuario, costo_adicional=mo + cif + orden.costo_servicio - merma,
             glosa=f'Orden de producción {orden.numero}: {orden.producto.nombre}')
         for c in por_almacen.pop(principal, []):
             op.items.create(producto=c.producto, cantidad=r2(c.cantidad_real), rol='INSUMO')
@@ -359,6 +368,7 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None):
             c.save(update_fields=['costo_unitario'])
             materiales += c.valor
         orden.costo_materiales, orden.costo_mano_obra, orden.costo_cif = materiales, mo, cif
+        orden.merma_anormal = min(merma, materiales)
         orden.costo_unitario = op.items.get(rol='PRODUCTO').costo_unitario
         orden.cantidad_producida, orden.fecha_fin = cantidad_producida, fecha
         orden.fecha_inicio = orden.fecha_inicio or fecha
@@ -483,6 +493,8 @@ def calcular_variaciones(orden):
         v['EFICIENCIA_CIF'] += (h_real - h_std) * cif_std
         v['TARIFA'] += (mo_real + cif_real) - h_real * (mo_std + cif_std)
     resultado = {k: r2(m) for k, m in v.items()}
+    if orden.merma_anormal:  # el exceso de consumo está en la variación de cantidad, pero no entró al producto
+        resultado['MERMA_ANORMAL'] = -orden.merma_anormal
     total_std = r2(orden.costo_estandar_unit * q)
     diferencia = orden.costo_total - total_std - sum(resultado.values(), D0)
     if diferencia:

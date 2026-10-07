@@ -102,7 +102,7 @@ class Borrador:
             return None
         self.asiento.save()
         for l in self.lineas:
-            l.asiento = self.asiento
+            l.asiento, l.norma = self.asiento, self.asiento.norma
         AsientoLinea.objects.bulk_create(self.lineas)
         return self.asiento
 
@@ -534,6 +534,19 @@ def asiento_inventario(periodo, cta):
             b.neto(existencias(p), contra, aj.a_inventario, documento=doc, glosa=glosa)
         if aj.a_costo:
             b.neto(costo(p), contra, aj.a_costo, documento=doc, glosa=f'{glosa} (mercadería ya vendida)')
+    # liquidación del costo real (NIC 2): gasto real de planta que corresponde al producto, contra la variación de la
+    # producción almacenada (71): lo que sigue en stock al inventario y lo vendido al costo de ventas, por línea
+    from produccion.models import LiquidacionProducto
+    for lp in LiquidacionProducto.objects.filter(fecha__range=[desde, hasta]).select_related('liquidacion'):
+        p = productos.get(lp.producto_id)
+        ex = existencias(p)
+        contra = contra_manufactura(ex, True) or por_codigo.get('7111')
+        linea = p.centro_beneficio if p and p.centro_beneficio_id else None
+        glosa = f'Liquidación de costo real {lp.liquidacion.periodo[4:]}/{lp.liquidacion.periodo[:4]}'
+        if contra and lp.a_inventario:
+            b.neto(ex, contra, lp.a_inventario, glosa=glosa, centro_beneficio=linea)
+        if contra and lp.a_costo:
+            b.neto(costo(p), contra, lp.a_costo, glosa=f'{glosa} (ya vendido)', centro_beneficio=linea)
     # traslados entre cuentas de existencias (ej. manufactura: 2411 -> 2111); el redondeo va al ajuste final
     for ex, valor in sorted(sin_contra.items(), key=lambda x: x[0].codigo):
         b.add(ex, debe=valor, glosa='Traslados y manufactura')
@@ -641,6 +654,36 @@ def asiento_provisiones(periodo, cta):
     return b.grabar()
 
 
+def asiento_vnr(periodo):
+    """Desvalorización de existencias (NIC 2, valor neto realizable): el ajuste de cada prueba registrada en el
+    periodo. Provisión: 695 gasto / 29 desvalorización; reversión al revés (reduce el gasto, NIC 2 párr. 34)."""
+    from produccion.models import PruebaVNR
+
+    from .models import CuentaContable
+    from .pcge import DESVALORIZACION
+    desde, hasta = _rango(periodo)
+    cuentas = {c.codigo: c for c in CuentaContable.objects.filter(codigo__regex=r'^(29|695)')}
+    hechos = []
+    for prueba in PruebaVNR.objects.filter(fecha__range=[desde, hasta]).order_by('fecha', 'id'):
+        a = Asiento(fecha=prueba.fecha, libro='05', origen='VNR', norma=prueba.norma,
+                    glosa=f'Desvalorización de existencias al {prueba.fecha:%d/%m/%Y} (valor neto realizable)')
+        b = Borrador(a)
+        grupos = defaultdict(lambda: D0)
+        for l in prueba.lineas.exclude(ajuste=0).select_related('producto__cuenta_existencias',
+                                                                 'producto__centro_beneficio'):
+            p = l.producto
+            ex = p.cuenta_existencias.codigo if p.cuenta_existencias_id else '20'
+            provision, gasto = DESVALORIZACION.get(ex[:2], DESVALORIZACION['20'])
+            grupos[(provision, gasto, p.centro_beneficio)] += l.ajuste
+        for (provision, gasto, linea), ajuste in grupos.items():
+            if provision not in cuentas or gasto not in cuentas:
+                raise ErrorContable(f'Faltan las cuentas {provision} y {gasto} para la desvalorización de existencias.')
+            b.neto(cuentas[gasto], cuentas[provision], ajuste, glosa=a.glosa[:200], centro_beneficio=linea)
+        if b.grabar():
+            hechos.append(a)
+    return hechos
+
+
 # ---------------------------------------------------------------- proceso del periodo
 def periodo_migrado(periodo):
     """¿El periodo termina antes o en la fecha de corte? Sus libros son los del sistema anterior."""
@@ -716,6 +759,7 @@ def centralizar_periodo(periodo):
             from planillas.servicios import asiento_planillas
             asiento_planillas(periodo, cta)
             asiento_provisiones(periodo, cta)
+            asiento_vnr(periodo)
             asiento_prestamos(periodo, cta, tc_func)
             asiento_cambio_cierre(periodo, cta, obtener(hasta) if Cuenta.objects.filter(moneda='USD').exists()
                                   else None)

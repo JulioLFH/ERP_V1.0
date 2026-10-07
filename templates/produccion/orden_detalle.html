@@ -119,7 +119,10 @@
     {% if ver_costos and o.costo_estandar_unit %}<div class="card mb-3"><div class="card-body">
       <div class="text-muted small">Costo estándar unitario</div><div class="fs-5 fw-semibold">S/ {{ o.costo_estandar_unit|floatformat:4 }}</div>
       {% if o.estado == 'TERMINADA' %}<div class="text-muted small mt-2">Costo real unitario</div><div class="fs-5 fw-semibold">S/ {{ o.costo_unitario|floatformat:4 }}</div>
-      <div class="small text-muted">Materiales {{ o.costo_materiales|money }} · MO {{ o.costo_mano_obra|money }} · CIF {{ o.costo_cif|money }}</div>{% endif %}
+      <div class="small text-muted">Materiales {{ o.costo_materiales|money }} · MO {{ o.costo_mano_obra|money }} · CIF {{ o.costo_cif|money }}</div>
+      {% if o.merma_anormal %}<div class="small text-warning mt-1"><i class="bi bi-exclamation-triangle"></i> Merma anormal S/ {{ o.merma_anormal|money }}: consumo sobre la receta, llevado a gasto (NIC 2)</div>{% endif %}
+      {% if o.ajuste_liquidacion %}<div class="text-muted small mt-2">Costo real final (liquidado)</div><div class="fs-5 fw-semibold">S/ {{ o.costo_real_unitario|floatformat:4 }}</div>
+      <div class="small text-muted">Liquidación del periodo {{ o.ajuste_liquidacion|money }} · total {{ o.costo_real_final|money }}</div>{% endif %}{% endif %}
     </div></div>{% endif %}
     {% if avance or o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}
     <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-tablet"></i> Reporte de planta</span>

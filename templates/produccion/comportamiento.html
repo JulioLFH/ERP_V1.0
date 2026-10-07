@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Gastos de planta: fijos y variables{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Gastos de planta: fijos y variables</h1>
+  <a href="{% url 'costos:liquidacion' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Liquidación de costo real</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="table-responsive"><table class="table mb-0">
+    <thead><tr><th>Cuenta (prefijo)</th><th>Comportamiento</th><th></th></tr></thead>
+    <tbody>{% for r in reglas %}<tr>
+      <td class="fw-semibold">{{ r.prefijo }}</td><td>{{ r.get_tipo_display }}</td>
+      <td class="text-end"><form method="post" data-confirm="¿Quitar la regla {{ r.prefijo }}?">{% csrf_token %}<input type="hidden" name="pk" value="{{ r.pk }}"><button name="accion" value="eliminar" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form></td>
+    </tr>{% empty %}<tr><td colspan="3" class="text-center text-muted py-3">Sin reglas: 62 es mano de obra; 6361, 6363 y 656 son CIF variable; lo demás, CIF fijo.</td></tr>{% endfor %}</tbody>
+  </table></div></div></div>
+  <div class="col-lg-5"><div class="card"><div class="card-body">
+    <form method="post" class="row g-2 align-items-end">{% csrf_token %}
+      <div class="col-5"><label class="form-label">Cuenta</label><input name="prefijo" class="form-control" placeholder="Ej. 6343" required pattern="6[0-9]*"></div>
+      <div class="col-7"><label class="form-label">Comportamiento</label><select name="tipo" class="form-select">{% for v, n in tipos %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
+      <div class="col-12"><button name="accion" value="guardar" class="btn btn-primary btn-sm"><i class="bi bi-check2"></i> Guardar regla</button></div>
+    </form>
+    <hr>
+    <p class="small text-muted mb-1">Manda la regla de la cuenta más larga: si 62 es mano de obra y 6211 es CIF fijo, los sueldos de la 6211 se tratan como fijos.</p>
+    <ul class="small text-muted mb-0">
+      <li><b>Mano de obra directa</b> y <b>CIF variable</b> (energía de máquinas, agua, suministros): van completos al producto.</li>
+      <li><b>CIF fijo</b> (depreciación, alquiler, supervisión, mantenimiento, seguros): va al producto según la capacidad normal del puesto; la capacidad ociosa queda como gasto del periodo (NIC 2 párr. 13).</li>
+    </ul>
+    <p class="small text-muted mt-2 mb-0">Esta clasificación es un criterio contable de la empresa: valídela con su contador o auditor.</p>
+  </div></div></div>
+</div>
+{% endblock %}

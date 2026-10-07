@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.24.0 — 07/10/2026 · Cierre de costos según la NIC 2
+- **Liquidación de costo real** (Costos › Cierre de costos): al cierre del mes, el gasto real de cada centro de costo de planta (planillas, depreciación, energía…) se lleva a las órdenes terminadas por sus horas y, por producto, al inventario (revaloriza el costo promedio) o al costo de ventas, por línea de negocio. Multinivel: lo de los semielaborados pasa a los productos que los consumieron. Se puede volver a liquidar o anular.
+- **Capacidad normal (NIC 2 párr. 13)**: cada puesto de trabajo tiene sus horas normales al mes; el CIF fijo de la capacidad ociosa queda como gasto del periodo y no se inventaría. Pantalla para clasificar los gastos de planta en mano de obra, CIF variable y CIF fijo por cuenta.
+- **Merma anormal**: lo consumido por encima de la receta (con su merma normal) va a gasto y no al costo del producto; se muestra en la orden y en sus variaciones.
+- **Valor neto realizable**: prueba al cierre con el precio promedio de las ventas recientes menos los gastos de venta; registra la desvalorización (695 / 29) y su reversión, por defecto solo en el libro NIIF. Nuevas cuentas 29 y 695.
+- Permiso nuevo «Liquidar el costo real y registrar el VNR», que se asigna expresamente.
+
 ## v1.23.4 — 07/10/2026 · Sin datos de clientes en el código
 - Los comandos de migración ya no traen el RUC ni la razón social de ninguna empresa: los toman de Ajustes › Empresa o de los parámetros `--ruc`, `--razon-social` (migrar_excels) y `--compania` (importar_anteriores).
 - Ajustes locales de revisión renombrados a `erp.settings_cliente` (base `cliente.sqlite3`); pruebas con datos genéricos.

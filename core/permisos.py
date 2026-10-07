@@ -39,7 +39,8 @@ ACCIONES = {
                     ('recetas', 'Recetas, hojas de ruta, versiones, puestos y costo estándar', True),
                     ('aprobar_cambios', 'Aprobar o rechazar cambios de ingeniería', True)],
     'costos': [('liberar', 'Calcular y liberar el costo estándar', True),
-               ('abc', 'Configurar actividades del costeo ABC', True)],
+               ('abc', 'Configurar actividades del costeo ABC', True),
+               ('liquidar', 'Liquidar el costo real y registrar el valor neto realizable (cierre NIC 2)', True)],
     'planillas': [('calcular', 'Registrar trabajadores y calcular planillas', False),
                   ('cerrar', 'Cerrar, reabrir y pagar planillas', True),
                   ('configurar', 'Parámetros, AFP y conceptos de planilla', True)],
@@ -51,7 +52,8 @@ ACCIONES = {
 }
 TODAS = {f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, _ in lista}
 # acciones sensibles nuevas: nunca se dan por defecto (ni a usuarios sin perfil); el administrador las asigna
-EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar', 'manufactura.aprobar_cambios'}
+EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar', 'manufactura.aprobar_cambios',
+              'costos.liquidar'}
 
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
@@ -142,6 +144,8 @@ RUTAS = {
     'manufactura:lista_obsoleta': 'manufactura.recetas', 'manufactura:version_nueva': 'manufactura.recetas',
     'manufactura:version_editar': 'manufactura.recetas', 'manufactura:mrp': {'POST': 'manufactura.ordenes'},
     'costos:estandar': {'POST': 'costos.liberar'},
+    'costos:liquidacion': {'POST': 'costos.liquidar'}, 'costos:vnr': {'POST': 'costos.liquidar'},
+    'costos:comportamiento': {'POST': 'costos.liquidar'},
     'costos:actividad_nueva': {'POST': 'costos.abc'}, 'costos:actividad': {'POST': 'costos.abc'},
     'manufactura:programacion': {'POST': 'manufactura.ordenes'},
     'manufactura:planta_orden': {'POST': 'manufactura.ordenes'},

@@ -502,7 +502,14 @@ def resultados_por_linea(request):
         pk = h.orden.producto.centro_beneficio_id
         pk = pk if pk in datos['planta'] else None
         datos['planta'][pk] += h.costo_mo + h.costo_cif
-    margen = {pk: datos['ventas'][pk] + datos['costo'][pk] for pk, _ in columnas}
+    # lo que la liquidación del costo real llevó al producto también salió del gasto de planta
+    from produccion.models import LiquidacionOrden
+    for lo in LiquidacionOrden.objects.filter(liquidacion__periodo__range=[desde, hasta]).select_related(
+            'orden__producto'):
+        pk = lo.orden.producto.centro_beneficio_id
+        pk = pk if pk in datos['planta'] else None
+        datos['planta'][pk] += lo.mano_obra + lo.cif
+    margen ={pk: datos['ventas'][pk] + datos['costo'][pk] for pk, _ in columnas}
     resultado = {pk: margen[pk] + datos['gastos'][pk] + datos['planta'][pk] + datos['otros'][pk]
                  for pk, _ in columnas}
     # cuentas por cobrar e inventario por línea al cierre

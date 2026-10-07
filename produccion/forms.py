@@ -17,7 +17,7 @@ class CentroTrabajoForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = CentroTrabajo
         fields = ['codigo', 'nombre', 'tipo', 'costo_hora_mo', 'costo_hora_cif', 'centro_costo', 'horas_turno',
-                  'turnos', 'eficiencia', 'activo']
+                  'turnos', 'eficiencia', 'horas_normales_mes', 'activo']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

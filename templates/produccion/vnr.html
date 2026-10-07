@@ -1,0 +1,41 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Valor neto realizable{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Valor neto realizable (VNR)</h1>
+</div>
+<div class="card mb-3 border-primary"><div class="card-body">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-6 col-md-2"><label class="form-label">Fecha de la prueba</label><input type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}" class="form-control form-control-sm" required></div>
+    <div class="col-6 col-md-2"><label class="form-label">Gastos de venta %</label><input type="number" step="0.01" min="0" max="100" name="gasto_venta" value="{{ gasto_venta }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md-2"><label class="form-label">Precio: últimos días</label><input type="number" min="1" max="730" name="dias" value="{{ dias }}" class="form-control form-control-sm"></div>
+    <div class="col-6 col-md-3"><label class="form-label">Libro</label><select name="norma" class="form-select form-select-sm">{% for v, n in normas %}<option value="{{ v }}" {% if v == norma %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-search"></i> Calcular vista previa</button></div>
+    <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="lista" value="1" id="lista" {% if usar_lista %}checked{% endif %}><label class="form-check-label small" for="lista">Sin ventas en esos días, usar el precio de lista del producto (actívelo solo si sus precios de lista están al día)</label></div></div>
+  </form>
+  <p class="small text-muted mt-2 mb-0">NIC 2: el inventario se mide al menor entre su costo y su valor neto realizable = precio de venta estimado (promedio de las facturas y boletas de los últimos días; sin ventas, el producto se revisa a mano o, si lo marca, se usa el precio de lista) − gastos de venta. Se prueban mercaderías, productos terminados y lo que tenga ventas; las materias primas no se desvalorizan si el producto que se fabrica con ellas se vende sobre su costo (párr. 32). Para SUNAT la desvalorización no es deducible hasta que los bienes se vendan o destruyan: por eso por defecto va solo al libro NIIF.</p>
+</div></div>
+{% if filas is not None %}
+<div class="card mb-3"><div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+  <span><i class="bi bi-graph-down-arrow"></i> Vista previa al {{ fecha|date:'d/m/Y' }}: desvalorización S/ {{ total_deterioro|money }} · ajuste del periodo S/ {{ total_ajuste|money }}</span>
+  <form method="post" data-confirm="¿Registrar la prueba al {{ fecha|date:'d/m/Y' }}? Se genera el asiento de desvalorización (695 / 29) en el periodo.">{% csrf_token %}
+    <input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}"><input type="hidden" name="gasto_venta" value="{{ gasto_venta }}"><input type="hidden" name="dias" value="{{ dias }}"><input type="hidden" name="norma" value="{{ norma }}">{% if usar_lista %}<input type="hidden" name="lista" value="1">{% endif %}
+    <button name="accion" value="registrar" class="btn btn-sm btn-primary"><i class="bi bi-check2-circle"></i> Registrar prueba y asiento</button></form>
+</div><div class="table-responsive"><table class="table table-sm table-hover mb-0">
+  <thead><tr><th>Producto</th><th class="num">Cantidad</th><th class="num">Costo unit.</th><th class="num">Valor en libros</th><th class="num">Precio estimado</th><th>Fuente</th><th class="num">VNR unit.</th><th class="num">Desvalorización</th><th class="num">Ajuste del periodo</th></tr></thead>
+  <tbody>{% for f in filas %}<tr class="{% if f.deterioro %}table-warning{% endif %}">
+    <td>{{ f.p.codigo }} {{ f.p.nombre }}</td><td class="num">{{ f.cantidad|floatformat:2 }}</td><td class="num">{{ f.costo|floatformat:4 }}</td><td class="num">{{ f.valor|money }}</td>
+    <td class="num">{% if f.precio %}{{ f.precio|floatformat:4 }}{% endif %}</td><td class="small text-muted">{{ f.fuente }}</td><td class="num">{% if f.vnr is not None %}{{ f.vnr|floatformat:4 }}{% endif %}</td>
+    <td class="num fw-semibold">{{ f.deterioro|money }}</td><td class="num {% if f.ajuste < 0 %}text-success{% elif f.ajuste > 0 %}text-danger{% endif %}">{{ f.ajuste|money }}</td>
+  </tr>{% empty %}<tr><td colspan="9" class="text-center text-muted py-3">No hay mercaderías ni productos terminados en stock a esa fecha.</td></tr>{% endfor %}</tbody>
+</table></div>
+<div class="card-body py-2 small text-muted">Ajuste = desvalorización a esta fecha − la de la última prueba registrada del mismo libro. Positivo: provisión (695 gasto / 29 desvalorización). Negativo: el precio se recuperó o el bien ya salió; se revierte (NIC 2 párr. 33-34).</div></div>
+{% endif %}
+<div class="card"><div class="card-header"><i class="bi bi-clock-history"></i> Pruebas registradas</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Fecha</th><th>Libro</th><th class="num">Gastos de venta</th><th class="num">Productos</th><th>Registrada por</th><th></th></tr></thead>
+  <tbody>{% for p in pruebas %}<tr>
+    <td><a href="{% url 'costos:vnr_detalle' p.pk %}">{{ p.fecha|date:'d/m/Y' }}</a></td><td>{{ p.get_norma_display }}</td><td class="num">{{ p.gasto_venta }}%</td><td class="num">{{ p.lineas.all|length }}</td><td>{{ p.usuario|default:'' }}</td>
+    <td class="text-end"><form method="post" data-confirm="¿Anular la prueba al {{ p.fecha|date:'d/m/Y' }}? Se retira su asiento.">{% csrf_token %}<input type="hidden" name="pk" value="{{ p.pk }}"><button name="accion" value="anular" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular</button></form></td>
+  </tr>{% empty %}<tr><td colspan="6" class="text-center text-muted py-3">Aún no hay pruebas registradas.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

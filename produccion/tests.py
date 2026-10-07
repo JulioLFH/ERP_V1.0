@@ -99,7 +99,10 @@ class ManufacturaTest(TestCase):
         materiales = (D('5') * self.costo_insumo).quantize(D('0.01'))
         self.assertEqual(o.estado, 'TERMINADA')
         self.assertEqual((o.costo_materiales, o.costo_mano_obra, o.costo_cif), (materiales, D('30'), D('15')))
-        self.assertEqual(o.costo_unitario, ((D('5') * self.costo_insumo + 45) / 4).quantize(D('0.0001')))
+        # lo consumido sobre la receta con su merma normal (4.4) es merma anormal: va a gasto, no al producto
+        merma = (D('0.6') * self.costo_insumo).quantize(D('0.01'))
+        self.assertEqual(o.merma_anormal, merma)
+        self.assertEqual(o.costo_unitario, ((D('5') * self.costo_insumo + 45 - merma) / 4).quantize(D('0.0001')))
         self.assertEqual((self.kit.stock, self.kit.costo_promedio), (D('4'), o.costo_unitario))
         self.assertEqual(Producto.objects.get(pk=self.insumo.pk).stock, stock_antes - 5)
         self.assertEqual(o.operacion.estado, 'CONFIRMADO')
