@@ -55,14 +55,14 @@ class BaseNIC2(TestCase):
         VersionFabricacion.objects.create(producto=self.kit, codigo='V1', lista=self.receta, hoja=self.ruta,
                                           vigente_desde=FECHA - timedelta(days=60))
 
-    def producir(self, producto, lista, cantidad, consumo=None, horas=None):
+    def producir(self, producto, lista, cantidad, consumo=None, horas=None, **kw):
         o = OrdenProduccion.objects.create(producto=producto, lista=lista, cantidad=D(cantidad), fecha=FECHA,
                                            almacen_insumos=self.almacen, almacen_destino=self.almacen)
         servicios.explotar(o)
         servicios.confirmar(o, self.user)
         consumos = {c.pk: D(consumo) for c in o.consumos.all()} if consumo else {}
         h = {x.pk: D(horas) for x in o.horas.all()} if horas else {}
-        servicios.terminar(o, self.user, D(cantidad), consumos, h, fecha=FECHA)
+        servicios.terminar(o, self.user, D(kw.pop('producido', cantidad)), consumos, h, fecha=FECHA, **kw)
         o.refresh_from_db()
         return o
 
@@ -77,7 +77,11 @@ class BaseNIC2(TestCase):
 # ---------------------------------------------------------------- merma anormal
 class MermaAnormalTest(BaseNIC2):
     def test_merma_anormal_va_a_gasto_y_no_al_producto(self):
-        o = self.producir(self.kit, self.receta, '4', consumo='5')  # permitido 4.4 (merma normal 10 %)
+        # por defecto: todo lo consumido ÷ todo lo producido (planificado 4, producido 2, consumido todo)
+        o = self.producir(self.kit, self.receta, '4', consumo='4.4', producido='2')
+        self.assertEqual((o.merma_anormal, o.costo_unitario), (0, ((D('44') + 30) / 2).quantize(D('0.0001'))))
+        # si se indica, lo consumido sobre la receta va a gasto
+        o = self.producir(self.kit, self.receta, '4', consumo='5', merma_a_gasto=True)  # permitido 4.4
         self.assertEqual(o.merma_anormal, D('6.00'))  # 0.6 × 10
         self.assertEqual(o.costo_materiales, D('50.00'))
         self.assertEqual(o.costo_unitario, ((D('50') - 6 + 30) / 4).quantize(D('0.0001')))
@@ -85,7 +89,7 @@ class MermaAnormalTest(BaseNIC2):
         self.assertEqual(v['MERMA_ANORMAL'], D('-6.00'))
         self.assertEqual(sum(v.values()), o.costo_total - o.costo_estandar_unit * o.cantidad_producida)
         # dentro de la merma normal no hay merma anormal
-        self.assertEqual(self.producir(self.kit, self.receta, '2', consumo='2.2').merma_anormal, 0)
+        self.assertEqual(self.producir(self.kit, self.receta, '2', consumo='2.2', merma_a_gasto=True).merma_anormal, 0)
 
 
 # ---------------------------------------------------------------- liquidación del costo real

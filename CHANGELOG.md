@@ -3,6 +3,14 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.25.0 — 07/10/2026 · Costeo de planta y estado de resultados mes a mes
+- **Costo real unitario = todo lo consumido ÷ todo lo producido.** La merma anormal ya no se resta sola: al terminar la orden hay una casilla para llevar a gasto el consumo sobre la receta cuando corresponda (NIC 2 párr. 16).
+- **Tarifas separadas por puesto**: mano de obra (por hora hombre), máquina y CIF (ambas por hora máquina). Las horas de la orden son horas máquina; la hoja de ruta indica la cuadrilla (maquinistas y ayudantes) de cada operación.
+- **Horas hombre por maquinista y ayudante**: al terminar, cada operación lista su cuadrilla con el rol, el trabajador de planillas y sus horas. La hora se valoriza al **costo real del trabajador** (sueldo, asignación familiar, EsSalud, gratificaciones con bonificación, CTS y vacaciones según su régimen); sin trabajador, a la tarifa referencial del puesto. Variaciones de eficiencia de mano de obra por horas hombre y de máquina/CIF por horas máquina.
+- **Subproductos y coproductos** en la receta (NIC 2 párr. 14): el subproducto entra a su valor por unidad y se resta del costo del principal; el coproducto recibe su % del costo conjunto. Se declaran al terminar la orden y entran al almacén con su costo.
+- **Fecha y hora de término**: por defecto la fecha y hora actual.
+- **Estado de resultados mes a mes**: una columna por mes y el total, por función o por naturaleza (nuevo), con exportación a Excel.
+
 ## v1.24.2 — 07/10/2026 · Todas las órdenes de producción del sistema anterior
 - `cargar_manufactura` carga también las órdenes **terminadas y canceladas** del sistema anterior como órdenes del ERP marcadas «Del sistema anterior»: con su número, fechas, cantidad producida, costos y consumo real (cuando el reporte lo trae), sin operación de almacén ni asiento, porque su producción ya está en el inventario y la contabilidad migrados.
 - Esas órdenes son de consulta: no se anulan en el ERP y no entran al costo real vs estándar ni a la liquidación del costo real. Los productos sin detalle de componentes reciben una receta de referencia obsoleta (no la usan el MRP ni las órdenes nuevas).

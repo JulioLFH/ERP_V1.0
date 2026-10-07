@@ -68,8 +68,8 @@ def costeo(periodo):
                             'sin_base': bool(costo and not total)})
     desde, hasta = _rango(periodo)
     terminadas = OrdenProduccion.objects.filter(estado='TERMINADA', fecha_fin__range=[desde, hasta])
-    tradicional = {pid: (mo or D0) + (cif or D0) for pid, mo, cif in terminadas.values_list('producto').annotate(
-        mo=Sum('costo_mano_obra'), cif=Sum('costo_cif'))}
+    tradicional = {pid: (mo or D0) + (maq or D0) + (cif or D0) for pid, mo, maq, cif in terminadas.values_list(
+        'producto').annotate(mo=Sum('costo_mano_obra'), maq=Sum('costo_maquina'), cif=Sum('costo_cif'))}
     unidades = cantidades['UNIDADES']
     productos = []
     for p in Producto.objects.filter(pk__in=set(asignado) | set(tradicional)).order_by('nombre'):

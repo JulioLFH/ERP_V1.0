@@ -5,7 +5,7 @@ from core.forms import remoto, BootstrapMixin, validar_periodo_abierto
 from core.models import Almacen, Producto
 
 from .models import (DIAS, CentroTrabajo, ComponenteLista, HojaRuta, ListaMateriales, OperacionRuta,
-                     OrdenProduccion, PlanDemanda, VersionFabricacion)
+                     OrdenProduccion, PlanDemanda, SubproductoLista, VersionFabricacion)
 
 FABRICABLES = ['PRODUCTO_TERMINADO', 'SEMIELABORADO']
 
@@ -16,7 +16,8 @@ class CentroTrabajoForm(BootstrapMixin, forms.ModelForm):
 
     class Meta:
         model = CentroTrabajo
-        fields = ['codigo', 'nombre', 'tipo', 'costo_hora_mo', 'costo_hora_cif', 'centro_costo', 'horas_turno',
+        fields = ['codigo', 'nombre', 'tipo', 'costo_hora_mo', 'costo_hora_maquina', 'costo_hora_cif', 'centro_costo',
+                  'horas_turno',
                   'turnos', 'eficiencia', 'horas_normales_mes', 'activo']
 
     def __init__(self, *args, **kwargs):
@@ -100,6 +101,41 @@ ComponentesFormSet = inlineformset_factory(ListaMateriales, ComponenteLista, for
                                            can_delete=True, min_num=1, validate_min=True)
 
 
+class SubproductoForm(_FilaForm):
+    class Meta:
+        model = SubproductoLista
+        fields = ['producto', 'cantidad', 'tipo', 'valor_unitario', 'participacion']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, tipo='BIEN')
+        remoto(self.fields['producto'], 'productos_bienes')
+
+    def clean(self):
+        datos = super().clean()
+        if datos.get('cantidad') is not None and datos['cantidad'] <= 0:
+            self.add_error('cantidad', 'Debe ser mayor a cero.')
+        if datos.get('tipo') == 'COPRODUCTO' and not (0 < (datos.get('participacion') or 0) < 100):
+            self.add_error('participacion', 'Indique el % del costo conjunto (entre 0 y 100).')
+        if datos.get('tipo') == 'SUBPRODUCTO' and (datos.get('valor_unitario') or 0) < 0:
+            self.add_error('valor_unitario', 'No puede ser negativo.')
+        return datos
+
+
+class _SubproductosBase(forms.BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        total = sum((f.cleaned_data.get('participacion') or 0 for f in self.forms
+                     if f.cleaned_data and not f.cleaned_data.get('DELETE') and
+                     f.cleaned_data.get('tipo') == 'COPRODUCTO'), 0)
+        if total >= 100:
+            raise forms.ValidationError('Los coproductos suman 100 % o más: al producto principal no le quedaría costo.')
+
+
+SubproductosFormSet = inlineformset_factory(ListaMateriales, SubproductoLista, form=SubproductoForm,
+                                            formset=_SubproductosBase, extra=0, can_delete=True)
+
+
 class HojaRutaForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = HojaRuta
@@ -110,7 +146,8 @@ class HojaRutaForm(BootstrapMixin, forms.ModelForm):
 class OperacionRutaForm(_FilaForm):
     class Meta:
         model = OperacionRuta
-        fields = ['secuencia', 'centro', 'descripcion', 'horas_preparacion', 'horas_unidad', 'horas_espera']
+        fields = ['secuencia', 'centro', 'descripcion', 'horas_preparacion', 'horas_unidad', 'horas_espera',
+                  'maquinistas', 'ayudantes']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

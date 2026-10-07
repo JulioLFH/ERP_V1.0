@@ -14,14 +14,14 @@
   <span class="small text-muted ms-2">1) Calcular: costea cada producto con su versión vigente, de abajo hacia arriba (los semielaborados primero), materiales al costo actual y actividades a las tarifas de cada puesto. 2) Liberar: el estándar queda fijo para el periodo; ya no cambia al confirmar cada orden.</span>
 </div></div>
 <div class="card"><div class="table-responsive"><table class="table table-hover mb-0">
-  <thead><tr><th>Producto</th><th>Versión</th><th class="num">Materiales</th><th class="num">Mano de obra</th><th class="num">Máquina y CIF</th><th class="num">Estándar unit.</th><th>Estado</th><th class="num">Costo promedio</th><th class="num">Precio venta</th><th class="num">Margen %</th></tr></thead>
+  <thead><tr><th>Producto</th><th>Versión</th><th class="num">Materiales</th><th class="num">Mano de obra</th><th class="num">Máquina</th><th class="num">CIF</th><th class="num">Estándar unit.</th><th>Estado</th><th class="num">Costo promedio</th><th class="num">Precio venta</th><th class="num">Margen %</th></tr></thead>
   <tbody>{% for f in filas %}<tr>
     <td>{{ f.p.codigo }} {{ f.p.nombre }}</td><td><a href="{% url 'costos:hoja' f.version.lista_id %}">{{ f.version.codigo }}</a></td>
-    {% if f.ce %}<td class="num">{{ f.ce.materiales|floatformat:4 }}</td><td class="num">{{ f.ce.mano_obra|floatformat:4 }}</td><td class="num">{{ f.ce.cif|floatformat:4 }}</td><td class="num fw-semibold">{{ f.ce.unitario|floatformat:4 }}</td>
+    {% if f.ce %}<td class="num">{{ f.ce.materiales|floatformat:4 }}</td><td class="num">{{ f.ce.mano_obra|floatformat:4 }}</td><td class="num">{{ f.ce.maquina|floatformat:4 }}</td><td class="num">{{ f.ce.cif|floatformat:4 }}</td><td class="num fw-semibold">{{ f.ce.unitario|floatformat:4 }}</td>
       <td><span class="badge {% if f.ce.estado == 'LIBERADO' %}text-bg-success{% else %}text-bg-warning{% endif %}">{{ f.ce.get_estado_display }}</span></td>
-    {% else %}<td colspan="4" class="text-muted small">Sin calcular{% if f.anterior %} · vigente el de {{ f.anterior.periodo|slice:'4:' }}/{{ f.anterior.periodo|slice:':4' }}: S/ {{ f.anterior.unitario|floatformat:4 }}{% endif %}</td><td></td>{% endif %}
+    {% else %}<td colspan="5" class="text-muted small">Sin calcular{% if f.anterior %} · vigente el de {{ f.anterior.periodo|slice:'4:' }}/{{ f.anterior.periodo|slice:':4' }}: S/ {{ f.anterior.unitario|floatformat:4 }}{% endif %}</td><td></td>{% endif %}
     <td class="num">{{ f.p.costo_promedio|floatformat:4 }}</td><td class="num">{{ f.p.precio_venta|money }}</td>
     <td class="num {% if f.pct is not None and f.pct < 0 %}text-danger{% endif %}">{% if f.pct is not None %}{{ f.pct }}%{% endif %}</td>
-  </tr>{% empty %}<tr><td colspan="10" class="text-center text-muted py-4">No hay versiones de fabricación activas.</td></tr>{% endfor %}</tbody>
+  </tr>{% empty %}<tr><td colspan="11" class="text-center text-muted py-4">No hay versiones de fabricación activas.</td></tr>{% endfor %}</tbody>
 </table></div></div>
 {% endblock %}

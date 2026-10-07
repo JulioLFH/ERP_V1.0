@@ -17,7 +17,7 @@ from core.views import FormGenerico, ListaGenerica
 
 from . import servicios
 from .forms import (CentroTrabajoForm, ComponentesFormSet, HojaRutaForm, ListaMaterialesForm,
-                    OperacionesRutaFormSet, OrdenProduccionForm, PlanDemandaForm, VersionForm)
+                    OperacionesRutaFormSet, OrdenProduccionForm, PlanDemandaForm, SubproductosFormSet, VersionForm)
 from .models import (CambioIngenieria, CentroTrabajo, CorridaMRP, HojaRuta, ListaMateriales, OrdenProduccion,
                      PlanDemanda, PropuestaMRP, VersionFabricacion)
 
@@ -89,7 +89,24 @@ def orden_detalle(request, pk):
     filas = servicios.disponibilidad(orden)
     from .avanzado import resumen_avance
     avance = resumen_avance(orden)
-    ctx = {'o': orden, 'filas': filas, 'horas': orden.horas.select_related('centro'),
+    abierta = orden.estado in ('CONFIRMADA', 'EN_PROCESO')
+    horas = list(orden.horas.select_related('centro').prefetch_related('personal__trabajador'))
+    trabajadores = []
+    if abierta and horas:
+        # la cuadrilla prevista (con las horas máquina) y una fila libre para quien se sume
+        for h in horas:
+            h.filas_personal = ([{'rol': 'MAQUINISTA', 'horas': h.horas_real}] * h.maquinistas +
+                                [{'rol': 'AYUDANTE', 'horas': h.horas_real}] * h.ayudantes +
+                                [{'rol': 'AYUDANTE', 'horas': None}])
+        from planillas.models import Trabajador
+        hoy = timezone.localdate()
+        trabajadores = [t for t in Trabajador.objects.select_related('centro_costo').filter(fecha_ingreso__isnull=False).exclude(
+            fecha_cese__lt=hoy).order_by('apellido_paterno', 'apellido_materno', 'nombres')]
+        planta = [t for t in trabajadores if t.tipo == 'OBRERO' or (t.centro_costo_id and
+                                                                     t.centro_costo.tipo == 'PRODUCCION')]
+        trabajadores = planta or trabajadores
+    ctx = {'o': orden, 'filas': filas, 'horas': horas, 'abierta': abierta, 'trabajadores': trabajadores,
+           'salidas': list(orden.salidas.select_related('producto')), 'ahora': timezone.localtime(),
            'faltan': any(f['faltante'] > 0 for f in filas) and orden.estado != 'TERMINADA',
            'hoy': timezone.localdate(), 'avance': avance,
            'a_producir': avance['producido'] if avance and avance['producido'] else orden.cantidad}
@@ -133,11 +150,26 @@ def orden_terminar(request, pk):
     if request.method == 'POST':
         consumos = {c.pk: _decimal(request.POST.get(f'consumo_{c.pk}'), c.cantidad_real) for c in orden.consumos.all()}
         horas = {h.pk: _decimal(request.POST.get(f'hora_{h.pk}'), h.horas_real) for h in orden.horas.all()}
+        # horas hombre: filas hh_<operación>_<n>_rol / _trab / _horas (solo las que traen horas)
+        personal = {}
+        for h in orden.horas.all():
+            filas, n = [], 0
+            while f'hh_{h.pk}_{n}_rol' in request.POST:
+                valor = _decimal(request.POST.get(f'hh_{h.pk}_{n}_horas'), None)
+                if valor:
+                    trab = request.POST.get(f'hh_{h.pk}_{n}_trab')
+                    filas.append({'rol': request.POST.get(f'hh_{h.pk}_{n}_rol'), 'horas': valor,
+                                  'trabajador': int(trab) if trab and trab.isdigit() else None})
+                n += 1
+            if n:
+                personal[h.pk] = filas
+        salidas = {s.pk: _decimal(request.POST.get(f'salida_{s.pk}'), s.cantidad_real) for s in orden.salidas.all()}
         cantidad = _decimal(request.POST.get('cantidad_producida'))
         fecha = request.POST.get('fecha') or None
         from inventario.cierre import KardexCerrado
         try:
-            servicios.terminar(orden, request.user, cantidad, consumos, horas, fecha)
+            servicios.terminar(orden, request.user, cantidad, consumos, horas, fecha, personal=personal,
+                               salidas=salidas, merma_a_gasto=request.POST.get('merma_a_gasto') == '1')
             messages.success(request, f'Orden {orden.numero} terminada: ingresaron {orden.cantidad_producida:,.2f} '
                                       f'{orden.producto.unidad} de {orden.producto.nombre} al almacén.')
         except (servicios.ErrorProduccion, KardexCerrado) as exc:
@@ -202,17 +234,24 @@ def _en_uso(lista):
 def _guardar_lista(request, lista, titulo):
     form = ListaMaterialesForm(request.POST or None, instance=lista)
     componentes = ComponentesFormSet(request.POST or None, instance=lista, prefix='comp')
-    if request.method == 'POST' and form.is_valid() and componentes.is_valid():
+    subproductos = SubproductosFormSet(request.POST or None, instance=lista, prefix='sub')
+    if request.method == 'POST' and form.is_valid() and componentes.is_valid() and subproductos.is_valid():
         producto = form.cleaned_data['producto']
         ciclo = [f for f in componentes.forms
                  if f.cleaned_data and not f.cleaned_data.get('DELETE') and f.cleaned_data.get('producto') == producto]
+        repetido = [f for f in subproductos.forms
+                    if f.cleaned_data and not f.cleaned_data.get('DELETE') and f.cleaned_data.get('producto') == producto]
         if ciclo:
             form.add_error(None, f'{producto.nombre} no puede ser insumo de su propia receta.')
+        elif repetido:
+            form.add_error(None, f'{producto.nombre} es el producto principal: no puede ser también su subproducto.')
         else:
             with transaction.atomic():
                 lista = form.save()
                 componentes.instance = lista
                 componentes.save()
+                subproductos.instance = lista
+                subproductos.save()
                 if not lista.versiones.exists():  # primera receta del producto: su versión de fabricación
                     VersionFabricacion.objects.get_or_create(
                         producto=lista.producto, codigo=lista.codigo[:10],
@@ -221,7 +260,7 @@ def _guardar_lista(request, lista, titulo):
             return redirect('manufactura:lista', lista.pk)
     from core.models import Producto
     return render(request, 'produccion/lista_form.html', {
-        'form': form, 'componentes': componentes, 'titulo': titulo, 'lista': lista,
+        'form': form, 'componentes': componentes, 'subproductos': subproductos, 'titulo': titulo, 'lista': lista,
         'unidades': dict(Producto.objects.filter(activo=True, tipo='BIEN').values_list('pk', 'unidad'))})
 
 
@@ -357,7 +396,8 @@ class CentroLista(ListaGenerica):
     model = CentroTrabajo
     titulo = 'Puestos de trabajo'
     columnas = [('Código', 'codigo'), ('Nombre', 'nombre'), ('Tipo', 'get_tipo_display'),
-                ('Mano de obra S/ h', 'costo_hora_mo'), ('Máquina y CIF S/ h', 'costo_hora_cif'),
+                ('Mano de obra S/ h hombre', 'costo_hora_mo'), ('Máquina S/ h', 'costo_hora_maquina'),
+                ('CIF S/ h', 'costo_hora_cif'),
                 ('Capacidad h/día', 'capacidad_dia'), ('Eficiencia %', 'eficiencia'),
                 ('Centro de costo', 'centro_costo'), ('Activo', 'activo')]
     url_nuevo, url_editar = 'manufactura:centro_nuevo', 'manufactura:centro_editar'

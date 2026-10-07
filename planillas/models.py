@@ -169,6 +169,28 @@ class Trabajador(models.Model):
     def activo(self):
         return self.fecha_cese is None or self.fecha_cese >= date.today()
 
+    # gratificaciones, CTS y vacaciones devengadas por mes, en fracción de la remuneración, según el régimen
+    BENEFICIOS = {'GENERAL': (Decimal(2) / 12, (1 + Decimal(1) / 6) / 12, Decimal(1) / 12),
+                  'PEQUENA': (Decimal(1) / 12, (1 + Decimal(1) / 12) / 24, Decimal(1) / 24),
+                  'MICRO': (D0, D0, Decimal(1) / 24)}
+
+    def costo_hora(self, fecha=None):
+        """Costo para la empresa de una hora de trabajo: remuneración (con asignación familiar) + EsSalud +
+        gratificaciones con su bonificación + CTS + vacaciones devengadas, entre las horas del mes (30 × jornada).
+        Es el costo con que se valorizan las horas hombre de producción; al cierre, la liquidación del costo real
+        lo ajusta a lo que costó la planilla."""
+        fecha = fecha or date.today()
+        try:
+            p = Parametro.del_anio(fecha.year)
+            essalud, bonif, jornada = p.essalud_pct / 100, p.bonificacion_extraordinaria_pct / 100, p.horas_jornada
+            af = p.asignacion_familiar if self.asignacion_familiar else D0
+        except ValueError:
+            essalud, bonif, jornada, af = Decimal('0.09'), Decimal('0.09'), Decimal('8'), D0
+        r = self.sueldo + af
+        grat, cts, vac = self.BENEFICIOS.get(self.regimen, self.BENEFICIOS['GENERAL'])
+        mensual = r * (1 + essalud) + r * grat * (1 + bonif) + r * cts + r * vac * (1 + essalud)
+        return (mensual / (30 * (jornada or Decimal('8')))).quantize(Decimal('0.0001'))
+
 
 class Planilla(models.Model):
     TIPOS = [('MENSUAL', 'Remuneraciones del mes'), ('GRATIFICACION', 'Gratificación (julio / diciembre)'),

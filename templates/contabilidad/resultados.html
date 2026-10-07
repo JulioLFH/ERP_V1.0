@@ -2,14 +2,19 @@
 {% block title %}Estado de resultados{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-  <div><h1 class="page-title">Estado de resultados (por función)</h1>
-    <div class="text-muted small">{{ empresa.razon_social }} · de {{ desde|slice:"4:" }}/{{ desde|slice:":4" }} a {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }}{% if comparar %} · comparado con {{ etiqueta_comp|lower }}{% endif %} · en soles</div></div>
+  <div><h1 class="page-title">Estado de resultados (por {% if vista == 'naturaleza' %}naturaleza{% else %}función{% endif %})</h1>
+    <div class="text-muted small">{{ empresa.razon_social }} · de {{ desde|slice:"4:" }}/{{ desde|slice:":4" }} a {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }}{% if comparar == 'meses' %} · desglose mensual{% elif comparar %} · comparado con {{ etiqueta_comp|lower }}{% endif %} · en soles</div></div>
   <form class="d-flex flex-wrap gap-2 d-print-none" method="get">{% include 'contabilidad/_norma.html' %}
     <input type="month" name="desde" value="{{ mes_desde }}" class="form-control form-control-sm" style="width:auto">
     <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm" style="width:auto">
+    <select name="vista" class="form-select form-select-sm" style="width:auto">
+      <option value="funcion" {% if vista != 'naturaleza' %}selected{% endif %}>Por función</option>
+      <option value="naturaleza" {% if vista == 'naturaleza' %}selected{% endif %}>Por naturaleza</option>
+    </select>
     <select name="comparar" class="form-select form-select-sm" style="width:auto">
       <option value="">Sin comparativo</option>
-      {% for v, t in opciones %}<option value="{{ v }}" {% if comparar == v %}selected{% endif %}>vs {{ t }}</option>{% endfor %}
+      <option value="meses" {% if comparar == 'meses' %}selected{% endif %}>Desglose mes a mes</option>
+      {% if vista != 'naturaleza' %}{% for v, t in opciones %}<option value="{{ v }}" {% if comparar == v %}selected{% endif %}>vs {{ t }}</option>{% endfor %}{% endif %}
     </select>
     <button class="btn btn-sm btn-primary">Ver</button>
     <button name="formato" value="excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></button>
@@ -17,6 +22,20 @@
   </form>
 </div>
 {% if sin_presupuesto %}<div class="alert alert-info small d-print-none">No hay presupuesto para el año. Regístrelo en <a href="{% url 'contabilidad:presupuestos' %}">Contabilidad › Presupuestos</a>.</div>{% endif %}
+{% if comparar == 'meses' %}
+<div class="card"><div class="card-body table-responsive p-0">
+  <table class="table table-sm table-hover mb-0 small" style="white-space:nowrap">
+    <thead class="table-light"><tr><th style="position:sticky;left:0;background:var(--bs-tertiary-bg);z-index:1">Concepto</th>{% for m in meses %}<th class="num">{{ m }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
+    <tbody>{% for f in mensual %}
+      <tr class="{% if f.estilo == 'subtotal' %}fw-semibold border-top{% elif f.estilo == 'total' %}fw-bold table-light{% elif f.estilo == 'alerta' %}text-warning-emphasis{% endif %}">
+        <td style="position:sticky;left:0;background:var(--bs-body-bg)" {% if not f.estilo %}class="ps-3"{% endif %}>{{ f.nombre }}</td>
+        {% for v in f.valores %}<td class="num {% if v < 0 %}text-danger{% endif %}">{{ v|money }}</td>{% endfor %}
+        <td class="num fw-semibold {% if f.total < 0 %}text-danger{% endif %}">{{ f.total|money }}</td></tr>
+    {% endfor %}</tbody>
+  </table>
+</div></div>
+<p class="small text-muted mt-2">Cada columna es el resultado del mes con los asientos de ese periodo; el total es el del rango elegido. Para el año completo elija de enero a diciembre.</p>
+{% else %}
 <div class="card" style="max-width:{% if comparar %}980px{% else %}720px{% endif %}"><div class="card-body table-responsive">
   <table class="table table-sm mb-0">
     {% if comparar %}
@@ -39,4 +58,5 @@
   </table>
 </div></div>
 {% if comparar %}<p class="small text-muted mt-2">Variación = actual − comparativo; en verde mejora el resultado (más ingreso o menos gasto). {% if comparar == 'presupuesto' %}Los gastos presupuestados por naturaleza (62-68) se llevan a su función con el destino de la cuenta y el tipo de centro de costo.{% endif %}</p>{% endif %}
+{% endif %}
 {% endblock %}

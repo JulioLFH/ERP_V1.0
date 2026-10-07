@@ -123,6 +123,70 @@ def estado_resultados(desde, hasta, sumas=None):
     return lineas, neta
 
 
+def estado_resultados_naturaleza(desde, hasta, sumas=None):
+    """Estado de resultados por naturaleza (PCGE): ingresos y gastos por su clase; mismo resultado que por función."""
+    s = sumas_por_cuenta(desde, hasta) if sumas is None else sumas
+    ventas = -_neto(s, ('70',))
+    produccion = -_neto(s, ('71', '72'))
+    otros_ing = -_neto(s, ('73', '74', '75', '76', '78'))
+    ing_fin = -_neto(s, ('77',))
+    compras = _neto(s, ('60', '61'))
+    costo_ventas = _neto(s, ('69',))
+    gastos = [('Gastos de personal', _neto(s, ('62',))), ('Servicios prestados por terceros', _neto(s, ('63',))),
+              ('Tributos', _neto(s, ('64',))), ('Otros gastos de gestión', _neto(s, ('65',))),
+              ('Pérdida por medición de activos', _neto(s, ('66',))),
+              ('Valuación, deterioro y provisiones', _neto(s, ('68',)))]
+    fin = _neto(s, ('67',))
+    renta = _neto(s, ('88',))
+    antes = ventas + produccion + otros_ing + ing_fin - compras - costo_ventas - sum(g for _, g in gastos) - fin
+    neta = antes - renta
+    lineas = [('Ventas netas', ventas, 'total'), ('Variación de la producción almacenada', produccion, ''),
+              ('Compras y variación de existencias', -compras, ''), ('Costo de ventas', -costo_ventas, '')]
+    lineas += [(n, -v, '') for n, v in gastos]
+    lineas += [('Otros ingresos de gestión', otros_ing, ''), ('Ingresos financieros', ing_fin, ''),
+               ('Gastos financieros', -fin, ''),
+               ('RESULTADO ANTES DE IMPUESTO A LA RENTA', antes, 'subtotal'),
+               ('Impuesto a la renta', -renta, ''), ('RESULTADO DEL EJERCICIO', neta, 'total')]
+    return lineas, neta
+
+
+def meses_entre(desde, hasta):
+    meses, a, m = [], int(desde[:4]), int(desde[4:])
+    while f'{a}{m:02d}' <= hasta and len(meses) < 120:
+        meses.append(f'{a}{m:02d}')
+        a, m = (a + 1, 1) if m == 12 else (a, m + 1)
+    return meses
+
+
+def resultados_mensual(desde, hasta, vista='funcion'):
+    """Estado de resultados con una columna por mes y el total del rango: [{nombre, estilo, valores, total}]."""
+    meses = meses_entre(desde, hasta)
+    por_mes = {p: {} for p in meses}
+    total = {}
+    for f in (lineas_rango(desde, hasta).values('asiento__periodo', 'cuenta__codigo')
+              .annotate(d=Sum('debe'), h=Sum('haber'))):
+        d, h = r2(f['d']), r2(f['h'])
+        if f['asiento__periodo'] in por_mes:
+            por_mes[f['asiento__periodo']][f['cuenta__codigo']] = (d, h)
+        td, th = total.get(f['cuenta__codigo'], (D0, D0))
+        total[f['cuenta__codigo']] = (td + d, th + h)
+    calcular = estado_resultados_naturaleza if vista == 'naturaleza' else estado_resultados
+    columnas = [dict((n, (v, e)) for n, v, e in calcular(p, p, sumas=por_mes[p])[0]) for p in meses]
+    filas = []
+    for nombre, valor, estilo in calcular(desde, hasta, sumas=total)[0]:
+        valores = [c.get(nombre, (D0, ''))[0] for c in columnas]
+        filas.append({'nombre': nombre, 'estilo': estilo, 'valores': valores, 'total': valor})
+    # una fila que solo aparece en algunos meses (ej. gastos sin destino) también se muestra
+    nombres = {f['nombre'] for f in filas}
+    for i, c in enumerate(columnas):
+        for nombre, (valor, estilo) in c.items():
+            if nombre not in nombres:
+                nombres.add(nombre)
+                filas.insert(-6, {'nombre': nombre, 'estilo': estilo, 'total': D0,
+                                  'valores': [col.get(nombre, (D0, ''))[0] for col in columnas]})
+    return meses, filas
+
+
 RUBROS_ACTIVO = [
     ('corriente', 'Efectivo y equivalentes de efectivo', ('10',)),
     ('corriente', 'Inversiones financieras', ('11',)),

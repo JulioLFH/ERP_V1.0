@@ -203,7 +203,7 @@ def errores_lotes(op, items):
         control = i.producto.control
         if not control:
             continue
-        entra = clase == 'INGRESO' or (clase == 'MANUFACTURA' and i.rol == 'PRODUCTO')
+        entra = clase == 'INGRESO' or (clase == 'MANUFACTURA' and i.rol in ('PRODUCTO', 'SUBPROD'))
         sale = clase in ('SALIDA', 'TRASLADO', 'TRANSITO_ENVIO') or (clase == 'MANUFACTURA' and i.rol == 'INSUMO')
         codigos = i.codigos_lote
         nombre = i.producto.nombre
@@ -298,8 +298,13 @@ def confirmar(op, usuario=None):
                 valor += i.cantidad * i.costo_unitario
                 _mover(i, -i.cantidad, op, op.almacen_origen, None, tipo.codigo_sunat)
             valor += op.costo_adicional or D0  # mano de obra y costos indirectos (órdenes de producción)
+            # subproductos y coproductos entran al costo que les asignó la orden; el producto principal, al resto
+            for i in (x for x in items if x.rol == 'SUBPROD'):
+                costo_sub = i.costo_unitario or D0
+                valor -= i.cantidad * costo_sub
+                _mover(i, i.cantidad, op, op.almacen_destino, costo_sub, tipo.codigo_sunat_ingreso or '19')
             unidades = sum((i.cantidad for i in productos), D0)
-            costo = (valor / unidades).quantize(Decimal('0.0001')) if unidades else D0
+            costo = (max(valor, D0) / unidades).quantize(Decimal('0.0001')) if unidades else D0
             for i in productos:
                 i.costo_unitario = costo
                 i.save(update_fields=['costo_unitario'])
@@ -354,7 +359,7 @@ def errores_anulacion(op):
     if clase == 'TRANSITO_ENVIO':
         return faltantes_stock([(i.producto, i.cantidad) for i in items], Almacen.especial('TRANSITO'))
     if clase == 'MANUFACTURA':
-        return faltantes_stock([(i.producto, i.cantidad) for i in items if i.rol == 'PRODUCTO'],
+        return faltantes_stock([(i.producto, i.cantidad) for i in items if i.rol in ('PRODUCTO', 'SUBPROD')],
                                op.almacen_destino)
     return []
 
@@ -385,7 +390,7 @@ def anular(op, usuario, motivo):
                 i.producto.mover_stock(-i.cantidad, ref, almacen=destino, codigo_sunat='11', **kw)
                 i.producto.mover_stock(i.cantidad, ref, almacen=origen, codigo_sunat='21', **kw)
             elif tipo.clase == 'MANUFACTURA':
-                if i.rol == 'PRODUCTO':
+                if i.rol in ('PRODUCTO', 'SUBPROD'):
                     i.producto.mover_stock(-i.cantidad, ref, almacen=op.almacen_destino, codigo_sunat='19', **kw)
                 else:
                     i.producto.mover_stock(i.cantidad, ref, costo=i.costo_unitario, almacen=op.almacen_origen,

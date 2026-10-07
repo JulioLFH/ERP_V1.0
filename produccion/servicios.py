@@ -15,8 +15,8 @@ from django.utils import timezone
 
 from core.models import Producto, Serie, r2
 
-from .models import (ConsumoOrden, CostoEstandar, CorridaMRP, HoraOrden, ListaMateriales, OrdenProduccion,
-                     PlanDemanda, PropuestaMRP, VariacionOrden, VersionFabricacion)
+from .models import (ConsumoOrden, CostoEstandar, CorridaMRP, HoraHombre, HoraOrden, ListaMateriales,
+                     OrdenProduccion, PlanDemanda, PropuestaMRP, SalidaOrden, VariacionOrden, VersionFabricacion)
 
 D0 = Decimal('0')
 D4 = Decimal('0.0001')
@@ -113,22 +113,42 @@ def hoja_costos(origen, visitados=None, cantidad=None, periodo=None, en_corrida=
         materiales.append({'producto': c.producto, 'cantidad': cant, 'merma': c.merma, 'costo': costo,
                            'valor': r2(cant * costo)})
     if version and version.hoja_id:
-        actividades = [(o.centro, o.secuencia, o.descripcion, o.horas_para(unidades))
+        actividades = [(o.centro, o.secuencia, o.descripcion, o.horas_para(unidades), o.maquinistas, o.ayudantes)
                        for o in version.hoja.operaciones.select_related('centro')]
-    else:  # recetas anteriores a las hojas de ruta: horas por lote dentro de la receta
-        actividades = [(o.centro, None, o.descripcion, (o.horas * factor).quantize(Decimal('0.01')))
+    else:  # recetas anteriores a las hojas de ruta: horas por lote dentro de la receta (una persona)
+        actividades = [(o.centro, None, o.descripcion, (o.horas * factor).quantize(Decimal('0.01')), 1, 0)
                        for o in lista.operaciones.select_related('centro')]
-    for centro, secuencia, descripcion, h in actividades:
-        mo, cif = r2(h * centro.costo_hora_mo), r2(h * centro.costo_hora_cif)
+    for centro, secuencia, descripcion, h, maquinistas, ayudantes in actividades:
+        # máquina y CIF por hora máquina; mano de obra por hora hombre (horas máquina × personas)
+        mo = r2(h * (maquinistas + ayudantes) * centro.costo_hora_mo)
+        maq, cif = r2(h * centro.costo_hora_maquina), r2(h * centro.costo_hora_cif)
         horas.append({'centro': centro, 'secuencia': secuencia, 'descripcion': descripcion, 'horas': h, 'mo': mo,
-                      'cif': cif, 'total': mo + cif})
+                      'maquina': maq, 'cif': cif, 'total': mo + maq + cif, 'maquinistas': maquinistas,
+                      'ayudantes': ayudantes})
     tot_mat = sum((m['valor'] for m in materiales), D0)
     tot_mo = sum((h['mo'] for h in horas), D0)
+    tot_maq = sum((h['maquina'] for h in horas), D0)
     tot_cif = sum((h['cif'] for h in horas), D0)
-    total = tot_mat + tot_mo + tot_cif
+    total = tot_mat + tot_mo + tot_maq + tot_cif
+    # NIC 2 párr. 14: los subproductos se valoran a su valor fijo; los coproductos reciben su % del costo conjunto
+    subproductos, conjunto = [], total
+    for s in lista.subproductos.select_related('producto').filter(tipo='SUBPRODUCTO'):
+        cant = (s.cantidad * factor).quantize(D4)
+        valor = min(r2(cant * s.valor_unitario), conjunto)
+        conjunto -= valor
+        subproductos.append({'producto': s.producto, 'tipo': s.tipo, 'cantidad': cant, 'valor': valor})
+    resto = conjunto
+    for s in lista.subproductos.select_related('producto').filter(tipo='COPRODUCTO'):
+        cant = (s.cantidad * factor).quantize(D4)
+        valor = r2(conjunto * s.participacion / 100)
+        resto -= valor
+        subproductos.append({'producto': s.producto, 'tipo': s.tipo, 'cantidad': cant, 'valor': valor})
+    principal = max(resto, D0)
     return {'lista': lista, 'version': version, 'cantidad': unidades, 'materiales': materiales, 'horas': horas,
-            'tot_materiales': tot_mat, 'tot_mano_obra': tot_mo, 'tot_cif': tot_cif, 'tot_conversion': tot_mo + tot_cif,
-            'total': total, 'unitario': (total / unidades).quantize(D4) if unidades else D0}
+            'tot_materiales': tot_mat, 'tot_mano_obra': tot_mo, 'tot_maquina': tot_maq, 'tot_cif': tot_cif,
+            'tot_conversion': tot_mo + tot_maq + tot_cif, 'total': total, 'subproductos': subproductos,
+            'tot_subproductos': total - principal, 'principal': principal,
+            'unitario': (principal / unidades).quantize(D4) if unidades else D0}
 
 
 def _detalle_unitario(hoja):
@@ -140,8 +160,10 @@ def _detalle_unitario(hoja):
                        for m in hoja['materiales']],
         'actividades': [{'centro': h['centro'].pk, 'nombre': str(h['centro']), 'secuencia': h['secuencia'],
                          'horas': str((h['horas'] / n).quantize(Decimal('0.000001'))),
-                         'mo': str(h['centro'].costo_hora_mo), 'cif': str(h['centro'].costo_hora_cif)}
+                         'personas': h['maquinistas'] + h['ayudantes'], 'mo': str(h['centro'].costo_hora_mo),
+                         'maquina': str(h['centro'].costo_hora_maquina), 'cif': str(h['centro'].costo_hora_cif)}
                         for h in hoja['horas']],
+        'subproductos': str((hoja['tot_subproductos'] / n).quantize(D4)),
         'lote': str(n),
     }
 
@@ -189,7 +211,8 @@ def calcular_estandar(periodo, usuario=None, productos=None):
             n = hoja['cantidad']
             ce, _ = CostoEstandar.objects.update_or_create(producto=v.producto, periodo=periodo, defaults={
                 'version': v, 'lote_costeo': n, 'materiales': (hoja['tot_materiales'] / n).quantize(D4),
-                'mano_obra': (hoja['tot_mano_obra'] / n).quantize(D4), 'cif': (hoja['tot_cif'] / n).quantize(D4),
+                'mano_obra': (hoja['tot_mano_obra'] / n).quantize(D4),
+                'maquina': (hoja['tot_maquina'] / n).quantize(D4), 'cif': (hoja['tot_cif'] / n).quantize(D4),
                 'unitario': hoja['unitario'], 'detalle': _detalle_unitario(hoja), 'estado': 'CALCULADO',
                 'usuario': usuario if usuario and usuario.is_authenticated else None})
             en_corrida[v.producto_id] = ce.unitario
@@ -217,15 +240,21 @@ def explotar(orden):
     factor = orden.cantidad / lista.cantidad_base if lista.cantidad_base else Decimal('1')
     orden.consumos.all().delete()
     orden.horas.all().delete()
+    orden.salidas.all().delete()
     for c in lista.componentes.all():
         cant = (c.cantidad_con_merma * factor).quantize(D4)
         ConsumoOrden.objects.create(orden=orden, producto_id=c.producto_id, cantidad_plan=cant, cantidad_real=cant,
                                     almacen_id=c.almacen_id, operacion=c.operacion)
+    for s in lista.subproductos.all():
+        cant = (s.cantidad * factor).quantize(D4)
+        SalidaOrden.objects.create(orden=orden, producto_id=s.producto_id, tipo=s.tipo, cantidad_plan=cant,
+                                   cantidad_real=cant, valor_unitario=s.valor_unitario, participacion=s.participacion)
     if version and version.hoja_id:
         for o in version.hoja.operaciones.select_related('centro'):
             h = o.horas_para(orden.cantidad)
             HoraOrden.objects.create(orden=orden, centro_id=o.centro_id, secuencia=o.secuencia,
-                                     descripcion=f'{o.secuencia} {o.descripcion}', horas_plan=h, horas_real=h)
+                                     descripcion=f'{o.secuencia} {o.descripcion}', horas_plan=h, horas_real=h,
+                                     maquinistas=o.maquinistas, ayudantes=o.ayudantes)
     else:
         for o in lista.operaciones.all():
             h = (o.horas * factor).quantize(Decimal('0.01'))
@@ -274,29 +303,55 @@ def iniciar(orden):
     return orden
 
 
-def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None):
-    """Registra la producción: salen los insumos realmente consumidos y entra el producto terminado, costeado con
-    materiales + mano de obra + máquina/CIF (horas reales por puesto). Una orden confirmada se inicia sola.
-    Calcula las variaciones contra el estándar fijado al confirmar.
+def _momento_termino(fecha):
+    """(fecha, fecha y hora) del término: acepta fecha, fecha y hora o el texto de los formularios; por defecto, ahora."""
+    from datetime import datetime
+    ahora = timezone.localtime()
+    if isinstance(fecha, str):
+        texto = fecha.strip()
+        try:
+            fecha = datetime.fromisoformat(texto) if 'T' in texto or ' ' in texto else (
+                date.fromisoformat(texto) if texto else None)
+        except ValueError:
+            raise ErrorProduccion('Fecha de término no válida.')
+    if fecha is None:
+        momento = ahora
+    elif isinstance(fecha, datetime):
+        momento = timezone.make_aware(fecha) if timezone.is_naive(fecha) else timezone.localtime(fecha)
+    else:  # solo la fecha: hoy con la hora actual; otro día, al final de la jornada
+        momento = ahora if fecha == ahora.date() else timezone.make_aware(datetime.combine(fecha, datetime.min.time())
+                                                                          .replace(hour=18))
+    if momento > ahora + timedelta(minutes=5):
+        raise ErrorProduccion('La fecha de término no puede ser futura.')
+    return momento.date(), momento
 
-    consumos: {consumo_id: cantidad real}; horas: {hora_id: horas reales}."""
+
+def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, personal=None, salidas=None,
+             merma_a_gasto=False):
+    """Registra la producción: salen los insumos realmente consumidos y entran el producto y sus subproductos.
+
+    Costo de la orden = materiales consumidos + mano de obra + máquina + CIF (+ maquila):
+    - máquina y CIF: horas máquina reales × su tarifa en el puesto;
+    - mano de obra: horas hombre de cada maquinista o ayudante × el costo real de su hora (sueldo y cargas del
+      trabajador) o, sin trabajador, la tarifa referencial del puesto. Sin detalle: horas máquina × cuadrilla.
+    Subproductos a su valor fijo y coproductos con su % del costo conjunto (NIC 2 párr. 14); el producto principal
+    lleva el resto ÷ todo lo producido. Con merma_a_gasto, el consumo sobre la receta (con su merma normal) para lo
+    producido va a gasto (NIC 2 párr. 16) y no al producto.
+
+    consumos: {consumo_id: cantidad real}; horas: {hora_id: horas máquina reales};
+    personal: {hora_id: [{'rol', 'trabajador' (id o None), 'horas'}]}; salidas: {salida_id: cantidad producida}."""
     from inventario import servicios as inv
     from inventario.models import Operacion, TipoOperacion
     if orden.estado not in ('CONFIRMADA', 'EN_PROCESO'):
         raise ErrorProduccion('Solo se terminan órdenes confirmadas o en proceso.')
     if not cantidad_producida or cantidad_producida <= 0:
         raise ErrorProduccion('Indique la cantidad producida.')
-    if isinstance(fecha, str):
-        try:
-            fecha = date.fromisoformat(fecha) if fecha else None
-        except ValueError:
-            raise ErrorProduccion('Fecha de término no válida.')
-    fecha = fecha or timezone.localdate()
-    if fecha > timezone.localdate():
-        raise ErrorProduccion('La fecha de término no puede ser futura.')
+    fecha, momento = _momento_termino(fecha)
     from inventario.cierre import error_cierre
     if error_cierre(fecha):
         raise ErrorProduccion(error_cierre(fecha))
+    personal = personal or {}
+    salidas = salidas or {}
     with transaction.atomic():
         lineas = list(orden.consumos.select_related('producto', 'almacen'))
         for c in lineas:
@@ -305,28 +360,72 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None):
                 raise ErrorProduccion(f'{c.producto.nombre}: el consumo no puede ser negativo.')
             c.cantidad_real = real
             c.save(update_fields=['cantidad_real'])
-        mo = cif = D0
+        from planillas.models import Trabajador
+        trabajadores = {t.pk: t for t in Trabajador.objects.filter(
+            pk__in={p.get('trabajador') for filas in personal.values() for p in filas if p.get('trabajador')})}
+        mo = maq = cif = D0
         for h in orden.horas.select_related('centro'):
             h.horas_real = horas.get(h.pk, h.horas_real)
             if h.horas_real < 0:
                 raise ErrorProduccion('Las horas no pueden ser negativas.')
-            h.costo_mo, h.costo_cif = r2(h.horas_real * h.centro.costo_hora_mo), r2(h.horas_real * h.centro.costo_hora_cif)
-            h.save(update_fields=['horas_real', 'costo_mo', 'costo_cif'])
+            h.personal.all().delete()
+            filas = personal.get(h.pk)
+            if filas is None:  # sin detalle: la cuadrilla de la operación trabaja las horas máquina
+                filas = ([{'rol': 'MAQUINISTA', 'horas': h.horas_real}] * h.maquinistas +
+                         [{'rol': 'AYUDANTE', 'horas': h.horas_real}] * h.ayudantes)
+            costo_mo = D0
+            for p in filas:
+                horas_h = Decimal(p.get('horas') or 0)
+                if horas_h < 0:
+                    raise ErrorProduccion('Las horas hombre no pueden ser negativas.')
+                if not horas_h:
+                    continue
+                t = trabajadores.get(p.get('trabajador'))
+                tarifa = t.costo_hora(fecha) if t else h.centro.costo_hora_mo
+                linea = HoraHombre.objects.create(
+                    hora=h, rol=p.get('rol') if p.get('rol') in dict(HoraHombre.ROLES) else 'MAQUINISTA',
+                    trabajador=t, horas=horas_h, costo_hora=tarifa, costo=r2(horas_h * tarifa))
+                costo_mo += linea.costo
+            h.costo_mo = costo_mo
+            h.costo_maquina = r2(h.horas_real * h.centro.costo_hora_maquina)
+            h.costo_cif = r2(h.horas_real * h.centro.costo_hora_cif)
+            h.save(update_fields=['horas_real', 'costo_mo', 'costo_maquina', 'costo_cif'])
             mo += h.costo_mo
+            maq += h.costo_maquina
             cif += h.costo_cif
         # maquila: el servicio del tercero se suma al costo del producto (base de su factura si no se indicó)
         if orden.maquilador_id and not orden.costo_servicio and orden.compra_servicio_id:
             c = orden.compra_servicio
             orden.costo_servicio = c.total_pen - c.igv_pen
-        # NIC 2 párr. 16: lo consumido por encima de la receta (ya con su merma normal) para lo realmente producido
-        # es merma anormal: sale del almacén pero no entra al costo del producto (queda en gasto, cuenta 61)
+        # NIC 2 párr. 16 (solo si se indica): consumo sobre la receta para lo producido = merma anormal a gasto
         merma = D0
-        if orden.cantidad:
+        if merma_a_gasto and orden.cantidad:
             for c in lineas:
                 permitido = c.cantidad_plan * cantidad_producida / orden.cantidad
                 if c.cantidad_real > permitido:
                     merma += (c.cantidad_real - permitido) * c.producto.costo_promedio
         merma = r2(merma)
+        # costo de la orden con los mismos costos promedio con que saldrán los insumos
+        materiales_est = sum((c.cantidad_real * c.producto.costo_promedio for c in lineas), D0)
+        conjunto = materiales_est + mo + maq + cif + orden.costo_servicio - merma
+        lista_salidas = list(orden.salidas.select_related('producto'))
+        for s in lista_salidas:
+            s.cantidad_real = Decimal(salidas.get(s.pk, s.cantidad_real) or 0)
+            if s.cantidad_real < 0:
+                raise ErrorProduccion(f'{s.producto.nombre}: la cantidad no puede ser negativa.')
+        if sum((s.participacion for s in lista_salidas if s.tipo == 'COPRODUCTO'), D0) >= 100:
+            raise ErrorProduccion('Los coproductos no pueden llevarse el 100 % del costo conjunto.')
+        for s in (x for x in lista_salidas if x.tipo == 'SUBPRODUCTO' and x.cantidad_real):
+            unit = min(s.valor_unitario, (max(conjunto, D0) / s.cantidad_real)).quantize(D4)
+            s.costo_unitario = unit
+            conjunto -= s.cantidad_real * unit
+        base_co = max(conjunto, D0)
+        for s in (x for x in lista_salidas if x.tipo == 'COPRODUCTO' and x.cantidad_real):
+            s.costo_unitario = (base_co * s.participacion / 100 / s.cantidad_real).quantize(D4)
+        for s in lista_salidas:
+            if not s.cantidad_real:
+                s.costo_unitario = D0
+            s.save(update_fields=['cantidad_real', 'costo_unitario'])
         tipo = TipoOperacion.objects.get(codigo='MANUF')
         # insumos que se consumen en otro almacén: salen con su propia operación de consumo a producción
         por_almacen = defaultdict(list)
@@ -336,12 +435,18 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None):
         principal = orden.almacen_insumos_id
         op = Operacion.objects.create(
             tipo=tipo, fecha=fecha, almacen_origen_id=principal, almacen_destino=orden.almacen_destino,
-            referencia=orden.numero, creado_por=usuario, costo_adicional=mo + cif + orden.costo_servicio - merma,
+            referencia=orden.numero, creado_por=usuario,
+            costo_adicional=mo + maq + cif + orden.costo_servicio - merma,
             glosa=f'Orden de producción {orden.numero}: {orden.producto.nombre}')
         for c in por_almacen.pop(principal, []):
             op.items.create(producto=c.producto, cantidad=r2(c.cantidad_real), rol='INSUMO')
         op.items.create(producto=orden.producto, cantidad=cantidad_producida, rol='PRODUCTO',
                         lote=orden.numero if orden.producto.control == 'LOTE' else '')
+        for s in lista_salidas:
+            if s.cantidad_real > 0:
+                op.items.create(producto=s.producto, cantidad=r2(s.cantidad_real), rol='SUBPROD',
+                                costo_unitario=s.costo_unitario,
+                                lote=orden.numero if s.producto.control == 'LOTE' else '')
         # insumos de otros almacenes de consumo: se trasladan al almacén de insumos y desde ahí se consumen
         for almacen_id, filas in por_almacen.items():
             traslado = Operacion.objects.create(
@@ -367,10 +472,12 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None):
             c.costo_unitario = costos.get(c.producto_id, D0)
             c.save(update_fields=['costo_unitario'])
             materiales += c.valor
-        orden.costo_materiales, orden.costo_mano_obra, orden.costo_cif = materiales, mo, cif
+        orden.costo_materiales, orden.costo_mano_obra = materiales, mo
+        orden.costo_maquina, orden.costo_cif = maq, cif
         orden.merma_anormal = min(merma, materiales)
+        orden.costo_subproductos = sum((s.costo for s in lista_salidas), D0)
         orden.costo_unitario = op.items.get(rol='PRODUCTO').costo_unitario
-        orden.cantidad_producida, orden.fecha_fin = cantidad_producida, fecha
+        orden.cantidad_producida, orden.fecha_fin, orden.terminado_en = cantidad_producida, fecha, momento
         orden.fecha_inicio = orden.fecha_inicio or fecha
         orden.estado, orden.operacion = 'TERMINADA', op
         orden.save()
@@ -443,7 +550,8 @@ def anular(orden, usuario, motivo):
 
 # ---------------------------------------------------------------- variaciones
 def _estandar_para(orden):
-    """(materiales {producto: (cant por unidad, precio)}, actividades {centro: (horas por unidad, mo, cif)})."""
+    """(materiales {producto: (cant por unidad, precio)},
+    actividades {centro: [horas máquina por unidad, personas, tarifa MO, tarifa máquina, tarifa CIF]})."""
     d = orden.estandar_detalle or {}
     if not d:  # órdenes anteriores: estándar estimado con la receta actual
         d = _detalle_unitario(hoja_costos(orden.version or orden.lista))
@@ -452,11 +560,15 @@ def _estandar_para(orden):
         cant, precio = Decimal(m['cantidad']), Decimal(m['precio'])
         anterior = materiales.get(m['producto'], (D0, precio))
         materiales[m['producto']] = (anterior[0] + cant, precio)
-    actividades = defaultdict(lambda: [D0, D0, D0])
+    actividades = defaultdict(lambda: [D0, D0, D0, D0, D0])
     for a in d.get('actividades', []):
         fila = actividades[a['centro']]
-        fila[0] += Decimal(a['horas'])
-        fila[1], fila[2] = Decimal(a['mo']), Decimal(a['cif'])
+        horas = Decimal(a['horas'])
+        personas = Decimal(a.get('personas', 1))
+        # personas promedio ponderadas por horas (un puesto puede tener varias operaciones)
+        fila[1] = ((fila[1] * fila[0] + personas * horas) / (fila[0] + horas)) if (fila[0] + horas) else personas
+        fila[0] += horas
+        fila[2], fila[3], fila[4] = Decimal(a['mo']), Decimal(a.get('maquina', 0)), Decimal(a['cif'])
     return materiales, dict(actividades)
 
 
@@ -465,8 +577,9 @@ def calcular_variaciones(orden):
 
     precio de materiales = Σ cantidad real × (precio real − estándar)
     cantidad de materiales = Σ (cantidad real − estándar para lo producido) × precio estándar
-    eficiencia = Σ (horas reales − estándar) × tarifa estándar (mano de obra y máquina/CIF por separado)
-    tarifa = Σ horas reales × (tarifa real − estándar)"""
+    eficiencia de mano de obra = (horas hombre reales − estándar) × tarifa estándar
+    eficiencia de máquina y CIF = (horas máquina reales − estándar) × tarifas estándar de máquina y CIF
+    tarifa = costo real de mano de obra, máquina y CIF − horas reales × tarifas estándar"""
     q = orden.cantidad_producida
     std_mat, std_act = _estandar_para(orden)
     v = defaultdict(lambda: D0)
@@ -480,21 +593,24 @@ def calcular_variaciones(orden):
         cant_real, precio_real = reales[pid]
         v['PRECIO_MAT'] += cant_real * (precio_real - precio_std)
         v['CANTIDAD_MAT'] += (cant_real - cant_std) * precio_std
-    horas_reales = defaultdict(lambda: [D0, D0, D0])  # horas, mo real, cif real
-    for h in orden.horas.select_related('centro'):
+    horas_reales = defaultdict(lambda: [D0, D0, D0, D0])  # horas máquina, horas hombre, mo real, máquina+cif real
+    for h in orden.horas.select_related('centro').prefetch_related('personal'):
         fila = horas_reales[h.centro_id]
         fila[0] += h.horas_real
-        fila[1] += h.costo_mo
-        fila[2] += h.costo_cif
+        fila[1] += h.horas_hombre
+        fila[2] += h.costo_mo
+        fila[3] += h.costo_maquina + h.costo_cif
     for cid in set(std_act) | set(horas_reales):
-        h_std, mo_std, cif_std = std_act.get(cid, (D0, D0, D0))
-        h_real, mo_real, cif_real = horas_reales.get(cid, (D0, D0, D0))
+        h_std, personas, mo_std, maq_std, cif_std = std_act.get(cid, (D0, D0, D0, D0, D0))
+        h_real, hh_real, mo_real, mc_real = horas_reales.get(cid, (D0, D0, D0, D0))
         h_std *= q
-        if cid not in std_act and h_real:  # puesto no previsto: todo es variación de eficiencia
-            mo_std, cif_std = mo_real / h_real, cif_real / h_real
-        v['EFICIENCIA_MO'] += (h_real - h_std) * mo_std
-        v['EFICIENCIA_CIF'] += (h_real - h_std) * cif_std
-        v['TARIFA'] += (mo_real + cif_real) - h_real * (mo_std + cif_std)
+        mc_std = maq_std + cif_std
+        if cid not in std_act:  # puesto no previsto: todo es variación de eficiencia
+            mo_std = mo_real / hh_real if hh_real else D0
+            mc_std = mc_real / h_real if h_real else D0
+        v['EFICIENCIA_MO'] += (hh_real - h_std * personas) * mo_std
+        v['EFICIENCIA_CIF'] += (h_real - h_std) * mc_std
+        v['TARIFA'] += (mo_real - hh_real * mo_std) + (mc_real - h_real * mc_std)
     resultado = {k: r2(m) for k, m in v.items()}
     if orden.merma_anormal:  # el exceso de consumo está en la variación de cantidad, pero no entró al producto
         resultado['MERMA_ANORMAL'] = -orden.merma_anormal
@@ -516,10 +632,13 @@ def variaciones(orden):
     std_mat, std_act = _estandar_para(orden)
     q = orden.cantidad_producida
     e_mat = sum((cant * precio for cant, precio in std_mat.values()), D0) * q
-    e_mo = sum((h * mo for h, mo, _ in std_act.values()), D0) * q
-    e_cif = sum((h * cif for h, _, cif in std_act.values()), D0) * q
+    e_mo = sum((h * personas * mo for h, personas, mo, _, _ in std_act.values()), D0) * q
+    e_maq = sum((h * maq for h, _, _, maq, _ in std_act.values()), D0) * q
+    e_cif = sum((h * cif for h, _, _, _, cif in std_act.values()), D0) * q
     filas = [('Materiales', r2(e_mat), orden.costo_materiales), ('Mano de obra', r2(e_mo), orden.costo_mano_obra),
-             ('Máquina y CIF', r2(e_cif), orden.costo_cif)]
+             ('Máquina', r2(e_maq), orden.costo_maquina), ('CIF', r2(e_cif), orden.costo_cif)]
+    if orden.costo_subproductos:
+        filas.append(('Asignado a subproductos', D0, -orden.costo_subproductos))
     salida = [{'concepto': c, 'estandar': e, 'real': r, 'variacion': r - e,
                'pct': ((r - e) / e * 100).quantize(Decimal('0.1')) if e else None} for c, e, r in filas]
     total_e, total_r = r2(orden.costo_estandar_unit * q), orden.costo_total
@@ -543,7 +662,7 @@ def absorcion(periodo):
             .select_related('centro'):
         fila = absorbido[h.centro.centro_costo_id] if h.centro.centro_costo_id else sin_centro
         fila[0] += h.costo_mo
-        fila[1] += h.costo_cif
+        fila[1] += h.costo_maquina + h.costo_cif
     centros = CentroCosto.objects.filter(Q(tipo__in=['PRODUCCION', 'SERVICIO']) | Q(pk__in=list(absorbido)))
     filas = []
     for cc in centros.order_by('codigo'):

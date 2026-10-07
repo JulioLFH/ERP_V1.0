@@ -99,10 +99,9 @@ class ManufacturaTest(TestCase):
         materiales = (D('5') * self.costo_insumo).quantize(D('0.01'))
         self.assertEqual(o.estado, 'TERMINADA')
         self.assertEqual((o.costo_materiales, o.costo_mano_obra, o.costo_cif), (materiales, D('30'), D('15')))
-        # lo consumido sobre la receta con su merma normal (4.4) es merma anormal: va a gasto, no al producto
-        merma = (D('0.6') * self.costo_insumo).quantize(D('0.01'))
-        self.assertEqual(o.merma_anormal, merma)
-        self.assertEqual(o.costo_unitario, ((D('5') * self.costo_insumo + 45 - merma) / 4).quantize(D('0.0001')))
+        # todo lo consumido ÷ todo lo producido (la merma anormal a gasto solo si se indica al terminar)
+        self.assertEqual(o.merma_anormal, 0)
+        self.assertEqual(o.costo_unitario, ((D('5') * self.costo_insumo + 45) / 4).quantize(D('0.0001')))
         self.assertEqual((self.kit.stock, self.kit.costo_promedio), (D('4'), o.costo_unitario))
         self.assertEqual(Producto.objects.get(pk=self.insumo.pk).stock, stock_antes - 5)
         self.assertEqual(o.operacion.estado, 'CONFIRMADO')
@@ -190,7 +189,8 @@ class ManufacturaTest(TestCase):
             'vigente_desde': HOY.isoformat(), 'vigente_hasta': '', 'lote_min': '', 'lote_max': '', 'observaciones': '',
             'comp-TOTAL_FORMS': '1', 'comp-INITIAL_FORMS': '0', 'comp-MIN_NUM_FORMS': '1', 'comp-MAX_NUM_FORMS': '1000',
             'comp-0-producto': self.insumo.pk, 'comp-0-cantidad': '1', 'comp-0-merma': '0', 'comp-0-operacion': '10',
-            'comp-0-almacen': ''})
+            'comp-0-almacen': '',
+            'sub-TOTAL_FORMS': '0', 'sub-INITIAL_FORMS': '0', 'sub-MIN_NUM_FORMS': '0', 'sub-MAX_NUM_FORMS': '1000'})
         nueva = ListaMateriales.objects.get(codigo='V9')
         self.assertRedirects(r, reverse('manufactura:lista', args=[nueva.pk]))
         r = self.client.post(reverse('manufactura:hoja_nueva'), {
@@ -198,8 +198,10 @@ class ManufacturaTest(TestCase):
             'oper-TOTAL_FORMS': '2', 'oper-INITIAL_FORMS': '0', 'oper-MIN_NUM_FORMS': '1', 'oper-MAX_NUM_FORMS': '1000',
             'oper-0-secuencia': '10', 'oper-0-centro': self.centro.pk, 'oper-0-descripcion': 'Preparar',
             'oper-0-horas_preparacion': '1', 'oper-0-horas_unidad': '0', 'oper-0-horas_espera': '0',
+            'oper-0-maquinistas': '1', 'oper-0-ayudantes': '0',
             'oper-1-secuencia': '20', 'oper-1-centro': self.centro.pk, 'oper-1-descripcion': 'Armar',
-            'oper-1-horas_preparacion': '0', 'oper-1-horas_unidad': '0.25', 'oper-1-horas_espera': '2'})
+            'oper-1-horas_preparacion': '0', 'oper-1-horas_unidad': '0.25', 'oper-1-horas_espera': '2',
+            'oper-1-maquinistas': '1', 'oper-1-ayudantes': '1'})
         self.assertRedirects(r, reverse('manufactura:hojas'))
         ruta = HojaRuta.objects.get(codigo='R-GRANDE')
         r = self.client.post(reverse('manufactura:version_nueva'), {

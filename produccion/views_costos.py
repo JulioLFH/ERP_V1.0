@@ -59,11 +59,11 @@ def estandar(request):
                       'anterior': servicios.estandar_de(p, None) if not ce else None})
     if request.GET.get('formato') == 'excel':
         datos = [[f['p'].codigo, f['p'].nombre, f['version'].codigo, f['ce'].materiales if f['ce'] else '',
-                  f['ce'].mano_obra if f['ce'] else '', f['ce'].cif if f['ce'] else '',
+                  f['ce'].mano_obra if f['ce'] else '', f['ce'].maquina if f['ce'] else '', f['ce'].cif if f['ce'] else '',
                   f['ce'].unitario if f['ce'] else '', f['ce'].get_estado_display() if f['ce'] else 'Sin calcular',
                   f['p'].costo_promedio, f['p'].precio_venta, f['margen'] or '', f['pct'] or ''] for f in filas]
         return excel_response(f'Costo_estandar_{periodo}', f'Costo estándar {periodo[4:]}/{periodo[:4]}',
-                              ['Código', 'Producto', 'Versión', 'Materiales', 'Mano de obra', 'Máquina y CIF',
+                              ['Código', 'Producto', 'Versión', 'Materiales', 'Mano de obra', 'Máquina', 'CIF',
                                'Estándar unitario', 'Estado', 'Costo promedio', 'Precio venta', 'Margen S/',
                                'Margen %'], datos)
     return render(request, 'produccion/costo_estandar.html', {

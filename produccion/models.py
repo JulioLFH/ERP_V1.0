@@ -21,10 +21,16 @@ class CentroTrabajo(models.Model):
     codigo = models.CharField('Código', max_length=10, unique=True)
     nombre = models.CharField(max_length=100)
     tipo = models.CharField(max_length=8, choices=TIPOS, default='MAQUINA')
-    costo_hora_mo = models.DecimalField('Tarifa mano de obra S/ h', max_digits=12, decimal_places=2, default=D0,
-                                        help_text='Sueldos y cargas sociales del personal / horas productivas')
-    costo_hora_cif = models.DecimalField('Tarifa máquina y CIF S/ h', max_digits=12, decimal_places=2, default=D0,
-                                         help_text='Energía, depreciación de máquinas, mantenimiento, etc. por hora')
+    costo_hora_mo = models.DecimalField(
+        'Tarifa mano de obra referencial S/ h', max_digits=12, decimal_places=2, default=D0,
+        help_text='Por hora hombre. Para el costo estándar y para las horas sin trabajador asignado; con trabajador se '
+                  'usa su costo real (sueldo y cargas)')
+    costo_hora_maquina = models.DecimalField(
+        'Tarifa máquina S/ h', max_digits=12, decimal_places=2, default=D0,
+        help_text='Por hora máquina: depreciación, energía y mantenimiento de la máquina')
+    costo_hora_cif = models.DecimalField(
+        'Tarifa CIF S/ h', max_digits=12, decimal_places=2, default=D0,
+        help_text='Costos indirectos de fabricación, distribuidos por hora máquina')
     centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.SET_NULL, null=True, blank=True,
                                      verbose_name='Centro de costo',
                                      help_text='Su gasto real se compara con lo absorbido por las órdenes')
@@ -50,7 +56,12 @@ class CentroTrabajo(models.Model):
 
     @property
     def costo_hora(self):
-        return self.costo_hora_mo + self.costo_hora_cif
+        """Por hora máquina con una persona: máquina + CIF + una hora hombre referencial."""
+        return self.costo_hora_mo + self.costo_hora_maquina + self.costo_hora_cif
+
+    @property
+    def costo_hora_maquina_cif(self):
+        return self.costo_hora_maquina + self.costo_hora_cif
 
     @property
     def capacidad_dia(self):
@@ -100,10 +111,16 @@ class OperacionRuta(models.Model):
     horas_unidad = models.DecimalField('Ejecución (h por unidad)', max_digits=10, decimal_places=4, default=D0)
     horas_espera = models.DecimalField('Espera (h)', max_digits=10, decimal_places=2, default=D0,
                                        help_text='Enfriado, secado…: no se costea, sí cuenta en el plazo')
+    maquinistas = models.PositiveSmallIntegerField(default=1, help_text='Personas que operan la máquina')
+    ayudantes = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
         ordering = ['secuencia']
         unique_together = [('hoja', 'secuencia')]
+
+    @property
+    def personas(self):
+        return self.maquinistas + self.ayudantes
 
     def horas_para(self, cantidad):
         eficiencia = (self.centro.eficiencia or Decimal('100')) / 100
@@ -164,6 +181,28 @@ class ComponenteLista(models.Model):
     @property
     def cantidad_con_merma(self):
         return self.cantidad * (1 + self.merma / 100)
+
+
+class SubproductoLista(models.Model):
+    """Otra salida de la receta además del producto principal (NIC 2 párr. 14).
+    Subproducto (de menor valor): entra a su valor por unidad, que se resta del costo del principal.
+    Coproducto: recibe un % del costo conjunto (lo que queda tras los subproductos); el principal, el resto."""
+    TIPOS = [('SUBPRODUCTO', 'Subproducto (valor fijo por unidad)'),
+             ('COPRODUCTO', 'Coproducto (% del costo conjunto)')]
+    lista = models.ForeignKey(ListaMateriales, on_delete=models.CASCADE, related_name='subproductos')
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, limit_choices_to={'tipo': 'BIEN'},
+                                 related_name='+')
+    cantidad = models.DecimalField('Cantidad por lote', max_digits=14, decimal_places=4,
+                                   help_text='Lo que sale por cada lote de la receta (lo que «rinde»)')
+    tipo = models.CharField(max_length=12, choices=TIPOS, default='SUBPRODUCTO')
+    valor_unitario = models.DecimalField('Valor por unidad S/', max_digits=14, decimal_places=4, default=D0,
+                                         help_text='Subproducto: su valor neto realizable (precio − gastos de venta)')
+    participacion = models.DecimalField('% del costo conjunto', max_digits=6, decimal_places=2, default=D0,
+                                        help_text='Coproducto: según su valor de venta relativo')
+
+    class Meta:
+        ordering = ['id']
+        verbose_name = 'subproducto'
 
 
 class OperacionLista(models.Model):
@@ -229,7 +268,8 @@ class CostoEstandar(models.Model):
     lote_costeo = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('1'))
     materiales = models.DecimalField('Materiales por unidad', max_digits=14, decimal_places=4, default=D0)
     mano_obra = models.DecimalField('Mano de obra por unidad', max_digits=14, decimal_places=4, default=D0)
-    cif = models.DecimalField('Máquina y CIF por unidad', max_digits=14, decimal_places=4, default=D0)
+    maquina = models.DecimalField('Máquina por unidad', max_digits=14, decimal_places=4, default=D0)
+    cif = models.DecimalField('CIF por unidad', max_digits=14, decimal_places=4, default=D0)
     unitario = models.DecimalField('Costo estándar unitario', max_digits=14, decimal_places=4, default=D0)
     detalle = models.JSONField(default=dict, blank=True,
                                help_text='Cantidades y precios estándar por unidad (materiales y actividades)')
@@ -330,6 +370,7 @@ class OrdenProduccion(models.Model):
                                                                       'de planta')
     fecha_inicio = models.DateField(null=True, blank=True)
     fecha_fin = models.DateField('Fecha de término', null=True, blank=True)
+    terminado_en = models.DateTimeField('Fecha y hora de término', null=True, blank=True)
     cantidad_producida = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
     # costeo
     costo_estandar_unit = models.DecimalField('Costo estándar unitario', max_digits=14, decimal_places=4, default=D0)
@@ -337,7 +378,10 @@ class OrdenProduccion(models.Model):
                                         help_text='Estándar por unidad fijado al confirmar (base de las variaciones)')
     costo_materiales = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
     costo_mano_obra = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    costo_maquina = models.DecimalField('Costo de máquina', max_digits=14, decimal_places=2, default=D0)
     costo_cif = models.DecimalField('Costos indirectos', max_digits=14, decimal_places=2, default=D0)
+    costo_subproductos = models.DecimalField(
+        'Asignado a subproductos y coproductos', max_digits=14, decimal_places=2, default=D0, editable=False)
     costo_unitario = models.DecimalField('Costo real unitario', max_digits=14, decimal_places=4, default=D0)
     merma_anormal = models.DecimalField(
         'Merma anormal S/', max_digits=14, decimal_places=2, default=D0, editable=False,
@@ -367,9 +411,15 @@ class OrdenProduccion(models.Model):
         return f'Orden de producción {self.numero or "(borrador)"}'
 
     @property
+    def costo_produccion(self):
+        """Costo de toda la orden: materiales + mano de obra + máquina + CIF, sin la merma anormal (va a gasto)."""
+        return (self.costo_materiales + self.costo_mano_obra + self.costo_maquina + self.costo_cif -
+                self.merma_anormal)
+
+    @property
     def costo_total(self):
-        """Lo que entró al almacén: materiales + mano de obra + CIF, sin la merma anormal (va a gasto)."""
-        return self.costo_materiales + self.costo_mano_obra + self.costo_cif - self.merma_anormal
+        """Lo que corresponde al producto principal (descontado lo asignado a subproductos y coproductos)."""
+        return self.costo_produccion - self.costo_subproductos
 
     @property
     def costo_real_final(self):
@@ -425,17 +475,61 @@ class VariacionOrden(models.Model):
 
 
 class HoraOrden(models.Model):
+    """Operación de la orden en un puesto: horas máquina (base de la máquina y del CIF) y su cuadrilla."""
     orden = models.ForeignKey(OrdenProduccion, on_delete=models.CASCADE, related_name='horas')
     centro = models.ForeignKey(CentroTrabajo, on_delete=models.PROTECT)
     secuencia = models.PositiveSmallIntegerField(null=True, blank=True)
     descripcion = models.CharField(max_length=100, blank=True)
-    horas_plan = models.DecimalField('Horas planificadas', max_digits=10, decimal_places=2)
-    horas_real = models.DecimalField('Horas reales', max_digits=10, decimal_places=2)
-    costo_mo = models.DecimalField('Mano de obra absorbida', max_digits=14, decimal_places=2, default=D0)
-    costo_cif = models.DecimalField('Máquina y CIF absorbidos', max_digits=14, decimal_places=2, default=D0)
+    horas_plan = models.DecimalField('Horas máquina planificadas', max_digits=10, decimal_places=2)
+    horas_real = models.DecimalField('Horas máquina reales', max_digits=10, decimal_places=2)
+    maquinistas = models.PositiveSmallIntegerField(default=1)
+    ayudantes = models.PositiveSmallIntegerField(default=0)
+    costo_mo = models.DecimalField('Mano de obra', max_digits=14, decimal_places=2, default=D0)
+    costo_maquina = models.DecimalField('Máquina', max_digits=14, decimal_places=2, default=D0)
+    costo_cif = models.DecimalField('CIF', max_digits=14, decimal_places=2, default=D0)
 
     class Meta:
         ordering = ['id']
+
+    @property
+    def horas_hombre(self):
+        return sum((p.horas for p in self.personal.all()), D0)
+
+
+class HoraHombre(models.Model):
+    """Horas hombre declaradas en una operación: quién (maquinista o ayudante) y cuánto costó su hora."""
+    ROLES = [('MAQUINISTA', 'Maquinista'), ('AYUDANTE', 'Ayudante')]
+    hora = models.ForeignKey(HoraOrden, on_delete=models.CASCADE, related_name='personal')
+    rol = models.CharField(max_length=10, choices=ROLES, default='MAQUINISTA')
+    trabajador = models.ForeignKey('planillas.Trabajador', on_delete=models.PROTECT, null=True, blank=True,
+                                   related_name='+')
+    horas = models.DecimalField(max_digits=10, decimal_places=2, default=D0)
+    costo_hora = models.DecimalField('S/ por hora', max_digits=12, decimal_places=4, default=D0)
+    costo = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+
+    class Meta:
+        ordering = ['id']
+        verbose_name = 'horas hombre'
+        verbose_name_plural = 'horas hombre'
+
+
+class SalidaOrden(models.Model):
+    """Subproducto o coproducto de la orden (según su receta): lo previsto, lo que salió y su costo asignado."""
+    orden = models.ForeignKey(OrdenProduccion, on_delete=models.CASCADE, related_name='salidas')
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='+')
+    tipo = models.CharField(max_length=12, choices=SubproductoLista.TIPOS, default='SUBPRODUCTO')
+    cantidad_plan = models.DecimalField('Prevista', max_digits=14, decimal_places=4, default=D0)
+    cantidad_real = models.DecimalField('Producida', max_digits=14, decimal_places=4, default=D0)
+    valor_unitario = models.DecimalField(max_digits=14, decimal_places=4, default=D0)
+    participacion = models.DecimalField(max_digits=6, decimal_places=2, default=D0)
+    costo_unitario = models.DecimalField('Costo asignado unitario', max_digits=14, decimal_places=4, default=D0)
+
+    class Meta:
+        ordering = ['id']
+
+    @property
+    def costo(self):
+        return r2(self.cantidad_real * self.costo_unitario)
 
 
 # ================================================================ calidad

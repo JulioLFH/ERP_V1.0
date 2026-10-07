@@ -53,7 +53,7 @@
       <div class="col-md-3"><div class="text-muted">Almacén de productos</div>{{ o.almacen_destino }}</div>
       {% if o.centro_costo %}<div class="col-md-3"><div class="text-muted">Centro de costo</div>{{ o.centro_costo }}</div>{% endif %}
       {% if o.fecha_inicio %}<div class="col-md-3"><div class="text-muted">Inicio</div>{{ o.fecha_inicio|date:'d/m/Y' }}</div>{% endif %}
-      {% if o.fecha_fin %}<div class="col-md-3"><div class="text-muted">Término</div>{{ o.fecha_fin|date:'d/m/Y' }}</div>
+      {% if o.fecha_fin %}<div class="col-md-3"><div class="text-muted">Término</div>{% if o.terminado_en %}{{ o.terminado_en|date:'d/m/Y H:i' }}{% else %}{{ o.fecha_fin|date:'d/m/Y' }}{% endif %}</div>
         <div class="col-md-3"><div class="text-muted">Producido</div><b>{{ o.cantidad_producida|money }}</b> {{ o.producto.unidad }}</div>{% endif %}
       {% if o.operacion %}<div class="col-md-4"><div class="text-muted">Movimiento de almacén</div>{% if 'inventario' in mods %}<a href="{% url 'inventario:detalle' o.operacion_id %}">{{ o.operacion.numero }}</a>{% else %}{{ o.operacion.numero }}{% endif %} <span class="text-muted">({{ o.operacion.get_estado_display }})</span></div>{% endif %}
     </div>{% if o.glosa %}<p class="small text-muted mt-3 mb-0">{{ o.glosa }}</p>{% endif %}</div></div>
@@ -72,24 +72,58 @@
         </tr>{% endwith %}{% endfor %}</tbody>
       </table></div>
     </div>
-    <div class="card mb-3"><div class="card-header"><i class="bi bi-tools"></i> Horas de trabajo</div>
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-tools"></i> Horas máquina y horas hombre</div>
       <div class="table-responsive"><table class="table table-sm mb-0">
-        <thead><tr><th>Centro de trabajo</th><th>Operación</th><th class="num">Planificadas</th><th class="num" style="width:16%">Reales</th>{% if ver_costos %}<th class="num">S/ por hora</th>{% endif %}</tr></thead>
-        <tbody>{% for h in horas %}<tr>
-          <td>{{ h.centro }}</td><td>{{ h.descripcion }}</td><td class="num">{{ h.horas_plan }}</td>
-          <td class="num">{% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}<input name="hora_{{ h.pk }}" value="{{ h.horas_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ h.horas_real }}{% endif %}</td>
-          {% if ver_costos %}<td class="num">{{ h.centro.costo_hora|money }}</td>{% endif %}
-        </tr>{% empty %}<tr><td colspan="5" class="text-muted small">La receta no registra horas: el costo será solo de materiales.</td></tr>{% endfor %}</tbody>
+        <thead><tr><th>Puesto · operación</th><th class="num">H. máquina plan</th><th class="num" style="width:14%">H. máquina reales</th>{% if ver_costos %}<th class="num">Máquina S/ h</th><th class="num">CIF S/ h</th>{% endif %}</tr></thead>
+        <tbody>{% for h in horas %}<tr class="table-light">
+          <td><b>{{ h.centro }}</b>{% if h.descripcion %} · {{ h.descripcion }}{% endif %}<div class="small text-muted">Cuadrilla: {{ h.maquinistas }} maquinista(s){% if h.ayudantes %}, {{ h.ayudantes }} ayudante(s){% endif %}</div></td>
+          <td class="num">{{ h.horas_plan }}</td>
+          <td class="num">{% if abierta %}<input name="hora_{{ h.pk }}" value="{{ h.horas_real|stringformat:'s' }}" class="form-control form-control-sm text-end js-hmaq" data-hora="{{ h.pk }}" inputmode="decimal">{% else %}{{ h.horas_real }}{% endif %}</td>
+          {% if ver_costos %}<td class="num">{{ h.centro.costo_hora_maquina|money }}</td><td class="num">{{ h.centro.costo_hora_cif|money }}</td>{% endif %}
+        </tr>
+        <tr><td colspan="5" class="pt-0">
+          <table class="table table-sm table-borderless mb-1 small"><thead><tr class="text-muted"><th style="width:18%">Horas hombre</th><th>Trabajador</th><th class="num" style="width:14%">Horas</th>{% if ver_costos and not abierta %}<th class="num">S/ por hora</th><th class="num">Costo</th>{% endif %}</tr></thead>
+          <tbody>
+          {% if abierta %}{% for fila in h.filas_personal %}<tr>
+            <td><select name="hh_{{ h.pk }}_{{ forloop.counter0 }}_rol" class="form-select form-select-sm"><option value="MAQUINISTA" {% if fila.rol == 'MAQUINISTA' %}selected{% endif %}>Maquinista</option><option value="AYUDANTE" {% if fila.rol == 'AYUDANTE' %}selected{% endif %}>Ayudante</option></select></td>
+            <td><select name="hh_{{ h.pk }}_{{ forloop.counter0 }}_trab" class="form-select form-select-sm"><option value="">— Sin asignar (tarifa referencial del puesto) —</option>{% for t in trabajadores %}<option value="{{ t.pk }}">{{ t.nombre_completo }}{% if t.cargo %} · {{ t.cargo }}{% endif %}</option>{% endfor %}</select></td>
+            <td><input name="hh_{{ h.pk }}_{{ forloop.counter0 }}_horas" value="{{ fila.horas|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end{% if fila.horas is not None %} js-hh-{{ h.pk }}{% endif %}" inputmode="decimal"></td>
+          </tr>{% endfor %}
+          {% else %}{% for p in h.personal.all %}<tr><td>{{ p.get_rol_display }}</td><td>{{ p.trabajador.nombre_completo|default:'Sin asignar (tarifa referencial)' }}</td><td class="num">{{ p.horas }}</td>{% if ver_costos %}<td class="num">{{ p.costo_hora|floatformat:4 }}</td><td class="num">{{ p.costo|money }}</td>{% endif %}</tr>{% empty %}<tr><td colspan="5" class="text-muted">Sin horas hombre registradas.</td></tr>{% endfor %}{% endif %}
+          </tbody></table>
+        </td></tr>{% empty %}<tr><td colspan="5" class="text-muted small">La receta no registra horas: el costo será solo de materiales.</td></tr>{% endfor %}</tbody>
+      </table></div>
+      <div class="card-body py-2 small text-muted">Máquina y CIF se reparten por las horas máquina reales. La mano de obra se valoriza por las horas hombre de cada maquinista y ayudante al costo real de su hora (sueldo, EsSalud, gratificaciones, CTS y vacaciones); sin trabajador asignado, a la tarifa referencial del puesto.</div>
+    </div>
+    {% if salidas %}
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-diagram-2"></i> Subproductos y coproductos</div>
+      <div class="table-responsive"><table class="table table-sm mb-0">
+        <thead><tr><th>Producto</th><th>Tipo</th><th class="num">Previsto</th><th class="num" style="width:16%">Producido</th>{% if ver_costos and o.estado == 'TERMINADA' %}<th class="num">Costo unit.</th><th class="num">Costo asignado</th>{% endif %}</tr></thead>
+        <tbody>{% for s in salidas %}<tr>
+          <td>{{ s.producto.codigo }} {{ s.producto.nombre }}</td><td class="small">{% if s.tipo == 'COPRODUCTO' %}Coproducto · {{ s.participacion }} %{% else %}Subproducto · S/ {{ s.valor_unitario|floatformat:4 }}{% endif %}</td>
+          <td class="num">{{ s.cantidad_plan|floatformat:4 }}</td>
+          <td class="num">{% if abierta %}<input name="salida_{{ s.pk }}" value="{{ s.cantidad_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ s.cantidad_real|floatformat:4 }}{% endif %}</td>
+          {% if ver_costos and o.estado == 'TERMINADA' %}<td class="num">{{ s.costo_unitario|floatformat:4 }}</td><td class="num">{{ s.costo|money }}</td>{% endif %}
+        </tr>{% endfor %}</tbody>
       </table></div>
     </div>
-    {% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}
+    {% endif %}
+    {% if abierta %}
     <div class="card mb-3 border-success"><div class="card-body row g-2 align-items-end">
       <div class="col-md-4"><label class="form-label small mb-1">Cantidad producida ({{ o.producto.unidad }}) <span class="text-danger">*</span></label>
         <input name="cantidad_producida" value="{{ a_producir|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal" required>{% if avance.producido %}<div class="form-text">Según el reporte de planta</div>{% endif %}</div>
-      <div class="col-md-4"><label class="form-label small mb-1">Fecha de término</label><input type="date" name="fecha" class="form-control form-control-sm"></div>
+      <div class="col-md-4"><label class="form-label small mb-1">Fecha y hora de término</label><input type="datetime-local" name="fecha" value="{{ ahora|date:'Y-m-d\TH:i' }}" max="{{ ahora|date:'Y-m-d\TH:i' }}" class="form-control form-control-sm"></div>
       <div class="col-md-4"><button class="btn btn-sm btn-success w-100"><i class="bi bi-flag"></i> Terminar y registrar en almacén</button></div>
-      <div class="col-12 small text-muted">Ajuste lo realmente consumido y las horas reales. El producto ingresa al costo de los insumos (costo promedio) más mano de obra y costos indirectos de las horas reales. Tabla 12 SUNAT: 10 salida a producción, 19 entrada de producción.</div>
+      <div class="col-12"><div class="form-check small"><input class="form-check-input" type="checkbox" name="merma_a_gasto" value="1" id="merma_a_gasto"><label class="form-check-label" for="merma_a_gasto">Llevar a gasto el consumo sobre la receta (merma anormal, NIC 2 párr. 16). Sin marcar, el producto lleva todo lo consumido ÷ todo lo producido.</label></div></div>
+      <div class="col-12 small text-muted">Costo unitario = (insumos consumidos + mano de obra + máquina + CIF − lo asignado a subproductos) ÷ cantidad producida. Tabla 12 SUNAT: 10 salida a producción, 19 entrada de producción.</div>
     </div></div>
+    <script>
+    /* las horas hombre de la cuadrilla siguen a las horas máquina mientras no se cambien a mano */
+    document.querySelectorAll('.js-hmaq').forEach(inp => inp.addEventListener('input', () => {
+      document.querySelectorAll('.js-hh-' + inp.dataset.hora).forEach(hh => { if (!hh.dataset.editado) hh.value = inp.value; });
+    }));
+    document.addEventListener('input', e => { if (String(e.target.className).includes('js-hh-')) e.target.dataset.editado = '1'; });
+    </script>
     {% endif %}
     </form>
 
@@ -120,7 +154,7 @@
     {% if ver_costos and o.costo_estandar_unit %}<div class="card mb-3"><div class="card-body">
       <div class="text-muted small">Costo estándar unitario</div><div class="fs-5 fw-semibold">S/ {{ o.costo_estandar_unit|floatformat:4 }}</div>
       {% if o.estado == 'TERMINADA' %}<div class="text-muted small mt-2">Costo real unitario</div><div class="fs-5 fw-semibold">S/ {{ o.costo_unitario|floatformat:4 }}</div>
-      <div class="small text-muted">Materiales {{ o.costo_materiales|money }} · MO {{ o.costo_mano_obra|money }} · CIF {{ o.costo_cif|money }}</div>
+      <div class="small text-muted">Materiales {{ o.costo_materiales|money }} · MO {{ o.costo_mano_obra|money }} · Máquina {{ o.costo_maquina|money }} · CIF {{ o.costo_cif|money }}{% if o.costo_subproductos %} · − subproductos {{ o.costo_subproductos|money }}{% endif %} ÷ {{ o.cantidad_producida|money }} {{ o.producto.unidad }}</div>
       {% if o.merma_anormal %}<div class="small text-warning mt-1"><i class="bi bi-exclamation-triangle"></i> Merma anormal S/ {{ o.merma_anormal|money }}: consumo sobre la receta, llevado a gasto (NIC 2)</div>{% endif %}
       {% if o.ajuste_liquidacion %}<div class="text-muted small mt-2">Costo real final (liquidado)</div><div class="fs-5 fw-semibold">S/ {{ o.costo_real_unitario|floatformat:4 }}</div>
       <div class="small text-muted">Liquidación del periodo {{ o.ajuste_liquidacion|money }} · total {{ o.costo_real_final|money }}</div>{% endif %}{% endif %}

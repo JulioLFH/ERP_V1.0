@@ -204,7 +204,8 @@ class SaldoCierre(models.Model):
 
 
 class OperacionItem(models.Model):
-    ROLES = [('', '—'), ('INSUMO', 'Insumo (se consume)'), ('PRODUCTO', 'Producto terminado (se produce)')]
+    ROLES = [('', '—'), ('INSUMO', 'Insumo (se consume)'), ('PRODUCTO', 'Producto terminado (se produce)'),
+             ('SUBPROD', 'Subproducto o coproducto (entra a su costo asignado)')]
 
     operacion = models.ForeignKey(Operacion, on_delete=models.CASCADE, related_name='items')
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT, limit_choices_to={'tipo': 'BIEN'})

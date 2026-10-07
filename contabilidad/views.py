@@ -398,13 +398,26 @@ def _periodo_txt(p):
 def estado_resultados(request):
     hasta = _periodo(request, 'hasta')
     desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')
-    comparar = request.GET.get('comparar') if request.GET.get('comparar') in ('anio', 'previo', 'presupuesto') else ''
-    lineas, neta = reportes.estado_resultados(desde, hasta)
-    ctx = {'lineas': lineas, 'neta': neta, 'desde': desde, 'hasta': hasta, 'comparar': comparar,
+    comparar = request.GET.get('comparar') if request.GET.get('comparar') in ('anio', 'previo', 'presupuesto',
+                                                                               'meses') else ''
+    vista = 'naturaleza' if request.GET.get('vista') == 'naturaleza' else 'funcion'
+    calcular = reportes.estado_resultados_naturaleza if vista == 'naturaleza' else reportes.estado_resultados
+    lineas, neta = calcular(desde, hasta)
+    ctx = {'lineas': lineas, 'neta': neta, 'desde': desde, 'hasta': hasta, 'comparar': comparar, 'vista': vista,
            'mes_desde': _mes_input(desde), 'mes_hasta': _mes_input(hasta),
            'opciones': [('anio', 'Mismo periodo del año anterior'), ('previo', 'Periodo anterior'),
                         ('presupuesto', 'Presupuesto')]}
-    if comparar:
+    if comparar == 'meses':  # desglose: una columna por mes y el total
+        meses, mensual = reportes.resultados_mensual(desde, hasta, vista)
+        ctx.update(meses=[_periodo_txt(p) for p in meses], mensual=mensual)
+        if request.GET.get('formato') == 'excel':
+            return excel_response(
+                f'Estado_resultados_mensual_{desde}_{hasta}',
+                f'ESTADO DE RESULTADOS POR {vista.upper()} · MENSUAL {_periodo_txt(desde)} - {_periodo_txt(hasta)}',
+                ['Concepto'] + ctx['meses'] + ['Total'],
+                [[f['nombre']] + f['valores'] + [f['total']] for f in mensual])
+        return render(request, 'contabilidad/resultados.html', ctx)
+    if comparar and vista == 'funcion':
         filas, rango = reportes.resultados_comparativo(desde, hasta, comparar)
         etiqueta = 'Presupuesto' if comparar == 'presupuesto' else \
             f'{_periodo_txt(rango[0])} - {_periodo_txt(rango[1])}'
@@ -414,7 +427,7 @@ def estado_resultados(request):
             ctx['sin_presupuesto'] = not any(Presupuesto.del_anio(a) for a in range(int(desde[:4]), int(hasta[:4]) + 1))
     if request.GET.get('formato') == 'excel':
         actual = f'{_periodo_txt(desde)} - {_periodo_txt(hasta)}'
-        if comparar:
+        if comparar and 'filas' in ctx:
             datos_xls = [[f['nombre'], f['valor'], f['comp'], f['var'], f['pct']] for f in ctx['filas']]
             encabezados = ['Concepto', actual, ctx['etiqueta_comp'], 'Variación', 'Variación %']
         else:
@@ -501,7 +514,7 @@ def resultados_por_linea(request):
             'orden__producto'):
         pk = h.orden.producto.centro_beneficio_id
         pk = pk if pk in datos['planta'] else None
-        datos['planta'][pk] += h.costo_mo + h.costo_cif
+        datos['planta'][pk] += h.costo_mo + h.costo_maquina + h.costo_cif
     # lo que la liquidación del costo real llevó al producto también salió del gasto de planta
     from produccion.models import LiquidacionOrden
     for lo in LiquidacionOrden.objects.filter(liquidacion__periodo__range=[desde, hasta]).select_related(

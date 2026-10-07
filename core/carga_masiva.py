@@ -218,8 +218,9 @@ DEFINICIONES = OrderedDict([
         'columnas': [
             ('codigo', 'Código', True, 'HOR1', ''), ('nombre', 'Nombre', True, 'Horno 1', ''),
             ('tipo', 'Tipo', False, 'Máquina', 'Máquina, Línea de producción o Puesto manual'),
-            ('costo_hora_mo', 'Tarifa mano de obra S/ h', True, '20', ''),
-            ('costo_hora_cif', 'Tarifa máquina y CIF S/ h', True, '30', ''),
+            ('costo_hora_mo', 'Tarifa mano de obra referencial S/ h hombre', True, '20', ''),
+            ('costo_hora_maquina', 'Tarifa máquina S/ h máquina', False, '18', 'Depreciación, energía, mantenimiento'),
+            ('costo_hora_cif', 'Tarifa CIF S/ h máquina', True, '12', 'Se reparte por horas máquina'),
             ('centro_costo', 'Centro de costo (código)', False, 'PL-HOR', ''),
             ('horas_turno', 'Horas por turno', False, '8', ''), ('turnos', 'Turnos por día', False, '1', ''),
             ('dias_laborables', 'Días laborables', False, '123456', '1 = lunes … 7 = domingo'),
@@ -515,7 +516,8 @@ def _fila_puesto(d, actualizar):
         'nombre': nombre[:100], 'tipo': _elegir(d.get('tipo'), _opciones(CentroTrabajo.TIPOS), 'Tipo',
                                                 requerido=False, defecto='MAQUINA'),
         'costo_hora_mo': str(_dec(d.get('costo_hora_mo'), 'Tarifa mano de obra', True, D0)),
-        'costo_hora_cif': str(_dec(d.get('costo_hora_cif'), 'Tarifa máquina y CIF', True, D0)),
+        'costo_hora_maquina': str(_dec(d.get('costo_hora_maquina'), 'Tarifa máquina', minimo=D0) or D0),
+        'costo_hora_cif': str(_dec(d.get('costo_hora_cif'), 'Tarifa CIF', True, D0)),
         'centro_costo': cc, 'horas_turno': str(_dec(d.get('horas_turno'), 'Horas por turno', minimo=D0) or 8),
         'turnos': int(_dec(d.get('turnos'), 'Turnos', minimo=D0) or 1), 'dias_laborables': ''.join(sorted(set(dias))),
         'eficiencia': str(eficiencia)}, 'resumen': f'{codigo} · {nombre}'}
@@ -863,7 +865,7 @@ def _cargar_maestro(tipo, filas):
             d = dict(f['datos'])
             d['centro_costo'] = CentroCosto.objects.filter(codigo=d['centro_costo']).first() if d['centro_costo'] \
                 else None
-            for campo in ('costo_hora_mo', 'costo_hora_cif', 'horas_turno', 'eficiencia'):
+            for campo in ('costo_hora_mo', 'costo_hora_maquina', 'costo_hora_cif', 'horas_turno', 'eficiencia'):
                 d[campo] = Decimal(d[campo])
             CentroTrabajo.objects.update_or_create(codigo=f['codigo'], defaults=d)
         return f'{len(filas)} puestos de trabajo cargados.'

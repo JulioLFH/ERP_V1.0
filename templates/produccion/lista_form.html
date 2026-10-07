@@ -38,6 +38,28 @@
     <div class="card-body"><button type="button" class="btn btn-sm btn-outline-primary js-agregar" data-body="comp-body" data-template="comp-template"><i class="bi bi-plus-lg"></i> Agregar insumo</button>
       <span class="small text-muted ms-2">Las operaciones y sus horas se definen en la <a href="{% url 'manufactura:hojas' %}">hoja de ruta</a>; receta + hoja se unen en una <a href="{% url 'manufactura:versiones' %}">versión de fabricación</a>.</span></div>
   </div>
+
+  <div class="card mb-3">
+    <div class="card-header"><i class="bi bi-diagram-2"></i> Subproductos y coproductos por lote <span class="small text-muted">(opcional)</span></div>
+    {{ subproductos.management_form }}
+    {% for e in subproductos.non_form_errors %}<div class="alert alert-danger m-3 py-2">{{ e }}</div>{% endfor %}
+    <div class="table-responsive"><table class="table mb-0">
+      <thead><tr><th style="width:34%">Producto</th><th class="num" style="width:13%">Cantidad</th><th style="width:20%">Tipo</th><th class="num" style="width:13%">Valor S/ por unidad</th><th class="num" style="width:12%">% del costo</th><th class="text-center" style="width:4%"><i class="bi bi-trash"></i></th></tr></thead>
+      <tbody id="sub-body" data-prefix="{{ subproductos.prefix }}">
+        {% for f in subproductos %}<tr>
+          <td>{{ f.id }}{{ f.producto }}{% for e in f.producto.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+          <td>{{ f.cantidad }}{% for e in f.cantidad.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+          <td>{{ f.tipo }}</td>
+          <td>{{ f.valor_unitario }}{% for e in f.valor_unitario.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+          <td>{{ f.participacion }}{% for e in f.participacion.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+          <td class="text-center">{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td>
+        </tr>{% endfor %}
+      </tbody>
+    </table></div>
+    <template id="sub-template"><tr><td>{{ subproductos.empty_form.id }}{{ subproductos.empty_form.producto }}</td><td>{{ subproductos.empty_form.cantidad }}</td><td>{{ subproductos.empty_form.tipo }}</td><td>{{ subproductos.empty_form.valor_unitario }}</td><td>{{ subproductos.empty_form.participacion }}</td><td class="text-center">{{ subproductos.empty_form.DELETE }}</td></tr></template>
+    <div class="card-body"><button type="button" class="btn btn-sm btn-outline-primary js-agregar" data-body="sub-body" data-template="sub-template"><i class="bi bi-plus-lg"></i> Agregar subproducto</button>
+      <div class="small text-muted mt-2">NIC 2 párr. 14. <b>Subproducto</b> (de menor valor, ej. suero, recortes): entra a su valor por unidad (precio de venta − gastos para venderlo) y ese valor se resta del costo del producto principal. <b>Coproducto</b> (de valor importante): recibe su % del costo conjunto según su valor de venta relativo; el producto principal lleva el resto.</div></div>
+  </div>
   <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar receta</button>
 </form>
 {{ unidades|json_script:"unidades-data" }}

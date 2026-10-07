@@ -161,7 +161,8 @@ def liquidar(periodo, usuario=None):
                 liquidacion=liq, centro_costo=cc, horas=horas, horas_normales=normales, mo_real=r2(gasto['MO']),
                 variable_real=r2(gasto['VARIABLE']), fijo_real=r2(gasto['FIJO']),
                 fijo_inventariable=r2(gasto['FIJO'] * factor),
-                absorbido_mo=sum((h.costo_mo for h in filas), D0), absorbido_cif=sum((h.costo_cif for h in filas), D0))
+                absorbido_mo=sum((h.costo_mo for h in filas), D0),
+                absorbido_cif=sum((h.costo_maquina + h.costo_cif for h in filas), D0))
             if not horas:
                 continue
             pesos = defaultdict(lambda: D0)

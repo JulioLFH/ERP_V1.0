@@ -24,6 +24,9 @@
     <div class="card mb-3"><div class="card-header"><i class="bi bi-box-seam"></i> Insumos por lote</div>
       <table class="table table-sm mb-0"><thead><tr><th>Insumo</th><th class="num">Cantidad</th><th class="num">Merma %</th><th class="num">Op.</th><th>Almacén de consumo</th></tr></thead>
       <tbody>{% for c in componentes %}<tr><td>{{ c.producto.codigo }} {{ c.producto.nombre }}</td><td class="num">{{ c.cantidad|floatformat:4 }} {{ c.producto.unidad }}</td><td class="num">{{ c.merma }}</td><td class="num">{{ c.operacion|default:'' }}</td><td class="small">{{ c.almacen|default:'El de la orden' }}</td></tr>{% endfor %}</tbody></table></div>
+    {% with subs=lista.subproductos.all %}{% if subs %}<div class="card mb-3"><div class="card-header"><i class="bi bi-diagram-2"></i> Subproductos y coproductos por lote</div>
+      <table class="table table-sm mb-0"><thead><tr><th>Producto</th><th class="num">Cantidad</th><th>Tipo</th><th class="num">Valor / %</th></tr></thead>
+      <tbody>{% for s in subs %}<tr><td>{{ s.producto.codigo }} {{ s.producto.nombre }}</td><td class="num">{{ s.cantidad|floatformat:4 }} {{ s.producto.unidad }}</td><td>{{ s.get_tipo_display }}</td><td class="num">{% if s.tipo == 'COPRODUCTO' %}{{ s.participacion }} %{% else %}S/ {{ s.valor_unitario|floatformat:4 }}{% endif %}</td></tr>{% endfor %}</tbody></table></div>{% endif %}{% endwith %}
     {% if lista.observaciones %}<p class="small text-muted">{{ lista.observaciones|linebreaksbr }}</p>{% endif %}
     {% include 'core/_bitacora.html' with objeto=lista %}
   </div>
