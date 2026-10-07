@@ -36,6 +36,7 @@
       {% elif filas %}<div class="card-body border-bottom"><form method="post">{% csrf_token %}<input type="hidden" name="tipo" value="{{ tipo }}"><input type="hidden" name="accion" value="confirmar">
         <button class="btn btn-success"><i class="bi bi-cloud-upload"></i> Confirmar carga de {{ validas }} fila(s)</button></form></div>
       {% else %}<div class="alert alert-warning m-3 py-2 small">El archivo no tiene filas con datos.</div>{% endif %}
+      {% if total_filas > filas|length %}<div class="small text-muted px-3 py-2 border-bottom">Archivo grande: se muestran {{ filas|length }} de {{ total_filas }} filas ({% if errores %}primero las que tienen error{% else %}una muestra{% endif %}).</div>{% endif %}
       <div class="table-responsive" style="max-height: 60vh"><table class="table table-sm mb-0 small">
         <thead><tr><th>Fila</th><th>Acción</th><th>Detalle</th></tr></thead>
         <tbody>{% for f in filas %}<tr class="{% if f.error %}table-danger{% endif %}"><td>{{ f.n }}</td>

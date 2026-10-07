@@ -111,6 +111,18 @@ DEFINICIONES = OrderedDict([
             ('telefono', 'Teléfono', False, '', ''),
             ('dias_credito', 'Días de crédito', False, '30', ''),
         ]}),
+    ('listas_precios', {
+        'titulo': 'Listas de precios', 'icono': 'bi-tags', 'modulos': ['ventas'],
+        'descripcion': 'Precio de cada producto en cada lista (mayorista, distribuidor, horeca…), con tramos por '
+                       'cantidad. La lista se indica por su código (LP02) o su nombre; si no existe se crea. El '
+                       'producto, por su código o como lo exporta Odoo: "[A2820] Nombre". Hasta 30,000 filas.',
+        'columnas': [
+            ('lista', 'Lista de precios', True, 'LP02', 'Código o nombre de la lista'),
+            ('producto', 'Código de producto', True, 'A2820', 'Código, o "[código] nombre"'),
+            ('precio', 'Precio sin IGV', False, '12.50', 'Vacío = precio de venta del producto con el descuento'),
+            ('desde_cantidad', 'Desde cantidad', False, '1', 'Tramo: el precio rige desde esta cantidad. Vacío = 1'),
+            ('descuento', 'Descuento %', False, '0', ''),
+        ]}),
     ('saldos_cxc', {
         'titulo': 'Saldos iniciales por cobrar', 'icono': 'bi-person-down', 'modulos': ['ventas', 'finanzas'],
         'descripcion': 'Comprobantes de venta pendientes de cobro emitidos antes de usar el sistema. Se cobran '
@@ -403,6 +415,49 @@ def _producto(codigo, campo):
     return p
 
 
+def _fila_lista_precio(d, actualizar):
+    import re
+
+    from ventas.models import ListaPrecios, PrecioLista
+    cache = _CONTEXTO.setdefault('listas_precios', {})
+    if 'listas' not in cache:  # una sola consulta por archivo (puede traer miles de filas)
+        cache['listas'] = {}
+        for l in ListaPrecios.objects.all():
+            cache['listas'][normalizar(l.codigo)] = l
+            cache['listas'][normalizar(l.nombre)] = l
+        cache['productos'] = dict(Producto.objects.values_list('codigo', 'pk'))
+        cache['existentes'] = set(PrecioLista.objects.values_list('lista_id', 'producto_id', 'cantidad_minima'))
+    texto_lista = _txt(d.get('lista'))
+    if not texto_lista:
+        raise ErrorFila('Lista de precios: obligatoria.')
+    lista = cache['listas'].get(normalizar(texto_lista))
+    texto_prod = _txt(d.get('producto'))
+    m = re.match(r'^\[([^\]]+)\]', texto_prod)
+    codigo = (m.group(1) if m else texto_prod).strip().upper()
+    producto_id = cache['productos'].get(codigo)
+    if not producto_id:
+        raise ErrorFila(f'Producto: {codigo or "(vacío)"} no existe.')
+    precio = _dec(d.get('precio'), 'Precio', minimo=D0)
+    descuento = _dec(d.get('descuento'), 'Descuento %', minimo=D0) or D0
+    if descuento > 100:
+        raise ErrorFila('Descuento %: no puede pasar de 100.')
+    if precio is None and not descuento:
+        raise ErrorFila('Indique el precio o el descuento.')
+    desde = _dec(d.get('desde_cantidad'), 'Desde cantidad', minimo=Decimal('0.01')) or Decimal('1')
+    existe = bool(lista and (lista.pk, producto_id, desde) in cache['existentes'])
+    if existe and not actualizar:
+        raise ErrorFila(f'{codigo} ya tiene precio en {lista.codigo} desde {desde} (marque "Actualizar existentes").')
+    clave_lista = lista.codigo if lista else texto_lista[:100]
+    return {'accion': 'Actualizar' if existe else 'Nuevo' if lista else 'Nuevo (crea la lista)',
+            'codigo': f'{clave_lista}|{codigo}|{desde}',
+            'datos': {'lista': lista.pk if lista else None, 'lista_nombre': texto_lista[:100], 'producto': producto_id,
+                      'precio': str(precio) if precio is not None else None, 'desde': str(desde),
+                      'descuento': str(descuento)},
+            'resumen': f'{clave_lista} · {codigo} · desde {desde:g} · '
+                       f'{"S/ " + format(precio, ",.2f") if precio is not None else "precio del producto"}'
+                       f'{f" · dscto {descuento:g}%" if descuento else ""}'}
+
+
 def _fila_beneficio(d, actualizar):
     from contabilidad.models import CentroBeneficio
     codigo, nombre = _txt(d.get('codigo')).upper(), _txt(d.get('nombre'))
@@ -613,7 +668,9 @@ def _fila_trabajador(d, actualizar):
 VALIDADORES = {'trabajadores': _fila_trabajador, 'productos': _fila_producto, 'terceros': _fila_tercero, 'saldos': _fila_saldo,
                'saldos_cxc': lambda d, a: _fila_documento(d, True), 'saldos_cxp': lambda d, a: _fila_documento(d, False),
                'centros_beneficio': _fila_beneficio, 'centros_costo': _fila_centro_costo, 'puestos': _fila_puesto,
-               'recetas': _fila_receta, 'hojas_ruta': _fila_hoja, 'versiones': _fila_version}
+               'recetas': _fila_receta, 'hojas_ruta': _fila_hoja, 'versiones': _fila_version,
+               'listas_precios': _fila_lista_precio}
+MAXIMO_FILAS = {'listas_precios': 30000}
 
 
 def _crear_documentos(filas, es_venta, sustentar=lambda obj: None):
@@ -669,8 +726,9 @@ def leer_archivo(archivo, tipo):
         if not any(v not in (None, '') for v in valores):
             continue
         salida.append({'n': n, 'datos': {c: v for c, v in zip(enc, valores) if c}})
-    if len(salida) > 5000:
-        raise ErrorFila('Máximo 5,000 filas por archivo.')
+    maximo = MAXIMO_FILAS.get(tipo, 5000)
+    if len(salida) > maximo:
+        raise ErrorFila(f'Máximo {maximo:,} filas por archivo.')
     return salida
 
 
@@ -680,6 +738,7 @@ def validar(archivo, tipo, actualizar=False):
     resultado, errores, vistos = [], 0, {}
     filas = leer_archivo(archivo, tipo)
     _CONTEXTO['codigos'] = {_txt(f['datos'].get('codigo')).upper() for f in filas}
+    _CONTEXTO.pop('listas_precios', None)  # caché de la validación anterior
     for fila in filas:
         try:
             r = validador(fila['datos'], actualizar)
@@ -779,6 +838,8 @@ def cargar(tipo, filas, usuario, adjunto=None):
             return f'{len(filas)} trabajadores cargados.'
         if tipo in ('centros_beneficio', 'centros_costo', 'puestos', 'recetas', 'hojas_ruta', 'versiones'):
             return _cargar_maestro(tipo, filas)
+        if tipo == 'listas_precios':
+            return _cargar_listas_precios(filas)
     raise ValueError(tipo)
 
 
@@ -836,6 +897,41 @@ def _cargar_maestro(tipo, filas):
             lote_costeo=Decimal(d['lote_costeo']) if d['lote_costeo'] else None,
             vigente_desde=date.fromisoformat(d['desde']), dias_fabricacion=d['dias'])
     return f'{len(filas)} versiones de fabricación cargadas.'
+
+
+def _cargar_listas_precios(filas):
+    from ventas.models import ListaPrecios, PrecioLista
+    nuevas, filas_por_clave = {}, {}
+    for f in filas:
+        d = f['datos']
+        lista_id = d['lista']
+        if not lista_id:  # lista nueva: se crea una vez con el siguiente código libre
+            nombre = d['lista_nombre']
+            if nombre not in nuevas:
+                n = ListaPrecios.objects.count() + 1
+                while ListaPrecios.objects.filter(codigo=f'LP{n:02d}').exists():
+                    n += 1
+                nuevas[nombre] = ListaPrecios.objects.create(codigo=f'LP{n:02d}', nombre=nombre).pk
+            lista_id = nuevas[nombre]
+        filas_por_clave[(lista_id, d['producto'], Decimal(d['desde']))] = (
+            Decimal(d['precio']) if d['precio'] is not None else None, Decimal(d['descuento']))
+    # en bloque: miles de precios en pocas consultas
+    existentes = {(p.lista_id, p.producto_id, p.cantidad_minima): p for p in PrecioLista.objects.filter(
+        lista_id__in={k[0] for k in filas_por_clave})}
+    crear, cambiar = [], []
+    for clave, (precio, descuento) in filas_por_clave.items():
+        p = existentes.get(clave)
+        if p is None:
+            crear.append(PrecioLista(lista_id=clave[0], producto_id=clave[1], cantidad_minima=clave[2], precio=precio,
+                                     descuento_pct=descuento))
+        else:
+            p.precio, p.descuento_pct = precio, descuento
+            cambiar.append(p)
+    PrecioLista.objects.bulk_create(crear, batch_size=1000)
+    PrecioLista.objects.bulk_update(cambiar, ['precio', 'descuento_pct'], batch_size=1000)
+    nuevos, actualizados = len(crear), len(cambiar)
+    extra = f' Listas nuevas: {", ".join(nuevas)}.' if nuevas else ''
+    return f'{nuevos} precios nuevos y {actualizados} actualizados.{extra}'
 
 
 def plantilla(tipo):

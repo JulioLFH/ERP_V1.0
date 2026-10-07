@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.23.2 — 07/10/2026 · Carga de listas de precios desde Excel
+- **Carga masiva › Listas de precios**: precio, tramo por cantidad y descuento de cada producto en cada lista, hasta 30,000 filas. Acepta la lista por código o nombre (si no existe se crea) y el producto por código o como lo exporta Odoo («[A2820] Nombre»). Validación previa, «Actualizar existentes» y grabación en bloque.
+- Ventas › Listas de precios: botón «Cargar precios desde Excel» y aviso de las listas sin precios.
+
 ## v1.23.1 — 07/10/2026 · Avisos de carga y de permisos
 - **Aviso de carga**: barra superior y «Cargando…» / «Procesando…» mientras el servidor responde al abrir pantallas o guardar; el botón pulsado se bloquea para no registrar dos veces lo mismo (las descargas de Excel y PDF no lo muestran).
 - **Acción sin permiso desde un botón**: se vuelve a la misma pantalla con el aviso «Acción no permitida» y el motivo, en vez de salir a otra página. La página de acceso denegado tiene botón «Volver».

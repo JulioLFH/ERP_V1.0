@@ -263,8 +263,9 @@ def precio(request):
 
 @login_required
 def listas_precios(request):
-    listas = ListaPrecios.objects.annotate(n=Count('precios'))
-    return render(request, 'ventas/listas_precios.html', {'listas': listas})
+    listas = list(ListaPrecios.objects.annotate(n=Count('precios')))
+    return render(request, 'ventas/listas_precios.html', {
+        'listas': listas, 'sin_precios': sum(1 for l in listas if l.activa and not l.n)})
 
 
 def _guardar_lista(request, lista, titulo):

@@ -232,6 +232,11 @@ def carga_masiva(request):
         return resp
     ctx = {'definiciones': permitidos, 'tipo': tipo, 'definicion': permitidos[tipo]}
     accion = request.POST.get('accion')
+    from .permisos import puede
+    if tipo == 'listas_precios' and request.method == 'POST' and not puede(request.user, 'ventas.precios'):
+        messages.error(request, 'Acción no permitida. Su usuario no tiene permiso para mantener listas de precios y '
+                                'descuentos. Pida al administrador que se lo asigne en Ajustes > Usuarios y permisos.')
+        return redirect(f"{request.path}?tipo={tipo}")
     if request.method == 'POST' and accion == 'validar':
         archivo = request.FILES.get('archivo')
         if not archivo:
@@ -251,8 +256,11 @@ def carga_masiva(request):
                                                        'datos': base64.b64encode(archivo.read()).decode()}
                 else:
                     request.session.pop('carga_masiva', None)
-                ctx.update(filas=filas, errores=errores, validas=len(filas) - errores, archivo=archivo.name,
-                           actualizar=actualizar)
+                # archivos grandes: se muestran los errores y una muestra de las filas válidas
+                muestra = filas if len(filas) <= 1000 else (
+                    [f for f in filas if f.get('error')][:1000] + [f for f in filas if not f.get('error')][:300])
+                ctx.update(filas=muestra, total_filas=len(filas), errores=errores, validas=len(filas) - errores,
+                           archivo=archivo.name, actualizar=actualizar)
     elif request.method == 'POST' and accion == 'confirmar':
         pendiente = request.session.pop('carga_masiva', None)
         if not pendiente or pendiente['tipo'] != tipo:

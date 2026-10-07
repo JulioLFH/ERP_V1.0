@@ -3,8 +3,11 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title"><i class="bi bi-tags"></i> Listas de precios</h1>
-  {% if puede.ventas_precios %}<a href="{% url 'ventas:lista_precios_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva lista</a>{% endif %}
+  {% if puede.ventas_precios %}<div class="d-flex gap-2">
+    <a href="{% url 'carga_masiva' %}?tipo=listas_precios" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-arrow-up"></i> Cargar precios desde Excel</a>
+    <a href="{% url 'ventas:lista_precios_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva lista</a></div>{% endif %}
 </div>
+{% if sin_precios %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> {{ sin_precios }} lista(s) sin precios: al vender a sus clientes se usa el precio de venta de la ficha del producto (si es 0, el ítem sale en 0). Cárguelas con <a href="{% url 'carga_masiva' %}?tipo=listas_precios">Cargar precios desde Excel</a>.</div>{% endif %}
 <div class="card">
   <div class="table-responsive"><table class="table table-hover mb-0">
     <thead><tr><th>Código</th><th>Nombre</th><th>Vigencia</th><th class="num">Precios</th><th>Estado</th><th></th></tr></thead>

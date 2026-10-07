@@ -32,7 +32,9 @@ MODULOS = [
             ('Productos', 'productos'),
             ('Reportes', [('Registro de ventas 14.1 / PLE', 'ventas:registro', 'bi-journal-text'),
                           ('Reportes de ventas', 'ventas:reportes', 'bi-graph-up'),
-                          ('Importar desde Excel', 'ventas:importar', 'bi-file-earmark-arrow-up')]),
+                          ('Importar desde Excel', 'ventas:importar', 'bi-file-earmark-arrow-up'),
+                          ('Cargar listas de precios (Excel)', 'carga_masiva?tipo=listas_precios',
+                           'bi-tags')]),
         ],
     },
     {
