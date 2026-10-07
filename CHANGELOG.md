@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.24.1 — 07/10/2026 · Carga de manufactura del sistema anterior
+- Comando `cargar_manufactura` que lee el reporte de producción del sistema anterior (Excel) y crea las **recetas** (lista de materiales aprobada y versión de fabricación) de cada producto fabricado, con la proporción de componentes que más se repite entre sus órdenes (las órdenes divididas -001/-002 conservan lo planificado de la original y no se usan como referencia).
+- Las **órdenes abiertas** del sistema anterior (en progreso, borrador o por cerrar) pasan a órdenes de producción confirmadas por lo que falta producir; no mueven stock hasta terminarlas en el ERP. Se puede volver a correr sin duplicar.
+
 ## v1.24.0 — 07/10/2026 · Cierre de costos según la NIC 2
 - **Liquidación de costo real** (Costos › Cierre de costos): al cierre del mes, el gasto real de cada centro de costo de planta (planillas, depreciación, energía…) se lleva a las órdenes terminadas por sus horas y, por producto, al inventario (revaloriza el costo promedio) o al costo de ventas, por línea de negocio. Multinivel: lo de los semielaborados pasa a los productos que los consumieron. Se puede volver a liquidar o anular.
 - **Capacidad normal (NIC 2 párr. 13)**: cada puesto de trabajo tiene sus horas normales al mes; el CIF fijo de la capacidad ociosa queda como gasto del periodo y no se inventaría. Pantalla para clasificar los gastos de planta en mano de obra, CIF variable y CIF fijo por cuenta.
