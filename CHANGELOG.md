@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.22.0 — 06/10/2026 · Otra empresa sin otro servidor
+- **Multiempresa en el mismo servidor**: una empresa nueva puede ir como otra base dentro del mismo PostgreSQL de la principal (`EMPRESAS_EXTRA = {"alias": {"nombre": "…", "base": "erp_alias"}}`), sin costo extra ni otra clave. El despliegue (`migrar_empresas`) crea la base si falta, con sus tablas, plan de cuentas y administrador.
+
 ## v1.21.0 — 06/10/2026 · Manuales de usuario
 - **Manuales de usuario** en Ajustes → Ayuda: un PDF por módulo con diagramas de flujo, pantallas paso a paso y el logo en cada página. Solo los administradores los ven y descargan.
 - Ventas: se quita "Trasladar a periodo" del comprobante de venta (queda solo en compras, para el crédito fiscal).

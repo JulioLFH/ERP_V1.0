@@ -3,10 +3,12 @@
     python manage.py migrar_empresas            # todas las empresas (EMPRESAS_EXTRA + la principal)
     python manage.py migrar_empresas --solo pauno2
 """
+from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
+from django.db import DatabaseError
 
-from erp.empresas import activar, empresas, restaurar
+from erp.empresas import activar, crear_base_si_falta, empresas, restaurar
 
 
 class Command(BaseCommand):
@@ -20,6 +22,13 @@ class Command(BaseCommand):
             if opts['solo'] and alias != opts['solo']:
                 continue
             self.stdout.write(self.style.MIGRATE_HEADING(f'Empresa {alias} ({nombre})'))
+            if alias != 'default':
+                try:
+                    if crear_base_si_falta(alias):
+                        self.stdout.write(f'  Base {settings.DATABASES[alias]["NAME"]} creada')
+                except DatabaseError as e:  # sin permiso para crear bases: no detiene el despliegue de las demás
+                    self.stderr.write(f'  No se pudo crear la base de {alias}: {e}')
+                    continue
             # con la empresa activa, las migraciones de datos (plan de cuentas, conceptos…) escriben en su base
             token = activar(alias)
             try:

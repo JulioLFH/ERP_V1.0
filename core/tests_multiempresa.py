@@ -1,9 +1,9 @@
 """v1.20: multiempresa: cada empresa en su propia base (usuarios, datos y configuración separados)."""
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
-from erp.empresas import activar, actual, restaurar
+from erp.empresas import activar, actual, config_base, restaurar
 
 from .models import Empresa, Tercero
 
@@ -48,3 +48,24 @@ class MultiempresaTest(TestCase):
         self.assertRedirects(r, f'{reverse("login")}?empresa=default', fetch_redirect_response=False)
         self.client.post(reverse('login'), {'username': 'admin1', 'password': 'clave-uno', 'empresa': 'default'})
         self.assertContains(self.client.get(reverse('home')), 'PRIMERA S.A.C.')
+
+
+class ConfigBaseTest(SimpleTestCase):
+    """EMPRESAS_EXTRA con "base": otra base en el mismo servidor de la principal (sin URL ni clave)."""
+    principal = {'ENGINE': 'django.db.backends.postgresql', 'NAME': 'erp_db', 'USER': 'erp', 'PASSWORD': 'x',
+                 'HOST': 'dpg-1', 'PORT': 5432}
+
+    def test_misma_conexion_con_otro_nombre(self):
+        conf = config_base({'nombre': 'OTRA S.A.C.', 'base': 'erp_empresa2'}, self.principal)
+        self.assertEqual(conf['NAME'], 'erp_empresa2')
+        self.assertEqual((conf['HOST'], conf['USER'], conf['PASSWORD']), ('dpg-1', 'erp', 'x'))
+        self.assertEqual(self.principal['NAME'], 'erp_db')  # no toca la principal
+
+    def test_url_propia_y_nombre_invalido(self):
+        self.assertEqual(config_base({'url': 'postgres://u:c@otro:5432/b2'}, self.principal)['HOST'], 'otro')
+        with self.assertRaises(ValueError):
+            config_base({'base': 'x"; DROP'}, self.principal)
+
+    def test_sqlite_junto_a_la_principal(self):
+        conf = config_base({'base': 'empresa3'}, {'ENGINE': 'django.db.backends.sqlite3', 'NAME': '/datos/db.sqlite3'})
+        self.assertEqual(conf['NAME'].name, 'empresa3.sqlite3')

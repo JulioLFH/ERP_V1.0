@@ -3,15 +3,50 @@
 - settings.EMPRESAS = {alias: nombre} con las bases configuradas (la principal es 'default').
 - Al iniciar sesión se elige la empresa; queda en la sesión (las sesiones viven en la base principal) y el
   middleware la activa en cada petición. El enrutador manda todas las consultas a la base de la empresa activa.
-- Se agrega una empresa con la variable de entorno EMPRESAS_EXTRA (JSON):
+- Se agrega una empresa con la variable de entorno EMPRESAS_EXTRA (JSON), con su propio servidor:
     {"pauno2": {"nombre": "Otra empresa S.A.C.", "url": "postgres://usuario:clave@host/base"}}
-  y luego: python manage.py migrar_empresas (crea las tablas y el administrador en cada base).
+  o como otra base dentro del mismo servidor de la principal (sin otra clave ni otro costo):
+    {"pauno2": {"nombre": "Otra empresa S.A.C.", "base": "erp_pauno2"}}
+  y luego: python manage.py migrar_empresas (crea la base si falta, las tablas y el administrador en cada una).
 """
+import re
 from contextvars import ContextVar
+from pathlib import Path
 
 from django.conf import settings
 
 _actual = ContextVar('empresa_actual', default='default')
+
+
+def config_base(cfg, principal):
+    """Conexión de una empresa de EMPRESAS_EXTRA: su propia 'url' o una 'base' en el servidor de la principal."""
+    import dj_database_url
+    if cfg.get('url'):
+        return dj_database_url.parse(cfg['url'], conn_max_age=600)
+    nombre = cfg.get('base', '')
+    if not re.fullmatch(r'[a-z][a-z0-9_]{0,62}', nombre):
+        raise ValueError(f'EMPRESAS_EXTRA: nombre de base no válido: {nombre!r} (minúsculas, números y _)')
+    conf = {**principal, 'TEST': dict(principal.get('TEST', {}))}
+    if 'sqlite' in conf['ENGINE']:
+        conf['NAME'] = Path(principal['NAME']).with_name(f'{nombre}.sqlite3')
+    else:
+        conf['NAME'] = nombre
+    return conf
+
+
+def crear_base_si_falta(alias):
+    """PostgreSQL: crea la base de la empresa en el servidor de la principal si aún no existe. Devuelve si la creó."""
+    from django.db import connections
+    conf, principal = settings.DATABASES[alias], settings.DATABASES['default']
+    if 'postgresql' not in conf['ENGINE'] or (conf.get('HOST'), conf.get('PORT')) != \
+            (principal.get('HOST'), principal.get('PORT')):
+        return False  # SQLite se crea sola; otro servidor ya trae su base
+    with connections['default'].cursor() as c:
+        c.execute('SELECT 1 FROM pg_database WHERE datname = %s', [conf['NAME']])
+        if c.fetchone():
+            return False
+        c.execute(f'CREATE DATABASE "{conf["NAME"]}"')  # nombre validado en config_base
+    return True
 
 # tablas que siempre están en la base principal (la sesión dice qué empresa usar)
 APPS_PRINCIPAL = {'sessions'}
