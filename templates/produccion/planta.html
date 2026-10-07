@@ -1,0 +1,25 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Reporte de planta{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-tablet"></i> Reporte de planta</h1>
+  <form method="get" class="d-flex gap-2"><select name="centro" class="form-select" onchange="this.form.submit()"><option value="">Todos los puestos</option>{% for c in centros %}<option value="{{ c.pk }}" {% if centro == c.pk|stringformat:'s' %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></form>
+</div>
+<p class="text-muted">Toque una orden para reportar lo producido, la merma y las horas de su operación.</p>
+<div class="row g-3">
+  {% for o in ordenes %}
+  <div class="col-sm-6 col-xl-4">
+    <a href="{% url 'manufactura:planta_orden' o.pk %}{% if centro %}?centro={{ centro }}{% endif %}" class="card h-100 text-decoration-none text-body shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between"><span class="fs-5 fw-semibold">{{ o.numero }}</span>
+          <span class="badge {% if o.estado == 'EN_PROCESO' %}text-bg-info{% else %}text-bg-secondary{% endif %} align-self-start">{{ o.get_estado_display }}</span></div>
+        <div class="fs-6">{{ o.producto.nombre }}</div>
+        <div class="text-muted">{{ o.cantidad|money }} {{ o.producto.unidad }} · prioridad {{ o.prioridad }}{% if o.n_avances %} · {{ o.n_avances }} reporte(s){% endif %}</div>
+      </div>
+    </a>
+  </div>
+  {% empty %}
+  <div class="col-12"><div class="alert alert-info">No hay órdenes confirmadas o en proceso{% if centro %} en este puesto{% endif %}.</div></div>
+  {% endfor %}
+</div>
+{% endblock %}

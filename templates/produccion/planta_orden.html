@@ -1,0 +1,38 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Planta · {{ o.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title mb-0">{{ o.numero }} · {{ o.producto.nombre }}</h1>
+    <div class="text-muted">A producir {{ o.cantidad|money }} {{ o.producto.unidad }} · {{ o.get_estado_display }}</div></div>
+  <a href="{% url 'manufactura:planta' %}{% if request.GET.centro %}?centro={{ request.GET.centro }}{% endif %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Órdenes</a>
+</div>
+{% if resumen %}<div class="card mb-3"><div class="card-body">
+  <div class="d-flex justify-content-between"><span>Producido (última operación)</span><b>{{ resumen.producido|money }} / {{ o.cantidad|money }} {{ o.producto.unidad }}</b></div>
+  <div class="progress my-2" style="height:18px"><div class="progress-bar bg-success" style="width:{% if resumen.pct > 100 %}100{% else %}{{ resumen.pct|stringformat:'s' }}{% endif %}%">{{ resumen.pct }}%</div></div>
+  <div class="small text-muted">Merma {{ resumen.merma|money }} · {{ resumen.horas|floatformat:2 }} h reportadas</div>
+</div></div>{% endif %}
+{% if activa %}
+<form method="post" class="card mb-3 border-primary">{% csrf_token %}
+  <div class="card-body">
+    {% if operaciones %}<label class="form-label fw-semibold">Operación</label>
+    <div class="d-flex flex-wrap gap-2 mb-3">{% for h, rep in operaciones %}
+      <input type="radio" class="btn-check" name="hora" id="op{{ h.pk }}" value="{{ h.pk }}" {% if hora_sel == h.pk|stringformat:'s' %}checked{% endif %}>
+      <label class="btn btn-lg btn-outline-primary text-start" for="op{{ h.pk }}">{{ h.descripcion|default:h.centro.nombre }}<div class="small">{{ h.centro.codigo }} · plan {{ h.horas_plan|floatformat:1 }} h{% if rep %} · hecho {{ rep.buena|money }} / {{ rep.horas|floatformat:1 }} h{% endif %}</div></label>
+    {% endfor %}</div>{% endif %}
+    <div class="row g-3">
+      <div class="col-6 col-md-3"><label class="form-label">Cantidad buena</label><input name="buena" class="form-control form-control-lg text-end" inputmode="decimal" autocomplete="off"></div>
+      <div class="col-6 col-md-3"><label class="form-label">Merma / rechazo</label><input name="merma" class="form-control form-control-lg text-end" inputmode="decimal" autocomplete="off"></div>
+      <div class="col-6 col-md-3"><label class="form-label">Horas trabajadas</label><input name="horas" class="form-control form-control-lg text-end" inputmode="decimal" autocomplete="off"></div>
+      <div class="col-6 col-md-3"><label class="form-label">Operario</label><input name="operario" class="form-control form-control-lg" maxlength="80" value="{{ request.user.get_full_name|default:request.user.username }}"></div>
+      <div class="col-12"><label class="form-label">Nota</label><input name="nota" class="form-control form-control-lg" maxlength="200" placeholder="Paradas, incidencias…"></div>
+    </div>
+    <button class="btn btn-lg btn-success w-100 mt-3"><i class="bi bi-check2-circle"></i> Registrar avance</button>
+    <div class="small text-muted mt-2">Las horas reportadas reemplazan las horas reales de la operación al terminar la orden. La orden confirmada pasa a «En proceso» con el primer reporte.</div>
+  </div>
+</form>
+{% else %}<div class="alert alert-secondary">La orden está {{ o.get_estado_display|lower }}: ya no recibe reportes.</div>{% endif %}
+{% if resumen %}<div class="card"><div class="card-header">Reportes</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Fecha y hora</th><th>Operación</th><th class="num">Buena</th><th class="num">Merma</th><th class="num">Horas</th><th>Operario</th><th>Nota</th></tr></thead>
+  <tbody>{% for a in resumen.avances %}<tr><td class="small">{{ a.registrado|date:'d/m/Y H:i' }}</td><td class="small">{{ a.hora.descripcion|default:'—' }}</td><td class="num">{{ a.cantidad_buena|money }}</td><td class="num">{{ a.cantidad_merma|money }}</td><td class="num">{{ a.horas|floatformat:2 }}</td><td class="small">{{ a.operario }}</td><td class="small">{{ a.nota }}</td></tr>{% endfor %}</tbody>
+</table></div></div>{% endif %}
+{% endblock %}

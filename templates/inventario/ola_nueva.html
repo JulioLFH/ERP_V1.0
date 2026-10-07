@@ -1,0 +1,20 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Nueva ola de picking{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Nueva ola de picking</h1>
+<form method="post">{% csrf_token %}
+  <div class="card mb-3"><div class="card-body row g-2 align-items-end">
+    <div class="col-md-4"><label class="form-label small">Almacén</label><select name="almacen" class="form-select form-select-sm">{% for a in almacenes %}<option value="{{ a.pk }}" {% if a == almacen %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></div>
+    <div class="col-md-8"><label class="form-label small">Observaciones</label><input name="observaciones" maxlength="200" class="form-control form-control-sm" placeholder="Ej. Despacho de la ruta norte"></div>
+  </div></div>
+  <div class="card mb-3"><div class="card-header d-flex justify-content-between"><span>Órdenes de pedido pendientes</span><label class="small"><input type="checkbox" id="todos"> Todas</label></div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th></th><th>Pedido</th><th>Fecha</th><th>Cliente</th><th class="num">Líneas</th><th class="num">Total</th></tr></thead>
+      <tbody>{% for p in pedidos %}<tr><td><input type="checkbox" name="pedido" value="{{ p.pk }}" class="form-check-input sel"></td>
+        <td><a href="{% url 'ventas:cot_detalle' p.pk %}" target="_blank">{{ p.numero }}</a></td><td>{{ p.fecha|date:'d/m/Y' }}</td><td>{{ p.tercero.nombre }}</td><td class="num">{{ p.items.all|length }}</td><td class="num">{{ p.total|money }}</td></tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No hay órdenes de pedido pendientes fuera de otras olas.</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+  <button class="btn btn-primary"><i class="bi bi-water"></i> Crear ola</button> <a href="{% url 'inventario:olas' %}" class="btn btn-link">Volver</a>
+</form>
+{% endblock %}
+{% block scripts %}<script>document.getElementById('todos').addEventListener('change', e => document.querySelectorAll('.sel').forEach(c => c.checked = e.target.checked));</script>{% endblock %}

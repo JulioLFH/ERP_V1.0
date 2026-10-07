@@ -3,8 +3,8 @@ from django import forms
 from core.forms import BootstrapMixin, remoto
 from core.models import Almacen, Producto, Tercero
 
-from .models import (CentroTrabajo, Equipo, InspeccionCalidad, OrdenMantenimiento, ParametroCalidad,
-                     PlanMantenimiento, RepuestoOrden)
+from .models import (ActividadABC, CambioIngenieria, CentroTrabajo, Equipo, InspeccionCalidad, ListaMateriales,
+                     OrdenMantenimiento, ParametroCalidad, PlanMantenimiento, RecursoActividad, RepuestoOrden)
 
 
 class InspeccionForm(BootstrapMixin, forms.ModelForm):
@@ -76,3 +76,31 @@ class RepuestoForm(BootstrapMixin, forms.ModelForm):
         if c <= 0:
             raise forms.ValidationError('Debe ser mayor a cero.')
         return c
+
+
+class CambioForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = CambioIngenieria
+        fields = ['lista_actual', 'motivo', 'descripcion', 'fecha_efectiva']
+        widgets = {'descripcion': forms.Textarea(attrs={'rows': 3})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['lista_actual'].queryset = ListaMateriales.objects.filter(estado='APROBADA').select_related(
+            'producto')
+
+    def clean_descripcion(self):
+        d = self.cleaned_data['descripcion'].strip()
+        if len(d) < 10:
+            raise forms.ValidationError('Describa el cambio y su razón (mínimo 10 caracteres).')
+        return d
+
+
+class ActividadForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = ActividadABC
+        fields = ['codigo', 'nombre', 'inductor', 'activo']
+
+
+RecursosFormSet = forms.inlineformset_factory(
+    ActividadABC, RecursoActividad, fields=['centro_costo', 'porcentaje'], extra=2, can_delete=True)

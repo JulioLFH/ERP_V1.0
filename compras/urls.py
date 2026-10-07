@@ -2,11 +2,18 @@ from django.urls import path
 
 from proveedores import views_erp as portal
 
-from . import views, views_importacion, views_sire, views_xml
+from . import views, views_abastecimiento, views_importacion, views_sire, views_xml
 
 app_name = 'compras'
 
 urlpatterns = views.compras_views.urls() + [
+    path('licitaciones/', views_abastecimiento.licitaciones, name='licitaciones'),
+    path('licitaciones/nueva/', views_abastecimiento.licitacion_nueva, name='licitacion_nueva'),
+    path('licitaciones/<int:pk>/', views_abastecimiento.licitacion, name='licitacion'),
+    path('contratos/', views_abastecimiento.contratos, name='contratos'),
+    path('contratos/nuevo/', views_abastecimiento.contrato_nuevo, name='contrato_nuevo'),
+    path('contratos/<int:pk>/', views_abastecimiento.contrato, name='contrato'),
+    path('contratos/<int:pk>/editar/', views_abastecimiento.contrato_editar, name='contrato_editar'),
     path('importaciones/', views_importacion.importaciones, name='importaciones'),
     path('importaciones/nueva/', views_importacion.importacion_nueva, name='importacion_nueva'),
     path('importaciones/<int:pk>/', views_importacion.importacion, name='importacion'),

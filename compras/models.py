@@ -1,4 +1,7 @@
+from decimal import Decimal
+
 from django.db import models
+from django.utils import timezone
 
 from core.models import ComprobanteBase, DocumentoBase, ItemBase
 
@@ -21,6 +24,9 @@ class OrdenCompra(DocumentoBase):
     respondida_en = models.DateTimeField(null=True, blank=True, editable=False)
     respuesta_comentario = models.CharField('Comentario del proveedor', max_length=300, blank=True, editable=False)
     respondida_por = models.CharField(max_length=120, blank=True, editable=False)
+    contrato = models.ForeignKey('ContratoMarco', on_delete=models.PROTECT, null=True, blank=True,
+                                 related_name='ordenes', verbose_name='Contrato marco',
+                                 help_text='Pedido contra un contrato marco: toma sus precios y descuenta su saldo')
 
     class Meta(DocumentoBase.Meta):
         verbose_name = 'orden de compra'
@@ -174,6 +180,122 @@ class Importacion(models.Model):
     @property
     def total_gastos(self):
         return self.gastos.aggregate(s=models.Sum('monto'))['s'] or 0
+
+
+class ContratoMarco(models.Model):
+    """Acuerdo con un proveedor por un periodo: precios pactados y cantidades o monto máximos. Las órdenes de compra
+    (llamadas) se emiten contra él y van consumiendo su saldo."""
+    ESTADOS = [('VIGENTE', 'Vigente'), ('CERRADO', 'Cerrado'), ('ANULADO', 'Anulado')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    proveedor = models.ForeignKey('core.Tercero', on_delete=models.PROTECT, related_name='+')
+    descripcion = models.CharField('Descripción', max_length=150)
+    fecha_inicio = models.DateField('Vigente desde')
+    fecha_fin = models.DateField('Vigente hasta')
+    moneda = models.CharField(max_length=3, choices=[('PEN', 'Soles'), ('USD', 'Dólares')], default='PEN')
+    monto_maximo = models.DecimalField('Monto máximo (sin IGV)', max_digits=14, decimal_places=2, null=True,
+                                       blank=True, help_text='Vacío = sin tope de monto')
+    condicion_pago = models.CharField('Condición de pago', max_length=100, blank=True)
+    observaciones = models.TextField(blank=True)
+    estado = models.CharField(max_length=8, choices=ESTADOS, default='VIGENTE')
+    creado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, related_name='+',
+                                   editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_inicio', '-id']
+        verbose_name = 'contrato marco'
+        verbose_name_plural = 'contratos marco'
+
+    def __str__(self):
+        return f'Contrato {self.numero} · {self.proveedor.nombre}'
+
+    def vigente_en(self, fecha):
+        return self.estado == 'VIGENTE' and self.fecha_inicio <= fecha <= self.fecha_fin
+
+
+class LineaContrato(models.Model):
+    contrato = models.ForeignKey(ContratoMarco, on_delete=models.CASCADE, related_name='lineas')
+    producto = models.ForeignKey('core.Producto', on_delete=models.PROTECT, related_name='+')
+    precio_unitario = models.DecimalField('Precio pactado (sin IGV)', max_digits=14, decimal_places=4)
+    cantidad_maxima = models.DecimalField('Cantidad máxima', max_digits=14, decimal_places=2, null=True, blank=True,
+                                          help_text='Vacío = sin tope')
+
+    class Meta:
+        ordering = ['id']
+        unique_together = [('contrato', 'producto')]
+
+
+class Licitacion(models.Model):
+    """Solicitud de cotización a varios proveedores (licitación): se registran sus ofertas, se comparan en un cuadro
+    y se adjudica cada ítem; las órdenes de compra se generan solas por proveedor ganador."""
+    ESTADOS = [('ABIERTA', 'Recibiendo ofertas'), ('ADJUDICADA', 'Adjudicada'), ('ANULADA', 'Anulada')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    fecha = models.DateField(default=timezone.localdate)
+    fecha_limite = models.DateField('Recibir ofertas hasta', null=True, blank=True)
+    descripcion = models.CharField('Qué se compra', max_length=150)
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, verbose_name='Centro de costo')
+    condiciones = models.TextField('Condiciones / especificaciones', blank=True)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='ABIERTA')
+    creado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, related_name='+',
+                                   editable=False)
+    adjudicado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='+', editable=False)
+    adjudicado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    justificacion = models.CharField('Justificación de la adjudicación', max_length=300, blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'licitación'
+        verbose_name_plural = 'licitaciones'
+
+    def __str__(self):
+        return f'Licitación {self.numero}'
+
+
+class LineaLicitacion(models.Model):
+    licitacion = models.ForeignKey(Licitacion, on_delete=models.CASCADE, related_name='lineas')
+    producto = models.ForeignKey('core.Producto', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    descripcion = models.CharField('Descripción', max_length=250)
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2)
+    adjudicada = models.ForeignKey('OfertaLicitacion', on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', editable=False)
+    orden_compra = models.ForeignKey(OrdenCompra, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                     editable=False)
+
+    class Meta:
+        ordering = ['id']
+
+
+class OfertaLicitacion(models.Model):
+    licitacion = models.ForeignKey(Licitacion, on_delete=models.CASCADE, related_name='ofertas')
+    proveedor = models.ForeignKey('core.Tercero', on_delete=models.PROTECT, related_name='+')
+    moneda = models.CharField(max_length=3, choices=[('PEN', 'Soles'), ('USD', 'Dólares')], default='PEN')
+    tipo_cambio = models.DecimalField('T.C.', max_digits=8, decimal_places=3, default=Decimal('1'))
+    plazo_entrega = models.PositiveSmallIntegerField('Entrega (días)', default=0)
+    condicion_pago = models.CharField('Condición de pago', max_length=100, blank=True)
+    observaciones = models.CharField(max_length=250, blank=True)
+    recibida = models.DateField('Recibida el', default=timezone.localdate)
+
+    class Meta:
+        ordering = ['id']
+        unique_together = [('licitacion', 'proveedor')]
+
+    def __str__(self):
+        return self.proveedor.nombre
+
+
+class PrecioOferta(models.Model):
+    oferta = models.ForeignKey(OfertaLicitacion, on_delete=models.CASCADE, related_name='precios')
+    linea = models.ForeignKey(LineaLicitacion, on_delete=models.CASCADE, related_name='precios')
+    precio_unitario = models.DecimalField('Precio (sin IGV)', max_digits=14, decimal_places=4)
+
+    class Meta:
+        unique_together = [('oferta', 'linea')]
+
+    @property
+    def precio_pen(self):
+        return self.precio_unitario * (self.oferta.tipo_cambio if self.oferta.moneda == 'USD' else 1)
 
 
 class GastoImportacion(models.Model):

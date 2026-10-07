@@ -116,6 +116,10 @@ def planilla_detalle(request, pk):
                 planilla.save(update_fields=['estado'])
                 messages.info(request, 'Datos guardados: vuelva a calcular.')
             elif accion == 'cerrar':
+                from core.segregacion import error_aprobacion
+                if error_aprobacion(request.user, planilla):
+                    messages.error(request, error_aprobacion(request.user, planilla))
+                    return redirect('planillas:detalle', pk)
                 servicios.cerrar(planilla)
                 messages.success(request, 'Planilla cerrada: se contabiliza al centralizar el periodo.')
             elif accion == 'reabrir':

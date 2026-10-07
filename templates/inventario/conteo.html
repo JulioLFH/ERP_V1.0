@@ -1,0 +1,32 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ c }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title mb-0">{{ c }} <span class="badge fs-6 align-middle {% if c.estado == 'CERRADO' %}text-bg-success{% elif c.estado == 'ANULADO' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ c.get_estado_display }}</span></h1>
+    <div class="small text-muted">{{ c.almacen }} · {{ c.fecha|date:'d/m/Y' }}</div></div>
+  <div class="d-flex gap-2">
+    {% if c.estado == 'ABIERTO' %}<a href="?{% if not ciego %}ciego=1{% endif %}" class="btn btn-sm btn-outline-secondary">{% if ciego %}Mostrar stock del sistema{% else %}Conteo a ciegas{% endif %}</a>{% endif %}
+    <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Hoja de conteo</a>
+    <a href="{% url 'inventario:ciclico' %}?almacen={{ c.almacen_id }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Programa</a></div>
+</div>
+{% if c.estado == 'CERRADO' %}<div class="alert alert-success py-2 small">Cerrado el {{ c.cerrado_en|date:'d/m/Y H:i' }}.
+  {% if c.ajuste_ingreso %} Sobrantes: <a href="{% url 'inventario:detalle' c.ajuste_ingreso_id %}">{{ c.ajuste_ingreso.numero }}</a>.{% endif %}
+  {% if c.ajuste_salida %} Faltantes: <a href="{% url 'inventario:detalle' c.ajuste_salida_id %}">{{ c.ajuste_salida.numero }}</a>.{% endif %}
+  {% if not c.ajuste_ingreso and not c.ajuste_salida %} Sin diferencias.{% endif %}</div>{% endif %}
+<form method="post">{% csrf_token %}
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Ubicación</th><th>Producto</th><th>Clase</th>{% if not ciego or c.estado != 'ABIERTO' %}<th class="num">Sistema</th>{% endif %}<th class="num" style="width:150px">Contado</th>{% if c.estado != 'ABIERTO' %}<th class="num">Diferencia</th>{% endif %}</tr></thead>
+  <tbody>{% for i in items %}<tr>
+    <td class="fw-semibold">{{ i.ubicacion|default:'—' }}</td><td>{{ i.producto.codigo }} {{ i.producto.nombre }} <span class="text-muted small">{{ i.producto.unidad }}</span></td><td>{{ i.clase }}</td>
+    {% if not ciego or c.estado != 'ABIERTO' %}<td class="num">{{ i.sistema|money }}</td>{% endif %}
+    <td class="num">{% if c.estado == 'ABIERTO' %}<input name="contado_{{ i.pk }}" value="{{ i.contado|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% elif i.contado is not None %}{{ i.contado|money }}{% else %}—{% endif %}</td>
+    {% if c.estado != 'ABIERTO' %}<td class="num {% if i.diferencia > 0 %}text-success{% elif i.diferencia < 0 %}text-danger{% endif %}">{% if i.diferencia is not None %}{{ i.diferencia|money }}{% endif %}</td>{% endif %}
+  </tr>{% endfor %}</tbody>
+</table></div>
+{% if c.estado == 'ABIERTO' and puede.inventario_ajustar %}<div class="card-body py-2 d-flex gap-2">
+  <button name="accion" value="cerrar" class="btn btn-sm btn-success" data-confirm="¿Cerrar el conteo? Las diferencias se ajustarán en el almacén con el acta de conteo como sustento."><i class="bi bi-check2-all"></i> Cerrar y ajustar diferencias</button>
+  <button name="accion" value="anular" class="btn btn-sm btn-outline-danger">Anular</button>
+  <span class="small text-muted align-self-center">Los productos sin conteo no se ajustan y vuelven a quedar pendientes.</span></div>{% endif %}
+</div>
+</form>
+{% endblock %}

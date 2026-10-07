@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Licitaciones{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title">Licitaciones y cuadro comparativo</h1>
+  {% if puede.compras_oc %}<a href="{% url 'compras:licitacion_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva licitación</a>{% endif %}
+</div>
+<p class="small text-muted mb-3">Pida cotización a varios proveedores, registre sus ofertas, compárelas en un cuadro y adjudique cada ítem: las órdenes de compra se generan solas por proveedor ganador y pasan por la aprobación de siempre.</p>
+<div class="card">
+  <div class="card-body border-bottom py-2"><form class="d-flex gap-2" method="get"><select name="estado" class="form-select form-select-sm w-auto" onchange="this.form.submit()"><option value="">Todas</option>{% for v, n in estados %}<option value="{{ v }}" {% if estado == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></form></div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+    <thead><tr><th>N°</th><th>Fecha</th><th>Qué se compra</th><th>Ofertas hasta</th><th class="num">Ofertas</th><th>Estado</th></tr></thead>
+    <tbody>{% for l in licitaciones %}<tr><td><a href="{% url 'compras:licitacion' l.pk %}">{{ l.numero }}</a></td><td>{{ l.fecha|date:'d/m/Y' }}</td><td>{{ l.descripcion }}</td><td>{{ l.fecha_limite|date:'d/m/Y'|default:'—' }}</td><td class="num">{{ l.ofertas.all|length }}</td>
+      <td><span class="badge {% if l.estado == 'ADJUDICADA' %}text-bg-success{% elif l.estado == 'ANULADA' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ l.get_estado_display }}</span></td></tr>
+    {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin licitaciones.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}

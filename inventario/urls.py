@@ -1,10 +1,15 @@
 from django.urls import path
 
-from . import views
+from . import views, views_almacen
 
 app_name = 'inventario'
 
 urlpatterns = [
+    path('olas/', views_almacen.olas, name='olas'),
+    path('olas/nueva/', views_almacen.ola_nueva, name='ola_nueva'),
+    path('olas/<int:pk>/', views_almacen.ola, name='ola'),
+    path('ciclico/', views_almacen.ciclico, name='ciclico'),
+    path('ciclico/<int:pk>/', views_almacen.conteo, name='conteo'),
     path('', views.lista, name='lista'),
     path('nueva/', views.nueva, name='nueva'),
     path('<int:pk>/', views.detalle, name='detalle'),

@@ -132,6 +132,10 @@ def _guardar(request, usuario, titulo):
     if request.method == 'POST' and form.is_valid():
         u = form.save()
         messages.success(request, f'Usuario {u.username} guardado.')
+        from .segregacion import conflictos
+        for c in conflictos(User.objects.get(pk=u.pk)):  # recargado: sin la caché de módulos y perfil
+            messages.warning(request, f'Segregación de funciones ({c["riesgo"].lower()}): {c["motivo"]} '
+                                      f'({c["nombre_a"]} + {c["nombre_b"]}).')
         return redirect('usuarios')
     from .permisos import ACCIONES
     marcadas = set(form['acciones'].value() or [])
@@ -141,6 +145,16 @@ def _guardar(request, usuario, titulo):
     return render(request, 'core/usuario_form.html', {'form': form, 'titulo': titulo,
                                                        'modulos_info': [POR_CLAVE[c] for c in GRUPOS],
                                                        'grupos_acciones': grupos_acciones})
+
+
+@login_required
+def segregacion(request):
+    """Matriz de segregación de funciones: qué usuarios tienen permisos incompatibles."""
+    from .segregacion import REGLAS, estricta, reporte
+    filas, admins = reporte()
+    return render(request, 'core/segregacion.html', {
+        'filas': filas, 'admins': admins, 'reglas': REGLAS, 'estricta': estricta(),
+        'con_conflicto': sum(1 for f in filas if f['conflictos'])})
 
 
 @login_required

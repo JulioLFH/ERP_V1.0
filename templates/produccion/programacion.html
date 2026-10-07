@@ -1,0 +1,41 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Programación de planta{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title">Programación detallada de planta</h1>
+  <a href="{% url 'manufactura:planta' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-tablet"></i> Reporte de planta</a>
+</div>
+<p class="small text-muted mb-3">Capacidad finita: cada puesto trabaja solo sus horas por día (turnos × horas × eficiencia) en sus días laborables y atiende una operación a la vez. Las órdenes se programan por <b>prioridad</b> (1 = más urgente), luego por fecha. Cada operación empieza cuando termina la anterior de su orden. Lo ya reportado desde la planta se descuenta.</p>
+{% if atrasadas or sin_capacidad %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i>
+  {% if atrasadas %}{{ atrasadas }} orden(es) terminarían después de su plazo.{% endif %}
+  {% if sin_capacidad %}{{ sin_capacidad }} orden(es) usan un puesto sin capacidad (revise turnos, horas y días laborables).{% endif %}
+  Suba su prioridad, agregue turnos o reprograme.</div>{% endif %}
+
+<div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-range"></i> Diagrama por puesto (próximos {{ fechas|length }} días)</div>
+  <div class="table-responsive"><table class="table table-sm table-bordered mb-0 gantt">
+    <thead><tr><th class="sticky-col">Puesto</th>{% for f in fechas %}<th class="text-center small {% if f.isoweekday == 7 %}text-danger{% endif %}">{{ f|date:'D' }}<br>{{ f|date:'d/m' }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for fila in gantt %}<tr>
+      <td class="sticky-col small text-nowrap">{{ fila.centro.codigo }}<div class="text-muted">{{ fila.centro.capacidad_dia|floatformat:1 }} h/día</div></td>
+      {% for fecha, ops, total, laborable in fila.celdas %}<td class="p-1 {% if not laborable %}bg-body-secondary{% endif %}" style="min-width:64px">
+        {% for o, h in ops %}<a href="{% url 'manufactura:orden' o.pk %}" class="d-block rounded px-1 mb-1 small text-white text-decoration-none" style="background:hsl({% widthratio o.pk 1 47 %},55%,42%)" title="{{ o.numero }} {{ o.producto.nombre }}: {{ h|floatformat:1 }} h">{{ o.numero|slice:'-4:' }} · {{ h|floatformat:1 }}h</a>{% endfor %}
+      </td>{% endfor %}
+    </tr>{% empty %}<tr><td colspan="{{ fechas|length|add:1 }}" class="text-center text-muted py-4">No hay órdenes confirmadas o en proceso con operaciones (hoja de ruta) por programar.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+
+<div class="card"><div class="card-header"><i class="bi bi-list-ol"></i> Secuencia de órdenes</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th style="width:110px">Prioridad</th><th>Orden</th><th>Producto</th><th class="num">Cantidad</th><th>Operaciones (puesto: inicio → fin)</th><th>Termina</th><th>Plazo</th></tr></thead>
+    <tbody>{% for f in ordenes %}<tr {% if f.atrasada %}class="table-warning"{% endif %}>
+      <td><form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="accion" value="prioridad"><input type="hidden" name="orden" value="{{ f.o.pk }}">
+        <select name="prioridad" class="form-select form-select-sm" onchange="this.form.submit()">{% for p in '123456789' %}<option value="{{ p }}" {% if f.o.prioridad|stringformat:'s' == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></form></td>
+      <td><a href="{% url 'manufactura:orden' f.o.pk %}">{{ f.o.numero }}</a><div class="small text-muted">{{ f.o.get_estado_display }}</div></td>
+      <td>{{ f.o.producto.nombre }}</td><td class="num">{{ f.o.cantidad|money }}</td>
+      <td class="small">{% for op in f.ops %}<div>{% if op.sin_capacidad %}<span class="text-danger">{{ op.centro.codigo }}: sin capacidad</span>{% elif not op.tramos %}<span class="text-success">{{ op.centro.codigo }}: completa</span>{% else %}{{ op.centro.codigo }}: {{ op.inicio|date:'d/m' }} → {{ op.fin|date:'d/m' }} <span class="text-muted">({{ op.pendiente|floatformat:1 }} h)</span>{% endif %}</div>{% empty %}<span class="text-muted">Sin operaciones</span>{% endfor %}</td>
+      <td>{{ f.fin|date:'d/m/Y'|default:'—' }}</td>
+      <td class="small">{{ f.limite|date:'d/m/Y' }}{% if f.atrasada %} <span class="badge text-bg-warning">Atrasada</span>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No hay órdenes confirmadas o en proceso.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-body py-2 small text-muted">Plazo = fecha planificada + días de fabricación de su versión. Las órdenes sin hoja de ruta no ocupan puestos.</div>
+</div>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}{{ c }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title mb-0">{{ c }} <span class="badge fs-6 align-middle {% if c.estado == 'APROBADO' %}text-bg-success{% elif c.estado == 'RECHAZADO' %}text-bg-danger{% elif c.estado == 'POR_APROBAR' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ c.get_estado_display }}</span></h1>
+    <div class="text-muted small">{{ c.lista_actual.producto.codigo }} {{ c.lista_actual.producto.nombre }} · {{ c.get_motivo_display }}</div></div>
+  <a href="{% url 'manufactura:cambios' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Cambios</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="card-body">
+      <p class="mb-2">{{ c.descripcion|linebreaksbr }}</p>
+      <div class="row small g-2">
+        <div class="col-md-4"><div class="text-muted">Receta actual</div><a href="{% url 'manufactura:lista' c.lista_actual_id %}">{{ c.lista_actual.codigo }}</a> (rinde {{ base_antes }})</div>
+        <div class="col-md-4"><div class="text-muted">Receta propuesta</div>{% if c.lista_nueva %}<a href="{% url 'manufactura:lista' c.lista_nueva_id %}">{{ c.lista_nueva.codigo }}</a> (rinde {{ base_despues }}){% endif %}</div>
+        <div class="col-md-4"><div class="text-muted">Fecha efectiva</div>{{ c.fecha_efectiva|date:'d/m/Y' }}</div>
+      </div>
+    </div></div>
+    <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-arrow-left-right"></i> Diferencias de la receta</span>
+      {% if c.estado == 'BORRADOR' and c.lista_nueva and puede.manufactura_recetas %}<a href="{% url 'manufactura:lista_editar' c.lista_nueva_id %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar receta propuesta</a>{% endif %}</div>
+      <div class="table-responsive"><table class="table table-sm mb-0">
+        <thead><tr><th>Insumo</th><th>Cambio</th><th class="num">Cantidad antes</th><th class="num">Cantidad después</th><th class="num">Merma % antes</th><th class="num">Merma % después</th></tr></thead>
+        <tbody>{% for f in filas %}<tr class="{% if f.tipo == 'Agregado' %}table-success{% elif f.tipo == 'Quitado' %}table-danger{% endif %}">
+          <td>{{ f.producto.codigo }} {{ f.producto.nombre }}</td><td>{{ f.tipo }}</td>
+          <td class="num">{{ f.antes|floatformat:4|default:'—' }}</td><td class="num">{{ f.despues|floatformat:4|default:'—' }}</td>
+          <td class="num">{{ f.merma_antes|default_if_none:'—' }}</td><td class="num">{{ f.merma_despues|default_if_none:'—' }}</td></tr>
+        {% empty %}<tr><td colspan="6" class="text-muted small">Sin diferencias en los insumos{% if c.estado == 'BORRADOR' %}: edite la receta propuesta{% endif %}.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3"><div class="card-body small">
+      <div>Solicitado por <b>{{ c.solicitado_por.get_full_name|default:c.solicitado_por.username }}</b> el {{ c.creado|date:'d/m/Y H:i' }}</div>
+      {% if c.aprobado_por %}<div class="mt-1">{% if c.estado == 'RECHAZADO' %}Rechazado{% else %}Aprobado{% endif %} por <b>{{ c.aprobado_por.get_full_name|default:c.aprobado_por.username }}</b> el {{ c.aprobado_en|date:'d/m/Y H:i' }}</div>{% endif %}
+      {% if c.comentario %}<div class="mt-1 text-muted">{{ c.comentario }}</div>{% endif %}
+    </div></div>
+    {% if c.estado == 'BORRADOR' and puede.manufactura_recetas %}
+      <form method="post" class="mb-3">{% csrf_token %}<input type="hidden" name="accion" value="enviar"><button class="btn btn-primary w-100"><i class="bi bi-send"></i> Enviar a aprobación</button></form>
+    {% endif %}
+    {% if c.estado == 'POR_APROBAR' or c.estado == 'BORRADOR' %}{% if puede.manufactura_aprobar_cambios %}
+      <div class="card"><div class="card-body">
+        {% if c.estado == 'POR_APROBAR' and not puede_aprobar %}<div class="alert alert-warning py-2 small mb-2">Usted solicitó este cambio: debe aprobarlo otra persona.</div>{% endif %}
+        <form method="post">{% csrf_token %}
+          <label class="form-label small">Comentario</label><input name="comentario" class="form-control form-control-sm mb-2" maxlength="250">
+          <div class="d-flex gap-2">
+            {% if puede_aprobar %}<button name="accion" value="aprobar" class="btn btn-success flex-fill" data-confirm="¿Aprobar? La receta {{ c.lista_nueva.codigo }} regirá desde el {{ c.fecha_efectiva|date:'d/m/Y' }} y reemplazará a {{ c.lista_actual.codigo }}."><i class="bi bi-check2"></i> Aprobar</button>{% endif %}
+            <button name="accion" value="rechazar" class="btn btn-outline-danger flex-fill"><i class="bi bi-x"></i> Rechazar</button>
+          </div></form>
+      </div></div>
+    {% endif %}{% endif %}
+  </div>
+</div>
+{% endblock %}

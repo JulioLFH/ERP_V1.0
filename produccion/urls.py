@@ -1,10 +1,16 @@
 from django.urls import path
 
-from . import views, views_planta as vp
+from . import views, views_avanzado as va, views_planta as vp
 
 app_name = 'manufactura'
 
 urlpatterns = [
+    path('programacion/', va.programacion, name='programacion'),
+    path('planta/', va.planta, name='planta'),
+    path('planta/<int:pk>/', va.planta_orden, name='planta_orden'),
+    path('cambios/', va.cambios, name='cambios'),
+    path('cambios/nuevo/', va.cambio_nuevo, name='cambio_nuevo'),
+    path('cambios/<int:pk>/', va.cambio, name='cambio'),
     path('calidad/', vp.inspecciones, name='inspecciones'),
     path('calidad/nueva/', vp.inspeccion_nueva, name='inspeccion_nueva'),
     path('calidad/<int:pk>/', vp.inspeccion, name='inspeccion'),

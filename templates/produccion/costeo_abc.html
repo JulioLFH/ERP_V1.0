@@ -1,0 +1,25 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Costeo por actividades{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title">Costeo por actividades (ABC)</h1>
+  <form method="get" class="d-flex gap-2"><input type="month" name="periodo" value="{{ periodo_input }}" class="form-control form-control-sm"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button>
+    <a href="?periodo={{ periodo_input }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
+    <a href="{% url 'costos:actividades' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-gear"></i> Actividades</a></form>
+</div>
+<p class="small text-muted mb-3">El gasto real de cada centro de costo del mes (cuentas 62 a 68) pasa a las actividades según el % que consumen, y cada actividad se reparte a los productos según su inductor (órdenes, horas, unidades, inspecciones o despachos del mes). Se compara con la mano de obra y CIF que absorbieron las órdenes por horas.</p>
+{% for cc, pct in excedidos %}<div class="alert alert-danger py-2 small">El centro de costo {{ cc }} reparte {{ pct }}% entre actividades (más del 100%).</div>{% endfor %}
+<div class="card mb-3"><div class="card-header">Actividades</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Actividad</th><th>Inductor</th><th class="num">Costo del mes S/</th><th class="num">Cantidad del inductor</th><th class="num">Tasa S/ por unidad del inductor</th></tr></thead>
+  <tbody>{% for a in actividades %}<tr><td>{{ a.a }}</td><td class="small">{{ a.a.get_inductor_display }}</td><td class="num">{{ a.costo|money }}</td><td class="num">{{ a.total_inductor|floatformat:2 }}</td>
+    <td class="num">{% if a.tasa is not None %}{{ a.tasa|floatformat:4 }}{% elif a.sin_base %}<span class="text-danger small">Sin inductor en el mes: no se reparte</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">Configure las <a href="{% url 'costos:actividades' %}">actividades</a> y sus centros de costo.</td></tr>{% endfor %}</tbody>
+  {% if actividades %}<tfoot><tr class="fw-semibold"><td colspan="2">Total</td><td class="num">{{ total|money }}</td><td colspan="2" class="small text-muted">Repartido a productos: S/ {{ asignado|money }}</td></tr></tfoot>{% endif %}
+</table></div></div>
+<div class="card"><div class="card-header">Costo por producto</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Producto</th><th class="num">Unidades producidas</th>{% for a in actividades %}<th class="num small">{{ a.a.nombre }}</th>{% endfor %}<th class="num">Total ABC S/</th><th class="num">ABC por unidad</th><th class="num">MO + CIF absorbidos S/</th><th class="num">Absorbido por unidad</th></tr></thead>
+  <tbody>{% for p in productos %}<tr><td>{{ p.p.codigo }} {{ p.p.nombre }}</td><td class="num">{{ p.unidades|money }}</td>{% for v in p.por_actividad %}<td class="num">{{ v|money }}</td>{% endfor %}
+    <td class="num fw-semibold">{{ p.total|money }}</td><td class="num">{{ p.unitario|floatformat:4|default:'—' }}</td><td class="num">{{ p.tradicional|money }}</td><td class="num">{{ p.tradicional_unit|floatformat:4|default:'—' }}</td></tr>
+  {% empty %}<tr><td colspan="{{ actividades|length|add:6 }}" class="text-center text-muted py-4">Sin productos con inductores en el mes.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

@@ -4,7 +4,7 @@ from contabilidad.models import CentroCosto
 from core.forms import remoto, BootstrapMixin, validar_periodo_abierto
 from core.models import Tercero
 
-from .models import Compra, OrdenCompra
+from .models import Compra, ContratoMarco, Licitacion, OrdenCompra
 
 
 class CompraForm(BootstrapMixin, forms.ModelForm):
@@ -56,11 +56,82 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         return data
 
 
+class LicitacionForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = Licitacion
+        fields = ['descripcion', 'fecha', 'fecha_limite', 'centro_costo', 'condiciones']
+        widgets = {'condiciones': forms.Textarea(attrs={'rows': 2})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+
+
+class ContratoForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = ContratoMarco
+        fields = ['proveedor', 'descripcion', 'fecha_inicio', 'fecha_fin', 'moneda', 'monto_maximo',
+                  'condicion_pago', 'observaciones', 'estado']
+        widgets = {'observaciones': forms.Textarea(attrs={'rows': 2})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['proveedor'].queryset = Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS'])
+        remoto(self.fields['proveedor'], 'proveedores')
+        if not self.instance.pk:
+            self.fields.pop('estado')
+
+    def clean(self):
+        data = super().clean()
+        if data.get('fecha_inicio') and data.get('fecha_fin') and data['fecha_fin'] < data['fecha_inicio']:
+            self.add_error('fecha_fin', 'Debe ser posterior al inicio.')
+        return data
+
+
+def _lineas_formset(modelo, campos, extra):
+    from core.models import Producto
+
+    padre = {'LineaLicitacion': Licitacion, 'LineaContrato': ContratoMarco}[modelo.__name__]
+
+    class LineaForm(forms.ModelForm):
+        class Meta:
+            model = modelo
+            fields = campos
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False)
+            remoto(self.fields['producto'], 'productos')
+            if 'descripcion' in self.fields:  # vacía = el nombre del producto
+                self.fields['descripcion'].required = False
+
+        def clean(self):
+            data = super().clean()
+            if 'descripcion' in self.fields and not data.get('descripcion'):
+                if data.get('producto'):
+                    data['descripcion'] = data['producto'].nombre[:250]
+                elif data.get('cantidad'):
+                    self.add_error('descripcion', 'Elija un producto o describa el ítem.')
+            return data
+
+    return forms.inlineformset_factory(padre, modelo, form=LineaForm, extra=extra, can_delete=True)
+
+
+def licitacion_formset():
+    from .models import LineaLicitacion
+    return _lineas_formset(LineaLicitacion, ['producto', 'descripcion', 'cantidad'], 5)
+
+
+def contrato_formset():
+    from .models import LineaContrato
+    return _lineas_formset(LineaContrato, ['producto', 'precio_unitario', 'cantidad_maxima'], 4)
+
+
 class OrdenCompraForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = OrdenCompra
-        fields = ['tercero', 'fecha', 'fecha_entrega', 'centro_costo', 'moneda', 'tipo_cambio', 'tipo_operacion',
-                  'condicion_pago', 'dias_credito', 'glosa']
+        fields = ['tercero', 'contrato', 'fecha', 'fecha_entrega', 'centro_costo', 'moneda', 'tipo_cambio',
+                  'tipo_operacion', 'condicion_pago', 'dias_credito', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2})}
         labels = {'tercero': 'Proveedor'}
 
@@ -73,6 +144,20 @@ class OrdenCompraForm(BootstrapMixin, forms.ModelForm):
         if not CentroCosto.objects.filter(activo=True).exists():
             self.fields['centro_costo'].help_text = 'Cree primero los centros de costo en Contabilidad > ' \
                                                     'Configuración > Centros de costo'
+        from .models import ContratoMarco
+        self.fields['contrato'].queryset = ContratoMarco.objects.filter(estado='VIGENTE').select_related('proveedor')
+
+    def clean(self):
+        data = super().clean()
+        c = data.get('contrato')
+        if c is not None:
+            if data.get('tercero') and data['tercero'] != c.proveedor:
+                self.add_error('contrato', f'El contrato es con {c.proveedor.nombre}.')
+            if data.get('fecha') and not c.vigente_en(data['fecha']):
+                self.add_error('contrato', f'El contrato rige del {c.fecha_inicio:%d/%m/%Y} al {c.fecha_fin:%d/%m/%Y}.')
+            if data.get('moneda') and data['moneda'] != c.moneda:
+                self.add_error('moneda', f'El contrato está en {c.get_moneda_display().lower()}.')
+        return data
 
     def save(self, commit=True):
         if not self.instance.numero:

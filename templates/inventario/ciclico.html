@@ -1,0 +1,31 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Inventario cíclico ABC{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title">Inventario cíclico ABC</h1>
+  <form method="get" class="d-flex gap-2"><select name="almacen" class="form-select form-select-sm" onchange="this.form.submit()">{% for a in almacenes %}<option value="{{ a.pk }}" {% if a == almacen %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+    <a href="?almacen={{ almacen.pk }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a></form>
+</div>
+<p class="small text-muted mb-3">En vez de parar el almacén para un inventario general, se cuentan unos pocos productos cada vez. Clase A (los que suman el 80 % del valor que sale en el año) cada {{ frecuencia.A }} días, B (hasta el 95 %) cada {{ frecuencia.B }} y C cada {{ frecuencia.C }}.</p>
+<div class="row g-3 mb-3">
+  {% for c, r in resumen.items %}<div class="col-6 col-md-3"><a href="?almacen={{ almacen.pk }}&clase={{ c }}" class="card text-decoration-none text-body h-100"><div class="card-body py-2">
+    <div class="small text-muted">Clase {{ c }}</div><div class="fs-5 fw-semibold">{{ r.total }} productos</div><div class="small {% if r.vencidos %}text-danger{% else %}text-success{% endif %}">{{ r.vencidos }} por contar</div></div></a></div>{% endfor %}
+  <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2"><div class="small text-muted">Exactitud (90 días)</div>
+    {% if exactitud %}<div class="fs-5 fw-semibold">{{ exactitud.pct }}%</div><div class="small text-muted">{{ exactitud.exactas }} de {{ exactitud.lineas }} líneas sin diferencia</div>{% else %}<div class="text-muted">Sin conteos cerrados</div>{% endif %}</div></div></div>
+</div>
+{% if puede.inventario_operar %}<form method="post" class="card mb-3"><div class="card-body row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="almacen" value="{{ almacen.pk }}">
+  <div class="col-auto"><label class="form-label small mb-1">Clases</label><div>{% for c in frecuencia %}<label class="me-2"><input type="checkbox" name="clase" value="{{ c }}" checked> {{ c }}</label>{% endfor %}</div></div>
+  <div class="col-auto"><label class="form-label small mb-1">Máximo de productos</label><input name="maximo" value="40" class="form-control form-control-sm" style="width:90px"></div>
+  <div class="col-auto"><button class="btn btn-sm btn-primary"><i class="bi bi-clipboard-check"></i> Generar conteo de hoy</button></div>
+</div></form>{% endif %}
+{% if conteos %}<div class="card mb-3"><div class="card-header">Conteos</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <tbody>{% for c in conteos %}<tr><td><a href="{% url 'inventario:conteo' c.pk %}">{{ c.numero }}</a></td><td>{{ c.fecha|date:'d/m/Y' }}</td><td>{{ c.get_estado_display }}</td><td class="small text-muted">{{ c.creado_por.get_full_name|default:c.creado_por.username }}</td></tr>{% endfor %}</tbody>
+</table></div></div>{% endif %}
+<div class="card"><div class="card-header">Programa de conteo{% if clase %} · clase {{ clase }} <a href="?almacen={{ almacen.pk }}" class="small">(ver todas)</a>{% endif %}</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Producto</th><th>Clase</th>{% if ver_costos %}<th class="num">Valor que salió (12 meses)</th>{% endif %}<th class="num">Stock</th><th>Último conteo</th><th>Toca</th></tr></thead>
+  <tbody>{% for f in filas %}<tr><td>{{ f.p.codigo }} {{ f.p.nombre }}</td><td><span class="badge {% if f.clase == 'A' %}text-bg-danger{% elif f.clase == 'B' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ f.clase }}</span></td>
+    {% if ver_costos %}<td class="num">{{ f.valor|money }}</td>{% endif %}<td class="num">{{ f.stock|money }}</td><td>{{ f.ultimo|date:'d/m/Y'|default:'Nunca' }}</td>
+    <td class="{% if f.vencido %}text-danger fw-semibold{% endif %}">{{ f.toca|date:'d/m/Y' }}</td></tr>
+  {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin productos con stock o movimiento en este almacén.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

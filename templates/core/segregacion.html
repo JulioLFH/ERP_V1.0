@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Segregación de funciones{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title">Segregación de funciones</h1>
+  <a href="{% url 'usuarios' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-people"></i> Usuarios</a>
+</div>
+<p class="small text-muted mb-3">Una misma persona no debería poder hacer las dos partes de un proceso sensible (por ejemplo, registrar una factura y pagarla). Quite una de las acciones en <a href="{% url 'usuarios' %}">Usuarios y permisos</a> o compense con una revisión.</p>
+<div class="alert {% if estricta %}alert-success{% else %}alert-secondary{% endif %} py-2 small"><i class="bi bi-shield-lock"></i>
+  Regla «quien registra no aprueba»: {% if estricta %}<b>activa</b> para todos, incluso administradores (órdenes de compra, requerimientos, planillas y cambios de ingeniería).{% else %}solo para requerimientos y cambios de ingeniería. Actívela para todo en <a href="{% url 'empresa' %}">Ajustes › Empresa › Segregación de funciones estricta</a>.{% endif %}</div>
+<div class="card mb-3"><div class="card-header">Usuarios ({{ con_conflicto }} con conflictos)</div><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Usuario</th><th>Conflictos</th></tr></thead>
+  <tbody>{% for f in filas %}<tr><td class="text-nowrap"><a href="{% url 'usuario_editar' f.u.pk %}">{{ f.u.username }}</a><div class="small text-muted">{{ f.u.get_full_name }}</div></td>
+    <td>{% for c in f.conflictos %}<div class="small"><span class="badge {% if c.riesgo == 'ALTO' %}text-bg-danger{% elif c.riesgo == 'MEDIO' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ c.riesgo|title }}</span> {{ c.motivo }} <span class="text-muted">({{ c.nombre_a }} + {{ c.nombre_b }})</span></div>{% empty %}<span class="text-success small"><i class="bi bi-check2"></i> Sin conflictos</span>{% endfor %}</td></tr>
+  {% empty %}<tr><td colspan="2" class="text-muted text-center py-4">No hay usuarios que no sean administradores.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if admins %}<div class="alert alert-warning py-2 small"><i class="bi bi-person-gear"></i> Administradores con acceso total (tienen todas las acciones): {% for u in admins %}<b>{{ u.username }}</b>{% if not forloop.last %}, {% endif %}{% endfor %}. Úselos solo para administrar; la operación diaria hágala con usuarios con permisos limitados.</div>{% endif %}
+<div class="card"><div class="card-header">Reglas</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <tbody>{% for a, b, r, m in reglas %}<tr><td><span class="badge {% if r == 'ALTO' %}text-bg-danger{% elif r == 'MEDIO' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ r|title }}</span></td><td>{{ m }}</td><td class="small text-muted">{{ a }} + {{ b }}</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

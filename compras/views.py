@@ -133,6 +133,22 @@ def oc_nuevo(request):
                        'glosa': 'Reposición de stock (sugerencia de compra)'}
             items = [{'producto': f['p'].pk, 'descripcion': f['p'].nombre, 'cantidad': f['cantidad'],
                       'precio_unitario': f['precio']} for f in filas]
+    elif request.GET.get('contrato'):
+        # llamada contra un contrato marco: proveedor, moneda y precios pactados
+        from .abastecimiento import consumo
+        from .models import ContratoMarco
+        contrato = ContratoMarco.objects.filter(pk=request.GET['contrato'], estado='VIGENTE').first()
+        if contrato:
+            from contabilidad.models import CentroCosto
+            centro = CentroCosto.objects.filter(activo=True).first()
+            initial = {'tercero': contrato.proveedor_id, 'contrato': contrato.pk, 'moneda': contrato.moneda,
+                       'condicion_pago': contrato.condicion_pago, 'centro_costo': centro.pk if centro else None,
+                       'glosa': f'Pedido contra el contrato marco {contrato.numero}'}
+            filas, _ = consumo(contrato)
+            items = [{'producto': f['l'].producto_id, 'descripcion': f['l'].producto.nombre,
+                      'cantidad': max(f['saldo'], 0) if f['saldo'] is not None else 1,
+                      'precio_unitario': f['l'].precio_unitario} for f in filas
+                     if f['saldo'] is None or f['saldo'] > 0]
     return guardar_documento(request, OrdenCompraForm, item_formset(OrdenCompra, OrdenCompraItem), OrdenCompra(),
                              'core/comprobante_form.html', _oc_ctx('Nueva orden de compra'), initial=initial,
                              items_iniciales=items)
@@ -151,6 +167,8 @@ def oc_editar(request, pk):
 @login_required
 def oc_detalle(request, pk):
     from inventario.servicios import acciones_para, operaciones_de
+
+    from .abastecimiento import validar_orden
     oc = get_object_or_404(OrdenCompra, pk=pk)
     from django.urls import reverse
     return render(request, 'core/documento_detalle.html', {
@@ -158,6 +176,7 @@ def oc_detalle(request, pk):
         'enlace_aceptacion': request.build_absolute_uri(
             reverse('portal:oc_aceptacion', args=[oc.token_aceptacion()])),
         'facturas_portal': oc.facturas_portal.all(), 'fecha_ingreso': oc.fecha_ingreso(),
+        'errores_contrato': validar_orden(oc) if oc.contrato_id else [],
         'doc': oc, 'items': oc.items.all(), 'app': 'compras', 'titulo_doc': 'ORDEN DE COMPRA',
         'etiqueta_tercero': 'Proveedor', 'relacionados': oc.compras.all(),
         'url_editar': 'compras:oc_editar', 'url_estado': 'compras:oc_estado', 'url_lista': 'compras:oc_lista',
@@ -171,6 +190,16 @@ def oc_estado(request, pk):
     estado = request.POST.get('estado')
     if request.method == 'POST' and estado in dict(OrdenCompra._meta.get_field('estado').choices):
         if estado == 'APROBADO':
+            from .abastecimiento import validar_orden
+            errores = validar_orden(oc)
+            if errores:
+                messages.error(request, 'No se aprueba: no cumple el contrato marco. ' + ' '.join(errores))
+                return redirect('compras:oc_detalle', pk)
+            from core.segregacion import error_aprobacion
+            error = error_aprobacion(request.user, oc)
+            if error:
+                messages.error(request, error)
+                return redirect('compras:oc_detalle', pk)
             from core.permisos import perfil_de, puede_aprobar
             monto = r2(oc.total * (oc.tipo_cambio or 1)) if oc.moneda == 'USD' else oc.total
             if not puede_aprobar(request.user, monto):

@@ -322,6 +322,8 @@ class OrdenProduccion(models.Model):
     compra_servicio = models.ForeignKey('compras.Compra', on_delete=models.SET_NULL, null=True, blank=True,
                                         related_name='+', verbose_name='Factura del maquilador')
     estado = models.CharField(max_length=10, choices=ESTADOS, default='BORRADOR')
+    prioridad = models.PositiveSmallIntegerField(default=5, help_text='1 = la más urgente; ordena la programación '
+                                                                      'de planta')
     fecha_inicio = models.DateField(null=True, blank=True)
     fecha_fin = models.DateField('Fecha de término', null=True, blank=True)
     cantidad_producida = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
@@ -576,6 +578,94 @@ class RepuestoOrden(models.Model):
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='+')
     cantidad = models.DecimalField(max_digits=14, decimal_places=2)
     almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, related_name='+')
+
+    class Meta:
+        ordering = ['id']
+
+
+# ================================================================ reporte de planta (tablets)
+class AvanceOrden(models.Model):
+    """Lo que el operario reporta desde la planta: producción buena, merma y horas de una operación."""
+    orden = models.ForeignKey(OrdenProduccion, on_delete=models.CASCADE, related_name='avances')
+    hora = models.ForeignKey(HoraOrden, on_delete=models.SET_NULL, null=True, blank=True, related_name='avances',
+                             verbose_name='Operación')
+    cantidad_buena = models.DecimalField('Cantidad buena', max_digits=14, decimal_places=2, default=D0)
+    cantidad_merma = models.DecimalField('Merma / rechazo', max_digits=14, decimal_places=2, default=D0)
+    horas = models.DecimalField(max_digits=8, decimal_places=2, default=D0)
+    operario = models.CharField(max_length=80, blank=True)
+    nota = models.CharField(max_length=200, blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    registrado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-registrado']
+        verbose_name = 'avance de producción'
+        verbose_name_plural = 'avances de producción'
+
+
+# ================================================================ cambios de ingeniería
+class CambioIngenieria(models.Model):
+    """Orden de cambio de ingeniería (ECO): propuesta de nueva receta con motivo, aprobación por otra persona y
+    fecha efectiva desde la que la nueva receta reemplaza a la actual."""
+    MOTIVOS = [('MEJORA', 'Mejora del producto o proceso'), ('COSTO', 'Reducción de costo'),
+               ('CALIDAD', 'Problema de calidad'), ('PROVEEDOR', 'Cambio de insumo o proveedor'),
+               ('NORMATIVA', 'Normativa / registro sanitario'), ('OTRO', 'Otro')]
+    ESTADOS = [('BORRADOR', 'En preparación'), ('POR_APROBAR', 'Por aprobar'), ('APROBADO', 'Aprobado y aplicado'),
+               ('RECHAZADO', 'Rechazado')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    lista_actual = models.ForeignKey(ListaMateriales, on_delete=models.PROTECT, related_name='cambios',
+                                     verbose_name='Receta actual')
+    lista_nueva = models.ForeignKey(ListaMateriales, on_delete=models.PROTECT, null=True, blank=True,
+                                    related_name='+', editable=False, verbose_name='Receta propuesta')
+    motivo = models.CharField(max_length=10, choices=MOTIVOS, default='MEJORA')
+    descripcion = models.TextField('Descripción del cambio')
+    fecha_efectiva = models.DateField('Fecha efectiva', default=timezone.localdate,
+                                      help_text='Desde esta fecha las órdenes usan la nueva receta')
+    estado = models.CharField(max_length=12, choices=ESTADOS, default='BORRADOR')
+    solicitado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+                                       related_name='+', editable=False)
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False)
+    aprobado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    comentario = models.CharField('Comentario de la aprobación', max_length=250, blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado']
+        verbose_name = 'cambio de ingeniería'
+        verbose_name_plural = 'cambios de ingeniería'
+
+    def __str__(self):
+        return f'Cambio de ingeniería {self.numero}'
+
+
+# ================================================================ costeo por actividades (ABC)
+class ActividadABC(models.Model):
+    """Actividad de apoyo (recepción, preparación de máquinas, control de calidad, despacho…): recibe gasto de
+    centros de costo y lo reparte a los productos según su inductor."""
+    INDUCTORES = [('ORDENES', 'Órdenes de producción terminadas'), ('HORAS', 'Horas reales de las órdenes'),
+                  ('UNIDADES', 'Unidades producidas'), ('INSPECCIONES', 'Inspecciones de calidad'),
+                  ('DESPACHOS', 'Líneas vendidas (despachos)')]
+    codigo = models.CharField('Código', max_length=10, unique=True)
+    nombre = models.CharField(max_length=100)
+    inductor = models.CharField(max_length=12, choices=INDUCTORES, default='ORDENES')
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['codigo']
+        verbose_name = 'actividad'
+        verbose_name_plural = 'actividades'
+
+    def __str__(self):
+        return f'{self.codigo} {self.nombre}'
+
+
+class RecursoActividad(models.Model):
+    """Parte del gasto de un centro de costo que consume la actividad."""
+    actividad = models.ForeignKey(ActividadABC, on_delete=models.CASCADE, related_name='recursos')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, related_name='+',
+                                     verbose_name='Centro de costo')
+    porcentaje = models.DecimalField('% del gasto', max_digits=6, decimal_places=2, default=Decimal('100'))
 
     class Meta:
         ordering = ['id']

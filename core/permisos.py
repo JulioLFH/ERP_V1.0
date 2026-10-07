@@ -36,8 +36,10 @@ ACCIONES = {
                     ('calidad', 'Inspecciones de calidad y planes de calidad', False),
                     ('mantenimiento', 'Equipos y órdenes de mantenimiento', False),
                     ('anular', 'Anular órdenes de producción', True),
-                    ('recetas', 'Recetas, hojas de ruta, versiones, puestos y costo estándar', True)],
-    'costos': [('liberar', 'Calcular y liberar el costo estándar', True)],
+                    ('recetas', 'Recetas, hojas de ruta, versiones, puestos y costo estándar', True),
+                    ('aprobar_cambios', 'Aprobar o rechazar cambios de ingeniería', True)],
+    'costos': [('liberar', 'Calcular y liberar el costo estándar', True),
+               ('abc', 'Configurar actividades del costeo ABC', True)],
     'planillas': [('calcular', 'Registrar trabajadores y calcular planillas', False),
                   ('cerrar', 'Cerrar, reabrir y pagar planillas', True),
                   ('configurar', 'Parámetros, AFP y conceptos de planilla', True)],
@@ -49,7 +51,7 @@ ACCIONES = {
 }
 TODAS = {f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, _ in lista}
 # acciones sensibles nuevas: nunca se dan por defecto (ni a usuarios sin perfil); el administrador las asigna
-EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar'}
+EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar', 'manufactura.aprobar_cambios'}
 
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
@@ -65,6 +67,10 @@ RUTAS = {
     'compras:trasladar': 'compras.registrar', 'compras:notas': 'compras.registrar',
     'compras:ingresar_almacen': 'compras.registrar',
     'compras:importacion_nueva': 'compras.registrar', 'compras:importacion': {'POST': 'compras.registrar'},
+    'compras:licitacion_nueva': 'compras.oc',
+    'compras:licitacion': lambda r: (None if r.method != 'POST' else 'compras.aprobar_oc'
+                                     if r.POST.get('accion') == 'adjudicar' else 'compras.oc'),
+    'compras:contrato_nuevo': 'compras.aprobar_oc', 'compras:contrato_editar': 'compras.aprobar_oc',
     'compras:anular': 'compras.anular', 'compras:eliminar': 'compras.anular',
     'compras:oc_nuevo': 'compras.oc', 'compras:oc_editar': 'compras.oc', 'compras:oc_enviar': 'compras.oc',
     'compras:oc_estado': lambda r: {'APROBADO': 'compras.aprobar_oc', 'ANULADO': 'compras.anular'}.get(
@@ -77,6 +83,8 @@ RUTAS = {
     'inventario:cierre_reabrir': 'inventario.cerrar', 'inventario:tipo_nuevo': 'inventario.cerrar',
     'inventario:tipo_editar': 'inventario.cerrar', 'inv_ajuste': 'inventario.ajustar',
     'inventario:cierres': {'POST': 'inventario.cerrar'}, 'ubicaciones': {'POST': 'inventario.operar'},
+    'inventario:ola_nueva': {'POST': 'inventario.operar'}, 'inventario:ola': {'POST': 'inventario.operar'},
+    'inventario:ciclico': {'POST': 'inventario.operar'}, 'inventario:conteo': {'POST': 'inventario.ajustar'},
     'logistica:nueva': 'logistica.emitir', 'logistica:editar': 'logistica.emitir',
     'logistica:enviar_sunat': 'logistica.emitir', 'logistica:anular': 'logistica.anular',
     'finanzas:movimiento_nuevo': 'finanzas.registrar', 'finanzas:cobranza': 'finanzas.registrar',
@@ -128,6 +136,12 @@ RUTAS = {
     'manufactura:lista_obsoleta': 'manufactura.recetas', 'manufactura:version_nueva': 'manufactura.recetas',
     'manufactura:version_editar': 'manufactura.recetas', 'manufactura:mrp': {'POST': 'manufactura.ordenes'},
     'costos:estandar': {'POST': 'costos.liberar'},
+    'costos:actividad_nueva': {'POST': 'costos.abc'}, 'costos:actividad': {'POST': 'costos.abc'},
+    'manufactura:programacion': {'POST': 'manufactura.ordenes'},
+    'manufactura:planta_orden': {'POST': 'manufactura.ordenes'},
+    'manufactura:cambio_nuevo': 'manufactura.recetas',
+    'manufactura:cambio': lambda r: (None if r.method != 'POST' else 'manufactura.aprobar_cambios'
+                                     if r.POST.get('accion') in ('aprobar', 'rechazar') else 'manufactura.recetas'),
     'requerimientos:nuevo': 'requerimientos.solicitar', 'requerimientos:editar': 'requerimientos.solicitar',
     'requerimientos:enviar': 'requerimientos.solicitar',
     'activos:nuevo': 'activos.registrar', 'activos:editar': 'activos.registrar', 'activos:baja': 'activos.baja',
@@ -197,7 +211,19 @@ def series_permitidas(user, tipo=None):
     return [s.serie for s in todas if tipo is None or s.tipo == tipo]
 
 
-# documentos existentes cuyas acciones (confirmar, anular, editar) se limitan a los almacenes del usuario
+# documentos existentes cuyas acciones (confirmar, anular, editar) se limitan a los almacenes del usuario:
+# rutas cuyo pk es el documento del módulo (las demás rutas con pk son de otros modelos: olas, conteos, CRM…)
+_COMPROBANTE = ('detalle', 'editar', 'imprimir', 'anular', 'eliminar', 'trasladar')
+RUTAS_DOCUMENTO = {
+    'inventario': ('detalle', 'editar', 'pendientes', 'confirmar', 'anular', 'eliminar', 'imprimir', 'conformidad'),
+    'manufactura': ('orden', 'orden_editar', 'orden_confirmar', 'orden_iniciar', 'orden_maquila', 'orden_terminar',
+                    'orden_anular', 'orden_eliminar', 'planta_orden'),
+    'logistica': ('detalle', 'editar', 'imprimir', 'anular', 'enviar_sunat'),
+    'ventas': _COMPROBANTE + ('enviar_sunat', 'enviar_correo', 'whatsapp'),
+    'compras': _COMPROBANTE + ('ingresar_almacen',),
+}
+
+
 def _documento_almacenes(match):
     pk = match.kwargs.get('pk')
     if not pk:
@@ -209,8 +235,8 @@ def _documento_almacenes(match):
         'ventas': ('ventas.Venta', ('almacen_id',)),
         'compras': ('compras.Compra', ('almacen_id',)),
     }.get(match.namespace, (None, None))
-    # las rutas de órdenes de compra, cotizaciones y portal usan otros modelos
-    if modelo is None or match.url_name.startswith(('oc_', 'cot_', 'portal_')):
+    # las rutas de órdenes de compra, cotizaciones, portal, olas, conteos y demás usan otros modelos
+    if modelo is None or match.url_name not in RUTAS_DOCUMENTO.get(match.namespace, ()):
         return None
     from django.apps import apps
     obj = apps.get_model(modelo)._base_manager.filter(pk=pk).first()

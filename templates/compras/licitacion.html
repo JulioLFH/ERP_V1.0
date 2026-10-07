@@ -1,0 +1,53 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ lic }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title mb-0">{{ lic }} <span class="badge fs-6 align-middle {% if lic.estado == 'ADJUDICADA' %}text-bg-success{% elif lic.estado == 'ANULADA' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ lic.get_estado_display }}</span></h1>
+    <div class="small text-muted">{{ lic.descripcion }} · {{ lic.centro_costo }}{% if lic.fecha_limite %} · ofertas hasta el {{ lic.fecha_limite|date:'d/m/Y' }}{% endif %}</div>
+    {% if lic.condiciones %}<div class="small mt-1">{{ lic.condiciones|linebreaksbr }}</div>{% endif %}</div>
+  <div class="d-flex gap-2">
+    <a href="?formato=excel&solicitud=1" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Solicitud para proveedores</a>
+    <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-table"></i> Cuadro en Excel</a>
+    <a href="{% url 'compras:licitaciones' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a></div>
+</div>
+{% if lic.estado == 'ADJUDICADA' %}<div class="alert alert-success py-2 small">Adjudicada el {{ lic.adjudicado_en|date:'d/m/Y H:i' }} por {{ lic.adjudicado_por.get_full_name|default:lic.adjudicado_por.username }}.{% if lic.justificacion %} Justificación: {{ lic.justificacion }}{% endif %}</div>{% endif %}
+
+<form method="post">{% csrf_token %}
+<div class="card mb-3"><div class="card-header"><i class="bi bi-table"></i> Cuadro comparativo (precios unitarios en S/ sin IGV)</div>
+  <div class="table-responsive"><table class="table table-sm table-bordered mb-0 align-middle">
+    <thead><tr><th>Ítem</th><th class="num">Cantidad</th>{% for o in ofertas %}<th class="text-center">{{ o.proveedor.nombre }}<div class="small fw-normal text-muted">{{ o.get_moneda_display }}{% if o.moneda == 'USD' %} TC {{ o.tipo_cambio }}{% endif %} · {{ o.plazo_entrega }} días{% if o.condicion_pago %} · {{ o.condicion_pago }}{% endif %}</div>
+      {% if abierta %}<button name="accion" value="quitar_oferta" onclick="this.form.oferta.value='{{ o.pk }}'" class="btn btn-link btn-sm p-0 small text-danger" data-confirm="¿Quitar la oferta de {{ o.proveedor.nombre }}?">quitar</button>{% endif %}</th>{% endfor %}</tr></thead>
+    <tbody>{% for f in filas %}<tr><td>{{ f.l.descripcion }}{% if f.l.orden_compra %}<div class="small"><a href="{% url 'compras:oc_detalle' f.l.orden_compra_id %}">{{ f.l.orden_compra.numero }}</a> · {{ f.l.adjudicada }}</div>{% endif %}</td><td class="num">{{ f.l.cantidad|money }}</td>
+      {% for c in f.celdas %}<td class="num {% if c.mejor %}table-success fw-semibold{% endif %}">{% if c.p %}
+        {% if abierta %}<label class="d-flex justify-content-end gap-2 align-items-center mb-0"><input type="radio" name="gana_{{ f.l.pk }}" value="{{ c.p.oferta_id }}" {% if c.mejor %}checked{% endif %}>{{ c.pen|floatformat:4 }}</label>{% else %}{{ c.pen|floatformat:4 }}{% endif %}
+        <div class="small text-muted">{{ c.total|money }}</div>{% else %}<span class="text-muted">—</span>{% endif %}</td>{% endfor %}</tr>
+    {% empty %}<tr><td colspan="2" class="text-muted">Sin ítems.</td></tr>{% endfor %}</tbody>
+    {% if totales %}<tfoot><tr class="fw-semibold"><td colspan="2">Total S/ (ítems cotizados)</td>{% for t in totales %}<td class="num">{{ t.total|money }}<div class="small fw-normal text-muted">{{ t.cotizados }} cotizado(s), {{ t.ganados }} mejor precio</div></td>{% endfor %}</tr></tfoot>{% endif %}
+  </table></div>
+  {% if abierta and ofertas and puede.compras_aprobar_oc %}<div class="card-body row g-2 align-items-end"><input type="hidden" name="oferta">
+    <div class="col-md-8"><label class="form-label small">Justificación (obligatoria si no gana el precio más bajo)</label><input name="justificacion" maxlength="300" class="form-control form-control-sm"></div>
+    <div class="col-md-4"><button name="accion" value="adjudicar" class="btn btn-sm btn-success w-100" data-confirm="¿Adjudicar? Se generarán las órdenes de compra de los ganadores."><i class="bi bi-trophy"></i> Adjudicar y generar órdenes</button></div>
+    <div class="col-12 small text-muted">Marcado por defecto el precio más bajo de cada ítem (en verde). Puede elegir otro proveedor por calidad o plazo, justificándolo.</div>
+  </div>{% elif abierta %}<input type="hidden" name="oferta">{% endif %}
+</div>
+</form>
+
+{% if abierta and puede.compras_oc %}
+<form method="post" class="card mb-3">{% csrf_token %}<input type="hidden" name="accion" value="oferta">
+  <div class="card-header"><i class="bi bi-plus-circle"></i> Registrar oferta de un proveedor</div>
+  <div class="card-body"><div class="row g-2">
+    <div class="col-md-4"><label class="form-label small">Proveedor</label><select name="proveedor" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'proveedores' %}" required><option value="">---------</option></select></div>
+    <div class="col-md-2"><label class="form-label small">Moneda</label><select name="moneda" class="form-select form-select-sm"><option value="PEN">Soles</option><option value="USD">Dólares</option></select></div>
+    <div class="col-md-2"><label class="form-label small">T.C.</label><input name="tipo_cambio" value="1" class="form-control form-control-sm" inputmode="decimal"></div>
+    <div class="col-md-2"><label class="form-label small">Entrega (días)</label><input name="plazo_entrega" value="0" class="form-control form-control-sm" inputmode="numeric"></div>
+    <div class="col-md-2"><label class="form-label small">Condición de pago</label><input name="condicion_pago" class="form-control form-control-sm" maxlength="100"></div>
+    <div class="col-12"><label class="form-label small">Observaciones</label><input name="observaciones" class="form-control form-control-sm" maxlength="250"></div>
+  </div>
+  <table class="table table-sm mt-2 mb-2"><thead><tr><th>Ítem</th><th class="num">Cantidad</th><th style="width:200px">Precio unitario sin IGV</th></tr></thead>
+    <tbody>{% for f in filas %}<tr><td>{{ f.l.descripcion }}</td><td class="num">{{ f.l.cantidad|money }}</td><td><input name="precio_{{ f.l.pk }}" class="form-control form-control-sm text-end" inputmode="decimal" placeholder="No cotiza"></td></tr>{% endfor %}</tbody></table>
+  <button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Guardar oferta</button> <span class="small text-muted">Si el proveedor ya tenía oferta, se reemplaza.</span>
+  </div>
+</form>
+<form method="post" class="text-end">{% csrf_token %}<button name="accion" value="anular" class="btn btn-sm btn-outline-danger" data-confirm="¿Anular la licitación?">Anular licitación</button></form>
+{% endif %}
+{% endblock %}

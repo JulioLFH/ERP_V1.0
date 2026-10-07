@@ -278,6 +278,83 @@ class RequerimientoInterno(models.Model):
         return sum((i.pendiente for i in self.items.all()), D0)
 
 
+class OlaPicking(models.Model):
+    """Ola de preparación: junta varios pedidos de venta para recorrer el almacén una sola vez (por ubicación) y
+    luego separar lo preparado por pedido."""
+    ESTADOS = [('ABIERTA', 'Por preparar'), ('PREPARADA', 'Preparada'), ('ANULADA', 'Anulada')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    fecha = models.DateField(default=timezone.localdate)
+    almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, related_name='+')
+    pedidos = models.ManyToManyField('ventas.Cotizacion', related_name='olas')
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='ABIERTA')
+    observaciones = models.CharField(max_length=200, blank=True)
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    preparado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                      related_name='+')
+    preparado_en = models.DateTimeField(null=True, blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'ola de picking'
+        verbose_name_plural = 'olas de picking'
+
+    def __str__(self):
+        return f'Ola {self.numero}'
+
+
+class LineaOla(models.Model):
+    ola = models.ForeignKey(OlaPicking, on_delete=models.CASCADE, related_name='lineas')
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='+')
+    ubicacion = models.CharField('Ubicación', max_length=20, blank=True)
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2)
+    preparada = models.DecimalField('Cantidad preparada', max_digits=14, decimal_places=2, null=True, blank=True)
+    detalle = models.JSONField(default=dict, help_text='{número de pedido: cantidad}')
+
+    class Meta:
+        ordering = ['ubicacion', 'producto__nombre']
+
+
+class ConteoCiclico(models.Model):
+    """Conteo cíclico: se cuentan pocos productos cada vez según su clase ABC (los A más seguido). Al cerrarlo, las
+    diferencias se ajustan con su acta de conteo como sustento."""
+    ESTADOS = [('ABIERTO', 'En conteo'), ('CERRADO', 'Cerrado'), ('ANULADO', 'Anulado')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    fecha = models.DateField(default=timezone.localdate)
+    almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, related_name='+')
+    estado = models.CharField(max_length=8, choices=ESTADOS, default='ABIERTO')
+    ajuste_ingreso = models.ForeignKey(Operacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    ajuste_salida = models.ForeignKey(Operacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    cerrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+')
+    cerrado_en = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'conteo cíclico'
+        verbose_name_plural = 'conteos cíclicos'
+
+    def __str__(self):
+        return f'Conteo {self.numero}'
+
+
+class ConteoItem(models.Model):
+    conteo = models.ForeignKey(ConteoCiclico, on_delete=models.CASCADE, related_name='items')
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='+')
+    clase = models.CharField('Clase ABC', max_length=1)
+    ubicacion = models.CharField(max_length=20, blank=True)
+    sistema = models.DecimalField('Stock del sistema', max_digits=14, decimal_places=2)
+    contado = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        ordering = ['ubicacion', 'producto__nombre']
+
+    @property
+    def diferencia(self):
+        return None if self.contado is None else self.contado - self.sistema
+
+
 class RequerimientoItem(models.Model):
     requerimiento = models.ForeignKey(RequerimientoInterno, on_delete=models.CASCADE, related_name='items')
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT, limit_choices_to={'tipo': 'BIEN'})

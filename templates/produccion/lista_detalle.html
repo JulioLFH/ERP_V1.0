@@ -11,10 +11,12 @@
     <a href="{% url 'manufactura:listas' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
     {% if not en_uso %}<a href="{% url 'manufactura:lista_editar' lista.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
     <form method="post" action="{% url 'manufactura:lista_version' lista.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="bi bi-files"></i> Copiar como nueva receta</button></form>
+    {% if lista.estado == 'APROBADA' and puede.manufactura_recetas %}<a href="{% url 'manufactura:cambio_nuevo' %}?lista={{ lista.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-left-right"></i> Proponer cambio de ingeniería</a>{% endif %}
     {% if lista.estado != 'OBSOLETA' %}<form method="post" action="{% url 'manufactura:lista_obsoleta' lista.pk %}" data-confirm="¿Declarar obsoleta esta receta? Sus versiones de fabricación quedan inactivas.">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive"></i> Obsoleta</button></form>{% endif %}
     {% if lista.estado == 'APROBADA' %}<a href="{% url 'manufactura:orden_nueva' %}?producto={{ lista.producto_id }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Orden de producción</a>{% endif %}
   </div>
 </div>
+{% for c in cambios %}<div class="alert alert-warning py-2 small"><i class="bi bi-arrow-left-right"></i> {% if c.lista_nueva_id == lista.pk %}Esta es la receta propuesta del{% else %}Esta receta tiene en curso el{% endif %} <a href="{% url 'manufactura:cambio' c.pk %}">{{ c }}</a> ({{ c.get_estado_display|lower }}).</div>{% endfor %}
 {% if en_uso %}<div class="alert alert-info py-2 small"><i class="bi bi-lock"></i> Esta receta ya se usó en órdenes de producción: no se edita para conservar el sustento del costeo. Cópiela como nueva receta, apruébela y úsela en una versión de fabricación.</div>{% endif %}
 <div class="row g-3">
   <div class="col-lg-8">

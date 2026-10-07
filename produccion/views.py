@@ -18,8 +18,8 @@ from core.views import FormGenerico, ListaGenerica
 from . import servicios
 from .forms import (CentroTrabajoForm, ComponentesFormSet, HojaRutaForm, ListaMaterialesForm,
                     OperacionesRutaFormSet, OrdenProduccionForm, PlanDemandaForm, VersionForm)
-from .models import (CentroTrabajo, CorridaMRP, HojaRuta, ListaMateriales, OrdenProduccion, PlanDemanda,
-                     PropuestaMRP, VersionFabricacion)
+from .models import (CambioIngenieria, CentroTrabajo, CorridaMRP, HojaRuta, ListaMateriales, OrdenProduccion,
+                     PlanDemanda, PropuestaMRP, VersionFabricacion)
 
 
 def _decimal(valor, defecto=None):
@@ -87,9 +87,12 @@ def orden_detalle(request, pk):
         'producto', 'lista', 'version__hoja', 'almacen_insumos', 'almacen_destino', 'centro_costo', 'creado_por',
         'anulado_por', 'operacion', 'estandar'), pk=pk)
     filas = servicios.disponibilidad(orden)
+    from .avanzado import resumen_avance
+    avance = resumen_avance(orden)
     ctx = {'o': orden, 'filas': filas, 'horas': orden.horas.select_related('centro'),
            'faltan': any(f['faltante'] > 0 for f in filas) and orden.estado != 'TERMINADA',
-           'hoy': timezone.localdate()}
+           'hoy': timezone.localdate(), 'avance': avance,
+           'a_producir': avance['producido'] if avance and avance['producido'] else orden.cantidad}
     if orden.estado == 'TERMINADA' and puede_ver_costos(request.user):
         ctx['variaciones'] = servicios.variaciones(orden)
         ctx['por_tipo'] = orden.variaciones.all()
@@ -245,20 +248,11 @@ def lista_version(request, pk):
     """Copia la receta como nuevo borrador (la anterior sigue vigente hasta aprobar la nueva)."""
     lista = get_object_or_404(ListaMateriales, pk=pk)
     if request.method == 'POST':
+        from .avanzado import copiar_lista
         with transaction.atomic():
-            n = ListaMateriales.objects.filter(producto=lista.producto).count() + 1
-            codigo = f'V{n}'
-            while ListaMateriales.objects.filter(producto=lista.producto, codigo=codigo).exists():
-                n += 1
-                codigo = f'V{n}'
-            nueva = ListaMateriales.objects.create(
-                producto=lista.producto, codigo=codigo, cantidad_base=lista.cantidad_base, estado='BORRADOR',
-                lote_min=lista.lote_min, lote_max=lista.lote_max, observaciones=f'Copia de {lista.codigo}')
-            for c in lista.componentes.all():
-                nueva.componentes.create(producto_id=c.producto_id, cantidad=c.cantidad, merma=c.merma,
-                                         operacion=c.operacion, almacen_id=c.almacen_id)
-        messages.success(request, f'Receta {codigo} creada en borrador: ajústela, apruébela y úsela en una versión '
-                                  'de fabricación.')
+            nueva = copiar_lista(lista, f'Copia de {lista.codigo}')
+        messages.success(request, f'Receta {nueva.codigo} creada en borrador: ajústela, apruébela y úsela en una '
+                                  'versión de fabricación.')
         return redirect('manufactura:lista_editar', nueva.pk)
     return redirect('manufactura:lista', pk)
 
@@ -269,7 +263,9 @@ def lista_detalle(request, pk):
     ctx = {'lista': lista, 'componentes': lista.componentes.select_related('producto', 'almacen'),
            'en_uso': _en_uso(lista), 'versiones_fab': lista.versiones.select_related('hoja'),
            'otras': ListaMateriales.objects.filter(producto=lista.producto).exclude(pk=pk),
-           'ordenes': lista.ordenes.select_related('producto')[:20]}
+           'ordenes': lista.ordenes.select_related('producto')[:20],
+           'cambios': CambioIngenieria.objects.filter(Q(lista_actual=lista) | Q(lista_nueva=lista),
+                                                      estado__in=['BORRADOR', 'POR_APROBAR'])}
     if puede_ver_costos(request.user):
         ctx['hoja'] = servicios.hoja_costos(lista)
     return render(request, 'produccion/lista_detalle.html', ctx)

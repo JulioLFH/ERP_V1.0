@@ -1,0 +1,28 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ c }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title mb-0">Contrato marco {{ c.numero }} <span class="badge fs-6 align-middle {% if c.estado == 'VIGENTE' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ c.get_estado_display }}</span></h1>
+    <div class="small text-muted">{{ c.proveedor.nombre }} · {{ c.descripcion }} · del {{ c.fecha_inicio|date:'d/m/Y' }} al {{ c.fecha_fin|date:'d/m/Y' }} · {{ c.get_moneda_display }}{% if c.condicion_pago %} · {{ c.condicion_pago }}{% endif %}</div></div>
+  <div class="d-flex gap-2">
+    {% if c.estado == 'VIGENTE' and puede.compras_oc %}<a href="{% url 'compras:oc_nuevo' %}?contrato={{ c.pk }}" class="btn btn-sm btn-primary"><i class="bi bi-cart-plus"></i> Pedir (orden de compra)</a>{% endif %}
+    {% if puede.compras_aprobar_oc %}<a href="{% url 'compras:contrato_editar' c.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
+    <a href="{% url 'compras:contratos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a></div>
+</div>
+{% if c.monto_maximo is not None %}<div class="card mb-3"><div class="card-body">
+  <div class="d-flex justify-content-between small"><span>Pedido: <b>{{ usado|money }}</b> de {{ c.monto_maximo|money }}</span><span>Saldo: <b class="{% if saldo_monto < 0 %}text-danger{% endif %}">{{ saldo_monto|money }}</b></span></div>
+</div></div>{% endif %}
+<div class="card mb-3"><div class="card-header">Productos pactados</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Producto</th><th class="num">Precio pactado</th><th class="num">Cantidad máxima</th><th class="num">Pedido</th><th class="num">Saldo</th><th style="width:20%">Avance</th></tr></thead>
+  <tbody>{% for f in filas %}<tr><td>{{ f.l.producto.codigo }} {{ f.l.producto.nombre }}</td><td class="num">{{ f.l.precio_unitario|floatformat:4 }}</td>
+    <td class="num">{% if f.l.cantidad_maxima is not None %}{{ f.l.cantidad_maxima|money }}{% else %}Sin tope{% endif %}</td><td class="num">{{ f.pedido|money }}</td>
+    <td class="num {% if f.saldo is not None and f.saldo < 0 %}text-danger{% endif %}">{% if f.saldo is not None %}{{ f.saldo|money }}{% else %}—{% endif %}</td>
+    <td>{% if f.pct is not None %}<div class="progress" style="height:12px"><div class="progress-bar {% if f.pct > 100 %}bg-danger{% elif f.pct > 85 %}bg-warning{% endif %}" style="width:{% if f.pct > 100 %}100{% else %}{{ f.pct|stringformat:'s' }}{% endif %}%"></div></div><span class="small">{{ f.pct }}%</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="6" class="text-muted text-center py-3">Sin productos.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<div class="card"><div class="card-header">Órdenes de compra del contrato</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <tbody>{% for o in ordenes %}<tr><td><a href="{% url 'compras:oc_detalle' o.pk %}">{{ o.numero }}</a></td><td>{{ o.fecha|date:'d/m/Y' }}</td><td>{{ o.get_estado_display }}</td><td class="num">{{ o.simbolo }} {{ o.total|money }}</td></tr>
+  {% empty %}<tr><td class="text-muted text-center py-3">Aún no hay pedidos contra este contrato.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if c.observaciones %}<p class="small text-muted mt-3">{{ c.observaciones|linebreaksbr }}</p>{% endif %}
+{% endblock %}

@@ -96,6 +96,11 @@ class Empresa(models.Model):
         help_text='Credenciales de "Consulta de validez de comprobantes" (SUNAT Operaciones en Línea > '
                   'Empresas > Comprobantes de pago > Credenciales de API SUNAT)')
     sunat_client_secret = models.CharField('SUNAT API: client_secret', max_length=200, blank=True)
+    # ---- control interno
+    segregacion_estricta = models.BooleanField(
+        'Segregación de funciones estricta', default=False,
+        help_text='Nadie aprueba lo que registró (órdenes de compra, requerimientos, planillas), ni siquiera el '
+                  'administrador, mientras haya otro usuario activo que pueda hacerlo')
 
     class Meta:
         verbose_name = 'empresa'

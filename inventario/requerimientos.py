@@ -40,6 +40,9 @@ def aprobar(req, usuario):
         raise ErrorRequerimiento('Solo se aprueban requerimientos por aprobar.')
     if req.solicitante_id == usuario.pk and not usuario.is_superuser:
         raise ErrorRequerimiento('Un requerimiento no lo aprueba quien lo pidió.')
+    from core.segregacion import error_aprobacion
+    if error_aprobacion(usuario, req):  # estricta: tampoco el administrador aprueba lo suyo
+        raise ErrorRequerimiento(error_aprobacion(usuario, req))
     req.estado, req.aprobado_por, req.aprobado_en = 'APROBADO', usuario, timezone.now()
     req.save()
     return req

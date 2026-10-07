@@ -1,0 +1,31 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ o }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title mb-0">{{ o }} <span class="badge fs-6 align-middle {% if o.estado == 'PREPARADA' %}text-bg-success{% elif o.estado == 'ANULADA' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ o.get_estado_display }}</span></h1>
+    <div class="small text-muted">{{ o.almacen }} · {{ o.fecha|date:'d/m/Y' }} · pedidos {% for p in o.pedidos.all %}<a href="{% url 'ventas:cot_detalle' p.pk %}">{{ p.numero }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% if o.observaciones %} · {{ o.observaciones }}{% endif %}</div></div>
+  <div class="d-flex gap-2"><a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Hoja de picking</a>
+    <a href="{% url 'inventario:olas' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Olas</a></div>
+</div>
+{% if faltan and o.estado == 'ABIERTA' %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> {{ faltan }} producto(s) sin stock suficiente en {{ o.almacen }}.</div>{% endif %}
+<form method="post">{% csrf_token %}
+<div class="card mb-3"><div class="card-header"><i class="bi bi-signpost-split"></i> Recorrido (ordenado por ubicación)</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>Ubicación</th><th>Producto</th><th class="num">A recoger</th><th class="num">Stock</th><th>Por pedido</th><th class="num" style="width:140px">Recogido</th></tr></thead>
+    <tbody>{% for f in filas %}<tr {% if f.falta > 0 %}class="table-warning"{% endif %}>
+      <td class="fw-semibold">{{ f.l.ubicacion|default:'—' }}</td><td>{{ f.l.producto.codigo }} {{ f.l.producto.nombre }}</td>
+      <td class="num">{{ f.l.cantidad|money }} {{ f.l.producto.unidad }}</td><td class="num">{{ f.stock|money }}</td>
+      <td class="small">{% for n, c in f.l.detalle.items %}{{ n }}: {{ c }}{% if not forloop.last %} · {% endif %}{% endfor %}</td>
+      <td class="num">{% if o.estado == 'ABIERTA' %}<input name="prep_{{ f.l.pk }}" placeholder="{{ f.l.cantidad|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ f.l.preparada|money }}{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if o.estado == 'ABIERTA' and puede.inventario_operar %}<div class="card-body py-2 d-flex gap-2">
+    <button name="accion" value="preparar" class="btn btn-sm btn-success"><i class="bi bi-check2-all"></i> Confirmar lo recogido</button>
+    <button name="accion" value="anular" class="btn btn-sm btn-outline-danger" data-confirm="¿Anular la ola? Sus pedidos vuelven a quedar disponibles.">Anular</button>
+    <span class="small text-muted align-self-center">Vacío = se recogió todo.</span></div>{% endif %}
+</div>
+</form>
+<div class="card"><div class="card-header"><i class="bi bi-grid"></i> Separación por pedido</div><div class="card-body"><div class="row g-3">
+  {% for numero, lineas in separacion %}<div class="col-md-4"><div class="border rounded p-2"><div class="fw-semibold">{{ numero }}</div>
+    <ul class="small mb-0 ps-3">{% for p, c in lineas %}<li>{{ c|money }} {{ p.unidad }} {{ p.nombre }}</li>{% endfor %}</ul></div></div>{% endfor %}
+</div></div></div>
+{% endblock %}

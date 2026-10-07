@@ -51,6 +51,8 @@
 </div>
 
 {% if es_oc %}
+{% if doc.contrato %}<div class="alert {% if errores_contrato %}alert-warning{% else %}alert-info{% endif %} mt-3 small d-print-none" style="max-width:900px;margin:auto"><i class="bi bi-file-earmark-text"></i> Pedido contra el <a href="{% url 'compras:contrato' doc.contrato_id %}">contrato marco {{ doc.contrato.numero }}</a>.
+  {% for e in errores_contrato %}<div>• {{ e }}</div>{% empty %} Cumple sus precios y topes.{% endfor %}</div>{% endif %}
 <div class="card mt-3 d-print-none" style="max-width:900px;margin:auto"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-person-check"></i> Proveedor</span>
   <span class="badge {% if doc.estado_proveedor == 'ACEPTADA' %}text-bg-success{% elif doc.estado_proveedor == 'RECHAZADA' %}text-bg-danger{% elif doc.estado_proveedor == 'ENVIADA' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ doc.get_estado_proveedor_display }}</span></div>
   <div class="card-body small">
