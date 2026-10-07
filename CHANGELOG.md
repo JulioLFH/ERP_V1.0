@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.23.1 — 07/10/2026 · Avisos de carga y de permisos
+- **Aviso de carga**: barra superior y «Cargando…» / «Procesando…» mientras el servidor responde al abrir pantallas o guardar; el botón pulsado se bloquea para no registrar dos veces lo mismo (las descargas de Excel y PDF no lo muestran).
+- **Acción sin permiso desde un botón**: se vuelve a la misma pantalla con el aviso «Acción no permitida» y el motivo, en vez de salir a otra página. La página de acceso denegado tiene botón «Volver».
+
 ## v1.23.0 — 07/10/2026 · Funciones de gran empresa
 **Plataforma**
 - **Segregación de funciones**: reporte de usuarios con permisos incompatibles (crear y aprobar órdenes, registrar facturas y pagarlas…), aviso al guardar un usuario y opción «estricta» en Ajustes › Empresa: nadie aprueba lo que registró (órdenes de compra, requerimientos, planillas).

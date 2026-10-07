@@ -52,6 +52,13 @@ class PermisosTest(TestCase):
         self.assertEqual(r.status_code, 403)
         self.assertContains(r, 'anular comprobantes', status_code=403)
         self.assertEqual(Venta.objects.get(pk=v.pk).estado, 'REGISTRADO')
+        # desde un botón de la pantalla del comprobante: vuelve a ella con el aviso (no pierde la pantalla)
+        detalle = reverse('ventas:detalle', args=[v.pk])
+        r = self.client.post(reverse('ventas:anular', args=[v.pk]), {'motivo': 'Prueba de anulación'},
+                             HTTP_REFERER=f'http://testserver{detalle}', follow=True)
+        self.assertRedirects(r, detalle)
+        self.assertContains(r, 'Acción no permitida')
+        self.assertEqual(Venta.objects.get(pk=v.pk).estado, 'REGISTRADO')
         # tampoco ve el botón; sí puede emitir, no notas de crédito
         self.assertNotContains(self.client.get(reverse('ventas:detalle', args=[v.pk])), 'data-bs-target="#form-anular"')
         self.assertEqual(self.client.get(reverse('ventas:nuevo')).status_code, 200)

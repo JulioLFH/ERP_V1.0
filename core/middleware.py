@@ -83,11 +83,24 @@ class AccesoModulosMiddleware:
         if accion and not puede(request.user, accion):
             modulo, _, clave = accion.partition('.')
             texto = next((d for a, d, _ in ACCIONES.get(modulo, []) if a == clave), accion)
-            return render(request, 'core/sin_acceso.html', {
-                'motivo': f'Su usuario no tiene permiso para: {texto.lower()}. Pida al administrador que se lo asigne '
-                          f'en Ajustes > Usuarios y permisos.'}, status=403)
+            return _denegar(request, f'Su usuario no tiene permiso para: {texto.lower()}. Pida al administrador que '
+                                     f'se lo asigne en Ajustes > Usuarios y permisos.')
         almacen = almacen_no_permitido(request, match)
         if almacen is not None:
-            return render(request, 'core/sin_acceso.html', {
-                'motivo': f'Su usuario no opera en el almacén "{almacen}".'}, status=403)
+            return _denegar(request, f'Su usuario no opera en el almacén "{almacen}".')
         return None
+
+
+def _denegar(request, motivo):
+    """Acción sin permiso. Si vino de un botón de otra pantalla del sistema, vuelve a ella con el aviso (no se pierde
+    lo que se estaba viendo); si no, muestra la página de acceso denegado."""
+    from django.contrib import messages
+    from django.utils.http import url_has_allowed_host_and_scheme
+    origen = request.META.get('HTTP_REFERER', '')
+    if request.method == 'POST' and origen and url_has_allowed_host_and_scheme(
+            origen, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        from urllib.parse import urlsplit
+        partes = urlsplit(origen)
+        messages.error(request, f'Acción no permitida. {motivo}')
+        return redirect(partes.path + (f'?{partes.query}' if partes.query else ''))
+    return render(request, 'core/sin_acceso.html', {'motivo': motivo}, status=403)

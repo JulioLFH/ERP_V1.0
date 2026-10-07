@@ -288,3 +288,55 @@ document.querySelectorAll('form[data-confirm]').forEach((f) => {
 document.querySelectorAll('button[data-confirm]').forEach((b) => {
   b.addEventListener('click', (e) => { if (!confirm(b.dataset.confirm)) e.preventDefault(); });
 });
+
+// aviso de carga: al abrir pantallas o enviar formularios (si el servidor tarda más de un instante) y bloqueo del
+// botón pulsado para no registrar dos veces lo mismo. Las descargas (Excel, PDF, plantillas) no lo muestran.
+(function () {
+  const aviso = document.getElementById('cargando');
+  if (!aviso) return;
+  const texto = aviso.querySelector('.cargando-texto');
+  let timer = null;
+  const esDescarga = (url) => /[?&](formato|descargar|plantilla|solicitud)=|\/(imprimir|boletas|plame|afp|voucher|archivo)\b|\.(pdf|xlsx|zip|txt|xml)(\?|$)/i.test(url || '');
+  function mostrar(mensaje) {
+    clearTimeout(timer);
+    timer = setTimeout(() => { texto.textContent = mensaje; aviso.hidden = false; }, 250);
+  }
+  function ocultar() {
+    clearTimeout(timer);
+    aviso.hidden = true;
+    document.querySelectorAll('[data-enviando]').forEach((b) => {
+      b.disabled = false;
+      b.removeAttribute('data-enviando');
+      if (b.dataset.textoOriginal) b.innerHTML = b.dataset.textoOriginal;
+    });
+  }
+  window.addEventListener('pageshow', ocultar);  // al volver con el botón "atrás"
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href]');
+    if (!a || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    const href = a.getAttribute('href');
+    if (!href || href.startsWith('#') || href.startsWith('javascript:') || a.target === '_blank' ||
+        a.hasAttribute('download') || a.dataset.bsToggle || esDescarga(href)) return;
+    if (a.origin !== location.origin) return;
+    mostrar('Cargando…');
+  });
+  document.addEventListener('submit', (e) => {
+    const f = e.target;
+    if (e.defaultPrevented || f.target === '_blank') return;
+    const boton = e.submitter;
+    const accion = (boton && boton.getAttribute('formaction')) || f.getAttribute('action') || location.href;
+    const consulta = f.method.toLowerCase() === 'get' ? new URLSearchParams(new FormData(f)).toString() : '';
+    if (esDescarga(accion) || esDescarga('?' + consulta)) return;
+    const post = f.method.toLowerCase() === 'post';
+    mostrar(post ? 'Procesando…' : 'Cargando…');
+    if (post && boton) {
+      // se deshabilita después de enviar (si se deshabilita antes, su name/value no viaja en el formulario)
+      setTimeout(() => {
+        boton.dataset.textoOriginal = boton.innerHTML;
+        boton.setAttribute('data-enviando', '1');
+        boton.disabled = true;
+        boton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando…';
+      }, 0);
+    }
+  });
+})();
