@@ -18,6 +18,32 @@ from django.conf import settings
 _actual = ContextVar('empresa_actual', default='default')
 
 
+def leer_empresas_extra(texto):
+    """EMPRESAS_EXTRA: JSON {"alias": {...}} o, más simple, solo los nombres separados por ';'
+    ("OTRA S.A.C.; TERCERA S.A.C." → empresa2/erp_empresa2, empresa3/erp_empresa3). Tolera comillas tipográficas
+    y comillas alrededor; si no se entiende, avisa y sigue solo con la principal (no tumba el despliegue)."""
+    import json
+    import sys
+    texto = (texto or '').strip()
+    for a, b in (('“', '"'), ('”', '"'), ('‘', "'"), ('’', "'")):
+        texto = texto.replace(a, b)
+    if len(texto) > 1 and texto[0] == texto[-1] and texto[0] in '"\'' and texto[1:-1].strip().startswith('{'):
+        texto = texto[1:-1].strip()
+    if not texto:
+        return {}
+    if texto.startswith('{'):
+        try:
+            datos = json.loads(texto)
+            if isinstance(datos, dict) and all(isinstance(c, dict) for c in datos.values()):
+                return datos
+        except ValueError:
+            pass
+        print('EMPRESAS_EXTRA no es un JSON válido: se ignora (solo la empresa principal)', file=sys.stderr)
+        return {}
+    nombres = [n.strip() for n in texto.split(';') if n.strip()]
+    return {f'empresa{i}': {'nombre': n, 'base': f'erp_empresa{i}'} for i, n in enumerate(nombres, start=2)}
+
+
 def config_base(cfg, principal):
     """Conexión de una empresa de EMPRESAS_EXTRA: su propia 'url' o una 'base' en el servidor de la principal."""
     import dj_database_url

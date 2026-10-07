@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Versión visible en el menú del usuario; actualizarla junto con CHANGELOG.md y la etiqueta de git
 ERP_NOMBRE = 'Ceiba ERP'
-ERP_VERSION = '1.22.0'
+ERP_VERSION = '1.22.1'
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insegura-cambiar-en-produccion')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
@@ -100,10 +100,11 @@ if os.environ.get('MIGRACION_ORIGEN'):
 # Multiempresa (erp/empresas.py): una base de datos por empresa. EMPRESAS_EXTRA = JSON
 # {"alias": {"nombre": "Razón social", "url": "postgres://…"}} o {"alias": {"nombre": "…", "base": "erp_alias"}}
 # (otra base en el mismo servidor de la principal); la principal es 'default'.
-from erp.empresas import config_base  # noqa: E402
+# o simplemente los nombres: EMPRESAS_EXTRA = "OTRA S.A.C." (varias separadas por ';').
+from erp.empresas import config_base, leer_empresas_extra  # noqa: E402
 
 EMPRESAS = {'default': os.environ.get('EMPRESA_PRINCIPAL', 'Empresa principal')}
-for _alias, _cfg in json.loads(os.environ.get('EMPRESAS_EXTRA') or '{}').items():
+for _alias, _cfg in leer_empresas_extra(os.environ.get('EMPRESAS_EXTRA')).items():
     DATABASES[_alias] = config_base(_cfg, DATABASES['default'])
     EMPRESAS[_alias] = _cfg.get('nombre', _alias)
 if 'test' in sys.argv[1:2]:  # una segunda empresa para las pruebas de multiempresa

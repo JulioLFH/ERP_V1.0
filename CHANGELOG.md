@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.22.1 — 06/10/2026 · EMPRESAS_EXTRA más simple
+- `EMPRESAS_EXTRA` acepta solo el nombre de la empresa (varias separadas por `;`), tolera comillas tipográficas y, si el valor no se entiende, el despliegue sigue con la empresa principal en vez de fallar.
+
 ## v1.22.0 — 06/10/2026 · Otra empresa sin otro servidor
 - **Multiempresa en el mismo servidor**: una empresa nueva puede ir como otra base dentro del mismo PostgreSQL de la principal (`EMPRESAS_EXTRA = {"alias": {"nombre": "…", "base": "erp_alias"}}`), sin costo extra ni otra clave. El despliegue (`migrar_empresas`) crea la base si falta, con sus tablas, plan de cuentas y administrador.
 

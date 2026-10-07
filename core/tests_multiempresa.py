@@ -1,9 +1,12 @@
 """v1.20: multiempresa: cada empresa en su propia base (usuarios, datos y configuración separados)."""
+import io
+from contextlib import redirect_stderr
+
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
-from erp.empresas import activar, actual, config_base, restaurar
+from erp.empresas import activar, actual, config_base, leer_empresas_extra, restaurar
 
 from .models import Empresa, Tercero
 
@@ -65,6 +68,16 @@ class ConfigBaseTest(SimpleTestCase):
         self.assertEqual(config_base({'url': 'postgres://u:c@otro:5432/b2'}, self.principal)['HOST'], 'otro')
         with self.assertRaises(ValueError):
             config_base({'base': 'x"; DROP'}, self.principal)
+
+    def test_variable_simple_o_con_errores_de_pegado(self):
+        self.assertEqual(leer_empresas_extra('SEGUNDA S.A.C.'),
+                         {'empresa2': {'nombre': 'SEGUNDA S.A.C.', 'base': 'erp_empresa2'}})
+        self.assertEqual(list(leer_empresas_extra(' A S.A.C. ; B S.A.C. ')), ['empresa2', 'empresa3'])
+        json_tipografico = '“{“e2”: {“nombre”: “X”, “base”: “erp_e2”}}”'
+        self.assertEqual(leer_empresas_extra(json_tipografico), {'e2': {'nombre': 'X', 'base': 'erp_e2'}})
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(leer_empresas_extra('{roto'), {})
+        self.assertEqual(leer_empresas_extra(''), {})
 
     def test_sqlite_junto_a_la_principal(self):
         conf = config_base({'base': 'empresa3'}, {'ENGINE': 'django.db.backends.sqlite3', 'NAME': '/datos/db.sqlite3'})
