@@ -6,6 +6,7 @@
     <h1 class="page-title"><i class="bi bi-gear-wide-connected"></i> Orden de producción {{ o.numero|default:'(borrador)' }}
       <span class="fs-6 align-middle">{% include 'produccion/_estado.html' with estado=o.estado texto=o.get_estado_display %}</span></h1>
     <div class="text-muted small">{{ o.producto.codigo }} {{ o.producto.nombre }}{% if o.version %} · Versión {{ o.version.codigo }}{% endif %} · Receta <a href="{% url 'manufactura:lista' o.lista_id %}">{{ o.lista.codigo }}</a>{% if o.version.hoja %} · Ruta {{ o.version.hoja.codigo }}{% endif %}</div>
+    {% if o.es_historica %}<div class="small mt-1"><span class="badge text-bg-secondary"><i class="bi bi-clock-history"></i> Del sistema anterior</span> <span class="text-muted">Solo consulta: su producción ya está en el inventario y la contabilidad migrados.</span></div>{% endif %}
   </div>
   <div class="d-flex flex-wrap gap-2">
     <a href="{% url 'manufactura:ordenes' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
@@ -19,7 +20,7 @@
     {% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}
       <a href="#terminar" class="btn btn-sm btn-success"><i class="bi bi-flag"></i> Terminar</a>
     {% endif %}
-    {% if o.estado != 'BORRADOR' and o.estado != 'ANULADA' and puede.manufactura_anular %}
+    {% if o.estado != 'BORRADOR' and o.estado != 'ANULADA' and not o.es_historica and puede.manufactura_anular %}
       <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>
     {% endif %}
   </div>

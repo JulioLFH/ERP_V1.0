@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.24.2 — 07/10/2026 · Todas las órdenes de producción del sistema anterior
+- `cargar_manufactura` carga también las órdenes **terminadas y canceladas** del sistema anterior como órdenes del ERP marcadas «Del sistema anterior»: con su número, fechas, cantidad producida, costos y consumo real (cuando el reporte lo trae), sin operación de almacén ni asiento, porque su producción ya está en el inventario y la contabilidad migrados.
+- Esas órdenes son de consulta: no se anulan en el ERP y no entran al costo real vs estándar ni a la liquidación del costo real. Los productos sin detalle de componentes reciben una receta de referencia obsoleta (no la usan el MRP ni las órdenes nuevas).
+
 ## v1.24.1 — 07/10/2026 · Carga de manufactura del sistema anterior
 - Comando `cargar_manufactura` que lee el reporte de producción del sistema anterior (Excel) y crea las **recetas** (lista de materiales aprobada y versión de fabricación) de cada producto fabricado, con la proporción de componentes que más se repite entre sus órdenes (las órdenes divididas -001/-002 conservan lo planificado de la original y no se usan como referencia).
 - Las **órdenes abiertas** del sistema anterior (en progreso, borrador o por cerrar) pasan a órdenes de producción confirmadas por lo que falta producir; no mueven stock hasta terminarlas en el ERP. Se puede volver a correr sin duplicar.

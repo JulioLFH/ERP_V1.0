@@ -422,6 +422,9 @@ def anular(orden, usuario, motivo):
     from inventario import servicios as inv
     if orden.estado == 'ANULADA':
         raise ErrorProduccion('La orden ya está anulada.')
+    if orden.es_historica:
+        raise ErrorProduccion('Es una orden del sistema anterior: su producción ya está en el inventario y la '
+                              'contabilidad migrados; no se anula en el ERP.')
     if len((motivo or '').strip()) < 10:
         raise ErrorProduccion('Indique el motivo de la anulación (mínimo 10 caracteres).')
     with transaction.atomic():

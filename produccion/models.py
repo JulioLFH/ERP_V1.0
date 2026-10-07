@@ -347,6 +347,10 @@ class OrdenProduccion(models.Model):
         help_text='Diferencia entre el gasto real de planta y lo cargado con las tarifas (cierre del periodo)')
     operacion = models.OneToOneField('inventario.Operacion', on_delete=models.PROTECT, null=True, blank=True,
                                      related_name='orden_produccion', editable=False)
+    es_historica = models.BooleanField(
+        'Del sistema anterior', default=False, editable=False,
+        help_text='Terminada o cancelada en el sistema anterior: solo consulta, ya está en el inventario y la '
+                  'contabilidad migrados (no movió el almacén del ERP)')
     creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
     motivo_anulacion = models.CharField('Motivo de anulación', max_length=250, blank=True)
     anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,

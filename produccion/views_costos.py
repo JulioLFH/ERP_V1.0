@@ -224,7 +224,8 @@ def hoja(request, pk):
 @con_costos
 def real_vs_estandar(request):
     from .models import VariacionOrden
-    qs = OrdenProduccion.objects.filter(estado='TERMINADA').select_related('producto', 'lista', 'estandar')
+    qs = OrdenProduccion.objects.filter(estado='TERMINADA', es_historica=False).select_related(
+        'producto', 'lista', 'estandar')
     desde, hasta = rango_por_defecto(request, qs, campo='fecha_fin')
     tipos = VariacionOrden.TIPOS
     filas, totales = [], {'estandar': D0, 'real': D0, **{t: D0 for t, _ in tipos}}

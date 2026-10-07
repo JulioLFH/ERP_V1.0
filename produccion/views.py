@@ -93,7 +93,7 @@ def orden_detalle(request, pk):
            'faltan': any(f['faltante'] > 0 for f in filas) and orden.estado != 'TERMINADA',
            'hoy': timezone.localdate(), 'avance': avance,
            'a_producir': avance['producido'] if avance and avance['producido'] else orden.cantidad}
-    if orden.estado == 'TERMINADA' and puede_ver_costos(request.user):
+    if orden.estado == 'TERMINADA' and not orden.es_historica and puede_ver_costos(request.user):
         ctx['variaciones'] = servicios.variaciones(orden)
         ctx['por_tipo'] = orden.variaciones.all()
     return render(request, 'produccion/orden_detalle.html', ctx)

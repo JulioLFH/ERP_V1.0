@@ -97,9 +97,11 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('carpeta')
         parser.add_argument('--sin-ordenes', action='store_true', help='Solo las recetas')
+        parser.add_argument('--solo-abiertas', action='store_true',
+                            help='Sin las órdenes terminadas y canceladas del sistema anterior')
         parser.add_argument('--rehacer', action='store_true', help='Vuelve a crear las recetas ya cargadas')
 
-    def handle(self, carpeta, sin_ordenes=False, rehacer=False, **_):
+    def handle(self, carpeta, sin_ordenes=False, solo_abiertas=False, rehacer=False, **_):
         if not os.path.isdir(carpeta):
             raise CommandError(f'No existe la carpeta {carpeta}')
         ordenes = leer_reporte(carpeta)
@@ -107,6 +109,8 @@ class Command(BaseCommand):
         recetas = self.recetas(ordenes, rehacer)
         if not sin_ordenes:
             self.ordenes_abiertas(recetas)
+            if not solo_abiertas:
+                self.ordenes_historicas(recetas, ordenes)
 
     # ------------------------------------------------------------ recetas
     def _producto(self, codigo, cache):
@@ -222,3 +226,89 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(
                 f'{total} órdenes abiertas de {len(sin_receta)} productos sin receta (no se fabricaron en el '
                 f'reporte): no se crean.'))
+
+    # ------------------------------------------------------------ terminadas y canceladas (solo consulta)
+    def ordenes_historicas(self, recetas, reporte):
+        """Terminadas y canceladas del sistema anterior como órdenes del ERP marcadas es_historica: con su cantidad,
+        fechas, costos y consumos reales cuando el reporte los trae, pero sin operación de almacén ni asiento (su
+        producción ya está en el inventario y la contabilidad migrados)."""
+        from historial.models import ConsumoAnterior, OrdenFabricacionAnterior
+        from produccion.models import ConsumoOrden, ListaMateriales, OrdenProduccion
+        ya = {m.group(1) for g in OrdenProduccion.objects.filter(glosa__startswith=MARCA).values_list('glosa', flat=True)
+              for m in [re.match(r'^\[Sistema anterior\] (\S+)', g)] if m}
+        consumos = defaultdict(dict)  # orden anterior -> {producto: cantidad consumida}
+        for c in ConsumoAnterior.objects.exclude(producto__isnull=True).values('orden_id', 'producto_id', 'requerida'):
+            fila = consumos[c['orden_id']]
+            fila[c['producto_id']] = max(fila.get(c['producto_id'], D0), c['requerida'] or D0)  # una fila por lote
+        almacenes, listas_sin = {}, {}
+        creadas, anuladas, omitidas = 0, 0, 0
+        lote, lote_consumos = [], []
+
+        def lista_de(producto):
+            if producto.pk in recetas:
+                return recetas[producto.pk]
+            if producto.pk not in listas_sin:  # sin detalle de componentes: receta de referencia, no se usa
+                listas_sin[producto.pk], _ = ListaMateriales.objects.get_or_create(
+                    producto=producto, codigo=CODIGO_RECETA, defaults={
+                        'estado': 'OBSOLETA', 'vigente_desde': date(2025, 1, 1),
+                        'observaciones': f'{MARCA} Sin detalle de componentes: solo para sus órdenes anteriores.'})
+            return listas_sin[producto.pk]
+
+        por_unidad = {}  # receta -> {insumo: cantidad por unidad}
+
+        def grabar():
+            nonlocal lote, lote_consumos
+            creadas_lote = OrdenProduccion.objects.bulk_create([o for o, _ in lote])
+            for o, h_id in zip(creadas_lote, [h for _, h in lote]):
+                if o.lista_id not in por_unidad:
+                    base = o.lista.cantidad_base or Decimal('1')
+                    por_unidad[o.lista_id] = {c.producto_id: c.cantidad / base for c in o.lista.componentes.all()}
+                plan = {pid: q * o.cantidad for pid, q in por_unidad[o.lista_id].items()}
+                for pid, real in consumos.get(h_id, {}).items():
+                    lote_consumos.append(ConsumoOrden(orden=o, producto_id=pid, cantidad_real=real,
+                                                      cantidad_plan=plan.get(pid, real).quantize(Decimal('0.0001'))))
+            ConsumoOrden.objects.bulk_create(lote_consumos)
+            lote, lote_consumos = [], []
+
+        qs = (OrdenFabricacionAnterior.objects.exclude(producto__isnull=True).select_related('producto')
+              .order_by('fecha_kardex', 'inicio', 'referencia'))
+        with transaction.atomic():
+            for h in qs.iterator():
+                estado = h.estado.strip().lower()
+                if estado in ABIERTAS or h.referencia in ya:
+                    omitidas += estado not in ABIERTAS
+                    continue
+                terminada = estado == 'listo'
+                if not terminada and estado != 'cancelado':
+                    continue
+                almacen = self._almacen(h.referencia, h.almacen, almacenes)
+                inicio = h.inicio.date() if h.inicio else None
+                fin = (h.fecha_kardex or h.fin or h.inicio)
+                fin = fin.date() if fin else None
+                producida = h.producida or D0
+                total = (h.costo_materiales or D0) + (h.costo_mano_obra or D0) + (h.costo_indirecto or D0)
+                cantidad = h.cantidad if h.cantidad and h.cantidad > 0 else (producida or Decimal('1'))
+                o = OrdenProduccion(
+                    numero=h.referencia.replace('/MOLPROD/', '/MO/')[:20], producto=h.producto,
+                    lista=lista_de(h.producto), cantidad=cantidad.quantize(Decimal('0.01')),
+                    fecha=inicio or fin or date(2025, 7, 1), almacen_insumos=almacen, almacen_destino=almacen,
+                    glosa=f'{MARCA} {h.referencia} ({h.estado})', es_historica=True,
+                    estado='TERMINADA' if terminada else 'ANULADA', fecha_inicio=inicio or fin,
+                    fecha_fin=fin if terminada else None, cantidad_producida=producida if terminada else D0,
+                    costo_materiales=h.costo_materiales or D0, costo_mano_obra=h.costo_mano_obra or D0,
+                    costo_cif=h.costo_indirecto or D0,
+                    costo_unitario=(total / producida).quantize(Decimal('0.0001')) if terminada and producida else D0,
+                    motivo_anulacion='' if terminada else 'Cancelada en el sistema anterior')
+                lote.append((o, h.pk))
+                creadas += terminada
+                anuladas += not terminada
+                if len(lote) >= 2000:
+                    grabar()
+            if lote:
+                grabar()
+        self.stdout.write(self.style.SUCCESS(
+            f'Órdenes del sistema anterior: {creadas} terminadas y {anuladas} canceladas (solo consulta, sin mover '
+            f'el almacén){f"; {omitidas} ya estaban" if omitidas else ""}.'))
+        if listas_sin:
+            self.stdout.write(f'{len(listas_sin)} productos sin detalle de componentes: se les creó una receta de '
+                              f'referencia (obsoleta) solo para sus órdenes anteriores.')

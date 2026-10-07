@@ -140,7 +140,7 @@ def liquidar(periodo, usuario=None):
         liq = LiquidacionCosto.objects.create(periodo=periodo,
                                               usuario=usuario if usuario and usuario.is_authenticated else None)
         ordenes = {o.pk: o for o in OrdenProduccion.objects.filter(
-            estado='TERMINADA', fecha_fin__range=[desde, hasta]).select_related('producto')}
+            estado='TERMINADA', es_historica=False, fecha_fin__range=[desde, hasta]).select_related('producto')}
         horas_por_centro = defaultdict(list)
         for h in HoraOrden.objects.filter(orden_id__in=ordenes, centro__centro_costo__isnull=False) \
                 .select_related('centro'):
