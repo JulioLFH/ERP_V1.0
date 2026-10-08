@@ -20,7 +20,14 @@ from .models import ApiToken, Producto, StockAlmacen, Tercero
 LIMITE_MINUTO = 120
 
 
+class ErrorParametro(Exception):
+    """Parámetro de consulta inválido: la API responde 400 con el mensaje."""
+
+
 def respuesta(datos, status=200):
+    from django.http import HttpResponse
+    if isinstance(datos, HttpResponse):  # exportación CSV
+        return datos
     return JsonResponse(datos, status=status, encoder=DjangoJSONEncoder, json_dumps_params={'ensure_ascii': False},
                         safe=not isinstance(datos, list))
 
@@ -69,7 +76,10 @@ def api(modulo=None, metodos=('GET',), escribir=None):
                     return error(f'El usuario de la clave no tiene el permiso {escribir}.', 403)
             if not token.ultimo_uso or (timezone.now() - token.ultimo_uso).total_seconds() > 60:
                 ApiToken.objects.filter(pk=token.pk).update(ultimo_uso=timezone.now())
-            return vista(request, *args, **kwargs)
+            try:
+                return vista(request, *args, **kwargs)
+            except ErrorParametro as exc:
+                return error(str(exc), 400)
         return envoltura
     return deco
 
@@ -81,9 +91,46 @@ def _cuerpo(request):
         return None
 
 
+LIMITE_CSV = 200000
+
+
+def _plano(datos, prefijo=''):
+    """Aplana objetos anidados para CSV: {'tercero': {'nombre': x}} -> {'tercero.nombre': x}."""
+    fila = {}
+    for k, v in datos.items():
+        if isinstance(v, dict):
+            fila.update(_plano(v, f'{prefijo}{k}.'))
+        elif not isinstance(v, list):
+            fila[f'{prefijo}{k}'] = v
+    return fila
+
+
+def _csv(request, qs, serializar):
+    """Toda la consulta (sin paginar) como CSV con separador ; y BOM, para abrir en Excel o cargar a un BI."""
+    import csv
+    import io
+
+    from django.http import HttpResponse
+    filas = [_plano(serializar(o)) for o in (qs[:LIMITE_CSV] if hasattr(qs, 'model') else qs[:LIMITE_CSV])]
+    columnas = list(dict.fromkeys(k for f in filas for k in f))
+    salida = io.StringIO()
+    salida.write('﻿')
+    escritor = csv.DictWriter(salida, fieldnames=columnas, delimiter=';', extrasaction='ignore')
+    escritor.writeheader()
+    for f in filas:
+        escritor.writerow({k: ('' if v is None else v) for k, v in f.items()})
+    nombre = request.path.strip('/').replace('api/v1/', '').replace('/', '_') or 'datos'
+    resp = HttpResponse(salida.getvalue(), content_type='text/csv; charset=utf-8')
+    resp['Content-Disposition'] = f'attachment; filename="{nombre}.csv"'
+    return resp
+
+
 def _pagina(request, qs, serializar):
+    """Página JSON {count, page, pages, results}; con formato=csv, todo el resultado como archivo CSV."""
+    if request.GET.get('formato') == 'csv':
+        return _csv(request, qs, serializar)
     try:
-        tam = min(max(int(request.GET.get('page_size') or 50), 1), 200)
+        tam = min(max(int(request.GET.get('page_size') or 50), 1), 1000)
         num = max(int(request.GET.get('page') or 1), 1)
     except ValueError:
         tam, num = 50, 1
@@ -151,19 +198,39 @@ def s_comprobante(d, detalle=False):
 # ---------------------------------------------------------------- endpoints
 ENDPOINTS = [
     ('GET', '/api/v1/', 'Índice y usuario de la clave'),
-    ('GET', '/api/v1/productos/', 'Productos (q, clase, activo, page, page_size)'),
+    ('GET', '/api/v1/productos/', 'Productos (q, clase, activo)'),
     ('GET', '/api/v1/productos/{id}/', 'Producto con su stock por almacén y sus variantes'),
     ('GET', '/api/v1/productos/{id}/imagen/', 'Imagen del producto (PNG, JPG, GIF o WEBP)'),
-    ('GET', '/api/v1/stock/', 'Stock por producto y almacén (producto, almacen)'),
+    ('GET', '/api/v1/stock/', 'Stock actual por producto y almacén, o a una fecha con su valor (fecha, producto, '
+                              'almacen)'),
+    ('GET', '/api/v1/kardex/', 'Movimientos del kardex (desde, hasta, producto, almacen, origen)'),
     ('GET', '/api/v1/terceros/', 'Clientes y proveedores (q, tipo)'),
     ('POST', '/api/v1/terceros/', 'Crear cliente o proveedor'),
-    ('GET', '/api/v1/ventas/', 'Comprobantes de venta (desde, hasta, tipo, estado, tercero)'),
+    ('GET', '/api/v1/ventas/', 'Comprobantes de venta (desde, hasta, periodo, tipo, estado, tercero)'),
     ('GET', '/api/v1/ventas/{id}/', 'Comprobante de venta con ítems'),
     ('POST', '/api/v1/ventas/', 'Emitir comprobante de venta'),
-    ('GET', '/api/v1/cuentas-por-cobrar/', 'Comprobantes de venta con saldo pendiente'),
-    ('GET', '/api/v1/compras/', 'Comprobantes de compra (desde, hasta, tipo, estado, tercero)'),
+    ('GET', '/api/v1/cuentas-por-cobrar/', 'Ventas con saldo pendiente (desde, hasta, periodo, tipo, tercero)'),
+    ('GET', '/api/v1/compras/', 'Comprobantes de compra (desde, hasta, periodo, tipo, estado, tercero)'),
     ('GET', '/api/v1/compras/{id}/', 'Comprobante de compra con ítems'),
+    ('GET', '/api/v1/cuentas-por-pagar/', 'Compras con saldo pendiente (desde, hasta, periodo, tipo, tercero)'),
+    ('GET', '/api/v1/tesoreria/movimientos/', 'Cobros, pagos y movimientos de caja y bancos (desde, hasta, cuenta, '
+                                              'tipo, concepto, estado)'),
+    ('GET', '/api/v1/produccion/ordenes/', 'Órdenes de producción con sus costos (desde, hasta, por, estado, '
+                                           'producto, historicas)'),
+    ('GET', '/api/v1/contabilidad/cuentas/', 'Plan de cuentas (q, imputable)'),
+    ('GET', '/api/v1/contabilidad/asientos/', 'Asientos (desde, hasta, periodo_desde, periodo_hasta, libro, origen, '
+                                              'detalle)'),
+    ('GET', '/api/v1/contabilidad/asientos/{id}/', 'Asiento con sus líneas'),
+    ('GET', '/api/v1/contabilidad/libro-diario/', 'Libro diario: una fila por línea de asiento (desde, hasta, '
+                                                  'periodo_desde, periodo_hasta, libro, origen, cuenta, centro_costo, '
+                                                  'tercero, destinos)'),
+    ('GET', '/api/v1/contabilidad/balance-comprobacion/', 'Balance de comprobación (desde, hasta, nivel, libro)'),
+    ('GET', '/api/v1/contabilidad/estado-resultados/', 'Estado de resultados por función o naturaleza, total o mes a '
+                                                       'mes (desde, hasta, vista, mensual, libro)'),
+    ('GET', '/api/v1/contabilidad/situacion-financiera/', 'Estado de situación financiera (hasta, libro)'),
 ]
+# todas las listas aceptan además page, page_size (hasta 1000) y formato=csv (todo el resultado en un archivo)
+PARAMETROS_LISTA = ['page', 'page_size', 'formato']
 
 
 @api()
@@ -214,6 +281,9 @@ def producto_imagen(request, pk):
 
 @api('inventario')
 def stock(request):
+    if request.GET.get('fecha'):  # stock y valor a una fecha, según el kardex
+        from .api_datos import stock_al_corte
+        return stock_al_corte(request, fecha_param(request, 'fecha'))
     qs = StockAlmacen.objects.select_related('producto', 'almacen').order_by('producto__codigo', 'almacen_id')
     if request.GET.get('producto'):
         qs = qs.filter(producto_id=request.GET['producto'])
@@ -245,9 +315,27 @@ def terceros(request):
     return respuesta(_pagina(request, qs, s_tercero))
 
 
+def fecha_param(request, nombre):
+    """Fecha AAAA-MM-DD de la consulta (None si no viene). ValueError con un mensaje claro si no es válida."""
+    from datetime import date
+    valor = (request.GET.get(nombre) or '').strip()
+    if not valor:
+        return None
+    try:
+        return date.fromisoformat(valor)
+    except ValueError:
+        raise ErrorParametro(f'Parámetro {nombre} inválido: use AAAA-MM-DD.') from None
+
+
 def _filtrar_comprobantes(request, qs):
-    for campo, filtro in (('desde', 'fecha_emision__gte'), ('hasta', 'fecha_emision__lte'),
-                          ('tipo', 'tipo_comprobante'), ('estado', 'estado'), ('tercero', 'tercero_id')):
+    desde, hasta = fecha_param(request, 'desde'), fecha_param(request, 'hasta')
+    if desde:
+        qs = qs.filter(fecha_emision__gte=desde)
+    if hasta:
+        qs = qs.filter(fecha_emision__lte=hasta)
+    if request.GET.get('periodo'):
+        qs = qs.filter(periodo=request.GET['periodo'].replace('-', '')[:6])
+    for campo, filtro in (('tipo', 'tipo_comprobante'), ('estado', 'estado'), ('tercero', 'tercero_id')):
         if request.GET.get(campo):
             qs = qs.filter(**{filtro: request.GET[campo]})
     return qs.select_related('tercero').order_by('-fecha_emision', '-id')
@@ -351,9 +439,16 @@ def compra(request, pk):
 def openapi(request):
     """Descripción OpenAPI 3 (para Postman, Swagger UI o generadores de clientes)."""
     rutas = {}
+    import re
     for metodo, ruta, desc in ENDPOINTS:
         params = [{'name': 'id', 'in': 'path', 'required': True, 'schema': {'type': 'integer'}}] if '{id}' in ruta \
             else []
+        if metodo == 'GET':
+            m = re.search(r'\(([a-z_, ]+)\)\s*$', desc)
+            nombres = [n.strip() for n in m.group(1).split(',')] if m else []
+            if '{id}' not in ruta and ruta != '/api/v1/' and 'imagen' not in ruta:
+                nombres += PARAMETROS_LISTA
+            params += [{'name': n, 'in': 'query', 'required': False, 'schema': {'type': 'string'}} for n in nombres]
         rutas.setdefault(ruta, {})[metodo.lower()] = {
             'summary': desc, 'parameters': params,
             'responses': {'200': {'description': 'OK'}, '401': {'description': 'Clave inválida'},

@@ -3,6 +3,12 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.26.0 — 07/10/2026 · API de datos para exportar
+- **Contabilidad en la API**: plan de cuentas, asientos (con o sin líneas), libro diario plano (una fila por línea, ideal para Power BI o Excel), balance de comprobación, estado de resultados por función o naturaleza (total o mes a mes) y estado de situación financiera; libro NIIF o tributario.
+- **Más datos**: kardex, stock a una fecha con su valor, cuentas por pagar, movimientos de caja y bancos y órdenes de producción con sus costos.
+- **Filtros de fecha** `desde` / `hasta` (AAAA-MM-DD) en todas las listas de documentos y movimientos, y `periodo` en ventas y compras; fechas inválidas responden 400 con el formato esperado.
+- **Exportación**: `page_size` hasta 1000 y `formato=csv` para descargar todo el resultado en un archivo (separador `;`, abre directo en Excel). Los costos solo salen si el usuario de la clave puede ver costos. OpenAPI con todos los parámetros.
+
 ## v1.25.0 — 07/10/2026 · Costeo de planta y estado de resultados mes a mes
 - **Costo real unitario = todo lo consumido ÷ todo lo producido.** La merma anormal ya no se resta sola: al terminar la orden hay una casilla para llevar a gasto el consumo sobre la receta cuando corresponda (NIC 2 párr. 16).
 - **Tarifas separadas por puesto**: mano de obra (por hora hombre), máquina y CIF (ambas por hora máquina). Las horas de la orden son horas máquina; la hoja de ruta indica la cuadrilla (maquinistas y ayudantes) de cada operación.

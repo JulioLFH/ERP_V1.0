@@ -1,10 +1,21 @@
 from django.urls import path
 
-from . import api, views_api
+from . import api, api_datos as datos, views_api
 
 app_name = 'api'
 
 urlpatterns = [
+    path('kardex/', datos.kardex, name='kardex'),
+    path('cuentas-por-pagar/', datos.cuentas_por_pagar, name='cxp'),
+    path('tesoreria/movimientos/', datos.movimientos_tesoreria, name='tesoreria'),
+    path('produccion/ordenes/', datos.ordenes_produccion, name='ordenes_produccion'),
+    path('contabilidad/cuentas/', datos.cuentas_contables, name='cuentas'),
+    path('contabilidad/asientos/', datos.asientos, name='asientos'),
+    path('contabilidad/asientos/<int:pk>/', datos.asiento, name='asiento'),
+    path('contabilidad/libro-diario/', datos.libro_diario, name='libro_diario'),
+    path('contabilidad/balance-comprobacion/', datos.balance_comprobacion, name='balance'),
+    path('contabilidad/estado-resultados/', datos.estado_resultados, name='resultados'),
+    path('contabilidad/situacion-financiera/', datos.situacion_financiera, name='situacion'),
     path('', api.indice, name='indice'),
     path('docs/', views_api.docs, name='docs'),
     path('openapi.json', api.openapi, name='openapi'),

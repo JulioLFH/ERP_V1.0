@@ -11,16 +11,26 @@
 <div class="card mb-3"><div class="card-body small">
   <p>URL base: <code>{{ base }}</code>. Todas las respuestas son JSON (UTF-8); los importes van como texto decimal (ej. <code>"1180.00"</code>) y las fechas como <code>AAAA-MM-DD</code>.</p>
   <p><b>Autenticación</b>: cabecera <code>Authorization: Bearer &lt;clave&gt;</code>. La clave actúa con los módulos y permisos de su usuario; las de solo lectura solo admiten <code>GET</code>. Límite: 120 solicitudes por minuto.</p>
-  <p class="mb-0"><b>Listas</b>: paginadas con <code>page</code> y <code>page_size</code> (máx. 200); responden <code>{"count", "page", "pages", "results"}</code>. <b>Errores</b>: <code>{"error": "...", "campos": {...}}</code> con 401 (clave), 403 (permiso), 404, 422 (validación) o 429 (límite).</p>
+  <p><b>Listas</b>: paginadas con <code>page</code> y <code>page_size</code> (máx. 1000); responden <code>{"count", "page", "pages", "results"}</code>. Con <code>formato=csv</code> devuelven todo el resultado en un archivo CSV (separador <code>;</code>, abre directo en Excel o se carga a Power BI).</p>
+  <p><b>Fechas</b>: <code>desde</code> y <code>hasta</code> como <code>AAAA-MM-DD</code> (fecha del documento o del movimiento); en los reportes contables, periodos <code>AAAA-MM</code> (por defecto, de enero al mes actual) y <code>libro=NIIF</code> o <code>TRIBUTARIO</code>. Los costos (kardex, stock valorizado, órdenes de producción) solo salen si el usuario de la clave puede ver costos.</p>
+  <p class="mb-0"><b>Errores</b>: <code>{"error": "...", "campos": {...}}</code> con 400 (parámetro inválido), 401 (clave), 403 (permiso), 404, 422 (validación) o 429 (límite).</p>
 </div></div>
 <div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0">
   <thead><tr><th style="width:80px">Método</th><th>Ruta</th><th>Descripción</th></tr></thead>
   <tbody>{% for m, r, d in endpoints %}<tr><td><span class="badge {% if m == 'GET' %}text-bg-primary{% else %}text-bg-success{% endif %}">{{ m }}</span></td><td><code>{{ r }}</code></td><td class="small">{{ d }}</td></tr>{% endfor %}</tbody>
 </table></div></div>
 <div class="row g-3">
-  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Ejemplo: consultar stock</div><div class="card-body">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Ejemplos: consultar y exportar</div><div class="card-body">
 <pre class="small mb-0">curl -H "Authorization: Bearer ceiba_xxxxxxxx" \
-  "{{ base }}productos/?q=harina"</pre></div></div></div>
+  "{{ base }}productos/?q=harina"
+
+# libro diario de enero a marzo, en CSV
+curl -H "Authorization: Bearer ceiba_xxxxxxxx" -o diario.csv \
+  "{{ base }}contabilidad/libro-diario/?desde=2026-01-01&amp;hasta=2026-03-31&amp;formato=csv"
+
+# estado de resultados mes a mes del año
+curl -H "Authorization: Bearer ceiba_xxxxxxxx" \
+  "{{ base }}contabilidad/estado-resultados/?desde=2026-01&amp;hasta=2026-12&amp;mensual=true"</pre></div></div></div>
   <div class="col-lg-6"><div class="card h-100"><div class="card-header">Ejemplo: emitir una boleta</div><div class="card-body">
 <pre class="small mb-0">POST {{ base }}ventas/
 {
