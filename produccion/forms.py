@@ -216,6 +216,8 @@ class OrdenProduccionForm(BootstrapMixin, forms.ModelForm):
         self.fields['version'].queryset = VersionFabricacion.objects.filter(activa=True).select_related('producto')
         self.fields['version'].required = False
         self.fields['version'].help_text = 'Vacío = la versión vigente para la cantidad y la fecha'
+        # la página filtra las versiones del producto elegido: lista corta, sin buscador
+        self.fields['version'].widget.attrs['data-sin-buscador'] = '1'
         normales = Almacen.objects.filter(activo=True, uso='')
         self.fields['almacen_insumos'].queryset = Almacen.objects.filter(activo=True, uso__in=['', 'TERCEROS'])
         self.fields['almacen_destino'].queryset = normales

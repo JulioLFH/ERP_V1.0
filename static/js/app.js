@@ -24,6 +24,19 @@
         sel.value = actual;
         if (sel.value !== actual && elegida) { sel.insertAdjacentHTML('beforeend', elegida); sel.value = actual; }
       }
+      if (sel.tomselect) sel.tomselect.sync();
+    });
+  }
+  // buscador: escribir cualquier palabra (FRESA) lista todo lo que la contiene, en cualquier parte del texto;
+  // varias palabras deben estar todas (FRESA 155). Se aplica a las listas grandes; data-sin-buscador lo evita.
+  function buscable(sel) {
+    if (!window.TomSelect || sel.tomselect || sel.multiple || sel.dataset.sinBuscador !== undefined ||
+        sel.dataset.ubigeoNivel) return;
+    new window.TomSelect(sel, {
+      maxOptions: 200, allowEmptyOption: false, dropdownParent: 'body', searchField: ['text'],
+      placeholder: 'Escriba para buscar…', plugins: sel.required ? [] : ['clear_button'],
+      onFocus: () => { if (sel.dataset.opciones) llenar(sel); },
+      render: { no_results: () => '<div class="no-results px-2 py-1 text-muted small">Sin coincidencias</div>' },
     });
   }
   function preparar(raiz) {
@@ -34,6 +47,10 @@
       } else {
         llenar(sel);
       }
+      buscable(sel);
+    });
+    raiz.querySelectorAll('select:not([data-opciones])').forEach((sel) => {
+      if (sel.options.length > 50) buscable(sel);
     });
   }
   window.prepararSelectores = preparar;

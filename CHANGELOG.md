@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.26.1 — 08/10/2026 · Buscadores por palabra
+- Los selectores de productos, clientes, proveedores, cuentas y comprobantes (y cualquier lista de más de 50 opciones) tienen buscador: al escribir una palabra (ej. FRESA) muestran todo lo que la contiene en cualquier parte del código o el nombre, sin importar mayúsculas ni tildes; con varias palabras (FRESA GRANOLA) deben estar todas. Los campos opcionales tienen una × para limpiarlos.
+
 ## v1.26.0 — 07/10/2026 · API de datos para exportar
 - **Contabilidad en la API**: plan de cuentas, asientos (con o sin líneas), libro diario plano (una fila por línea, ideal para Power BI o Excel), balance de comprobación, estado de resultados por función o naturaleza (total o mes a mes) y estado de situación financiera; libro NIIF o tributario.
 - **Más datos**: kardex, stock a una fecha con su valor, cuentas por pagar, movimientos de caja y bancos y órdenes de producción con sus costos.
