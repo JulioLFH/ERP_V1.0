@@ -116,4 +116,6 @@ class CostosPlantaTest(TestCase):
         self.assertEqual(sorted(o.horas.get().personal.values_list('rol', 'horas')),
                          [('AYUDANTE', D('1.50')), ('MAQUINISTA', D('3.00'))])
         self.assertEqual(o.salidas.get(pk=s.pk).cantidad_real, D('1'))
-        self.assertEqual(o.terminado_en.date(), date.today())
+        from django.utils import timezone
+        self.assertEqual(timezone.localtime(o.terminado_en).date(), timezone.localdate())
+        self.assertEqual(o.fecha_fin, timezone.localdate())  # el kardex y la contabilidad usan la fecha de Lima
