@@ -17,5 +17,5 @@
     <td>{{ t.rubro }}</td>{% for v in t.valores %}<td class="num {% if v < 0 %}text-danger{% endif %}">{{ v|money }}</td>{% endfor %}<td class="num">{{ t.total|money }}</td>
   </tr>{% endfor %}</tbody>
 </table></div>
-<div class="card-body py-2 small text-muted">Ventas y costo de ventas toman la línea del producto vendido; los gastos, la del centro de costo (o la de su centro superior). Cuentas por cobrar repartidas según los ítems de cada comprobante pendiente; inventario según la línea de cada producto.</div></div>
+<div class="card-body py-2 small text-muted">Cada línea se calcula igual que el estado de resultados por función (el total es el mismo): ventas y costo de ventas toman la línea del producto vendido; los gastos, la del centro de costo (o la de su centro superior); lo que no tiene línea va a «Sin línea». Cuentas por cobrar repartidas según los ítems de cada comprobante pendiente; inventario según la línea de cada producto.</div></div>
 {% endblock %}

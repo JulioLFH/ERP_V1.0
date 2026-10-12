@@ -495,36 +495,19 @@ def resultados_por_linea(request):
     desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')
     lineas = list(CentroBeneficio.objects.filter(activo=True))
     columnas = [(cb.pk, cb.nombre) for cb in lineas] + [(None, 'Sin línea')]
-    planta = Q(centro_costo__tipo__in=['PRODUCCION', 'SERVICIO'])
-    RUBROS = [('ventas', r'^70', Q()), ('costo', r'^69', Q()),
-              ('gastos', r'^6[2-8]', ~planta),  # administración y ventas (la planta va al costo del producto)
-              ('planta', r'^6[2-8]', planta), ('otros', r'^7[3-8]', Q())]
-    datos = {clave: {pk: D0 for pk, _ in columnas} for clave, _, _ in RUBROS}
-    base = reportes.lineas_rango(desde, hasta).filter(es_destino=False)
-    for clave, regex, filtro in RUBROS:
-        for f in (base.filter(filtro, cuenta__codigo__regex=regex).values('centro_beneficio')
-                  .annotate(d=Sum('debe'), h=Sum('haber'))):
-            pk = f['centro_beneficio'] if f['centro_beneficio'] in datos[clave] else None
-            datos[clave][pk] += (f['h'] or D0) - (f['d'] or D0)  # ingresos positivos, costos negativos
-    # gasto de planta: solo lo que no absorbieron las órdenes de producción (lo absorbido ya está en el costo)
-    from produccion.models import HoraOrden
-    from contabilidad.centralizar import _rango
-    rango = [_rango(desde)[0], _rango(hasta)[1]]
-    for h in HoraOrden.objects.filter(orden__estado='TERMINADA', orden__fecha_fin__range=rango).select_related(
-            'orden__producto'):
-        pk = h.orden.producto.centro_beneficio_id
-        pk = pk if pk in datos['planta'] else None
-        datos['planta'][pk] += h.costo_mo + h.costo_maquina + h.costo_cif
-    # lo que la liquidación del costo real llevó al producto también salió del gasto de planta
-    from produccion.models import LiquidacionOrden
-    for lo in LiquidacionOrden.objects.filter(liquidacion__periodo__range=[desde, hasta]).select_related(
-            'orden__producto'):
-        pk = lo.orden.producto.centro_beneficio_id
-        pk = pk if pk in datos['planta'] else None
-        datos['planta'][pk] += lo.mano_obra + lo.cif
-    margen ={pk: datos['ventas'][pk] + datos['costo'][pk] for pk, _ in columnas}
-    resultado = {pk: margen[pk] + datos['gastos'][pk] + datos['planta'][pk] + datos['otros'][pk]
-                 for pk, _ in columnas}
+    # cada línea se calcula igual que el estado de resultados por función, con sus propias cuentas, así el total es
+    # exactamente el del estado oficial: ventas 70/74, costo 69 + 60/61 + producción (9x) − 71/72, gastos por destino
+    por_linea = {pk: {} for pk, _ in columnas}
+    for f in (reportes.lineas_rango(desde, hasta).values('centro_beneficio', 'cuenta__codigo')
+              .annotate(d=Sum('debe'), h=Sum('haber'))):
+        pk = f['centro_beneficio'] if f['centro_beneficio'] in por_linea else None
+        d, h = por_linea[pk].get(f['cuenta__codigo'], (D0, D0))
+        por_linea[pk][f['cuenta__codigo']] = (d + (f['d'] or D0), h + (f['h'] or D0))
+    calculo = {pk: {n: v for n, v, _ in reportes.estado_resultados(desde, hasta, sumas=s)[0]}
+               for pk, s in por_linea.items()}
+    oficial, _ = reportes.estado_resultados(desde, hasta)
+    filas = [(n, {pk: calculo[pk].get(n, D0) for pk, _ in columnas}, e in ('subtotal', 'total'), v)
+             for n, v, e in oficial]
     # cuentas por cobrar e inventario por línea al cierre
     from contabilidad.centralizar import _fin_mes
     corte = _fin_mes(hasta)
@@ -545,13 +528,10 @@ def resultados_por_linea(request):
     for fila in valor_inventario(corte)[0]:
         pk = fila['p'].centro_beneficio_id if fila['p'].centro_beneficio_id in inventario else None
         inventario[pk] += fila['valor']
-    filas = [('Ventas netas', datos['ventas'], False), ('Costo de ventas', datos['costo'], False),
-             ('Margen bruto', margen, True), ('Gastos de administración y ventas', datos['gastos'], False),
-             ('Gasto de planta no absorbido (subaplicación)', datos['planta'], False),
-             ('Otros ingresos y gastos', datos['otros'], False), ('Resultado de la línea', resultado, True),
-             ('Cuentas por cobrar al cierre', cxc, False), ('Inventario al cierre', inventario, False)]
-    tabla = [{'rubro': r, 'valores': [v[pk] for pk, _ in columnas], 'total': sum(v.values(), D0), 'fuerte': fuerte}
-             for r, v, fuerte in filas]
+    filas += [('Cuentas por cobrar al cierre', cxc, False, sum(cxc.values(), D0)),
+              ('Inventario al cierre', inventario, False, sum(inventario.values(), D0))]
+    tabla = [{'rubro': r, 'valores': [v[pk] for pk, _ in columnas], 'total': total, 'fuerte': fuerte}
+             for r, v, fuerte, total in filas]
     if request.GET.get('formato') == 'excel':
         from core.utils import excel_response
         return excel_response(f'Resultados_por_linea_{desde}_{hasta}', f'Estado de resultados por línea {desde}-{hasta}',

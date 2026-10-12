@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Arquitectura Ceiba ERP</title>
+<style>
+  :root { --tinta:#1f2a24; --suave:#5b6b62; --borde:#cfd8d3; --verde:#1d6b4f; --verde2:#e7f2ec; --azul:#1f5f99; --azul2:#e8f0f8;
+          --nar:#b45309; --nar2:#fdf1e3; --mor:#5b3fa6; --mor2:#efeaf9; --gris2:#f4f6f5; --rojo:#b42318; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#fff; font-family:'Segoe UI', Arial, sans-serif; color:var(--tinta); width:2200px; }
+  header { padding:28px 40px 10px; display:flex; justify-content:space-between; align-items:flex-end; border-bottom:3px solid var(--verde); }
+  header h1 { margin:0; font-size:34px; } header .sub { color:var(--suave); font-size:17px; margin-top:4px; }
+  .logo { font-size:26px; font-weight:700; color:var(--verde); }
+  .lienzo { display:grid; grid-template-columns: 1fr 70px 1fr; gap:0; padding:22px 30px 10px; }
+  .col h2 { margin:0 0 4px; font-size:25px; } .col .lead { color:var(--suave); font-size:15px; margin-bottom:14px; }
+  .etq { display:inline-block; font-size:12px; font-weight:700; letter-spacing:.06em; padding:3px 10px; border-radius:20px; color:#fff; margin-bottom:8px; }
+  .hoy .etq { background:var(--nar); } .fut .etq { background:var(--verde); }
+  .flecha-mid { display:flex; align-items:center; justify-content:center; }
+  .flecha { display:flex; flex-direction:column; align-items:center; color:var(--verde); font-weight:700; }
+  .flecha span { font-size:54px; line-height:1; }
+  .flecha small { font-size:11px; letter-spacing:.08em; }
+  .caja { border:2px solid var(--borde); border-radius:14px; padding:12px 16px; background:#fff; }
+  .caja h3 { margin:0 0 6px; font-size:18px; display:flex; align-items:center; gap:8px; }
+  .caja ul { margin:4px 0 0; padding-left:18px; font-size:14.5px; line-height:1.45; }
+  .caja p { margin:4px 0 0; font-size:14.5px; line-height:1.45; }
+  .nube { background:var(--azul2); border-color:#a9c4e2; }
+  .servidor { background:var(--verde2); border-color:#9cc9b4; }
+  .bd { background:var(--mor2); border-color:#c2b3e8; }
+  .local { background:var(--nar2); border-color:#efc79a; }
+  .ext { background:var(--gris2); }
+  .riesgo { color:var(--rojo); font-weight:600; }
+  .ok { color:var(--verde); font-weight:600; }
+  .fila { display:flex; gap:14px; }
+  .fila > * { flex:1; }
+  .baja { text-align:center; color:var(--suave); font-size:14px; margin:6px 0; line-height:1.2; }
+  .baja b { color:var(--tinta); }
+  .grande { border-width:3px; padding:14px 16px 16px; }
+  .grande > h3 { font-size:20px; }
+  .interno { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+  .mini { border:1.5px solid rgba(0,0,0,.12); border-radius:10px; padding:8px 12px; background:#fff; }
+  .mini h4 { margin:0 0 2px; font-size:15.5px; }
+  .mini p { margin:0; font-size:13.5px; line-height:1.4; color:#33413a; }
+  .ico { font-size:20px; }
+  footer { padding:8px 40px 26px; color:var(--suave); font-size:13.5px; display:flex; justify-content:space-between; }
+  .pie { border-top:1px solid var(--borde); margin:6px 30px 0; }
+  .compara { margin:10px 30px 0; border:2px solid var(--borde); border-radius:14px; overflow:hidden; }
+  .compara table { width:100%; border-collapse:collapse; font-size:14.5px; }
+  .compara th { background:var(--gris2); text-align:left; padding:8px 12px; font-size:14px; }
+  .compara td { padding:7px 12px; border-top:1px solid var(--borde); vertical-align:top; }
+  .compara td:first-child { font-weight:600; width:16%; }
+</style></head>
+<body>
+<header>
+  <div><h1>Arquitectura de Ceiba ERP</h1><div class="sub">Cómo está hoy y cómo quedará en un servidor VPS propio con Django y PostgreSQL</div></div>
+  <div class="logo">Ceiba ERP v1.26.1</div>
+</header>
+<div class="lienzo">
+  <!-- ======================= HOY ======================= -->
+  <div class="col hoy">
+    <span class="etq">HOY</span>
+    <h2>Render (nube gratuita) + laptop local</h2>
+    <div class="lead">El programa vive en GitHub y Render lo publica solo; los datos corregidos están en la laptop.</div>
+
+    <div class="caja ext"><h3><span class="ico">👥</span> Usuarios y sistemas</h3>
+      <p>Navegador (PC, tablet de planta, celular) · API v1 con clave (Power BI, tienda online)</p></div>
+    <div class="baja">▼ <b>HTTPS</b> · erp-v1-j37b.onrender.com</div>
+
+    <div class="caja nube grande"><h3><span class="ico">☁️</span> Render · servicio web «erp-v1» (plan gratuito, EE.UU.)</h3>
+      <div class="interno">
+        <div class="mini"><h4>Gunicorn (3 procesos) → Django 5.2 · Ceiba ERP</h4>
+          <p>15 módulos: ventas, compras, inventario, manufactura, costos, finanzas, contabilidad, planillas, activos… · WhiteNoise sirve CSS/JS</p></div>
+        <div class="mini"><h4>Despliegue automático (build.sh)</h4>
+          <p>pip install · collectstatic · migrar_empresas (migra cada base y crea el administrador)</p></div>
+        <p class="riesgo">⚠ Se duerme a los 15 min sin uso (el primer ingreso tarda ~1 min) · sin respaldos propios · servidor fuera del Perú</p>
+      </div>
+    </div>
+    <div class="baja">▼ <b>DATABASE_URL</b> (conexión interna de Render)</div>
+    <div class="caja bd"><h3><span class="ico">🗄️</span> Render PostgreSQL «erp-db» (plan gratuito)</h3>
+      <ul><li>Base principal + <b>erp_empresa2</b> (multiempresa en el mismo servidor)</li>
+        <li class="riesgo">1 GB, 85 % ocupado · <b>se elimina el 31/10/2026</b> si no se pasa a plan pagado</li>
+        <li>Aún tiene los datos de la migración anterior (sin las correcciones)</li></ul></div>
+
+    <div class="fila" style="margin-top:14px">
+      <div class="caja"><h3><span class="ico">🐙</span> GitHub · JulioLFH/ERP_V1.0</h3>
+        <p>Código y versiones (etiquetas vX.Y.Z). <b>desplegar.bat</b> revisa, prueba y sube; Render publica al recibir el cambio.</p>
+        <p class="ok">Nunca suben bases de datos ni datos reales.</p></div>
+      <div class="caja local"><h3><span class="ico">💻</span> Laptop (desarrollo y datos)</h3>
+        <ul><li><b>iniciar.bat</b> → Django en :8000 / :8001</li>
+          <li>SQLite <b>cliente.sqlite3</b> (899 MB): datos migrados y corregidos (contabilidad, recetas, 65 963 órdenes)</li>
+          <li>migracion_local: respaldos y scripts de traslado</li></ul></div>
+    </div>
+  </div>
+
+  <div class="flecha-mid"><div class="flecha"><span>➜</span><small>MIGRACIÓN</small></div></div>
+
+  <!-- ======================= FUTURO ======================= -->
+  <div class="col fut">
+    <span class="etq">PROPUESTA</span>
+    <h2>Servidor VPS propio: Django + PostgreSQL</h2>
+    <div class="lead">Todo en un servidor Linux que ustedes administran: siempre encendido, con respaldos y dominio propio.</div>
+
+    <div class="caja ext"><h3><span class="ico">👥</span> Usuarios y sistemas</h3>
+      <p>Mismos navegadores, tablets y API v1 · dominio propio, ej. <b>erp.suempresa.pe</b> (DNS → IP del VPS)</p></div>
+    <div class="baja">▼ <b>HTTPS 443</b> (certificado Let's Encrypt, renovación automática)</div>
+
+    <div class="caja servidor grande"><h3><span class="ico">🖥️</span> VPS Linux · Ubuntu 24.04 LTS (ej. 4 vCPU · 8 GB RAM · 160 GB SSD)</h3>
+      <div class="interno">
+        <div class="mini"><h4>🛡️ Seguridad del servidor</h4>
+          <p>Firewall UFW: abiertos solo 80/443; SSH (22) solo con llave y desde IP de administración · Fail2ban · actualizaciones automáticas</p></div>
+        <div class="mini"><h4>Nginx (servidor web)</h4>
+          <p>Recibe HTTPS · sirve /static directo · reenvía el resto a Gunicorn · límite de archivos subidos · cabeceras de seguridad</p></div>
+        <div class="mini"><h4>Gunicorn (servicio systemd, 2×CPU+1 procesos) → Django · Ceiba ERP</h4>
+          <p>El mismo código de GitHub · configuración en <b>.env</b>: SECRET_KEY, DATABASE_URL, DEBUG=0, ALLOWED_HOSTS · se reinicia solo si falla</p></div>
+        <div class="mini" style="background:#f7f4fd"><h4>🗄️ PostgreSQL 16 (en el mismo VPS, solo escucha en 127.0.0.1)</h4>
+          <p>Base <b>erp</b> (empresa principal) + <b>erp_empresa2</b> … una base por empresa · sin límite de 1 GB (el disco del VPS) · usuario propio con contraseña fuerte</p></div>
+        <div class="mini"><h4>⏱️ Tareas programadas (cron / systemd timers)</h4>
+          <p>Respaldo diario pg_dump comprimido · limpieza de sesiones · aviso si el disco pasa el 80 %</p></div>
+      </div>
+    </div>
+
+    <div class="fila" style="margin-top:14px">
+      <div class="caja"><h3><span class="ico">🐙</span> GitHub → despliegue</h3>
+        <p><b>desplegar.bat</b> sube a GitHub y el VPS ejecuta <b>deploy.sh</b>: git pull · pip install · migrate · collectstatic · reinicia Gunicorn (por SSH o GitHub Actions).</p></div>
+      <div class="caja bd"><h3><span class="ico">💾</span> Respaldos fuera del servidor</h3>
+        <ul><li>pg_dump diario → almacenamiento externo (S3, Backblaze o Google Drive), 30 días</li>
+          <li>Instantánea semanal del VPS en el proveedor</li><li>Prueba de restauración mensual</li></ul></div>
+    </div>
+    <div class="caja local" style="margin-top:14px"><h3><span class="ico">🚚</span> Paso único de migración</h3>
+      <p>cliente.sqlite3 (laptop) → <b>trasladar_migracion</b> → PostgreSQL del VPS · se valida contra Odoo · la laptop queda solo para desarrollo y pruebas</p></div>
+  </div>
+</div>
+
+<div class="compara"><table>
+  <tr><th>Servicio externo (igual en ambos casos)</th><th>Para qué</th><th>Servicio externo</th><th>Para qué</th></tr>
+  <tr><td>Nubefact (OSE)</td><td>Facturas, boletas, notas y guías electrónicas ante SUNAT</td><td>apis.net.pe · decolecta</td><td>Tipo de cambio SUNAT / SBS diario</td></tr>
+  <tr><td>API SUNAT</td><td>Consulta de RUC y validación de comprobantes de compra</td><td>CDN jsDelivr</td><td>Bootstrap, íconos y buscador de listas (Tom Select)</td></tr>
+</table></div>
+
+<div class="compara"><table>
+  <tr><th>Aspecto</th><th>Hoy (Render gratuito)</th><th>Propuesta (VPS propio)</th></tr>
+  <tr><td>Disponibilidad</td><td>Se duerme sin uso; primer ingreso lento</td><td>Siempre encendido</td></tr>
+  <tr><td>Base de datos</td><td>1 GB, casi llena; vence el 31/10/2026</td><td>Tamaño según el disco del VPS; todas las empresas en el mismo PostgreSQL</td></tr>
+  <tr><td>Respaldos</td><td>No hay respaldos propios</td><td>Diarios, fuera del servidor, con prueba de restauración</td></tr>
+  <tr><td>Control</td><td>Configuración limitada del proveedor</td><td>Control total (dominio, seguridad, tareas, monitoreo); requiere quien administre el servidor</td></tr>
+  <tr><td>Costo aproximado</td><td>US$ 0 (o ~US$ 9/mes subiendo la base)</td><td>~US$ 10–25/mes según el proveedor y el tamaño (ej. 4 vCPU / 8 GB)</td></tr>
+</table></div>
+<footer><span>Ceiba ERP · Diseño del ERP · Infraestructura</span><span>Las cifras de costo son referenciales; el tamaño del VPS se ajusta al número de usuarios.</span></footer>
+</body></html>

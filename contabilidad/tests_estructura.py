@@ -81,9 +81,14 @@ class EstructuraTest(TestCase):
         self.assertTrue(costo.exists())
         r = self.client.get(reverse('contabilidad:resultados_linea'))
         self.assertContains(r, 'Galletas')
-        self.assertContains(r, 'Margen bruto')
+        self.assertContains(r, 'UTILIDAD BRUTA')
         fila = next(t for t in r.context['tabla'] if t['rubro'] == 'Ventas netas')
         self.assertGreaterEqual(fila['valores'][0], D('100'))
+        # el total de cada fila es el del estado de resultados por función (mismo cálculo)
+        from contabilidad import reportes
+        _, neta = reportes.estado_resultados(r.context['desde'], r.context['hasta'])
+        resultado = next(t for t in r.context['tabla'] if t['rubro'] == 'RESULTADO DEL EJERCICIO')
+        self.assertEqual(resultado['total'], neta)
 
     def test_pantallas(self):
         for url in [reverse('contabilidad:beneficios'), reverse('contabilidad:cb_nuevo'),
