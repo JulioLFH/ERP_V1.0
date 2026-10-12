@@ -60,6 +60,32 @@
   }))).observe(document.body, { childList: true, subtree: true });
 })();
 
+// Reportes agrupados (table.js-plegable): la fila de grupo (tr[data-grupo]) muestra u oculta sus filas de detalle
+// (tr[data-de]); botones [data-plegar="todo"|"nada"] dentro de [data-tabla="id"] abren o cierran todos.
+(function () {
+  function poner(tabla, grupo, abierto) {
+    tabla.querySelectorAll(`tr[data-de="${grupo}"]`).forEach((f) => { f.hidden = !abierto; });
+    const fila = tabla.querySelector(`tr[data-grupo="${grupo}"]`);
+    if (fila) {
+      fila.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+      const ico = fila.querySelector('.js-chevron');
+      if (ico) ico.className = `bi ${abierto ? 'bi-chevron-down' : 'bi-chevron-right'} js-chevron text-muted`;
+    }
+  }
+  document.querySelectorAll('table.js-plegable').forEach((tabla) => {
+    const grupos = [...tabla.querySelectorAll('tr[data-grupo]')];
+    grupos.forEach((fila) => {
+      fila.style.cursor = 'pointer';
+      fila.title = 'Clic para mostrar u ocultar el detalle';
+      poner(tabla, fila.dataset.grupo, tabla.dataset.inicio !== 'plegado');
+      fila.addEventListener('click', () => poner(tabla, fila.dataset.grupo, fila.getAttribute('aria-expanded') !== 'true'));
+    });
+    document.querySelectorAll(`[data-tabla="${tabla.id}"] [data-plegar]`).forEach((b) => b.addEventListener('click', () => {
+      grupos.forEach((fila) => poner(tabla, fila.dataset.grupo, b.dataset.plegar === 'todo'));
+    }));
+  });
+})();
+
 // ERP — detalle de ítems (agregar filas, autocompletar producto y totales en vivo)
 (function () {
   const tabla = document.getElementById('items-body');

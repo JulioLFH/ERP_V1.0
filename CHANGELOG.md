@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.26.5 — 12/10/2026 · Reportes que se comprimen y despliegan
+- Gastos por centro de costo: cada centro se comprime o despliega con un clic (abre comprimido, con el total de cada centro y cuántas cuentas tiene) y botones «Desplegar todo» y «Comprimir todo». El mecanismo queda listo para cualquier reporte agrupado.
+
 ## v1.26.4 — 12/10/2026 · Gastos por centro de costo
 - **Reporte**: solo los gastos por naturaleza (61 a 68); los destinos (clase 9) en una vista aparte. Ya no aparecen como gasto del área las compras (60), el costo de ventas (69) ni las cuentas de balance (activos 33, depreciación acumulada 39, existencias).
 - **Centro de costo obligatorio** en los gastos 62 a 65 y 68: asientos manuales, compras de gasto o servicio, movimientos de caja y bancos, trabajadores (planilla), activos fijos (su depreciación) y requerimientos al almacén. Las cuentas de balance no llevan centro de costo.

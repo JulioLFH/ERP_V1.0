@@ -14,13 +14,18 @@
   </form>
 </div>
 <div class="card">
-  <div class="table-responsive"><table class="table table-sm mb-0">
+  {% if grupos %}<div class="card-body py-2 d-flex gap-2 align-items-center border-bottom" data-tabla="tabla-centros">
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-plegar="todo"><i class="bi bi-arrows-expand"></i> Desplegar todo</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-plegar="nada"><i class="bi bi-arrows-collapse"></i> Comprimir todo</button>
+    <span class="small text-muted">Haga clic en un centro para ver u ocultar sus cuentas.</span>
+  </div>{% endif %}
+  <div class="table-responsive"><table class="table table-sm mb-0 js-plegable" id="tabla-centros" data-inicio="plegado">
     <thead><tr><th>Centro de costo</th><th>Tipo</th><th>Cuenta</th><th class="num">Propio S/</th><th class="num">Acumulado S/</th></tr></thead>
     <tbody>
     {% for codigo, g in grupos.items %}
-      <tr class="table-light fw-semibold"><td style="padding-left: {{ g.nivel|add:1 }}rem">{% if g.tiene_hijos %}<i class="bi bi-diagram-3 text-muted"></i> {% endif %}{% if codigo != '—' %}{{ codigo }} {% endif %}{{ g.nombre }}</td><td class="small fw-normal">{{ g.tipo }}</td><td></td>
+      <tr class="table-light fw-semibold" data-grupo="g{{ forloop.counter }}"><td style="padding-left: {{ g.nivel|add:1 }}rem">{% if g.filas %}<i class="bi bi-chevron-right js-chevron text-muted"></i>{% else %}<i class="bi bi-dot text-muted"></i>{% endif %} {% if g.tiene_hijos %}<i class="bi bi-diagram-3 text-muted"></i> {% endif %}{% if codigo != '—' %}{{ codigo }} {% endif %}{{ g.nombre }} {% if g.filas %}<span class="small fw-normal text-muted">({{ g.filas|length }} cuenta{{ g.filas|length|pluralize }})</span>{% endif %}</td><td class="small fw-normal">{{ g.tipo }}</td><td></td>
         <td class="num">{{ g.total|money }}</td><td class="num">{% if g.tiene_hijos %}{{ g.acumulado|money }}{% endif %}</td></tr>
-      {% for f in g.filas %}<tr><td></td><td></td><td class="small">{{ f.codigo }} {{ f.nombre|truncatechars:50 }}</td><td class="num small">{{ f.importe|money }}</td><td></td></tr>{% endfor %}
+      {% for f in g.filas %}<tr data-de="g{{ forloop.parentloop.counter }}"><td></td><td></td><td class="small">{{ f.codigo }} {{ f.nombre|truncatechars:50 }}</td><td class="num small">{{ f.importe|money }}</td><td></td></tr>{% endfor %}
     {% empty %}<tr><td colspan="5"><div class="alert alert-info m-2">Sin {% if vista == 'destino' %}destinos{% else %}gastos{% endif %} en el rango. Asigne centros de costo en las compras de gasto, movimientos, planillas, activos y requerimientos y centralice el periodo.</div></td></tr>{% endfor %}
     </tbody>
     {% if grupos %}<tfoot><tr class="fw-bold"><td colspan="3" class="text-end">{% if vista == 'destino' %}Total destinos{% else %}Total gastos{% endif %}</td><td class="num">{{ total|money }}</td><td></td></tr></tfoot>{% endif %}
