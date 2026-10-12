@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.26.6 — 12/10/2026 · Actualización sin recargar a mano
+- El navegador descarga otra vez el JavaScript y los estilos del ERP en cada versión nueva (antes podía quedarse con la versión anterior en memoria y había que recargar con Ctrl + F5).
+
 ## v1.26.5 — 12/10/2026 · Reportes que se comprimen y despliegan
 - Gastos por centro de costo: cada centro se comprime o despliega con un clic (abre comprimido, con el total de cada centro y cuántas cuentas tiene) y botones «Desplegar todo» y «Comprimir todo». El mecanismo queda listo para cualquier reporte agrupado.
 
