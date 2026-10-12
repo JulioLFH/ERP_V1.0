@@ -291,6 +291,16 @@ class Producto(models.Model):
                                      blank=True, related_name='+', limit_choices_to={'imputable': True},
                                      verbose_name='Cuenta de costo de ventas / consumo')
     # ---- planificación
+    PLANIFICACIONES = [('MRP', 'MRP: según la demanda'), ('REORDEN', 'Punto de reorden'), ('NINGUNA', 'Sin planificar')]
+    ESTRATEGIAS = [('MTS', 'Para stock (MTS)'), ('MTO', 'Contra pedido (MTO)')]
+    tipo_planificacion = models.CharField(
+        'Tipo de planificación', max_length=8, choices=PLANIFICACIONES, default='MRP',
+        help_text='MRP: según pedidos, plan de demanda y recetas. Punto de reorden: se repone al llegar al punto de '
+                  'reorden, fuera del MRP (suministros indirectos). Sin planificar: el MRP no lo propone')
+    estrategia = models.CharField(
+        'Estrategia', max_length=3, choices=ESTRATEGIAS, default='MTS',
+        help_text='Para stock: se planifica con el plan de demanda y el stock disponible. Contra pedido: se fabrica o '
+                  'compra solo por los pedidos de venta, sin usar el stock libre')
     stock_minimo = models.DecimalField('Stock mínimo', max_digits=14, decimal_places=2, default=D0)
     stock_maximo = models.DecimalField('Stock máximo', max_digits=14, decimal_places=2, default=D0)
     punto_reorden = models.DecimalField('Punto de reorden', max_digits=14, decimal_places=2, default=D0,
@@ -317,6 +327,8 @@ class Producto(models.Model):
         self.tipo = tipo_de_clase(self.clase)
         if self.clase == 'ACTIVO':
             self.puede_venderse = False
+        if self._state.adding and self.clase == 'SUMINISTRO' and self.tipo_planificacion == 'MRP':
+            self.tipo_planificacion = 'REORDEN'  # suministros indirectos: por punto de reorden, fuera del MRP
         if not self.codigo:
             self.codigo = self.siguiente_codigo(self.clase)
         if kwargs.get('update_fields') is None:

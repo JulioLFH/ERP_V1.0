@@ -74,6 +74,9 @@ UNIDADES = _opciones(Producto.UNIDADES, {'UND': 'NIU', 'UNIDADES': 'NIU', 'KG': 
                                          'CAJA': 'BX'})
 TIPOS_TERCERO = _opciones(Tercero.TIPOS)
 TIPOS_DOC = _opciones(Tercero.TIPOS_DOC, {'CE': '4', 'PASAPORTE': '7'})
+PLANIFICACIONES = _opciones(Producto.PLANIFICACIONES, {'REORDEN': 'REORDEN', 'PUNTO DE REORDEN': 'REORDEN',
+                                                       'SIN PLANIFICAR': 'NINGUNA', 'NINGUNA': 'NINGUNA'})
+ESTRATEGIAS = _opciones(Producto.ESTRATEGIAS, {'PARA STOCK': 'MTS', 'CONTRA PEDIDO': 'MTO'})
 
 
 # ---------------------------------------------------------------- definiciones
@@ -95,6 +98,9 @@ DEFINICIONES = OrderedDict([
             ('stock_minimo', 'Stock mínimo', False, '10', ''),
             ('punto_reorden', 'Punto de reorden', False, '20', ''),
             ('stock_maximo', 'Stock máximo', False, '100', ''),
+            ('tipo_planificacion', 'Tipo de planificación', False, 'MRP',
+             'MRP, Punto de reorden o Sin planificar. Vacío = MRP (suministros: punto de reorden)'),
+            ('estrategia', 'Estrategia', False, 'MTS', 'MTS (para stock) o MTO (contra pedido). Vacío = MTS'),
         ]}),
     ('terceros', {
         'titulo': 'Clientes y proveedores', 'icono': 'bi-people', 'modulos': ['contactos', 'compras', 'ventas'],
@@ -282,13 +288,23 @@ DEFINICIONES = OrderedDict([
             ('codigo_sunat', 'Cód. establecimiento SUNAT', False, '0001', '4 dígitos. Vacío = 0000'),
             ('uso', 'Uso', False, 'Almacén normal', 'Almacén normal, Mercadería en tránsito, Cuarentena / por destruir'),
         ]}),
+    ('plan_demanda', {
+        'titulo': 'Plan de demanda (MTS)', 'icono': 'bi-graph-up-arrow', 'modulos': ['manufactura'],
+        'descripcion': 'Pronóstico de ventas que el MRP usa en los productos para stock (MTS). Si el producto ya '
+                       'tiene plan en esa fecha, con "Actualizar existentes" se reemplaza la cantidad.',
+        'columnas': [
+            ('producto', 'Producto (código)', True, 'PT000001', 'Bien inventariable'),
+            ('cantidad', 'Cantidad', True, '500', 'En unidad de almacén'),
+            ('fecha', 'Fecha', True, '30/11/2026', 'dd/mm/aaaa: cuándo se necesita'),
+            ('nota', 'Nota', False, 'Campaña navidad', ''),
+        ]}),
 ])
 # lista de cada maestro -> tipo de carga (botón «Importar desde Excel» en la lista)
 CARGA_DE_LISTA = {'productos': 'productos', 'terceros': 'terceros', 'contabilidad:centros': 'centros_costo',
                   'contabilidad:beneficios': 'centros_beneficio', 'contabilidad:plan': 'cuentas',
                   'manufactura:centros': 'puestos', 'manufactura:listas': 'recetas', 'manufactura:hojas': 'hojas_ruta',
                   'manufactura:versiones': 'versiones', 'almacenes': 'almacenes', 'planillas:trabajadores': 'trabajadores',
-                  'ventas:listas_precios': 'listas_precios'}
+                  'ventas:listas_precios': 'listas_precios', 'manufactura:mrp': 'plan_demanda'}
 
 SI_NO = {'SI': True, 'S': True, 'YES': True, 'TRUE': True, '1': True, 'X': True,
          'NO': False, 'N': False, 'FALSE': False, '0': False}
@@ -318,6 +334,10 @@ def _fila_producto(d, actualizar):
         valor = _dec(d.get(campo), titulo, minimo=D0)
         if valor is not None:
             datos[campo] = str(valor)
+    if _txt(d.get('tipo_planificacion')):
+        datos['tipo_planificacion'] = _elegir(d.get('tipo_planificacion'), PLANIFICACIONES, 'Tipo de planificación')
+    if _txt(d.get('estrategia')):
+        datos['estrategia'] = _elegir(d.get('estrategia'), ESTRATEGIAS, 'Estrategia')
     return {'accion': 'Actualizar' if existente else 'Nuevo', 'codigo': codigo, 'datos': datos,
             'resumen': f'{codigo or "(automático)"} · {nombre} · {dict(Producto.CLASES)[clase]}'}
 
@@ -745,7 +765,35 @@ def _fila_almacen(d, actualizar):
             'resumen': f'{codigo} · {nombre}' + (f' · {ubigeo}' if ubigeo else '')}
 
 
-VALIDADORES = {'cuentas': _fila_cuenta, 'almacenes': _fila_almacen, 'trabajadores': _fila_trabajador, 'productos': _fila_producto, 'terceros': _fila_tercero, 'saldos': _fila_saldo,
+def _fila_plan_demanda(d, actualizar):
+    from produccion.models import PlanDemanda
+    from .utils import a_fecha
+    codigo = _txt(d.get('producto')).upper()
+    producto = Producto.objects.filter(codigo=codigo).first() if codigo else None
+    if producto is None:
+        raise ErrorFila(f'Producto {codigo or "(vacío)"} no existe.')
+    if not producto.es_inventariable:
+        raise ErrorFila(f'{codigo} es un servicio: el plan de demanda es solo para bienes.')
+    cantidad = _dec(d.get('cantidad'), 'Cantidad', requerido=True)
+    if cantidad <= 0:
+        raise ErrorFila('Cantidad: debe ser mayor a cero.')
+    if d.get('fecha') in (None, ''):
+        raise ErrorFila('Fecha: obligatoria.')
+    try:
+        fecha = a_fecha(d.get('fecha'))
+    except ValueError as exc:
+        raise ErrorFila(str(exc))
+    existe = PlanDemanda.objects.filter(producto=producto, fecha=fecha).exists()
+    if existe and not actualizar:
+        raise ErrorFila(f'{codigo} ya tiene plan el {fecha:%d/%m/%Y} (marque "Actualizar existentes").')
+    nota = _txt(d.get('nota'))[:120]
+    aviso = ' · contra pedido (MTO): el MRP no usa el plan' if producto.estrategia == 'MTO' else ''
+    return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': f'{codigo}|{fecha.isoformat()}',
+            'datos': {'producto': producto.pk, 'cantidad': str(cantidad), 'fecha': fecha.isoformat(), 'nota': nota},
+            'resumen': f'{codigo} · {producto.nombre} · {cantidad} el {fecha:%d/%m/%Y}{aviso}'}
+
+
+VALIDADORES = {'cuentas': _fila_cuenta, 'plan_demanda': _fila_plan_demanda, 'almacenes': _fila_almacen, 'trabajadores': _fila_trabajador, 'productos': _fila_producto, 'terceros': _fila_tercero, 'saldos': _fila_saldo,
                'saldos_cxc': lambda d, a: _fila_documento(d, True), 'saldos_cxp': lambda d, a: _fila_documento(d, False),
                'centros_beneficio': _fila_beneficio, 'centros_costo': _fila_centro_costo, 'puestos': _fila_puesto,
                'recetas': _fila_receta, 'hojas_ruta': _fila_hoja, 'versiones': _fila_version,
@@ -935,6 +983,17 @@ def cargar(tipo, filas, usuario, adjunto=None):
             for f in filas:
                 Almacen.objects.update_or_create(codigo=f['codigo'], defaults=f['datos'])
             return f'{len(filas)} almacenes cargados.'
+        if tipo == 'plan_demanda':
+            from produccion.models import PlanDemanda
+            for f in filas:
+                d = f['datos']
+                fecha = date.fromisoformat(d['fecha'])
+                plan = PlanDemanda.objects.filter(producto_id=d['producto'], fecha=fecha).first() or PlanDemanda(
+                    producto_id=d['producto'], fecha=fecha,
+                    creado_por=usuario if usuario and usuario.is_authenticated else None)
+                plan.cantidad, plan.nota = Decimal(d['cantidad']), d['nota']
+                plan.save()
+            return f'{len(filas)} líneas del plan de demanda cargadas.'
     raise ValueError(tipo)
 
 

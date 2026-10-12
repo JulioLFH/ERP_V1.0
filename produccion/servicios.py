@@ -695,7 +695,12 @@ def ejecutar_mrp(horizonte, usuario=None):
     Demanda bruta: pedidos de venta abiertos, plan de demanda y los insumos de las órdenes de producción abiertas.
     Disponible: stock − stock de seguridad (mínimo) + órdenes de producción abiertas + compras en camino.
     Por nivel (primero lo que se vende, después sus semielaborados y al final las materias primas): cada faltante
-    genera una orden planificada; las de fabricar explotan su receta como demanda de sus insumos."""
+    genera una orden planificada; las de fabricar explotan su receta como demanda de sus insumos.
+
+    Tipo de planificación del producto: solo entran al cálculo los de MRP; los de punto de reorden (suministros
+    indirectos) se reponen aparte al bajar del punto de reorden y los sin planificar no se proponen.
+    Estrategia: para stock (MTS) usa el plan de demanda y el stock libre; contra pedido (MTO) solo los pedidos y
+    los consumos, sin stock libre ni de seguridad, con una orden por cada pedido."""
     from compras.models import OrdenCompraItem
     from ventas.models import CotizacionItem
     hoy = timezone.localdate()
@@ -706,7 +711,7 @@ def ejecutar_mrp(horizonte, usuario=None):
                                             producto__isnull=False, producto__tipo='BIEN')
               .select_related('documento')):
         demanda[i.producto_id].append((max(i.documento.fecha, hoy), i.cantidad, f'Pedido {i.documento.numero}'))
-    for p in PlanDemanda.objects.filter(fecha__lte=horizonte):
+    for p in PlanDemanda.objects.filter(fecha__lte=horizonte, producto__estrategia='MTS'):
         demanda[p.producto_id].append((max(p.fecha, hoy), p.cantidad,
                                        f'Plan: {p.nota}' if p.nota else f'Plan del {p.fecha:%d/%m/%Y}'))
     for o in OrdenProduccion.objects.filter(estado__in=['BORRADOR', 'CONFIRMADA', 'EN_PROCESO']).prefetch_related(
@@ -738,9 +743,10 @@ def ejecutar_mrp(horizonte, usuario=None):
             pid = min(pendientes_ids, key=lambda x: niveles[x])
             procesados.add(pid)
             p = Producto.objects.get(pk=pid)
-            if not p.es_inventariable:
+            if not p.es_inventariable or p.tipo_planificacion != 'MRP':
                 continue
-            disponible = p.stock - (p.stock_minimo or D0)
+            mto = p.estrategia == 'MTO'  # contra pedido: sin stock libre ni de seguridad, sin lotes
+            disponible = D0 if mto else p.stock - (p.stock_minimo or D0)
             eventos = sorted([(f, c, o, 'E') for f, c, o in entradas[pid]] +
                              [(f, c, o, 'D') for f, c, o in demanda[pid] if f <= horizonte],
                              key=lambda e: (e[0], e[3] != 'E'))
@@ -751,7 +757,7 @@ def ejecutar_mrp(horizonte, usuario=None):
                 falta = -disponible
                 version = version_para(p, falta, fecha) or version_vigente(p, fecha)
                 if version:
-                    cantidad_op = max(falta, version.lote_min)
+                    cantidad_op = falta if mto else max(falta, version.lote_min)
                     if version.lote_max and cantidad_op > version.lote_max:
                         cantidad_op = falta  # se sugiere igual; el planificador la divide si hace falta
                     inicio = max(fecha - timedelta(days=version.dias_fabricacion or 0), hoy)
@@ -765,13 +771,38 @@ def ejecutar_mrp(horizonte, usuario=None):
                                                        f'Insumo de OP planificada de {p.nombre}'))
                     disponible += cantidad_op
                 else:
-                    cantidad_oc = _redondear(max(falta, p.lote_compra or D0), None)
+                    cantidad_oc = _redondear(falta if mto else max(falta, p.lote_compra or D0), None)
                     pedir = max(fecha - timedelta(days=p.tiempo_entrega or 0), hoy)
                     PropuestaMRP.objects.create(corrida=corrida, producto=p, tipo='COMPRAR', nivel=niveles[pid],
                                                 cantidad=r2(cantidad_oc), fecha_necesidad=fecha, fecha_inicio=pedir,
                                                 proveedor=p.proveedor, origen=origen[:250])
                     disponible += cantidad_oc
+        _reponer_por_reorden(corrida, entradas, niveles, hoy)
     return corrida
+
+
+def _reponer_por_reorden(corrida, entradas, niveles, hoy):
+    """Productos por punto de reorden (suministros indirectos): fuera del MRP; si el stock más lo que ya viene en
+    camino llega al punto de reorden (o al mínimo), se propone reponer hasta el máximo (o el punto), por lote."""
+    for p in Producto.objects.filter(tipo_planificacion='REORDEN', tipo='BIEN', activo=True, es_plantilla=False):
+        limite = p.punto_reorden or p.stock_minimo or D0
+        if limite <= 0:
+            continue
+        proyectado = p.stock + sum((c for _, c, _ in entradas[p.pk]), D0)
+        if proyectado > limite:
+            continue
+        cantidad = max((p.stock_maximo or limite) - proyectado, p.lote_compra or D0, Decimal('0.01'))
+        origen = f'Punto de reorden: stock {r2(p.stock)} + en camino {r2(proyectado - p.stock)} ≤ {r2(limite)}'
+        version = version_vigente(p, hoy)
+        if version:
+            PropuestaMRP.objects.create(corrida=corrida, producto=p, tipo='PRODUCIR', nivel=niveles[p.pk],
+                                        cantidad=r2(cantidad), fecha_necesidad=hoy, fecha_inicio=hoy,
+                                        version=version, origen=origen[:250])
+        else:
+            PropuestaMRP.objects.create(corrida=corrida, producto=p, tipo='COMPRAR', nivel=niveles[p.pk],
+                                        cantidad=r2(_redondear(cantidad, None)),
+                                        fecha_necesidad=hoy + timedelta(days=p.tiempo_entrega or 0),
+                                        fecha_inicio=hoy, proveedor=p.proveedor, origen=origen[:250])
 
 
 def convertir_en_orden(propuesta, usuario):

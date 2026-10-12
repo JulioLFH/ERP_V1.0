@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.26.9 — 12/10/2026 · Planificación por producto: MRP, punto de reorden, MTS y MTO
+- **Tipo de planificación por producto** (pestaña Planificación): *MRP* (según pedidos, plan de demanda y recetas), *Punto de reorden* o *Sin planificar*. Los suministros indirectos pasan a punto de reorden: quedan fuera del MRP y la corrida los propone aparte cuando el stock más lo que viene en camino llega al punto de reorden (hasta el stock máximo, por lote de compra). Los sin planificar no se proponen.
+- **Estrategia MTS / MTO por producto**: *para stock* usa el plan de demanda y el stock libre (como hasta ahora); *contra pedido* se fabrica o compra solo por los pedidos de venta, sin usar el stock libre ni el de seguridad, con una orden por pedido.
+- **Carga masiva del plan de demanda desde Excel** (producto, cantidad, fecha, nota), con botón «Importar desde Excel» en la pantalla del MRP; si ya hay plan para el producto en esa fecha se reemplaza con «Actualizar existentes». La carga de productos acepta las columnas tipo de planificación y estrategia.
+
 ## v1.26.8 — 12/10/2026 · Importar maestros y estado de resultados por cuenta
 - **Importar desde Excel en cada maestro**: botón en las listas de productos, clientes y proveedores, centros de costo y de beneficio, plan de cuentas, almacenes, puestos de trabajo, recetas, hojas de ruta, versiones de fabricación, trabajadores y listas de precios. Nuevas cargas masivas: **plan de cuentas** (naturaleza, cuenta de agrupación y destinos) y **almacenes**.
 - **Estado de resultados, un nivel más**: cada línea (ventas, costo de ventas, gastos…) se despliega con las cuentas que la forman y su monto, también mes a mes y en el Excel; botones «Ver cuentas» y «Ocultar cuentas». La suma de las cuentas es siempre el importe de la línea.

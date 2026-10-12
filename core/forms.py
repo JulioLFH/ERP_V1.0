@@ -221,7 +221,8 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
         ('contabilidad', 'Contabilidad', 'bi-journal-bookmark',
          ['centro_beneficio', 'cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo']),
         ('planificacion', 'Planificación', 'bi-calendar-check',
-         ['stock_minimo', 'punto_reorden', 'stock_maximo', 'lote_compra', 'tiempo_entrega', 'almacen_defecto']),
+         ['tipo_planificacion', 'estrategia', 'stock_minimo', 'punto_reorden', 'stock_maximo', 'lote_compra',
+          'tiempo_entrega', 'almacen_defecto']),
     ]
 
     imagen_archivo = forms.FileField(label='Imagen', required=False,
@@ -262,6 +263,12 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
             raise forms.ValidationError('No puede ser negativo.')
         return peso
 
+    def clean_tipo_planificacion(self):
+        return self.cleaned_data.get('tipo_planificacion') or self.instance.tipo_planificacion or 'MRP'
+
+    def clean_estrategia(self):
+        return self.cleaned_data.get('estrategia') or self.instance.estrategia or 'MTS'
+
     def clean_factor_compra(self):
         factor = self.cleaned_data.get('factor_compra') or Decimal('1')
         if factor <= 0:
@@ -272,6 +279,8 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['peso'].required = False
         self.fields['factor_compra'].required = False
+        self.fields['tipo_planificacion'].required = False
+        self.fields['estrategia'].required = False
         from contabilidad.models import CuentaContable
         for campo in ('cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo'):
             self.fields[campo].queryset = CuentaContable.objects.filter(imputable=True).order_by('codigo')
