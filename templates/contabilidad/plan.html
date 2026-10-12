@@ -6,6 +6,7 @@
   <div class="d-flex gap-2">
     <form method="post">{% csrf_token %}<button name="accion" value="cargar_pcge" class="btn btn-sm btn-outline-secondary" title="Agrega las cuentas del PCGE que falten"><i class="bi bi-cloud-download"></i> Completar PCGE</button></form>
     <a href="?formato=ple" class="btn btn-sm btn-dark"><i class="bi bi-filetype-txt"></i> TXT PLE 5.3</a>
+    {% if url_carga %}<a href="{{ url_carga }}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-arrow-up"></i> Importar desde Excel</a>{% endif %}
     <a href="{% url 'contabilidad:cuenta_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva cuenta</a>
   </div>
 </div>

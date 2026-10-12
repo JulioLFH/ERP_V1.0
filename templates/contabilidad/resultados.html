@@ -22,22 +22,33 @@
   </form>
 </div>
 {% if sin_presupuesto %}<div class="alert alert-info small d-print-none">No hay presupuesto para el año. Regístrelo en <a href="{% url 'contabilidad:presupuestos' %}">Contabilidad › Presupuestos</a>.</div>{% endif %}
+{% if comparar != 'anio' and comparar != 'previo' and comparar != 'presupuesto' %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2 d-print-none" data-tabla="tabla-resultados">
+  <button type="button" class="btn btn-sm btn-outline-secondary" data-plegar="todo"><i class="bi bi-arrows-expand"></i> Ver cuentas</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" data-plegar="nada"><i class="bi bi-arrows-collapse"></i> Ocultar cuentas</button>
+  <span class="small text-muted">Haga clic en una línea para ver las cuentas que la forman y su monto.</span>
+</div>
+{% endif %}
 {% if comparar == 'meses' %}
 <div class="card"><div class="card-body table-responsive p-0">
-  <table class="table table-sm table-hover mb-0 small" style="white-space:nowrap">
+  <table class="table table-sm table-hover mb-0 small js-plegable" id="tabla-resultados" data-inicio="plegado" style="white-space:nowrap">
     <thead class="table-light"><tr><th style="position:sticky;left:0;background:var(--bs-tertiary-bg);z-index:1">Concepto</th>{% for m in meses %}<th class="num">{{ m }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
     <tbody>{% for f in mensual %}
-      <tr class="{% if f.estilo == 'subtotal' %}fw-semibold border-top{% elif f.estilo == 'total' %}fw-bold table-light{% elif f.estilo == 'alerta' %}text-warning-emphasis{% endif %}">
-        <td style="position:sticky;left:0;background:var(--bs-body-bg)" {% if not f.estilo %}class="ps-3"{% endif %}>{{ f.nombre }}</td>
+      <tr class="{% if f.estilo == 'subtotal' %}fw-semibold border-top{% elif f.estilo == 'total' %}fw-bold table-light{% elif f.estilo == 'alerta' %}text-warning-emphasis{% endif %}"{% if f.cuentas %} data-grupo="m{{ forloop.counter }}"{% endif %}>
+        <td style="position:sticky;left:0;background:var(--bs-body-bg)" {% if not f.estilo %}class="ps-3"{% endif %}>{% if f.cuentas %}<i class="bi bi-chevron-right js-chevron text-muted"></i> {% endif %}{{ f.nombre }}</td>
         {% for v in f.valores %}<td class="num {% if v < 0 %}text-danger{% endif %}">{{ v|money }}</td>{% endfor %}
         <td class="num fw-semibold {% if f.total < 0 %}text-danger{% endif %}">{{ f.total|money }}</td></tr>
+      {% for c in f.cuentas %}<tr data-de="m{{ forloop.parentloop.counter }}" class="text-muted">
+        <td style="position:sticky;left:0;background:var(--bs-body-bg);padding-left:2.2rem">{{ c.codigo }} {{ c.nombre|truncatechars:45 }}</td>
+        {% for v in c.valores %}<td class="num">{% if v %}{{ v|money }}{% endif %}</td>{% endfor %}
+        <td class="num">{{ c.total|money }}</td></tr>{% endfor %}
     {% endfor %}</tbody>
   </table>
 </div></div>
 <p class="small text-muted mt-2">Cada columna es el resultado del mes con los asientos de ese periodo; el total es el del rango elegido. Para el año completo elija de enero a diciembre.</p>
 {% else %}
 <div class="card" style="max-width:{% if comparar %}980px{% else %}720px{% endif %}"><div class="card-body table-responsive">
-  <table class="table table-sm mb-0">
+  <table class="table table-sm mb-0{% if not comparar %} js-plegable{% endif %}" id="tabla-resultados" data-inicio="plegado">
     {% if comparar %}
       <thead><tr><th></th><th class="num">{{ desde|slice:"4:" }}/{{ desde|slice:":4" }} - {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }}</th><th class="num">{{ etiqueta_comp }}</th><th class="num">Variación</th><th class="num">%</th></tr></thead>
       {% for f in filas %}
@@ -49,10 +60,13 @@
           <td class="num small">{% if f.pct is not None %}{{ f.pct|floatformat:1 }}%{% else %}—{% endif %}</td></tr>
       {% endfor %}
     {% else %}
-    {% for nombre, valor, estilo in lineas %}
-      <tr class="{% if estilo == 'subtotal' %}fw-semibold border-top{% elif estilo == 'total' %}fw-bold fs-6 table-light{% elif estilo == 'alerta' %}text-warning-emphasis{% endif %}">
-        <td {% if not estilo %}class="ps-4"{% endif %}>{{ nombre }}{% if estilo == 'alerta' %} <i class="bi bi-exclamation-triangle" title="Cuentas de gasto sin destino 9x / 79"></i>{% endif %}</td>
+    {% for nombre, valor, estilo, cuentas in lineas_det %}
+      <tr class="{% if estilo == 'subtotal' %}fw-semibold border-top{% elif estilo == 'total' %}fw-bold fs-6 table-light{% elif estilo == 'alerta' %}text-warning-emphasis{% endif %}"{% if cuentas %} data-grupo="l{{ forloop.counter }}"{% endif %}>
+        <td {% if not estilo %}class="ps-4"{% endif %}>{% if cuentas %}<i class="bi bi-chevron-right js-chevron text-muted"></i> {% endif %}{{ nombre }}{% if estilo == 'alerta' %} <i class="bi bi-exclamation-triangle" title="Cuentas de gasto sin destino 9x / 79"></i>{% endif %}{% if cuentas %} <span class="small fw-normal text-muted">({{ cuentas|length }} cuenta{{ cuentas|length|pluralize }})</span>{% endif %}</td>
         <td class="num {% if valor < 0 %}text-danger{% endif %}">{{ valor|money }}</td></tr>
+      {% for c in cuentas %}<tr data-de="l{{ forloop.parentloop.counter }}" class="small text-muted">
+        <td style="padding-left:3rem">{{ c.codigo }} {{ c.nombre }}</td>
+        <td class="num {% if c.importe < 0 %}text-danger{% endif %}">{{ c.importe|money }}</td></tr>{% endfor %}
     {% endfor %}
     {% endif %}
   </table>

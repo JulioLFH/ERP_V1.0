@@ -1,5 +1,5 @@
 """Cálculos de balance de comprobación y estados financieros a partir de AsientoLinea."""
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from decimal import Decimal
 
 from django.db.models import Sum
@@ -159,6 +159,50 @@ def estado_resultados_naturaleza(desde, hasta, sumas=None):
     return lineas, neta
 
 
+def _cuentas_de_linea(vista, s):
+    """{concepto del estado: [(código, signo)]}: con qué cuentas se forma cada línea. Cada cuenta aporta
+    signo × (haber − debe), así la suma de sus cuentas es el importe que muestra la línea."""
+    def de(prefijos, excluir=(), signo=1):
+        return [(c, signo) for c in sorted(s) if c.startswith(prefijos) and not c.startswith(excluir)]
+    if vista == 'naturaleza':
+        return {'Ventas netas': de(('70',)), 'Variación de la producción almacenada': de(('71', '72')),
+                'Compras y variación de existencias': de(('60', '61')), 'Costo de ventas': de(('69',)),
+                'Gastos de personal': de(('62',)), 'Servicios prestados por terceros': de(('63',)),
+                'Tributos': de(('64',)), 'Otros gastos de gestión': de(('65',)),
+                'Pérdida por medición de activos': de(('66',)), 'Valuación, deterioro y provisiones': de(('68',)),
+                'Otros ingresos de gestión': de(('73', '74', '75', '76', '78')),
+                'Ingresos financieros': de(('77',)), 'Gastos financieros': de(('67',)),
+                'Impuesto a la renta': de(('88',))}
+    sin_destino = de(('62', '63', '64', '65', '66', '67', '68')) + de(('9',), signo=-1)
+    costo = de(('69', '60', '61', '71', '72')) + de(('9',), excluir=('94', '95', '97'))
+    gastos_nat = _neto(s, ('62', '63', '64', '65', '66', '67', '68'))
+    destinos = _neto(s, ('9',), excluir=('94', '95', '97')) + _neto(s, ('94',)) + _neto(s, ('95',)) + _neto(s, ('97',))
+    detalle = {'Ventas netas': de(('70', '74')), 'Costo de ventas': costo,
+               'Gastos de administración': de(('94',)), 'Gastos de ventas': de(('95',)),
+               'Otros ingresos de gestión': de(('73', '75', '76', '78')), 'Ingresos financieros': de(('77',)),
+               'Gastos financieros': de(('97',)), 'Impuesto a la renta': de(('88',))}
+    if gastos_nat - destinos < 0:  # destinos mayores que los gastos: la diferencia va dentro del costo
+        detalle['Costo de ventas'] = costo + sin_destino
+    else:
+        detalle['Gastos sin destino asignado'] = sin_destino
+    return detalle
+
+
+def detalle_resultados(desde, hasta, vista='funcion', sumas=None):
+    """{concepto: [{'codigo', 'nombre', 'importe'}]} de las cuentas que forman cada línea del estado de resultados."""
+    s = sumas_por_cuenta(desde, hasta) if sumas is None else sumas
+    nombres = dict(CuentaContable.objects.filter(codigo__in=s).values_list('codigo', 'nombre'))
+    salida = {}
+    for concepto, cuentas in _cuentas_de_linea(vista, s).items():
+        filas = defaultdict(lambda: D0)
+        for codigo, signo in cuentas:
+            d, h = s[codigo]
+            filas[codigo] += signo * (h - d)
+        salida[concepto] = [{'codigo': c, 'nombre': nombres.get(c, ''), 'importe': v}
+                            for c, v in sorted(filas.items()) if v]
+    return salida
+
+
 def meses_entre(desde, hasta):
     meses, a, m = [], int(desde[:4]), int(desde[4:])
     while f'{a}{m:02d}' <= hasta and len(meses) < 120:
@@ -193,6 +237,20 @@ def resultados_mensual(desde, hasta, vista='funcion'):
                 nombres.add(nombre)
                 filas.insert(-6, {'nombre': nombre, 'estilo': estilo, 'total': D0,
                                   'valores': [col.get(nombre, (D0, ''))[0] for col in columnas]})
+    # un nivel más: las cuentas de cada línea, mes a mes
+    det_total = detalle_resultados(desde, hasta, vista, sumas=total)
+    det_meses = [detalle_resultados(p, p, vista, sumas=por_mes[p]) for p in meses]
+    for f in filas:
+        por_cuenta = {}
+        for i, det in enumerate(det_meses):
+            for c in det.get(f['nombre'], []):
+                fila = por_cuenta.setdefault(c['codigo'], {'codigo': c['codigo'], 'nombre': c['nombre'],
+                                                           'valores': [D0] * len(meses), 'total': D0})
+                fila['valores'][i] = c['importe']
+        for c in det_total.get(f['nombre'], []):
+            por_cuenta.setdefault(c['codigo'], {'codigo': c['codigo'], 'nombre': c['nombre'],
+                                                'valores': [D0] * len(meses), 'total': D0})['total'] = c['importe']
+        f['cuentas'] = [por_cuenta[k] for k in sorted(por_cuenta)]
     return meses, filas
 
 

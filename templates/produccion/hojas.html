@@ -5,7 +5,8 @@
   <h1 class="page-title">Hojas de ruta</h1>
   <div class="d-flex gap-2">
     <a href="?{% if not request.GET.todas %}todas=1{% endif %}" class="btn btn-sm btn-outline-secondary">{% if request.GET.todas %}Ocultar obsoletas{% else %}Ver obsoletas{% endif %}</a>
-    <a href="{% url 'manufactura:hoja_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva hoja de ruta</a>
+    {% if url_carga %}<a href="{{ url_carga }}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-arrow-up"></i> Importar desde Excel</a>{% endif %}
+  <a href="{% url 'manufactura:hoja_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva hoja de ruta</a>
   </div>
 </div>
 <div class="row g-3">

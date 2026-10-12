@@ -5,6 +5,7 @@
   <h1 class="page-title">{{ titulo }}</h1>
   <div class="d-flex gap-2">
     <a href="?{{ request.GET.urlencode }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    {% if url_carga %}<a href="{{ url_carga }}" class="btn btn-outline-success btn-sm"><i class="bi bi-file-earmark-arrow-up"></i> Importar desde Excel</a>{% endif %}
     {% if url_nuevo %}<a href="{% url url_nuevo %}{% if request.GET.tipo %}?tipo={{ request.GET.tipo }}{% endif %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nuevo</a>{% endif %}
   </div>
 </div>

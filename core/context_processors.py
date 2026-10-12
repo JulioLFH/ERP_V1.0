@@ -27,4 +27,17 @@ def empresa(request):
                                        request.user.is_superuser) if modulo else [],
         'ver_costos': puede_ver_costos(request.user),
         'puede': Permisos(request.user),  # {% if puede.ventas_anular %}
+        'url_carga': _url_carga(request, mods),
     }
+
+
+def _url_carga(request, mods):
+    """Lista de un maestro con carga masiva: el enlace a su «Importar desde Excel» (si el usuario tiene el módulo)."""
+    from django.urls import reverse
+
+    from .carga_masiva import CARGA_DE_LISTA, DEFINICIONES
+    vista = getattr(getattr(request, 'resolver_match', None), 'view_name', '')
+    tipo = CARGA_DE_LISTA.get(vista)
+    if not tipo or not (request.user.is_superuser or set(DEFINICIONES[tipo]['modulos']) & set(mods)):
+        return ''
+    return f'{reverse("carga_masiva")}?tipo={tipo}'

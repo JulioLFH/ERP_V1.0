@@ -406,7 +406,9 @@ def estado_resultados(request):
     vista = 'naturaleza' if request.GET.get('vista') == 'naturaleza' else 'funcion'
     calcular = reportes.estado_resultados_naturaleza if vista == 'naturaleza' else reportes.estado_resultados
     lineas, neta = calcular(desde, hasta)
+    detalle = reportes.detalle_resultados(desde, hasta, vista)  # un nivel más: las cuentas de cada línea
     ctx = {'lineas': lineas, 'neta': neta, 'desde': desde, 'hasta': hasta, 'comparar': comparar, 'vista': vista,
+           'lineas_det': [(n, v, e, detalle.get(n, [])) for n, v, e in lineas],
            'mes_desde': _mes_input(desde), 'mes_hasta': _mes_input(hasta),
            'opciones': [('anio', 'Mismo periodo del año anterior'), ('previo', 'Periodo anterior'),
                         ('presupuesto', 'Presupuesto')]}
@@ -418,7 +420,9 @@ def estado_resultados(request):
                 f'Estado_resultados_mensual_{desde}_{hasta}',
                 f'ESTADO DE RESULTADOS POR {vista.upper()} · MENSUAL {_periodo_txt(desde)} - {_periodo_txt(hasta)}',
                 ['Concepto'] + ctx['meses'] + ['Total'],
-                [[f['nombre']] + f['valores'] + [f['total']] for f in mensual])
+                [fila for f in mensual for fila in ([[f['nombre']] + f['valores'] + [f['total']]] +
+                                                    [[f'    {c["codigo"]} {c["nombre"]}'] + c['valores'] + [c['total']]
+                                                     for c in f.get('cuentas', [])])])
         return render(request, 'contabilidad/resultados.html', ctx)
     if comparar and vista == 'funcion':
         filas, rango = reportes.resultados_comparativo(desde, hasta, comparar)
@@ -434,7 +438,8 @@ def estado_resultados(request):
             datos_xls = [[f['nombre'], f['valor'], f['comp'], f['var'], f['pct']] for f in ctx['filas']]
             encabezados = ['Concepto', actual, ctx['etiqueta_comp'], 'Variación', 'Variación %']
         else:
-            datos_xls = [[n, v] for n, v, _ in lineas]
+            datos_xls = [fila for n, v, _, cuentas in ctx['lineas_det']
+                         for fila in [[n, v]] + [[f'    {c["codigo"]} {c["nombre"]}', c['importe']] for c in cuentas]]
             encabezados = ['Concepto', actual]
         return excel_response(f'Estado_resultados_{desde}_{hasta}', f'ESTADO DE RESULTADOS {actual}',
                               encabezados, datos_xls)

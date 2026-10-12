@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.26.8 — 12/10/2026 · Importar maestros y estado de resultados por cuenta
+- **Importar desde Excel en cada maestro**: botón en las listas de productos, clientes y proveedores, centros de costo y de beneficio, plan de cuentas, almacenes, puestos de trabajo, recetas, hojas de ruta, versiones de fabricación, trabajadores y listas de precios. Nuevas cargas masivas: **plan de cuentas** (naturaleza, cuenta de agrupación y destinos) y **almacenes**.
+- **Estado de resultados, un nivel más**: cada línea (ventas, costo de ventas, gastos…) se despliega con las cuentas que la forman y su monto, también mes a mes y en el Excel; botones «Ver cuentas» y «Ocultar cuentas». La suma de las cuentas es siempre el importe de la línea.
+
 ## v1.26.7 — 12/10/2026 · Gastos y destinos juntos
 - Gastos por centro de costo: nueva vista «Todos» con los gastos (61 a 68) y los destinos (clase 9) de cada centro en columnas separadas, con su propio y acumulado (no se suman: un gasto y su destino son el mismo importe).
 

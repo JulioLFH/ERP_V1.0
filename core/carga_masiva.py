@@ -261,7 +261,37 @@ DEFINICIONES = OrderedDict([
             ('vigente_desde', 'Vigente desde', False, '', 'dd/mm/aaaa. Vacío = hoy'),
             ('dias_fabricacion', 'Plazo de fabricación (días)', False, '1', ''),
         ]}),
+    ('cuentas', {
+        'titulo': 'Plan de cuentas', 'icono': 'bi-list-ol', 'modulos': ['contabilidad'],
+        'descripcion': 'Cuentas contables con su naturaleza y sus destinos. Las cuentas de destino deben existir o '
+                       'venir antes en el mismo archivo.',
+        'columnas': [
+            ('codigo', 'Código', True, '63431', 'Solo números'), ('nombre', 'Nombre', True, 'Mantenimiento de equipos', ''),
+            ('naturaleza', 'Naturaleza', False, 'Deudora', 'Deudora o Acreedora. Vacío = según la clase (PCGE)'),
+            ('imputable', 'Acepta movimientos', False, 'Sí', 'Sí o No. Vacío = Sí'),
+            ('destino_debe', 'Destino al debe (código)', False, '941', 'Gastos 62-68: 90, 94, 95 o 97'),
+            ('destino_haber', 'Destino al haber (código)', False, '7911', ''),
+        ]}),
+    ('almacenes', {
+        'titulo': 'Almacenes', 'icono': 'bi-building', 'modulos': ['inventario'],
+        'descripcion': 'Almacenes y establecimientos con su dirección, ubigeo y código SUNAT.',
+        'columnas': [
+            ('codigo', 'Código', True, 'ALM02', 'Hasta 10 caracteres'), ('nombre', 'Nombre', True, 'Almacén Ate', ''),
+            ('direccion', 'Dirección', False, 'Av. Nicolás Ayllón 123', ''),
+            ('ubigeo', 'Ubigeo', False, '150103', '6 dígitos (INEI)'),
+            ('codigo_sunat', 'Cód. establecimiento SUNAT', False, '0001', '4 dígitos. Vacío = 0000'),
+            ('uso', 'Uso', False, 'Almacén normal', 'Almacén normal, Mercadería en tránsito, Cuarentena / por destruir'),
+        ]}),
 ])
+# lista de cada maestro -> tipo de carga (botón «Importar desde Excel» en la lista)
+CARGA_DE_LISTA = {'productos': 'productos', 'terceros': 'terceros', 'contabilidad:centros': 'centros_costo',
+                  'contabilidad:beneficios': 'centros_beneficio', 'contabilidad:plan': 'cuentas',
+                  'manufactura:centros': 'puestos', 'manufactura:listas': 'recetas', 'manufactura:hojas': 'hojas_ruta',
+                  'manufactura:versiones': 'versiones', 'almacenes': 'almacenes', 'planillas:trabajadores': 'trabajadores',
+                  'ventas:listas_precios': 'listas_precios'}
+
+SI_NO = {'SI': True, 'S': True, 'YES': True, 'TRUE': True, '1': True, 'X': True,
+         'NO': False, 'N': False, 'FALSE': False, '0': False}
 
 # códigos que vienen en el mismo archivo (para referencias a filas anteriores: centro superior, etc.)
 _CONTEXTO = {'codigos': set()}
@@ -667,7 +697,55 @@ def _fila_trabajador(d, actualizar):
             'resumen': f'{numero} · {paterno} {nombres} · S/ {sueldo:,.2f} · {pensiones}'}
 
 
-VALIDADORES = {'trabajadores': _fila_trabajador, 'productos': _fila_producto, 'terceros': _fila_tercero, 'saldos': _fila_saldo,
+def _fila_cuenta(d, actualizar):
+    from contabilidad.models import CuentaContable
+    from contabilidad.pcge import naturaleza as naturaleza_pcge
+    codigo, nombre = _txt(d.get('codigo')), _txt(d.get('nombre'))
+    if not codigo or not nombre:
+        raise ErrorFila('Código y nombre son obligatorios.')
+    if not codigo.isdigit() or len(codigo) > 12:
+        raise ErrorFila(f'Código {codigo}: solo números, hasta 12 dígitos.')
+    naturaleza = _elegir(d.get('naturaleza'), _opciones(CuentaContable.NATURALEZAS), 'Naturaleza', requerido=False,
+                         defecto=naturaleza_pcge(codigo))
+    imputable = SI_NO.get(normalizar(d.get('imputable')), True) if _txt(d.get('imputable')) else True
+    destinos = {}
+    for campo in ('destino_debe', 'destino_haber'):
+        c = _txt(d.get(campo))
+        if c and not CuentaContable.objects.filter(codigo=c).exists() and c not in _CONTEXTO['codigos']:
+            raise ErrorFila(f'Cuenta de destino {c} no existe (cárguela antes o en este archivo).')
+        destinos[campo] = c
+    existe = CuentaContable.objects.filter(codigo=codigo).exists()
+    if existe and not actualizar:
+        raise ErrorFila(f'{codigo} ya existe (marque "Actualizar existentes").')
+    return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': codigo,
+            'datos': {'nombre': nombre[:200], 'naturaleza': naturaleza, 'imputable': imputable, **destinos},
+            'resumen': f'{codigo} · {nombre} · {naturaleza.lower()}' + ('' if imputable else ' · agrupación')}
+
+
+def _fila_almacen(d, actualizar):
+    codigo, nombre = _txt(d.get('codigo')).upper(), _txt(d.get('nombre'))
+    if not codigo or not nombre:
+        raise ErrorFila('Código y nombre son obligatorios.')
+    if len(codigo) > 10:
+        raise ErrorFila('Código: hasta 10 caracteres.')
+    ubigeo = _txt(d.get('ubigeo'))
+    if ubigeo and (len(ubigeo) != 6 or not ubigeo.isdigit()):
+        raise ErrorFila('Ubigeo: 6 dígitos.')
+    sunat = _txt(d.get('codigo_sunat')) or '0000'
+    if len(sunat) > 4 or not sunat.isdigit():
+        raise ErrorFila('Cód. establecimiento SUNAT: 4 dígitos.')
+    uso = _elegir(d.get('uso'), _opciones([u for u in Almacen.USOS if u[0] != 'TERCEROS'],
+                                          {'NORMAL': ''}), 'Uso', requerido=False, defecto='')
+    existe = Almacen.objects.filter(codigo=codigo).exists()
+    if existe and not actualizar:
+        raise ErrorFila(f'{codigo} ya existe (marque "Actualizar existentes").')
+    return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': codigo,
+            'datos': {'nombre': nombre[:100], 'direccion': _txt(d.get('direccion'))[:250], 'ubigeo': ubigeo,
+                      'codigo_sunat': sunat.zfill(4), 'uso': uso},
+            'resumen': f'{codigo} · {nombre}' + (f' · {ubigeo}' if ubigeo else '')}
+
+
+VALIDADORES = {'cuentas': _fila_cuenta, 'almacenes': _fila_almacen, 'trabajadores': _fila_trabajador, 'productos': _fila_producto, 'terceros': _fila_tercero, 'saldos': _fila_saldo,
                'saldos_cxc': lambda d, a: _fila_documento(d, True), 'saldos_cxp': lambda d, a: _fila_documento(d, False),
                'centros_beneficio': _fila_beneficio, 'centros_costo': _fila_centro_costo, 'puestos': _fila_puesto,
                'recetas': _fila_receta, 'hojas_ruta': _fila_hoja, 'versiones': _fila_version,
@@ -842,6 +920,21 @@ def cargar(tipo, filas, usuario, adjunto=None):
             return _cargar_maestro(tipo, filas)
         if tipo == 'listas_precios':
             return _cargar_listas_precios(filas)
+        if tipo == 'cuentas':
+            from contabilidad.models import CuentaContable
+            for f in filas:  # primero las cuentas, después sus destinos (pueden venir en el mismo archivo)
+                d = {k: v for k, v in f['datos'].items() if not k.startswith('destino')}
+                CuentaContable.objects.update_or_create(codigo=f['codigo'], defaults=d)
+            for f in filas:
+                cambios = {k: CuentaContable.objects.get(codigo=v) for k, v in f['datos'].items()
+                           if k.startswith('destino') and v}
+                if cambios:
+                    CuentaContable.objects.filter(codigo=f['codigo']).update(**cambios)
+            return f'{len(filas)} cuentas contables cargadas.'
+        if tipo == 'almacenes':
+            for f in filas:
+                Almacen.objects.update_or_create(codigo=f['codigo'], defaults=f['datos'])
+            return f'{len(filas)} almacenes cargados.'
     raise ValueError(tipo)
 
 
