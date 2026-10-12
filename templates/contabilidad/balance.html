@@ -31,6 +31,8 @@
     {% empty %}<tr><td colspan="12" class="text-center text-muted py-4">Sin movimientos contables en el rango.</td></tr>{% endfor %}
     </tbody>
     <tfoot class="fw-bold">
+      {% if tot.sin_destino %}<tr class="fw-normal fst-italic"><td></td><td>Gastos 62-68 sin destino a la clase 9</td><td colspan="8"></td>
+        <td class="num">{% if tot.sin_destino_p %}{{ tot.sin_destino_p|money }}{% endif %}</td><td class="num">{% if tot.sin_destino_g %}{{ tot.sin_destino_g|money }}{% endif %}</td></tr>{% endif %}
       <tr><td colspan="2" class="text-end">TOTALES</td><td class="num">{{ tot.d|money }}</td><td class="num">{{ tot.h|money }}</td><td class="num">{{ tot.sd|money }}</td><td class="num">{{ tot.sa|money }}</td><td class="num">{{ tot.activo|money }}</td><td class="num">{{ tot.pasivo|money }}</td><td class="num">{{ tot.nat_p|money }}</td><td class="num">{{ tot.nat_g|money }}</td><td class="num">{{ tot.fun_p|money }}</td><td class="num">{{ tot.fun_g|money }}</td></tr>
       <tr class="text-muted"><td colspan="6" class="text-end">Resultado del ejercicio</td><td colspan="2" class="text-center">{{ tot.res_bal|money }}</td><td colspan="2" class="text-center">{{ tot.res_nat|money }}</td><td colspan="2" class="text-center">{{ tot.res_fun|money }}</td></tr>
     </tfoot>

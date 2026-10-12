@@ -55,7 +55,9 @@ def balance_comprobacion(desde, hasta, nivel=None):
             if codigo.startswith(('60', '61', '62', '63', '64', '65', '66', '67', '68', '69')) or (
                     clase == '7' and not codigo.startswith('79')):
                 f['nat_p'], f['nat_g'] = f['sd'], f['sa']
-            if codigo.startswith('69') or clase == '9' or codigo.startswith('88') or (
+            # por función: costo de ventas (69), compras y variación de existencias (60/61), destinos (clase 9),
+            # ingresos (7 sin la 79) e impuesto a la renta (88)
+            if codigo.startswith(('60', '61', '69')) or clase == '9' or codigo.startswith('88') or (
                     clase == '7' and not codigo.startswith('79')):
                 f['fun_p'], f['fun_g'] = f['sd'], f['sa']
             if codigo.startswith('88'):
@@ -63,6 +65,13 @@ def balance_comprobacion(desde, hasta, nivel=None):
         for k in tot:
             tot[k] += f.get(k, D0)
         filas.append(f)
+    # gastos 62-68 que no pasaron a la clase 9 (sin destino, frecuente en lo importado del sistema anterior): también
+    # son gasto en la columna por función; así su resultado es el del estado de resultados por función
+    sin_destino = _neto(sumas, ('62', '63', '64', '65', '66', '67', '68')) - _neto(sumas, ('9',))
+    tot['sin_destino'] = sin_destino
+    tot['sin_destino_p'], tot['sin_destino_g'] = max(sin_destino, D0), max(-sin_destino, D0)
+    tot['fun_p'] += tot['sin_destino_p']
+    tot['fun_g'] += tot['sin_destino_g']
     tot['res_bal'] = tot['activo'] - tot['pasivo']
     tot['res_nat'] = tot['nat_g'] - tot['nat_p']
     tot['res_fun'] = tot['fun_g'] - tot['fun_p']

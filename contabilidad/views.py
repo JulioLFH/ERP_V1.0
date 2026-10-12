@@ -353,6 +353,9 @@ def balance(request):
     if request.GET.get('formato') == 'excel':
         datos = [[f['codigo'], f['nombre'], f['d'], f['h'], f['sd'], f['sa'], f.get('activo', D0), f.get('pasivo', D0),
                   f.get('nat_p', D0), f.get('nat_g', D0), f.get('fun_p', D0), f.get('fun_g', D0)] for f in filas]
+        if tot['sin_destino']:
+            datos.append(['', 'Gastos 62-68 sin destino a la clase 9', '', '', '', '', '', '', '', '',
+                          tot['sin_destino_p'], tot['sin_destino_g']])
         datos.append(['', 'TOTALES', tot['d'], tot['h'], tot['sd'], tot['sa'], tot['activo'], tot['pasivo'],
                       tot['nat_p'], tot['nat_g'], tot['fun_p'], tot['fun_g']])
         return excel_response(f'Balance_comprobacion_{desde}_{hasta}', f'BALANCE DE COMPROBACIÓN {desde} - {hasta}',

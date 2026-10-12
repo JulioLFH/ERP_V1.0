@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.26.3 — 12/10/2026 · Revisión de reportes
+- **Balance de comprobación**: la columna de resultado por función ahora incluye compras y variación de existencias (60/61) y una fila con los gastos 62-68 sin destino a la clase 9; su resultado es igual al del estado de resultados y al de la columna por naturaleza (antes difería con lo importado del sistema anterior).
+- **Rentabilidad** (por producto, cliente, vendedor o mes): incluye las ventas del sistema anterior con su costo tomado del kardex de ese sistema (por comprobante y producto); avisa cuántas líneas no tienen salida en ese kardex. Índice en el comprobante del kardex anterior (consulta 4 veces más rápida).
+- Revisión completa: 179 pantallas abren sin error; estado de resultados (por función, naturaleza, mes a mes y por línea), balance de comprobación, situación financiera, libros y centros de costo cuadran entre sí.
+
 ## v1.26.2 — 12/10/2026 · Correcciones: resultados por línea y comando de traslado
 - **Corrección**: el estado de resultados por línea de negocio usaba un cálculo simplificado (ventas solo 70, costo solo 69, todos los gastos 62-68 como administración y ventas) y no coincidía con el estado de resultados por función cuando hay compras, variación de existencias, producción (60/61, 9x, 71) o descuentos (74), como en lo importado del sistema anterior. Ahora cada línea se calcula con la misma fórmula del estado oficial y el total es idéntico.
 - **Corrección**: el comando `trasladar_migracion` (pasa la base revisada en local a la base de la nube) había quedado dañado en la v1.23.4 al quitar el nombre de la empresa del código y no se podía ejecutar. Se restauró tal como estaba, con el nombre genérico de la base local.

@@ -20,7 +20,7 @@ class MovimientoAnterior(models.Model):
     orden_fabricacion = models.CharField('Orden de fabricación', max_length=40, blank=True, db_index=True)
     orden_compra = models.CharField('Orden de compra', max_length=40, blank=True)
     guia = models.CharField('Guía', max_length=40, blank=True)
-    comprobante = models.CharField(max_length=40, blank=True)
+    comprobante = models.CharField(max_length=40, blank=True, db_index=True)
     producto = models.ForeignKey('core.Producto', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     codigo = models.CharField('Código', max_length=30, db_index=True)
     descripcion = models.CharField(max_length=200)
