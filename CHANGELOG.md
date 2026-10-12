@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.26.7 — 12/10/2026 · Gastos y destinos juntos
+- Gastos por centro de costo: nueva vista «Todos» con los gastos (61 a 68) y los destinos (clase 9) de cada centro en columnas separadas, con su propio y acumulado (no se suman: un gasto y su destino son el mismo importe).
+
 ## v1.26.6 — 12/10/2026 · Actualización sin recargar a mano
 - El navegador descarga otra vez el JavaScript y los estilos del ERP en cada versión nueva (antes podía quedarse con la versión anterior en memoria y había que recargar con Ctrl + F5).
 

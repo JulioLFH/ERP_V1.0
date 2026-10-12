@@ -449,49 +449,65 @@ def centros_costo_reporte(request):
     # gastos por naturaleza (61 a 68); los destinos (clase 9) en su propia vista. Las compras (60), el costo de
     # ventas (69) y las cuentas de balance no son gasto del área: el activo se ve en su depreciación y los
     # suministros cuando salen del almacén
-    vista = 'destino' if request.GET.get('vista') == 'destino' else 'gasto'
+    # vista: 'gasto' (61 a 68), 'destino' (clase 9) o 'todos' (las dos, en columnas separadas: un gasto y su destino
+    # son el mismo importe visto dos veces, por eso no se suman)
+    vista = request.GET.get('vista') if request.GET.get('vista') in ('destino', 'todos') else 'gasto'
     base = reportes.lineas_rango(desde, hasta)
-    base = base.filter(cuenta__codigo__regex=r'^9') if vista == 'destino' else base.filter(
-        es_destino=False, cuenta__codigo__regex=r'^6[1-8]')
+    gasto_q = Q(es_destino=False, cuenta__codigo__regex=r'^6[1-8]')
+    destino_q = Q(cuenta__codigo__regex=r'^9')
+    base = base.filter({'gasto': gasto_q, 'destino': destino_q}.get(vista, gasto_q | destino_q))
     filas = (base
              .values('centro_costo__codigo', 'centro_costo__nombre', 'cuenta__codigo', 'cuenta__nombre')
              .annotate(d=Sum('debe'), h=Sum('haber')).order_by('centro_costo__codigo', 'cuenta__codigo'))
     propios = {}
     for f in filas:
         clave = f['centro_costo__codigo'] or '—'
-        g = propios.setdefault(clave, {'filas': [], 'total': D0})
+        g = propios.setdefault(clave, {'filas': [], 'gasto': D0, 'destino': D0})
         neto = (f['d'] or D0) - (f['h'] or D0)
-        g['filas'].append({'codigo': f['cuenta__codigo'], 'nombre': f['cuenta__nombre'], 'importe': neto})
-        g['total'] += neto
-    # árbol: cada centro con su gasto propio y el acumulado de los que dependen de él
+        clase = 'destino' if f['cuenta__codigo'].startswith('9') else 'gasto'
+        g['filas'].append({'codigo': f['cuenta__codigo'], 'nombre': f['cuenta__nombre'], 'importe': neto,
+                           'clase': clase})
+        g[clase] += neto
+    # árbol: cada centro con lo propio y el acumulado de los que dependen de él
     centros = list(CentroCosto.objects.select_related('padre'))
     hijos = {}
     for c in centros:
         hijos.setdefault(c.padre_id, []).append(c)
+    vacio = {'gasto': D0, 'destino': D0}
 
-    def acumulado(c, n=0):
-        return propios.get(c.codigo, {'total': D0})['total'] + sum(
-            (acumulado(h, n + 1) for h in hijos.get(c.pk, []) if n < 20), D0)
+    def acumulado(c, clase, n=0):
+        return propios.get(c.codigo, vacio)[clase] + sum(
+            (acumulado(h, clase, n + 1) for h in hijos.get(c.pk, []) if n < 20), D0)
 
     grupos = OrderedDict()
 
     def recorrer(padre_id, nivel):
         for c in sorted(hijos.get(padre_id, []), key=lambda x: x.codigo):
-            total = acumulado(c)
-            if total or c.codigo in propios:
+            acum_g, acum_d = acumulado(c, 'gasto'), acumulado(c, 'destino')
+            if acum_g or acum_d or c.codigo in propios:
+                propio = propios.get(c.codigo, vacio)
                 grupos[c.codigo] = {'nombre': c.nombre, 'tipo': c.get_tipo_display(), 'nivel': nivel,
                                     'filas': propios.get(c.codigo, {}).get('filas', []),
-                                    'total': propios.get(c.codigo, {'total': D0})['total'], 'acumulado': total,
-                                    'tiene_hijos': bool(hijos.get(c.pk))}
+                                    'gasto': propio['gasto'], 'destino': propio['destino'],
+                                    'acum_gasto': acum_g, 'acum_destino': acum_d,
+                                    'total': propio['gasto'] + propio['destino'],
+                                    'acumulado': acum_g + acum_d, 'tiene_hijos': bool(hijos.get(c.pk))}
             if nivel < 20:
                 recorrer(c.pk, nivel + 1)
     recorrer(None, 0)
     if '—' in propios:
-        grupos['—'] = {'nombre': 'Sin centro de costo', 'tipo': '', 'nivel': 0, 'filas': propios['—']['filas'],
-                       'total': propios['—']['total'], 'acumulado': propios['—']['total'], 'tiene_hijos': False}
+        s = propios['—']
+        grupos['—'] = {'nombre': 'Sin centro de costo', 'tipo': '', 'nivel': 0, 'filas': s['filas'],
+                       'gasto': s['gasto'], 'destino': s['destino'], 'acum_gasto': s['gasto'],
+                       'acum_destino': s['destino'], 'total': s['gasto'] + s['destino'],
+                       'acumulado': s['gasto'] + s['destino'], 'tiene_hijos': False}
+    total_gasto = sum((g['gasto'] for g in propios.values()), D0)
+    total_destino = sum((g['destino'] for g in propios.values()), D0)
     return render(request, 'contabilidad/centros_reporte.html', {
         'grupos': grupos, 'desde': desde, 'hasta': hasta, 'mes_desde': _mes_input(desde), 'vista': vista,
-        'mes_hasta': _mes_input(hasta), 'total': sum((g['total'] for g in propios.values()), D0)})
+        'mes_hasta': _mes_input(hasta), 'total_gasto': total_gasto, 'total_destino': total_destino,
+        'total': total_gasto + total_destino})
+
 
 
 @login_required

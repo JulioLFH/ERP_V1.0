@@ -2,11 +2,12 @@
 {% block title %}Gastos por centro de costo{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-  <h1 class="page-title">{% if vista == 'destino' %}Destinos por centro de costo (clase 9){% else %}Gastos por centro de costo{% endif %}</h1>
+  <h1 class="page-title">{% if vista == 'destino' %}Destinos por centro de costo (clase 9){% elif vista == 'todos' %}Gastos y destinos por centro de costo{% else %}Gastos por centro de costo{% endif %}</h1>
   <form class="d-flex flex-wrap gap-2" method="get">
     <select name="vista" class="form-select form-select-sm" style="width:auto">
-      <option value="gasto" {% if vista != 'destino' %}selected{% endif %}>Gastos (cuentas 61 a 68)</option>
+      <option value="gasto" {% if vista == 'gasto' %}selected{% endif %}>Gastos (cuentas 61 a 68)</option>
       <option value="destino" {% if vista == 'destino' %}selected{% endif %}>Destinos (clase 9)</option>
+      <option value="todos" {% if vista == 'todos' %}selected{% endif %}>Todos (gastos y destinos)</option>
     </select>
     <input type="month" name="desde" value="{{ mes_desde }}" class="form-control form-control-sm">
     <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm">
@@ -14,24 +15,49 @@
   </form>
 </div>
 <div class="card">
-  {% if grupos %}<div class="card-body py-2 d-flex gap-2 align-items-center border-bottom" data-tabla="tabla-centros">
+  {% if grupos %}<div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center border-bottom" data-tabla="tabla-centros">
     <button type="button" class="btn btn-sm btn-outline-secondary" data-plegar="todo"><i class="bi bi-arrows-expand"></i> Desplegar todo</button>
     <button type="button" class="btn btn-sm btn-outline-secondary" data-plegar="nada"><i class="bi bi-arrows-collapse"></i> Comprimir todo</button>
     <span class="small text-muted">Haga clic en un centro para ver u ocultar sus cuentas.</span>
   </div>{% endif %}
   <div class="table-responsive"><table class="table table-sm mb-0 js-plegable" id="tabla-centros" data-inicio="plegado">
-    <thead><tr><th>Centro de costo</th><th>Tipo</th><th>Cuenta</th><th class="num">Propio S/</th><th class="num">Acumulado S/</th></tr></thead>
+    <thead>
+      {% if vista == 'todos' %}
+      <tr><th rowspan="2">Centro de costo</th><th rowspan="2">Tipo</th><th rowspan="2">Cuenta</th><th colspan="2" class="text-center border-start">Gastos 61 a 68</th><th colspan="2" class="text-center border-start">Destinos clase 9</th></tr>
+      <tr><th class="num border-start">Propio S/</th><th class="num">Acumulado S/</th><th class="num border-start">Propio S/</th><th class="num">Acumulado S/</th></tr>
+      {% else %}
+      <tr><th>Centro de costo</th><th>Tipo</th><th>Cuenta</th><th class="num">Propio S/</th><th class="num">Acumulado S/</th></tr>
+      {% endif %}
+    </thead>
     <tbody>
     {% for codigo, g in grupos.items %}
       <tr class="table-light fw-semibold" data-grupo="g{{ forloop.counter }}"><td style="padding-left: {{ g.nivel|add:1 }}rem">{% if g.filas %}<i class="bi bi-chevron-right js-chevron text-muted"></i>{% else %}<i class="bi bi-dot text-muted"></i>{% endif %} {% if g.tiene_hijos %}<i class="bi bi-diagram-3 text-muted"></i> {% endif %}{% if codigo != '—' %}{{ codigo }} {% endif %}{{ g.nombre }} {% if g.filas %}<span class="small fw-normal text-muted">({{ g.filas|length }} cuenta{{ g.filas|length|pluralize }})</span>{% endif %}</td><td class="small fw-normal">{{ g.tipo }}</td><td></td>
-        <td class="num">{{ g.total|money }}</td><td class="num">{% if g.tiene_hijos %}{{ g.acumulado|money }}{% endif %}</td></tr>
-      {% for f in g.filas %}<tr data-de="g{{ forloop.parentloop.counter }}"><td></td><td></td><td class="small">{{ f.codigo }} {{ f.nombre|truncatechars:50 }}</td><td class="num small">{{ f.importe|money }}</td><td></td></tr>{% endfor %}
-    {% empty %}<tr><td colspan="5"><div class="alert alert-info m-2">Sin {% if vista == 'destino' %}destinos{% else %}gastos{% endif %} en el rango. Asigne centros de costo en las compras de gasto, movimientos, planillas, activos y requerimientos y centralice el periodo.</div></td></tr>{% endfor %}
+        {% if vista == 'todos' %}
+        <td class="num border-start">{{ g.gasto|money }}</td><td class="num">{% if g.tiene_hijos %}{{ g.acum_gasto|money }}{% endif %}</td>
+        <td class="num border-start">{{ g.destino|money }}</td><td class="num">{% if g.tiene_hijos %}{{ g.acum_destino|money }}{% endif %}</td>
+        {% else %}
+        <td class="num">{{ g.total|money }}</td><td class="num">{% if g.tiene_hijos %}{{ g.acumulado|money }}{% endif %}</td>
+        {% endif %}</tr>
+      {% for f in g.filas %}<tr data-de="g{{ forloop.parentloop.counter }}"><td></td><td></td><td class="small">{{ f.codigo }} {{ f.nombre|truncatechars:50 }}</td>
+        {% if vista == 'todos' %}
+        <td class="num small border-start">{% if f.clase == 'gasto' %}{{ f.importe|money }}{% endif %}</td><td></td>
+        <td class="num small border-start">{% if f.clase == 'destino' %}{{ f.importe|money }}{% endif %}</td><td></td>
+        {% else %}
+        <td class="num small">{{ f.importe|money }}</td><td></td>
+        {% endif %}</tr>{% endfor %}
+    {% empty %}<tr><td colspan="7"><div class="alert alert-info m-2">Sin movimientos en el rango. Asigne centros de costo en las compras de gasto, movimientos, planillas, activos y requerimientos y centralice el periodo.</div></td></tr>{% endfor %}
     </tbody>
-    {% if grupos %}<tfoot><tr class="fw-bold"><td colspan="3" class="text-end">{% if vista == 'destino' %}Total destinos{% else %}Total gastos{% endif %}</td><td class="num">{{ total|money }}</td><td></td></tr></tfoot>{% endif %}
+    {% if grupos %}<tfoot><tr class="fw-bold">
+      {% if vista == 'todos' %}
+      <td colspan="3" class="text-end">Totales</td><td class="num border-start">{{ total_gasto|money }}</td><td></td><td class="num border-start">{{ total_destino|money }}</td><td></td>
+      {% else %}
+      <td colspan="3" class="text-end">{% if vista == 'destino' %}Total destinos{% else %}Total gastos{% endif %}</td><td class="num">{{ total|money }}</td><td></td>
+      {% endif %}
+    </tr></tfoot>{% endif %}
   </table></div>
   <div class="card-body py-2 small text-muted">
     {% if vista == 'destino' %}Clase 9: el gasto de cada centro llevado a su destino (90 producción, 94 administración, 95 ventas, 97 financieros).
+    {% elif vista == 'todos' %}Gastos (61 a 68) y destinos (clase 9) en columnas separadas: un gasto y su destino son el mismo importe visto dos veces, por eso no se suman. En lo importado del sistema anterior, varias áreas tienen su centro de costo solo en la clase 9.
     {% else %}Solo gastos por naturaleza (61 a 68). No entran las compras (60), el costo de ventas (69) ni las cuentas de balance: un equipo comprado se ve aquí mes a mes en su depreciación (centro del activo) y los suministros cuando salen del almacén por requerimiento (centro de quien los pide).{% endif %}
     "Acumulado" suma el centro y todos los que dependen de él.</div>
 </div>

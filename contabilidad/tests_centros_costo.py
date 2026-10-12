@@ -81,5 +81,12 @@ class CentrosCostoTest(TestCase):
         self.assertEqual(grupo['total'], D('1000.00'))
         r = self.client.get(reverse('contabilidad:centros_reporte') + '?vista=destino')
         self.assertTrue(all(f['codigo'].startswith('9') for f in r.context['grupos']['MANT']['filas']))
+        destinos = r.context['grupos']['MANT']['destino']
+        # todos: gastos y destinos en columnas separadas (no se suman)
+        r = self.client.get(reverse('contabilidad:centros_reporte') + '?vista=todos')
+        mant = r.context['grupos']['MANT']
+        self.assertEqual((mant['gasto'], mant['destino']), (D('1000.00'), destinos))
+        self.assertEqual({f['clase'] for f in mant['filas']}, {'gasto', 'destino'})
+        self.assertContains(r, 'Destinos clase 9')
         for a in Asiento.objects.filter(periodo=PERIODO):
             self.assertTrue(a.cuadrado, f'{a} no cuadra')
