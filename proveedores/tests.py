@@ -95,7 +95,11 @@ class Fase2Test(TestCase):
         form = CompraForm(data={**datos, 'orden_compra': oc.pk})
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(form.cleaned_data['centro_costo'], self.cc)  # se hereda de la orden
-        self.assertTrue(CompraForm(data={**datos, 'clasificacion': 'SERVICIO'}).is_valid())
+        # un servicio va al gasto (63): sin orden de compra, pero con centro de costo
+        servicio = CompraForm(data={**datos, 'clasificacion': 'SERVICIO'})
+        self.assertFalse(servicio.is_valid())
+        self.assertIn('centro_costo', servicio.errors)
+        self.assertTrue(CompraForm(data={**datos, 'clasificacion': 'SERVICIO', 'centro_costo': self.cc.pk}).is_valid())
 
     # ---------------------------------------------------------------- 8. envío y aceptación
     def test_envio_y_aceptacion_por_enlace(self):

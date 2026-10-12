@@ -446,7 +446,14 @@ def estado_resultados(request):
 def centros_costo_reporte(request):
     hasta = _periodo(request, 'hasta')
     desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')
-    filas = (reportes.lineas_rango(desde, hasta).filter(es_destino=False, cuenta__codigo__regex=r'^(6|3)')
+    # gastos por naturaleza (61 a 68); los destinos (clase 9) en su propia vista. Las compras (60), el costo de
+    # ventas (69) y las cuentas de balance no son gasto del área: el activo se ve en su depreciación y los
+    # suministros cuando salen del almacén
+    vista = 'destino' if request.GET.get('vista') == 'destino' else 'gasto'
+    base = reportes.lineas_rango(desde, hasta)
+    base = base.filter(cuenta__codigo__regex=r'^9') if vista == 'destino' else base.filter(
+        es_destino=False, cuenta__codigo__regex=r'^6[1-8]')
+    filas = (base
              .values('centro_costo__codigo', 'centro_costo__nombre', 'cuenta__codigo', 'cuenta__nombre')
              .annotate(d=Sum('debe'), h=Sum('haber')).order_by('centro_costo__codigo', 'cuenta__codigo'))
     propios = {}
@@ -483,7 +490,7 @@ def centros_costo_reporte(request):
         grupos['—'] = {'nombre': 'Sin centro de costo', 'tipo': '', 'nivel': 0, 'filas': propios['—']['filas'],
                        'total': propios['—']['total'], 'acumulado': propios['—']['total'], 'tiene_hijos': False}
     return render(request, 'contabilidad/centros_reporte.html', {
-        'grupos': grupos, 'desde': desde, 'hasta': hasta, 'mes_desde': _mes_input(desde),
+        'grupos': grupos, 'desde': desde, 'hasta': hasta, 'mes_desde': _mes_input(desde), 'vista': vista,
         'mes_hasta': _mes_input(hasta), 'total': sum((g['total'] for g in propios.values()), D0)})
 
 

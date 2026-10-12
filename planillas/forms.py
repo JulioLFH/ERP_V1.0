@@ -31,6 +31,8 @@ class TrabajadorForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['afp'].queryset = AFP.objects.filter(activo=True)
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        # su sueldo y cargas (62) se reparten por centro de costo
+        self.fields['centro_costo'].required = True
 
     def secciones(self):
         return [(titulo, [self[c] for c in campos]) for titulo, campos in self.SECCIONES]

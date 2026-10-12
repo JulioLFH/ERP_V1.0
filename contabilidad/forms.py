@@ -188,6 +188,12 @@ class AsientoLineaForm(BootstrapMixin, forms.ModelForm):
             raise forms.ValidationError('Cada línea va al debe o al haber, no a ambos.')
         if data.get('cuenta') and not d and not h:
             raise forms.ValidationError('Ingrese el importe de la línea.')
+        from .pcge import admite_centro, exige_centro
+        cuenta = data.get('cuenta')
+        if cuenta and exige_centro(cuenta.codigo) and not data.get('centro_costo'):
+            self.add_error('centro_costo', 'Obligatorio en las cuentas de gasto 62 a 65 y 68.')
+        elif cuenta and data.get('centro_costo') and not admite_centro(cuenta.codigo):
+            data['centro_costo'] = None  # las cuentas de balance no llevan centro de costo
         return data
 
 

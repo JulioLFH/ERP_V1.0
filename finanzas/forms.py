@@ -149,6 +149,12 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
             error = data['cuenta'].error_sobregiro(data['monto'], excluir=self.instance, fecha=data.get('fecha'))
             if error:
                 self.add_error('monto', error)
+        # gasto (62 a 65 y 68) por la cuenta elegida o la del concepto: el centro de costo es obligatorio
+        from contabilidad.models import CuentaDefecto
+        from contabilidad.pcge import exige_centro
+        cuenta = data.get('cuenta_contable') or CuentaDefecto.mapa().get(f'mov_{data.get("concepto")}')
+        if cuenta and exige_centro(cuenta.codigo) and not data.get('centro_costo'):
+            self.add_error('centro_costo', f'Obligatorio: el movimiento va al gasto {cuenta.codigo}.')
         return data
 
 

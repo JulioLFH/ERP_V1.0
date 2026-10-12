@@ -152,8 +152,10 @@ class ActivosTest(TestCase):
         self.assertEqual((pendientes, valor), (2, D('3000.00')))
         url = reverse('activos:nuevo') + f'?compra={compra.pk}&item={item.pk}'
         self.assertEqual(self.client.get(url).status_code, 200)
+        from contabilidad.models import CentroCosto
+        cc, _ = CentroCosto.objects.get_or_create(codigo='ADM-T', defaults={'nombre': 'Administración'})
         r = self.client.post(url, {
-            'nombre': 'Laptop para oficina', 'categoria': self.cpu.pk, 'origen': 'COMPRA',
+            'nombre': 'Laptop para oficina', 'categoria': self.cpu.pk, 'origen': 'COMPRA', 'centro_costo': cc.pk,
             'fecha_adquisicion': HOY.isoformat(), 'fecha_uso': HOY.isoformat(), 'valor': '3000',
             'valor_residual': '0', 'vida_util_meses': '48', 'dep_inicial': '0', 'unidades': '2'})
         activos = ActivoFijo.objects.filter(compra=compra)
@@ -172,7 +174,11 @@ class ActivosTest(TestCase):
         self.assertEqual(compra.estado, 'REGISTRADO')
 
     def test_alta_sin_compra_exige_sustento(self):
-        datos = {'nombre': 'Camioneta', 'categoria': CategoriaActivo.objects.get(codigo='VEH').pk,
+        from contabilidad.models import CentroCosto
+        cc, _ = CentroCosto.objects.get_or_create(codigo='ADM-T', defaults={'nombre': 'Administración'})
+        r = self.client.post(reverse('activos:nuevo'), {'nombre': 'Sin centro', 'categoria': self.cpu.pk})
+        self.assertIn('centro_costo', r.context['form'].errors)  # la depreciación necesita su centro de costo
+        datos = {'nombre': 'Camioneta', 'categoria': CategoriaActivo.objects.get(codigo='VEH').pk, 'centro_costo': cc.pk,
                  'origen': 'SALDO_INICIAL', 'fecha_adquisicion': '2022-03-10', 'fecha_uso': '2022-03-15',
                  'valor': '90000', 'valor_residual': '0', 'vida_util_meses': '60', 'dep_inicial': '40000',
                  'dep_inicial_hasta': '2024-12-31'}

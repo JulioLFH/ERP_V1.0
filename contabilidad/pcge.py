@@ -156,6 +156,21 @@ DESVALORIZACION = {'20': ('2911', '6951'), '21': ('2921', '6952'), '23': ('2941'
 DEUDORAS_EXCEPCION = ('422', '709')
 
 
+# Centro de costo: obligatorio en los gastos que se controlan por área (62 a 65 y 68); se admite en los demás gastos
+# (61 a 68) y en los destinos (clase 9). Las cuentas de balance no lo llevan: el activo fijo lo tiene en su registro y
+# lo pasa a su depreciación; los suministros lo reciben al salir del almacén por requerimiento.
+EXIGEN_CENTRO = ('62', '63', '64', '65', '68')
+ADMITEN_CENTRO = ('61', '62', '63', '64', '65', '66', '67', '68', '9')
+
+
+def exige_centro(codigo):
+    return bool(codigo) and str(codigo).startswith(EXIGEN_CENTRO)
+
+
+def admite_centro(codigo):
+    return bool(codigo) and str(codigo).startswith(ADMITEN_CENTRO)
+
+
 def naturaleza(codigo):
     if codigo.startswith(DEUDORAS_EXCEPCION):
         return 'DEUDORA'

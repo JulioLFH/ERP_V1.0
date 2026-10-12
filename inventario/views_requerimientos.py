@@ -26,6 +26,8 @@ class RequerimientoForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         from contabilidad.models import CentroCosto
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        # el consumo de suministros es el gasto del área que los pide
+        self.fields['centro_costo'].required = True
         self.fields['almacen'].queryset = Almacen.objects.filter(activo=True, uso='')
         if not self.instance.pk:
             self.initial.setdefault('almacen', Almacen.principal().pk)

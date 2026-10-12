@@ -3,6 +3,12 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.26.4 — 12/10/2026 · Gastos por centro de costo
+- **Reporte**: solo los gastos por naturaleza (61 a 68); los destinos (clase 9) en una vista aparte. Ya no aparecen como gasto del área las compras (60), el costo de ventas (69) ni las cuentas de balance (activos 33, depreciación acumulada 39, existencias).
+- **Centro de costo obligatorio** en los gastos 62 a 65 y 68: asientos manuales, compras de gasto o servicio, movimientos de caja y bancos, trabajadores (planilla), activos fijos (su depreciación) y requerimientos al almacén. Las cuentas de balance no llevan centro de costo.
+- **Activos**: la depreciación de cada mes se carga al centro de costo del activo (el centro ya no aparece en la compra del activo).
+- **Suministros por el almacén**: los productos de almacén van siempre a su cuenta de compra (ingresan a la 25 aunque la factura tenga una cuenta de gasto); el gasto con su centro nace en la salida por requerimiento.
+
 ## v1.26.3 — 12/10/2026 · Revisión de reportes
 - **Balance de comprobación**: la columna de resultado por función ahora incluye compras y variación de existencias (60/61) y una fila con los gastos 62-68 sin destino a la clase 9; su resultado es igual al del estado de resultados y al de la columna por naturaleza (antes difería con lo importado del sistema anterior).
 - **Rentabilidad** (por producto, cliente, vendedor o mes): incluye las ventas del sistema anterior con su costo tomado del kardex de ese sistema (por comprobante y producto); avisa cuántas líneas no tienen salida en ese kardex. Índice en el comprobante del kardex anterior (consulta 4 veces más rápida).

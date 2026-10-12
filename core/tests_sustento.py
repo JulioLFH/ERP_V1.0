@@ -41,10 +41,14 @@ class SustentoTest(TestCase):
         self.bcp = Cuenta.objects.get(nombre='BCP Cta. Cte. Soles')
 
     def test_movimiento_manual_exige_sustento_y_se_anula_con_motivo(self):
+        from contabilidad.models import CentroCosto
+        cc, _ = CentroCosto.objects.get_or_create(codigo='ADM-T', defaults={'nombre': 'Administración'})
         datos = {'cuenta': self.bcp.pk, 'fecha': HOY.isoformat(), 'tipo': 'EGRESO', 'concepto': 'SERVICIOS',
                  'medio_pago': 'TRANSFERENCIA', 'monto': '150', 'glosa': 'Recibo de luz'}
         r = self.client.post(reverse('finanzas:movimiento_nuevo'), datos)
         self.assertIn('sustento', r.context['form'].errors)
+        self.assertIn('centro_costo', r.context['form'].errors)  # servicios (63): gasto con centro de costo
+        datos['centro_costo'] = cc.pk
         saldo0 = self.bcp.saldo
         self.client.post(reverse('finanzas:movimiento_nuevo'), {**datos, 'sustento': pdf('recibo_luz.pdf')})
         mov = Movimiento.objects.get(glosa='Recibo de luz')

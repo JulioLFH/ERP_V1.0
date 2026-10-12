@@ -27,6 +27,7 @@ from finanzas.models import Cuenta, Movimiento
 from ventas.models import Venta
 
 from .models import ORIGENES_FIJOS, Asiento, AsientoLinea, CuentaDefecto, PeriodoContable
+from .pcge import admite_centro
 
 D0 = Decimal('0')
 
@@ -56,6 +57,8 @@ class Borrador:
             return None
         if centro_beneficio is None and centro_costo is not None:
             centro_beneficio = centro_costo.beneficio  # la línea de negocio sale del centro de costo
+        if centro_costo is not None and not admite_centro(cuenta.codigo):
+            centro_costo = None  # cuentas de balance, compras (60) y costo de ventas: sin centro de costo
         linea = AsientoLinea(cuenta=cuenta, debe=debe, haber=haber, tercero=tercero, documento=documento,
                              glosa=glosa[:200], centro_costo=centro_costo, centro_beneficio=centro_beneficio)
         if self.moneda == 'USD' and importe_me is not None:
@@ -230,12 +233,16 @@ def asiento_compra(c, cta):
     honorarios = c.tipo_comprobante == '02'
     base = c.total_pen - c.igv_pen
     cuenta_gasto = c.cuenta_contable or cta.get(f'compra_{c.clasificacion}') or cta['compra_GASTO']
-    # la cuenta elegida en el comprobante manda; si no, la cuenta de compra de cada producto
+    # los productos de almacén (suministros, insumos, mercadería) van siempre a su cuenta de compra: ingresan a sus
+    # existencias (20-25) y el gasto con su centro de costo nace al consumirlos (requerimiento); en lo demás manda la
+    # cuenta elegida en el comprobante y, si no hay, la cuenta de compra de cada producto
     pesos = defaultdict(lambda: D0)
-    if not c.cuenta_contable_id:
-        for i in c.items.select_related('producto__cuenta_compra'):
-            pesos[i.producto.cuenta_compra if i.producto and i.producto.cuenta_compra_id else cuenta_gasto] += \
-                i.subtotal
+    for i in c.items.select_related('producto__cuenta_compra'):
+        p = i.producto
+        if p and p.cuenta_compra_id and (p.es_inventariable or not c.cuenta_contable_id):
+            pesos[p.cuenta_compra] += i.subtotal
+        else:
+            pesos[cuenta_gasto] += i.subtotal
     if not sum(pesos.values(), D0):
         pesos = {cuenta_gasto: Decimal('1')}
     total_items = sum(pesos.values(), D0)

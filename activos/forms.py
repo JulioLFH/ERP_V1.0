@@ -45,6 +45,8 @@ class ActivoForm(BootstrapMixin, forms.ModelForm):
         self.fields['proveedor'].queryset = Tercero.objects.filter(tipo__in=['PROVEEDOR', 'AMBOS'])
         remoto(self.fields['proveedor'], 'proveedores')
         self.fields['proveedor'].required = False
+        # la depreciación mensual (68) se carga al centro de costo del activo
+        self.fields['centro_costo'].required = True
         if self.compra:
             self.fields['origen'].choices = [('COMPRA', 'Compra registrada en el sistema')]
             for nombre in ('proveedor', 'documento'):
