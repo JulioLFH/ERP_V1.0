@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.28.1 — 14/10/2026 · Inicio: nombres de módulo centrados
+- En la pantalla de inicio, los nombres de módulo que ocupan dos líneas (p. ej. «Rendición de gastos») quedan centrados bajo su ícono.
+
 ## v1.28.0 — 14/10/2026 · Rendición de gastos: app del celular, fases 2 y 3
 - **App del celular instalable** (Rendición de gastos › App del celular): se instala desde el navegador en Android y iPhone, entra con el usuario de Ceiba (con verificación en dos pasos) y **funciona sin internet**: guarda los gastos y sus fotos en el teléfono y los sube solos al recuperar la señal, sin duplicarlos.
 - **Foto del comprobante**: cámara o galería, varias fotos por gasto, recorte con el dedo, giro y compresión a menos de 1 MB antes de subir.
