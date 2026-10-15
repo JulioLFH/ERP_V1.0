@@ -228,6 +228,10 @@ ENDPOINTS = [
     ('GET', '/api/v1/contabilidad/estado-resultados/', 'Estado de resultados por función o naturaleza, total o mes a '
                                                        'mes (desde, hasta, vista, mensual, libro)'),
     ('GET', '/api/v1/contabilidad/situacion-financiera/', 'Estado de situación financiera (hasta, libro)'),
+    ('GET', '/api/v1/rendiciones/', 'Rendiciones de gastos (desde, hasta, estado, responsable)'),
+    ('GET', '/api/v1/rendiciones/{id}/', 'Rendición con sus gastos e historial'),
+    ('GET', '/api/v1/rendiciones/categorias/', 'Categorías de gasto'),
+    ('POST', '/api/v1/rendiciones/{id}/gastos/', 'Agregar un gasto (con foto en base64) a una rendición en borrador'),
 ]
 # todas las listas aceptan además page, page_size (hasta 1000) y formato=csv (todo el resultado en un archivo)
 PARAMETROS_LISTA = ['page', 'page_size', 'formato']
@@ -274,7 +278,7 @@ def producto_imagen(request, pk):
     p = Producto.objects.select_related('imagen').filter(pk=pk).first()
     if p is None or p.imagen is None:
         return error('El producto no tiene imagen.', 404)
-    resp = HttpResponse(bytes(p.imagen.datos), content_type=p.imagen.tipo or 'application/octet-stream')
+    resp = HttpResponse(p.imagen.contenido, content_type=p.imagen.tipo or 'application/octet-stream')
     resp['X-Content-Type-Options'] = 'nosniff'
     return resp
 

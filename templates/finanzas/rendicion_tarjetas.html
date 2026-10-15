@@ -1,0 +1,18 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Tarjetas corporativas{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Tarjetas corporativas</h1>
+  <div class="d-flex gap-2">
+    <a href="{% url 'rendiciones:sin_comprobante' %}" class="btn btn-sm btn-outline-warning"><i class="bi bi-receipt"></i> Sin comprobante ({{ pendientes|length }})</a>
+    {% if puede.rendiciones_configurar %}<a href="{% url 'rendiciones:tarjeta_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva tarjeta</a>{% endif %}
+  </div>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>Tarjeta</th><th>Banco</th><th>Titular</th><th>Cuenta</th><th class="num">Por pagar</th><th>Activa</th></tr></thead>
+  <tbody>{% for t in tarjetas %}<tr><td><a href="{% url 'rendiciones:tarjeta' t.pk %}">{{ t }}</a></td><td>{{ t.banco }}</td><td class="small">{{ t.titular.nombre }}</td><td class="small">{{ t.cuenta_contable.codigo }}</td>
+    <td class="num">{% if t.entrega %}{{ t.entrega.simbolo }} {{ t.entrega.saldo|money }}{% endif %}</td><td>{% if t.activa %}Sí{% else %}No{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Registre las tarjetas de la empresa para importar sus estados de cuenta.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<p class="small text-muted mt-2">Cada cargo del estado de cuenta se convierte en un gasto sin comprobante que el titular sustenta con su foto o XML; se contabiliza contra la cuenta por pagar de la tarjeta y el pago al banco la cancela. «Por pagar» negativo = deuda con el banco.</p>
+{% endblock %}

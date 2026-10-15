@@ -27,6 +27,10 @@ class CategoriaGasto(models.Model):
     es_movilidad = models.BooleanField('Es movilidad', default=False,
                                        help_text='Tope diario legal: 4% de la RMV vigente por día (planilla de '
                                                  'movilidad)')
+    tarifa_km = models.DecimalField('Tarifa por km S/', max_digits=8, decimal_places=4, default=D0,
+                                    help_text='Kilometraje en vehículo propio: el gasto es km × tarifa. 0 = no aplica')
+    exige_proyecto = models.BooleanField('Exige proyecto', default=False,
+                                         help_text='Técnicos en campo: el gasto se carga a un proyecto y sitio')
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -36,6 +40,36 @@ class CategoriaGasto(models.Model):
 
     def __str__(self):
         return self.nombre
+
+
+class Proyecto(models.Model):
+    codigo = models.CharField('Código', max_length=20, unique=True)
+    nombre = models.CharField(max_length=150)
+    cliente = models.ForeignKey('core.Tercero', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
+                                     help_text='Los gastos del proyecto sin centro de costo van a este')
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['codigo']
+
+    def __str__(self):
+        return f'{self.codigo} {self.nombre}'
+
+
+class Sitio(models.Model):
+    proyecto = models.ForeignKey(Proyecto, on_delete=models.CASCADE, related_name='sitios')
+    codigo = models.CharField('Código', max_length=20)
+    nombre = models.CharField(max_length=150)
+    direccion = models.CharField('Dirección', max_length=250, blank=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['proyecto', 'codigo']
+        unique_together = [('proyecto', 'codigo')]
+
+    def __str__(self):
+        return f'{self.codigo} {self.nombre}'
 
 
 class PoliticaGasto(models.Model):
@@ -161,9 +195,11 @@ class Rendicion(models.Model):
 class LineaGasto(models.Model):
     TIPOS = [('01', 'Factura'), ('03', 'Boleta de venta'), ('02', 'Recibo por honorarios'),
              ('12', 'Ticket de máquina registradora'), ('PM', 'Recibo / planilla de movilidad'),
-             ('SC', 'Sin comprobante'), ('00', 'Otros')]
+             ('KM', 'Kilometraje (vehículo propio)'), ('SC', 'Sin comprobante'), ('00', 'Otros')]
     ESTADOS = [('PENDIENTE', 'Pendiente'), ('APROBADA', 'Aprobada'), ('OBSERVADA', 'Observada'),
                ('RECHAZADA', 'Rechazada')]
+    ORIGENES = [('WEB', 'Pantalla'), ('MOVIL', 'App del celular'), ('WHATSAPP', 'WhatsApp'), ('CORREO', 'Correo'),
+                ('TARJETA', 'Estado de cuenta de tarjeta'), ('API', 'API')]
     CON_RUC = ('01', '02')  # el proveedor se identifica con RUC
     rendicion = models.ForeignKey(Rendicion, on_delete=models.CASCADE, related_name='lineas')
     fecha = models.DateField(default=timezone.localdate)
@@ -184,7 +220,10 @@ class LineaGasto(models.Model):
     categoria = models.ForeignKey(CategoriaGasto, on_delete=models.PROTECT, verbose_name='Categoría')
     centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
                                      verbose_name='Centro de costo')
-    proyecto = models.CharField('Proyecto o sitio', max_length=80, blank=True)
+    proyecto = models.ForeignKey(Proyecto, on_delete=models.PROTECT, null=True, blank=True)
+    sitio = models.ForeignKey(Sitio, on_delete=models.PROTECT, null=True, blank=True)
+    kilometros = models.DecimalField('Kilómetros', max_digits=10, decimal_places=2, default=D0)
+    destino = models.CharField('Destino (movilidad)', max_length=150, blank=True)
     glosa = models.CharField(max_length=200)
     estado = models.CharField(max_length=9, choices=ESTADOS, default='PENDIENTE')
     comentario = models.CharField('Comentario del aprobador', max_length=250, blank=True)
@@ -195,6 +234,11 @@ class LineaGasto(models.Model):
                                editable=False)
     gasto = models.ForeignKey('finanzas.GastoRendicion', on_delete=models.SET_NULL, null=True, blank=True,
                               related_name='+', editable=False)
+    origen = models.CharField(max_length=8, choices=ORIGENES, default='WEB', editable=False)
+    estado_sunat = models.CharField('Validación SUNAT', max_length=200, blank=True, editable=False)
+    sunat_valido = models.BooleanField(null=True, editable=False)
+    validado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    ruc_estado = models.CharField('Estado del RUC', max_length=80, blank=True, editable=False)
 
     class Meta:
         ordering = ['fecha', 'id']
@@ -214,7 +258,15 @@ class LineaGasto(models.Model):
         """Factura válida a nombre de la empresa: va al registro de compras con crédito fiscal."""
         return self.tipo_comprobante == '01' and self.a_nombre_empresa and len(self.ruc) == 11
 
+    @property
+    def sin_comprobante(self):
+        return self.tipo_comprobante == 'SC' or (self.tipo_comprobante not in ('PM', 'KM') and not self.numero)
+
     def save(self, *args, **kwargs):
+        self.serie = (self.serie or '').strip().upper()
+        self.numero = (self.numero or '').strip()
+        if self.numero.isdigit():
+            self.numero = str(int(self.numero))  # igual que el XML y el registro de compras (sin ceros a la izquierda)
         moneda_entrega = self.rendicion.entrega.moneda
         if self.moneda == moneda_entrega:
             self.importe = self.total
@@ -243,3 +295,87 @@ class HistorialRendicion(models.Model):
     @property
     def a_display(self):
         return dict(Rendicion.ESTADOS).get(self.a_estado, self.a_estado)
+
+
+class TarjetaCorporativa(models.Model):
+    """Tarjeta de la empresa a nombre de un trabajador. Funciona como un fondo (entrega a rendir de tipo tarjeta):
+    cada cargo del estado de cuenta es un gasto que el titular sustenta con su comprobante; la cuenta contable de la
+    tarjeta (por pagar al banco) recibe los gastos y el pago de la tarjeta la cancela."""
+    nombre = models.CharField(max_length=80, help_text='Ej. Visa BCP Gerencia')
+    banco = models.CharField(max_length=40, blank=True)
+    ultimos4 = models.CharField('Últimos 4 dígitos', max_length=4)
+    titular = models.ForeignKey('core.Tercero', on_delete=models.PROTECT, related_name='+',
+                                help_text='Trabajador titular de la tarjeta')
+    moneda = models.CharField(max_length=3, choices=MONEDAS, default='PEN')
+    cuenta_contable = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, related_name='+',
+                                        limit_choices_to={'imputable': True},
+                                        help_text='Cuenta por pagar de la tarjeta (ej. 4699 o una subcuenta)')
+    categoria_defecto = models.ForeignKey(CategoriaGasto, on_delete=models.PROTECT, related_name='+',
+                                          verbose_name='Categoría por defecto de los cargos')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True)
+    entrega = models.OneToOneField('finanzas.EntregaRendir', on_delete=models.PROTECT, null=True, blank=True,
+                                   editable=False, related_name='tarjeta')
+    activa = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['nombre']
+        verbose_name = 'tarjeta corporativa'
+        verbose_name_plural = 'tarjetas corporativas'
+
+    def __str__(self):
+        return f'{self.nombre} ****{self.ultimos4}'
+
+
+class MovimientoTarjeta(models.Model):
+    tarjeta = models.ForeignKey(TarjetaCorporativa, on_delete=models.PROTECT, related_name='movimientos')
+    fecha = models.DateField()
+    descripcion = models.CharField('Descripción', max_length=200)
+    referencia = models.CharField(max_length=60, blank=True)
+    monto = models.DecimalField(max_digits=14, decimal_places=2)
+    linea = models.OneToOneField(LineaGasto, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name='movimiento_tarjeta')
+    importado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['fecha', 'id']
+        unique_together = [('tarjeta', 'fecha', 'descripcion', 'monto', 'referencia')]
+
+    @property
+    def con_comprobante(self):
+        return self.linea_id is not None and not self.linea.sin_comprobante
+
+    @property
+    def dias(self):
+        return (timezone.localdate() - self.fecha).days
+
+
+class ConfigRendicion(models.Model):
+    """Integraciones de la rendición de gastos (una por empresa): WhatsApp, buzón de correo y lectura con IA."""
+    categoria_defecto = models.ForeignKey(CategoriaGasto, on_delete=models.SET_NULL, null=True, blank=True,
+                                          related_name='+', verbose_name='Categoría de los gastos recibidos',
+                                          help_text='Para los borradores que llegan por WhatsApp, correo o la app')
+    # lectura de comprobantes sin QR (OCR / IA)
+    ia_activa = models.BooleanField('Leer comprobantes con IA', default=False)
+    ia_api_key = models.CharField('Clave API de Anthropic', max_length=200, blank=True,
+                                  help_text='Vacío = variable de entorno ANTHROPIC_API_KEY del servidor')
+    ia_modelo = models.CharField('Modelo', max_length=40, default='claude-opus-5-5')
+    # WhatsApp Business Cloud API
+    whatsapp_activo = models.BooleanField('Recibir gastos por WhatsApp', default=False)
+    whatsapp_phone_id = models.CharField('Phone number ID', max_length=40, blank=True)
+    whatsapp_token = models.CharField('Token de acceso', max_length=400, blank=True)
+    whatsapp_verify_token = models.CharField('Token de verificación del webhook', max_length=80, blank=True)
+    whatsapp_app_secret = models.CharField('App secret (firma del webhook)', max_length=120, blank=True)
+    # buzón que recibe comprobantes reenviados (IMAP)
+    correo_activo = models.BooleanField('Recibir gastos por correo', default=False)
+    correo_direccion = models.EmailField('Dirección para reenviar comprobantes', blank=True)
+    correo_servidor = models.CharField('Servidor IMAP', max_length=120, blank=True)
+    correo_puerto = models.PositiveIntegerField('Puerto IMAP', default=993)
+    correo_usuario = models.CharField('Usuario IMAP', max_length=120, blank=True)
+    correo_clave = models.CharField('Contraseña IMAP', max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = 'configuración de rendiciones'
+
+    @classmethod
+    def actual(cls):
+        return cls.objects.first() or cls.objects.create()

@@ -11,7 +11,7 @@
 </div></div>
 {% if r %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
-  <div class="small text-muted">Periodo {{ r.periodo|slice:'4:' }}/{{ r.periodo|slice:':4' }} · {{ r.total }} comprobantes en la propuesta</div>
+  <div class="small text-muted">Periodo {{ r.periodo|slice:'4:' }}/{{ r.periodo|slice:':4' }} · {{ r.total }} comprobantes en la propuesta{% if r.por_rendicion %} · {{ r.por_rendicion }} registrada(s) por rendición de gastos{% endif %}</div>
   <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Exportar cruce</a>
 </div>
 <div class="row g-3 mb-3">
@@ -27,8 +27,10 @@
 {% if r.solo_sunat %}<div class="card mb-3"><div class="card-header text-warning-emphasis">En la propuesta de SUNAT pero no registradas en el periodo</div><div class="table-responsive"><table class="table table-sm mb-0">
   <thead><tr><th>Proveedor</th><th>Comprobante</th><th>Emisión</th><th class="num">Base</th><th class="num">IGV</th><th class="num">Total</th><th></th></tr></thead>
   <tbody>{% for x in r.solo_sunat %}<tr><td>{{ x.ruc }} {{ x.nombre }}</td><td>{{ x.tipo }} {{ x.serie }}-{{ x.numero }}</td><td>{{ x.fecha|date:'d/m/Y' }}</td><td class="num">{{ x.base|money }}</td><td class="num">{{ x.igv|money }}</td><td class="num">{{ x.total|money }}</td>
-    <td class="small">{% if x.otro_periodo %}Registrada en {{ x.otro_periodo.periodo }} · <a href="{% url 'compras:detalle' x.otro_periodo.pk %}">ver</a>{% else %}<a href="{% url 'compras:importar_xml' %}">Registrar con su XML</a>{% endif %}</td></tr>{% endfor %}</tbody>
-</table></div></div>{% endif %}
+    <td class="small">{% if x.otro_periodo %}Registrada en {{ x.otro_periodo.periodo }} · <a href="{% url 'compras:detalle' x.otro_periodo.pk %}">ver</a>{% elif x.rendicion %}En la rendición <a href="{% url 'rendiciones:detalle' x.rendicion.rendicion_id %}">{{ x.rendicion.rendicion.numero }}</a> ({{ x.rendicion.rendicion.get_estado_display|lower }}){% else %}<span class="badge text-bg-warning">Nadie la rindió</span> <a href="{% url 'compras:importar_xml' %}">Registrar con su XML</a>{% endif %}</td></tr>{% endfor %}</tbody>
+</table>
+{% if r.nadie_rindio %}<div class="card-body small text-warning-emphasis py-2">{{ r.nadie_rindio|length }} factura(s) a nombre de la empresa que nadie rindió ni se registraron: averigüe quién hizo el gasto (posible uso indebido del RUC o un gasto sin rendir).</div>{% endif %}
+</div>{% endif %}
 {% if r.solo_erp %}<div class="card mb-3"><div class="card-header">Registradas en el ERP pero no están en la propuesta</div><div class="table-responsive"><table class="table table-sm mb-0">
   <thead><tr><th>Proveedor</th><th>Comprobante</th><th>Emisión</th><th class="num">Total</th></tr></thead>
   <tbody>{% for c in r.solo_erp %}<tr><td>{{ c.tercero.numero_doc }} {{ c.tercero.nombre }}</td><td><a href="{% url 'compras:detalle' c.pk %}">{{ c.tipo_comprobante }} {{ c.serie }}-{{ c.numero }}</a></td><td>{{ c.fecha_emision|date:'d/m/Y' }}</td><td class="num">{{ c.total|money }}</td></tr>{% endfor %}</tbody>

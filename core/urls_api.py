@@ -1,10 +1,16 @@
 from django.urls import path
 
+from finanzas import api_rendicion as rendicion
+
 from . import api, api_datos as datos, views_api
 
 app_name = 'api'
 
 urlpatterns = [
+    path('rendiciones/', rendicion.rendiciones, name='rendiciones'),
+    path('rendiciones/categorias/', rendicion.categorias, name='rendicion_categorias'),
+    path('rendiciones/<int:pk>/', rendicion.rendicion, name='rendicion'),
+    path('rendiciones/<int:pk>/gastos/', rendicion.gasto, name='rendicion_gasto'),
     path('kardex/', datos.kardex, name='kardex'),
     path('cuentas-por-pagar/', datos.cuentas_por_pagar, name='cxp'),
     path('tesoreria/movimientos/', datos.movimientos_tesoreria, name='tesoreria'),

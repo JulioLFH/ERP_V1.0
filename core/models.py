@@ -624,8 +624,11 @@ class ArchivoSustento(models.Model):
     """Documento de sustento (PDF, imagen, Excel). Se guarda en la base de datos: el disco de la nube se borra."""
     nombre = models.CharField(max_length=150)
     tipo = models.CharField(max_length=100, blank=True)
-    datos = models.BinaryField()
+    datos = models.BinaryField(blank=True)
     tamano = models.PositiveIntegerField(default=0)
+    ubicacion = models.CharField('Clave en el almacenamiento de objetos', max_length=300, blank=True,
+                                 help_text='Si está, el archivo vive en el almacenamiento de objetos (S3 compatible) '
+                                           'y no en la base de datos')
     subido_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
     creado = models.DateTimeField(auto_now_add=True)
 
@@ -635,6 +638,14 @@ class ArchivoSustento(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    @property
+    def contenido(self):
+        """Bytes del archivo, de la base de datos o del almacenamiento de objetos."""
+        if self.ubicacion:
+            from .almacen_objetos import leer
+            return leer(self.ubicacion)
+        return bytes(self.datos or b'')
 
 
 class Sustento(models.Model):
@@ -704,6 +715,9 @@ class PerfilUsuario(models.Model):
     jefe = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                              related_name='subordinados', verbose_name='Jefe directo',
                              help_text='Aprueba sus rendiciones de gastos (si así lo indican las reglas)')
+    celular = models.CharField(max_length=20, blank=True,
+                               help_text='Con código de país (51...). Identifica al usuario cuando envía gastos por '
+                                         'WhatsApp')
 
     class Meta:
         verbose_name = 'perfil de usuario'

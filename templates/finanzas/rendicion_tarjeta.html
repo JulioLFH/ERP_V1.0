@@ -1,0 +1,40 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ t }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title mb-0">{{ t }}</h1><div class="small text-muted">{{ t.banco }} · titular {{ t.titular.nombre }} · cuenta {{ t.cuenta_contable.codigo }} · {{ e.numero }}</div></div>
+  {% if puede.rendiciones_configurar %}<a href="{% url 'rendiciones:tarjeta_editar' t.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
+</div>
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Consumos rendidos (contabilizados)</div><div class="value">{{ e.simbolo }} {{ e.rendido|money }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Pagado al banco</div><div class="value">{{ e.entregado|money }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Deuda de la tarjeta</div><div class="value {% if deuda > 0 %}text-danger{% endif %}">{{ deuda|money }}</div></div></div>
+</div>
+{% if puede_pagar %}
+<div class="row g-3 mb-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Importar estado de cuenta</div><div class="card-body">
+    <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="importar">
+      <div class="col-md-8"><input type="file" name="archivo" accept=".xlsx,.csv,.txt" class="form-control form-control-sm" required></div>
+      <div class="col-md-4"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-upload"></i> Importar</button></div>
+    </form>
+    <p class="small text-muted mb-0 mt-2">Excel o CSV del banco con las columnas Fecha, Descripción y Monto (Referencia opcional). Los cargos ya importados no se repiten; los abonos se ignoran.</p>
+  </div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Pago de la tarjeta al banco</div><div class="card-body">
+    <form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="pagar">
+      <div class="col-md-5"><select name="cuenta" class="form-select form-select-sm">{% for c in cuentas %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><input name="monto" type="number" step="0.01" min="0" class="form-control form-control-sm" placeholder="Monto" value="{% if deuda > 0 %}{{ deuda|stringformat:'s' }}{% endif %}"></div>
+      <div class="col-md-4"><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+      <div class="col-md-8"><input name="numero_operacion" class="form-control form-control-sm" placeholder="N° operación"></div>
+      <div class="col-md-4"><button class="btn btn-sm btn-outline-primary w-100">Registrar pago</button></div>
+    </form>
+  </div></div></div>
+</div>
+{% endif %}
+<div class="card mb-3"><div class="card-header">Cargos importados</div><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Fecha</th><th>Descripción</th><th>Referencia</th><th class="num">Monto</th><th>Comprobante</th><th>Rendición</th></tr></thead>
+  <tbody>{% for m in movimientos %}<tr><td>{{ m.fecha|date:'d/m/Y' }}</td><td class="small">{{ m.descripcion }}</td><td class="small">{{ m.referencia }}</td><td class="num">{{ m.monto|money }}</td>
+    <td>{% if m.con_comprobante %}<span class="badge text-bg-success">Conciliado</span> <span class="small">{{ m.linea.get_tipo_comprobante_display }} {{ m.linea.documento }}</span>{% else %}<span class="badge text-bg-warning">Sin comprobante · {{ m.dias }} días</span>{% endif %}</td>
+    <td class="small">{% if m.linea %}<a href="{% url 'rendiciones:detalle' m.linea.rendicion_id %}">{{ m.linea.rendicion.numero }}</a>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">Aún no hay cargos importados.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

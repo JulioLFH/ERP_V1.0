@@ -1,0 +1,17 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Cargos sin comprobante{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Cargos de tarjeta sin comprobante</h1>
+  <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>Tarjeta</th><th>Titular</th><th>Fecha</th><th>Descripción</th><th class="num">Monto</th><th class="num">Días</th><th>Tramo</th><th>Rendición</th></tr></thead>
+  <tbody>{% for f in filas %}<tr><td class="small"><a href="{% url 'rendiciones:tarjeta' f.m.tarjeta_id %}">{{ f.m.tarjeta }}</a></td><td class="small">{{ f.m.tarjeta.titular.nombre }}</td><td>{{ f.m.fecha|date:'d/m/Y' }}</td>
+    <td class="small">{{ f.m.descripcion }}</td><td class="num">{{ f.m.monto|money }}</td><td class="num">{{ f.dias }}</td>
+    <td><span class="badge {% if f.tramo == '+30' %}text-bg-danger{% elif f.tramo == '16-30' %}text-bg-warning{% else %}text-bg-light{% endif %}">{{ f.tramo }}</span></td>
+    <td class="small">{% if f.m.linea %}<a href="{% url 'rendiciones:detalle' f.m.linea.rendicion_id %}">{{ f.m.linea.rendicion.numero }}</a>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Todos los cargos tienen su comprobante.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<p class="small text-muted mt-2">El titular sustenta cada cargo editando el gasto en su rendición (foto, QR o XML). Recordatorio diario con <code>manage.py recordar_rendiciones</code> (con más de 30 días también se avisa al jefe).</p>
+{% endblock %}

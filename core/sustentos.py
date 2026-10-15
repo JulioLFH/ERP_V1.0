@@ -39,7 +39,12 @@ def guardar_archivo(archivo, usuario=None, datos=None, nombre=None, tipo=''):
         validar_archivo(archivo)
         archivo.seek(0)
         datos, nombre, tipo = archivo.read(), archivo.name, getattr(archivo, 'content_type', '') or ''
-    return ArchivoSustento.objects.create(nombre=(nombre or 'sustento')[:150], tipo=(tipo or '')[:100], datos=datos,
+    from . import almacen_objetos
+    ubicacion = ''
+    if almacen_objetos.configurado():  # fotos y PDF fuera de la base de datos
+        ubicacion = almacen_objetos.guardar(datos, nombre, tipo)
+    return ArchivoSustento.objects.create(nombre=(nombre or 'sustento')[:150], tipo=(tipo or '')[:100],
+                                          datos=b'' if ubicacion else datos, ubicacion=ubicacion,
                                           tamano=len(datos), subido_por=usuario if usuario and
                                           usuario.is_authenticated else None)
 
@@ -112,6 +117,6 @@ def ver(request, pk):
     s = get_object_or_404(Sustento.objects.select_related('archivo', 'content_type'), pk=pk)
     if not _puede(request, s.content_type):
         raise Http404
-    resp = HttpResponse(bytes(s.archivo.datos), content_type=s.archivo.tipo or 'application/octet-stream')
+    resp = HttpResponse(s.archivo.contenido, content_type=s.archivo.tipo or 'application/octet-stream')
     resp['Content-Disposition'] = f'inline; filename="{s.archivo.nombre}"'
     return resp

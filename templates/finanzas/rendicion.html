@@ -5,6 +5,8 @@
   <div><h1 class="page-title mb-0">Rendición {{ r.numero }} {% include 'finanzas/_estado_rendicion.html' %}</h1>
     <div class="small text-muted">{{ r.descripcion }} · {{ r.fecha|date:'d/m/Y' }} · registrada por {{ r.rendidor.get_full_name|default:r.rendidor.username }}</div></div>
   <div class="d-flex gap-2">
+    {% if puede_editar %}<a href="{% url 'rendiciones:movil' %}" class="btn btn-sm btn-outline-primary" title="Foto, lectura del QR y sin internet"><i class="bi bi-phone"></i> App del celular</a>{% endif %}
+    {% if hay_movilidad %}<a href="{% url 'rendiciones:movilidad' r.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-signpost"></i> Planilla de movilidad</a>{% endif %}
     <a href="{% url 'rendiciones:imprimir' r.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Imprimir o guardar como PDF (con fotos y aprobaciones)"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
     <a href="?formato=excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></a>
   </div>
@@ -29,10 +31,10 @@
     {% for l in lineas %}
       <tr class="{% if l.estado == 'RECHAZADA' %}text-decoration-line-through text-muted{% endif %}">
         <td>{{ l.fecha|date:'d/m/Y' }}</td>
-        <td class="small">{{ l.get_tipo_comprobante_display }}<br>{{ l.documento }}{% if l.tipo_comprobante == '01' %}{% if l.con_credito_fiscal %} <span class="badge text-bg-light" title="Va al registro de compras con crédito fiscal">CF</span>{% else %} <span class="badge text-bg-warning" title="No está a nombre de la empresa">sin CF</span>{% endif %}{% endif %}</td>
+        <td class="small">{{ l.get_tipo_comprobante_display }}{% if l.origen != 'WEB' %} <span class="badge text-bg-light" title="Origen">{{ l.get_origen_display }}</span>{% endif %}<br>{{ l.documento }}{% if l.tipo_comprobante == 'KM' %}{{ l.kilometros }} km{% endif %}{% if l.validado_en %}<br><span class="{% if l.sunat_valido %}text-success{% else %}text-danger{% endif %}" title="Consultado el {{ l.validado_en|date:'d/m/Y H:i' }}"><i class="bi bi-patch-check"></i> {{ l.estado_sunat|truncatechars:40 }}</span>{% endif %}{% if l.tipo_comprobante == '01' %}{% if l.con_credito_fiscal %} <span class="badge text-bg-light" title="Va al registro de compras con crédito fiscal">CF</span>{% else %} <span class="badge text-bg-warning" title="No está a nombre de la empresa">sin CF</span>{% endif %}{% endif %}</td>
         <td class="small">{{ l.ruc }}<br>{{ l.razon_social|truncatechars:30 }}</td>
         <td class="small">{{ l.categoria }}<br><span class="text-muted">{{ l.glosa|truncatechars:40 }}</span></td>
-        <td class="small">{{ l.centro_costo.codigo|default:'' }}{% if l.proyecto %}<br>{{ l.proyecto }}{% endif %}</td>
+        <td class="small">{{ l.centro_costo.codigo|default:'' }}{% if l.proyecto %}<br>{{ l.proyecto.codigo }}{% if l.sitio %} › {{ l.sitio.codigo }}{% endif %}{% endif %}{% if l.destino %}<br>→ {{ l.destino }}{% endif %}</td>
         <td class="num">{% if l.moneda != e.moneda %}<span class="small text-muted">{{ l.moneda }} {{ l.total|money }} × {{ l.tipo_cambio }}</span><br>{% endif %}{{ l.importe|money }}{% if l.tipo_comprobante == '01' %}<div class="small text-muted">IGV {{ l.igv|money }}</div>{% endif %}</td>
         <td class="small">{% for f in l.fotos %}<a href="{% url 'sustento_ver' f.pk %}" target="_blank" title="{{ f.archivo.nombre }}"><i class="bi bi-image"></i></a> {% empty %}<span class="text-muted">—</span>{% endfor %}
           {% if puede_editar %}<form method="post" enctype="multipart/form-data" class="d-inline">{% csrf_token %}<input type="hidden" name="accion" value="foto"><input type="hidden" name="linea" value="{{ l.pk }}"><label class="btn btn-link btn-sm p-0" title="Agregar foto"><i class="bi bi-camera"></i><input type="file" name="fotos" accept="image/*,application/pdf" multiple hidden onchange="this.form.submit()"></label></form>{% endif %}</td>
@@ -40,7 +42,8 @@
         {% if puede_aprobar %}<td>{% if l.estado != 'RECHAZADA' %}<select name="decision_{{ l.pk }}" form="form-aprobar" class="form-select form-select-sm mb-1" data-sin-buscador><option value="APROBADA">Aprobar</option><option value="OBSERVADA">Observar</option><option value="RECHAZADA">Rechazar</option></select><input name="nota_{{ l.pk }}" form="form-aprobar" class="form-control form-control-sm" placeholder="Comentario (si observa o rechaza)">{% endif %}</td>{% endif %}
         <td class="text-nowrap">{% if puede_editar and l.estado != 'RECHAZADA' %}<a href="?editar={{ l.pk }}#form-gasto" class="btn btn-sm btn-link p-0" title="Editar"><i class="bi bi-pencil"></i></a>
           <form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="accion" value="quitar_linea"><input type="hidden" name="linea" value="{{ l.pk }}"><button class="btn btn-sm btn-link text-danger p-0" data-confirm="¿Quitar este gasto?"><i class="bi bi-trash"></i></button></form>{% endif %}
-          {% if l.compra_id %}<a href="{% url 'compras:detalle' l.compra_id %}" class="small" title="Registro de compras">compra</a>{% endif %}</td>
+          {% if l.compra_id %}<a href="{% url 'compras:detalle' l.compra_id %}" class="small" title="Registro de compras">compra</a>{% endif %}
+          {% if l.tipo_comprobante in '01 03 02' and l.numero and not l.compra_id and l.estado != 'RECHAZADA' %}<form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="accion" value="validar"><input type="hidden" name="linea" value="{{ l.pk }}"><button class="btn btn-sm btn-link p-0" title="Validar en SUNAT"><i class="bi bi-patch-check"></i></button></form>{% endif %}</td>
       </tr>
       {% if l.alertas %}<tr class="table-warning"><td></td><td colspan="{% if puede_aprobar %}9{% else %}8{% endif %}" class="small"><i class="bi bi-exclamation-triangle"></i> Fuera de política: {{ l.alertas }}{% if l.justificacion %} · <b>Justificación:</b> {{ l.justificacion }}{% elif puede_editar %} · <a href="?editar={{ l.pk }}#form-gasto">escriba la justificación</a>{% endif %}</td></tr>{% endif %}
     {% empty %}<tr><td colspan="10" class="text-center text-muted py-3">Aún no registra gastos.</td></tr>{% endfor %}
@@ -124,7 +127,11 @@
   function ajustar() {
     var factura = tipo.value === '01', conRuc = tipo.value === '01' || tipo.value === '02';
     document.querySelectorAll('.campo-base, .campo-igv, .campo-a_nombre_empresa').forEach(function (c) { c.style.display = factura ? '' : 'none'; });
-    document.querySelectorAll('.campo-serie').forEach(function (c) { c.style.display = (tipo.value === 'SC') ? 'none' : ''; });
+    var sinDoc = ['SC', 'PM', 'KM'].indexOf(tipo.value) >= 0;
+    document.querySelectorAll('.campo-serie, .campo-numero, .campo-ruc, .campo-razon_social').forEach(function (c) { c.style.display = sinDoc ? 'none' : ''; });
+    document.querySelectorAll('.campo-kilometros').forEach(function (c) { c.style.display = tipo.value === 'KM' ? '' : 'none'; });
+    document.querySelectorAll('.campo-total').forEach(function (c) { c.style.display = tipo.value === 'KM' ? 'none' : ''; });
+    document.querySelectorAll('.campo-destino').forEach(function (c) { c.style.display = tipo.value === 'PM' ? '' : 'none'; });
     var ruc = document.querySelector('.campo-ruc label');
     if (ruc) ruc.firstChild.textContent = conRuc ? 'RUC del proveedor ' : 'RUC / DNI del proveedor ';
   }

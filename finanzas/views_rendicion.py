@@ -131,6 +131,18 @@ def detalle(request, pk):
                 for archivo in request.FILES.getlist('fotos'):
                     sustentos.adjuntar(linea, archivo, request.user, 'Comprobante del gasto')
                 messages.success(request, 'Foto agregada.')
+            elif accion == 'validar':
+                from .comprobantes import ErrorLectura, validar_en_sunat
+                linea = get_object_or_404(r.lineas, pk=request.POST.get('linea'))
+                try:
+                    res = validar_en_sunat(linea)
+                except ErrorLectura as exc:
+                    raise rd.ErrorRendicion(str(exc))
+                if res is None:
+                    raise rd.ErrorRendicion('No aplica (solo comprobantes electrónicos) o faltan las credenciales de '
+                                            'la API SUNAT en Ajustes › Empresa.')
+                rd.evaluar(r)
+                (messages.success if res['valido'] else messages.error)(request, f'SUNAT: {res["detalle"]}')
             elif accion == 'enviar':
                 rd.enviar(r, request.user, request.POST.get('comentario', ''))
                 messages.success(request, f'{r.numero} enviada para aprobación.')
@@ -166,7 +178,7 @@ def detalle(request, pk):
                 return redirect('rendiciones:detalle', pk)
     if request.GET.get('formato') == 'excel':
         return _excel(r)
-    lineas = list(r.lineas.select_related('categoria', 'centro_costo', 'compra'))
+    lineas = list(r.lineas.select_related('categoria', 'centro_costo', 'compra', 'proyecto', 'sitio'))
     for l in lineas:
         l.fotos = list(sustentos.de(l))
     entrega = r.entrega
@@ -182,7 +194,7 @@ def detalle(request, pk):
         'en_tramite': en_tramite, 'por_rendir': entrega.saldo - en_tramite, 'por_reembolsar': -entrega.saldo,
         'historial': r.historial.select_related('usuario'),
         'cuentas': Cuenta.objects.filter(activo=True, moneda=entrega.moneda), 'hoy': date.today(),
-        'ct_linea': _ct(LineaGasto)})
+        'ct_linea': _ct(LineaGasto), 'hay_movilidad': any(l.tipo_comprobante == 'PM' for l in lineas)})
 
 
 def _ct(modelo):
@@ -192,7 +204,8 @@ def _ct(modelo):
 
 def _excel(r):
     filas = [[fmt_fecha(l.fecha), l.get_tipo_comprobante_display(), l.ruc, l.razon_social, l.documento,
-              l.categoria.nombre, l.centro_costo.codigo if l.centro_costo else '', l.proyecto, l.glosa, l.moneda,
+              l.categoria.nombre, l.centro_costo.codigo if l.centro_costo else '',
+              f'{l.proyecto or ""} {l.sitio or ""}'.strip(), l.glosa, l.moneda,
               l.base, l.igv, l.total, l.importe, l.get_estado_display(), l.alertas, l.justificacion, l.comentario]
              for l in r.lineas.select_related('categoria', 'centro_costo')]
     return excel_response(f'rendicion_{r.numero}', f'Rendición {r.numero} - {r.entrega.responsable.nombre}',
@@ -204,7 +217,7 @@ def _excel(r):
 @login_required
 def imprimir(request, pk):
     r = get_object_or_404(rd.visibles(request.user).select_related('entrega__responsable', 'rendidor'), pk=pk)
-    lineas = list(r.lineas.select_related('categoria', 'centro_costo'))
+    lineas = list(r.lineas.select_related('categoria', 'centro_costo', 'proyecto', 'sitio'))
     for l in lineas:
         l.fotos = [s for s in sustentos.de(l) if (s.archivo.tipo or '').startswith('image/')]
         l.pdfs = [s for s in sustentos.de(l) if not (s.archivo.tipo or '').startswith('image/')]

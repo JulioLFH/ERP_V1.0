@@ -104,11 +104,19 @@ def errores_linea(linea):
             e.append('indique la serie y el número del comprobante')
     if linea.tipo_comprobante == '01' and linea.base + linea.igv > linea.total + Decimal('0.05'):
         e.append('base + IGV no puede superar el total')
-    if not linea.centro_costo_id and (linea.categoria.exige_centro or
+    if not centro_de(linea) and (linea.categoria.exige_centro or
                                       exige_centro(linea.categoria.cuenta_contable.codigo)):
         e.append(f'{linea.categoria} exige centro de costo')
     if linea.con_credito_fiscal and linea.moneda != linea.rendicion.entrega.moneda:
         e.append('una factura con crédito fiscal debe estar en la moneda de la entrega')
+    if linea.tipo_comprobante == 'KM' and (linea.kilometros <= 0 or not linea.categoria.tarifa_km):
+        e.append('kilometraje: indique los km en una categoría con tarifa por km')
+    if linea.categoria.exige_proyecto and not linea.proyecto_id:
+        e.append(f'{linea.categoria} exige proyecto')
+    if linea.sitio_id and linea.sitio.proyecto_id != linea.proyecto_id:
+        e.append('el sitio no pertenece al proyecto')
+    if linea.sunat_valido is False:
+        e.append(f'SUNAT: {linea.estado_sunat}')
     dup = duplicado(linea)
     if dup:
         e.append(dup)
@@ -150,9 +158,10 @@ def evaluar(rendicion, guardar=True):
         cat = l.categoria
         if cat.pk in no_permitidas:
             alertas[l.pk].append('categoría no permitida para su cargo')
-        sin_comprobante = l.tipo_comprobante == 'SC' or (l.tipo_comprobante != 'PM' and not l.numero)
-        if sin_comprobante and (cat.exige_comprobante or (pol and pol.comprobante_obligatorio)):
+        if l.sin_comprobante and (cat.exige_comprobante or (pol and pol.comprobante_obligatorio)):
             alertas[l.pk].append('sin comprobante')
+        if l.ruc_estado and any(m in l.ruc_estado for m in ('BAJA', 'SUSPENSION', 'NO HABIDO', 'NO HALLADO')):
+            alertas[l.pk].append(f'proveedor con {l.ruc_estado}')
         if cat.tope and pen > cat.tope:
             alertas[l.pk].append(f'supera el tope por gasto de {cat} (S/ {cat.tope:,.2f})')
         if pol and pol.dias_para_rendir:
@@ -292,10 +301,23 @@ def quitar_linea(r, linea, usuario):
     linea.delete()
 
 
-@transaction.atomic
 def enviar(r, usuario, comentario=''):
     _exigir_editable(r, usuario)
-    lineas = list(r.lineas.exclude(estado='RECHAZADA').select_related('categoria__cuenta_contable', 'rendicion__entrega'))
+    from .comprobantes import ErrorLectura, validar_en_sunat
+    # comprobantes electrónicos sin validar: se consultan en SUNAT (si hay credenciales); el resultado queda guardado
+    # aunque el envío se rechace
+    for l in r.lineas.exclude(estado='RECHAZADA').filter(validado_en__isnull=True):
+        try:
+            validar_en_sunat(l)
+        except ErrorLectura as exc:
+            log.info('Validación SUNAT omitida (%s): %s', l.documento, exc)
+    return _enviar(r, usuario, comentario)
+
+
+@transaction.atomic
+def _enviar(r, usuario, comentario):
+    lineas = list(r.lineas.exclude(estado='RECHAZADA').select_related('categoria__cuenta_contable', 'rendicion__entrega',
+                                                                       'sitio'))
     if not lineas:
         raise ErrorRendicion('Agregue al menos un gasto.')
     errores = [f'{l.documento or l.glosa}: {"; ".join(errores_linea(l))}' for l in lineas if errores_linea(l)]
@@ -390,7 +412,7 @@ def _registrar_factura(linea, entrega, fecha, usuario):
     c = Compra(tercero=proveedor, tipo_comprobante='01', serie=linea.serie.upper(), numero=linea.numero,
                fecha_emision=linea.fecha, periodo=fecha.strftime('%Y%m'), moneda=linea.moneda,
                tipo_cambio=linea.tipo_cambio if linea.moneda == 'USD' else Decimal('1'), clasificacion='GASTO',
-               cuenta_contable=linea.categoria.cuenta_contable, centro_costo=linea.centro_costo,
+               cuenta_contable=linea.categoria.cuenta_contable, centro_costo=centro_de(linea),
                ingresar_almacen=False, forma_pago='CONTADO',
                glosa=f'Rendición {linea.rendicion.numero}: {linea.glosa}'[:500])
     c.save()
@@ -406,15 +428,25 @@ def _registrar_factura(linea, entrega, fecha, usuario):
     return c
 
 
-_DOCUMENTO_GASTO = {'03': '03', '12': '12', 'PM': 'PM', 'SC': 'RI'}
+_DOCUMENTO_GASTO = {'03': '03', '12': '12', 'PM': 'PM', 'SC': 'RI', 'KM': 'RI'}
+
+
+def centro_de(linea):
+    """Centro de costo del gasto; si no tiene, el de su proyecto."""
+    return linea.centro_costo or (linea.proyecto.centro_costo if linea.proyecto_id else None)
 
 
 def _registrar_gasto(linea, entrega, fecha, usuario):
+    detalle = f' · {linea.proyecto.codigo}' if linea.proyecto_id else ''
+    if linea.sitio_id:
+        detalle += f'/{linea.sitio.codigo}'
+    if linea.tipo_comprobante == 'KM':
+        detalle += f' · {linea.kilometros} km'
     g = GastoRendicion(fecha=fecha, tipo_documento=_DOCUMENTO_GASTO.get(linea.tipo_comprobante, '00'),
                        numero_documento=linea.documento[:30],
                        proveedor=f'{linea.ruc} {linea.razon_social}'.strip()[:150],
-                       descripcion=f'{linea.glosa} ({linea.fecha:%d/%m/%Y})'[:200],
-                       cuenta_contable=linea.categoria.cuenta_contable, centro_costo=linea.centro_costo,
+                       descripcion=f'{linea.glosa} ({linea.fecha:%d/%m/%Y}){detalle}'[:200],
+                       cuenta_contable=linea.categoria.cuenta_contable, centro_costo=centro_de(linea),
                        monto=linea.importe)
     return op.rendir_gasto(entrega, g, usuario)
 
@@ -433,7 +465,8 @@ def contabilizar(r, usuario, fecha=None):
     entrega = r.entrega
     if entrega.estado != 'ABIERTA':
         raise ErrorRendicion(f'{entrega.numero} está liquidada.')
-    for linea in r.lineas.filter(estado='APROBADA').select_related('categoria__cuenta_contable', 'centro_costo'):
+    for linea in r.lineas.filter(estado='APROBADA').select_related('categoria__cuenta_contable', 'centro_costo',
+                                                                   'proyecto__centro_costo', 'sitio'):
         try:
             if linea.con_credito_fiscal:
                 linea.compra = _registrar_factura(linea, entrega, fecha, usuario)
@@ -599,7 +632,7 @@ TERMINADAS = ('APROBADA', 'CONTABILIZADA', 'REEMBOLSADA', 'DEVUELTA')
 def tablero(desde, hasta):
     lineas = list(LineaGasto.objects.filter(rendicion__estado__in=TERMINADAS, fecha__range=[desde, hasta])
                   .exclude(estado='RECHAZADA')
-                  .select_related('categoria', 'centro_costo', 'rendicion__entrega__responsable'))
+                  .select_related('categoria', 'centro_costo', 'proyecto', 'rendicion__entrega__responsable'))
     def agrupar(clave):
         d = defaultdict(lambda: D0)
         for l in lineas:
@@ -616,6 +649,7 @@ def tablero(desde, hasta):
         'por_centro': agrupar(lambda l: f'{l.centro_costo.codigo} {l.centro_costo.nombre}' if l.centro_costo else
                               'Sin centro de costo'),
         'por_persona': agrupar(lambda l: l.rendicion.entrega.responsable.nombre),
+        'por_proyecto': agrupar(lambda l: str(l.proyecto) if l.proyecto_id else 'Sin proyecto'),
         'por_mes': sorted(agrupar(lambda l: l.fecha.strftime('%Y-%m')), key=lambda x: x[0]),
         'fuera_politica': len(fuera), 'fuera_monto': sum((_pen(l) for l in fuera), D0),
         'pendientes': Rendicion.objects.filter(estado__in=('ENVIADA', 'EN_REVISION', 'OBSERVADA')).count(),
@@ -629,7 +663,8 @@ def antiguedad(hoy=None):
     """Por entrega abierta: entregado, rendido, saldo y días desde la entrega en tramos 0-15, 16-30 y más de 30."""
     hoy = hoy or timezone.localdate()
     filas = []
-    for e in EntregaRendir.objects.filter(estado='ABIERTA').select_related('responsable').order_by('fecha'):
+    for e in (EntregaRendir.objects.filter(estado='ABIERTA').exclude(tipo='TARJETA').select_related('responsable')
+              .order_by('fecha')):
         saldo = e.saldo
         if saldo == 0:
             continue
@@ -637,4 +672,155 @@ def antiguedad(hoy=None):
         tramo = '0-15' if dias <= 15 else '16-30' if dias <= 30 else '+30'
         filas.append({'e': e, 'entregado': e.entregado, 'rendido': e.rendido, 'devuelto': e.devuelto,
                       'saldo': saldo, 'dias': dias, 'tramo': tramo})
+    return filas
+
+
+# ---------------------------------------------------------------- borradores recibidos (app, WhatsApp, correo, API)
+def rendicion_abierta(user, crear=True, titulo='Gastos recibidos'):
+    """La rendición en borrador (u observada) más reciente del usuario; si no hay, una nueva en su entrega abierta
+    más reciente."""
+    r = (Rendicion.objects.filter(rendidor=user, estado__in=Rendicion.EDITABLES, entrega__estado='ABIERTA')
+         .exclude(entrega__tipo='TARJETA').order_by('-fecha', '-id').first())
+    if r is not None or not crear:
+        return r
+    t = trabajador_de(user)
+    entrega = (EntregaRendir.objects.filter(estado='ABIERTA', responsable=t).exclude(tipo='TARJETA')
+               .order_by('-fecha', '-id').first()) if t else None
+    if entrega is None:
+        raise ErrorRendicion('No tiene una entrega a rendir ni caja chica abierta a su nombre.')
+    return _crear_simple(entrega, user, titulo)
+
+
+def _crear_simple(entrega, user, titulo):
+    r = Rendicion.objects.create(entrega=entrega, rendidor=user, descripcion=titulo[:200])
+    _historial(r, user, '', 'BORRADOR', titulo)
+    return r
+
+
+def borrador_recibido(user, datos, archivos=(), origen='MOVIL', rendicion=None):
+    """Crea un gasto en borrador con los datos leídos (QR, XML o IA) y adjunta los archivos [(bytes, nombre, tipo)].
+    El rendidor completa y confirma antes de enviar."""
+    from core.sustentos import guardar_archivo, vincular
+    from .models import ConfigRendicion
+    r = rendicion or rendicion_abierta(user)
+    if not r.editable:
+        raise ErrorRendicion(f'{r.numero} ya no se modifica.')
+    categoria = datos.get('categoria') or ConfigRendicion.actual().categoria_defecto or \
+        CategoriaGasto.objects.filter(activo=True).first()
+    if categoria is None:
+        raise ErrorRendicion('Registre al menos una categoría de gasto.')
+    linea = LineaGasto(
+        rendicion=r, fecha=datos.get('fecha') or timezone.localdate(), tipo_comprobante=datos.get('tipo_comprobante') or '12',
+        ruc=(datos.get('ruc') or '')[:11], razon_social=(datos.get('razon_social') or '')[:200],
+        serie=(datos.get('serie') or '')[:4], numero=(datos.get('numero') or '')[:10],
+        a_nombre_empresa=datos.get('a_nombre_empresa', True), moneda=datos.get('moneda') or r.entrega.moneda,
+        base=datos.get('base') or D0, igv=datos.get('igv') or D0, total=datos.get('total') or D0,
+        categoria=categoria, centro_costo=r.entrega.centro_costo, origen=origen,
+        glosa=(datos.get('glosa') or f'Recibido por {dict(LineaGasto.ORIGENES)[origen].lower()}')[:200])
+    if linea.moneda == 'USD' and r.entrega.moneda != 'USD':
+        from core.tipo_cambio import venta_del_dia
+        linea.tipo_cambio = venta_del_dia(linea.fecha) or Decimal('1')
+    linea.save()
+    for contenido, nombre, tipo in archivos:
+        vincular(linea, guardar_archivo(None, user, datos=contenido, nombre=nombre, tipo=tipo), user,
+                 f'Comprobante recibido ({dict(LineaGasto.ORIGENES)[origen]})')
+    evaluar(r)
+    return linea
+
+
+# ---------------------------------------------------------------- tarjetas corporativas
+def crear_tarjeta(tarjeta, usuario):
+    """Guarda la tarjeta y su fondo (entrega de tipo tarjeta, contra la cuenta por pagar de la tarjeta)."""
+    with transaction.atomic():
+        if tarjeta.entrega_id is None:
+            e = EntregaRendir(tipo='TARJETA', responsable=tarjeta.titular, moneda=tarjeta.moneda,
+                              cuenta_contable=tarjeta.cuenta_contable, centro_costo=tarjeta.centro_costo,
+                              motivo=f'Tarjeta {tarjeta.nombre} ****{tarjeta.ultimos4}'[:250], creado_por=usuario)
+            e.save()
+            tarjeta.entrega = e
+        else:
+            EntregaRendir.objects.filter(pk=tarjeta.entrega_id).update(
+                responsable=tarjeta.titular, cuenta_contable=tarjeta.cuenta_contable, centro_costo=tarjeta.centro_costo)
+        tarjeta.save()
+    return tarjeta
+
+
+def _filas_estado_cuenta(archivo):
+    """[(fecha, descripción, referencia, monto)] de un Excel o CSV del banco (columnas fecha, descripción, monto;
+    referencia opcional). Los abonos (montos negativos o pagos) se ignoran."""
+    from compras.sire import _dec as dec, _fecha as fecha_de, _filas, _norm
+    filas = _filas(archivo)
+    for i, fila in enumerate(filas[:20]):
+        enc = [_norm(c) for c in fila]
+        if any(e.startswith('fecha') for e in enc) and any(e.startswith(('monto', 'importe', 'cargo')) for e in enc):
+            break
+    else:
+        raise ErrorRendicion('No se reconoce el estado de cuenta: se esperan las columnas Fecha, Descripción y Monto.')
+    col = lambda *p: next((j for j, e in enumerate(enc) if e.startswith(p)), None)
+    c_fecha, c_desc = col('fecha'), col('descripcion', 'detalle', 'concepto', 'establecimiento')
+    c_monto, c_ref = col('monto', 'importe', 'cargo'), col('referencia', 'operacion', 'nro')
+    salida = []
+    for fila in filas[i + 1:]:
+        if c_fecha is None or c_monto is None or len(fila) <= max(c_fecha, c_monto):
+            continue
+        fecha, monto = fecha_de(fila[c_fecha]), dec(fila[c_monto])
+        if fecha is None or monto <= 0:
+            continue
+        desc = str(fila[c_desc] if c_desc is not None and c_desc < len(fila) else '').strip() or 'Consumo'
+        ref = str(fila[c_ref] if c_ref is not None and c_ref < len(fila) else '').strip()
+        salida.append((fecha, desc[:200], ref[:60], monto))
+    return salida
+
+
+@transaction.atomic
+def importar_estado_cuenta(tarjeta, archivo, usuario):
+    """Un cargo = un gasto sin comprobante en la rendición del estado de cuenta, que el titular sustenta (concilia)
+    con su comprobante. Los cargos ya importados no se repiten."""
+    from .models import MovimientoTarjeta
+    filas = _filas_estado_cuenta(archivo)
+    if not filas:
+        raise ErrorRendicion('El archivo no tiene cargos.')
+    nuevos = []
+    for fecha, desc, ref, monto in filas:
+        mov, creado = MovimientoTarjeta.objects.get_or_create(tarjeta=tarjeta, fecha=fecha, descripcion=desc,
+                                                              monto=monto, referencia=ref)
+        if creado:
+            nuevos.append(mov)
+    if not nuevos:
+        return None, 0
+    user = PerfilUsuario.objects.filter(trabajador=tarjeta.titular).values_list('usuario', flat=True).first()
+    rendidor = get_user_model().objects.get(pk=user) if user else usuario
+    hasta = max(m.fecha for m in nuevos)
+    r = _crear_simple(tarjeta.entrega, rendidor, f'Estado de cuenta {tarjeta} al {hasta:%d/%m/%Y}')
+    for m in nuevos:
+        m.linea = LineaGasto.objects.create(
+            rendicion=r, fecha=m.fecha, tipo_comprobante='SC', moneda=tarjeta.moneda, total=m.monto, base=m.monto,
+            categoria=tarjeta.categoria_defecto, centro_costo=tarjeta.centro_costo, origen='TARJETA',
+            glosa=f'{m.descripcion} {m.referencia}'.strip()[:200])
+        m.save(update_fields=['linea'])
+    evaluar(r)
+    return r, len(nuevos)
+
+
+def pagar_tarjeta(tarjeta, cuenta, monto, fecha, usuario, numero_operacion=''):
+    """Pago del estado de cuenta al banco: cancela la deuda de la tarjeta (egreso contra su cuenta por pagar)."""
+    try:
+        return op._mov_entrega(tarjeta.entrega, cuenta, fecha, 'EGRESO', monto, usuario,
+                               f'Pago de la tarjeta {tarjeta}', numero_operacion)
+    except op.ErrorTesoreria as exc:
+        raise ErrorRendicion(str(exc))
+
+
+def sin_comprobante(hoy=None):
+    """Cargos de tarjeta pendientes de comprobante, con su antigüedad."""
+    from .models import MovimientoTarjeta
+    hoy = hoy or timezone.localdate()
+    filas = []
+    for m in MovimientoTarjeta.objects.select_related('tarjeta__titular', 'linea__rendicion').order_by('fecha'):
+        if m.linea_id and not m.linea.sin_comprobante:
+            continue
+        if m.linea_id and m.linea.estado == 'RECHAZADA':
+            continue
+        dias = (hoy - m.fecha).days
+        filas.append({'m': m, 'dias': dias, 'tramo': '0-15' if dias <= 15 else '16-30' if dias <= 30 else '+30'})
     return filas

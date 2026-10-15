@@ -472,7 +472,7 @@ def producto_imagen(request, pk):
     p = get_object_or_404(Producto.objects.select_related('imagen'), pk=pk)
     if p.imagen is None:
         raise Http404
-    resp = HttpResponse(bytes(p.imagen.datos), content_type=p.imagen.tipo or 'application/octet-stream')
+    resp = HttpResponse(p.imagen.contenido, content_type=p.imagen.tipo or 'application/octet-stream')
     resp['Cache-Control'] = 'private, max-age=3600'
     resp['X-Content-Type-Options'] = 'nosniff'
     return resp

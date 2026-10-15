@@ -1,0 +1,9 @@
+{% extends 'proveedores/correo_base.html' %}{% load erp_tags %}
+{% block cuerpo %}
+<p>{{ titular.nombre }} tiene <b>{{ filas|length }} cargo(s) de tarjeta corporativa sin comprobante</b>:</p>
+<table style="width:100%; border-collapse:collapse; font-size:13px;">
+  <tr style="background:#f0f3f7;"><th style="text-align:left;padding:6px;border:1px solid #dfe3ea;">Fecha</th><th style="text-align:left;padding:6px;border:1px solid #dfe3ea;">Detalle</th><th style="text-align:right;padding:6px;border:1px solid #dfe3ea;">Monto</th><th style="text-align:right;padding:6px;border:1px solid #dfe3ea;">Días</th></tr>
+  {% for f in filas %}<tr><td style="padding:6px;border:1px solid #dfe3ea;">{{ f.m.fecha|date:'d/m/Y' }}</td><td style="padding:6px;border:1px solid #dfe3ea;">{{ f.m.descripcion }}</td><td style="text-align:right;padding:6px;border:1px solid #dfe3ea;">{{ f.m.monto|money }}</td><td style="text-align:right;padding:6px;border:1px solid #dfe3ea;">{{ f.dias }}</td></tr>{% endfor %}
+</table>
+<p>Suba la foto del comprobante de cada cargo en el módulo <b>Rendición de gastos</b> (o desde la app del celular).</p>
+{% endblock %}

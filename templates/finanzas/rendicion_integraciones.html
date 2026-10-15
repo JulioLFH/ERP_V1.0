@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Integraciones de rendiciones{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Rendición de gastos: integraciones</h1>
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="kpi"><div class="label">Validación SUNAT de comprobantes</div><div class="fw-semibold {% if sunat %}text-success{% else %}text-muted{% endif %}">{% if sunat %}Activa{% else %}Sin credenciales{% endif %}</div><div class="small text-muted">Credenciales API SUNAT en Ajustes › Empresa</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="label">Fotos y PDF</div><div class="fw-semibold">{% if objetos %}Almacenamiento de objetos{% else %}En la base de datos{% endif %}</div><div class="small text-muted">Variables OBJETOS_* del servidor; <code>manage.py mover_sustentos</code></div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="label">Consulta RUC</div><div class="fw-semibold">Token de Decolecta</div><div class="small text-muted">El mismo del tipo de cambio SBS (Ajustes › Empresa)</div></div></div>
+</div>
+<form method="post" class="card" style="max-width:980px">{% csrf_token %}<div class="card-body">
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  <div class="row g-3">
+    <div class="col-md-6">{% with field=form.categoria_defecto %}{% include 'core/_campo.html' %}{% endwith %}</div>
+    <div class="col-12"><h6 class="mt-2 mb-0"><i class="bi bi-stars"></i> Lectura de comprobantes sin QR (IA)</h6><div class="small text-muted">Tickets y boletas físicas: lee RUC, fecha, número y total de la foto con Claude (Anthropic). El rendidor confirma los datos antes de enviar. Se usa la reserva automática de modelo del servidor si el modelo principal no procesa una imagen.</div></div>
+    {% for field in grupos.ia %}<div class="col-md-4">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12"><h6 class="mt-2 mb-0"><i class="bi bi-whatsapp"></i> WhatsApp Business (Cloud API)</h6><div class="small text-muted">El trabajador envía la foto al número de la empresa; se identifica por el celular de su usuario. URL del webhook para Meta: <code>{{ webhook }}</code> (campo «messages»).</div></div>
+    {% for field in grupos.whatsapp %}<div class="col-md-4">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12"><h6 class="mt-2 mb-0"><i class="bi bi-envelope"></i> Buzón de comprobantes (correo)</h6><div class="small text-muted">Los trabajadores reenvían el PDF/XML a esta dirección; el comando <code>manage.py leer_correo_rendiciones</code> (cada pocos minutos) crea los borradores en la rendición abierta del remitente.</div></div>
+    {% for field in grupos.correo %}<div class="col-md-4">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div>
+  <div class="mt-4"><button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button></div>
+</div></form>
+{% endblock %}

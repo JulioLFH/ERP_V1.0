@@ -43,18 +43,24 @@ def _de_sesion(request):
     return datos['periodo'], registros
 
 
+def _rend(x):
+    return x['rendicion'].rendicion.numero if x.get('rendicion') else ''
+
+
 def _excel(periodo, r):
-    filas = [['Coincide', x['ruc'], x['nombre'], x['tipo'], x['serie'], x['numero'], x['total'], x['compra'].total, 0]
-             for x in r['coinciden']]
+    filas = [['Coincide', x['ruc'], x['nombre'], x['tipo'], x['serie'], x['numero'], x['total'], x['compra'].total, 0,
+              _rend(x)] for x in r['coinciden']]
     filas += [['Diferencia de importe', x['ruc'], x['nombre'], x['tipo'], x['serie'], x['numero'], x['total'],
-               x['compra'].total, x['dif']] for x in r['diferencias']]
-    filas += [['Solo en SUNAT' + (' (registrada en otro periodo)' if x['otro_periodo'] else ''), x['ruc'],
-               x['nombre'], x['tipo'], x['serie'], x['numero'], x['total'], None, None] for x in r['solo_sunat']]
+               x['compra'].total, x['dif'], _rend(x)] for x in r['diferencias']]
+    filas += [['Solo en SUNAT' + (' (registrada en otro periodo)' if x['otro_periodo'] else
+                                  ' (nadie la rindió)' if x['nadie_rindio'] else ''), x['ruc'],
+               x['nombre'], x['tipo'], x['serie'], x['numero'], x['total'], None, None, _rend(x)]
+              for x in r['solo_sunat']]
     filas += [['Solo en el ERP', c.tercero.numero_doc, c.tercero.nombre, c.tipo_comprobante, c.serie, c.numero,
-               None, c.total, None] for c in r['solo_erp']]
+               None, c.total, None, ''] for c in r['solo_erp']]
     return excel_response(f'Cruce_SIRE_compras_{periodo}', f'CRUCE PROPUESTA SIRE (RCE) {periodo}',
                           ['Resultado', 'RUC', 'Proveedor', 'Tipo', 'Serie', 'Número', 'Total SUNAT', 'Total ERP',
-                           'Diferencia'], filas)
+                           'Diferencia', 'Rendición de gastos'], filas)
 
 
 @login_required

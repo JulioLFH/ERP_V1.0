@@ -3,6 +3,23 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.28.0 — 14/10/2026 · Rendición de gastos: app del celular, fases 2 y 3
+- **App del celular instalable** (Rendición de gastos › App del celular): se instala desde el navegador en Android y iPhone, entra con el usuario de Ceiba (con verificación en dos pasos) y **funciona sin internet**: guarda los gastos y sus fotos en el teléfono y los sube solos al recuperar la señal, sin duplicarlos.
+- **Foto del comprobante**: cámara o galería, varias fotos por gasto, recorte con el dedo, giro y compresión a menos de 1 MB antes de subir.
+- **Lectura del QR SUNAT**: llena RUC, tipo, serie, número, IGV, total y fecha, y avisa si la factura no está a nombre del RUC de la empresa (sin crédito fiscal).
+- **Consulta RUC**: razón social, estado y condición (con el token de Decolecta o lo registrado en el sistema); alerta si no está activo o habido.
+- **Validación del comprobante en SUNAT** (API de consulta de validez): se consulta al enviar o con el botón de cada gasto; guarda el resultado y la fecha; un comprobante anulado o inexistente no se puede enviar.
+- **Planilla de movilidad** imprimible por día (fecha, motivo, destino, monto) con el tope diario de 4% de la RMV, declaración y firma del trabajador.
+- **Lectura con IA de tickets y boletas sin QR** (Claude, de Anthropic): sugiere RUC, fecha, número y total desde la foto; el rendidor confirma antes de enviar. Se activa en Integraciones.
+- **Kilometraje** en vehículo propio: km × tarifa por km de la categoría.
+- **Proyectos y sitios**: el gasto de los técnicos en campo se carga al proyecto y sitio (obligatorio según la categoría); sin centro de costo usa el del proyecto. Tablero por proyecto.
+- **Tarjetas corporativas**: se importa el estado de cuenta (Excel o CSV), cada cargo es un gasto que el titular concilia con su comprobante; contabilidad contra la cuenta por pagar de la tarjeta y registro del pago al banco. **Cargos sin comprobante** con antigüedad y recordatorio al titular (y a su jefe pasados 30 días).
+- **Gastos por WhatsApp** (WhatsApp Business Cloud API): el trabajador envía la foto al número de la empresa, se identifica por su celular, se lee el comprobante y se crea el borrador; recibe la confirmación por WhatsApp.
+- **Gastos por correo**: un buzón recibe los PDF/XML reenviados y crea borradores en la rendición abierta del remitente (el XML llena los datos exactos).
+- **Cruce con SIRE**: marca las facturas que llegaron por rendición y avisa de las facturas a nombre de la empresa que nadie rindió ni registró.
+- **API REST**: `/api/v1/rendiciones/` (lista y detalle), categorías y `POST /api/v1/rendiciones/{id}/gastos/` con foto en base64.
+- **Fotos y PDF en almacenamiento de objetos** (S3 compatible: AWS, Cloudflare R2, Spaces, Backblaze) con las variables `OBJETOS_*`, y el comando `mover_sustentos` para trasladar lo que hoy está en la base de datos; conservación y respaldo se configuran en el bucket.
+
 ## v1.27.0 — 14/10/2026 · Módulo de rendición de gastos (fase 1)
 - **Nuevo módulo «Rendición de gastos»** sobre las entregas a rendir y cajas chicas de Finanzas: cada rendición muestra lo entregado, lo rendido, lo que está en trámite y el saldo en poder del responsable.
 - **Estados con bitácora**: borrador → enviada → en revisión → aprobada / observada / rechazada → contabilizada → reembolsada o devuelta; cada cambio guarda usuario, fecha y comentario (y la auditoría de Ceiba registra altas, cambios y eliminaciones).

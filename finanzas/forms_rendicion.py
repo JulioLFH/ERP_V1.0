@@ -6,7 +6,8 @@ from django.contrib.auth import get_user_model
 from contabilidad.models import CentroCosto
 from core.forms import BootstrapMixin, remoto
 
-from .models import CategoriaGasto, LineaGasto, PoliticaGasto, ReglaAprobacion, Rendicion
+from .models import (CategoriaGasto, ConfigRendicion, LineaGasto, PoliticaGasto, Proyecto, ReglaAprobacion,
+                     Rendicion, Sitio, TarjetaCorporativa)
 
 
 class MultiplesArchivos(forms.ClearableFileInput):
@@ -54,15 +55,18 @@ class LineaGastoForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = LineaGasto
         fields = ['fecha', 'tipo_comprobante', 'ruc', 'razon_social', 'serie', 'numero', 'a_nombre_empresa',
-                  'moneda', 'tipo_cambio', 'base', 'igv', 'total', 'categoria', 'centro_costo', 'proyecto', 'glosa',
-                  'justificacion']
+                  'moneda', 'tipo_cambio', 'base', 'igv', 'total', 'kilometros', 'categoria', 'centro_costo',
+                  'proyecto', 'sitio', 'destino', 'glosa', 'justificacion']
         widgets = {'fecha': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d')}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['categoria'].queryset = CategoriaGasto.objects.filter(activo=True)
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
-        for campo in ('base', 'igv', 'tipo_cambio'):
+        self.fields['proyecto'].queryset = Proyecto.objects.filter(activo=True)
+        self.fields['sitio'].queryset = Sitio.objects.filter(activo=True, proyecto__activo=True).select_related('proyecto')
+        self.fields['sitio'].label_from_instance = lambda s: f'{s.proyecto.codigo} › {s}'
+        for campo in ('base', 'igv', 'tipo_cambio', 'total', 'kilometros'):
             self.fields[campo].required = False
         if self.instance.pk and self.instance.alertas:
             self.fields['justificacion'].help_text = f'Fuera de política: {self.instance.alertas}'
@@ -74,7 +78,19 @@ class LineaGastoForm(BootstrapMixin, forms.ModelForm):
         d = super().clean()
         d['serie'] = (d.get('serie') or '').strip().upper()
         d['numero'] = (d.get('numero') or '').strip()
+        km = d['kilometros'] = d.get('kilometros') or Decimal('0')
+        if d.get('tipo_comprobante') == 'KM':
+            tarifa = d['categoria'].tarifa_km if d.get('categoria') else Decimal('0')
+            if not tarifa:
+                self.add_error('categoria', 'Elija una categoría con tarifa por km.')
+            if km <= 0:
+                self.add_error('kilometros', 'Indique los kilómetros recorridos.')
+            d['total'] = (km * tarifa).quantize(Decimal('0.01'))
+        elif not d.get('total'):
+            self.add_error('total', 'Indique el total.')
         total = d.get('total') or Decimal('0')
+        if d.get('sitio') and not d.get('proyecto'):
+            d['proyecto'] = d['sitio'].proyecto
         if d.get('tipo_comprobante') == '01':
             if not d.get('base') and not d.get('igv') and total:
                 d['base'] = (total / Decimal('1.18')).quantize(Decimal('0.01'))
@@ -111,6 +127,72 @@ class PoliticaGastoForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['no_permitidas'].widget.attrs.pop('class', None)
+
+
+class ProyectoForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = Proyecto
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        from core.forms import remoto
+        remoto(self.fields['cliente'], 'clientes')
+
+
+class SitioForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = Sitio
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['proyecto'].queryset = Proyecto.objects.filter(activo=True)
+
+
+class TarjetaForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = TarjetaCorporativa
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from core.models import Tercero
+        self.fields['titular'].queryset = Tercero.objects.filter(activo=True, tipo_doc__in=['1', '4', '7'])
+        self.fields['categoria_defecto'].queryset = CategoriaGasto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        remoto(self.fields['cuenta_contable'], 'cuentas')
+
+    def clean_ultimos4(self):
+        v = (self.cleaned_data.get('ultimos4') or '').strip()
+        if len(v) != 4 or not v.isdigit():
+            raise forms.ValidationError('Los últimos 4 dígitos de la tarjeta.')
+        return v
+
+
+class ConfigRendicionForm(BootstrapMixin, forms.ModelForm):
+    SECRETOS = ('ia_api_key', 'whatsapp_token', 'whatsapp_app_secret', 'correo_clave')
+
+    class Meta:
+        model = ConfigRendicion
+        fields = '__all__'
+        widgets = {c: forms.PasswordInput(render_value=False) for c in
+                   ('ia_api_key', 'whatsapp_token', 'whatsapp_app_secret', 'correo_clave')}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['categoria_defecto'].queryset = CategoriaGasto.objects.filter(activo=True)
+        for c in self.SECRETOS:
+            if getattr(self.instance, c):
+                self.fields[c].help_text = 'Registrado. Déjelo vacío para conservarlo.'
+
+    def clean(self):
+        d = super().clean()
+        for c in self.SECRETOS:  # vacío = conservar el que ya estaba
+            if not d.get(c):
+                d[c] = getattr(self.instance, c)
+        return d
 
 
 class ReglaAprobacionForm(BootstrapMixin, forms.ModelForm):

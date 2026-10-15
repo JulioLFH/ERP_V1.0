@@ -166,7 +166,12 @@ RUTAS = {
     'rendiciones:nueva': 'rendiciones.rendir',
     'rendiciones:pagos': {'POST': 'rendiciones.tesoreria'}, 'rendiciones:cajas': {'POST': 'rendiciones.tesoreria'},
     'rendiciones:config_nueva': 'rendiciones.configurar', 'rendiciones:config_editar': 'rendiciones.configurar',
-    'rendiciones:configuracion': 'rendiciones.configurar',
+    'rendiciones:configuracion': 'rendiciones.configurar', 'rendiciones:integraciones': 'rendiciones.configurar',
+    'rendiciones:tarjeta_nueva': 'rendiciones.configurar', 'rendiciones:tarjeta_editar': 'rendiciones.configurar',
+    'rendiciones:tarjeta': {'POST': 'rendiciones.tesoreria'},
+    'rendiciones:proyecto_nuevo': 'rendiciones.configurar', 'rendiciones:proyecto_editar': 'rendiciones.configurar',
+    'rendiciones:sitio_nuevo': 'rendiciones.configurar', 'rendiciones:sitio_editar': 'rendiciones.configurar',
+    'rendiciones:movil_gasto': 'rendiciones.rendir', 'rendiciones:movil_nueva': 'rendiciones.rendir',
 }
 CAMPOS_ALMACEN = ('almacen', 'almacen_origen', 'almacen_destino', 'almacen_insumos')
 

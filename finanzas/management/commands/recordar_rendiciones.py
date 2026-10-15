@@ -1,4 +1,5 @@
-"""Recordatorio diario de entregas a rendir vencidas: correo al rendidor y a su jefe directo.
+"""Recordatorio diario de entregas a rendir vencidas y de cargos de tarjeta corporativa sin comprobante: correo al
+rendidor (o titular) y a su jefe directo.
 
 Programarlo una vez al día (cron del servidor o tarea programada): python manage.py recordar_rendiciones"""
 from django.core.management.base import BaseCommand
@@ -23,5 +24,22 @@ class Command(BaseCommand):
                 enviados += 1
             except ErrorCorreo as exc:
                 self.stderr.write(f'{entrega.numero}: {exc}')
-                break
+                return
+        # cargos de tarjeta corporativa sin comprobante: un aviso por titular
+        por_titular = {}
+        for f in rd.sin_comprobante():
+            por_titular.setdefault(f['m'].tarjeta.titular, []).append(f)
+        for titular, filas in por_titular.items():
+            usuarios, jefes = rd.usuarios_de(titular)
+            vencidos = any(f['dias'] > 30 for f in filas)  # con más de 30 días también se avisa al jefe
+            correos = sorted({u.email for u in usuarios + (jefes if vencidos else []) if u.email})
+            if not correos:
+                continue
+            try:
+                enviar(correos, f'Cargos de tarjeta sin comprobante: {len(filas)}', 'finanzas/correo_tarjeta.html',
+                       {'titular': titular, 'filas': filas})
+                enviados += 1
+            except ErrorCorreo as exc:
+                self.stderr.write(f'{titular}: {exc}')
+                return
         self.stdout.write(f'{enviados} recordatorio(s) enviados.')

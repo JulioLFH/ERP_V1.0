@@ -1,0 +1,98 @@
+{% load static %}<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b7285">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Rendiciones">
+<link rel="manifest" href="{% url 'rendiciones:manifest' %}">
+<link rel="icon" href="{% static 'img/ceiba-app.svg' %}">
+<link rel="apple-touch-icon" href="{% static 'img/ceiba-app.svg' %}">
+<title>Rendición de gastos</title>
+<style>
+:root{--c:#0b7285;--f:#f4f6f8;--t:#1d2b3a;--m:#6b7785;--b:#dfe3ea;--ok:#2f9e44;--mal:#c92a2a}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--f);color:var(--t);font-size:15px}
+header{background:var(--c);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:2}
+header b{font-size:17px}.estado{font-size:12px;padding:3px 8px;border-radius:10px;background:#ffffff33}
+main{padding:12px 16px 90px;max-width:620px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--b);border-radius:10px;padding:12px;margin-bottom:12px}
+label{display:block;font-size:12px;color:var(--m);margin:8px 0 3px}
+input,select,textarea{width:100%;padding:10px;border:1px solid var(--b);border-radius:8px;font-size:15px;background:#fff;color:var(--t)}
+.fila{display:flex;gap:8px}.fila>*{flex:1}
+button{border:0;border-radius:8px;padding:11px 14px;font-size:15px;background:var(--c);color:#fff;cursor:pointer}
+button.sec{background:#e7f5f7;color:var(--c)}button.peq{padding:6px 10px;font-size:13px}
+.ancho{width:100%}.aviso{font-size:13px;padding:8px;border-radius:8px;margin-top:8px}
+.aviso.mal{background:#fff5f5;color:var(--mal)}.aviso.ok{background:#ebfbee;color:var(--ok)}.aviso.inf{background:#e7f5ff;color:#1864ab}
+#lienzo{width:100%;border-radius:8px;touch-action:none;background:#000;display:none}
+.botones{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.pend{display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--b);padding:8px 0;font-size:13px}
+.pend:first-child{border-top:0}.muted{color:var(--m);font-size:12px}
+.pie{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--b);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+.pie>div{max-width:620px;margin:0 auto;display:flex;gap:8px}
+.oculto{display:none}
+</style></head>
+<body>
+<header><b>Rendición de gastos</b><span class="estado" id="estado-red">…</span></header>
+<main>
+  <div class="card">
+    <label for="rendicion">Rendición</label>
+    <select id="rendicion"></select>
+    <div id="nueva-rend" class="oculto">
+      <label for="entrega">Entrega a rendir o caja chica</label><select id="entrega"></select>
+      <label for="desc-rend">Motivo / viaje</label><input id="desc-rend" placeholder="Ej. Viaje a Arequipa">
+      <div class="botones"><button class="sec peq" id="crear-rend" type="button">Crear rendición</button></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="fila">
+      <label class="ancho"><button class="ancho" type="button" id="btn-foto">📷 Foto del comprobante</button></label>
+    </div>
+    <input type="file" id="foto" accept="image/*" capture="environment" class="oculto">
+    <input type="file" id="galeria" accept="image/*,application/pdf" class="oculto" multiple>
+    <div class="botones"><button class="sec peq" type="button" id="btn-galeria">Elegir de la galería</button></div>
+    <canvas id="lienzo"></canvas>
+    <div class="botones oculto" id="herr">
+      <button class="sec peq" type="button" id="girar">↻ Girar</button>
+      <button class="sec peq" type="button" id="recortar">✂ Recortar lo marcado</button>
+      <button class="sec peq" type="button" id="otra">+ Otra foto</button>
+      <button class="sec peq oculto" type="button" id="ia">Leer con IA</button>
+    </div>
+    <div class="muted" id="info-foto">Marque con el dedo el área del comprobante para recortar. Se comprime a menos de 1 MB.</div>
+    <div id="msg-lectura"></div>
+  </div>
+
+  <form class="card" id="form" autocomplete="off">
+    <div class="fila"><div><label for="tipo_comprobante">Comprobante</label><select id="tipo_comprobante" name="tipo_comprobante">
+      <option value="01">Factura</option><option value="03">Boleta</option><option value="12" selected>Ticket</option>
+      <option value="02">Recibo por honorarios</option><option value="PM">Movilidad</option><option value="KM">Kilometraje</option>
+      <option value="SC">Sin comprobante</option><option value="00">Otros</option></select></div>
+      <div><label for="fecha">Fecha</label><input type="date" id="fecha" name="fecha"></div></div>
+    <div class="campo-ruc"><label for="ruc">RUC del proveedor</label>
+      <div class="fila"><input id="ruc" name="ruc" inputmode="numeric" maxlength="11"><button class="sec peq" type="button" id="btn-ruc" style="flex:0 0 auto">Consultar</button></div></div>
+    <div class="campo-ruc"><label for="razon_social">Razón social</label><input id="razon_social" name="razon_social"></div>
+    <div class="fila campo-num"><div><label for="serie">Serie</label><input id="serie" name="serie" maxlength="4"></div>
+      <div><label for="numero">Número</label><input id="numero" name="numero" inputmode="numeric" maxlength="10"></div></div>
+    <div class="fila"><div><label for="moneda">Moneda</label><select id="moneda" name="moneda"><option value="PEN">S/</option><option value="USD">US$</option></select></div>
+      <div class="campo-total"><label for="total">Total</label><input id="total" name="total" inputmode="decimal"></div>
+      <div class="campo-igv"><label for="igv">IGV</label><input id="igv" name="igv" inputmode="decimal"></div>
+      <div class="campo-km oculto"><label for="kilometros">Km</label><input id="kilometros" name="kilometros" inputmode="decimal"></div></div>
+    <input type="hidden" id="a_nombre_empresa" name="a_nombre_empresa" value="on">
+    <label for="categoria">Categoría</label><select id="categoria" name="categoria"></select>
+    <div class="fila"><div><label for="centro_costo">Centro de costo</label><select id="centro_costo" name="centro_costo"><option value="">—</option></select></div>
+      <div><label for="proyecto">Proyecto</label><select id="proyecto" name="proyecto"><option value="">—</option></select></div></div>
+    <div class="campo-destino oculto"><label for="destino">Destino (movilidad)</label><input id="destino" name="destino"></div>
+    <label for="glosa">Detalle</label><input id="glosa" name="glosa" placeholder="Ej. Almuerzo con cliente">
+    <label for="justificacion">Justificación (si sale de la política)</label><input id="justificacion" name="justificacion">
+    <div id="msg-form"></div>
+  </form>
+
+  <div class="card"><b>Pendientes de subir</b> <span class="muted">(se suben solos al haber señal)</span>
+    <div id="pendientes"><div class="muted">Ninguno.</div></div></div>
+  <p class="muted">Usuario: {{ datos.usuario }} · <a href="{{ datos.urls.lista }}">Abrir el sistema completo</a> · v{{ version }}</p>
+</main>
+<div class="pie"><div><button class="ancho" id="guardar" type="button">Guardar gasto</button><button class="sec" id="sincronizar" type="button">Subir</button></div></div>
+{{ datos|json_script:"datos-app" }}
+<script>window.CSRF = '{{ csrf_token }}';</script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
+<script src="{% static 'js/rendicion_movil.js' %}?v={{ version }}" defer></script>
+</body></html>

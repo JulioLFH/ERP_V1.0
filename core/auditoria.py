@@ -28,7 +28,8 @@ AUDITADOS = [
     ('produccion', 'HojaRuta'), ('produccion', 'VersionFabricacion'),
     ('finanzas', 'Rendicion'), ('finanzas', 'LineaGasto'), ('finanzas', 'CategoriaGasto'),
     ('finanzas', 'PoliticaGasto'), ('finanzas', 'ReglaAprobacion'), ('finanzas', 'EntregaRendir'),
-    ('finanzas', 'GastoRendicion'),
+    ('finanzas', 'GastoRendicion'), ('finanzas', 'TarjetaCorporativa'), ('finanzas', 'Proyecto'),
+    ('finanzas', 'ConfigRendicion'),
 ]
 # campos que el sistema recalcula solo: no son cambios del usuario
 IGNORAR = {
@@ -38,6 +39,7 @@ IGNORAR = {
     'enlace_cdr', 'codigo_hash', 'cadena_qr', 'sunat_descripcion', 'monto_doc', 'monto_doc_pen', 'periodo',
     'pendiente', 'fecha_centralizacion', 'correlativo', 'fecha_ingreso', 'conformidad_enviada_en',
     'conformidad_enviada_a', 'pdf', 'xml', 'token', 'clave', 'token_tipo_cambio', 'sunat_client_secret',
+    'ia_api_key', 'whatsapp_token', 'whatsapp_app_secret', 'correo_clave',
 }
 # asientos automáticos: se regeneran al centralizar, solo se auditan los manuales y extornos
 SOLO_SI = {'Asiento': lambda o: o.origen == 'MANUAL'}

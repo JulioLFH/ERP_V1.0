@@ -417,7 +417,8 @@ class Letra(models.Model):
 
 # ---------------------------------------------------------------- entregas a rendir y caja chica
 class EntregaRendir(models.Model):
-    TIPOS = [('ENTREGA', 'Entrega a rendir cuenta'), ('CAJA_CHICA', 'Fondo fijo de caja chica')]
+    TIPOS = [('ENTREGA', 'Entrega a rendir cuenta'), ('CAJA_CHICA', 'Fondo fijo de caja chica'),
+             ('TARJETA', 'Tarjeta corporativa')]
     ESTADOS = [('ABIERTA', 'Abierta'), ('LIQUIDADA', 'Liquidada / cerrada')]
     numero = models.CharField('N°', max_length=20, editable=False)
     tipo = models.CharField(max_length=10, choices=TIPOS, default='ENTREGA')
@@ -449,7 +450,7 @@ class EntregaRendir(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.numero:
-            self.numero = _siguiente('ER', 'CC' if self.tipo == 'CAJA_CHICA' else 'ER')
+            self.numero = _siguiente('ER', {'CAJA_CHICA': 'CC', 'TARJETA': 'TC'}.get(self.tipo, 'ER'))
         super().save(*args, **kwargs)
 
     @property
@@ -725,5 +726,6 @@ class CuotaPrestamo(models.Model):
         return not self.pagada and self.fecha < timezone.localdate()
 
 
-from .models_rendicion import (CategoriaGasto, HistorialRendicion, LineaGasto, PoliticaGasto, ReglaAprobacion,  # noqa: E402,F401
-                               Rendicion)
+from .models_rendicion import (CategoriaGasto, ConfigRendicion, HistorialRendicion, LineaGasto,  # noqa: E402,F401
+                               MovimientoTarjeta, PoliticaGasto, Proyecto, ReglaAprobacion, Rendicion, Sitio,
+                               TarjetaCorporativa)

@@ -35,6 +35,8 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
                                                   'gastos)')
     jefe = forms.ModelChoiceField(label='Jefe directo', required=False, queryset=None,
                                   help_text='Aprueba sus rendiciones de gastos si las reglas lo indican')
+    celular = forms.CharField(label='Celular (WhatsApp)', required=False, max_length=20,
+                              help_text='Con código de país, ej. 51987654321. Para enviar gastos por WhatsApp')
     clave1 = forms.CharField(label='Contraseña', required=False, widget=forms.PasswordInput)
     clave2 = forms.CharField(label='Repetir contraseña', required=False, widget=forms.PasswordInput)
 
@@ -63,6 +65,7 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         perfil = PerfilUsuario.objects.filter(usuario=self.instance).first() if self.instance.pk else None
         if perfil:
             self.initial['trabajador'], self.initial['jefe'] = perfil.trabajador_id, perfil.jefe_id
+            self.initial['celular'] = perfil.celular
         if self.instance.pk:
             nombres = set(self.instance.groups.values_list('name', flat=True))
             self.initial['modulos'] = [c for c, n in GRUPOS.items() if n in nombres]
@@ -121,6 +124,7 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         perfil.acciones = sorted(self.cleaned_data.get('acciones') or [])
         perfil.limite_aprobacion = self.cleaned_data.get('limite_aprobacion') or 0
         perfil.trabajador, perfil.jefe = self.cleaned_data.get('trabajador'), self.cleaned_data.get('jefe')
+        perfil.celular = (self.cleaned_data.get('celular') or '').strip()
         perfil.save()
         perfil.almacenes.set(self.cleaned_data.get('almacenes') or [])
         perfil.series.set(self.cleaned_data.get('series') or [])

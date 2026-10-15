@@ -3,7 +3,8 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title">Rendiciones de gastos</h1>
-  {% if puede_rendir %}<a href="{% url 'rendiciones:nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva rendición</a>{% endif %}
+  {% if puede_rendir %}<div class="d-flex gap-2"><a href="{% url 'rendiciones:movil' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-phone"></i> App del celular</a>
+    <a href="{% url 'rendiciones:nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva rendición</a></div>{% endif %}
 </div>
 <ul class="nav nav-tabs mb-0">
   <li class="nav-item"><a class="nav-link {% if vista == 'mias' %}active{% endif %}" href="?vista=mias">Mis rendiciones</a></li>

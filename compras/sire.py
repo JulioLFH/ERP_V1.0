@@ -125,26 +125,41 @@ def _clave(ruc, tipo, serie, numero):
     return (ruc, tipo, serie.upper(), str(numero).lstrip('0') or '0')
 
 
+def _rendidas(registros):
+    """{clave: gasto rendido} de las facturas de la propuesta que llegaron por rendición de gastos."""
+    from finanzas.models import LineaGasto
+    rucs = {r['ruc'] for r in registros}
+    lineas = (LineaGasto.objects.filter(ruc__in=rucs).exclude(estado='RECHAZADA')
+              .exclude(rendicion__estado='RECHAZADA').select_related('rendicion__entrega__responsable'))
+    return {_clave(l.ruc, l.tipo_comprobante, l.serie, l.numero): l for l in lineas}
+
+
 def comparar(registros, periodo):
-    """Cruza la propuesta con las compras registradas del periodo (vigentes)."""
+    """Cruza la propuesta con las compras registradas del periodo (vigentes). Marca las que vinieron por rendición
+    de gastos y las que nadie rindió ni registró."""
     from .models import Compra
     compras = Compra.objects.filter(periodo=periodo).exclude(estado='ANULADO').select_related('tercero')
     erp = {_clave(c.tercero.numero_doc, c.tipo_comprobante, c.serie, c.numero): c for c in compras}
     sunat = {_clave(r['ruc'], r['tipo'], r['serie'], r['numero']): r for r in registros}
+    rendidas = _rendidas(registros)
     coinciden, diferencias, solo_sunat, solo_erp = [], [], [], []
     for clave, r in sunat.items():
         c = erp.get(clave)
+        rendida = rendidas.get(clave)
         if c is None:
             # registrada en otro periodo (SUNAT permite anotarla dentro de los 12 meses siguientes)
             otra = Compra.objects.filter(tercero__numero_doc=r['ruc'], tipo_comprobante=r['tipo'],
                                          serie=r['serie'], numero__in=[r['numero'], r['numero'].zfill(8)]) \
                 .exclude(estado='ANULADO').first()
-            solo_sunat.append({**r, 'otro_periodo': otra})
+            solo_sunat.append({**r, 'otro_periodo': otra, 'rendicion': rendida,
+                               'nadie_rindio': otra is None and rendida is None})
         elif abs(c.total - r['total']) > TOLERANCIA:
-            diferencias.append({**r, 'compra': c, 'dif': c.total - r['total']})
+            diferencias.append({**r, 'compra': c, 'dif': c.total - r['total'], 'rendicion': rendida})
         else:
-            coinciden.append({**r, 'compra': c})
+            coinciden.append({**r, 'compra': c, 'rendicion': rendida})
     for clave, c in erp.items():
         if clave not in sunat:
             solo_erp.append(c)
-    return {'coinciden': coinciden, 'diferencias': diferencias, 'solo_sunat': solo_sunat, 'solo_erp': solo_erp}
+    return {'coinciden': coinciden, 'diferencias': diferencias, 'solo_sunat': solo_sunat, 'solo_erp': solo_erp,
+            'por_rendicion': sum(1 for x in coinciden + diferencias if x['rendicion']),
+            'nadie_rindio': [x for x in solo_sunat if x['nadie_rindio']]}
