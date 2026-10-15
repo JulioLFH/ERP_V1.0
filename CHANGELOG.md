@@ -3,6 +3,19 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.27.0 — 14/10/2026 · Módulo de rendición de gastos (fase 1)
+- **Nuevo módulo «Rendición de gastos»** sobre las entregas a rendir y cajas chicas de Finanzas: cada rendición muestra lo entregado, lo rendido, lo que está en trámite y el saldo en poder del responsable.
+- **Estados con bitácora**: borrador → enviada → en revisión → aprobada / observada / rechazada → contabilizada → reembolsada o devuelta; cada cambio guarda usuario, fecha y comentario (y la auditoría de Ceiba registra altas, cambios y eliminaciones).
+- **Línea de gasto completa**: fecha, RUC y razón social, tipo de comprobante (factura, boleta, recibo por honorarios, ticket, movilidad, sin comprobante), serie-número, moneda y tipo de cambio, base, IGV, total, categoría, centro de costo, proyecto o sitio, glosa y varias fotos por gasto (desde el celular abre la cámara). Bloquea comprobantes ya rendidos o ya registrados en compras.
+- **Categorías de gasto** con cuenta contable, si exigen comprobante o centro de costo, tope por gasto y tope diario (movilidad: 4% de la RMV por día); carga masiva por Excel.
+- **Políticas de gasto** por empresa y por cargo: días máximos para rendir, tope por rendición y por día, comprobante obligatorio y categorías no permitidas. El rendidor ve qué gastos salen de la política y debe justificarlos antes de enviar.
+- **Aprobación configurable**: por jefe directo, por usuario, por monto y por centro de costo, en uno o varios niveles; se aprueba, observa o rechaza la rendición completa o gasto por gasto, con comentario. Nadie aprueba su propia rendición (regla fija en Segregación de funciones).
+- **Roles** con los permisos por acción: rendir, aprobar, contabilizar (revisor contable), tesorería y configurar. En Ajustes › Usuarios se indica qué trabajador es cada usuario y su jefe directo.
+- **Contabilidad automática**: al contabilizar, las facturas válidas a nombre de la empresa pasan al registro de compras 8.1 con crédito fiscal y se cancelan con el fondo; boletas, tickets y movilidad van como gasto sin crédito fiscal contra la entrega a rendir o la caja chica (cuenta de la categoría y centro de costo).
+- **Reembolso o devolución**: reembolso individual o en lote, devolución del saldo o descuento por planilla (pasa a cuenta por cobrar al trabajador). **Caja chica**: contabiliza las rendiciones aprobadas y repone el fondo fijo en un paso.
+- **Avisos**: correo al siguiente aprobador y al rendidor; alertas en la campana (por aprobar, observadas, por contabilizar, entregas vencidas) y el comando `recordar_rendiciones` para el recordatorio diario al rendidor y su jefe.
+- **Reportes**: tablero de gastos (por categoría, centro de costo, persona y mes; pendientes, vencidas, días promedio de aprobación y gastos fuera de política), saldos por rendir con antigüedad (0-15, 16-30, más de 30 días) y la rendición en PDF (con fotos, aprobaciones y firmas) y Excel.
+
 ## v1.26.9 — 12/10/2026 · Planificación por producto: MRP, punto de reorden, MTS y MTO
 - **Tipo de planificación por producto** (pestaña Planificación): *MRP* (según pedidos, plan de demanda y recetas), *Punto de reorden* o *Sin planificar*. Los suministros indirectos pasan a punto de reorden: quedan fuera del MRP y la corrida los propone aparte cuando el stock más lo que viene en camino llega al punto de reorden (hasta el stock máximo, por lote de compra). Los sin planificar no se proponen.
 - **Estrategia MTS / MTO por producto**: *para stock* usa el plan de demanda y el stock libre (como hasta ahora); *contra pedido* se fabrica o compra solo por los pedidos de venta, sin usar el stock libre ni el de seguridad, con una orden por pedido.

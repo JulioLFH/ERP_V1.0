@@ -1,0 +1,38 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Configuración de rendiciones{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Rendición de gastos: configuración</h1>
+  {% if url_carga %}<a href="{{ url_carga }}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-arrow-up"></i> Importar categorías desde Excel</a>{% endif %}
+</div>
+
+<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-tags"></i> Categorías de gasto</span><a href="{% url 'rendiciones:config_nueva' 'categoria' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva</a></div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>Código</th><th>Nombre</th><th>Cuenta</th><th>Comprobante</th><th>Centro de costo</th><th class="num">Tope por gasto</th><th class="num">Tope diario</th><th>Activa</th></tr></thead>
+    <tbody>{% for c in categorias %}<tr><td><a href="{% url 'rendiciones:config_editar' 'categoria' c.pk %}">{{ c.codigo }}</a></td><td>{{ c.nombre }}{% if c.es_movilidad %} <span class="badge text-bg-light">movilidad: 4% RMV/día</span>{% endif %}</td><td class="small">{{ c.cuenta_contable.codigo }} {{ c.cuenta_contable.nombre|truncatechars:30 }}</td>
+      <td>{% if c.exige_comprobante %}Exige{% else %}Opcional{% endif %}</td><td>{% if c.exige_centro %}Obligatorio{% else %}Opcional{% endif %}</td>
+      <td class="num">{% if c.tope %}{{ c.tope|money }}{% else %}—{% endif %}</td><td class="num">{% if c.tope_diario %}{{ c.tope_diario|money }}{% else %}—{% endif %}</td><td>{% if c.activo %}Sí{% else %}No{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-3">Registre las categorías (movilidad, alimentación, hospedaje, combustible, peajes, útiles…) o impórtelas desde Excel.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+
+<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-shield-check"></i> Políticas de gasto (por empresa y por cargo)</span><a href="{% url 'rendiciones:config_nueva' 'politica' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva</a></div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>Política</th><th>Cargo</th><th class="num">Días para rendir</th><th class="num">Tope por rendición</th><th class="num">Tope diario</th><th>Comprobante</th><th>No permitidas</th><th>Activa</th></tr></thead>
+    <tbody>{% for p in politicas %}<tr><td><a href="{% url 'rendiciones:config_editar' 'politica' p.pk %}">{{ p.nombre }}</a></td><td>{{ p.cargo|default:'Todos (general)' }}</td><td class="num">{{ p.dias_para_rendir }}</td>
+      <td class="num">{% if p.tope_por_rendicion %}{{ p.tope_por_rendicion|money }}{% else %}—{% endif %}</td><td class="num">{% if p.tope_diario %}{{ p.tope_diario|money }}{% else %}—{% endif %}</td>
+      <td>{% if p.comprobante_obligatorio %}Siempre{% else %}Según categoría{% endif %}</td><td class="small">{{ p.no_permitidas.all|join:', ' }}</td><td>{% if p.activa %}Sí{% else %}No{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-3">Sin políticas: solo se aplican los topes de las categorías.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+
+<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-diagram-3"></i> Reglas de aprobación</span><a href="{% url 'rendiciones:config_nueva' 'regla' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva</a></div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>Nivel</th><th>Aprueba</th><th class="num">Desde el monto</th><th>Centro de costo</th><th>Activa</th></tr></thead>
+    <tbody>{% for g in reglas %}<tr><td><a href="{% url 'rendiciones:config_editar' 'regla' g.pk %}">Nivel {{ g.nivel }}</a></td><td>{% if g.tipo == 'JEFE' %}Jefe directo del rendidor{% else %}{{ g.aprobador.get_full_name|default:g.aprobador.username }}{% endif %}</td>
+      <td class="num">{% if g.monto_desde %}{{ g.monto_desde|money }}{% else %}Siempre{% endif %}</td><td>{{ g.centro_costo|default:'Todos' }}</td><td>{% if g.activo %}Sí{% else %}No{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">Sin reglas: aprueba en un nivel cualquier usuario con el permiso «Aprobar rendiciones».</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+<p class="small text-muted">El jefe directo y el trabajador de cada usuario se asignan en Ajustes › Usuarios. Nadie aprueba su propia rendición: si le toca, pasa al siguiente nivel.</p>
+{% endblock %}

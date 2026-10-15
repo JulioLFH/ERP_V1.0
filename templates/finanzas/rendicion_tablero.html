@@ -1,0 +1,28 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Tablero de gastos{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Tablero de gastos rendidos</h1>
+  <form class="d-flex flex-wrap gap-2" method="get">
+    <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:auto">
+    <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:auto">
+    <button class="btn btn-sm btn-primary">Ver</button>
+    <button name="formato" value="excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></button>
+  </form>
+</div>
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Gasto aprobado</div><div class="value">S/ {{ d.total|money }}</div><div class="small text-muted">{{ d.lineas }} gasto(s)</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Fuera de política</div><div class="value {% if d.fuera_politica %}text-warning{% endif %}">{{ d.fuera_politica }}</div><div class="small text-muted">S/ {{ d.fuera_monto|money }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Pendientes de aprobar</div><div class="value">{{ d.pendientes }}</div><div class="small text-muted">enviadas u observadas</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Por contabilizar</div><div class="value">{{ d.por_contabilizar }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Entregas vencidas</div><div class="value {% if d.vencidas %}text-danger{% endif %}">{{ d.vencidas }}</div><div class="small text-muted"><a href="{% url 'rendiciones:antiguedad' %}">ver antigüedad</a></div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Días promedio de aprobación</div><div class="value">{% if d.dias_aprobacion is not None %}{{ d.dias_aprobacion }}{% else %}—{% endif %}</div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-6">{% include 'finanzas/_tablero_grupo.html' with titulo='Por categoría' datos=d.por_categoria total=d.total %}</div>
+  <div class="col-lg-6">{% include 'finanzas/_tablero_grupo.html' with titulo='Por centro de costo' datos=d.por_centro total=d.total %}</div>
+  <div class="col-lg-6">{% include 'finanzas/_tablero_grupo.html' with titulo='Por persona' datos=d.por_persona total=d.total %}</div>
+  <div class="col-lg-6">{% include 'finanzas/_tablero_grupo.html' with titulo='Por mes' datos=d.por_mes total=d.total %}</div>
+</div>
+<p class="small text-muted mt-2">Gastos de rendiciones aprobadas o posteriores, por la fecha del comprobante, en soles (sin los rechazados).</p>
+{% endblock %}

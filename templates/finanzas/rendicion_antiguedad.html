@@ -1,0 +1,22 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Saldos por rendir{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Saldos por rendir con antigüedad</h1>
+  <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+</div>
+<div class="row g-2 mb-3">
+  {% for etiqueta, monto, clase in tramos %}<div class="col-4 col-md-2"><div class="kpi"><div class="label">{{ etiqueta }}</div><div class="value {{ clase }}">{{ monto|money }}</div></div></div>{% endfor %}
+  <div class="col-12 col-md-3"><div class="kpi"><div class="label">Fuera del plazo de su política</div><div class="value {% if vencidas %}text-danger{% endif %}">{{ vencidas|length }}</div></div></div>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>Entrega</th><th>Responsable</th><th>Fecha</th><th class="num">Entregado</th><th class="num">Rendido</th><th class="num">Devuelto</th><th class="num">Saldo</th><th class="num">Días</th><th>Tramo</th></tr></thead>
+  <tbody>{% for f in filas %}<tr>
+    <td><a href="{% url 'finanzas:entrega' f.e.pk %}">{{ f.e.numero }}</a> <span class="small text-muted">{{ f.e.get_tipo_display }}</span></td><td class="small">{{ f.e.responsable.nombre }}</td><td>{{ f.e.fecha|date:'d/m/Y' }}</td>
+    <td class="num">{{ f.e.simbolo }} {{ f.entregado|money }}</td><td class="num">{{ f.rendido|money }}</td><td class="num">{{ f.devuelto|money }}</td>
+    <td class="num fw-semibold {% if f.saldo < 0 %}text-danger{% endif %}">{{ f.saldo|money }}</td><td class="num">{{ f.dias }}</td>
+    <td><span class="badge {% if f.tramo == '+30' %}text-bg-danger{% elif f.tramo == '16-30' %}text-bg-warning{% else %}text-bg-light{% endif %}">{{ f.tramo }}</span></td></tr>
+  {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">No hay saldos por rendir.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<p class="small text-muted mt-2">Saldo = entregado − devuelto − rendido (contabilizado). Negativo: la empresa le debe al responsable.</p>
+{% endblock %}

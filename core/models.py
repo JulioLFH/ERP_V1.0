@@ -697,6 +697,13 @@ class PerfilUsuario(models.Model):
     series = models.ManyToManyField('Serie', blank=True, related_name='+', help_text='Vacío = todas las series')
     limite_aprobacion = models.DecimalField('Aprueba órdenes de compra hasta S/', max_digits=14, decimal_places=2,
                                             default=D0, help_text='0 = sin límite')
+    # rendición de gastos: quién es el usuario como trabajador (sus entregas a rendir) y quién es su jefe directo
+    trabajador = models.ForeignKey('Tercero', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                   verbose_name='Rinde gastos como',
+                                   help_text='Trabajador (responsable de entregas a rendir) que es este usuario')
+    jefe = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                             related_name='subordinados', verbose_name='Jefe directo',
+                             help_text='Aprueba sus rendiciones de gastos (si así lo indican las reglas)')
 
     class Meta:
         verbose_name = 'perfil de usuario'

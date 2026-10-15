@@ -124,6 +124,8 @@ def calcular(user):
             alertas.append(_alerta('warning', 'bi-basket', 'Insumos insuficientes para producir',
                                    f'{len(faltan)} insumo(s) no alcanzan para las órdenes de producción abiertas.',
                                    reverse('manufactura:requerimiento'), len(faltan)))
+    if 'rendiciones' in mods:
+        alertas += _alertas_rendiciones(user)
     mes_anterior = (hoy.replace(day=1) - timedelta(days=1)).strftime('%Y%m')
     if 'activos' in mods and puede(user, 'activos.depreciar'):
         from activos.models import ActivoFijo
@@ -143,6 +145,35 @@ def calcular(user):
                                    reverse('contabilidad:periodos'), len(pendientes)))
     orden = {'danger': 0, 'warning': 1, 'info': 2}
     return sorted(alertas, key=lambda a: orden[a['nivel']])
+
+
+def _alertas_rendiciones(user):
+    from finanzas import rendiciones as rd
+    from finanzas.models import Rendicion
+    salida = []
+    por_aprobar = [r for r in Rendicion.objects.filter(estado__in=Rendicion.POR_APROBAR) if rd.puede_aprobar(user, r)]
+    if por_aprobar:
+        salida.append(_alerta('warning', 'bi-check2-circle', 'Rendiciones por aprobar',
+                              f'{len(por_aprobar)} rendición(es) de gastos esperan su aprobación.',
+                              reverse('rendiciones:lista') + '?vista=aprobar', len(por_aprobar)))
+    observadas = Rendicion.objects.filter(rendidor=user, estado='OBSERVADA').count()
+    if observadas:
+        salida.append(_alerta('danger', 'bi-exclamation-octagon', 'Rendiciones observadas',
+                              f'{observadas} rendición(es) suyas tienen observaciones por corregir.',
+                              reverse('rendiciones:lista') + '?vista=mias&estado=OBSERVADA', observadas))
+    if puede(user, 'rendiciones.contabilizar'):
+        n = Rendicion.objects.filter(estado='APROBADA').count()
+        if n:
+            salida.append(_alerta('info', 'bi-journal-check', 'Rendiciones por contabilizar',
+                                  f'{n} rendición(es) aprobadas esperan la revisión contable.',
+                                  reverse('rendiciones:lista') + '?vista=contabilizar', n))
+    t = rd.trabajador_de(user)
+    vencidas = [e for e, _ in rd.vencidas() if t is not None and e.responsable_id == t.pk]
+    if vencidas:
+        salida.append(_alerta('danger', 'bi-hourglass-bottom', 'Entregas a rendir vencidas',
+                              f'Tiene {len(vencidas)} entrega(s) fuera del plazo para rendir.',
+                              reverse('rendiciones:nueva'), len(vencidas)))
+    return salida
 
 
 def de_usuario(user, refrescar=False):

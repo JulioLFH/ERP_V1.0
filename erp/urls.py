@@ -34,5 +34,6 @@ urlpatterns += [
     path('planillas/', include('planillas.urls')),
     path('historial/', include('historial.urls')),
     path('requerimientos/', include('inventario.urls_requerimientos')),
+    path('rendiciones/', include('finanzas.urls_rendiciones')),
     path('', include('core.urls')),
 ]

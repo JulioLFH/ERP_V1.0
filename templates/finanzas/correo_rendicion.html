@@ -1,0 +1,11 @@
+{% extends 'proveedores/correo_base.html' %}{% load erp_tags %}
+{% block cuerpo %}
+{% if evento == 'enviada' %}<p>Tiene por aprobar la <b>rendición de gastos {{ r.numero }}</b> de {{ r.entrega.responsable.nombre }} ({{ r.descripcion }}) por <b>{{ r.simbolo }} {{ r.total|money }}</b>{% if r.nivel_pendiente %}, nivel {{ r.nivel_pendiente.nivel }} de {{ r.niveles|length }}{% endif %}.</p>
+{% elif evento == 'observada' %}<p>Su <b>rendición {{ r.numero }}</b> ({{ r.descripcion }}) fue <b>observada</b>. Corrija los gastos indicados y vuelva a enviarla.</p>
+{% elif evento == 'rechazada' %}<p>Su <b>rendición {{ r.numero }}</b> ({{ r.descripcion }}) fue <b>rechazada</b>.</p>
+{% elif evento == 'aprobada' %}<p>Su <b>rendición {{ r.numero }}</b> ({{ r.descripcion }}) fue <b>aprobada</b> por {{ r.simbolo }} {{ r.total|money }}. Pasa a la revisión contable.</p>
+{% elif evento == 'reembolsada' %}<p>Se registró el <b>reembolso</b> de su rendición {{ r.numero }}.</p>
+{% endif %}
+{% if ultimo.comentario %}<p style="background:#f0f3f7; padding:8px; border-radius:4px;">{{ ultimo.usuario.get_full_name|default:ultimo.usuario.username }}: {{ ultimo.comentario }}</p>{% endif %}
+<p>Ingrese al sistema, módulo <b>Rendición de gastos</b>, para ver el detalle.</p>
+{% endblock %}

@@ -46,6 +46,11 @@ ACCIONES = {
                   ('configurar', 'Parámetros, AFP y conceptos de planilla', True)],
     'requerimientos': [('solicitar', 'Pedir materiales al almacén', False),
                        ('aprobar', 'Aprobar o rechazar requerimientos', True)],
+    'rendiciones': [('rendir', 'Registrar y enviar sus rendiciones de gastos', False),
+                    ('aprobar', 'Aprobar, observar o rechazar rendiciones', True),
+                    ('contabilizar', 'Revisar y contabilizar rendiciones (revisor contable)', True),
+                    ('tesoreria', 'Reembolsos, devoluciones y reposición de caja chica', True),
+                    ('configurar', 'Categorías, políticas de gasto y reglas de aprobación', True)],
     'activos': [('registrar', 'Registrar activos', False),
                 ('baja', 'Dar de baja o anular activos', True),
                 ('depreciar', 'Calcular y revertir depreciación', True)],
@@ -158,6 +163,10 @@ RUTAS = {
     'activos:anular': 'activos.baja', 'activos:depreciacion': {'POST': 'activos.depreciar'},
     'activos:proceso_revertir': 'activos.depreciar', 'activos:categoria_nueva': 'activos.depreciar',
     'activos:categoria_editar': 'activos.depreciar',
+    'rendiciones:nueva': 'rendiciones.rendir',
+    'rendiciones:pagos': {'POST': 'rendiciones.tesoreria'}, 'rendiciones:cajas': {'POST': 'rendiciones.tesoreria'},
+    'rendiciones:config_nueva': 'rendiciones.configurar', 'rendiciones:config_editar': 'rendiciones.configurar',
+    'rendiciones:configuracion': 'rendiciones.configurar',
 }
 CAMPOS_ALMACEN = ('almacen', 'almacen_origen', 'almacen_destino', 'almacen_insumos')
 

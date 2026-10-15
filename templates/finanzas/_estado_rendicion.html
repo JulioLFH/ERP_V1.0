@@ -1,0 +1,1 @@
+<span class="badge {% if r.estado == 'BORRADOR' %}text-bg-light{% elif r.estado == 'OBSERVADA' %}text-bg-warning{% elif r.estado == 'RECHAZADA' %}text-bg-danger{% elif r.estado == 'APROBADA' %}text-bg-success{% elif r.estado == 'ENVIADA' or r.estado == 'EN_REVISION' %}text-bg-info{% else %}text-bg-primary{% endif %}">{{ r.get_estado_display }}</span>

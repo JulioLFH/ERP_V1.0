@@ -57,7 +57,8 @@ _TERCEROS = {'ventas', 'compras', 'contactos', 'finanzas', 'contabilidad', 'logi
 MODULOS = {  # quién puede pedir cada lista (además del administrador)
     'productos': _PRODUCTOS, 'productos_venta': _PRODUCTOS, 'productos_bienes': _PRODUCTOS,
     'terceros': _TERCEROS, 'clientes': _TERCEROS, 'proveedores': _TERCEROS,
-    'cuentas': {'contabilidad', 'compras', 'finanzas', 'planillas', 'activos', 'inventario', 'requerimientos'},
+    'cuentas': {'contabilidad', 'compras', 'finanzas', 'planillas', 'activos', 'inventario', 'requerimientos',
+                'rendiciones'},
     'ventas': {'ventas', 'logistica', 'finanzas'}, 'compras': {'compras', 'finanzas'},
 }
 

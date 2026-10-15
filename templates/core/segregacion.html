@@ -8,6 +8,7 @@
 <p class="small text-muted mb-3">Una misma persona no debería poder hacer las dos partes de un proceso sensible (por ejemplo, registrar una factura y pagarla). Quite una de las acciones en <a href="{% url 'usuarios' %}">Usuarios y permisos</a> o compense con una revisión.</p>
 <div class="alert {% if estricta %}alert-success{% else %}alert-secondary{% endif %} py-2 small"><i class="bi bi-shield-lock"></i>
   Regla «quien registra no aprueba»: {% if estricta %}<b>activa</b> para todos, incluso administradores (órdenes de compra, requerimientos, planillas y cambios de ingeniería).{% else %}solo para requerimientos y cambios de ingeniería. Actívela para todo en <a href="{% url 'empresa' %}">Ajustes › Empresa › Segregación de funciones estricta</a>.{% endif %}</div>
+{% for regla in reglas_fijas %}<div class="alert alert-success py-2 small"><i class="bi bi-shield-check"></i> Siempre activa: {{ regla }}</div>{% endfor %}
 <div class="card mb-3"><div class="card-header">Usuarios ({{ con_conflicto }} con conflictos)</div><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
   <thead><tr><th>Usuario</th><th>Conflictos</th></tr></thead>
   <tbody>{% for f in filas %}<tr><td class="text-nowrap"><a href="{% url 'usuario_editar' f.u.pk %}">{{ f.u.username }}</a><div class="small text-muted">{{ f.u.get_full_name }}</div></td>

@@ -1,0 +1,135 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ r.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title mb-0">Rendición {{ r.numero }} {% include 'finanzas/_estado_rendicion.html' %}</h1>
+    <div class="small text-muted">{{ r.descripcion }} · {{ r.fecha|date:'d/m/Y' }} · registrada por {{ r.rendidor.get_full_name|default:r.rendidor.username }}</div></div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'rendiciones:imprimir' r.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Imprimir o guardar como PDF (con fotos y aprobaciones)"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+    <a href="?formato=excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></a>
+  </div>
+</div>
+
+<div class="row g-2 mb-3">
+  <div class="col-md-4"><div class="kpi"><div class="label">{{ e.get_tipo_display }}</div><div class="fw-semibold">{{ e.numero }} · {{ e.responsable.nombre }}</div><div class="small text-muted">{{ e.motivo }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Entregado</div><div class="value">{{ e.simbolo }} {{ e.entregado|money }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Rendido (contabilizado)</div><div class="value">{{ e.rendido|money }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">En trámite</div><div class="value">{{ en_tramite|money }}</div><div class="small text-muted">rendiciones sin contabilizar</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">{% if e.saldo < 0 %}La empresa le debe{% else %}Saldo en su poder{% endif %}</div><div class="value {% if e.saldo < 0 %}text-danger{% else %}text-success{% endif %}">{{ e.saldo|money }}</div><div class="small text-muted">falta rendir o devolver: {{ por_rendir|money }}</div></div></div>
+</div>
+
+{% for g in generales %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> {{ g }}</div>{% endfor %}
+{% with ultimo=historial.last %}{% if r.estado == 'OBSERVADA' or r.estado == 'RECHAZADA' %}{% if ultimo.comentario %}<div class="alert {% if r.estado == 'RECHAZADA' %}alert-danger{% else %}alert-warning{% endif %} py-2"><b>{{ r.get_estado_display }}</b> por {{ ultimo.usuario.get_full_name|default:ultimo.usuario.username }}: {{ ultimo.comentario }}</div>{% endif %}{% endif %}{% endwith %}
+{% if r.nivel_pendiente and r.estado in 'ENVIADA EN_REVISION' %}<div class="alert alert-info py-2 small"><i class="bi bi-person-check"></i> Por aprobar en el nivel {{ r.nivel_pendiente.nivel }} de {{ r.niveles|length }}: {{ r.nivel_pendiente.nombre }}.</div>{% endif %}
+
+<div class="card mb-3"><div class="card-header d-flex justify-content-between"><span>Gastos</span><span class="small text-muted">{{ lineas|length }} gasto(s) · total {{ e.simbolo }} {{ r.total|money }}</span></div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>Fecha</th><th>Comprobante</th><th>Proveedor</th><th>Categoría</th><th>C. costo / proyecto</th><th class="num">Total</th><th>Fotos</th><th>Estado</th>{% if puede_aprobar %}<th style="min-width:220px">Decisión</th>{% endif %}<th></th></tr></thead>
+    <tbody>
+    {% for l in lineas %}
+      <tr class="{% if l.estado == 'RECHAZADA' %}text-decoration-line-through text-muted{% endif %}">
+        <td>{{ l.fecha|date:'d/m/Y' }}</td>
+        <td class="small">{{ l.get_tipo_comprobante_display }}<br>{{ l.documento }}{% if l.tipo_comprobante == '01' %}{% if l.con_credito_fiscal %} <span class="badge text-bg-light" title="Va al registro de compras con crédito fiscal">CF</span>{% else %} <span class="badge text-bg-warning" title="No está a nombre de la empresa">sin CF</span>{% endif %}{% endif %}</td>
+        <td class="small">{{ l.ruc }}<br>{{ l.razon_social|truncatechars:30 }}</td>
+        <td class="small">{{ l.categoria }}<br><span class="text-muted">{{ l.glosa|truncatechars:40 }}</span></td>
+        <td class="small">{{ l.centro_costo.codigo|default:'' }}{% if l.proyecto %}<br>{{ l.proyecto }}{% endif %}</td>
+        <td class="num">{% if l.moneda != e.moneda %}<span class="small text-muted">{{ l.moneda }} {{ l.total|money }} × {{ l.tipo_cambio }}</span><br>{% endif %}{{ l.importe|money }}{% if l.tipo_comprobante == '01' %}<div class="small text-muted">IGV {{ l.igv|money }}</div>{% endif %}</td>
+        <td class="small">{% for f in l.fotos %}<a href="{% url 'sustento_ver' f.pk %}" target="_blank" title="{{ f.archivo.nombre }}"><i class="bi bi-image"></i></a> {% empty %}<span class="text-muted">—</span>{% endfor %}
+          {% if puede_editar %}<form method="post" enctype="multipart/form-data" class="d-inline">{% csrf_token %}<input type="hidden" name="accion" value="foto"><input type="hidden" name="linea" value="{{ l.pk }}"><label class="btn btn-link btn-sm p-0" title="Agregar foto"><i class="bi bi-camera"></i><input type="file" name="fotos" accept="image/*,application/pdf" multiple hidden onchange="this.form.submit()"></label></form>{% endif %}</td>
+        <td class="small"><span class="badge text-bg-light">{{ l.get_estado_display }}</span>{% if l.comentario %}<div class="text-danger">{{ l.comentario }}</div>{% endif %}</td>
+        {% if puede_aprobar %}<td>{% if l.estado != 'RECHAZADA' %}<select name="decision_{{ l.pk }}" form="form-aprobar" class="form-select form-select-sm mb-1" data-sin-buscador><option value="APROBADA">Aprobar</option><option value="OBSERVADA">Observar</option><option value="RECHAZADA">Rechazar</option></select><input name="nota_{{ l.pk }}" form="form-aprobar" class="form-control form-control-sm" placeholder="Comentario (si observa o rechaza)">{% endif %}</td>{% endif %}
+        <td class="text-nowrap">{% if puede_editar and l.estado != 'RECHAZADA' %}<a href="?editar={{ l.pk }}#form-gasto" class="btn btn-sm btn-link p-0" title="Editar"><i class="bi bi-pencil"></i></a>
+          <form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="accion" value="quitar_linea"><input type="hidden" name="linea" value="{{ l.pk }}"><button class="btn btn-sm btn-link text-danger p-0" data-confirm="¿Quitar este gasto?"><i class="bi bi-trash"></i></button></form>{% endif %}
+          {% if l.compra_id %}<a href="{% url 'compras:detalle' l.compra_id %}" class="small" title="Registro de compras">compra</a>{% endif %}</td>
+      </tr>
+      {% if l.alertas %}<tr class="table-warning"><td></td><td colspan="{% if puede_aprobar %}9{% else %}8{% endif %}" class="small"><i class="bi bi-exclamation-triangle"></i> Fuera de política: {{ l.alertas }}{% if l.justificacion %} · <b>Justificación:</b> {{ l.justificacion }}{% elif puede_editar %} · <a href="?editar={{ l.pk }}#form-gasto">escriba la justificación</a>{% endif %}</td></tr>{% endif %}
+    {% empty %}<tr><td colspan="10" class="text-center text-muted py-3">Aún no registra gastos.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+{% if puede_editar %}
+<div class="card mb-3" id="form-gasto"><div class="card-header">{% if editar %}Editar gasto {{ editar.documento }}{% else %}Agregar gasto{% endif %}</div><div class="card-body">
+  <form method="post" enctype="multipart/form-data" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="linea">{% if editar %}<input type="hidden" name="linea" value="{{ editar.pk }}">{% endif %}
+    {% for field in form %}<div class="{% if field.name == 'glosa' or field.name == 'razon_social' or field.name == 'justificacion' or field.name == 'fotos' %}col-md-6{% else %}col-6 col-md-3{% endif %} campo-{{ field.name }}">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12 d-flex gap-2"><button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> {% if editar %}Guardar cambios{% else %}Agregar gasto{% endif %}</button>{% if editar %}<a href="{% url 'rendiciones:detalle' r.pk %}" class="btn btn-sm btn-outline-secondary">Cancelar</a>{% endif %}</div>
+  </form>
+  <p class="small text-muted mb-0 mt-2">Factura: si deja la base y el IGV vacíos se calculan del total (18%). Las facturas a nombre de la empresa van al registro de compras con crédito fiscal; boletas, tickets y movilidad se registran como gasto sin crédito fiscal.</p>
+</div></div>
+{% if lineas %}
+<div class="card mb-3 border-primary"><div class="card-body">
+  <form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="enviar">
+    <div class="col-md-9"><label class="form-label small mb-1">Comentario para el aprobador</label><input name="comentario" class="form-control form-control-sm" placeholder="Opcional; obligatorio si la rendición supera el tope de su política"></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-send"></i> Enviar para aprobación</button></div>
+  </form>
+</div></div>
+{% endif %}
+{% endif %}
+
+{% if puede_aprobar %}
+<div class="card mb-3 border-success"><div class="card-header">Aprobación (nivel {{ r.nivel_pendiente.nivel }} de {{ r.niveles|length }})</div><div class="card-body">
+  <form method="post" id="form-aprobar" class="row g-2 align-items-end">{% csrf_token %}
+    <div class="col-md-6"><label class="form-label small mb-1">Comentario</label><input name="comentario" class="form-control form-control-sm" placeholder="Obligatorio para observar o rechazar toda la rendición"></div>
+    <div class="col-md-6 d-flex flex-wrap gap-2">
+      <button name="accion" value="aprobar" class="btn btn-sm btn-success"><i class="bi bi-check2-circle"></i> Aprobar (según decisión por gasto)</button>
+      <button name="accion" value="observar" class="btn btn-sm btn-warning"><i class="bi bi-arrow-return-left"></i> Observar todo</button>
+      <button name="accion" value="rechazar" class="btn btn-sm btn-outline-danger" data-confirm="¿Rechazar toda la rendición?"><i class="bi bi-x-circle"></i> Rechazar</button>
+    </div>
+  </form>
+  <p class="small text-muted mb-0 mt-2">En la tabla puede aprobar, observar o rechazar cada gasto. Si observa alguno, la rendición vuelve al rendidor para que lo corrija.</p>
+</div></div>
+{% endif %}
+
+{% if puede_contabilizar %}
+<div class="card mb-3 border-primary"><div class="card-header">Revisión contable</div><div class="card-body">
+  <form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="contabilizar">
+    <div class="col-md-3"><label class="form-label small mb-1">Fecha contable</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+    <div class="col-md-4"><button class="btn btn-sm btn-primary"><i class="bi bi-journal-check"></i> Contabilizar</button></div>
+  </form>
+  <p class="small text-muted mb-0 mt-2">Las facturas válidas a nombre de la empresa pasan al registro de compras 8.1 (periodo de la fecha contable) y se cancelan con el fondo; el resto se registra como gasto (cuenta de la categoría y centro de costo) contra {{ e.numero }}. El asiento sale en la centralización del mes.</p>
+</div></div>
+{% endif %}
+
+{% if puede_pagar %}
+<div class="card mb-3 border-info"><div class="card-header">Tesorería</div><div class="card-body">
+  {% if e.saldo == 0 %}<p class="mb-0 small">La entrega está cuadrada: no hay nada por reembolsar ni devolver.</p>
+  {% elif e.tipo == 'CAJA_CHICA' %}<p class="mb-0 small">Caja chica: la reposición del fondo se hace en <a href="{% url 'rendiciones:cajas' %}">Reposición de caja chica</a>.</p>
+  {% else %}
+  <form method="post" class="row g-2 align-items-end">{% csrf_token %}
+    <div class="col-md-4"><label class="form-label small mb-1">Caja o banco</label><select name="cuenta" class="form-select form-select-sm">{% for c in cuentas %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Fecha</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+    <div class="col-md-2"><label class="form-label small mb-1">N° operación</label><input name="numero_operacion" class="form-control form-control-sm"></div>
+    <div class="col-md-4 d-flex flex-wrap gap-2">
+      {% if e.saldo < 0 %}<button name="accion" value="reembolsar" class="btn btn-sm btn-primary"><i class="bi bi-cash-coin"></i> Reembolsar {{ e.simbolo }} {{ por_reembolsar|money }}</button>
+      {% else %}<button name="accion" value="devolver" class="btn btn-sm btn-primary"><i class="bi bi-arrow-down-circle"></i> Registrar devolución {{ e.simbolo }} {{ e.saldo|money }}</button>
+      <button name="accion" value="planilla" class="btn btn-sm btn-outline-secondary" data-confirm="El saldo pasará a cuenta por cobrar al trabajador para descontarlo en su planilla. ¿Continuar?"><i class="bi bi-person-badge"></i> Descontar por planilla</button>{% endif %}
+    </div>
+  </form>
+  {% endif %}
+</div></div>
+{% endif %}
+{% if r.descuento_planilla %}<div class="alert alert-secondary py-2 small">Por descontar en planilla: S/ {{ r.descuento_planilla|money }} — regístrelo como adelanto en la próxima planilla de {{ e.responsable.nombre }}.</div>{% endif %}
+
+<div class="card mb-3"><div class="card-header">Historial de la rendición</div>
+  <ul class="list-group list-group-flush small">
+  {% for h in historial %}<li class="list-group-item"><span class="text-muted">{{ h.fecha|date:'d/m/Y H:i' }}</span> · <b>{{ h.a_display }}</b>{% if h.de_estado %} <span class="text-muted">(antes {{ h.de_display|lower }})</span>{% endif %} · {{ h.usuario.get_full_name|default:h.usuario.username|default:'Sistema' }}{% if h.comentario %} — {{ h.comentario }}{% endif %}</li>{% endfor %}
+  </ul>
+</div>
+{% include 'core/_bitacora.html' with objeto=r %}
+<a href="{% url 'rendiciones:lista' %}" class="btn btn-sm btn-link mt-2"><i class="bi bi-arrow-left"></i> Rendiciones</a>
+<script>
+(function () {
+  var tipo = document.getElementById('id_g-tipo_comprobante');
+  if (!tipo) return;
+  function ajustar() {
+    var factura = tipo.value === '01', conRuc = tipo.value === '01' || tipo.value === '02';
+    document.querySelectorAll('.campo-base, .campo-igv, .campo-a_nombre_empresa').forEach(function (c) { c.style.display = factura ? '' : 'none'; });
+    document.querySelectorAll('.campo-serie').forEach(function (c) { c.style.display = (tipo.value === 'SC') ? 'none' : ''; });
+    var ruc = document.querySelector('.campo-ruc label');
+    if (ruc) ruc.firstChild.textContent = conRuc ? 'RUC del proveedor ' : 'RUC / DNI del proveedor ';
+  }
+  tipo.addEventListener('change', ajustar);
+  ajustar();
+})();
+</script>
+{% endblock %}

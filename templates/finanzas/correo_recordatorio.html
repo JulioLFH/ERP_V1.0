@@ -1,0 +1,6 @@
+{% extends 'proveedores/correo_base.html' %}{% load erp_tags %}
+{% block cuerpo %}
+<p>La <b>{{ e.get_tipo_display|lower }} {{ e.numero }}</b> de {{ e.responsable.nombre }} ({{ e.motivo }}), entregada el {{ e.fecha|date:'d/m/Y' }}, debía rendirse hasta el <b>{{ limite|date:'d/m/Y' }}</b>.</p>
+<p>Saldo pendiente de rendir o devolver: <b>{{ e.simbolo }} {{ e.saldo|money }}</b>.</p>
+<p>Registre la rendición en el módulo <b>Rendición de gastos</b> o devuelva el saldo en tesorería.</p>
+{% endblock %}

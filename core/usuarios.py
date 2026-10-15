@@ -30,6 +30,11 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
     limite_aprobacion = forms.DecimalField(label='Aprueba órdenes de compra hasta S/', required=False,
                                            min_value=0, max_digits=14, decimal_places=2,
                                            help_text='0 o vacío = sin límite')
+    trabajador = forms.ModelChoiceField(label='Rinde gastos como', required=False, queryset=None,
+                                        help_text='Trabajador responsable de sus entregas a rendir (rendición de '
+                                                  'gastos)')
+    jefe = forms.ModelChoiceField(label='Jefe directo', required=False, queryset=None,
+                                  help_text='Aprueba sus rendiciones de gastos si las reglas lo indican')
     clave1 = forms.CharField(label='Contraseña', required=False, widget=forms.PasswordInput)
     clave2 = forms.CharField(label='Repetir contraseña', required=False, widget=forms.PasswordInput)
 
@@ -51,7 +56,13 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
                                                                                       '00', '09', '31'])
         for nombre in ('acciones', 'almacenes', 'series'):
             self.fields[nombre].widget.attrs.pop('class', None)
+        from .models import Tercero
+        self.fields['trabajador'].queryset = Tercero.objects.filter(activo=True, tipo_doc__in=['1', '4', '7'])
+        jefes = User.objects.filter(is_active=True).order_by('username')
+        self.fields['jefe'].queryset = jefes.exclude(pk=self.instance.pk) if self.instance.pk else jefes
         perfil = PerfilUsuario.objects.filter(usuario=self.instance).first() if self.instance.pk else None
+        if perfil:
+            self.initial['trabajador'], self.initial['jefe'] = perfil.trabajador_id, perfil.jefe_id
         if self.instance.pk:
             nombres = set(self.instance.groups.values_list('name', flat=True))
             self.initial['modulos'] = [c for c, n in GRUPOS.items() if n in nombres]
@@ -109,6 +120,7 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         perfil, _ = PerfilUsuario.objects.get_or_create(usuario=user)
         perfil.acciones = sorted(self.cleaned_data.get('acciones') or [])
         perfil.limite_aprobacion = self.cleaned_data.get('limite_aprobacion') or 0
+        perfil.trabajador, perfil.jefe = self.cleaned_data.get('trabajador'), self.cleaned_data.get('jefe')
         perfil.save()
         perfil.almacenes.set(self.cleaned_data.get('almacenes') or [])
         perfil.series.set(self.cleaned_data.get('series') or [])
@@ -150,10 +162,10 @@ def _guardar(request, usuario, titulo):
 @login_required
 def segregacion(request):
     """Matriz de segregación de funciones: qué usuarios tienen permisos incompatibles."""
-    from .segregacion import REGLAS, estricta, reporte
+    from .segregacion import REGLAS, REGLAS_FIJAS, estricta, reporte
     filas, admins = reporte()
     return render(request, 'core/segregacion.html', {
-        'filas': filas, 'admins': admins, 'reglas': REGLAS, 'estricta': estricta(),
+        'filas': filas, 'admins': admins, 'reglas': REGLAS, 'estricta': estricta(), 'reglas_fijas': REGLAS_FIJAS,
         'con_conflicto': sum(1 for f in filas if f['conflictos'])})
 
 

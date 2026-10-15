@@ -180,6 +180,24 @@ MODULOS = [
         ],
     },
     {
+        'clave': 'rendiciones', 'nombre': 'Rendición de gastos', 'icono': 'bi-receipt-cutoff', 'color': '#0b7285',
+        'inicio': 'rendiciones:lista', 'descripcion': 'Gastos de entregas a rendir y caja chica, con aprobación',
+        'menu': [
+            ('Mis rendiciones', 'rendiciones:lista?vista=mias'),
+            ('Nueva rendición', 'rendiciones:nueva'),
+            ('Revisión', [('Por aprobar', 'rendiciones:lista?vista=aprobar', 'bi-check2-circle'),
+                          ('Por contabilizar', 'rendiciones:lista?vista=contabilizar', 'bi-journal-check'),
+                          ('Reembolsos y devoluciones', 'rendiciones:pagos', 'bi-cash-coin'),
+                          ('Reposición de caja chica', 'rendiciones:cajas', 'bi-safe'),
+                          ('Todas las rendiciones', 'rendiciones:lista?vista=todas', 'bi-list-ul')]),
+            ('Reportes', [('Tablero de gastos', 'rendiciones:tablero', 'bi-speedometer2'),
+                          ('Saldos por rendir con antigüedad', 'rendiciones:antiguedad', 'bi-hourglass-split')]),
+            ('Configuración', [('Categorías, políticas y aprobación', 'rendiciones:configuracion', 'bi-gear'),
+                               ('Cargar categorías (Excel)', 'carga_masiva?tipo=categorias_gasto',
+                                'bi-file-earmark-arrow-up')]),
+        ],
+    },
+    {
         'clave': 'logistica', 'nombre': 'Logística', 'icono': 'bi-truck', 'color': '#1098ad',
         'inicio': 'logistica:lista', 'descripcion': 'Guías de remisión remitente y transportista',
         'menu': [
@@ -276,7 +294,8 @@ GRUPOS = {m['clave']: m['nombre'] for m in MODULOS if m['clave'] != 'contactos'}
 
 # Contactos no tiene grupo propio: lo usan quienes venden, compran, cobran o despachan
 DERIVADOS = {'contactos': {'ventas', 'compras', 'finanzas', 'logistica', 'contabilidad'},
-             'requerimientos': {'inventario'}}  # el almacén atiende los requerimientos de las áreas
+             'requerimientos': {'inventario'},  # el almacén atiende los requerimientos de las áreas
+             'rendiciones': {'finanzas', 'contabilidad'}}  # tesorería y contabilidad revisan las rendiciones
 
 # Rutas sin espacio de nombres (app core) -> módulos que pueden abrirlas (el primero es el principal)
 RUTAS_CORE = {
@@ -284,7 +303,7 @@ RUTAS_CORE = {
     'empresa': ['ajustes'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
     'auditoria': ['ajustes'], 'manuales': ['ajustes'], 'manual_pdf': ['ajustes'],
     'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'finanzas', 'contactos', 'manufactura',
-                     'contabilidad', 'planillas'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
+                     'contabilidad', 'planillas', 'rendiciones'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'], 'segregacion': ['ajustes'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
     'tipos_cambio': ['ajustes', 'finanzas'],

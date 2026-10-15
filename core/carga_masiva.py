@@ -288,6 +288,19 @@ DEFINICIONES = OrderedDict([
             ('codigo_sunat', 'Cód. establecimiento SUNAT', False, '0001', '4 dígitos. Vacío = 0000'),
             ('uso', 'Uso', False, 'Almacén normal', 'Almacén normal, Mercadería en tránsito, Cuarentena / por destruir'),
         ]}),
+    ('categorias_gasto', {
+        'titulo': 'Categorías de gasto (rendiciones)', 'icono': 'bi-receipt-cutoff', 'modulos': ['rendiciones'],
+        'descripcion': 'Categorías de la rendición de gastos con su cuenta contable, si exigen comprobante o centro '
+                       'de costo y sus topes.',
+        'columnas': [
+            ('codigo', 'Código', True, 'MOV', 'Hasta 10 caracteres'), ('nombre', 'Nombre', True, 'Movilidad', ''),
+            ('cuenta', 'Cuenta contable', True, '6311', 'Cuenta de gasto imputable'),
+            ('exige_comprobante', 'Exige comprobante', False, 'No', 'Sí o No. Vacío = Sí'),
+            ('exige_centro', 'Exige centro de costo', False, 'Sí', 'Sí o No. Vacío = No'),
+            ('tope', 'Tope por gasto S/', False, '0', '0 o vacío = sin tope'),
+            ('tope_diario', 'Tope diario S/', False, '0', '0 o vacío = sin tope'),
+            ('es_movilidad', 'Es movilidad', False, 'Sí', 'Tope legal 4% de la RMV por día. Vacío = No'),
+        ]}),
     ('plan_demanda', {
         'titulo': 'Plan de demanda (MTS)', 'icono': 'bi-graph-up-arrow', 'modulos': ['manufactura'],
         'descripcion': 'Pronóstico de ventas que el MRP usa en los productos para stock (MTS). Si el producto ya '
@@ -304,7 +317,8 @@ CARGA_DE_LISTA = {'productos': 'productos', 'terceros': 'terceros', 'contabilida
                   'contabilidad:beneficios': 'centros_beneficio', 'contabilidad:plan': 'cuentas',
                   'manufactura:centros': 'puestos', 'manufactura:listas': 'recetas', 'manufactura:hojas': 'hojas_ruta',
                   'manufactura:versiones': 'versiones', 'almacenes': 'almacenes', 'planillas:trabajadores': 'trabajadores',
-                  'ventas:listas_precios': 'listas_precios', 'manufactura:mrp': 'plan_demanda'}
+                  'ventas:listas_precios': 'listas_precios', 'manufactura:mrp': 'plan_demanda',
+                  'rendiciones:configuracion': 'categorias_gasto'}
 
 SI_NO = {'SI': True, 'S': True, 'YES': True, 'TRUE': True, '1': True, 'X': True,
          'NO': False, 'N': False, 'FALSE': False, '0': False}
@@ -793,7 +807,32 @@ def _fila_plan_demanda(d, actualizar):
             'resumen': f'{codigo} · {producto.nombre} · {cantidad} el {fecha:%d/%m/%Y}{aviso}'}
 
 
-VALIDADORES = {'cuentas': _fila_cuenta, 'plan_demanda': _fila_plan_demanda, 'almacenes': _fila_almacen, 'trabajadores': _fila_trabajador, 'productos': _fila_producto, 'terceros': _fila_tercero, 'saldos': _fila_saldo,
+def _fila_categoria_gasto(d, actualizar):
+    from contabilidad.models import CuentaContable
+    from finanzas.models import CategoriaGasto
+    codigo, nombre = _txt(d.get('codigo')).upper(), _txt(d.get('nombre'))
+    if not codigo or not nombre:
+        raise ErrorFila('Código y nombre son obligatorios.')
+    if len(codigo) > 10:
+        raise ErrorFila('Código: hasta 10 caracteres.')
+    cuenta = CuentaContable.objects.filter(codigo=_txt(d.get('cuenta')), imputable=True).first()
+    if cuenta is None:
+        raise ErrorFila(f'Cuenta {_txt(d.get("cuenta")) or "(vacía)"} no existe o no acepta movimientos.')
+    def si_no(campo, defecto):
+        return SI_NO.get(normalizar(d.get(campo)), defecto) if _txt(d.get(campo)) else defecto
+    datos = {'nombre': nombre[:80], 'cuenta_contable': cuenta.pk, 'exige_comprobante': si_no('exige_comprobante', True),
+             'exige_centro': si_no('exige_centro', False), 'es_movilidad': si_no('es_movilidad', False),
+             'tope': str(_dec(d.get('tope'), 'Tope por gasto', minimo=D0) or D0),
+             'tope_diario': str(_dec(d.get('tope_diario'), 'Tope diario', minimo=D0) or D0)}
+    existe = CategoriaGasto.objects.filter(codigo=codigo).exists()
+    if existe and not actualizar:
+        raise ErrorFila(f'{codigo} ya existe (marque "Actualizar existentes").')
+    return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': codigo, 'datos': datos,
+            'resumen': f'{codigo} · {nombre} · {cuenta.codigo}'}
+
+
+VALIDADORES = {'cuentas': _fila_cuenta, 'plan_demanda': _fila_plan_demanda,
+               'categorias_gasto': _fila_categoria_gasto, 'almacenes': _fila_almacen, 'trabajadores': _fila_trabajador, 'productos': _fila_producto, 'terceros': _fila_tercero, 'saldos': _fila_saldo,
                'saldos_cxc': lambda d, a: _fila_documento(d, True), 'saldos_cxp': lambda d, a: _fila_documento(d, False),
                'centros_beneficio': _fila_beneficio, 'centros_costo': _fila_centro_costo, 'puestos': _fila_puesto,
                'recetas': _fila_receta, 'hojas_ruta': _fila_hoja, 'versiones': _fila_version,
@@ -994,6 +1033,14 @@ def cargar(tipo, filas, usuario, adjunto=None):
                 plan.cantidad, plan.nota = Decimal(d['cantidad']), d['nota']
                 plan.save()
             return f'{len(filas)} líneas del plan de demanda cargadas.'
+        if tipo == 'categorias_gasto':
+            from finanzas.models import CategoriaGasto
+            for f in filas:
+                d = dict(f['datos'])
+                d['cuenta_contable_id'] = d.pop('cuenta_contable')
+                d['tope'], d['tope_diario'] = Decimal(d['tope']), Decimal(d['tope_diario'])
+                CategoriaGasto.objects.update_or_create(codigo=f['codigo'], defaults=d)
+            return f'{len(filas)} categorías de gasto cargadas.'
     raise ValueError(tipo)
 
 

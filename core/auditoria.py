@@ -26,6 +26,9 @@ AUDITADOS = [
     ('planillas', 'Trabajador'), ('planillas', 'Planilla'), ('planillas', 'AFP'), ('planillas', 'Parametro'),
     ('contabilidad', 'CentroBeneficio'), ('inventario', 'RequerimientoInterno'),
     ('produccion', 'HojaRuta'), ('produccion', 'VersionFabricacion'),
+    ('finanzas', 'Rendicion'), ('finanzas', 'LineaGasto'), ('finanzas', 'CategoriaGasto'),
+    ('finanzas', 'PoliticaGasto'), ('finanzas', 'ReglaAprobacion'), ('finanzas', 'EntregaRendir'),
+    ('finanzas', 'GastoRendicion'),
 ]
 # campos que el sistema recalcula solo: no son cambios del usuario
 IGNORAR = {

@@ -723,3 +723,7 @@ class CuotaPrestamo(models.Model):
     @property
     def vencida(self):
         return not self.pagada and self.fecha < timezone.localdate()
+
+
+from .models_rendicion import (CategoriaGasto, HistorialRendicion, LineaGasto, PoliticaGasto, ReglaAprobacion,  # noqa: E402,F401
+                               Rendicion)

@@ -1,0 +1,5 @@
+{% load erp_tags %}<div class="card h-100"><div class="card-header">{{ titulo }}</div>
+  <table class="table table-sm mb-0 small">{% for nombre, monto in datos %}<tr><td>{{ nombre }}</td>
+    <td style="width:40%"><div class="progress" style="height:8px" role="progressbar" aria-label="{{ nombre }}"><div class="progress-bar" style="width:{% widthratio monto total 100 %}%"></div></div></td>
+    <td class="num">{{ monto|money }}</td></tr>{% empty %}<tr><td class="text-muted">Sin gastos en el periodo.</td></tr>{% endfor %}</table>
+</div>

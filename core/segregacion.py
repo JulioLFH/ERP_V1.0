@@ -18,7 +18,11 @@ REGLAS = [
     ('activos.registrar', 'activos.baja', 'MEDIO', 'Registra activos y los da de baja'),
     ('manufactura.recetas', 'manufactura.aprobar_cambios', 'MEDIO', 'Propone y aprueba cambios de recetas'),
     ('compras.registrar', 'compras.portal', 'BAJO', 'Registra facturas y aprueba las del portal de proveedores'),
+    ('rendiciones.aprobar', 'rendiciones.tesoreria', 'ALTO', 'Aprueba rendiciones de gastos y paga sus reembolsos'),
+    ('rendiciones.rendir', 'rendiciones.contabilizar', 'MEDIO', 'Rinde gastos y contabiliza las rendiciones'),
 ]
+# reglas fijas del sistema (se cumplen siempre, sin importar los permisos)
+REGLAS_FIJAS = ['Nadie aprueba su propia rendición de gastos: pasa al siguiente nivel o a otro aprobador.']
 NOMBRES = {f'{m}.{a}': d for m, lista in ACCIONES.items() for a, d, _ in lista}
 
 
