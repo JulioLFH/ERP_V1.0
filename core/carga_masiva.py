@@ -101,6 +101,9 @@ DEFINICIONES = OrderedDict([
             ('tipo_planificacion', 'Tipo de planificación', False, 'MRP',
              'MRP, Punto de reorden o Sin planificar. Vacío = MRP (suministros: punto de reorden)'),
             ('estrategia', 'Estrategia', False, 'MTS', 'MTS (para stock) o MTO (contra pedido). Vacío = MTS'),
+            ('familia', 'Familia', False, 'Salsas', 'Agrupa productos en los reportes de producción'),
+            ('peso_neto', 'Peso neto por unidad (kg)', False, '0.5', 'Convierte a kg y TM en los reportes. En kg no '
+                                                                    'hace falta'),
         ]}),
     ('terceros', {
         'titulo': 'Clientes y proveedores', 'icono': 'bi-people', 'modulos': ['contactos', 'compras', 'ventas'],
@@ -344,10 +347,12 @@ def _fila_producto(d, actualizar):
              'marca': _txt(d.get('marca'))[:80], 'codigo_barras': _txt(d.get('codigo_barras'))[:40]}
     for campo, titulo in (('precio_venta', 'Precio de venta'), ('precio_compra', 'Precio de compra'),
                           ('stock_minimo', 'Stock mínimo'), ('punto_reorden', 'Punto de reorden'),
-                          ('stock_maximo', 'Stock máximo')):
+                          ('stock_maximo', 'Stock máximo'), ('peso_neto', 'Peso neto por unidad')):
         valor = _dec(d.get(campo), titulo, minimo=D0)
         if valor is not None:
             datos[campo] = str(valor)
+    if _txt(d.get('familia')):
+        datos['familia'] = _txt(d.get('familia'))[:60]
     if _txt(d.get('tipo_planificacion')):
         datos['tipo_planificacion'] = _elegir(d.get('tipo_planificacion'), PLANIFICACIONES, 'Tipo de planificación')
     if _txt(d.get('estrategia')):
@@ -950,7 +955,8 @@ def cargar(tipo, filas, usuario, adjunto=None):
                     actualizados += 1
                 for campo, valor in f['datos'].items():
                     setattr(p, campo, Decimal(valor) if campo in ('precio_venta', 'precio_compra', 'stock_minimo',
-                                                                   'punto_reorden', 'stock_maximo') else valor)
+                                                                   'punto_reorden', 'stock_maximo', 'peso_neto')
+                            else valor)
                 p.save()
             return f'{nuevos} productos nuevos y {actualizados} actualizados.'
         if tipo == 'terceros':

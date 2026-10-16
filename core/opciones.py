@@ -53,7 +53,7 @@ FUENTES = {
 
 
 _PRODUCTOS = {'inventario', 'ventas', 'compras', 'manufactura', 'logistica', 'requerimientos', 'costos'}
-_TERCEROS = {'ventas', 'compras', 'contactos', 'finanzas', 'contabilidad', 'logistica', 'rendiciones'}
+_TERCEROS = {'ventas', 'compras', 'contactos', 'finanzas', 'contabilidad', 'logistica', 'rendiciones', 'manufactura'}
 MODULOS = {  # quién puede pedir cada lista (además del administrador)
     'productos': _PRODUCTOS, 'productos_venta': _PRODUCTOS, 'productos_bienes': _PRODUCTOS,
     'terceros': _TERCEROS, 'clientes': _TERCEROS, 'proveedores': _TERCEROS,

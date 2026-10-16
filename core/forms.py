@@ -213,7 +213,8 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
     # pestañas del formulario (estilo Odoo): (clave, título, icono, campos)
     PESTANAS = [
         ('general', 'General', 'bi-info-circle',
-         ['clase', 'codigo', 'nombre', 'unidad', 'marca', 'codigo_barras', 'peso', 'control', 'descripcion',
+         ['clase', 'codigo', 'nombre', 'unidad', 'marca', 'familia', 'codigo_barras', 'peso', 'peso_neto',
+          'unidad_reporte', 'control', 'descripcion',
           'imagen_archivo', 'quitar_imagen', 'activo']),
         ('compras', 'Compras', 'bi-bag', ['puede_comprarse', 'precio_compra', 'proveedor', 'unidad_compra',
                                           'factor_compra']),
@@ -269,6 +270,15 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
     def clean_estrategia(self):
         return self.cleaned_data.get('estrategia') or self.instance.estrategia or 'MTS'
 
+    def clean_peso_neto(self):
+        peso = self.cleaned_data.get('peso_neto') or Decimal('0')
+        if peso < 0:
+            raise forms.ValidationError('No puede ser negativo.')
+        return peso
+
+    def clean_unidad_reporte(self):
+        return self.cleaned_data.get('unidad_reporte') or self.instance.unidad_reporte or 'KG'
+
     def clean_factor_compra(self):
         factor = self.cleaned_data.get('factor_compra') or Decimal('1')
         if factor <= 0:
@@ -281,6 +291,8 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
         self.fields['factor_compra'].required = False
         self.fields['tipo_planificacion'].required = False
         self.fields['estrategia'].required = False
+        self.fields['peso_neto'].required = False
+        self.fields['unidad_reporte'].required = False
         from contabilidad.models import CuentaContable
         for campo in ('cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo'):
             self.fields[campo].queryset = CuentaContable.objects.filter(imputable=True).order_by('codigo')

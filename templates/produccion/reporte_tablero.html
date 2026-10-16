@@ -1,0 +1,25 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Tablero de producción{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title">Tablero diario de producción · {{ d.dia|date:'d/m/Y' }}</h1>
+  <a href="{% url 'manufactura:reportes' %}" class="btn btn-sm btn-link d-print-none"><i class="bi bi-arrow-left"></i> Reportes</a>
+</div>
+{% include 'produccion/_filtros_reporte.html' %}
+{% for a in d.avisos %}<div class="alert alert-warning py-2 small">{{ a }}</div>{% endfor %}
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">TM del día</div><div class="value">{{ d.tm_dia }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">TM del mes</div><div class="value">{{ d.tm_mes }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Cumplimiento del plan</div><div class="value {% if d.cumplimiento is not None and d.cumplimiento < 95 %}text-warning{% endif %}">{% if d.cumplimiento is not None %}{{ d.cumplimiento }} %{% else %}—{% endif %}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Merma del mes</div><div class="value">{% if d.merma_pct is not None %}{{ d.merma_pct }} %{% else %}—{% endif %}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">kg por hora hombre</div><div class="value">{{ d.kg_hh|default:'—' }}</div><div class="small text-muted">kg/h máquina {{ d.kg_hm|default:'—' }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Órdenes atrasadas</div><div class="value {% if d.n_atrasadas %}text-danger{% endif %}">{{ d.n_atrasadas }}</div></div></div>
+</div>
+<div class="card mb-3"><div class="card-header">TM producidas por día del mes</div><div class="card-body">
+  <div class="d-flex align-items-end gap-1" style="height:160px">{% for e, v in d.grafico %}<div class="flex-fill text-center" title="{{ e }}: {{ v }} TM"><div class="bg-success rounded-top mx-auto" style="height:{% widthratio v d.maximo 140 %}px;max-width:30px;min-height:2px"></div><div class="small text-muted" style="font-size:.65rem">{{ e }}</div></div>{% endfor %}</div>
+</div></div>
+{% if d.atrasadas %}<div class="card"><div class="card-header text-danger">Órdenes más atrasadas</div><div class="table-responsive"><table class="table table-sm mb-0 small">
+  <thead><tr><th>Orden</th><th>Producto</th><th>Línea</th><th>Debía terminar</th><th class="num">Pendiente</th><th class="num">Días de atraso</th></tr></thead>
+  <tbody>{% for x in d.atrasadas %}<tr><td>{{ x.orden }}</td><td>{{ x.producto }}</td><td>{{ x.linea }}</td><td>{{ x.compromiso|date:'d/m/Y' }}</td><td class="num">{{ x.pendiente|money }} {{ x.unidad }}</td><td class="num text-danger fw-semibold">{{ x.atraso }}</td></tr>{% endfor %}</tbody>
+</table></div></div>{% endif %}
+{% endblock %}

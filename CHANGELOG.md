@@ -3,6 +3,27 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.30.0 — 16/10/2026 · Reportes de producción en kg y toneladas
+- **Producto**: peso neto por unidad, familia y unidad de reporte (unidad base, kg o TM); también en la carga masiva. Con el peso neto, todo se convierte a kg y TM.
+- **Manufactura › Reportes** (todos con filtros, Excel, impresión y **filtros guardados** por usuario):
+  1. Producción por día, semana o mes y por planta, línea, familia o producto, en unidad base, kg y TM; detalle por orden con **fecha real de producción y fecha contable**.
+  2. Plan contra real con cumplimiento y alerta de desvío mayor a ±5 % (por orden, línea o semana; unidad elegible).
+  3. Rendimiento y merma por orden (receta contra real, kg, %, S/) con el top 10.
+  4. Consumo de materias primas: TM consumidas contra el estándar de la receta, variación en kg, % y S/.
+  5. Productividad: kg por hora hombre y por hora máquina, por línea, turno u operario.
+  6. OEE por línea: disponibilidad × rendimiento × calidad.
+  7. Órdenes abiertas y atrasadas: días de atraso y pendiente.
+  8. Costo de producción por kg y por TM (material, mano de obra, máquina, CIF), con la liquidación de costo real.
+  9. Producción por turno y operario.
+  10. Trazabilidad de lote: orden, lotes de insumos y clientes; y al revés, desde un lote de insumo o un cliente.
+  11. Calidad por lote: % aprobado, reprocesado y rechazado, y las causas de rechazo.
+  12. Paradas y mantenimiento: horas de parada, MTBF y MTTR por equipo.
+  13. Producción, ventas y stock en TM con días de cobertura.
+  14. **Tablero diario de producción** (TM del día y del mes, cumplimiento, merma, productividad, atrasos y gráfico).
+- **Paradas de línea** con motivo (avería, falta de material, cambio de formato, limpieza…; planificadas o de falla) y duración, desde Manufactura › Paradas o desde la tablet de planta. La tablet registra también el **turno**.
+- Inspección de calidad con resultado **Reprocesado**.
+- Los reportes leen solo los campos necesarios: responden en 1 a 3 segundos aun con decenas de miles de órdenes. En pantalla se muestran hasta 2 000 filas; el Excel lleva todas.
+
 ## v1.29.0 — 16/10/2026 · Rendición de gastos: lecciones de una implementación corporativa
 - **Indicador de impuesto obligatorio** en cada gasto (gravado con o sin crédito fiscal, tasa reducida de restaurantes y hoteles MYPE, exonerado, inafecto, no gravado; parametrizables). No se envía sin él; valida base × tasa = IGV (tolerancia S/ 0.10) y define si va al registro de compras con crédito fiscal o al gasto con el IGV incluido. Se sugiere según el comprobante.
 - **Motivos de observación estándar** (ilegible, indicador, fuera de política, imputación errada, fuera de plazo, duplicado…) al observar o rechazar un gasto o la rendición, y **reporte de observaciones y errores por usuario y por área**.

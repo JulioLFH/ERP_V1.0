@@ -241,6 +241,13 @@ class Producto(models.Model):
     codigo_barras = models.CharField('Código de barras', max_length=40, blank=True)
     peso = models.DecimalField('Peso por unidad (kg)', max_digits=12, decimal_places=3, default=D0,
                                help_text='Calcula el peso bruto de las guías de remisión')
+    # ---- reportes de producción: conversión a kg y toneladas
+    peso_neto = models.DecimalField('Peso neto por unidad (kg)', max_digits=12, decimal_places=4, default=D0,
+                                    help_text='Kilos de producto en una unidad base (convierte a kg y TM en los '
+                                              'reportes). En kg no hace falta. Vacío = el peso bruto')
+    familia = models.CharField(max_length=60, blank=True, help_text='Agrupa productos en los reportes. Ej. Salsas')
+    UNIDADES_REPORTE = [('BASE', 'Unidad base del producto'), ('KG', 'Kilogramos'), ('TM', 'Toneladas')]
+    unidad_reporte = models.CharField('Unidad de reporte', max_length=4, choices=UNIDADES_REPORTE, default='KG')
     centro_beneficio = models.ForeignKey('contabilidad.CentroBeneficio', on_delete=models.SET_NULL, null=True,
                                          blank=True, related_name='+', verbose_name='Línea de negocio',
                                          help_text='Ventas, costo de ventas e inventario del producto van a esta línea')
@@ -348,6 +355,13 @@ class Producto(models.Model):
     @property
     def es_inventariable(self):
         return self.tipo == 'BIEN'
+
+    @property
+    def kg_por_unidad(self):
+        """Kilos en una unidad base (para reportar en kg y TM); None si no se puede convertir."""
+        if self.unidad == 'KGM':
+            return Decimal('1')
+        return self.peso_neto or self.peso or None
 
     @property
     def factor(self):
@@ -725,6 +739,19 @@ class PerfilUsuario(models.Model):
 
     def __str__(self):
         return f'Permisos de {self.usuario}'
+
+
+class FiltroGuardado(models.Model):
+    """Filtros de un reporte guardados por el usuario (se vuelven a aplicar con un clic)."""
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='filtros_guardados')
+    reporte = models.CharField(max_length=60)
+    nombre = models.CharField(max_length=60)
+    parametros = models.CharField(max_length=1000)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['reporte', 'nombre']
+        unique_together = [('usuario', 'reporte', 'nombre')]
 
 
 class ApiToken(models.Model):

@@ -154,6 +154,7 @@ RUTAS = {
     'costos:actividad_nueva': {'POST': 'costos.abc'}, 'costos:actividad': {'POST': 'costos.abc'},
     'manufactura:programacion': {'POST': 'manufactura.ordenes'},
     'manufactura:planta_orden': {'POST': 'manufactura.ordenes'},
+    'manufactura:paradas': {'POST': 'manufactura.ordenes'},
     'manufactura:cambio_nuevo': 'manufactura.recetas',
     'manufactura:cambio': lambda r: (None if r.method != 'POST' else 'manufactura.aprobar_cambios'
                                      if r.POST.get('accion') in ('aprobar', 'rechazar') else 'manufactura.recetas'),

@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Reportes de producción{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Reportes de producción</h1>
+<div class="row g-3">
+  {% for clave, titulo in reportes %}
+  <div class="col-md-6 col-lg-4"><a href="{% if clave == 'tablero' %}{% url 'manufactura:tablero' %}{% else %}{% url 'manufactura:reporte' clave %}{% endif %}" class="card h-100 text-decoration-none text-reset"><div class="card-body d-flex gap-3 align-items-center">
+    <i class="bi bi-bar-chart-line fs-3 text-success"></i><div class="fw-semibold">{{ titulo }}</div>
+  </div></a></div>
+  {% endfor %}
+</div>
+<p class="small text-muted mt-3">Todos se exportan a Excel, se pueden guardar sus filtros y elegir la unidad de reporte (unidad base, kg o toneladas). Para convertir a kg y TM registre el <b>peso neto por unidad</b> y la <b>familia</b> en la ficha de cada producto.</p>
+{% endblock %}

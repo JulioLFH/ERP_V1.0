@@ -557,7 +557,7 @@ class InspeccionCalidad(models.Model):
     TIPOS = [('RECEPCION', 'Recepción (materia prima / compras)'), ('PROCESO', 'En proceso'),
              ('TERMINADO', 'Producto terminado'), ('DEVOLUCION', 'Devolución de clientes')]
     RESULTADOS = [('PENDIENTE', 'Pendiente'), ('APROBADO', 'Aprobado'), ('OBSERVADO', 'Aprobado con observaciones'),
-                  ('RECHAZADO', 'Rechazado')]
+                  ('REPROCESO', 'Reprocesado'), ('RECHAZADO', 'Rechazado')]
     numero = models.CharField('N°', max_length=20, editable=False)
     tipo = models.CharField(max_length=10, choices=TIPOS, default='RECEPCION')
     fecha = models.DateField(default=timezone.localdate)
@@ -717,6 +717,7 @@ class AvanceOrden(models.Model):
     cantidad_merma = models.DecimalField('Merma / rechazo', max_digits=14, decimal_places=2, default=D0)
     horas = models.DecimalField(max_digits=8, decimal_places=2, default=D0)
     operario = models.CharField(max_length=80, blank=True)
+    turno = models.ForeignKey('planillas.Turno', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     nota = models.CharField(max_length=200, blank=True)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
     registrado = models.DateTimeField(auto_now_add=True)
@@ -725,6 +726,50 @@ class AvanceOrden(models.Model):
         ordering = ['-registrado']
         verbose_name = 'avance de producción'
         verbose_name_plural = 'avances de producción'
+
+
+class MotivoParada(models.Model):
+    codigo = models.CharField('Código', max_length=20, unique=True)
+    nombre = models.CharField(max_length=80)
+    planificada = models.BooleanField('Parada planificada', default=False,
+                                      help_text='Limpieza, cambio de formato, refrigerio: no resta disponibilidad (OEE)')
+    es_falla = models.BooleanField('Es una falla del equipo', default=False,
+                                   help_text='Cuenta para el tiempo medio entre fallas y de reparación')
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['nombre']
+        verbose_name = 'motivo de parada'
+        verbose_name_plural = 'motivos de parada'
+
+    def __str__(self):
+        return self.nombre
+
+
+class Parada(models.Model):
+    """Tiempo en que el puesto o el equipo no produjo, con su motivo (base de la disponibilidad del OEE)."""
+    centro = models.ForeignKey(CentroTrabajo, on_delete=models.PROTECT, related_name='paradas',
+                               verbose_name='Puesto / línea')
+    equipo = models.ForeignKey(Equipo, on_delete=models.SET_NULL, null=True, blank=True, related_name='paradas')
+    orden = models.ForeignKey(OrdenProduccion, on_delete=models.SET_NULL, null=True, blank=True,
+                              related_name='paradas', verbose_name='Orden de producción')
+    motivo = models.ForeignKey(MotivoParada, on_delete=models.PROTECT, related_name='paradas')
+    inicio = models.DateTimeField()
+    fin = models.DateTimeField(null=True, blank=True)
+    operario = models.CharField(max_length=80, blank=True)
+    nota = models.CharField(max_length=200, blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-inicio', '-id']
+        verbose_name = 'parada'
+
+    @property
+    def horas(self):
+        if not self.fin:
+            return Decimal('0')
+        return (Decimal((self.fin - self.inicio).total_seconds()) / 3600).quantize(Decimal('0.01'))
 
 
 # ================================================================ cambios de ingeniería

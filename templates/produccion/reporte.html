@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title">{{ titulo }}</h1>
+  <a href="{% url 'manufactura:reportes' %}" class="btn btn-sm btn-link d-print-none"><i class="bi bi-arrow-left"></i> Reportes</a>
+</div>
+{% include 'produccion/_filtros_reporte.html' %}
+{% for a in d.avisos %}<div class="alert alert-warning py-2 small">{{ a }}</div>{% endfor %}
+{% if barras %}<div class="card mb-3"><div class="card-body py-2"><div class="small text-muted mb-1">TM producidas</div>
+  <div class="d-flex align-items-end gap-1" style="height:120px">{% for e, v, alto in barras %}<div class="flex-fill text-center" title="{{ e }}: {{ v }} TM"><div class="bg-success rounded-top mx-auto" style="height:{{ alto }}px;max-width:38px;min-height:2px"></div><div class="small text-muted text-truncate" style="font-size:.65rem">{{ e }}</div></div>{% endfor %}</div>
+</div></div>{% endif %}
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead class="table-light"><tr>{% for c, t, tipo in d.columnas %}<th class="{% if tipo != 'texto' and tipo != 'fecha' %}num{% endif %}">{{ t }}</th>{% endfor %}</tr></thead>
+  <tbody>{% for fila in tabla %}<tr>{% for v, tipo in fila %}<td class="{% if tipo != 'texto' and tipo != 'fecha' %}num{% else %}small{% endif %}{% if v == 'Desvío' or v == 'Atrasada' %} text-danger fw-semibold{% endif %}">{{ v }}</td>{% endfor %}</tr>
+  {% empty %}<tr><td colspan="{{ d.columnas|length }}" class="text-center text-muted py-4">Sin datos para estos filtros.</td></tr>{% endfor %}</tbody>
+  {% if fila_total and tabla %}<tfoot class="fw-bold table-light"><tr>{% for v, tipo in fila_total %}<td class="{% if tipo != 'texto' and tipo != 'fecha' %}num{% endif %}">{% if forloop.first %}TOTAL{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr></tfoot>{% endif %}
+</table></div></div>
+{% if d.causas %}<div class="card mt-3" style="max-width:520px"><div class="card-header">Causas de rechazo o reproceso</div>
+  <table class="table table-sm mb-0 small">{% for c, n in d.causas %}<tr><td>{{ c }}</td><td class="num fw-semibold">{{ n }}</td></tr>{% endfor %}</table></div>{% endif %}
+<p class="small text-muted mt-2">{{ d.descripcion }}</p>
+{% endblock %}

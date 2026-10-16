@@ -107,7 +107,22 @@ def diagrama(por_centro, desde, dias=21):
 
 # ---------------------------------------------------------------- reporte de planta (tablets)
 @transaction.atomic
-def registrar_avance(orden, hora, buena, merma, horas, operario, nota, usuario):
+def registrar_parada(orden, hora, motivo, minutos, usuario, operario=''):
+    """Parada de la línea reportada desde la planta: termina ahora y empieza los minutos indicados antes."""
+    from .models import Parada
+    if hora is None or motivo is None:
+        raise ErrorAvanzado('Indique el puesto y el motivo de la parada.')
+    if not minutos or minutos <= 0:
+        raise ErrorAvanzado('Indique cuántos minutos duró la parada.')
+    fin = timezone.now()
+    equipo = hora.centro.equipos.filter(activo=True).first()
+    return Parada.objects.create(centro=hora.centro, equipo=equipo, orden=orden, motivo=motivo,
+                                 inicio=fin - timedelta(minutes=float(minutos)), fin=fin, usuario=usuario,
+                                 operario=(operario or (usuario.get_full_name() if usuario else '') or '')[:80])
+
+
+@transaction.atomic
+def registrar_avance(orden, hora, buena, merma, horas, operario, nota, usuario, turno=None):
     """Registra lo producido, la merma y las horas de una operación. La orden confirmada pasa a en proceso y las
     horas reales de la operación se actualizan con la suma reportada (así llegan al costeo al terminar)."""
     from . import servicios
@@ -122,9 +137,12 @@ def registrar_avance(orden, hora, buena, merma, horas, operario, nota, usuario):
         raise ErrorAvanzado('La operación no es de esta orden.')
     if orden.estado == 'CONFIRMADA':
         servicios.iniciar(orden)
+    if turno is None:  # el turno que corresponde a la hora del reporte
+        from .reportes_produccion import turno_de
+        turno = turno_de(timezone.now())
     avance = AvanceOrden.objects.create(orden=orden, hora=hora, cantidad_buena=buena, cantidad_merma=merma,
                                         horas=horas, operario=(operario or '')[:80], nota=(nota or '')[:200],
-                                        usuario=usuario)
+                                        usuario=usuario, turno=turno)
     if hora is not None and horas:
         hora.horas_real = hora.avances.aggregate(s=Sum('horas'))['s'] or D0
         hora.save(update_fields=['horas_real'])

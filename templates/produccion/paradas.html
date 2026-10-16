@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Paradas de línea{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Paradas de línea</h1>
+<div class="card mb-3"><div class="card-header">Registrar parada</div><div class="card-body">
+  <form method="post" class="row g-2">{% csrf_token %}
+    {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-2">{{ e }}</div>{% endfor %}
+    {% for field in form %}<div class="col-6 col-md-3">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12"><button class="btn btn-sm btn-primary">Registrar parada</button></div>
+  </form>
+  <p class="small text-muted mb-0 mt-2">También se registran desde la tablet de planta. Los motivos planificados (limpieza, cambio de formato) no restan disponibilidad en el OEE; los de falla cuentan para el tiempo medio entre fallas.</p>
+</div></div>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0 small align-middle">
+  <thead><tr><th>Inicio</th><th>Fin</th><th class="num">Horas</th><th>Puesto</th><th>Equipo</th><th>Motivo</th><th>Orden</th><th>Operario / nota</th></tr></thead>
+  <tbody>{% for p in paradas %}<tr><td>{{ p.inicio|date:'d/m/Y H:i' }}</td><td>{{ p.fin|date:'d/m/Y H:i'|default:'en curso' }}</td><td class="num">{{ p.horas }}</td><td>{{ p.centro }}</td><td>{{ p.equipo|default:'' }}</td>
+    <td>{{ p.motivo }}{% if p.motivo.planificada %} <span class="badge text-bg-light">planificada</span>{% endif %}{% if p.motivo.es_falla %} <span class="badge text-bg-danger">falla</span>{% endif %}</td><td>{{ p.orden.numero|default:'' }}</td><td>{{ p.operario }} {{ p.nota }}</td></tr>
+  {% empty %}<tr><td colspan="8" class="text-center text-muted py-3">Sin paradas registradas.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

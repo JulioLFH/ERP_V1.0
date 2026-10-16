@@ -58,13 +58,23 @@ def planta(request):
 def planta_orden(request, pk):
     orden = get_object_or_404(OrdenProduccion.objects.select_related('producto'), pk=pk)
     operaciones = list(orden.horas.select_related('centro').order_by('secuencia', 'id'))
+    from planillas.models import Turno
+    from .models import MotivoParada
+    turnos = list(Turno.objects.all())
     if request.method == 'POST':
         hora = next((h for h in operaciones if str(h.pk) == request.POST.get('hora')), None)
         try:
-            avanzado.registrar_avance(orden, hora, _dec(request.POST.get('buena')), _dec(request.POST.get('merma')),
-                                      _dec(request.POST.get('horas')), request.POST.get('operario', ''),
-                                      request.POST.get('nota', ''), request.user)
-            messages.success(request, 'Avance registrado.')
+            if request.POST.get('accion') == 'parada':
+                avanzado.registrar_parada(orden, hora, MotivoParada.objects.filter(pk=request.POST.get('motivo'))
+                                          .first(), _dec(request.POST.get('minutos')), request.user)
+                messages.success(request, 'Parada registrada.')
+            else:
+                turno = next((t for t in turnos if str(t.pk) == request.POST.get('turno')), None)
+                avanzado.registrar_avance(orden, hora, _dec(request.POST.get('buena')),
+                                          _dec(request.POST.get('merma')), _dec(request.POST.get('horas')),
+                                          request.POST.get('operario', ''), request.POST.get('nota', ''), request.user,
+                                          turno=turno)
+                messages.success(request, 'Avance registrado.')
         except avanzado.ErrorAvanzado as exc:
             messages.error(request, str(exc))
         return redirect('manufactura:planta_orden', pk)
@@ -78,7 +88,15 @@ def planta_orden(request, pk):
     return render(request, 'produccion/planta_orden.html', {
         'o': orden, 'operaciones': [(h, reportado.get(h.pk)) for h in operaciones], 'resumen': resumen,
         'activa': orden.estado in ('CONFIRMADA', 'EN_PROCESO'),
-        'hora_sel': request.GET.get('hora') or (str(operaciones[0].pk) if operaciones else '')})
+        'hora_sel': request.GET.get('hora') or (str(operaciones[0].pk) if operaciones else ''),
+        'turnos': turnos, 'turno_actual': _turno_de(turnos),
+        'motivos_parada': MotivoParada.objects.filter(activo=True)})
+
+
+def _turno_de(turnos):
+    from django.utils import timezone
+    from .reportes_produccion import turno_de
+    return turno_de(timezone.now(), turnos)
 
 
 # ---------------------------------------------------------------- cambios de ingeniería

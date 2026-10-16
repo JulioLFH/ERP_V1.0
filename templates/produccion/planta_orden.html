@@ -24,12 +24,25 @@
       <div class="col-6 col-md-3"><label class="form-label">Merma / rechazo</label><input name="merma" class="form-control form-control-lg text-end" inputmode="decimal" autocomplete="off"></div>
       <div class="col-6 col-md-3"><label class="form-label">Horas trabajadas</label><input name="horas" class="form-control form-control-lg text-end" inputmode="decimal" autocomplete="off"></div>
       <div class="col-6 col-md-3"><label class="form-label">Operario</label><input name="operario" class="form-control form-control-lg" maxlength="80" value="{{ request.user.get_full_name|default:request.user.username }}"></div>
-      <div class="col-12"><label class="form-label">Nota</label><input name="nota" class="form-control form-control-lg" maxlength="200" placeholder="Paradas, incidencias…"></div>
+      {% if turnos %}<div class="col-6 col-md-3"><label class="form-label">Turno</label><select name="turno" class="form-select form-select-lg" data-sin-buscador><option value="">Según la hora</option>{% for t in turnos %}<option value="{{ t.pk }}" {% if turno_actual and turno_actual.pk == t.pk %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>{% endif %}
+      <div class="col-12 {% if turnos %}col-md-9{% endif %}"><label class="form-label">Nota</label><input name="nota" class="form-control form-control-lg" maxlength="200" placeholder="Incidencias…"></div>
     </div>
     <button class="btn btn-lg btn-success w-100 mt-3"><i class="bi bi-check2-circle"></i> Registrar avance</button>
     <div class="small text-muted mt-2">Las horas reportadas reemplazan las horas reales de la operación al terminar la orden. La orden confirmada pasa a «En proceso» con el primer reporte.</div>
   </div>
 </form>
+{% if operaciones %}
+<form method="post" class="card mb-3 border-warning">{% csrf_token %}<input type="hidden" name="accion" value="parada">
+  <div class="card-header"><i class="bi bi-pause-circle"></i> Registrar parada de la línea</div>
+  <div class="card-body row g-3">
+    <div class="col-12 col-md-4"><label class="form-label">Puesto</label><select name="hora" class="form-select form-select-lg" data-sin-buscador>{% for h, rep in operaciones %}<option value="{{ h.pk }}" {% if hora_sel == h.pk|stringformat:'s' %}selected{% endif %}>{{ h.centro }}</option>{% endfor %}</select></div>
+    <div class="col-12 col-md-4"><label class="form-label">Motivo</label><select name="motivo" class="form-select form-select-lg" required data-sin-buscador><option value="">—</option>{% for m in motivos_parada %}<option value="{{ m.pk }}">{{ m.nombre }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-2"><label class="form-label">Minutos</label><input name="minutos" class="form-control form-control-lg text-end" inputmode="numeric" required></div>
+    <div class="col-6 col-md-2 d-flex align-items-end"><button class="btn btn-lg btn-warning w-100">Registrar</button></div>
+    <div class="col-12 small text-muted">La parada termina ahora y empieza los minutos indicados antes. Sirve para la disponibilidad (OEE) y el tiempo entre fallas.</div>
+  </div>
+</form>
+{% endif %}
 {% else %}<div class="alert alert-secondary">La orden está {{ o.get_estado_display|lower }}: ya no recibe reportes.</div>{% endif %}
 {% if resumen %}<div class="card"><div class="card-header">Reportes</div><div class="table-responsive"><table class="table table-sm mb-0">
   <thead><tr><th>Fecha y hora</th><th>Operación</th><th class="num">Buena</th><th class="num">Merma</th><th class="num">Horas</th><th>Operario</th><th>Nota</th></tr></thead>
