@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.31.0 — 16/10/2026 · Reporte diario de producción y log de modificaciones de Manufactura
+- **Reporte diario de producción** (Manufactura › Reportes): resumen del día y seis secciones — producción terminada (planificado, producido, cumplimiento, kg y TM), avance de planta por turno y operario, insumos consumidos contra la receta, paradas de línea, inspecciones de calidad y órdenes del día que siguen abiertas. Filtros por planta, línea, turno, familia y producto; botones de día anterior y siguiente; Excel con una hoja por sección; impresión.
+- **Log de modificaciones** en Manufactura (solo administradores): quién creó, modificó, anuló o eliminó cada registro, con el valor anterior y el nuevo, fecha, hora e IP; filtros por usuario, acción, tipo de registro y fechas; Excel. Botón **Historial** en cada orden de producción.
+- La bitácora ahora también registra en Manufactura: insumos y subproductos de las recetas, operaciones de las hojas de ruta, plan de demanda, avances de planta, paradas y sus motivos, inspecciones y parámetros de calidad, equipos, planes y órdenes de mantenimiento y cambios de ingeniería.
+
 ## v1.30.0 — 16/10/2026 · Reportes de producción en kg y toneladas
 - **Producto**: peso neto por unidad, familia y unidad de reporte (unidad base, kg o TM); también en la carga masiva. Con el peso neto, todo se convierte a kg y TM.
 - **Manufactura › Reportes** (todos con filtros, Excel, impresión y **filtros guardados** por usuario):

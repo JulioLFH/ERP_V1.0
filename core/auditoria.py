@@ -30,6 +30,12 @@ AUDITADOS = [
     ('finanzas', 'PoliticaGasto'), ('finanzas', 'ReglaAprobacion'), ('finanzas', 'EntregaRendir'),
     ('finanzas', 'GastoRendicion'), ('finanzas', 'TarjetaCorporativa'), ('finanzas', 'Proyecto'),
     ('finanzas', 'ConfigRendicion'),
+    # manufactura: maestros, recetas, planta, calidad y mantenimiento (log de modificaciones de Manufactura)
+    ('produccion', 'ComponenteLista'), ('produccion', 'SubproductoLista'), ('produccion', 'OperacionRuta'),
+    ('produccion', 'PlanDemanda'), ('produccion', 'AvanceOrden'),
+    ('produccion', 'Parada'), ('produccion', 'MotivoParada'), ('produccion', 'InspeccionCalidad'),
+    ('produccion', 'ParametroCalidad'), ('produccion', 'Equipo'), ('produccion', 'PlanMantenimiento'),
+    ('produccion', 'OrdenMantenimiento'), ('produccion', 'CambioIngenieria'),
 ]
 # campos que el sistema recalcula solo: no son cambios del usuario
 IGNORAR = {

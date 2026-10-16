@@ -103,8 +103,10 @@ MODULOS = [
                             ('Órdenes del sistema anterior', 'hist_fabricacion', 'bi-clock-history')]),
             ('Planta', [('Reporte de planta (tablets)', 'manufactura:planta', 'bi-tablet'),
                         ('Paradas de línea', 'manufactura:paradas', 'bi-pause-circle')]),
-            ('Reportes', [('Tablero diario de producción', 'manufactura:tablero', 'bi-speedometer2'),
-                          ('Todos los reportes de producción', 'manufactura:reportes', 'bi-bar-chart-line')]),
+            ('Reportes', [('Reporte diario de producción', 'manufactura:diario', 'bi-calendar-day'),
+                          ('Tablero diario de producción', 'manufactura:tablero', 'bi-speedometer2'),
+                          ('Todos los reportes de producción', 'manufactura:reportes', 'bi-bar-chart-line'),
+                          ('Log de modificaciones', 'manufactura:modificaciones', 'bi-journal-text')]),
             ('Planificación', [('MRP: necesidades y órdenes planificadas', 'manufactura:mrp', 'bi-diagram-2'),
                                ('Programación detallada de planta', 'manufactura:programacion', 'bi-calendar-range'),
                                ('Carga y capacidad de puestos', 'manufactura:capacidad', 'bi-speedometer')]),
@@ -397,7 +399,7 @@ def resolver_url(destino):
 
 
 RUTAS_COSTOS = {'inv_valorizacion', 'inventario:cierres'}  # solo con el permiso de ver costos
-RUTAS_ADMIN = {'manuales', 'contabilidad:consolidacion'}  # solo los administradores (superusuarios) las ven
+RUTAS_ADMIN = {'manuales', 'contabilidad:consolidacion', 'manufactura:modificaciones'}  # solo los administradores (superusuarios) las ven
 
 
 def marcar_activo(items, ruta_completa):

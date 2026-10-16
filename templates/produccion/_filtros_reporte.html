@@ -21,7 +21,7 @@
     {% if 'unidad' in usados %}<div class="col-6 col-md-2"><label class="form-label small mb-1">Unidad de reporte</label><select name="unidad" class="form-select form-select-sm" data-sin-buscador>{% for v, t in unidades %}<option value="{{ v }}" {% if f.unidad == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>{% endif %}
     <div class="col-auto d-flex gap-1">
       <button class="btn btn-sm btn-primary">Ver</button>
-      {% if tabla is not None %}<button name="formato" value="excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></button>{% endif %}
+      {% if tabla is not None or secciones %}<button name="formato" value="excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></button>{% endif %}
       <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary" title="Imprimir o PDF"><i class="bi bi-printer"></i></button>
     </div>
   </form>

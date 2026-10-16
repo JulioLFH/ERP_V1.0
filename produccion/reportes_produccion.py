@@ -847,8 +847,104 @@ def tablero(f):
             'avisos': _avisos_peso(sin_peso)}
 
 
+# ---------------------------------------------------------------- reporte diario (parte de producción)
+def diario(f):
+    """Parte diario de producción: lo terminado, lo reportado por turno, los insumos, las paradas, la calidad y
+    las órdenes programadas del día."""
+    dia = f.fecha
+    base = {'desde': dia.isoformat(), 'hasta': dia.isoformat()}
+    del_dia = Filtros({**base, **{c: f.valores[c] for c in ('planta', 'linea', 'turno', 'familia', 'producto')}})
+    secciones, sin_peso = [], set()
+
+    # 1. producción terminada
+    filas = []
+    for o in sorted(_terminadas(del_dia), key=lambda o: o.numero or ''):
+        k = kg(o.producto, o.cantidad_producida)
+        if k is None:
+            sin_peso.add(o.producto)
+        filas.append({'orden': o.numero, 'producto': f'{o.producto.codigo} {o.producto.nombre}',
+                      'linea': str(o.puesto or '—'), 'plan': o.cantidad, 'producido': o.cantidad_producida,
+                      'unidad': o.producto.unidad, 'cumplimiento': pct(o.cantidad_producida, o.cantidad),
+                      'kg': r2(k) if k is not None else None, 'tm': r3(k / 1000) if k is not None else None})
+    secciones.append({'titulo': 'Producción terminada', 'filas': filas, 'columnas': [
+        ('orden', 'Orden', 'texto'), ('producto', 'Producto', 'texto'), ('linea', 'Línea / puesto', 'texto'),
+        ('plan', 'Planificado', 'num'), ('producido', 'Producido', 'num'), ('unidad', 'Unidad', 'texto'),
+        ('cumplimiento', 'Cumplimiento %', 'pct'), ('kg', 'kg', 'num'), ('tm', 'TM', 'num')],
+        'total': {'kg': r2(sum((x['kg'] or D0 for x in filas), D0)),
+                  'tm': r3(sum((x['tm'] or D0 for x in filas), D0))}})
+    tm_dia = secciones[0]['total']['tm']
+
+    # 2. avance de planta por turno y operario
+    avances = turno_operario(del_dia)
+    secciones.append({'titulo': 'Avance de planta por turno y operario', 'filas': avances['filas'],
+                      'columnas': avances['columnas'], 'total': avances['total']})
+
+    # 3. insumos consumidos por las órdenes terminadas
+    insumos = OrderedDict()
+    for c in sorted(_consumos(del_dia), key=lambda c: c.producto.codigo):
+        g = insumos.setdefault(c.producto, {'plan': D0, 'real': D0})
+        g['plan'] += c.cantidad_plan
+        g['real'] += c.cantidad_real
+    filas = [{'insumo': f'{p.codigo} {p.nombre}', 'unidad': p.unidad, 'plan': g['plan'], 'real': g['real'],
+              'variacion': g['real'] - g['plan'], 'variacion_pct': pct(g['real'] - g['plan'], g['plan'])}
+             for p, g in insumos.items()]
+    secciones.append({'titulo': 'Insumos consumidos', 'filas': filas, 'total': None, 'columnas': [
+        ('insumo', 'Insumo', 'texto'), ('unidad', 'Unidad', 'texto'), ('plan', 'Según receta', 'num'),
+        ('real', 'Real', 'num'), ('variacion', 'Variación', 'num'), ('variacion_pct', 'Variación %', 'pct')]})
+
+    # 4. paradas
+    paradas = sorted(_paradas(del_dia), key=lambda p: p.inicio)
+    filas = [{'puesto': str(p.centro), 'equipo': str(p.equipo or ''), 'motivo': p.motivo.nombre,
+              'tipo': 'Planificada' if p.motivo.planificada else ('Falla' if p.motivo.es_falla else 'No planificada'),
+              'inicio': timezone.localtime(p.inicio).strftime('%H:%M'), 'fin': timezone.localtime(p.fin).strftime('%H:%M'),
+              'horas': p.horas, 'orden': p.orden.numero if p.orden_id else '', 'operario': p.operario}
+             for p in paradas]
+    horas_parada = sum((x['horas'] for x in filas), D0)
+    secciones.append({'titulo': 'Paradas de línea', 'filas': filas, 'total': {'horas': horas_parada}, 'columnas': [
+        ('puesto', 'Puesto', 'texto'), ('equipo', 'Equipo', 'texto'), ('motivo', 'Motivo', 'texto'),
+        ('tipo', 'Tipo', 'texto'), ('inicio', 'Inicio', 'texto'), ('fin', 'Fin', 'texto'), ('horas', 'Horas', 'num'),
+        ('orden', 'Orden', 'texto'), ('operario', 'Operario', 'texto')]})
+
+    # 5. calidad
+    qs = (InspeccionCalidad.objects.filter(fecha=dia).select_related('producto', 'orden')
+          .prefetch_related('resultados').order_by('id'))
+    qs = f.productos(qs)
+    filas = [{'inspeccion': i.numero, 'tipo': i.get_tipo_display(), 'producto': f'{i.producto.codigo} {i.producto.nombre}',
+              'lote': i.lote or (i.orden.numero if i.orden_id else ''), 'cantidad': i.cantidad,
+              'resultado': i.get_resultado_display(),
+              'causas': ', '.join(r.caracteristica for r in i.resultados.all() if r.conforme is False)} for i in qs]
+    secciones.append({'titulo': 'Calidad', 'filas': filas, 'total': None, 'columnas': [
+        ('inspeccion', 'Inspección', 'texto'), ('tipo', 'Tipo', 'texto'), ('producto', 'Producto', 'texto'),
+        ('lote', 'Lote', 'texto'), ('cantidad', 'Cantidad', 'num'), ('resultado', 'Resultado', 'texto'),
+        ('causas', 'Fuera de especificación', 'texto')]})
+
+    # 6. órdenes programadas para el día que siguen abiertas
+    qs = OrdenProduccion.objects.filter(fecha=dia, estado__in=['BORRADOR', 'CONFIRMADA', 'EN_PROCESO'])
+    qs = f.productos(qs)
+    if f.linea:
+        qs = qs.filter(pk__in=HoraOrden.objects.filter(centro_id=f.linea).values('orden_id'))
+    filas = [{'orden': o.numero or '(borrador)', 'estado': o.estado_texto,
+              'producto': f'{o.producto.codigo} {o.producto.nombre}', 'linea': str(o.puesto or '—'),
+              'cantidad': o.cantidad, 'producido': o.producido, 'pendiente': max(o.cantidad - o.producido, D0),
+              'unidad': o.producto.unidad} for o in _ordenes(qs)]
+    secciones.append({'titulo': 'Órdenes del día aún abiertas', 'filas': filas, 'total': None, 'columnas': [
+        ('orden', 'Orden', 'texto'), ('estado', 'Estado', 'texto'), ('producto', 'Producto', 'texto'),
+        ('linea', 'Línea / puesto', 'texto'), ('cantidad', 'Planificado', 'num'), ('producido', 'Producido', 'num'),
+        ('pendiente', 'Pendiente', 'num'), ('unidad', 'Unidad', 'texto')]})
+
+    calidad_ok = sum(1 for x in secciones[4]['filas'] if x['resultado'].startswith('Aprobado'))
+    resumen = [('Órdenes terminadas', len(secciones[0]['filas'])), ('TM producidas', tm_dia),
+               ('Merma reportada (unid.)', avances['total']['merma']), ('Horas trabajadas', avances['total']['horas']),
+               ('Horas de parada', horas_parada),
+               ('Inspecciones aprobadas', f'{calidad_ok} de {len(secciones[4]["filas"])}'),
+               ('Órdenes del día abiertas', len(secciones[5]['filas']))]
+    return {'titulo': 'Reporte diario de producción', 'dia': dia, 'secciones': secciones, 'resumen': resumen,
+            'avisos': _avisos_peso(sin_peso)}
+
+
 # ---------------------------------------------------------------- catálogo
 REPORTES = OrderedDict([
+    ('diario', ('Reporte diario de producción', diario, ['fecha', 'planta', 'linea', 'turno', 'familia', 'producto'])),
     ('produccion', ('Producción en unidad base, kg y TM', produccion, ['fechas', 'planta', 'linea', 'familia',
                                                                        'producto', 'turno', 'agrupar', 'por'])),
     ('plan_real', ('Plan contra real (cumplimiento)', plan_real, ['fechas', 'linea', 'producto', 'familia', 'estado',

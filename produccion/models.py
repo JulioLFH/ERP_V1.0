@@ -117,6 +117,11 @@ class OperacionRuta(models.Model):
     class Meta:
         ordering = ['secuencia']
         unique_together = [('hoja', 'secuencia')]
+        verbose_name = 'operación de la hoja de ruta'
+        verbose_name_plural = 'operaciones de la hoja de ruta'
+
+    def __str__(self):
+        return f'{self.hoja.codigo} op. {self.secuencia} {self.descripcion}'
 
     @property
     def personas(self):
@@ -177,6 +182,11 @@ class ComponenteLista(models.Model):
 
     class Meta:
         ordering = ['id']
+        verbose_name = 'insumo de la receta'
+        verbose_name_plural = 'insumos de la receta'
+
+    def __str__(self):
+        return f'{self.lista} · {self.producto.codigo} {self.producto.nombre}'
 
     @property
     def cantidad_con_merma(self):
@@ -203,6 +213,9 @@ class SubproductoLista(models.Model):
     class Meta:
         ordering = ['id']
         verbose_name = 'subproducto'
+
+    def __str__(self):
+        return f'{self.lista} · {self.producto.codigo} {self.producto.nombre}'
 
 
 class OperacionLista(models.Model):
@@ -298,6 +311,9 @@ class PlanDemanda(models.Model):
     class Meta:
         ordering = ['fecha', 'producto__nombre']
         verbose_name = 'plan de demanda'
+
+    def __str__(self):
+        return f'{self.producto.nombre} {self.cantidad} al {self.fecha:%d/%m/%Y}'
 
 
 class CorridaMRP(models.Model):
@@ -727,6 +743,9 @@ class AvanceOrden(models.Model):
         verbose_name = 'avance de producción'
         verbose_name_plural = 'avances de producción'
 
+    def __str__(self):
+        return f'Avance de la orden {self.orden.numero}: {self.cantidad_buena} buenas, {self.horas} h'
+
 
 class MotivoParada(models.Model):
     codigo = models.CharField('Código', max_length=20, unique=True)
@@ -764,6 +783,9 @@ class Parada(models.Model):
     class Meta:
         ordering = ['-inicio', '-id']
         verbose_name = 'parada'
+
+    def __str__(self):
+        return f'Parada {self.centro.codigo} {timezone.localtime(self.inicio):%d/%m/%Y %H:%M} · {self.motivo}'
 
     @property
     def horas(self):

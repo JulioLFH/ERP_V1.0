@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Reporte diario de producción{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title">Reporte diario de producción · {{ d.dia|date:'d/m/Y' }}</h1>
+  <div class="d-flex gap-1 d-print-none">
+    <a href="?{{ consulta_dia }}fecha={{ dia_anterior|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary" title="Día anterior"><i class="bi bi-chevron-left"></i></a>
+    <a href="?{{ consulta_dia }}fecha={{ dia_siguiente|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary" title="Día siguiente"><i class="bi bi-chevron-right"></i></a>
+    <a href="{% url 'manufactura:reportes' %}" class="btn btn-sm btn-link"><i class="bi bi-arrow-left"></i> Reportes</a>
+  </div>
+</div>
+{% include 'produccion/_filtros_reporte.html' %}
+{% for a in d.avisos %}<div class="alert alert-warning py-2 small">{{ a }}</div>{% endfor %}
+<div class="row g-2 mb-3">
+  {% for etiqueta, valor in d.resumen %}<div class="col-6 col-md">
+    <div class="kpi"><div class="label">{{ etiqueta }}</div><div class="value">{{ valor }}</div></div></div>{% endfor %}
+</div>
+{% for s in secciones %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between"><span>{{ forloop.counter }}. {{ s.titulo }}</span><span class="text-muted small">{{ s.n }} registro{{ s.n|pluralize }}</span></div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
+    <thead class="table-light"><tr>{% for t, tipo in s.encabezados %}<th class="{% if tipo != 'texto' and tipo != 'fecha' %}num{% endif %}">{{ t }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for fila in s.tabla %}<tr>{% for v, tipo in fila %}<td class="{% if tipo != 'texto' and tipo != 'fecha' %}num{% endif %}{% if v == 'Rechazado' or v == 'Falla' %} text-danger fw-semibold{% endif %}">{{ v }}</td>{% endfor %}</tr>
+    {% empty %}<tr><td colspan="{{ s.encabezados|length }}" class="text-center text-muted py-3">Sin registros este día.</td></tr>{% endfor %}</tbody>
+    {% if s.total %}<tfoot class="fw-bold table-light"><tr>{% for v, tipo in s.total %}<td class="{% if tipo != 'texto' and tipo != 'fecha' %}num{% endif %}">{% if forloop.first %}TOTAL{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr></tfoot>{% endif %}
+  </table></div>
+</div>
+{% endfor %}
+<p class="small text-muted">Producción terminada = órdenes con fecha real de término en el día. El avance, el turno y las paradas son los reportados en planta (tablets o Manufactura › Paradas). Los insumos son los de las órdenes terminadas.</p>
+{% endblock %}

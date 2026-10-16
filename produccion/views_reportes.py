@@ -76,6 +76,8 @@ def reporte(request, clave):
         return redirect(f'{request.path}?{request.GET.urlencode()}')
     f = rp.Filtros(request.GET)
     datos = funcion(f, ver_costos=costos) if clave in ('merma', 'consumo') else funcion(f)
+    if request.GET.get('formato') == 'excel' and 'secciones' in datos:
+        return _excel_secciones(f'reporte_{clave}_{f.fecha:%Y%m%d}', f'{titulo} {f.fecha:%d/%m/%Y}', datos)
     if request.GET.get('formato') == 'excel' and 'columnas' in datos:
         cols = datos['columnas']
         filas = [[x.get(c) for c, _, _ in cols] for x in datos['filas']]
@@ -104,12 +106,58 @@ def reporte(request, clave):
         if datos.get('total'):
             contexto['fila_total'] = [(_formato(datos['total'].get(c), t) if c in datos['total'] else '', t)
                                       for c, _, t in datos['columnas']]
+    if 'secciones' in datos:
+        otros = urlencode({k: v for k, v in request.GET.items() if v and k not in ('fecha', 'formato')})
+        contexto.update({'dia_anterior': f.fecha - timedelta(days=1), 'dia_siguiente': f.fecha + timedelta(days=1),
+                         'consulta_dia': f'{otros}&' if otros else ''})
+        contexto['secciones'] = [{
+            'titulo': s['titulo'], 'encabezados': [(t, tipo) for _, t, tipo in s['columnas']], 'n': len(s['filas']),
+            'tabla': [[(_formato(x.get(c), t), t) for c, _, t in s['columnas']] for x in s['filas']],
+            'total': ([(_formato(s['total'].get(c), t) if c in s['total'] else '', t) for c, _, t in s['columnas']]
+                      if s.get('total') and s['filas'] else None)} for s in datos['secciones']]
     if datos.get('grafico'):
         maximo = max((v for _, v in datos['grafico']), default=Decimal('0')) or Decimal('1')
         contexto['barras'] = [(e, v, int(v * 100 / maximo)) for e, v in datos['grafico']]
-    plantilla = {'trazabilidad': 'produccion/reporte_trazabilidad.html',
+    plantilla = {'trazabilidad': 'produccion/reporte_trazabilidad.html', 'diario': 'produccion/reporte_diario.html',
                  'tablero': 'produccion/reporte_tablero.html'}.get(clave, 'produccion/reporte.html')
     return render(request, plantilla, contexto)
+
+
+def _excel_secciones(nombre, titulo, datos):
+    """Excel con el resumen en la primera hoja y una hoja por sección."""
+    from django.http import HttpResponse
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Resumen'
+    ws.append([titulo])
+    ws['A1'].font = Font(bold=True, size=13)
+    ws.append([])
+    for etiqueta, valor in datos.get('resumen', []):
+        ws.append([etiqueta, float(valor) if isinstance(valor, Decimal) else valor])
+    ws.column_dimensions['A'].width = 30
+    for s in datos['secciones']:
+        hoja = wb.create_sheet(''.join(c for c in s['titulo'] if c not in '[]:*?/\\')[:30])
+        hoja.append([s['titulo']])
+        hoja['A1'].font = Font(bold=True, size=12)
+        hoja.append([t for _, t, _ in s['columnas']])
+        for celda in hoja[2]:
+            celda.font = Font(bold=True, color='FFFFFF')
+            celda.fill = PatternFill('solid', fgColor='1F4E79')
+        filas = [[x.get(c) for c, _, _ in s['columnas']] for x in s['filas']]
+        if s.get('total') and filas:
+            filas.append([('TOTAL' if i == 0 else s['total'].get(c)) for i, (c, _, _) in enumerate(s['columnas'])])
+        for fila in filas:
+            hoja.append([float(v) if isinstance(v, Decimal) else v for v in fila])
+        for col in hoja.columns:
+            ancho = max((len(str(c.value or '')) for c in col[1:]), default=10)
+            hoja.column_dimensions[col[0].column_letter].width = min(max(ancho + 2, 10), 45)
+    resp = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    resp['Content-Disposition'] = f'attachment; filename="{nombre}.xlsx"'
+    wb.save(resp)
+    return resp
 
 
 def _tercero(pk):
@@ -120,6 +168,20 @@ def _tercero(pk):
 def _turnos():
     from planillas.models import Turno
     return Turno.objects.all()
+
+
+# ---------------------------------------------------------------- log de modificaciones
+@login_required
+def modificaciones(request):
+    """Quién creó, cambió, anuló o eliminó cada registro de Manufactura (valor anterior y nuevo). Solo el
+    administrador."""
+    if not request.user.is_superuser:
+        return render(request, 'core/sin_acceso.html',
+                      {'motivo': 'Solo un administrador puede ver el log de modificaciones.'}, status=403)
+    from core.views import consulta_bitacora
+    volver = request.GET.get('volver', '')
+    volver = volver if volver.startswith('/') and not volver.startswith('//') else None  # solo rutas internas
+    return consulta_bitacora(request, app='produccion', titulo='Log de modificaciones', volver=volver)
 
 
 # ---------------------------------------------------------------- paradas

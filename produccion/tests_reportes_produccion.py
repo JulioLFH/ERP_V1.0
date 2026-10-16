@@ -191,6 +191,69 @@ class TrazabilidadYStockTest(Base):
         self.assertEqual((s['producido'], s['stock'], s['cobertura']), (D('0.050'), D('0.050'), None))
 
 
+class ReporteDiarioTest(Base):
+    def test_parte_diario_secciones_y_excel(self):
+        o = self.terminar(self.orden())
+        abierta = self.orden()
+        h = abierta.horas.get()
+        avanzado.registrar_avance(abierta, h, D('30'), D('2'), D('1'), 'Luis', '', self.user)
+        avanzado.registrar_parada(abierta, h, MotivoParada.objects.get(codigo='AVERIA'), 30, self.user)
+        InspeccionCalidad.objects.create(producto=self.galleta, lote=o.numero, orden=o, resultado='APROBADO',
+                                         tipo='TERMINADO')
+        d = rp.diario(rp.Filtros({'fecha': HOY.isoformat()}))
+        s = {x['titulo']: x for x in d['secciones']}
+        self.assertEqual(s['Producción terminada']['filas'][0]['orden'], o.numero)
+        self.assertEqual(s['Producción terminada']['total']['tm'], D('0.050'))
+        self.assertEqual(s['Avance de planta por turno y operario']['filas'][0]['operario'], 'Luis')
+        masa = next(x for x in s['Insumos consumidos']['filas'] if 'Masa' in x['insumo'])
+        self.assertEqual((masa['plan'], masa['real'], masa['variacion']), (D('50'), D('55'), D('5')))
+        self.assertEqual(s['Paradas de línea']['total']['horas'], D('0.50'))
+        self.assertEqual(s['Calidad']['filas'][0]['resultado'], 'Aprobado')
+        self.assertEqual(s['Órdenes del día aún abiertas']['filas'][0]['producido'], D('30'))
+        self.assertEqual(dict(d['resumen'])['Inspecciones aprobadas'], '1 de 1')
+        # otro día: vacío
+        ayer = rp.diario(rp.Filtros({'fecha': (HOY - timedelta(days=1)).isoformat()}))
+        self.assertEqual(ayer['secciones'][0]['filas'], [])
+        r = self.client.get(reverse('manufactura:diario'))
+        self.assertContains(r, 'Reporte diario de producción')
+        self.assertContains(r, o.numero)
+        r = self.client.get(reverse('manufactura:diario'), {'formato': 'excel'})
+        from io import BytesIO
+        from openpyxl import load_workbook
+        hojas = load_workbook(BytesIO(r.content)).sheetnames
+        self.assertEqual(hojas[0], 'Resumen')
+        self.assertIn('Paradas de línea', hojas)
+
+
+class LogModificacionesTest(Base):
+    def test_solo_admin_y_registra_cambios_de_manufactura(self):
+        o = self.orden()
+        h = o.horas.get()
+        avanzado.registrar_parada(o, h, MotivoParada.objects.get(codigo='LIMPIEZA'), 10, self.user)
+        self.equipo.nombre = 'Horno túnel'
+        self.equipo.save()
+        r = self.client.get(reverse('manufactura:modificaciones'))
+        self.assertContains(r, 'Log de modificaciones')
+        self.assertContains(r, 'Horno túnel')  # el cambio de nombre del equipo, con el valor anterior
+        self.assertContains(r, 'Horno 1')
+        self.assertContains(r, 'Parada HOR')
+        r = self.client.get(reverse('manufactura:modificaciones'),
+                            {'modelo': 'produccion.OrdenProduccion', 'objeto': o.pk, 'volver': '//malo.com'})
+        self.assertContains(r, o.numero)
+        self.assertNotContains(r, 'Horno túnel')
+        self.assertNotContains(r, '//malo.com')
+        self.assertIn('spreadsheet', self.client.get(reverse('manufactura:modificaciones'),
+                                                     {'formato': 'excel'})['Content-Type'])
+        # un usuario de manufactura que no es administrador no lo ve
+        from django.contrib.auth.models import Group
+        jefe = User.objects.create_user('jefe', password='x')
+        jefe.groups.add(Group.objects.get_or_create(name='Manufactura')[0])
+        self.client.force_login(jefe)
+        self.assertEqual(self.client.get(reverse('manufactura:modificaciones')).status_code, 403)
+        self.assertNotContains(self.client.get(reverse('manufactura:ordenes')), 'Log de modificaciones')
+        self.assertContains(self.client.get(reverse('manufactura:ordenes')), 'Reporte diario de producción')
+
+
 class VistasReportesTest(Base):
     def test_paginas_excel_filtros_y_tablet(self):
         o = self.terminar(self.orden())

@@ -10,6 +10,7 @@
   </div>
   <div class="d-flex flex-wrap gap-2">
     <a href="{% url 'manufactura:ordenes' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+    {% if request.user.is_superuser %}<a href="{% url 'manufactura:modificaciones' %}?modelo=produccion.OrdenProduccion&objeto={{ o.pk }}&volver={{ request.path|urlencode }}" class="btn btn-sm btn-outline-secondary" title="Quién creó, modificó o anuló esta orden"><i class="bi bi-journal-text"></i> Historial</a>{% endif %}
     {% if o.estado == 'BORRADOR' %}
       <a href="{% url 'manufactura:orden_editar' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
       <form method="post" action="{% url 'manufactura:orden_eliminar' o.pk %}" data-confirm="¿Eliminar este borrador?">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Eliminar</button></form>

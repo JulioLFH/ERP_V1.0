@@ -152,9 +152,17 @@ def correo_config(request):
 # ---------------------------------------------------------------- auditoría
 @login_required
 def auditoria(request):
+    return consulta_bitacora(request)
+
+
+def consulta_bitacora(request, app=None, titulo='Bitácora de auditoría', volver=None):
+    """Bitácora con filtros y Excel; con `app` solo los registros de esa aplicación (p. ej. el log de
+    modificaciones de Manufactura)."""
     from django.contrib.auth.models import User
     from .models import Bitacora
     qs = Bitacora.objects.select_related('usuario')
+    if app:
+        qs = qs.filter(modelo__startswith=f'{app}.')
     f = request.GET
     if f.get('usuario'):
         qs = qs.filter(usuario_id=f['usuario'])
@@ -162,6 +170,8 @@ def auditoria(request):
         qs = qs.filter(accion=f['accion'])
     if f.get('modelo'):
         qs = qs.filter(modelo=f['modelo'])
+    if f.get('objeto'):
+        qs = qs.filter(objeto_id=f['objeto'])
     if f.get('desde'):
         qs = qs.filter(fecha__date__gte=f['desde'])
     if f.get('hasta'):
@@ -175,12 +185,15 @@ def auditoria(request):
                   b.usuario.username if b.usuario else 'Sistema', b.get_accion_display(), b.modelo_nombre, b.objeto,
                   b.motivo, '; '.join(f'{k}: {v[0]} → {v[1]}' for k, v in b.cambios.items()
                                       if isinstance(v, list) and len(v) == 2), b.ip] for b in qs[:20000]]
-        return excel_response('Auditoria', 'Bitácora de auditoría',
+        return excel_response('Auditoria' if not app else f'Modificaciones_{app}', titulo,
                               ['Fecha', 'Usuario', 'Acción', 'Tipo', 'Registro', 'Motivo', 'Cambios', 'IP'], filas)
     modelos = Bitacora.objects.values_list('modelo', 'modelo_nombre').distinct().order_by('modelo_nombre')
+    if app:
+        modelos = modelos.filter(modelo__startswith=f'{app}.')
     return render(request, 'core/auditoria.html', {
         'page_obj': Paginator(qs, 100).get_page(f.get('page')), 'usuarios': User.objects.order_by('username'),
-        'acciones': Bitacora.ACCIONES, 'modelos': sorted(set(modelos), key=lambda m: m[1]), 'q': q})
+        'acciones': Bitacora.ACCIONES, 'modelos': sorted(set(modelos), key=lambda m: m[1]), 'q': q,
+        'titulo': titulo, 'volver': volver})
 
 
 # ---------------------------------------------------------------- respaldo
