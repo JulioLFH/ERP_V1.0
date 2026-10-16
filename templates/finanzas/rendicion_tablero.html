@@ -24,6 +24,7 @@
   <div class="col-lg-6">{% include 'finanzas/_tablero_grupo.html' with titulo='Por persona' datos=d.por_persona total=d.total %}</div>
   <div class="col-lg-6">{% include 'finanzas/_tablero_grupo.html' with titulo='Por mes' datos=d.por_mes total=d.total %}</div>
   <div class="col-lg-6">{% include 'finanzas/_tablero_grupo.html' with titulo='Por proyecto' datos=d.por_proyecto total=d.total %}</div>
+  <div class="col-lg-6">{% include 'finanzas/_tablero_grupo.html' with titulo='Por indicador de impuesto' datos=d.por_indicador total=d.total %}</div>
 </div>
 <p class="small text-muted mt-2">Gastos de rendiciones aprobadas o posteriores, por la fecha del comprobante, en soles (sin los rechazados).</p>
 {% endblock %}

@@ -42,4 +42,16 @@ class Command(BaseCommand):
             except ErrorCorreo as exc:
                 self.stderr.write(f'{titular}: {exc}')
                 return
+        # corte del mes: rendidores con borradores u observadas y aprobadores con pendientes
+        corte, avisos = rd.avisos_de_corte()
+        for usuario, pendientes in avisos:
+            if not usuario.email:
+                continue
+            try:
+                enviar([usuario.email], f'Corte de rendiciones el {corte:%d/%m/%Y}', 'finanzas/correo_corte.html',
+                       {'corte': corte, 'pendientes': pendientes, 'usuario': usuario})
+                enviados += 1
+            except ErrorCorreo as exc:
+                self.stderr.write(f'{usuario}: {exc}')
+                return
         self.stdout.write(f'{enviados} recordatorio(s) enviados.')

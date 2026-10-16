@@ -5,7 +5,10 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 
 from core.permisos import puede
 from core.utils import a_fecha, excel_response, fmt_fecha
@@ -130,6 +133,83 @@ def sitio_editar(request, pk=None):
     return render(request, 'core/form.html', {'form': form, 'titulo': 'Editar sitio' if s else 'Nuevo sitio'})
 
 
+# ---------------------------------------------------------------- trazabilidad y errores
+def _rango(request):
+    from .views_rendicion import _rango as rango
+    return rango(request)
+
+
+@login_required
+def trazabilidad(request):
+    desde, hasta = _rango(request)
+    filas = rd.trazabilidad(desde, hasta)
+    if request.GET.get('formato') == 'excel':
+        datos = []
+        for f in filas:
+            for p in f['pasos']:
+                h = p['h']
+                datos.append([f['r'].numero, f['r'].entrega.responsable.nombre, f['r'].total, h.nivel or '',
+                              h.a_display, (h.usuario.get_full_name() or h.usuario.username) if h.usuario else '',
+                              timezone.localtime(h.fecha).strftime('%d/%m/%Y %H:%M'), p['horas'],
+                              (f['ultimo'].get_full_name() or f['ultimo'].username) if f['ultimo'] else '',
+                              f['r'].get_estado_display(), h.comentario])
+        return excel_response('trazabilidad_aprobacion', f'Trazabilidad de aprobación {fmt_fecha(desde)} - '
+                                                         f'{fmt_fecha(hasta)}',
+                              ['Rendición', 'Responsable', 'Total', 'Nivel', 'Paso', 'Aprobador', 'Fecha y hora',
+                               'Horas del paso', 'Último aprobador', 'Estado actual', 'Comentario'], datos)
+    return render(request, 'finanzas/rendicion_trazabilidad.html', {'filas': filas, 'desde': desde, 'hasta': hasta})
+
+
+@login_required
+def errores(request):
+    desde, hasta = _rango(request)
+    d = rd.errores_por(desde, hasta)
+    if request.GET.get('formato') == 'excel':
+        return excel_response('errores_rendiciones', f'Observaciones y rechazos {fmt_fecha(desde)} - {fmt_fecha(hasta)}',
+                              ['Fecha', 'Rendición', 'Documento', 'Resultado', 'Motivo', 'Comentario', 'Rendidor',
+                               'Área (centro de costo)', 'Revisó'],
+                              [[timezone.localtime(o.fecha).strftime('%d/%m/%Y %H:%M'), o.rendicion.numero, o.documento,
+                                o.estado.capitalize(), o.motivo.nombre, o.comentario,
+                                o.rendidor.username if o.rendidor else '',
+                                o.centro_costo.codigo if o.centro_costo else '', o.usuario.username if o.usuario else '']
+                               for o in d['filas']])
+    return render(request, 'finanzas/rendicion_errores.html', {'d': d, 'desde': desde, 'hasta': hasta})
+
+
+# ---------------------------------------------------------------- integración con un ERP externo
+@login_required
+def integracion(request):
+    from . import integracion_erp as erp
+    from .models import EnvioERP
+    if request.method == 'POST':
+        try:
+            _exigir(request, 'contabilizar')
+            accion = request.POST.get('accion')
+            if accion in ('generar', 'reintentar'):
+                envio = erp.generar(request.user, solo_errores=accion == 'reintentar')
+                messages.success(request, f'Lote {envio.numero} generado con {envio.detalles.count()} gasto(s): '
+                                          f'descárguelo y cárguelo en el ERP externo.')
+            elif accion == 'respuesta':
+                envio = get_object_or_404(EnvioERP, pk=request.POST.get('envio'))
+                if not request.FILES.get('archivo'):
+                    raise rd.ErrorRendicion('Adjunte el archivo de respuesta del ERP externo.')
+                ok, mal, otros = erp.registrar_respuesta(envio, request.FILES['archivo'])
+                messages.success(request, f'{envio.numero}: {ok} aceptado(s), {mal} con error'
+                                          f'{f", {otros} fila(s) no reconocidas" if otros else ""}.')
+        except (*ERRORES, erp.ErrorIntegracion) as exc:
+            messages.error(request, str(exc))
+        return redirect('rendiciones:integracion')
+    if request.GET.get('descargar'):
+        envio = get_object_or_404(EnvioERP, pk=request.GET['descargar'])
+        url = lambda s: request.build_absolute_uri(reverse('sustento_ver', args=[s.pk]))
+        resp = HttpResponse(erp.csv_de(envio, url), content_type='text/csv; charset=utf-8')
+        resp['Content-Disposition'] = f'attachment; filename="{envio.numero}.csv"'
+        return resp
+    return render(request, 'finanzas/rendicion_integracion.html', {
+        'envios': EnvioERP.objects.prefetch_related('detalles')[:30], 'pendientes': erp.por_exportar().count(),
+        'conc': erp.conciliacion(), 'columnas': erp.COLUMNAS})
+
+
 # ---------------------------------------------------------------- integraciones
 @login_required
 def integraciones(request):
@@ -144,7 +224,7 @@ def integraciones(request):
     if es_multiempresa() and actual():
         webhook += f'?empresa={actual()}'
     from core import almacen_objetos, sunat_consulta
-    grupos = {g: [form[c] for c in form.fields if c.startswith(g)] for g in ('ia', 'whatsapp', 'correo')}
+    grupos = {g: [form[c] for c in form.fields if c.startswith(g)] for g in ('ia', 'whatsapp', 'correo', 'dia')}
     return render(request, 'finanzas/rendicion_integraciones.html', {
         'form': form, 'grupos': grupos, 'webhook': webhook, 'objetos': almacen_objetos.configurado(),
         'sunat': sunat_consulta.configurada()})

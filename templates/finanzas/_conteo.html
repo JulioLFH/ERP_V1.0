@@ -1,0 +1,3 @@
+<div class="card h-100"><div class="card-header">{{ titulo }}</div>
+  <table class="table table-sm mb-0 small">{% for nombre, n in datos %}<tr><td>{{ nombre }}</td><td class="num fw-semibold">{{ n }}</td></tr>{% empty %}<tr><td class="text-muted">Sin observaciones en el periodo.</td></tr>{% endfor %}</table>
+</div>

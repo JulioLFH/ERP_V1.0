@@ -726,6 +726,8 @@ class CuotaPrestamo(models.Model):
         return not self.pagada and self.fecha < timezone.localdate()
 
 
-from .models_rendicion import (CategoriaGasto, ConfigRendicion, HistorialRendicion, LineaGasto,  # noqa: E402,F401
-                               MovimientoTarjeta, PoliticaGasto, Proyecto, ReglaAprobacion, Rendicion, Sitio,
-                               TarjetaCorporativa)
+from .models_rendicion import (CategoriaCuentaHistorial, CategoriaGasto, ConfigRendicion,  # noqa: E402,F401
+                               DistribucionLinea, EnvioERP, EnvioERPDetalle, HistorialRendicion, IndicadorImpuesto,
+                               LineaGasto, MapeoCuentaERP, MotivoObservacion, MovimientoTarjeta, ObservacionLinea,
+                               PlantillaDistribucion, PlantillaDistribucionLinea, PoliticaGasto, Proyecto,
+                               ReglaAprobacion, Rendicion, Sitio, TarjetaCorporativa)

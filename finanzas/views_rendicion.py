@@ -17,9 +17,13 @@ from core.utils import a_fecha, excel_response, fmt_fecha
 
 from . import operaciones as op
 from . import rendiciones as rd
-from .forms_rendicion import (CategoriaGastoForm, LineaGastoForm, PoliticaGastoForm, ReglaAprobacionForm,
-                              RendicionForm)
-from .models import (CategoriaGasto, Cuenta, EntregaRendir, LineaGasto, PoliticaGasto, ReglaAprobacion, Rendicion)
+from .forms_rendicion import (CategoriaGastoForm, IndicadorImpuestoForm, LineaGastoForm, MapeoCuentaERPForm,
+                              MotivoObservacionForm, PlantillaDistribucionForm, PlantillaLineasFormSet,
+                              PoliticaGastoForm, ReglaAprobacionForm, RendicionForm)
+from contabilidad.models import CentroCosto
+
+from .models import (CategoriaGasto, Cuenta, EntregaRendir, IndicadorImpuesto, LineaGasto, MapeoCuentaERP,
+                     MotivoObservacion, PlantillaDistribucion, PoliticaGasto, ReglaAprobacion, Rendicion)
 
 ERRORES = (rd.ErrorRendicion, op.ErrorTesoreria)
 
@@ -87,8 +91,16 @@ def _decisiones(request, r):
     for linea in r.lineas.all():
         estado = request.POST.get(f'decision_{linea.pk}')
         if estado in ('APROBADA', 'OBSERVADA', 'RECHAZADA'):
-            salida[linea.pk] = (estado, request.POST.get(f'nota_{linea.pk}', ''))
+            salida[linea.pk] = (estado, request.POST.get(f'nota_{linea.pk}', ''),
+                                request.POST.get(f'motivo_{linea.pk}') or None)
     return salida
+
+
+def _volver(request, pk):
+    destino = request.POST.get('next', '')
+    if destino.startswith('/rendiciones/'):
+        return redirect(destino)
+    return redirect('rendiciones:detalle', pk)
 
 
 def _guardar_linea(request, r, form):
@@ -150,14 +162,31 @@ def detalle(request, pk):
                 rd.aprobar(r, request.user, request.POST.get('comentario', ''), _decisiones(request, r))
                 messages.success(request, f'{r.numero}: {r.get_estado_display().lower()}.')
             elif accion == 'observar':
-                rd.observar(r, request.user, request.POST.get('comentario', ''))
+                rd.observar(r, request.user, request.POST.get('comentario', ''), request.POST.get('motivo') or None)
                 messages.success(request, f'{r.numero} devuelta al rendidor con observaciones.')
             elif accion == 'rechazar':
-                rd.rechazar(r, request.user, request.POST.get('comentario', ''))
+                rd.rechazar(r, request.user, request.POST.get('comentario', ''), request.POST.get('motivo') or None)
                 messages.success(request, f'{r.numero} rechazada.')
+            elif accion == 'distribuir':
+                linea = get_object_or_404(r.lineas, pk=request.POST.get('linea'))
+                centros = {c.pk: c for c in CentroCosto.objects.filter(pk__in=request.POST.getlist('centro'))}
+                filas = []
+                for c, p in zip(request.POST.getlist('centro'), request.POST.getlist('porcentaje')):
+                    if c and p:
+                        try:
+                            filas.append((centros.get(int(c)), Decimal(p.replace(',', '.'))))
+                        except (ValueError, ArithmeticError):
+                            raise rd.ErrorRendicion(f'Porcentaje inválido: {p}')
+                rd.distribuir(linea, filas, request.user)
+                messages.success(request, 'Distribución guardada.' if filas else 'Distribución quitada.')
+            elif accion == 'plantilla':
+                plantilla = get_object_or_404(PlantillaDistribucion, pk=request.POST.get('plantilla'), activo=True)
+                n = rd.aplicar_plantilla(r, plantilla, request.user)
+                messages.success(request, f'{n} gasto(s) distribuidos con «{plantilla}».')
             elif accion == 'contabilizar':
                 _exigir(request, 'contabilizar')
-                rd.contabilizar(r, request.user, _fecha(request.POST.get('fecha')))
+                rd.contabilizar(r, request.user, _fecha(request.POST.get('fecha')) if request.POST.get('fecha')
+                                else None)
                 messages.success(request, f'{r.numero} contabilizada: facturas al registro de compras y gastos '
                                           f'rendidos contra {r.entrega.numero}.')
             elif accion in ('reembolsar', 'devolver'):
@@ -171,16 +200,18 @@ def detalle(request, pk):
                 rd.descontar_planilla(r, request.user, _fecha(request.POST.get('fecha')))
                 messages.success(request, 'Saldo pasado a cuenta por cobrar del trabajador: regístrelo como '
                                           'adelanto en su próxima planilla.')
-            return redirect('rendiciones:detalle', pk)
+            return _volver(request, pk)
         except ERRORES as exc:
             messages.error(request, str(exc))
             if accion != 'linea':
-                return redirect('rendiciones:detalle', pk)
+                return _volver(request, pk)
     if request.GET.get('formato') == 'excel':
         return _excel(r)
-    lineas = list(r.lineas.select_related('categoria', 'centro_costo', 'compra', 'proyecto', 'sitio'))
+    lineas = list(r.lineas.select_related('categoria', 'centro_costo', 'compra', 'proyecto', 'sitio', 'indicador',
+                                          'motivo').prefetch_related('distribucion__centro_costo'))
     for l in lineas:
         l.fotos = list(sustentos.de(l))
+        l.reparto = list(l.distribucion.all())
     entrega = r.entrega
     en_tramite = sum((x.total for x in entrega.rendiciones.filter(estado__in=['ENVIADA', 'EN_REVISION', 'APROBADA',
                                                                                'OBSERVADA', 'BORRADOR'])), Decimal('0'))
@@ -194,7 +225,19 @@ def detalle(request, pk):
         'en_tramite': en_tramite, 'por_rendir': entrega.saldo - en_tramite, 'por_reembolsar': -entrega.saldo,
         'historial': r.historial.select_related('usuario'),
         'cuentas': Cuenta.objects.filter(activo=True, moneda=entrega.moneda), 'hoy': date.today(),
-        'ct_linea': _ct(LineaGasto), 'hay_movilidad': any(l.tipo_comprobante == 'PM' for l in lineas)})
+        'ct_linea': _ct(LineaGasto), 'hay_movilidad': any(l.tipo_comprobante == 'PM' for l in lineas),
+        'motivos': MotivoObservacion.objects.filter(activo=True),
+        'plantillas': PlantillaDistribucion.objects.filter(activo=True),
+        'centros': CentroCosto.objects.filter(activo=True).order_by('codigo'),
+        'fecha_sugerida': rd.fecha_contable_sugerida(r) if r.estado == 'APROBADA' else None,
+        'corte': rd.proximo_corte(), 'sugerencias': _sugerencias()})
+
+
+def _sugerencias():
+    """Indicador sugerido por tipo de comprobante (para preseleccionarlo en el formulario)."""
+    ids = dict(IndicadorImpuesto.objects.filter(activo=True).values_list('codigo', 'pk'))
+    return {'01': ids.get('C1'), '01N': ids.get('S1'), '03': ids.get('S1'), '12': ids.get('S1'),
+            'otros': ids.get('NG')}
 
 
 def _ct(modelo):
@@ -329,27 +372,64 @@ def antiguedad(request):
 # ---------------------------------------------------------------- configuración
 @login_required
 def configuracion(request):
+    from .models import CategoriaCuentaHistorial
     return render(request, 'finanzas/rendicion_config.html', {
         'categorias': CategoriaGasto.objects.select_related('cuenta_contable'),
         'politicas': PoliticaGasto.objects.prefetch_related('no_permitidas'),
-        'reglas': ReglaAprobacion.objects.select_related('aprobador', 'centro_costo')})
+        'reglas': ReglaAprobacion.objects.select_related('aprobador', 'centro_costo'),
+        'indicadores': IndicadorImpuesto.objects.all(), 'motivos': MotivoObservacion.objects.all(),
+        'plantillas': PlantillaDistribucion.objects.prefetch_related('lineas__centro_costo'),
+        'mapeos': MapeoCuentaERP.objects.select_related('cuenta'),
+        'cambios': CategoriaCuentaHistorial.objects.select_related('categoria', 'cuenta', 'cuenta_anterior',
+                                                                   'usuario')[:30]})
 
 
 _CONFIG = {'categoria': (CategoriaGasto, CategoriaGastoForm, 'categoría de gasto'),
            'politica': (PoliticaGasto, PoliticaGastoForm, 'política de gastos'),
-           'regla': (ReglaAprobacion, ReglaAprobacionForm, 'regla de aprobación')}
+           'regla': (ReglaAprobacion, ReglaAprobacionForm, 'regla de aprobación'),
+           'indicador': (IndicadorImpuesto, IndicadorImpuestoForm, 'indicador de impuesto'),
+           'motivo': (MotivoObservacion, MotivoObservacionForm, 'motivo de observación'),
+           'mapeo': (MapeoCuentaERP, MapeoCuentaERPForm, 'cuenta del ERP externo')}
 
 
 @login_required
 def config_editar(request, tipo, pk=None):
+    if tipo == 'plantilla':
+        return _plantilla(request, pk)
     if tipo not in _CONFIG:
         raise Http404
     modelo, form_cls, nombre = _CONFIG[tipo]
     obj = get_object_or_404(modelo, pk=pk) if pk else None
+    cuenta_antes = obj.cuenta_contable if tipo == 'categoria' and obj else None
     form = form_cls(request.POST or None, instance=obj)
     if request.method == 'POST' and form.is_valid():
-        form.save()
+        nuevo = form.save(commit=False)
+        cuenta_nueva = getattr(nuevo, 'cuenta_contable', None)
+        if cuenta_antes is not None and cuenta_nueva != cuenta_antes:
+            # el cambio de imputación queda con su vigencia (los gastos anteriores conservan su cuenta)
+            nuevo.cuenta_contable = cuenta_antes
+            nuevo.save()
+            rd.cambiar_cuenta_categoria(nuevo, cuenta_nueva, form.cleaned_data.get('vigente_desde') or date.today(),
+                                        request.user, form.cleaned_data.get('motivo_cambio') or '')
+            messages.info(request, 'Cambio de cuenta registrado con su vigencia; se avisó a contabilidad.')
+        else:
+            nuevo.save()
+            form.save_m2m()
         messages.success(request, f'{nombre.capitalize()} guardada.')
         return redirect('rendiciones:configuracion')
     return render(request, 'core/form.html', {'form': form,
                                               'titulo': f'{"Editar" if obj else "Nueva"} {nombre}'})
+
+
+def _plantilla(request, pk):
+    obj = get_object_or_404(PlantillaDistribucion, pk=pk) if pk else PlantillaDistribucion()
+    form = PlantillaDistribucionForm(request.POST or None, instance=obj)
+    formset = PlantillaLineasFormSet(request.POST or None, instance=obj, prefix='l')
+    if request.method == 'POST' and form.is_valid() and formset.is_valid():
+        with transaction.atomic():
+            p = form.save()
+            formset.instance = p
+            formset.save()
+        messages.success(request, f'Plantilla «{p}» guardada.')
+        return redirect('rendiciones:configuracion')
+    return render(request, 'finanzas/rendicion_plantilla.html', {'form': form, 'formset': formset, 'obj': obj})

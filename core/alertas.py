@@ -167,6 +167,24 @@ def _alertas_rendiciones(user):
             salida.append(_alerta('info', 'bi-journal-check', 'Rendiciones por contabilizar',
                                   f'{n} rendición(es) aprobadas esperan la revisión contable.',
                                   reverse('rendiciones:lista') + '?vista=contabilizar', n))
+    corte = rd.proximo_corte()
+    if corte is not None:
+        from finanzas.models import ConfigRendicion
+        dias = (corte - timezone.localdate()).days
+        mias = Rendicion.objects.filter(rendidor=user, estado__in=Rendicion.EDITABLES).count()
+        if dias <= ConfigRendicion.actual().dias_aviso_corte and (mias or por_aprobar):
+            salida.append(_alerta('warning', 'bi-calendar-x', f'Corte de rendiciones el {corte:%d/%m}',
+                                  f'Envíe o apruebe antes del corte ({mias + len(por_aprobar)} pendiente(s)); lo '
+                                  f'aprobado después se contabiliza el mes siguiente.',
+                                  reverse('rendiciones:lista'), mias + len(por_aprobar)))
+    if puede(user, 'rendiciones.contabilizar'):
+        from finanzas.models import CategoriaCuentaHistorial
+        cambios = CategoriaCuentaHistorial.objects.filter(
+            fecha__gte=timezone.now() - timedelta(days=15)).count()
+        if cambios:
+            salida.append(_alerta('info', 'bi-clock-history', 'Cambios de imputación de categorías',
+                                  f'{cambios} cambio(s) de cuenta contable en categorías de gasto (últimos 15 días).',
+                                  reverse('rendiciones:configuracion'), cambios))
     t = rd.trabajador_de(user)
     vencidas = [e for e, _ in rd.vencidas() if t is not None and e.responsable_id == t.pk]
     if vencidas:

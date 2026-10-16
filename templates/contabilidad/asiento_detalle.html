@@ -35,6 +35,9 @@
   </table>
 </div></div>
 <p class="small text-muted mt-2">Las líneas en cursiva son los asientos de destino automáticos (clase 9 / 79 y 20 / 61).</p>
+{% if sustentos_origen %}<div class="card mb-3"><div class="card-header"><i class="bi bi-paperclip"></i> Sustentos del documento de origen</div>
+  <ul class="list-group list-group-flush small">{% for s in sustentos_origen %}<li class="list-group-item"><a href="{% url 'sustento_ver' s.pk %}" target="_blank"><i class="bi bi-file-earmark"></i> {{ s.archivo.nombre }}</a>{% if s.descripcion %} · {{ s.descripcion }}{% endif %}</li>{% endfor %}</ul>
+</div>{% endif %}
 {% if a.origen == 'MANUAL' %}
   {% include 'core/_sustentos.html' with objeto=a requerido=True %}
   {% include 'core/_bitacora.html' with objeto=a %}

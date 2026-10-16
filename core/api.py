@@ -231,7 +231,8 @@ ENDPOINTS = [
     ('GET', '/api/v1/rendiciones/', 'Rendiciones de gastos (desde, hasta, estado, responsable)'),
     ('GET', '/api/v1/rendiciones/{id}/', 'Rendición con sus gastos e historial'),
     ('GET', '/api/v1/rendiciones/categorias/', 'Categorías de gasto'),
-    ('POST', '/api/v1/rendiciones/{id}/gastos/', 'Agregar un gasto (con foto en base64) a una rendición en borrador'),
+    ('POST', '/api/v1/rendiciones/{id}/gastos/', 'Agregar un gasto (con indicador de impuesto y foto en base64) a una '
+                                                 'rendición en borrador'),
 ]
 # todas las listas aceptan además page, page_size (hasta 1000) y formato=csv (todo el resultado en un archivo)
 PARAMETROS_LISTA = ['page', 'page_size', 'formato']

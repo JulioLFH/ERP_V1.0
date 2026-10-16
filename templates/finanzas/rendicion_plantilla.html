@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Plantilla de distribución{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">{% if obj.pk %}Editar{% else %}Nueva{% endif %} plantilla de distribución</h1>
+<form method="post" class="card" style="max-width:720px">{% csrf_token %}<div class="card-body">
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  {% for e in formset.non_form_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  <div class="row g-3 mb-3">{% for field in form %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}</div>
+  {{ formset.management_form }}
+  <table class="table table-sm align-middle"><thead><tr><th>Centro de costo</th><th style="width:140px">%</th><th style="width:60px">Quitar</th></tr></thead><tbody>
+  {% for f in formset %}<tr>{% for h in f.hidden_fields %}{{ h }}{% endfor %}
+    <td>{{ f.centro_costo }}{% for e in f.centro_costo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+    <td>{{ f.porcentaje }}{% for e in f.porcentaje.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+    <td>{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td></tr>{% endfor %}
+  </tbody></table>
+  <p class="small text-muted">Los porcentajes deben sumar 100%. Se aplica a una rendición completa (fondo fijo) o a un gasto.</p>
+  <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
+  <a href="{% url 'rendiciones:configuracion' %}" class="btn btn-outline-secondary">Cancelar</a>
+</div></form>
+{% endblock %}

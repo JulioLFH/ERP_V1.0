@@ -168,8 +168,10 @@ def asiento_detalle(request, pk):
     a = get_object_or_404(Asiento, pk=pk)
     lineas = a.lineas.select_related('cuenta', 'tercero', 'centro_costo')
     d, h = a.totales
+    from finanzas.rendiciones import sustentos_de_asiento
     return render(request, 'contabilidad/asiento_detalle.html', {
-        'a': a, 'lineas': lineas, 'debe': d, 'haber': h, 'cerrado': PeriodoContable.esta_cerrado(a.periodo)})
+        'a': a, 'lineas': lineas, 'debe': d, 'haber': h, 'cerrado': PeriodoContable.esta_cerrado(a.periodo),
+        'sustentos_origen': sustentos_de_asiento(a)})
 
 
 @login_required

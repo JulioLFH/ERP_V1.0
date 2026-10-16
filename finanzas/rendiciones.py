@@ -102,10 +102,14 @@ def errores_linea(linea):
             e.append(f'RUC del proveedor: {error_ruc(linea.ruc)}')
         if not linea.serie or not linea.numero:
             e.append('indique la serie y el número del comprobante')
-    if linea.tipo_comprobante == '01' and linea.base + linea.igv > linea.total + Decimal('0.05'):
+    if linea.base + linea.igv > linea.total + Decimal('0.05'):
         e.append('base + IGV no puede superar el total')
-    if not centro_de(linea) and (linea.categoria.exige_centro or
-                                      exige_centro(linea.categoria.cuenta_contable.codigo)):
+    e += errores_indicador(linea)
+    distribucion = list(linea.distribucion.all()) if linea.pk else []
+    if distribucion and sum((d.porcentaje for d in distribucion), D0) != 100:
+        e.append('la distribución por centros de costo debe sumar 100%')
+    cuenta = linea.categoria.cuenta_en(linea.fecha)
+    if not distribucion and not centro_de(linea) and (linea.categoria.exige_centro or exige_centro(cuenta.codigo)):
         e.append(f'{linea.categoria} exige centro de costo')
     if linea.con_credito_fiscal and linea.moneda != linea.rendicion.entrega.moneda:
         e.append('una factura con crédito fiscal debe estar en la moneda de la entrega')
@@ -121,6 +125,34 @@ def errores_linea(linea):
     if dup:
         e.append(dup)
     return e
+
+
+TOLERANCIA_IGV = Decimal('0.10')
+
+
+def errores_indicador(linea):
+    """El indicador de impuesto es obligatorio y define el IGV: base × tasa = IGV (tolerancia S/ 0.10)."""
+    ind = linea.indicador
+    if ind is None:
+        return ['falta el indicador de impuesto']
+    e = []
+    if ind.tasa > 0:
+        esperado = r2(linea.base * ind.tasa / 100)
+        if abs(esperado - linea.igv) > TOLERANCIA_IGV:
+            e.append(f'el IGV ({linea.igv:,.2f}) no es base {linea.base:,.2f} × {ind.tasa}% = {esperado:,.2f}')
+    elif linea.igv:
+        e.append(f'«{ind.nombre}» no lleva IGV')
+    if ind.credito_fiscal and linea.tipo_comprobante != '01':
+        e.append('solo una factura da crédito fiscal: use un indicador sin crédito fiscal')
+    return e
+
+
+def sugerir_indicador(tipo_comprobante, a_nombre_empresa=True):
+    """Indicador sugerido según el comprobante (el rendidor lo confirma o cambia)."""
+    from .models import IndicadorImpuesto
+    codigo = ('C1' if a_nombre_empresa else 'S1') if tipo_comprobante == '01' else \
+        'S1' if tipo_comprobante in ('03', '12') else 'NG'
+    return IndicadorImpuesto.objects.filter(codigo=codigo, activo=True).first()
 
 
 def duplicado(linea):
@@ -254,18 +286,43 @@ def puede_aprobar(user, rendicion):
 
 
 # ---------------------------------------------------------------- flujo
-def _historial(r, usuario, de, a, comentario=''):
+def _historial(r, usuario, de, a, comentario='', nivel=None):
     HistorialRendicion.objects.create(rendicion=r, usuario=usuario if usuario and usuario.is_authenticated else None,
-                                      de_estado=de, a_estado=a, comentario=(comentario or '')[:300])
+                                      de_estado=de, a_estado=a, comentario=(comentario or '')[:300], nivel=nivel)
 
 
-def _cambiar(r, estado, usuario, comentario='', **campos):
+def _cambiar(r, estado, usuario, comentario='', nivel=None, **campos):
     de = r.estado
     r.estado = estado
     for k, v in campos.items():
         setattr(r, k, v)
     r.save()
-    _historial(r, usuario, de, estado, comentario)
+    _historial(r, usuario, de, estado, comentario, nivel)
+
+
+def _motivo(valor, comentario):
+    """Motivo estándar de la observación (catálogo); sin motivo pero con comentario: «Otro motivo»."""
+    from .models import MotivoObservacion
+    m = None
+    if valor:
+        m = (MotivoObservacion.objects.filter(pk=valor).first() if str(valor).isdigit()
+             else MotivoObservacion.objects.filter(codigo=valor).first())
+    if m is None and len((comentario or '').strip()) >= 3:
+        m = MotivoObservacion.objects.filter(codigo='OTRO').first()
+    if m is None:
+        raise ErrorRendicion('Elija el motivo de la observación.')
+    if m.exige_comentario and len((comentario or '').strip()) < 3:
+        raise ErrorRendicion(f'«{m.nombre}»: escriba el comentario.')
+    return m
+
+
+def _registrar_observacion(r, linea, estado, motivo, comentario, usuario):
+    from .models import ObservacionLinea
+    ObservacionLinea.objects.create(
+        rendicion=r, linea=linea, documento=(linea.documento or linea.glosa)[:60] if linea else '', estado=estado,
+        motivo=motivo, comentario=(comentario or '')[:250], rendidor=r.rendidor,
+        centro_costo=(linea.centro_costo if linea and linea.centro_costo_id else r.entrega.centro_costo),
+        usuario=usuario if usuario and usuario.is_authenticated else None)
 
 
 def _exigir_editable(r, usuario):
@@ -290,8 +347,11 @@ def crear(entrega, usuario, descripcion, fecha=None):
 def guardar_linea(r, linea, usuario):
     _exigir_editable(r, usuario)
     linea.rendicion = r
+    dup = duplicado(linea)
+    if dup:  # se bloquea al registrarlo (también desde la app, WhatsApp, correo o la API)
+        raise ErrorRendicion(f'Comprobante repetido: {dup}.')
     if linea.estado == 'OBSERVADA':
-        linea.estado = 'PENDIENTE'  # corregida por el rendidor
+        linea.estado, linea.motivo = 'PENDIENTE', None  # corregida por el rendidor
     linea.save()
     return linea
 
@@ -340,55 +400,67 @@ def _enviar(r, usuario, comentario):
 
 @transaction.atomic
 def aprobar(r, usuario, comentario='', decisiones=None):
-    """decisiones: {linea_id: ('APROBADA' | 'OBSERVADA' | 'RECHAZADA', comentario)} para aprobar línea por línea.
-    Si alguna línea queda observada, la rendición vuelve al rendidor."""
+    """decisiones: {linea_id: (estado, comentario[, motivo])} con estado APROBADA, OBSERVADA o RECHAZADA, para
+    aprobar línea por línea; observar o rechazar exige un motivo del catálogo. Si alguna línea queda observada, la
+    rendición vuelve al rendidor."""
     if not puede_aprobar(usuario, r):
         raise ErrorRendicion('No le corresponde aprobar esta rendición (nivel, permiso o es su propia rendición).')
+    nivel = r.nivel_pendiente['nivel']
     for linea in r.lineas.exclude(estado='RECHAZADA'):
-        estado, nota = (decisiones or {}).get(linea.pk, ('APROBADA', ''))
-        if estado in ('OBSERVADA', 'RECHAZADA') and len((nota or '').strip()) < 3:
-            raise ErrorRendicion(f'Indique el motivo para {estado.lower()[:-1]}r {linea.documento or linea.glosa}.')
+        decision = (decisiones or {}).get(linea.pk, ('APROBADA', ''))
+        estado, nota = decision[0], (decision[1] or '').strip()
+        motivo = None
+        if estado in ('OBSERVADA', 'RECHAZADA'):
+            try:
+                motivo = _motivo(decision[2] if len(decision) > 2 else None, nota)
+            except ErrorRendicion as exc:
+                raise ErrorRendicion(f'{linea.documento or linea.glosa}: {exc}')
+            _registrar_observacion(r, linea, estado, motivo, nota, usuario)
         linea.estado = 'PENDIENTE' if estado == 'APROBADA' else estado
-        linea.comentario = (nota or '').strip()[:250]
-        linea.save(update_fields=['estado', 'comentario'])
+        linea.comentario, linea.motivo = nota[:250], motivo
+        linea.save(update_fields=['estado', 'comentario', 'motivo'])
     if r.lineas.filter(estado='OBSERVADA').exists():
-        _cambiar(r, 'OBSERVADA', usuario, comentario or 'Gastos observados: corríjalos y vuelva a enviar')
+        _cambiar(r, 'OBSERVADA', usuario, comentario or 'Gastos observados: corríjalos y vuelva a enviar', nivel)
         notificar(r, 'observada')
         return r
     if not r.lineas.exclude(estado='RECHAZADA').exists():
-        _cambiar(r, 'RECHAZADA', usuario, comentario or 'Todos los gastos fueron rechazados')
+        _cambiar(r, 'RECHAZADA', usuario, comentario or 'Todos los gastos fueron rechazados', nivel)
         notificar(r, 'rechazada')
         return r
-    nivel = r.nivel_pendiente['nivel']
     r.nivel_aprobado = nivel
     if r.nivel_pendiente is None:
         r.lineas.filter(estado='PENDIENTE').update(estado='APROBADA')
-        _cambiar(r, 'APROBADA', usuario, comentario or f'Aprobada (nivel {nivel})', aprobada_en=timezone.now())
+        _cambiar(r, 'APROBADA', usuario, comentario or f'Aprobada (nivel {nivel})', nivel, aprobada_en=timezone.now())
         notificar(r, 'aprobada')
     else:
-        _cambiar(r, 'EN_REVISION', usuario, comentario or f'Aprobada en el nivel {nivel}')
+        _cambiar(r, 'EN_REVISION', usuario, comentario or f'Aprobada en el nivel {nivel}', nivel)
         notificar(r, 'enviada')
     return r
 
 
 @transaction.atomic
-def observar(r, usuario, comentario):
+def observar(r, usuario, comentario, motivo=None):
     if not puede_aprobar(usuario, r):
         raise ErrorRendicion('No le corresponde revisar esta rendición.')
-    if len((comentario or '').strip()) < 5:
+    m = _motivo(motivo, comentario)
+    if len((comentario or '').strip()) < 5 and not motivo:
         raise ErrorRendicion('Indique qué debe corregir el rendidor.')
-    _cambiar(r, 'OBSERVADA', usuario, comentario)
+    _registrar_observacion(r, None, 'OBSERVADA', m, comentario, usuario)
+    _cambiar(r, 'OBSERVADA', usuario, f'{m.nombre}: {comentario}'.strip(': '), r.nivel_pendiente['nivel'])
     notificar(r, 'observada')
 
 
 @transaction.atomic
-def rechazar(r, usuario, comentario):
+def rechazar(r, usuario, comentario, motivo=None):
     if not puede_aprobar(usuario, r):
         raise ErrorRendicion('No le corresponde revisar esta rendición.')
-    if len((comentario or '').strip()) < 5:
+    m = _motivo(motivo, comentario)
+    if len((comentario or '').strip()) < 5 and not motivo:
         raise ErrorRendicion('Indique el motivo del rechazo.')
+    _registrar_observacion(r, None, 'RECHAZADA', m, comentario, usuario)
+    nivel = r.nivel_pendiente['nivel']
     r.lineas.update(estado='RECHAZADA')
-    _cambiar(r, 'RECHAZADA', usuario, comentario)
+    _cambiar(r, 'RECHAZADA', usuario, f'{m.nombre}: {comentario}'.strip(': '), nivel)
     notificar(r, 'rechazada')
 
 
@@ -412,7 +484,7 @@ def _registrar_factura(linea, entrega, fecha, usuario):
     c = Compra(tercero=proveedor, tipo_comprobante='01', serie=linea.serie.upper(), numero=linea.numero,
                fecha_emision=linea.fecha, periodo=fecha.strftime('%Y%m'), moneda=linea.moneda,
                tipo_cambio=linea.tipo_cambio if linea.moneda == 'USD' else Decimal('1'), clasificacion='GASTO',
-               cuenta_contable=linea.categoria.cuenta_contable, centro_costo=centro_de(linea),
+               cuenta_contable=linea.categoria.cuenta_en(linea.fecha), centro_costo=centro_de(linea),
                ingresar_almacen=False, forma_pago='CONTADO',
                glosa=f'Rendición {linea.rendicion.numero}: {linea.glosa}'[:500])
     c.save()
@@ -432,23 +504,228 @@ _DOCUMENTO_GASTO = {'03': '03', '12': '12', 'PM': 'PM', 'SC': 'RI', 'KM': 'RI'}
 
 
 def centro_de(linea):
-    """Centro de costo del gasto; si no tiene, el de su proyecto."""
-    return linea.centro_costo or (linea.proyecto.centro_costo if linea.proyecto_id else None)
+    """Centro de costo del gasto; si no tiene, el de su proyecto (o el primero de su distribución)."""
+    centro = linea.centro_costo or (linea.proyecto.centro_costo if linea.proyecto_id else None)
+    if centro is None and linea.pk:
+        d = linea.distribucion.select_related('centro_costo').first()
+        centro = d.centro_costo if d else None
+    return centro
 
 
 def _registrar_gasto(linea, entrega, fecha, usuario):
+    """Gasto rendido (sin crédito fiscal); si está distribuido, uno por centro de costo (una línea del asiento por
+    centro)."""
+    from contabilidad.centralizar import _repartir
     detalle = f' · {linea.proyecto.codigo}' if linea.proyecto_id else ''
     if linea.sitio_id:
         detalle += f'/{linea.sitio.codigo}'
     if linea.tipo_comprobante == 'KM':
         detalle += f' · {linea.kilometros} km'
-    g = GastoRendicion(fecha=fecha, tipo_documento=_DOCUMENTO_GASTO.get(linea.tipo_comprobante, '00'),
-                       numero_documento=linea.documento[:30],
-                       proveedor=f'{linea.ruc} {linea.razon_social}'.strip()[:150],
-                       descripcion=f'{linea.glosa} ({linea.fecha:%d/%m/%Y}){detalle}'[:200],
-                       cuenta_contable=linea.categoria.cuenta_contable, centro_costo=centro_de(linea),
-                       monto=linea.importe)
-    return op.rendir_gasto(entrega, g, usuario)
+    distribucion = list(linea.distribucion.select_related('centro_costo'))
+    partes = (_repartir(linea.importe, {d: d.porcentaje for d in distribucion}) if distribucion
+              else [(None, linea.importe)])
+    primero = None
+    for d, monto in partes:
+        g = GastoRendicion(fecha=fecha, tipo_documento=_DOCUMENTO_GASTO.get(linea.tipo_comprobante, '00'),
+                           numero_documento=linea.documento[:30],
+                           proveedor=f'{linea.ruc} {linea.razon_social}'.strip()[:150],
+                           descripcion=f'{linea.glosa} ({linea.fecha:%d/%m/%Y}){detalle}'
+                                       f'{f" · {d.porcentaje}%" if d else ""}'[:200],
+                           cuenta_contable=linea.categoria.cuenta_en(linea.fecha),
+                           centro_costo=d.centro_costo if d else centro_de(linea), monto=monto)
+        g = op.rendir_gasto(entrega, g, usuario)
+        if d:
+            d.importe, d.gasto = monto, g
+            d.save(update_fields=['importe', 'gasto'])
+        primero = primero or g
+    return primero
+
+
+def _vincular_sustentos(linea, *destinos):
+    """La foto, PDF o XML del gasto queda también en el registro de compras o el gasto rendido (y su asiento)."""
+    from core.sustentos import de, vincular
+    for s in de(linea):
+        for obj in destinos:
+            if obj is not None:
+                vincular(obj, s.archivo, s.usuario, s.descripcion or 'Comprobante de la rendición')
+
+
+# ---------------------------------------------------------------- distribución en varios centros de costo
+def distribuir(linea, filas, usuario=None):
+    """filas: [(centro de costo, porcentaje)] que suman 100. Reemplaza la distribución del gasto ([] la quita)."""
+    from contabilidad.centralizar import _repartir
+    from .models import DistribucionLinea
+    _exigir_editable(linea.rendicion, usuario or linea.rendicion.rendidor)
+    filas = [(c, Decimal(str(p))) for c, p in filas if c is not None and p]
+    if filas:
+        if len({c.pk for c, _ in filas}) != len(filas):
+            raise ErrorRendicion('Un centro de costo está repetido en la distribución.')
+        if any(p <= 0 for _, p in filas) or sum((p for _, p in filas), D0) != 100:
+            raise ErrorRendicion('Los porcentajes de la distribución deben ser positivos y sumar 100%.')
+    with transaction.atomic():
+        linea.distribucion.all().delete()
+        pesos = {i: p for i, (_, p) in enumerate(filas)}
+        importes = dict(_repartir(linea.importe, pesos)) if filas else {}
+        for i, (centro, p) in enumerate(filas):
+            DistribucionLinea.objects.create(linea=linea, centro_costo=centro, porcentaje=p, importe=importes[i])
+        if filas:
+            LineaGasto.objects.filter(pk=linea.pk).update(centro_costo=None)
+    return linea
+
+
+def aplicar_plantilla(rendicion, plantilla, usuario=None, lineas=None):
+    """Reparte con la plantilla todos los gastos de la rendición (fondo fijo) o los indicados."""
+    filas = [(p.centro_costo, p.porcentaje) for p in plantilla.lineas.select_related('centro_costo')]
+    n = 0
+    for linea in (lineas or rendicion.lineas.exclude(estado='RECHAZADA')):
+        distribuir(linea, filas, usuario)
+        n += 1
+    return n
+
+
+# ---------------------------------------------------------------- corte del mes
+def fecha_corte(fecha):
+    """Día de corte de rendiciones del mes de la fecha (None si no hay corte configurado)."""
+    import calendar
+    from .models import ConfigRendicion
+    dia = ConfigRendicion.actual().dia_corte
+    if not dia:
+        return None
+    return fecha.replace(day=min(dia, calendar.monthrange(fecha.year, fecha.month)[1]))
+
+
+def proximo_corte(hoy=None):
+    hoy = hoy or timezone.localdate()
+    corte = fecha_corte(hoy)
+    if corte is None or corte >= hoy:
+        return corte
+    siguiente = (hoy.replace(day=1) + timedelta(days=32)).replace(day=1)
+    return fecha_corte(siguiente)
+
+
+def fecha_contable_sugerida(r):
+    """Lo aprobado hasta el corte se contabiliza en su mes; lo aprobado después, el primer día del mes siguiente."""
+    hoy = timezone.localdate()
+    base = timezone.localtime(r.aprobada_en).date() if r.aprobada_en else hoy
+    corte = fecha_corte(base)
+    objetivo = (base.replace(day=1) + timedelta(days=32)).replace(day=1) if corte and base > corte else base
+    # dentro del mismo mes, la fecha de hoy; si el mes ya pasó, la fecha que le corresponde
+    return hoy if hoy > objetivo and hoy.strftime('%Y%m') == objetivo.strftime('%Y%m') else objetivo
+
+
+def avisos_de_corte(hoy=None):
+    """[(usuario, texto)] para recordar el corte: rendidores con borradores u observadas y aprobadores con
+    pendientes, desde N días antes del corte."""
+    from .models import ConfigRendicion
+    hoy = hoy or timezone.localdate()
+    cfg = ConfigRendicion.actual()
+    corte = proximo_corte(hoy)
+    if corte is None or (corte - hoy).days > cfg.dias_aviso_corte:
+        return corte, []
+    avisos = {}
+    for r in Rendicion.objects.filter(estado__in=Rendicion.EDITABLES).select_related('rendidor'):
+        avisos.setdefault(r.rendidor, []).append(f'{r.numero} ({r.get_estado_display().lower()}): envíela')
+    User = get_user_model()
+    for r in Rendicion.objects.filter(estado__in=Rendicion.POR_APROBAR):
+        n = r.nivel_pendiente
+        aprobadores = (User.objects.filter(pk=n['usuario']) if n and n['usuario'] else
+                       [u for u in User.objects.filter(is_active=True) if puede(u, 'rendiciones.aprobar')])
+        for u in aprobadores:
+            if u.pk != r.rendidor_id:
+                avisos.setdefault(u, []).append(f'{r.numero}: por aprobar')
+    return corte, list(avisos.items())
+
+
+# ---------------------------------------------------------------- historial de imputación de las categorías
+def cambiar_cuenta_categoria(categoria, cuenta, vigente_desde, usuario, motivo=''):
+    """Cambia la cuenta contable de la categoría desde una fecha (los gastos anteriores conservan la cuenta que
+    tenían) y avisa a contabilidad."""
+    from .models import CategoriaCuentaHistorial
+    anterior = categoria.cuenta_en(vigente_desde - timedelta(days=1))
+    if anterior == cuenta:
+        return None
+    h = CategoriaCuentaHistorial.objects.create(categoria=categoria, cuenta_anterior=anterior, cuenta=cuenta,
+                                                vigente_desde=vigente_desde, motivo=motivo[:250],
+                                                usuario=usuario if usuario and usuario.is_authenticated else None)
+    type(categoria).objects.filter(pk=categoria.pk).update(cuenta_contable=cuenta)
+    _avisar_contabilidad(h)
+    return h
+
+
+def _avisar_contabilidad(h):
+    from core.correo import ErrorCorreo, enviar as enviar_correo
+    correos = [u.email for u in get_user_model().objects.filter(is_active=True)
+               if u.email and puede(u, 'rendiciones.contabilizar')]
+    if not correos:
+        return
+    try:
+        enviar_correo(correos, f'Cambio de imputación: {h.categoria}', 'finanzas/correo_imputacion.html', {'h': h})
+    except ErrorCorreo as exc:
+        log.info('Aviso de cambio de imputación no enviado: %s', exc)
+
+
+# ---------------------------------------------------------------- trazabilidad y errores
+def trazabilidad(desde, hasta):
+    """Por rendición: cada paso de aprobación con aprobador, nivel, fecha y hora, horas desde el paso anterior y
+    el último aprobador."""
+    salida = []
+    qs = (Rendicion.objects.filter(enviada_en__date__range=[desde, hasta])
+          .select_related('entrega__responsable', 'rendidor').prefetch_related('historial__usuario'))
+    for r in qs.order_by('enviada_en'):
+        pasos, anterior, ultimo = [], None, None
+        for h in r.historial.all():
+            if h.a_estado == 'ENVIADA':
+                anterior = h.fecha
+                continue
+            if h.a_estado in ('EN_REVISION', 'APROBADA', 'OBSERVADA', 'RECHAZADA') and anterior:
+                horas = round((h.fecha - anterior).total_seconds() / 3600, 1)
+                pasos.append({'h': h, 'horas': horas})
+                anterior = h.fecha
+                if h.a_estado in ('EN_REVISION', 'APROBADA'):
+                    ultimo = h.usuario
+        if pasos:
+            salida.append({'r': r, 'pasos': pasos, 'ultimo': ultimo,
+                           'total_horas': round(sum(p['horas'] for p in pasos), 1)})
+    return salida
+
+
+def errores_por(desde, hasta):
+    """Observaciones y rechazos por motivo, por usuario (rendidor) y por área (centro de costo)."""
+    from .models import ObservacionLinea
+    obs = list(ObservacionLinea.objects.filter(fecha__date__range=[desde, hasta])
+               .select_related('motivo', 'rendidor', 'centro_costo'))
+
+    def contar(clave):
+        d = defaultdict(int)
+        for o in obs:
+            d[clave(o)] += 1
+        return sorted(d.items(), key=lambda x: -x[1])
+    return {'total': len(obs), 'filas': obs,
+            'por_motivo': contar(lambda o: o.motivo.nombre),
+            'por_usuario': contar(lambda o: (o.rendidor.get_full_name() or o.rendidor.username) if o.rendidor
+                                  else '—'),
+            'por_area': contar(lambda o: f'{o.centro_costo.codigo} {o.centro_costo.nombre}' if o.centro_costo
+                               else 'Sin centro de costo')}
+
+
+def sustentos_de_asiento(a):
+    """Sustentos de los documentos de origen del asiento (compra o gastos rendidos), sin carga manual."""
+    from core.sustentos import de
+    from .models import GastoRendicion as Gasto
+    vistos, salida = set(), []
+    origenes = []
+    if a.compra_id:
+        origenes.append(a.compra)
+    if a.origen == 'APLICACION' and a.glosa.startswith('Rendición '):
+        numero = a.glosa.split()[1]
+        origenes += list(Gasto.objects.filter(entrega__numero=numero, fecha__year=a.fecha.year,
+                                              fecha__month=a.fecha.month))
+    for obj in origenes:
+        for s in de(obj):
+            if s.archivo_id not in vistos:
+                vistos.add(s.archivo_id)
+                salida.append(s)
+    return salida
 
 
 @transaction.atomic
@@ -457,7 +734,7 @@ def contabilizar(r, usuario, fecha=None):
     el asiento sale de la centralización (gasto y centro de costo contra la entrega a rendir o caja chica)."""
     if r.estado != 'APROBADA':
         raise ErrorRendicion('Solo se contabilizan rendiciones aprobadas.')
-    fecha = fecha or timezone.localdate()
+    fecha = fecha or fecha_contable_sugerida(r)
     try:
         op._periodo_abierto(fecha)
     except op.ErrorTesoreria as exc:
@@ -470,8 +747,10 @@ def contabilizar(r, usuario, fecha=None):
         try:
             if linea.con_credito_fiscal:
                 linea.compra = _registrar_factura(linea, entrega, fecha, usuario)
+                _vincular_sustentos(linea, linea.compra)
             else:
                 linea.gasto = _registrar_gasto(linea, entrega, fecha, usuario)
+                _vincular_sustentos(linea, *[d.gasto for d in linea.distribucion.all()] or [linea.gasto])
         except op.ErrorTesoreria as exc:
             raise ErrorRendicion(f'{linea.documento or linea.glosa}: {exc}')
         linea.save(update_fields=['compra', 'gasto'])
@@ -632,7 +911,8 @@ TERMINADAS = ('APROBADA', 'CONTABILIZADA', 'REEMBOLSADA', 'DEVUELTA')
 def tablero(desde, hasta):
     lineas = list(LineaGasto.objects.filter(rendicion__estado__in=TERMINADAS, fecha__range=[desde, hasta])
                   .exclude(estado='RECHAZADA')
-                  .select_related('categoria', 'centro_costo', 'proyecto', 'rendicion__entrega__responsable'))
+                  .select_related('categoria', 'centro_costo', 'proyecto', 'indicador',
+                                  'rendicion__entrega__responsable'))
     def agrupar(clave):
         d = defaultdict(lambda: D0)
         for l in lineas:
@@ -650,6 +930,7 @@ def tablero(desde, hasta):
                               'Sin centro de costo'),
         'por_persona': agrupar(lambda l: l.rendicion.entrega.responsable.nombre),
         'por_proyecto': agrupar(lambda l: str(l.proyecto) if l.proyecto_id else 'Sin proyecto'),
+        'por_indicador': agrupar(lambda l: str(l.indicador) if l.indicador_id else 'Sin indicador'),
         'por_mes': sorted(agrupar(lambda l: l.fecha.strftime('%Y-%m')), key=lambda x: x[0]),
         'fuera_politica': len(fuera), 'fuera_monto': sum((_pen(l) for l in fuera), D0),
         'pendientes': Rendicion.objects.filter(estado__in=('ENVIADA', 'EN_REVISION', 'OBSERVADA')).count(),
@@ -720,6 +1001,11 @@ def borrador_recibido(user, datos, archivos=(), origen='MOVIL', rendicion=None):
     if linea.moneda == 'USD' and r.entrega.moneda != 'USD':
         from core.tipo_cambio import venta_del_dia
         linea.tipo_cambio = venta_del_dia(linea.fecha) or Decimal('1')
+    if datos.get('tipo_comprobante'):  # comprobante leído (QR, XML o IA): indicador sugerido, el rendidor confirma
+        linea.indicador = datos.get('indicador') or sugerir_indicador(linea.tipo_comprobante, linea.a_nombre_empresa)
+    dup = duplicado(linea)
+    if dup:
+        raise ErrorRendicion(f'Comprobante repetido: {dup}.')
     linea.save()
     for contenido, nombre, tipo in archivos:
         vincular(linea, guardar_archivo(None, user, datos=contenido, nombre=nombre, tipo=tipo), user,

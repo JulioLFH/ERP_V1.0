@@ -11,6 +11,8 @@
   {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
   <div class="row g-3">
     <div class="col-md-6">{% with field=form.categoria_defecto %}{% include 'core/_campo.html' %}{% endwith %}</div>
+    <div class="col-12"><h6 class="mt-2 mb-0"><i class="bi bi-calendar-x"></i> Corte de cierre del mes</h6><div class="small text-muted">Fecha de corte para las rendiciones del mes: se avisa a rendidores y aprobadores (campana y correo diario de <code>recordar_rendiciones</code>); lo aprobado después del corte se contabiliza el mes siguiente.</div></div>
+    {% for field in grupos.dia %}<div class="col-md-4">{% include 'core/_campo.html' %}</div>{% endfor %}
     <div class="col-12"><h6 class="mt-2 mb-0"><i class="bi bi-stars"></i> Lectura de comprobantes sin QR (IA)</h6><div class="small text-muted">Tickets y boletas físicas: lee RUC, fecha, número y total de la foto con Claude (Anthropic). El rendidor confirma los datos antes de enviar. Se usa la reserva automática de modelo del servidor si el modelo principal no procesa una imagen.</div></div>
     {% for field in grupos.ia %}<div class="col-md-4">{% include 'core/_campo.html' %}</div>{% endfor %}
     <div class="col-12"><h6 class="mt-2 mb-0"><i class="bi bi-whatsapp"></i> WhatsApp Business (Cloud API)</h6><div class="small text-muted">El trabajador envía la foto al número de la empresa; se identifica por el celular de su usuario. URL del webhook para Meta: <code>{{ webhook }}</code> (campo «messages»).</div></div>

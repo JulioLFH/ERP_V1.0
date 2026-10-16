@@ -68,8 +68,12 @@ class Base(TestCase):
         return rd.crear(entrega or self.entrega(), self.rendidor, 'Viaje a Arequipa')
 
     def linea(self, r, total, tipo='12', categoria=None, **extra):
-        datos = dict(fecha=HOY, tipo_comprobante=tipo, total=D(total), base=D(total), categoria=categoria or self.cat,
-                     centro_costo=self.cc, glosa='Gasto de viaje', numero=extra.pop('numero', '123'))
+        total = D(total)
+        indicador = extra.pop('indicador', None) or rd.sugerir_indicador(tipo, extra.get('a_nombre_empresa', True))
+        base = (total / (1 + indicador.tasa / 100)).quantize(D('0.01')) if indicador.tasa else total
+        datos = dict(fecha=HOY, tipo_comprobante=tipo, total=total, base=base, igv=total - base, indicador=indicador,
+                     categoria=categoria or self.cat, centro_costo=self.cc, glosa='Gasto de viaje',
+                     numero=extra.pop('numero', '123'))
         datos.update(extra)
         return rd.guardar_linea(r, LineaGasto(**datos), self.rendidor)
 
@@ -206,9 +210,9 @@ class DuplicadoTest(Base):
         self.factura(r, numero='900')
         rd.enviar(r, self.rendidor)
         otra = self.rendicion()
-        self.factura(otra, numero='900')
-        with self.assertRaisesMessage(rd.ErrorRendicion, 'ya fue rendido'):
-            rd.enviar(otra, self.rendidor)
+        with self.assertRaisesMessage(rd.ErrorRendicion, 'ya fue rendido'):  # se bloquea al registrarlo
+            self.factura(otra, numero='900')
+        self.assertFalse(otra.lineas.exists())
 
 
 class ReembolsoTest(Base):
@@ -254,6 +258,7 @@ class VistasTest(Base):
                                'g-ruc': '20100047218', 'g-razon_social': 'HOTEL SUR SAC', 'g-serie': 'f001',
                                'g-numero': '88', 'g-a_nombre_empresa': 'on', 'g-moneda': 'PEN', 'g-total': '236',
                                'g-categoria': self.cat.pk, 'g-centro_costo': self.cc.pk, 'g-glosa': 'Hospedaje',
+                               'g-indicador': rd.sugerir_indicador('01').pk,
                                'g-fotos': [foto]})
         linea = rend.lineas.get()
         self.assertEqual((linea.serie, linea.base, linea.igv), ('F001', D('200.00'), D('36.00')))

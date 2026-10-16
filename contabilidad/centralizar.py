@@ -149,6 +149,13 @@ def _repartir(total, pesos):
     return partes
 
 
+def _distribucion_compra(compra):
+    """{centro de costo: porcentaje} si la compra viene de un gasto rendido distribuido en varios centros."""
+    from finanzas.models import DistribucionLinea
+    filas = DistribucionLinea.objects.filter(linea__compra=compra).select_related('centro_costo')
+    return {d.centro_costo: d.porcentaje for d in filas} or None
+
+
 def cuenta_caja(cuenta_fin, cta):
     from .automatico import asegurar_subcuenta
     return asegurar_subcuenta(cuenta_fin)
@@ -246,9 +253,14 @@ def asiento_compra(c, cta):
     if not sum(pesos.values(), D0):
         pesos = {cuenta_gasto: Decimal('1')}
     total_items = sum(pesos.values(), D0)
+    centros = _distribucion_compra(c)  # factura de una rendición repartida en varios centros de costo
     for cuenta, parte in _repartir(base, pesos):
-        b.add(cuenta, debe=parte, documento=doc, centro_costo=c.centro_costo,
-              importe_me=(c.total - c.igv) * pesos[cuenta] / total_items)
+        me = (c.total - c.igv) * pesos[cuenta] / total_items
+        if centros:
+            for centro, sub in _repartir(parte, centros):
+                b.add(cuenta, debe=sub, documento=doc, centro_costo=centro, importe_me=me * centros[centro] / 100)
+        else:
+            b.add(cuenta, debe=parte, documento=doc, centro_costo=c.centro_costo, importe_me=me)
     b.add(cta['igv'], debe=c.igv_pen, documento=doc, importe_me=c.igv)
     cuenta_prov = cta['honorarios_por_pagar'] if honorarios else cta['proveedor']
     if c.ret_pen:

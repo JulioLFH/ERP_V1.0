@@ -41,6 +41,91 @@ class CategoriaGasto(models.Model):
     def __str__(self):
         return self.nombre
 
+    def cuenta_en(self, fecha):
+        """Cuenta contable vigente en la fecha (historial de cambios de imputación)."""
+        cambios = list(self.historial_cuentas.order_by('vigente_desde', 'id'))
+        if not cambios:
+            return self.cuenta_contable
+        vigentes = [c for c in cambios if c.vigente_desde <= fecha]
+        if vigentes:
+            return vigentes[-1].cuenta
+        return cambios[0].cuenta_anterior or self.cuenta_contable
+
+
+class CategoriaCuentaHistorial(models.Model):
+    """Cambio de la cuenta contable de una categoría, con su fecha de vigencia (los gastos anteriores conservan la
+    cuenta que tenían)."""
+    categoria = models.ForeignKey(CategoriaGasto, on_delete=models.CASCADE, related_name='historial_cuentas')
+    cuenta_anterior = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                        related_name='+')
+    cuenta = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, related_name='+')
+    vigente_desde = models.DateField()
+    motivo = models.CharField(max_length=250, blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-vigente_desde', '-id']
+
+
+class IndicadorImpuesto(models.Model):
+    """Tratamiento del IGV de cada gasto: define si da crédito fiscal (registro de compras) y la tasa con la que se
+    valida base × tasa = IGV."""
+    codigo = models.CharField('Código', max_length=4, unique=True)
+    nombre = models.CharField(max_length=80)
+    tasa = models.DecimalField('Tasa IGV %', max_digits=5, decimal_places=2, default=D0)
+    credito_fiscal = models.BooleanField('Da crédito fiscal', default=False)
+    codigo_externo = models.CharField('Código en el ERP externo', max_length=10, blank=True,
+                                      help_text='Indicador de impuesto en SAP u otro ERP (exportación)')
+    orden = models.PositiveSmallIntegerField(default=0)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['orden', 'codigo']
+        verbose_name = 'indicador de impuesto'
+        verbose_name_plural = 'indicadores de impuesto'
+
+    def __str__(self):
+        return f'{self.codigo} {self.nombre}'
+
+
+class MotivoObservacion(models.Model):
+    codigo = models.CharField('Código', max_length=20, unique=True)
+    nombre = models.CharField(max_length=80)
+    exige_comentario = models.BooleanField('Exige comentario', default=False)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['nombre']
+        verbose_name = 'motivo de observación'
+        verbose_name_plural = 'motivos de observación'
+
+    def __str__(self):
+        return self.nombre
+
+
+class PlantillaDistribucion(models.Model):
+    """Reparto reutilizable de un gasto entre varios centros de costo (los porcentajes suman 100)."""
+    nombre = models.CharField(max_length=80, unique=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['nombre']
+        verbose_name = 'plantilla de distribución'
+        verbose_name_plural = 'plantillas de distribución'
+
+    def __str__(self):
+        return self.nombre
+
+
+class PlantillaDistribucionLinea(models.Model):
+    plantilla = models.ForeignKey(PlantillaDistribucion, on_delete=models.CASCADE, related_name='lineas')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, related_name='+')
+    porcentaje = models.DecimalField(max_digits=6, decimal_places=2)
+
+    class Meta:
+        ordering = ['id']
+
 
 class Proyecto(models.Model):
     codigo = models.CharField('Código', max_length=20, unique=True)
@@ -217,6 +302,8 @@ class LineaGasto(models.Model):
     total = models.DecimalField(max_digits=14, decimal_places=2)
     importe = models.DecimalField('Importe en la moneda de la entrega', max_digits=14, decimal_places=2, default=D0,
                                   editable=False)
+    indicador = models.ForeignKey(IndicadorImpuesto, on_delete=models.PROTECT, null=True, blank=True,
+                                  verbose_name='Indicador de impuesto')
     categoria = models.ForeignKey(CategoriaGasto, on_delete=models.PROTECT, verbose_name='Categoría')
     centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
                                      verbose_name='Centro de costo')
@@ -226,6 +313,8 @@ class LineaGasto(models.Model):
     destino = models.CharField('Destino (movilidad)', max_length=150, blank=True)
     glosa = models.CharField(max_length=200)
     estado = models.CharField(max_length=9, choices=ESTADOS, default='PENDIENTE')
+    motivo = models.ForeignKey(MotivoObservacion, on_delete=models.PROTECT, null=True, blank=True, editable=False,
+                               verbose_name='Motivo de la observación')
     comentario = models.CharField('Comentario del aprobador', max_length=250, blank=True)
     alertas = models.CharField('Fuera de política', max_length=400, blank=True, editable=False)
     justificacion = models.CharField('Justificación', max_length=250, blank=True,
@@ -255,8 +344,13 @@ class LineaGasto(models.Model):
 
     @property
     def con_credito_fiscal(self):
-        """Factura válida a nombre de la empresa: va al registro de compras con crédito fiscal."""
-        return self.tipo_comprobante == '01' and self.a_nombre_empresa and len(self.ruc) == 11
+        """Factura a nombre de la empresa con un indicador que da crédito fiscal: va al registro de compras."""
+        return (self.tipo_comprobante == '01' and self.a_nombre_empresa and len(self.ruc) == 11
+                and self.indicador_id is not None and self.indicador.credito_fiscal)
+
+    @property
+    def distribuida(self):
+        return self.pk is not None and self.distribucion.exists()
 
     @property
     def sin_comprobante(self):
@@ -277,12 +371,44 @@ class LineaGasto(models.Model):
         super().save(*args, **kwargs)
 
 
+class DistribucionLinea(models.Model):
+    """Parte de un gasto cargada a un centro de costo (el asiento lleva una línea por centro)."""
+    linea = models.ForeignKey(LineaGasto, on_delete=models.CASCADE, related_name='distribucion')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, related_name='+')
+    porcentaje = models.DecimalField(max_digits=6, decimal_places=2)
+    importe = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    gasto = models.ForeignKey('finanzas.GastoRendicion', on_delete=models.SET_NULL, null=True, blank=True,
+                              related_name='+')
+
+    class Meta:
+        ordering = ['id']
+
+
+class ObservacionLinea(models.Model):
+    """Cada observación o rechazo de un gasto, con su motivo estándar (reporte de errores por usuario y área)."""
+    rendicion = models.ForeignKey(Rendicion, on_delete=models.CASCADE, related_name='observaciones')
+    linea = models.ForeignKey(LineaGasto, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    documento = models.CharField(max_length=60, blank=True)
+    estado = models.CharField(max_length=9)
+    motivo = models.ForeignKey(MotivoObservacion, on_delete=models.PROTECT, related_name='+')
+    comentario = models.CharField(max_length=250, blank=True)
+    rendidor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+')
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+
+
 class HistorialRendicion(models.Model):
     rendicion = models.ForeignKey(Rendicion, on_delete=models.CASCADE, related_name='historial')
     fecha = models.DateTimeField(auto_now_add=True)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
     de_estado = models.CharField(max_length=14, blank=True)
     a_estado = models.CharField(max_length=14)
+    nivel = models.PositiveSmallIntegerField(null=True, blank=True)
     comentario = models.CharField(max_length=300, blank=True)
 
     class Meta:
@@ -354,6 +480,13 @@ class ConfigRendicion(models.Model):
     categoria_defecto = models.ForeignKey(CategoriaGasto, on_delete=models.SET_NULL, null=True, blank=True,
                                           related_name='+', verbose_name='Categoría de los gastos recibidos',
                                           help_text='Para los borradores que llegan por WhatsApp, correo o la app')
+    # cierre del mes
+    dia_corte = models.PositiveSmallIntegerField(
+        'Día de corte de rendiciones', default=0,
+        help_text='Lo aprobado después de este día se contabiliza el mes siguiente. 0 = sin corte')
+    dias_aviso_corte = models.PositiveSmallIntegerField(
+        'Avisar días antes del corte', default=3,
+        help_text='Recordatorio a rendidores con borradores y a aprobadores con pendientes')
     # lectura de comprobantes sin QR (OCR / IA)
     ia_activa = models.BooleanField('Leer comprobantes con IA', default=False)
     ia_api_key = models.CharField('Clave API de Anthropic', max_length=200, blank=True,
@@ -379,3 +512,52 @@ class ConfigRendicion(models.Model):
     @classmethod
     def actual(cls):
         return cls.objects.first() or cls.objects.create()
+
+
+# ---------------------------------------------------------------- integración con un ERP externo (p. ej. SAP)
+class MapeoCuentaERP(models.Model):
+    """Cuenta del ERP externo que corresponde a una cuenta de Ceiba (vacío = el mismo código)."""
+    cuenta = models.OneToOneField('contabilidad.CuentaContable', on_delete=models.CASCADE, related_name='mapeo_erp')
+    codigo_externo = models.CharField('Cuenta en el ERP externo', max_length=20)
+
+    class Meta:
+        ordering = ['cuenta__codigo']
+
+
+class EnvioERP(models.Model):
+    """Lote de gastos contabilizados exportado al ERP externo."""
+    ESTADOS = [('GENERADO', 'Generado (por enviar)'), ('PARCIAL', 'Con errores'), ('CONCILIADO', 'Conciliado')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='GENERADO')
+    es_reintento = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-creado', '-id']
+        verbose_name = 'envío al ERP externo'
+        verbose_name_plural = 'envíos al ERP externo'
+
+    def __str__(self):
+        return self.numero
+
+    def save(self, *args, **kwargs):
+        if not self.numero:
+            from .models import _siguiente
+            self.numero = _siguiente('EX', 'EX')
+        super().save(*args, **kwargs)
+
+
+class EnvioERPDetalle(models.Model):
+    ESTADOS = [('ENVIADO', 'Enviado'), ('ACEPTADO', 'Aceptado'), ('ERROR', 'Con error')]
+    envio = models.ForeignKey(EnvioERP, on_delete=models.CASCADE, related_name='detalles')
+    linea = models.ForeignKey(LineaGasto, on_delete=models.PROTECT, related_name='envios_erp')
+    importe_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    estado = models.CharField(max_length=8, choices=ESTADOS, default='ENVIADO')
+    mensaje = models.CharField(max_length=300, blank=True)
+    referencia_externa = models.CharField('Documento en el ERP externo', max_length=40, blank=True)
+    intento = models.PositiveSmallIntegerField(default=1)
+    actualizado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['id']

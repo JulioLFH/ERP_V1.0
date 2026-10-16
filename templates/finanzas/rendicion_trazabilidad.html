@@ -1,0 +1,23 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Trazabilidad de aprobación{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Trazabilidad de aprobación</h1>
+  <form class="d-flex flex-wrap gap-2" method="get">
+    <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:auto">
+    <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:auto">
+    <button class="btn btn-sm btn-primary">Ver</button>
+    <button name="formato" value="excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></button>
+  </form>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Rendición</th><th>Responsable</th><th class="num">Total</th><th>Pasos de aprobación (nivel · aprobador · fecha y hora · horas del paso)</th><th>Último aprobador</th><th class="num">Horas</th><th>Estado</th></tr></thead>
+  <tbody>{% for f in filas %}<tr>
+    <td><a href="{% url 'rendiciones:detalle' f.r.pk %}">{{ f.r.numero }}</a></td><td class="small">{{ f.r.entrega.responsable.nombre|truncatechars:28 }}</td><td class="num">{{ f.r.total|money }}</td>
+    <td class="small">{% for p in f.pasos %}<div><span class="badge text-bg-light">N{{ p.h.nivel|default:'-' }}</span> {{ p.h.a_display }} · {{ p.h.usuario.get_full_name|default:p.h.usuario.username }} · {{ p.h.fecha|date:'d/m/Y H:i' }} · {{ p.horas }} h{% if p.h.comentario %} · <span class="text-muted">{{ p.h.comentario|truncatechars:50 }}</span>{% endif %}</div>{% endfor %}</td>
+    <td class="small">{{ f.ultimo.get_full_name|default:f.ultimo.username|default:'—' }}</td><td class="num">{{ f.total_horas }}</td>
+    <td>{% with r=f.r %}{% include 'finanzas/_estado_rendicion.html' %}{% endwith %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No hay rendiciones enviadas en el periodo.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<p class="small text-muted mt-2">Las horas de cada paso se cuentan desde el envío (o el paso anterior) hasta la decisión del aprobador.</p>
+{% endblock %}

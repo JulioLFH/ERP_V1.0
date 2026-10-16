@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Observaciones y errores{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Observaciones y errores por usuario y área</h1>
+  <form class="d-flex flex-wrap gap-2" method="get">
+    <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:auto">
+    <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:auto">
+    <button class="btn btn-sm btn-primary">Ver</button>
+    <button name="formato" value="excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></button>
+  </form>
+</div>
+<p class="small text-muted">{{ d.total }} observación(es) o rechazo(s) en el periodo, con su motivo del catálogo.</p>
+<div class="row g-3">
+  <div class="col-lg-4">{% include 'finanzas/_conteo.html' with titulo='Por motivo' datos=d.por_motivo %}</div>
+  <div class="col-lg-4">{% include 'finanzas/_conteo.html' with titulo='Por usuario (rendidor)' datos=d.por_usuario %}</div>
+  <div class="col-lg-4">{% include 'finanzas/_conteo.html' with titulo='Por área (centro de costo)' datos=d.por_area %}</div>
+</div>
+{% endblock %}

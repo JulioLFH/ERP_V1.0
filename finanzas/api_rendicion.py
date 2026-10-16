@@ -14,7 +14,10 @@ def _s_linea(l):
     return {'id': l.pk, 'fecha': l.fecha, 'tipo_comprobante': l.tipo_comprobante, 'ruc': l.ruc,
             'razon_social': l.razon_social, 'serie': l.serie, 'numero': l.numero, 'moneda': l.moneda,
             'tipo_cambio': l.tipo_cambio, 'base': l.base, 'igv': l.igv, 'total': l.total, 'importe': l.importe,
+            'indicador_impuesto': l.indicador.codigo if l.indicador_id else None,
             'categoria': l.categoria.codigo, 'centro_costo': l.centro_costo.codigo if l.centro_costo_id else None,
+            'distribucion': [{'centro_costo': d.centro_costo.codigo, 'porcentaje': d.porcentaje}
+                             for d in l.distribucion.select_related('centro_costo')],
             'proyecto': l.proyecto.codigo if l.proyecto_id else None, 'glosa': l.glosa, 'estado': l.estado,
             'alertas': l.alertas, 'justificacion': l.justificacion, 'origen': l.origen,
             'validacion_sunat': l.estado_sunat, 'compra_id': l.compra_id}
@@ -71,7 +74,7 @@ def gasto(request, pk):
     """Agrega un gasto a una rendición en borrador del usuario de la clave. Categoría, centro de costo y proyecto
     por su código; la foto opcional en base64 (foto_base64, foto_nombre)."""
     from contabilidad.models import CentroCosto
-    from .models import CategoriaGasto, Proyecto
+    from .models import CategoriaGasto, IndicadorImpuesto, Proyecto
     r = rd.visibles(request.user).filter(pk=pk).first()
     if r is None:
         return error('Rendición no encontrada.', 404)
@@ -84,7 +87,11 @@ def gasto(request, pk):
     datos['a_nombre_empresa'] = 'on' if d.get('a_nombre_empresa', True) else ''
     datos['moneda'] = datos['moneda'] or r.entrega.moneda
     datos['tipo_comprobante'] = datos['tipo_comprobante'] or '12'
-    for campo, modelo in (('categoria', CategoriaGasto), ('centro_costo', CentroCosto), ('proyecto', Proyecto)):
+    if not d.get('indicador_impuesto'):
+        return error('indicador_impuesto es obligatorio (C1, S1, R1, R0, EX, IN, NG o los configurados).', 422)
+    d['indicador'] = d['indicador_impuesto']
+    for campo, modelo in (('categoria', CategoriaGasto), ('centro_costo', CentroCosto), ('proyecto', Proyecto),
+                          ('indicador', IndicadorImpuesto)):
         codigo = d.get(campo)
         obj = modelo.objects.filter(codigo=codigo).first() if codigo else None
         if codigo and obj is None:

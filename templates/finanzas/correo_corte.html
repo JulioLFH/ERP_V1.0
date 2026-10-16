@@ -1,0 +1,8 @@
+{% extends 'proveedores/correo_base.html' %}
+{% block cuerpo %}
+<p>{{ usuario.get_full_name|default:usuario.username }}:</p>
+<p>El <b>{{ corte|date:'d/m/Y' }}</b> es el corte de rendiciones del mes. Lo que se apruebe después se contabiliza el mes siguiente.</p>
+<p>Tiene pendiente:</p>
+<ul>{% for p in pendientes %}<li>{{ p }}</li>{% endfor %}</ul>
+<p>Ingrese al módulo <b>Rendición de gastos</b> (o a la app del celular) para completarlo.</p>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Aprobar rendiciones{% endblock %}
+{% block content %}
+<div style="max-width:620px;margin:0 auto">
+{% if r %}
+  <a href="{% url 'rendiciones:movil_aprobar' %}" class="btn btn-sm btn-link px-0"><i class="bi bi-arrow-left"></i> Pendientes</a>
+  <h1 class="page-title mb-1">{{ r.numero }} · {{ r.entrega.simbolo }} {{ r.total|money }}</h1>
+  <div class="small text-muted mb-3">{{ r.entrega.responsable.nombre }} · {{ r.descripcion }} · nivel {{ r.nivel_pendiente.nivel }} de {{ r.niveles|length }}</div>
+  <form method="post" action="{% url 'rendiciones:detalle' r.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{% url 'rendiciones:movil_aprobar' %}">
+  {% for l in lineas %}
+    <div class="card mb-2"><div class="card-body p-2">
+      <div class="d-flex justify-content-between"><b>{{ l.get_tipo_comprobante_display }} {{ l.documento }}</b><b>{{ l.moneda }} {{ l.total|money }}</b></div>
+      <div class="small">{{ l.razon_social|default:l.ruc }} · {{ l.fecha|date:'d/m/Y' }}</div>
+      <div class="small text-muted">{{ l.categoria }} · {{ l.indicador.codigo|default:'sin indicador' }} · {{ l.centro_costo.codigo|default:'' }} · {{ l.glosa }}</div>
+      {% if l.alertas %}<div class="small text-warning-emphasis mt-1"><i class="bi bi-exclamation-triangle"></i> {{ l.alertas }}{% if l.justificacion %} · <b>{{ l.justificacion }}</b>{% endif %}</div>{% endif %}
+      <div class="d-flex flex-wrap gap-1 my-2">{% for f in l.fotos %}{% if 'image' in f.archivo.tipo %}<a href="{% url 'sustento_ver' f.pk %}" target="_blank"><img src="{% url 'sustento_ver' f.pk %}" alt="Comprobante" style="height:110px;border-radius:6px;border:1px solid #dee2e6"></a>{% else %}<a href="{% url 'sustento_ver' f.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-pdf"></i> {{ f.archivo.nombre|truncatechars:20 }}</a>{% endif %}{% empty %}<span class="small text-danger">Sin foto</span>{% endfor %}</div>
+      <div class="btn-group w-100 mb-1" role="group">
+        <input type="radio" class="btn-check" name="decision_{{ l.pk }}" id="a{{ l.pk }}" value="APROBADA" checked><label class="btn btn-sm btn-outline-success" for="a{{ l.pk }}">Aprobar</label>
+        <input type="radio" class="btn-check" name="decision_{{ l.pk }}" id="o{{ l.pk }}" value="OBSERVADA"><label class="btn btn-sm btn-outline-warning" for="o{{ l.pk }}">Observar</label>
+        <input type="radio" class="btn-check" name="decision_{{ l.pk }}" id="r{{ l.pk }}" value="RECHAZADA"><label class="btn btn-sm btn-outline-danger" for="r{{ l.pk }}">Rechazar</label>
+      </div>
+      <select name="motivo_{{ l.pk }}" class="form-select form-select-sm mb-1" data-sin-buscador><option value="">Motivo (si observa o rechaza)</option>{% for m in motivos %}<option value="{{ m.pk }}">{{ m.nombre }}</option>{% endfor %}</select>
+      <input name="nota_{{ l.pk }}" class="form-control form-control-sm" placeholder="Comentario">
+    </div></div>
+  {% endfor %}
+    <input name="comentario" class="form-control mb-2" placeholder="Comentario general (opcional)">
+    <button name="accion" value="aprobar" class="btn btn-success w-100 mb-2"><i class="bi bi-check2-circle"></i> Confirmar decisiones</button>
+  </form>
+  <a href="{% url 'rendiciones:detalle' r.pk %}" class="small">Ver la rendición completa</a>
+{% else %}
+  <h1 class="page-title mb-3">Rendiciones por aprobar</h1>
+  {% if no_corresponde %}<div class="alert alert-warning py-2 small">Esa rendición ya no está pendiente de su aprobación.</div>{% endif %}
+  {% for p in pendientes %}
+    <a href="{% url 'rendiciones:movil_aprobar_detalle' p.pk %}" class="card mb-2 text-decoration-none text-reset"><div class="card-body p-2 d-flex justify-content-between align-items-center">
+      <div><b>{{ p.numero }}</b> · {{ p.entrega.responsable.nombre|truncatechars:26 }}<div class="small text-muted">{{ p.descripcion|truncatechars:40 }} · enviada {{ p.enviada_en|date:'d/m H:i' }}</div></div>
+      <div class="text-end"><b>{{ p.entrega.simbolo }} {{ p.total|money }}</b><div><i class="bi bi-chevron-right"></i></div></div>
+    </div></a>
+  {% empty %}<div class="text-muted">No tiene rendiciones pendientes de aprobar.</div>{% endfor %}
+{% endif %}
+</div>
+{% endblock %}

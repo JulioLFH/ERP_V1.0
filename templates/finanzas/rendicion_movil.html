@@ -33,9 +33,12 @@ button.sec{background:#e7f5f7;color:var(--c)}button.peq{padding:6px 10px;font-si
 <body>
 <header><b>Rendición de gastos</b><span class="estado" id="estado-red">…</span></header>
 <main>
+  {% if datos.corte %}<div class="aviso inf" style="margin:0 0 10px">Corte de rendiciones: <b>{{ datos.corte }}</b>. Lo aprobado después va al mes siguiente.</div>{% endif %}
+  {% if datos.por_aprobar %}<a href="{{ datos.urls.aprobar }}" class="aviso ok" style="display:block;margin:0 0 10px;text-decoration:none">Tiene <b>{{ datos.por_aprobar }}</b> rendición(es) por aprobar ›</a>{% endif %}
   <div class="card">
     <label for="rendicion">Rendición</label>
     <select id="rendicion"></select>
+    <div id="saldo" class="muted" style="margin-top:6px"></div>
     <div id="nueva-rend" class="oculto">
       <label for="entrega">Entrega a rendir o caja chica</label><select id="entrega"></select>
       <label for="desc-rend">Motivo / viaje</label><input id="desc-rend" placeholder="Ej. Viaje a Arequipa">
@@ -77,6 +80,7 @@ button.sec{background:#e7f5f7;color:var(--c)}button.peq{padding:6px 10px;font-si
       <div class="campo-igv"><label for="igv">IGV</label><input id="igv" name="igv" inputmode="decimal"></div>
       <div class="campo-km oculto"><label for="kilometros">Km</label><input id="kilometros" name="kilometros" inputmode="decimal"></div></div>
     <input type="hidden" id="a_nombre_empresa" name="a_nombre_empresa" value="on">
+    <label for="indicador">Indicador de impuesto</label><select id="indicador" name="indicador"></select>
     <label for="categoria">Categoría</label><select id="categoria" name="categoria"></select>
     <div class="fila"><div><label for="centro_costo">Centro de costo</label><select id="centro_costo" name="centro_costo"><option value="">—</option></select></div>
       <div><label for="proyecto">Proyecto</label><select id="proyecto" name="proyecto"><option value="">—</option></select></div></div>
@@ -88,6 +92,9 @@ button.sec{background:#e7f5f7;color:var(--c)}button.peq{padding:6px 10px;font-si
 
   <div class="card"><b>Pendientes de subir</b> <span class="muted">(se suben solos al haber señal)</span>
     <div id="pendientes"><div class="muted">Ninguno.</div></div></div>
+  <div class="card"><b>Subidos recientemente</b>
+    <div id="subidos"><div class="muted">Ninguno.</div></div>
+    <div class="botones"><a id="revisar" class="oculto" href="#"><button class="sec peq" type="button">Revisar y enviar la rendición ›</button></a></div></div>
   <p class="muted">Usuario: {{ datos.usuario }} · <a href="{{ datos.urls.lista }}">Abrir el sistema completo</a> · v{{ version }}</p>
 </main>
 <div class="pie"><div><button class="ancho" id="guardar" type="button">Guardar gasto</button><button class="sec" id="sincronizar" type="button">Subir</button></div></div>

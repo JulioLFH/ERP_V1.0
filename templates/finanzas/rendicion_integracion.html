@@ -1,0 +1,37 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Exportación a un ERP externo{% endblock %}
+{% block content %}
+<h1 class="page-title mb-1">Exportación de gastos a un ERP externo</h1>
+<p class="small text-muted mb-3">Para clientes corporativos que mantienen su ERP (SAP u otro): Ceiba exporta los gastos rendidos y contabilizados con cuenta, centro de costo, indicador de impuesto y enlace al sustento; el ERP devuelve qué aceptó y qué rechazó; los errores se reintentan y se concilia Ceiba frente al ERP.</p>
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="kpi"><div class="label">Gastos por exportar</div><div class="value">{{ pendientes }}</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="label">Contabilizado en Ceiba</div><div class="value">S/ {{ conc.ceiba|money }}</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="label">Aceptado por el ERP externo</div><div class="value {% if conc.ceiba != conc.erp %}text-warning{% else %}text-success{% endif %}">S/ {{ conc.erp|money }}</div></div></div>
+</div>
+<div class="card mb-3"><div class="card-body d-flex flex-wrap gap-2 align-items-center">
+  <form method="post">{% csrf_token %}<button name="accion" value="generar" class="btn btn-sm btn-primary" {% if not pendientes %}disabled{% endif %}><i class="bi bi-box-arrow-up-right"></i> Generar lote con lo pendiente</button></form>
+  <form method="post">{% csrf_token %}<button name="accion" value="reintentar" class="btn btn-sm btn-outline-danger" {% if not conc.errores %}disabled{% endif %}><i class="bi bi-arrow-repeat"></i> Reintentar los errores ({{ conc.errores|length }})</button></form>
+  <span class="small text-muted">Columnas del archivo: {{ columnas|join:', ' }}.</span>
+</div></div>
+
+<div class="card mb-3"><div class="card-header">Lotes enviados</div><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Lote</th><th>Fecha</th><th>Tipo</th><th class="num">Gastos</th><th>Estado</th><th>Archivo</th><th>Respuesta del ERP externo</th></tr></thead>
+  <tbody>{% for e in envios %}<tr><td>{{ e.numero }}</td><td>{{ e.creado|date:'d/m/Y H:i' }}</td><td class="small">{% if e.es_reintento %}Reintento{% else %}Normal{% endif %}</td><td class="num">{{ e.detalles.all|length }}</td>
+    <td><span class="badge {% if e.estado == 'CONCILIADO' %}text-bg-success{% elif e.estado == 'PARCIAL' %}text-bg-warning{% else %}text-bg-light{% endif %}">{{ e.get_estado_display }}</span></td>
+    <td><a href="?descargar={{ e.pk }}" class="btn btn-sm btn-outline-success"><i class="bi bi-filetype-csv"></i> CSV</a></td>
+    <td>{% if e.estado != 'CONCILIADO' %}<form method="post" enctype="multipart/form-data" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="accion" value="respuesta"><input type="hidden" name="envio" value="{{ e.pk }}"><input type="file" name="archivo" accept=".csv,.txt,.xlsx" class="form-control form-control-sm" required><button class="btn btn-sm btn-outline-primary">Cargar</button></form>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-3">Aún no hay lotes.</td></tr>{% endfor %}</tbody>
+</table></div>
+<div class="card-body small text-muted py-2">Respuesta del ERP externo (CSV o Excel): columnas <b>id</b> (id_envio del archivo), <b>estado</b> (OK o ERROR), <b>documento</b> (número en el ERP) y <b>mensaje</b>.</div></div>
+
+{% if conc.errores %}<div class="card mb-3"><div class="card-header text-danger">Documentos con error (por reintentar)</div><div class="table-responsive"><table class="table table-sm mb-0 small">
+  <thead><tr><th>Lote</th><th>Rendición</th><th>Documento</th><th class="num">Importe S/</th><th>Intento</th><th>Mensaje del ERP externo</th></tr></thead>
+  <tbody>{% for d in conc.errores %}<tr><td>{{ d.envio.numero }}</td><td><a href="{% url 'rendiciones:detalle' d.linea.rendicion_id %}">{{ d.linea.rendicion.numero }}</a></td><td>{{ d.linea.documento|default:d.linea.glosa }}</td><td class="num">{{ d.importe_pen|money }}</td><td>{{ d.intento }}</td><td class="text-danger">{{ d.mensaje }}</td></tr>{% endfor %}</tbody>
+</table></div></div>{% endif %}
+
+<div class="card"><div class="card-header">Conciliación Ceiba frente al ERP externo (por cuenta)</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Cuenta</th><th class="num">Ceiba</th><th class="num">ERP externo</th><th class="num">Diferencia</th></tr></thead>
+  <tbody>{% for f in conc.filas %}<tr><td>{{ f.cuenta }}</td><td class="num">{{ f.ceiba|money }}</td><td class="num">{{ f.erp|money }}</td><td class="num {% if f.diferencia %}text-danger fw-semibold{% endif %}">{{ f.diferencia|money }}</td></tr>
+  {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">Sin gastos contabilizados.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

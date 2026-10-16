@@ -106,7 +106,7 @@ class MovilTest(Base):
         datos = {'rendicion': r.pk, 'cliente_id': 'abc123', 'fecha': HOY.isoformat(), 'tipo_comprobante': '12',
                  'ruc': RUC_PROV, 'serie': 'T1', 'numero': '55', 'moneda': 'PEN', 'total': '42.50',
                  'categoria': self.cat.pk, 'centro_costo': self.cc.pk, 'glosa': 'Almuerzo de trabajo',
-                 'a_nombre_empresa': ''}
+                 'a_nombre_empresa': '', 'indicador': rd.sugerir_indicador('12').pk}
         for _ in range(2):  # la app reintenta: no se duplica
             resp = self.client.post(reverse('rendiciones:movil_gasto'),
                                     {**datos, 'fotos': SimpleUploadedFile('c.jpg', PNG, content_type='image/jpeg')})
@@ -130,13 +130,14 @@ class KilometrajeProyectoTest(Base):
         proyecto = Proyecto.objects.create(codigo='OB-01', nombre='Obra Arequipa', centro_costo=self.cc)
         sitio = Sitio.objects.create(proyecto=proyecto, codigo='S1', nombre='Torre 1')
         r = self.rendicion()
+        ng = rd.sugerir_indicador('KM').pk
         form = LineaGastoForm({'fecha': HOY.isoformat(), 'tipo_comprobante': 'KM', 'moneda': 'PEN', 'kilometros': '125',
-                               'categoria': km.pk, 'sitio': sitio.pk, 'glosa': 'Visita a obra'})
+                               'categoria': km.pk, 'sitio': sitio.pk, 'glosa': 'Visita a obra', 'indicador': ng})
         self.assertTrue(form.is_valid(), form.errors)
         linea = rd.guardar_linea(r, form.save(commit=False), self.rendidor)
         self.assertEqual((linea.total, linea.proyecto_id), (D('100.00'), proyecto.pk))
         sin = LineaGastoForm({'fecha': HOY.isoformat(), 'tipo_comprobante': 'KM', 'moneda': 'PEN', 'kilometros': '0',
-                              'categoria': self.cat.pk, 'glosa': 'x'})
+                              'categoria': self.cat.pk, 'glosa': 'x', 'indicador': ng})
         self.assertFalse(sin.is_valid())
         rd.enviar(r, self.rendidor)
         rd.aprobar(r, self.gerente)
@@ -165,9 +166,11 @@ class TarjetaTest(Base):
         hotel = LineaGasto.objects.get(rendicion=r, total=D('236.00'))
         hotel.tipo_comprobante, hotel.ruc, hotel.razon_social = '01', RUC_PROV, 'HOTEL SUR SAC'
         hotel.serie, hotel.numero, hotel.base, hotel.igv = 'F001', '901', D('200'), D('36')
+        hotel.indicador = rd.sugerir_indicador('01')
         rd.guardar_linea(r, hotel, self.rendidor)
         self.assertEqual(len(rd.sin_comprobante()), 1)
-        LineaGasto.objects.filter(rendicion=r, tipo_comprobante='SC').update(justificacion='Grifo sin factura')
+        LineaGasto.objects.filter(rendicion=r, tipo_comprobante='SC').update(
+            justificacion='Grifo sin factura', indicador=rd.sugerir_indicador('SC'))
         rd.enviar(r, self.rendidor)
         rd.aprobar(r, self.gerente)
         rd.contabilizar(r, self.contador)
@@ -263,6 +266,7 @@ class ApiTest(Base):
         resp = self.client.post(f'/api/v1/rendiciones/{r.pk}/gastos/', json.dumps({
             'fecha': HOY.isoformat(), 'tipo_comprobante': '12', 'ruc': RUC_PROV, 'serie': 'T1', 'numero': '8',
             'total': '25.00', 'categoria': 'VIA', 'centro_costo': self.cc.codigo, 'glosa': 'Taxi',
+            'indicador_impuesto': 'S1',
             'foto_base64': __import__('base64').b64encode(PNG).decode(), 'foto_nombre': 'taxi.png',
             'foto_tipo': 'image/png'}), content_type='application/json', **cab)
         self.assertEqual(resp.status_code, 201, resp.content)

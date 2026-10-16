@@ -172,6 +172,7 @@ RUTAS = {
     'rendiciones:proyecto_nuevo': 'rendiciones.configurar', 'rendiciones:proyecto_editar': 'rendiciones.configurar',
     'rendiciones:sitio_nuevo': 'rendiciones.configurar', 'rendiciones:sitio_editar': 'rendiciones.configurar',
     'rendiciones:movil_gasto': 'rendiciones.rendir', 'rendiciones:movil_nueva': 'rendiciones.rendir',
+    'rendiciones:integracion': {'POST': 'rendiciones.contabilizar'},
 }
 CAMPOS_ALMACEN = ('almacen', 'almacen_origen', 'almacen_destino', 'almacen_insumos')
 

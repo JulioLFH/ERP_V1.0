@@ -34,5 +34,33 @@
     {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">Sin reglas: aprueba en un nivel cualquier usuario con el permiso «Aprobar rendiciones».</td></tr>{% endfor %}</tbody>
   </table></div>
 </div>
+<div class="row g-3 mb-3">
+  <div class="col-lg-7"><div class="card h-100"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-percent"></i> Indicadores de impuesto</span><a href="{% url 'rendiciones:config_nueva' 'indicador' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo</a></div>
+    <div class="table-responsive"><table class="table table-sm mb-0 small align-middle">
+      <thead><tr><th>Código</th><th>Nombre</th><th class="num">Tasa</th><th>Crédito fiscal</th><th>Código ERP externo</th></tr></thead>
+      <tbody>{% for i in indicadores %}<tr class="{% if not i.activo %}text-muted{% endif %}"><td><a href="{% url 'rendiciones:config_editar' 'indicador' i.pk %}">{{ i.codigo }}</a></td><td>{{ i.nombre }}</td><td class="num">{{ i.tasa }}%</td><td>{% if i.credito_fiscal %}Sí{% else %}No{% endif %}</td><td>{{ i.codigo_externo }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <div class="card-body py-2 small text-muted">Obligatorio en cada gasto. Se valida base × tasa = IGV (tolerancia S/ 0.10). La tasa reducida de restaurantes y hoteles MYPE es parametrizable: revise la vigente del año.</div>
+  </div></div>
+  <div class="col-lg-5"><div class="card h-100"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-chat-square-text"></i> Motivos de observación</span><a href="{% url 'rendiciones:config_nueva' 'motivo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo</a></div>
+    <ul class="list-group list-group-flush small">{% for m in motivos %}<li class="list-group-item {% if not m.activo %}text-muted{% endif %}"><a href="{% url 'rendiciones:config_editar' 'motivo' m.pk %}">{{ m.nombre }}</a>{% if m.exige_comentario %} <span class="badge text-bg-light">exige comentario</span>{% endif %}</li>{% endfor %}</ul>
+  </div></div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-diagram-3"></i> Plantillas de distribución por centros de costo</span><a href="{% url 'rendiciones:config_nueva' 'plantilla' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva</a></div>
+    <ul class="list-group list-group-flush small">{% for p in plantillas %}<li class="list-group-item"><a href="{% url 'rendiciones:config_editar' 'plantilla' p.pk %}">{{ p.nombre }}</a>: {% for l in p.lineas.all %}{{ l.centro_costo.codigo }} {{ l.porcentaje|floatformat:'-2' }}%{% if not forloop.last %} · {% endif %}{% endfor %}</li>{% empty %}<li class="list-group-item text-muted">Ej. «Gastos comunes»: 50% administración, 30% ventas, 20% producción.</li>{% endfor %}</ul>
+  </div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header"><i class="bi bi-clock-history"></i> Cambios de imputación de las categorías</div>
+    <div class="table-responsive"><table class="table table-sm mb-0 small">
+      <thead><tr><th>Categoría</th><th>De → a</th><th>Rige desde</th><th>Usuario</th></tr></thead>
+      <tbody>{% for h in cambios %}<tr><td>{{ h.categoria }}</td><td>{{ h.cuenta_anterior.codigo|default:'—' }} → {{ h.cuenta.codigo }}</td><td>{{ h.vigente_desde|date:'d/m/Y' }}</td><td>{{ h.usuario.username|default:'' }}{% if h.motivo %} · {{ h.motivo }}{% endif %}</td></tr>{% empty %}<tr><td colspan="4" class="text-muted">Sin cambios. Al cambiar la cuenta de una categoría se pide desde qué fecha rige y se avisa a contabilidad.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div></div>
+</div>
+
+<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-box-arrow-up-right"></i> Cuentas del ERP externo (SAP)</span><a href="{% url 'rendiciones:config_nueva' 'mapeo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva</a></div>
+  <div class="card-body py-2 small">{% for m in mapeos %}<a href="{% url 'rendiciones:config_editar' 'mapeo' m.pk %}">{{ m.cuenta.codigo }}</a> → {{ m.codigo_externo }}{% if not forloop.last %} · {% endif %}{% empty %}<span class="text-muted">Sin equivalencias: se exporta el mismo código de Ceiba. Solo para clientes que mantienen su ERP (ver <a href="{% url 'rendiciones:integracion' %}">Exportación a un ERP externo</a>).</span>{% endfor %}</div>
+</div>
 <p class="small text-muted">El jefe directo y el trabajador de cada usuario se asignan en Ajustes › Usuarios. Nadie aprueba su propia rendición: si le toca, pasa al siguiente nivel.</p>
 {% endblock %}

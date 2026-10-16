@@ -3,6 +3,18 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.29.0 — 16/10/2026 · Rendición de gastos: lecciones de una implementación corporativa
+- **Indicador de impuesto obligatorio** en cada gasto (gravado con o sin crédito fiscal, tasa reducida de restaurantes y hoteles MYPE, exonerado, inafecto, no gravado; parametrizables). No se envía sin él; valida base × tasa = IGV (tolerancia S/ 0.10) y define si va al registro de compras con crédito fiscal o al gasto con el IGV incluido. Se sugiere según el comprobante.
+- **Motivos de observación estándar** (ilegible, indicador, fuera de política, imputación errada, fuera de plazo, duplicado…) al observar o rechazar un gasto o la rendición, y **reporte de observaciones y errores por usuario y por área**.
+- **Historial de cambios de imputación**: al cambiar la cuenta de una categoría se indica desde qué fecha rige (los gastos anteriores conservan su cuenta) y se avisa a contabilidad por correo y en la campana.
+- **Corte de cierre del mes**: día de corte configurable, aviso a rendidores y aprobadores (campana y recordatorio diario) y lo aprobado después del corte se contabiliza el mes siguiente.
+- **Distribución en varios centros de costo**: un gasto o toda la rendición (fondo fijo) repartida por porcentajes que suman 100%, con plantillas reutilizables; el asiento lleva una línea por centro (también en las facturas del registro de compras).
+- **Trazabilidad de aprobación**: reporte con cada aprobador, nivel, fecha y hora, horas de cada paso y último aprobador; exportable a Excel.
+- **Sustento enlazado al asiento**: la foto, PDF o XML del gasto queda en el registro de compras y en el gasto rendido, y el asiento muestra los sustentos de su documento de origen.
+- **Exportación a un ERP externo (SAP)**: lote con cuenta (con equivalencias), centro de costo, indicador de impuesto y enlace al sustento; carga de la respuesta del ERP por documento, reintento de los errores y conciliación Ceiba frente al ERP externo.
+- **App del celular**: aviso inmediato de comprobante repetido (y bloqueo al registrar desde cualquier canal), saldo en poder del rendidor, indicador de impuesto, gastos subidos con lo que salió de la política y **aprobación desde el celular** gasto por gasto viendo la foto.
+- Comando `demo_rendiciones` para recorrer el circuito completo en una empresa de prueba.
+
 ## v1.28.1 — 14/10/2026 · Inicio: nombres de módulo centrados
 - En la pantalla de inicio, los nombres de módulo que ocupan dos líneas (p. ej. «Rendición de gastos») quedan centrados bajo su ícono.
 

@@ -1,0 +1,7 @@
+{% extends 'proveedores/correo_base.html' %}
+{% block cuerpo %}
+<p>Se cambió la <b>cuenta contable</b> de la categoría de gasto <b>{{ h.categoria }}</b>:</p>
+<p style="background:#f0f3f7; padding:8px; border-radius:4px;">{{ h.cuenta_anterior.codigo|default:'—' }} {{ h.cuenta_anterior.nombre|default:'' }} → <b>{{ h.cuenta.codigo }} {{ h.cuenta.nombre }}</b><br>
+Rige desde el <b>{{ h.vigente_desde|date:'d/m/Y' }}</b>{% if h.usuario %} · cambiado por {{ h.usuario.get_full_name|default:h.usuario.username }}{% endif %}{% if h.motivo %}<br>Motivo: {{ h.motivo }}{% endif %}</p>
+<p>Los gastos con fecha anterior conservan la cuenta que tenían; los nuevos se contabilizan con la nueva cuenta.</p>
+{% endblock %}

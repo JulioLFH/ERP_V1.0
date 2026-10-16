@@ -92,7 +92,11 @@ class SustentoField(forms.FileField):
 def _puede(request, ct):
     from .modulos import modulos_del_usuario
     modulo = MODULO_DE.get(f'{ct.app_label}.{ct.model}')
-    return modulo is not None and (request.user.is_superuser or modulo in modulos_del_usuario(request.user))
+    if modulo is None:
+        return False
+    mods = modulos_del_usuario(request.user)
+    # contabilidad revisa el sustento de todo lo que llega a sus asientos (compras, gastos rendidos, tesorería…)
+    return request.user.is_superuser or modulo in mods or 'contabilidad' in mods
 
 
 @login_required

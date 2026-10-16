@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 
 from contabilidad.models import CentroCosto
 from core import sustentos
-from core.models import Empresa
+from core.models import D0, Empresa
 
 from . import comprobantes as cp
 from . import rendiciones as rd
@@ -37,9 +37,17 @@ def movil(request):
     user = request.user
     abiertas = list(Rendicion.objects.filter(rendidor=user, estado__in=Rendicion.EDITABLES, entrega__estado='ABIERTA')
                     .select_related('entrega').order_by('-fecha', '-id')[:20])
+    from .models import IndicadorImpuesto
+    from .views_rendicion import _sugerencias
+    corte = rd.proximo_corte()
     datos = {
-        'rendiciones': [{'id': r.pk, 'texto': f'{r.numero} · {r.descripcion[:40]}', 'moneda': r.entrega.moneda}
-                        for r in abiertas],
+        'rendiciones': [_rend(r) for r in abiertas],
+        'indicadores': [{'id': i.pk, 'nombre': str(i), 'tasa': str(i.tasa)}
+                        for i in IndicadorImpuesto.objects.filter(activo=True)],
+        'sugerencias': _sugerencias(),
+        'corte': corte.strftime('%d/%m/%Y') if corte else '',
+        'por_aprobar': sum(1 for r in Rendicion.objects.filter(estado__in=Rendicion.POR_APROBAR)
+                           if rd.puede_aprobar(user, r)),
         'entregas': [{'id': e.pk, 'texto': f'{e.numero} · {e.motivo[:40]}'}
                      for e in rd.entregas_para_rendir(user).exclude(tipo='TARJETA')[:20]],
         'categorias': [{'id': c.pk, 'nombre': c.nombre, 'tarifa_km': str(c.tarifa_km), 'movilidad': c.es_movilidad}
@@ -49,9 +57,49 @@ def movil(request):
         'ruc_empresa': Empresa.actual().ruc, 'ia': cp.ia_configurada(), 'usuario': user.username,
         'urls': {'gasto': reverse('rendiciones:movil_gasto'), 'ruc': reverse('rendiciones:ruc', args=['00000000000']),
                  'ia': reverse('rendiciones:leer_ia'), 'nueva': reverse('rendiciones:movil_nueva'),
-                 'lista': reverse('rendiciones:lista')},
+                 'lista': reverse('rendiciones:lista'), 'duplicado': reverse('rendiciones:duplicado'),
+                 'aprobar': reverse('rendiciones:movil_aprobar'),
+                 'detalle': reverse('rendiciones:detalle', args=[0])},
     }
     return render(request, 'finanzas/rendicion_movil.html', {'datos': datos, 'version': settings.ERP_VERSION})
+
+
+def _rend(r):
+    """Rendición con el saldo en poder del responsable (lo que le entregaron, lo rendido y lo que falta)."""
+    e = r.entrega
+    tramite = sum((x.total for x in e.rendiciones.filter(estado__in=['BORRADOR', 'OBSERVADA', 'ENVIADA',
+                                                                       'EN_REVISION', 'APROBADA'])), D0)
+    return {'id': r.pk, 'texto': f'{r.numero} · {r.descripcion[:40]}', 'moneda': e.moneda, 'simbolo': e.simbolo,
+            'entregado': f'{e.entregado:,.2f}', 'rendido': f'{e.rendido + tramite:,.2f}',
+            'falta': f'{e.saldo - tramite:,.2f}', 'estado': r.get_estado_display()}
+
+
+@login_required
+def duplicado(request):
+    """¿El comprobante ya fue rendido o está en el registro de compras? (aviso inmediato tras leer el QR)."""
+    linea = LineaGasto(ruc=request.GET.get('ruc', '')[:11], tipo_comprobante=request.GET.get('tipo', '')[:2],
+                       serie=request.GET.get('serie', '').upper()[:4], numero=request.GET.get('numero', '')[:10])
+    if linea.numero.isdigit():
+        linea.numero = str(int(linea.numero))
+    return _json({'duplicado': rd.duplicado(linea)})
+
+
+@login_required
+def movil_aprobar(request, pk=None):
+    """Aprobar desde el celular: rendiciones pendientes del usuario y, en cada una, gasto por gasto con su foto."""
+    from .models import MotivoObservacion
+    if pk is None:
+        pendientes = [r for r in Rendicion.objects.filter(estado__in=Rendicion.POR_APROBAR)
+                      .select_related('entrega__responsable') if rd.puede_aprobar(request.user, r)]
+        return render(request, 'finanzas/rendicion_movil_aprobar.html', {'pendientes': pendientes})
+    r = rd.visibles(request.user).filter(pk=pk).first()
+    if r is None or not rd.puede_aprobar(request.user, r):
+        return render(request, 'finanzas/rendicion_movil_aprobar.html', {'pendientes': [], 'no_corresponde': True})
+    lineas = list(r.lineas.exclude(estado='RECHAZADA').select_related('categoria', 'indicador', 'centro_costo'))
+    for l in lineas:
+        l.fotos = list(sustentos.de(l))
+    return render(request, 'finanzas/rendicion_movil_aprobar.html', {
+        'r': r, 'lineas': lineas, 'motivos': MotivoObservacion.objects.filter(activo=True)})
 
 
 @login_required
