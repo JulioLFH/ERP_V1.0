@@ -91,7 +91,19 @@ Comandos útiles:
 .venv\Scripts\python manage.py test core        # pruebas
 ```
 
+## Base de datos PostgreSQL (local y servidor)
+
+La base de trabajo es PostgreSQL 17 (una base por empresa). Instalación, uso diario, migración desde SQLite
+(`copiar_a_postgres`), respaldos (`scripts\respaldar_postgres.ps1`) y traslado al servidor: **[docs/POSTGRESQL.md](docs/POSTGRESQL.md)**.
+
+```bash
+.venv\Scripts\python.exe manage.py runserver 8002 --settings=erp.settings_postgres
+```
+
 ## Despliegue en la nube
+
+> El despliegue en Render quedó en desuso (19/10/2026): el código se publica solo en GitHub y el servidor
+> definitivo será propio. Las opciones siguientes quedan como referencia.
 
 El proyecto ya está preparado: `requirements.txt`, `build.sh`, `Procfile`, `render.yaml`, `Dockerfile`, WhiteNoise para estáticos y `DATABASE_URL` para PostgreSQL.
 

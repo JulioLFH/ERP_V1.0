@@ -4,6 +4,10 @@ __pycache__/
 db.sqlite3
 staticfiles/
 .env
+.env.*
+!.env.example
+*.dump
+respaldos/
 server.log
 *.sqlite3
 migracion_local/

@@ -14,6 +14,12 @@
       "port": 8001
     },
     {
+      "name": "erp-postgres",
+      "runtimeExecutable": ".venv\\Scripts\\python.exe",
+      "runtimeArgs": ["manage.py", "runserver", "0.0.0.0:8002", "--settings=erp.settings_postgres"],
+      "port": 8002
+    },
+    {
       "name": "motorsrun",
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8090", "--directory", "C:\\Users\\Julio\\Desktop\\MotorsRun"],

@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.32.0 — 19/10/2026 · PostgreSQL como base de trabajo
+- **PostgreSQL 17 local** con una base por empresa (`ceiba_principal`, `ceiba_empresa2`) y su propio usuario; ajustes en `erp/settings_postgres.py` (claves en el archivo local `.env.postgres`, que no se sube al repositorio).
+- Nuevo comando **`copiar_a_postgres`**: copia una base SQLite completa a PostgreSQL con los mismos ids (usuarios, permisos, configuración, bitácora, historial y todos los módulos), en una sola transacción, con revisión previa de datos que PostgreSQL no acepta y verificación final de cantidades e importes tabla por tabla. La base de la empresa (2 447 945 registros) se copió en 3 minutos sin diferencias.
+- Scripts de **respaldo y restauración** (`scripts\respaldar_postgres.ps1`, `scripts\restaurar_postgres.ps1`) para guardar las bases y llevarlas completas (tablas y datos) al servidor.
+- Guía **docs/POSTGRESQL.md**: instalación, uso diario, migración, respaldos, traslado al VPS y problemas frecuentes.
+- Las 349 pruebas automáticas pasan también sobre PostgreSQL. El despliegue en Render queda en desuso: el código se publica solo en GitHub.
+
 ## v1.31.0 — 16/10/2026 · Reporte diario de producción y log de modificaciones de Manufactura
 - **Reporte diario de producción** (Manufactura › Reportes): resumen del día y seis secciones — producción terminada (planificado, producido, cumplimiento, kg y TM), avance de planta por turno y operario, insumos consumidos contra la receta, paradas de línea, inspecciones de calidad y órdenes del día que siguen abiertas. Filtros por planta, línea, turno, familia y producto; botones de día anterior y siguiente; Excel con una hoja por sección; impresión.
 - **Log de modificaciones** en Manufactura (solo administradores): quién creó, modificó, anuló o eliminó cada registro, con el valor anterior y el nuevo, fecha, hora e IP; filtros por usuario, acción, tipo de registro y fechas; Excel. Botón **Historial** en cada orden de producción.
