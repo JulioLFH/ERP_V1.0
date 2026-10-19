@@ -290,7 +290,8 @@ MODULOS = [
             ('Empresa', 'empresa'),
             ('Usuarios y permisos', [('Usuarios', 'usuarios', 'bi-people'),
                                      ('Segregación de funciones', 'segregacion', 'bi-shield-exclamation')]),
-            ('Auditoría', 'auditoria'),
+            ('Control', [('Auditoría de todo el sistema', 'auditoria', 'bi-journal-text'),
+                         ('Incidencias y errores', 'incidencias', 'bi-bug')]),
             ('Configuración', [('Correlativos / series', 'series', 'bi-123'),
                                ('Tipo de cambio', 'tipos_cambio', 'bi-currency-exchange'),
                                ('Facturación electrónica', 'facturacion', 'bi-cloud-upload'),
@@ -301,6 +302,23 @@ MODULOS = [
         ],
     },
 ]
+
+
+def _agregar_log_de_modificaciones():
+    """«Log de modificaciones» (solo administradores) en cada módulo: en su grupo Reportes o en un grupo Control.
+    Manufactura tiene el suyo propio y Ajustes la auditoría de todo el sistema."""
+    for m in MODULOS:
+        if m['clave'] in ('manufactura', 'ajustes'):
+            continue
+        item = ('Log de modificaciones', f'modificaciones?modulo={m["clave"]}', 'bi-journal-text')
+        grupo = next((d for e, d in m['menu'] if e == 'Reportes' and isinstance(d, list)), None)
+        if grupo is not None:
+            grupo.append(item)
+        else:
+            m['menu'].append(('Control', [item]))
+
+
+_agregar_log_de_modificaciones()
 POR_CLAVE = {m['clave']: m for m in MODULOS}
 
 # Nombre de grupo de Django por módulo (lo que se asigna a cada usuario)
@@ -316,6 +334,8 @@ RUTAS_CORE = {
     'dashboard': ['tablero'],
     'empresa': ['ajustes'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
     'auditoria': ['ajustes'], 'manuales': ['ajustes'], 'manual_pdf': ['ajustes'],
+    'incidencias': ['ajustes'], 'incidencia': ['ajustes'],
+    'modificaciones': [m['clave'] for m in MODULOS],  # se ve dentro del módulo; la vista exige ser administrador
     'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'finanzas', 'contactos', 'manufactura',
                      'contabilidad', 'planillas', 'rendiciones'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'], 'segregacion': ['ajustes'],
@@ -344,7 +364,8 @@ RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'c
                 'login_2fa', 'recuperar', 'recuperar_confirmar', 'recuperar_listo', 'seguridad',
                 'sustento_subir', 'sustento_ver',  # los sustentos validan el módulo del documento
                 'api_claves',  # cada usuario administra sus claves de API (actúan con sus propios permisos)
-                'opciones'}  # listas de los selectores (códigos y nombres, sin importes)
+                'opciones',  # listas de los selectores (códigos y nombres, sin importes)
+                'reportar', 'salud'}  # «Reportar problema» lo usa cualquiera; /salud/ es para el monitor de caídas
 
 
 # Permiso especial: ver costos de inventario (costo promedio, valorizado, kardex valorizado)
@@ -399,7 +420,7 @@ def resolver_url(destino):
 
 
 RUTAS_COSTOS = {'inv_valorizacion', 'inventario:cierres'}  # solo con el permiso de ver costos
-RUTAS_ADMIN = {'manuales', 'contabilidad:consolidacion', 'manufactura:modificaciones'}  # solo los administradores (superusuarios) las ven
+RUTAS_ADMIN = {'manuales', 'contabilidad:consolidacion', 'manufactura:modificaciones', 'modificaciones'}  # solo los administradores (superusuarios) las ven
 
 
 def marcar_activo(items, ruta_completa):
@@ -429,7 +450,7 @@ def menu_de(modulo, ver_costos=True, ruta=None, es_admin=True):
     for etiqueta, destino in modulo['menu']:
         if isinstance(destino, list):
             hijos = [{'etiqueta': e, 'url': resolver_url(d), 'icono': i} for e, d, i in destino
-                     if (ver_costos or d not in RUTAS_COSTOS) and (es_admin or d not in RUTAS_ADMIN)]
+                     if (ver_costos or d not in RUTAS_COSTOS) and (es_admin or d.partition('?')[0] not in RUTAS_ADMIN)]
             if hijos:
                 items.append({'etiqueta': etiqueta, 'hijos': hijos})
         else:

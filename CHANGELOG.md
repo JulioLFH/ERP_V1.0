@@ -3,6 +3,16 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.33.0 — 19/10/2026 · Monitoreo, velocidad y control
+- **Incidencias y errores** (Ajustes): cada error del sistema se registra solo, agrupado si se repite, con el detalle técnico, y se avisa por correo a los administradores (máximo una vez por hora por error); si un error resuelto vuelve a ocurrir, se reabre.
+- **Reportar un problema** en el menú de cada usuario: queda registrado con la página en la que estaba y llega al administrador.
+- **/salud/** para un monitor de caídas: estado de cada base de datos y migraciones pendientes. Errores también en `logs/errores.log`.
+- **Log de modificaciones en todos los módulos** (solo administradores): quién creó, cambió, anuló o eliminó qué, con el valor anterior y el nuevo; la bitácora registra además cotizaciones, listas de precios, oportunidades, turnos y conceptos de planilla.
+- **Más rápido** con los datos reales en PostgreSQL: emitir comprobante 5,9 s → 1,1 s, nueva oportunidad 5 s → 0,04 s (ya no carga las 18 600 cotizaciones atendidas), requerimiento de materiales 6,6 s → 0,4 s, sugerencia de compra 4,4 s → 0,5 s, campana de alertas 7,2 s → 0,8 s.
+- **Pruebas automáticas en GitHub** sobre PostgreSQL 17 en cada subida (pestaña Actions).
+- **Respaldo diario programado** con `scripts\programar_respaldo.ps1`.
+- Documento **docs/INTEGRACION.md**: diagramas del flujo entre módulos, de las integraciones externas y de la plataforma.
+
 ## v1.32.0 — 19/10/2026 · PostgreSQL como base de trabajo
 - **PostgreSQL 17 local** con una base por empresa (`ceiba_principal`, `ceiba_empresa2`) y su propio usuario; ajustes en `erp/settings_postgres.py` (claves en el archivo local `.env.postgres`, que no se sube al repositorio).
 - Nuevo comando **`copiar_a_postgres`**: copia una base SQLite completa a PostgreSQL con los mismos ids (usuarios, permisos, configuración, bitácora, historial y todos los módulos), en una sola transacción, con revisión previa de datos que PostgreSQL no acepta y verificación final de cantidades e importes tabla por tabla. La base de la empresa (2 447 945 registros) se copió en 3 minutos sin diferencias.

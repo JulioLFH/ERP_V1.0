@@ -30,6 +30,10 @@ AUDITADOS = [
     ('finanzas', 'PoliticaGasto'), ('finanzas', 'ReglaAprobacion'), ('finanzas', 'EntregaRendir'),
     ('finanzas', 'GastoRendicion'), ('finanzas', 'TarjetaCorporativa'), ('finanzas', 'Proyecto'),
     ('finanzas', 'ConfigRendicion'),
+    # log de modificaciones de cada módulo (los que no existan se omiten al conectar)
+    ('ventas', 'Cotizacion'), ('ventas', 'ListaPrecios'), ('ventas', 'PrecioLista'), ('ventas', 'Oportunidad'),
+    ('planillas', 'Turno'), ('planillas', 'ConceptoPlanilla'), ('core', 'Ubicacion'),
+    ('contabilidad', 'CuentaDefecto'), ('finanzas', 'Retencion'),
     # manufactura: maestros, recetas, planta, calidad y mantenimiento (log de modificaciones de Manufactura)
     ('produccion', 'ComponenteLista'), ('produccion', 'SubproductoLista'), ('produccion', 'OperacionRuta'),
     ('produccion', 'PlanDemanda'), ('produccion', 'AvanceOrden'),

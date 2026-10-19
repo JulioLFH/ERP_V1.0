@@ -90,7 +90,9 @@ def calcular(user):
                                        reverse('compras:portal_facturas'), n))
     if 'inventario' in mods or 'compras' in mods:
         from .models import Producto
-        reponer = [p for p in Producto.objects.filter(activo=True, tipo='BIEN') if p.requiere_reposicion]
+        from django.db.models import Q
+        reponer = [p for p in Producto.objects.filter(Q(punto_reorden__gt=0) | Q(stock_minimo__gt=0), activo=True,
+                                                      tipo='BIEN') if p.requiere_reposicion]
         if reponer:
             alertas.append(_alerta('warning', 'bi-box-seam', 'Stock bajo',
                                    f'{len(reponer)} producto(s) en o bajo su punto de reorden: '

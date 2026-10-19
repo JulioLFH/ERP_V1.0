@@ -9,8 +9,11 @@ class CoreConfig(AppConfig):
     def ready(self):
         from django.contrib.auth.signals import user_logged_in
 
-        from . import auditoria
+        from django.core.signals import got_request_exception
+
+        from . import auditoria, monitoreo
         auditoria.conectar()
+        got_request_exception.connect(monitoreo.registrar_error, dispatch_uid='monitoreo-errores')
 
         def acceso(sender, request, user, **kwargs):
             from .models import Bitacora

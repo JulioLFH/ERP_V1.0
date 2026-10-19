@@ -862,9 +862,10 @@ def requerimientos():
     from core.inventario import en_camino
     requerido = defaultdict(lambda: D0)
     ordenes = defaultdict(set)
-    for c in ConsumoOrden.objects.filter(orden__estado__in=['CONFIRMADA', 'EN_PROCESO']).select_related('orden'):
-        requerido[c.producto_id] += c.cantidad_real
-        ordenes[c.producto_id].add(c.orden.numero)
+    for producto_id, cantidad, numero in (ConsumoOrden.objects.filter(orden__estado__in=['CONFIRMADA', 'EN_PROCESO'])
+                                          .values_list('producto_id', 'cantidad_real', 'orden__numero')):
+        requerido[producto_id] += cantidad
+        ordenes[producto_id].add(numero)
     camino = en_camino()
     filas = []
     for p in Producto.objects.filter(pk__in=requerido).select_related('proveedor').order_by('nombre'):

@@ -1,0 +1,47 @@
+# Pruebas automáticas de Ceiba ERP en cada subida a GitHub, sobre PostgreSQL 17 (el motor de producción).
+# Resultado: pestaña "Actions" del repositorio. Las claves son de una base temporal que se borra al terminar.
+name: Pruebas
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ceiba
+          POSTGRES_PASSWORD: pruebas-ci
+          POSTGRES_DB: ceiba_principal
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ceiba"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PG_HOST: 127.0.0.1
+      PG_PUERTO: '5432'
+      PG_USUARIO: ceiba
+      PG_CLAVE: pruebas-ci
+      PG_BASE_PRINCIPAL: ceiba_principal
+      PG_BASE_EMPRESA2: ceiba_empresa2
+      SECRET_KEY: solo-para-pruebas
+      DEBUG: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Dependencias
+        run: pip install -r requirements.txt
+      - name: Revisión de la configuración
+        run: python manage.py check --settings=erp.settings_postgres
+      - name: Migraciones completas (no falta ninguna)
+        run: python manage.py makemigrations --check --dry-run --settings=erp.settings_postgres
+      - name: Pruebas sobre PostgreSQL
+        run: python manage.py test --noinput --parallel 1 --settings=erp.settings_postgres

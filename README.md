@@ -91,6 +91,11 @@ Comandos útiles:
 .venv\Scripts\python manage.py test core        # pruebas
 ```
 
+## Integración
+
+Cómo se conectan los módulos entre sí y con SUNAT, Nubefact, correo, IA y demás servicios:
+**[docs/INTEGRACION.md](docs/INTEGRACION.md)**.
+
 ## Base de datos PostgreSQL (local y servidor)
 
 La base de trabajo es PostgreSQL 17 (una base por empresa). Instalación, uso diario, migración desde SQLite

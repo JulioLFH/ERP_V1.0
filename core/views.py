@@ -155,14 +155,45 @@ def auditoria(request):
     return consulta_bitacora(request)
 
 
-def consulta_bitacora(request, app=None, titulo='Bitácora de auditoría', volver=None):
-    """Bitácora con filtros y Excel; con `app` solo los registros de esa aplicación (p. ej. el log de
-    modificaciones de Manufactura)."""
+# Registros de cada módulo en la bitácora: 'app.' = toda la aplicación, 'app.Modelo' = solo ese registro
+MODELOS_DEL_MODULO = {
+    'ventas': ['ventas.'],
+    'compras': ['compras.', 'proveedores.'],
+    'inventario': ['inventario.Operacion', 'inventario.TipoOperacion', 'inventario.CierreKardex', 'core.Producto',
+                   'core.Almacen', 'core.Ubicacion'],
+    'manufactura': ['produccion.'],
+    'costos': ['produccion.CostoEstandar', 'produccion.LiquidacionCosto', 'produccion.ActividadABC'],
+    'activos': ['activos.'],
+    'planillas': ['planillas.'],
+    'requerimientos': ['inventario.RequerimientoInterno'],
+    'rendiciones': ['finanzas.Rendicion', 'finanzas.LineaGasto', 'finanzas.CategoriaGasto', 'finanzas.PoliticaGasto',
+                    'finanzas.ReglaAprobacion', 'finanzas.EntregaRendir', 'finanzas.GastoRendicion',
+                    'finanzas.TarjetaCorporativa', 'finanzas.Proyecto', 'finanzas.ConfigRendicion'],
+    'logistica': ['logistica.'],
+    'finanzas': ['finanzas.Movimiento', 'finanzas.Cuenta'],
+    'contabilidad': ['contabilidad.'],
+    'contactos': ['core.Tercero'],
+    'ajustes': ['core.Empresa', 'core.FacturacionConfig', 'core.CorreoConfig', 'core.PerfilUsuario', 'auth.User',
+                'core.Serie'],
+}
+
+
+def _filtro_modelos(prefijos):
+    filtro = Q()
+    for p in prefijos:
+        filtro |= Q(modelo__startswith=p) if p.endswith('.') else Q(modelo=p)
+    return filtro
+
+
+def consulta_bitacora(request, app=None, titulo='Bitácora de auditoría', volver=None, modelos=None, ocultos=None):
+    """Bitácora con filtros y Excel; con `app` (o la lista `modelos`) solo los registros de esa parte del sistema
+    (p. ej. el log de modificaciones de un módulo)."""
     from django.contrib.auth.models import User
     from .models import Bitacora
+    prefijos = modelos or ([f'{app}.'] if app else None)
     qs = Bitacora.objects.select_related('usuario')
-    if app:
-        qs = qs.filter(modelo__startswith=f'{app}.')
+    if prefijos:
+        qs = qs.filter(_filtro_modelos(prefijos))
     f = request.GET
     if f.get('usuario'):
         qs = qs.filter(usuario_id=f['usuario'])
@@ -185,15 +216,30 @@ def consulta_bitacora(request, app=None, titulo='Bitácora de auditoría', volve
                   b.usuario.username if b.usuario else 'Sistema', b.get_accion_display(), b.modelo_nombre, b.objeto,
                   b.motivo, '; '.join(f'{k}: {v[0]} → {v[1]}' for k, v in b.cambios.items()
                                       if isinstance(v, list) and len(v) == 2), b.ip] for b in qs[:20000]]
-        return excel_response('Auditoria' if not app else f'Modificaciones_{app}', titulo,
+        return excel_response('Auditoria' if not prefijos else 'Log_de_modificaciones', titulo,
                               ['Fecha', 'Usuario', 'Acción', 'Tipo', 'Registro', 'Motivo', 'Cambios', 'IP'], filas)
-    modelos = Bitacora.objects.values_list('modelo', 'modelo_nombre').distinct().order_by('modelo_nombre')
-    if app:
-        modelos = modelos.filter(modelo__startswith=f'{app}.')
+    tipos = Bitacora.objects.values_list('modelo', 'modelo_nombre').distinct().order_by('modelo_nombre')
+    if prefijos:
+        tipos = tipos.filter(_filtro_modelos(prefijos))
     return render(request, 'core/auditoria.html', {
         'page_obj': Paginator(qs, 100).get_page(f.get('page')), 'usuarios': User.objects.order_by('username'),
-        'acciones': Bitacora.ACCIONES, 'modelos': sorted(set(modelos), key=lambda m: m[1]), 'q': q,
-        'titulo': titulo, 'volver': volver})
+        'acciones': Bitacora.ACCIONES, 'modelos': sorted(set(tipos), key=lambda m: m[1]), 'q': q,
+        'titulo': titulo, 'volver': volver, 'ocultos': ocultos or {}})
+
+
+@login_required
+def modificaciones(request):
+    """Log de modificaciones de un módulo (?modulo=ventas): solo el administrador."""
+    from .modulos import POR_CLAVE
+    if not request.user.is_superuser:
+        return render(request, 'core/sin_acceso.html',
+                      {'motivo': 'Solo un administrador puede ver el log de modificaciones.'}, status=403)
+    clave = request.GET.get('modulo', '')
+    if clave not in MODELOS_DEL_MODULO:
+        clave = request.session.get('modulo', 'ventas') if request.session.get('modulo') in MODELOS_DEL_MODULO \
+            else 'ventas'
+    return consulta_bitacora(request, titulo=f'Log de modificaciones · {POR_CLAVE[clave]["nombre"]}',
+                             modelos=MODELOS_DEL_MODULO[clave], ocultos={'modulo': clave})
 
 
 # ---------------------------------------------------------------- respaldo

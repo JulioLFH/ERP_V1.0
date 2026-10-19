@@ -9,6 +9,16 @@ from .models import Cotizacion, ListaPrecios, PrecioLista, Venta
 SERIES_DEFECTO = {'01': 'F001', '03': 'B001', '07': 'FC01', '08': 'FD01', '12': 'T001', '00': 'NV01'}
 
 
+def cotizaciones_abiertas(form):
+    """Cotizaciones que se pueden elegir: las no atendidas ni anuladas, más la que el documento ya tiene o trae
+    (las atendidas son decenas de miles y hacían lento el formulario)."""
+    from django.db.models import Q
+    actuales = {str(v) for v in (form.instance.cotizacion_id, form.initial.get('cotizacion'),
+                                 form.data.get(form.add_prefix('cotizacion'))) if v}
+    actuales = [int(v) for v in actuales if v.isdigit()]
+    return Cotizacion.objects.filter(~Q(estado__in=['ANULADO', 'ATENDIDO']) | Q(pk__in=actuales))
+
+
 class VentaForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Venta
@@ -28,7 +38,7 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['CLIENTE', 'AMBOS'])
         remoto(self.fields['tercero'], 'clientes')
         self.fields['serie'].widget.attrs['list'] = 'series-venta'
-        self.fields['cotizacion'].queryset = Cotizacion.objects.exclude(estado='ANULADO')
+        self.fields['cotizacion'].queryset = cotizaciones_abiertas(self)
         self.fields['lista_precios'].queryset = ListaPrecios.objects.filter(activa=True)
         self.fields['doc_referencia'].queryset = Venta.objects.filter(
             estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])

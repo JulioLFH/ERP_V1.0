@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Versión visible en el menú del usuario; actualizarla junto con CHANGELOG.md y la etiqueta de git
 ERP_NOMBRE = 'Ceiba ERP'
-ERP_VERSION = '1.32.0'
+ERP_VERSION = '1.33.0'
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insegura-cambiar-en-produccion')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
@@ -134,6 +134,24 @@ STORAGES = {
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Errores y avisos: a la consola y a logs/errores.log (rota cada 5 MB, guarda 10 archivos). Además, cada error
+# 500 queda como incidencia en Ajustes › Incidencias y se avisa por correo (core/monitoreo.py).
+CARPETA_LOGS = Path(os.environ.get('CARPETA_LOGS', BASE_DIR / 'logs'))
+CARPETA_LOGS.mkdir(parents=True, exist_ok=True)
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {'detalle': {'format': '{asctime} {levelname} {name} {message}', 'style': '{'}},
+    'handlers': {
+        'consola': {'class': 'logging.StreamHandler', 'level': 'WARNING'},
+        'archivo': {'class': 'logging.handlers.RotatingFileHandler', 'level': 'WARNING', 'formatter': 'detalle',
+                    'filename': CARPETA_LOGS / 'errores.log', 'maxBytes': 5 * 1024 * 1024, 'backupCount': 10,
+                    'encoding': 'utf-8', 'delay': True},
+    },
+    'root': {'handlers': ['consola', 'archivo'], 'level': 'WARNING'},
+    'loggers': {'django.request': {'handlers': ['consola', 'archivo'], 'level': 'ERROR', 'propagate': False}},
+}
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'

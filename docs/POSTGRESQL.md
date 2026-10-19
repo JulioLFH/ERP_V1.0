@@ -156,10 +156,15 @@ powershell -ExecutionPolicy Bypass -File scripts\respaldar_postgres.ps1 -Destino
 El `.dump` (formato personalizado de `pg_dump`) contiene tablas, datos, índices, restricciones y secuencias: es
 todo lo necesario para levantar la base en otro servidor.
 
-**Respaldo automático diario**: en el Programador de tareas de Windows, cree una tarea diaria que ejecute
-`powershell.exe` con los argumentos
-`-ExecutionPolicy Bypass -File "C:\Users\Julio\Desktop\ERP V1.0\scripts\respaldar_postgres.ps1" -Destino D:\Respaldos\Ceiba`.
-Copie además los respaldos fuera del equipo (nube o disco externo).
+**Respaldo automático diario**: ejecute una sola vez (crea la tarea «Ceiba ERP - respaldo diario» en el
+Programador de tareas de Windows; si el equipo estaba apagado a esa hora, se ejecuta al encender):
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts\programar_respaldo.ps1 -Destino D:\Respaldos\Ceiba -Hora 22:00
+```
+
+Para quitarla: `scripts\programar_respaldo.ps1 -Quitar`. Copie además los respaldos fuera del equipo (nube o disco
+externo): un respaldo en el mismo disco no protege de una falla del disco.
 
 **Probar un respaldo** (hágalo al menos una vez al mes; un respaldo que no se probó no es un respaldo):
 
@@ -236,6 +241,20 @@ Para comprobar que todo funciona también en PostgreSQL (recomendado antes de ca
 
 Crea y borra sus propias bases temporales (`test_ceiba_principal`, `test_ceiba_empresa2`); no toca los datos. Para
 eso el usuario `ceiba` tiene el permiso `CREATEDB` (en el servidor de producción no hace falta darlo).
+
+Además, **en cada subida a GitHub** las pruebas corren solas sobre PostgreSQL 17 (`.github/workflows/pruebas.yml`);
+el resultado se ve en la pestaña *Actions* del repositorio.
+
+## 6b. Monitoreo
+
+- `http://<servidor>/salud/` responde `{"estado": "ok", ...}` (código 200) si cada base contesta y no tiene
+  migraciones pendientes; si no, código 503. Configure un monitor de caídas (por ejemplo UptimeRobot) contra esa
+  dirección.
+- Cada error del sistema queda en **Ajustes › Incidencias y errores** (agrupado si se repite) y se avisa por correo
+  a los administradores con correo registrado, como máximo una vez por hora por cada error.
+- Los usuarios reportan problemas desde su menú › **Reportar un problema**.
+- Los errores también se escriben en `logs/errores.log` (5 MB por archivo, 10 archivos; carpeta configurable con
+  `CARPETA_LOGS`).
 
 ---
 

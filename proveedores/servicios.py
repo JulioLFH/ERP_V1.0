@@ -24,18 +24,34 @@ class ErrorPortal(Exception):
 def recibido_por_producto(oc):
     """{producto_id: cantidad EN UNIDAD DE COMPRA} ingresada al almacén para la orden (recepciones y facturas con
     ingreso directo). Las recepciones están en unidad de almacén y se dividen entre el factor de compra."""
+    return recibido_por_ordenes([oc.pk]).get(oc.pk, defaultdict(lambda: D0))
+
+
+def recibido_por_ordenes(ids):
+    """{orden_id: {producto_id: cantidad en unidad de compra}} de varias órdenes de compra con cuatro consultas en
+    total (antes eran tres por orden: la campana y la sugerencia de compra tardaban segundos)."""
+    from compras.models import CompraItem
     from inventario.models import OperacionItem
-    total = defaultdict(lambda: D0)
-    filas = OperacionItem.objects.filter(
-        Q(operacion__orden_compra=oc) | Q(operacion__compra__orden_compra=oc), operacion__estado='CONFIRMADO',
-        operacion__tipo__clase='INGRESO').values('producto_id', 'producto__factor_compra').annotate(c=Sum('cantidad'))
-    for f in filas:
-        factor = f['producto__factor_compra'] if f['producto__factor_compra'] and f['producto__factor_compra'] > 0 \
-            else Decimal('1')
-        total[f['producto_id']] += f['c'] / factor
-    for c in oc.compras.filter(estado='REGISTRADO', stock_aplicado=True).exclude(tipo_comprobante__in=['07', '08']):
-        for i in c.items.filter(producto__isnull=False):
-            total[i.producto_id] += i.cantidad
+    ids = list(ids)
+    total = defaultdict(lambda: defaultdict(lambda: D0))
+    if not ids:
+        return total
+    ingresos = OperacionItem.objects.filter(operacion__estado='CONFIRMADO', operacion__tipo__clase='INGRESO')
+    # una recepción cuenta para la orden a la que apunta, directamente o por la factura que la originó
+    for campo in ('operacion__orden_compra_id', 'operacion__compra__orden_compra_id'):
+        filtro = {f'{campo}__in': ids}
+        if campo != 'operacion__orden_compra_id':
+            filtro['operacion__orden_compra__isnull'] = True
+        for f in (ingresos.filter(**filtro).values(campo, 'producto_id', 'producto__factor_compra')
+                  .annotate(c=Sum('cantidad')).order_by()):
+            factor = f['producto__factor_compra'] if f['producto__factor_compra'] and f['producto__factor_compra'] > 0 \
+                else Decimal('1')
+            total[f[campo]][f['producto_id']] += f['c'] / factor
+    for f in (CompraItem.objects.filter(documento__orden_compra_id__in=ids, documento__estado='REGISTRADO',
+                                        documento__stock_aplicado=True, producto__isnull=False)
+              .exclude(documento__tipo_comprobante__in=['07', '08'])
+              .values('documento__orden_compra_id', 'producto_id').annotate(c=Sum('cantidad')).order_by()):
+        total[f['documento__orden_compra_id']][f['producto_id']] += f['c']
     return total
 
 

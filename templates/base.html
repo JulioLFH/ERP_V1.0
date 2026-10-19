@@ -40,6 +40,7 @@
           <li><a class="dropdown-item" href="{% url 'seguridad' %}"><i class="bi bi-shield-lock me-2"></i>Verificación en dos pasos</a></li>
           <li><a class="dropdown-item" href="{% url 'api_claves' %}"><i class="bi bi-plug me-2"></i>Claves de API</a></li>
           {% if admin_django %}<li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-shield-lock me-2"></i>Administración avanzada</a></li>{% endif %}
+          <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#modal-reportar"><i class="bi bi-bug me-2"></i>Reportar un problema</button></li>
           <li><hr class="dropdown-divider"></li>
           <li><span class="dropdown-item-text small text-muted">{{ erp_nombre }} versión {{ erp_version }}</span></li>
           <li><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="dropdown-item"><i class="bi bi-box-arrow-right me-2"></i>Salir</button></form></li>
@@ -78,6 +79,19 @@
     </main>
     <footer class="pie d-print-none">{{ erp_nombre }} v{{ erp_version }} · Creado por J. Flores</footer>
   </div>
+</div>
+<div class="modal fade d-print-none" id="modal-reportar" tabindex="-1" aria-labelledby="titulo-reportar" aria-hidden="true">
+  <div class="modal-dialog"><form class="modal-content" method="post" action="{% url 'reportar' %}">{% csrf_token %}
+    <div class="modal-header"><h5 class="modal-title" id="titulo-reportar"><i class="bi bi-bug"></i> Reportar un problema</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <div class="modal-body">
+      <input type="hidden" name="url" value="{{ request.get_full_path }}">
+      <label for="reportar-descripcion" class="form-label">¿Qué pasó y qué esperaba que pasara?</label>
+      <textarea id="reportar-descripcion" name="descripcion" class="form-control" rows="5" minlength="10" maxlength="5000" required placeholder="Ej.: al guardar la factura F001-120 salió un mensaje de error; esperaba que se registrara."></textarea>
+      <p class="small text-muted mt-2 mb-0">Se envía con esta página ({{ request.path }}) y su usuario. El administrador lo verá en Ajustes › Incidencias.</p>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-sm btn-primary">Enviar reporte</button></div>
+  </form></div>
 </div>
 <div id="cargando" class="cargando d-print-none" hidden role="status" aria-live="polite">
   <div class="cargando-barra"></div>

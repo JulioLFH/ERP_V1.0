@@ -1,0 +1,15 @@
+{% extends 'proveedores/correo_base.html' %}
+{% block cuerpo %}
+{% if inc.tipo == 'ERROR' %}
+<p>Ocurrió un <b>error del sistema</b> en Ceiba ERP (versión {{ version }}).</p>
+{% else %}
+<p><b>{{ inc.usuario.get_full_name|default:inc.usuario.username }}</b> reportó un problema en Ceiba ERP.</p>
+{% endif %}
+<table cellpadding="4" style="border-collapse:collapse;font-size:14px">
+  <tr><td style="color:#666">Incidencia</td><td>N° {{ inc.pk }}{% if inc.veces > 1 %} · ocurrió {{ inc.veces }} veces{% endif %}</td></tr>
+  <tr><td style="color:#666">Página</td><td>{{ inc.url }}</td></tr>
+  {% if inc.usuario %}<tr><td style="color:#666">Usuario</td><td>{{ inc.usuario.username }}</td></tr>{% endif %}
+  <tr><td style="color:#666">Qué pasó</td><td>{{ inc.descripcion|linebreaksbr }}</td></tr>
+</table>
+<p>Revísela en <b>Ajustes › Incidencias y errores</b>. {% if inc.tipo == 'ERROR' %}Mientras siga abierta, los avisos de este mismo error se envían como máximo una vez por hora.{% endif %}</p>
+{% endblock %}

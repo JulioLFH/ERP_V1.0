@@ -754,6 +754,38 @@ class FiltroGuardado(models.Model):
         unique_together = [('usuario', 'reporte', 'nombre')]
 
 
+class Incidencia(models.Model):
+    """Problema reportado por un usuario («Reportar problema») o error del sistema registrado solo (los errores
+    iguales se agrupan por su firma y se cuentan). El administrador los revisa en Ajustes › Incidencias."""
+    TIPOS = [('REPORTE', 'Reportado por un usuario'), ('ERROR', 'Error del sistema')]
+    ESTADOS = [('ABIERTA', 'Abierta'), ('REVISION', 'En revisión'), ('RESUELTA', 'Resuelta'),
+               ('DESCARTADA', 'Descartada')]
+    tipo = models.CharField(max_length=8, choices=TIPOS, default='REPORTE')
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='ABIERTA')
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='+')
+    url = models.CharField('Página', max_length=500, blank=True)
+    modulo = models.CharField('Módulo', max_length=40, blank=True)
+    descripcion = models.TextField('Qué pasó')
+    detalle = models.TextField('Detalle técnico', blank=True)
+    navegador = models.CharField(max_length=300, blank=True)
+    firma = models.CharField(max_length=40, blank=True, db_index=True, help_text='Agrupa los errores iguales')
+    veces = models.PositiveIntegerField(default=1)
+    ultima_vez = models.DateTimeField(default=timezone.now)
+    avisado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    nota = models.TextField('Nota de la revisión', blank=True)
+    revisado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-ultima_vez', '-id']
+        verbose_name = 'incidencia'
+
+    def __str__(self):
+        return f'Incidencia {self.pk}: {self.descripcion[:60]}'
+
+
 class ApiToken(models.Model):
     """Clave de acceso a la API (/api/v1/) de un usuario: actúa con sus módulos y permisos. Solo se guarda el hash
     SHA-256; la clave completa se muestra una sola vez al crearla."""

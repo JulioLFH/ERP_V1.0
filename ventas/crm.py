@@ -28,6 +28,8 @@ class OportunidadForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['CLIENTE', 'AMBOS'])
         remoto(self.fields['tercero'], 'clientes')
+        from .forms import cotizaciones_abiertas
+        self.fields['cotizacion'].queryset = cotizaciones_abiertas(self)
 
     def clean(self):
         d = super().clean()

@@ -158,13 +158,15 @@ def en_camino():
     """{producto_id: cantidad} pedida en órdenes de compra vigentes y aún no recibida en el almacén."""
     from collections import defaultdict
     from compras.models import OrdenCompra
-    from proveedores.servicios import recibido_por_producto
+    from proveedores.servicios import recibido_por_ordenes
     pendiente = defaultdict(lambda: D0)
     factores = {}
     # del sistema anterior solo cuentan las órdenes abiertas (las cerradas ya se recibieron allá)
-    ocs = (OrdenCompra.objects.exclude(estado='ANULADO').exclude(estado_proveedor='RECHAZADA')
-           .exclude(Q(glosa__startswith='[Sistema anterior]') & ~Q(estado='APROBADO')))
-    for oc in ocs.prefetch_related('items__producto'):
+    ocs = list(OrdenCompra.objects.exclude(estado='ANULADO').exclude(estado_proveedor='RECHAZADA')
+               .exclude(Q(glosa__startswith='[Sistema anterior]') & ~Q(estado='APROBADO'))
+               .prefetch_related('items__producto'))
+    recibidos = recibido_por_ordenes(oc.pk for oc in ocs)  # en unidad de compra, como el pedido
+    for oc in ocs:
         pedido = defaultdict(lambda: D0)
         for i in oc.items.all():
             if i.producto_id:
@@ -172,7 +174,7 @@ def en_camino():
                 factores[i.producto_id] = i.producto.factor
         if not pedido:
             continue
-        recibido = recibido_por_producto(oc)  # en unidad de compra, como el pedido
+        recibido = recibidos.get(oc.pk, {})
         for pid, cant in pedido.items():
             falta = cant - recibido.get(pid, D0)
             if falta > 0:

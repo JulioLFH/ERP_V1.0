@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Incidencias y errores{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Incidencias y errores</h1>
+  <a href="{% url 'salud' %}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"><i class="bi bi-heart-pulse"></i> Estado del servidor</a>
+</div>
+<div class="row g-2 mb-3">
+  {% for v, t in estados %}<div class="col-6 col-md-3"><a class="text-decoration-none" href="?estado={{ v }}"><div class="kpi"><div class="label">{{ t }}</div><div class="value {% if v == 'ABIERTA' and resumen.ABIERTA %}text-danger{% endif %}">{% for k, n in resumen.items %}{% if k == v %}{{ n }}{% endif %}{% endfor %}</div></div></a></div>{% endfor %}
+</div>
+<div class="card">
+  <div class="card-body border-bottom py-2">
+    <form class="row g-2" method="get">
+      <div class="col-auto"><select name="estado" class="form-select form-select-sm" data-sin-buscador>
+        <option value="pendientes" {% if estado == 'pendientes' %}selected{% endif %}>Pendientes (abiertas y en revisión)</option>
+        <option value="" {% if not estado %}selected{% endif %}>Todas</option>
+        {% for v, t in estados %}<option value="{{ v }}" {% if estado == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+      <div class="col-auto"><select name="tipo" class="form-select form-select-sm" data-sin-buscador><option value="">Reportes y errores</option>
+        {% for v, t in tipos %}<option value="{{ v }}" {% if request.GET.tipo == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+      <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></div>
+    </form>
+  </div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0 small align-middle">
+    <thead><tr><th>N°</th><th>Última vez</th><th>Tipo</th><th>Qué pasó</th><th>Página</th><th>Usuario</th><th class="num">Veces</th><th>Estado</th></tr></thead>
+    <tbody>{% for i in page_obj %}<tr>
+      <td><a href="{% url 'incidencia' i.pk %}">{{ i.pk }}</a></td>
+      <td class="text-nowrap">{{ i.ultima_vez|date:'d/m/Y H:i' }}</td>
+      <td>{% if i.tipo == 'ERROR' %}<span class="badge text-bg-danger">Error</span>{% else %}<span class="badge text-bg-info">Reporte</span>{% endif %}</td>
+      <td><a href="{% url 'incidencia' i.pk %}" class="text-body">{{ i.descripcion|truncatechars:110 }}</a></td>
+      <td class="text-muted text-break">{{ i.url|truncatechars:50 }}</td>
+      <td>{{ i.usuario.username|default:'—' }}</td>
+      <td class="num">{{ i.veces }}</td>
+      <td>{{ i.get_estado_display }}</td></tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Sin incidencias con este filtro.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% include 'core/_paginacion.html' %}
+</div>
+<p class="small text-muted mt-2">Los errores del sistema se registran solos, se agrupan cuando son iguales y se avisan por correo a los administradores (como máximo una vez por hora cada uno). Los usuarios reportan problemas desde su menú › Reportar un problema.</p>
+{% endblock %}
