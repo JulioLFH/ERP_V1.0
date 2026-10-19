@@ -20,6 +20,7 @@ from .forms import item_formset, periodo_cerrado
 from .models import D0, Empresa, Tercero, r2
 from .utils import (a_fecha, excel_response, faltantes_stock, fmt_fecha, guardar_documento, leer_excel,
                     lineas_formset, periodo_actual, rango_por_defecto, txt_response)
+from django.utils import timezone
 
 
 def normalizar_periodo(texto):
@@ -390,7 +391,7 @@ class ComprobanteViews:
 
     def importar(self, request):
         if request.GET.get('plantilla'):
-            ejemplo = ['01', 'F001', '123', date.today().strftime('%d/%m/%Y'), '', '6', '20123456786',
+            ejemplo = ['01', 'F001', '123', timezone.localdate().strftime('%d/%m/%Y'), '', '6', '20123456786',
                        'EMPRESA EJEMPLO SAC', 'PEN', 1, 100, 0, 18, 118, 'Importado']
             return excel_response(f'Plantilla_{self.titulo}', 'plantilla', self.COLUMNAS_IMPORT, [ejemplo])
         resultado = None

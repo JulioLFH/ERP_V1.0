@@ -77,7 +77,7 @@ def tarjeta(request, pk):
             elif request.POST.get('accion') == 'pagar':
                 cuenta = get_object_or_404(Cuenta, pk=request.POST.get('cuenta'))
                 monto = Decimal((request.POST.get('monto') or '0').replace(',', ''))
-                fecha = a_fecha(request.POST['fecha']) if request.POST.get('fecha') else date.today()
+                fecha = a_fecha(request.POST['fecha']) if request.POST.get('fecha') else timezone.localdate()
                 m = rd.pagar_tarjeta(t, cuenta, monto, fecha, request.user, request.POST.get('numero_operacion', ''))
                 messages.success(request, f'Pago de la tarjeta registrado ({m.voucher}).')
         except (*ERRORES, ValueError, ArithmeticError) as exc:
@@ -88,7 +88,7 @@ def tarjeta(request, pk):
         't': t, 'e': e, 'deuda': -e.saldo if e else Decimal('0'),
         'movimientos': t.movimientos.select_related('linea__rendicion').order_by('-fecha', '-id')[:300],
         'rendiciones': e.rendiciones.order_by('-fecha', '-id') if e else [],
-        'cuentas': Cuenta.objects.filter(activo=True, moneda=t.moneda), 'hoy': date.today(),
+        'cuentas': Cuenta.objects.filter(activo=True, moneda=t.moneda), 'hoy': timezone.localdate(),
         'puede_pagar': puede(request.user, 'rendiciones.tesoreria')})
 
 

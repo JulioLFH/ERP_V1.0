@@ -10,6 +10,7 @@ from . import cierre
 from .centralizar import ErrorContable, centralizar_periodo
 from .models import PeriodoContable
 from .views import _mes_input, _periodo
+from django.utils import timezone
 
 
 @login_required
@@ -79,7 +80,7 @@ def conciliacion_migracion(request):
         hasta = None
     filas, corte = conciliacion(hasta)
     return render(request, 'contabilidad/conciliacion_migracion.html', {
-        'filas': filas, 'corte': corte, 'hasta': hasta or date.today()})
+        'filas': filas, 'corte': corte, 'hasta': hasta or timezone.localdate()})
 
 
 @login_required

@@ -18,9 +18,10 @@ from planillas.provisiones import provisiones_del_mes
 from . import cierre, reportes
 from .centralizar import centralizar_periodo
 from .models import Asiento, AsientoLinea, CuentaContable, PeriodoContable, usar_norma
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 PERIODO = HOY.strftime('%Y%m')
 
 

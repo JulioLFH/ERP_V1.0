@@ -13,6 +13,7 @@ from decimal import Decimal
 from django.db import transaction
 
 from .models import Marcacion, Planilla, Trabajador, Vacacion
+from django.utils import timezone
 
 D0 = Decimal('0')
 D2 = Decimal('2')
@@ -28,7 +29,7 @@ def _rango(periodo):
 
 
 def _horas(entrada, salida, refrigerio_min):
-    inicio, fin = datetime.combine(date.today(), entrada), datetime.combine(date.today(), salida)
+    inicio, fin = datetime.combine(timezone.localdate(), entrada), datetime.combine(timezone.localdate(), salida)
     if fin <= inicio:
         fin += timedelta(days=1)
     return max(Decimal((fin - inicio).seconds - refrigerio_min * 60) / 3600, D0)
@@ -38,7 +39,7 @@ def resumen(periodo, hasta_hoy=True):
     """[{t, turno, laborables, asistidos, faltas, tardanza_min, tardanzas, he25, he35, vacaciones, sin_turno}]"""
     desde, hasta = _rango(periodo)
     if hasta_hoy:
-        hasta = min(hasta, date.today())
+        hasta = min(hasta, timezone.localdate())
     marcas = defaultdict(dict)
     for m in Marcacion.objects.filter(fecha__range=[desde, hasta]):
         marcas[m.trabajador_id][m.fecha] = m

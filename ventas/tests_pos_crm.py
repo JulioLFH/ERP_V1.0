@@ -14,9 +14,10 @@ from core.models import Producto, Tercero
 from finanzas.models import Cuenta, Movimiento
 
 from .models import Oportunidad, Venta, VentaItem
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 class PosCrmTest(TestCase):

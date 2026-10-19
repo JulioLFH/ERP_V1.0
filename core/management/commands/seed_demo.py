@@ -10,6 +10,7 @@ from core.models import Almacen, Empresa, Producto, Serie, Tercero
 from finanzas.models import Cuenta, Movimiento
 from logistica.models import Conductor, GuiaItem, GuiaRemision, Vehiculo
 from ventas.models import Venta, VentaItem
+from django.utils import timezone
 
 
 class Command(BaseCommand):
@@ -50,7 +51,7 @@ class Command(BaseCommand):
         Cuenta.objects.create(tipo='BANCO', nombre='Banco de la Nación - Detracciones', banco='BN',
                               es_detracciones=True, numero='00-000-123456')
 
-        hoy = date.today()
+        hoy = timezone.localdate()
         compras_data = [
             (prov[0], 'F001', '000451', 40, [(prods[0], 10, '1800'), (prods[1], 20, '350')]),
             (prov[1], 'F002', '001288', 25, [(prods[2], 50, '45'), (prods[3], 8, '520')]),

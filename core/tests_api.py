@@ -14,6 +14,7 @@ from ventas.models import Venta
 
 from .models import ApiToken, Empresa, Producto, Tercero
 from .modulos import GRUPOS
+from django.utils import timezone
 
 D = Decimal
 
@@ -58,7 +59,7 @@ class ApiTest(TestCase):
         self.assertEqual(self._get('/api/v1/ventas/', clave).status_code, 403)  # no tiene el módulo de ventas
         self.assertEqual(self._post('/api/v1/terceros/', clave, {}).status_code, 403)
         # vencida o revocada
-        ApiToken.objects.filter(pk=token.pk).update(expira=date.today() - timedelta(days=1))
+        ApiToken.objects.filter(pk=token.pk).update(expira=timezone.localdate() - timedelta(days=1))
         self.assertEqual(self._get('/api/v1/', clave).status_code, 401)
         ApiToken.objects.filter(pk=token.pk).update(expira=None, activo=False)
         self.assertEqual(self._get('/api/v1/', clave).status_code, 401)

@@ -17,9 +17,10 @@ from ventas.models import Venta, VentaItem
 
 from . import servicios
 from .models import Operacion, TipoOperacion
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 def stock_lote(producto, codigo, almacen=None):

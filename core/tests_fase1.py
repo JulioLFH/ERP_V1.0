@@ -18,9 +18,10 @@ from core.models import Almacen, Empresa, Producto, Tercero, TipoCambio
 from inventario import servicios
 from inventario.models import Operacion, TipoOperacion
 from ventas.models import Venta, VentaItem
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 TC = (D('3.441'), D('3.450'))
 
 

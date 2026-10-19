@@ -16,9 +16,10 @@ from core.models import Producto, Tercero
 
 from . import importaciones
 from .models import Compra, CompraItem, Importacion
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 class ImportacionTest(TestCase):

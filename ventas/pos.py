@@ -17,6 +17,7 @@ from core.models import Almacen, Producto, StockAlmacen, Tercero
 from finanzas.models import Cuenta, Movimiento
 
 from .models import Venta, VentaItem
+from django.utils import timezone
 
 VARIOS_DOC = '00000000'
 
@@ -31,7 +32,7 @@ def cliente_varios():
 def pos(request):
     if request.method == 'POST':
         return _cobrar(request)
-    hoy = date.today()
+    hoy = timezone.localdate()
     cajas = Cuenta.objects.filter(activo=True, moneda='PEN').order_by('tipo', 'nombre')  # CAJA primero
     resumen = {}
     for m in Movimiento.objects.filter(fecha=hoy, concepto='COBRANZA', creado_por=request.user,

@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from .api import ENDPOINTS
 from .forms import BootstrapMixin
 from .models import ApiToken
+from django.utils import timezone
 
 
 class ApiTokenForm(BootstrapMixin, forms.ModelForm):
@@ -19,7 +20,7 @@ class ApiTokenForm(BootstrapMixin, forms.ModelForm):
 
     def clean_expira(self):
         expira = self.cleaned_data.get('expira')
-        if expira and expira <= date.today():
+        if expira and expira <= timezone.localdate():
             raise forms.ValidationError('Debe ser una fecha futura.')
         return expira
 

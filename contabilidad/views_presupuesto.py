@@ -11,6 +11,7 @@ from core.utils import excel_response
 from . import presupuesto as servicio
 from .forms import LineasPresupuestoFormSet, PresupuestoForm
 from .models import Presupuesto, PresupuestoLinea
+from django.utils import timezone
 
 MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Set', 'Oct', 'Nov', 'Dic']
 
@@ -38,7 +39,7 @@ def _guardar(request, pres, titulo):
 
 @login_required
 def presupuesto_nuevo(request):
-    return _guardar(request, Presupuesto(anio=date.today().year + (date.today().month >= 10)), 'Nuevo presupuesto')
+    return _guardar(request, Presupuesto(anio=timezone.localdate().year + (timezone.localdate().month >= 10)), 'Nuevo presupuesto')
 
 
 @login_required
@@ -71,7 +72,7 @@ def presupuesto_generar(request, pk):
 @login_required
 def presupuesto_ejecucion(request, pk):
     pres = get_object_or_404(Presupuesto, pk=pk)
-    hoy = date.today()
+    hoy = timezone.localdate()
     defecto = hoy.month if pres.anio == hoy.year else 12
     try:
         hasta_mes = min(max(int(request.GET.get('mes') or defecto), 1), 12)

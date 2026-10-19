@@ -10,6 +10,7 @@ from core.forms import BootstrapMixin
 from core.utils import excel_response
 
 from . import sire
+from django.utils import timezone
 
 SESION = 'sire_propuesta'
 
@@ -65,7 +66,7 @@ def _excel(periodo, r):
 
 @login_required
 def comparar(request):
-    hoy = date.today()
+    hoy = timezone.localdate()
     anterior = f'{hoy.year - (hoy.month == 1)}-{(hoy.month - 2) % 12 + 1:02d}'
     if request.GET.get('formato') == 'excel':
         periodo, registros = _de_sesion(request)

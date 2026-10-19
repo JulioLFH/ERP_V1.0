@@ -16,9 +16,10 @@ from core.permisos import EXPLICITAS
 from . import liquidacion, servicios
 from .models import (CentroTrabajo, HojaRuta, LiquidacionCosto, ListaMateriales, OrdenProduccion, PruebaVNR,
                      VersionFabricacion)
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 FECHA = date(HOY.year, HOY.month, 1) - timedelta(days=1)  # último día del mes anterior (periodo cerrable)
 PERIODO = FECHA.strftime('%Y%m')
 

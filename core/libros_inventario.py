@@ -9,6 +9,7 @@ from django.shortcuts import render
 
 from .models import D0, Empresa, Kardex, Producto, TIPO_COMPROBANTE, r2
 from .utils import _fin_de_mes
+from django.utils import timezone
 
 # Tabla 5: tipo de existencia
 TIPO_EXISTENCIA = {'MERCADERIA': '01', 'PRODUCTO_TERMINADO': '02', 'MATERIA_PRIMA': '03', 'SEMIELABORADO': '02',
@@ -156,7 +157,7 @@ def libro(request):
     valorizado = request.GET.get('formato_sunat', '12.1') == '13.1'
     if valorizado and not puede_ver_costos(request.user):
         return _sin_permiso_costos(request)
-    hoy = date.today()
+    hoy = timezone.localdate()
     anio = int(request.GET.get('anio') or hoy.year)
     mes = request.GET.get('mes', str(hoy.month))
     if mes == 'anual':

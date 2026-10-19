@@ -19,9 +19,10 @@ from inventario import servicios as inv
 from inventario.models import Operacion, TipoOperacion
 from logistica.models import GuiaRemision
 from ventas.models import Venta
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 class EvaluacionTresTest(TestCase):

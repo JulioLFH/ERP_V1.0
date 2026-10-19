@@ -18,6 +18,7 @@ from ventas.models import Venta
 
 from .carga_masiva import VALIDADORES, cargar
 from .models import Almacen, Producto, Serie, StockLote, Tercero
+from django.utils import timezone
 
 D = Decimal
 
@@ -234,7 +235,7 @@ class MigracionTest(TestCase):
         self.assertEqual((t.afp.codigo, t.regimen, t.asignacion_familiar, t.centro_costo.codigo, t.datos_completos),
                          ('INTEGRA', 'PEQUENA', True, '924001', True))
         self.assertEqual((t.quinta_anio, t.quinta_remuneracion_previa, t.quinta_retencion_previa),
-                         (date.today().year, D('12000'), D('80')))
+                         (timezone.localdate().year, D('12000'), D('80')))
         from .carga_masiva import ErrorFila
         with self.assertRaises(ErrorFila):
             VALIDADORES['trabajadores']({**fila, 'afp': 'NOEXISTE'}, True)

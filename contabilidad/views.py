@@ -25,6 +25,7 @@ from .forms import (AsientoForm, CentroBeneficioForm, CentroCostoForm, CuentaCon
                     lineas_formset)
 from .models import (LIBROS, ORIGENES, Asiento, AsientoLinea, CentroBeneficio, CentroCosto, CuentaContable,
                      CuentaDefecto, PeriodoContable, norma_excluida, usar_norma)
+from django.utils import timezone
 
 
 def con_norma(vista):
@@ -40,7 +41,7 @@ D0 = Decimal('0')
 
 def _ultimo_periodo():
     return (Asiento.objects.order_by('-periodo').values_list('periodo', flat=True).first()
-            or date.today().strftime('%Y%m'))
+            or timezone.localdate().strftime('%Y%m'))
 
 
 def _periodo(request, clave='periodo', defecto=None):
@@ -125,7 +126,7 @@ def periodos(request):
     meses |= {f.strftime('%Y%m') for f in Movimiento.objects.dates('fecha', 'month')}
     meses |= set(Asiento.objects.values_list('periodo', flat=True))
     meses |= set(PeriodoContable.objects.values_list('periodo', flat=True))  # cerrados aunque no tengan movimientos
-    meses.add(date.today().strftime('%Y%m'))
+    meses.add(timezone.localdate().strftime('%Y%m'))
     estado = {p.periodo: p for p in PeriodoContable.objects.all()}
     asientos = dict(Asiento.objects.values('periodo').annotate(n=Count('id')).values_list('periodo', 'n'))
     filas = []
@@ -222,7 +223,7 @@ def asiento_extornar(request, pk):
                                 'automáticos se corrigen en su documento de origen.')
         return redirect('contabilidad:asiento_detalle', pk)
     form = ExtornoForm(request.POST or None, request.FILES or None,
-                       initial={'fecha': a.fecha if not PeriodoContable.esta_cerrado(a.periodo) else date.today()})
+                       initial={'fecha': a.fecha if not PeriodoContable.esta_cerrado(a.periodo) else timezone.localdate()})
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
             ext = Asiento.objects.create(fecha=form.cleaned_data['fecha'], libro=a.libro, origen='MANUAL', extorna=a,
@@ -591,7 +592,7 @@ def plan_cuentas(request):
         qs = qs.filter(codigo__startswith=request.GET['clase'])
     if request.GET.get('formato') == 'ple':
         empresa = Empresa.actual()
-        periodo = date.today().strftime('%Y%m')
+        periodo = timezone.localdate().strftime('%Y%m')
         lineas = [f'{periodo}00|{c.codigo}|{c.nombre}|01|PLAN CONTABLE GENERAL EMPRESARIAL|||1|' for c in qs]
         return txt_response(f'LE{empresa.ruc}{periodo}00050300001111.txt', lineas)
     return render(request, 'contabilidad/plan.html', {'cuentas': qs, 'q': q, 'clase': request.GET.get('clase', '')})

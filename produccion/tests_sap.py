@@ -17,9 +17,10 @@ from core.models import Almacen, Producto, Tercero
 from . import servicios
 from .models import (CentroTrabajo, CostoEstandar, HojaRuta, ListaMateriales, OrdenProduccion, PlanDemanda,
                      VersionFabricacion)
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 PERIODO = HOY.strftime('%Y%m')
 
 

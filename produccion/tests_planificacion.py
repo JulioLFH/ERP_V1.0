@@ -16,9 +16,10 @@ from ventas.models import Cotizacion
 
 from . import servicios
 from .models import ListaMateriales, PlanDemanda, VersionFabricacion
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 class Base(TestCase):

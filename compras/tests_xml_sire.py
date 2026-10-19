@@ -14,9 +14,10 @@ from core.models import Empresa, Producto, Tercero
 
 from . import sire
 from .models import Compra, CompraItem
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 def xml_factura(ruc, receptor, lineas, numero='F001-00000077', nombre='DISTRIBUIDORA ANDINA SAC', total=None,

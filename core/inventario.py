@@ -15,6 +15,7 @@ from .forms import AjusteInventarioForm, AlmacenForm
 from .models import D0, Almacen, Kardex, Producto, r2
 from .utils import _fin_de_mes, excel_response, fmt_fecha, rango_por_defecto
 from .views import FormGenerico, ListaGenerica
+from django.utils import timezone
 
 
 def _signo(k):
@@ -131,7 +132,7 @@ def ajuste(request):
     from inventario.models import Operacion, TipoOperacion
     from .sustentos import adjuntar
     form = AjusteInventarioForm(request.POST or None, request.FILES or None,
-                                initial={'fecha': date.today(), 'tipo': 'ENTRADA', 'producto': request.GET.get('producto')})
+                                initial={'fecha': timezone.localdate(), 'tipo': 'ENTRADA', 'producto': request.GET.get('producto')})
     if request.method == 'POST' and form.is_valid():
         d = form.cleaned_data
         tipo = TipoOperacion.objects.get(codigo=TIPO_AJUSTE[d['concepto']])
@@ -255,11 +256,11 @@ def valorizacion(request):
     from .modulos import puede_ver_costos
     if not puede_ver_costos(request.user):
         return _sin_permiso_costos(request)
-    mes = request.GET.get('mes') or date.today().strftime('%Y-%m')
+    mes = request.GET.get('mes') or timezone.localdate().strftime('%Y-%m')
     try:
         corte = _fin_de_mes(date.fromisoformat(f'{mes}-01'))
     except ValueError:
-        corte, mes = _fin_de_mes(date.today()), date.today().strftime('%Y-%m')
+        corte, mes = _fin_de_mes(timezone.localdate()), timezone.localdate().strftime('%Y-%m')
     almacenes = Almacen.objects.all()
     almacen = almacenes.filter(pk=request.GET.get('almacen')).first() if request.GET.get('almacen') else None
     filas, total = valor_inventario(corte, almacen)

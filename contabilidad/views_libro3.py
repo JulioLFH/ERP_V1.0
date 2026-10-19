@@ -12,6 +12,7 @@ from core.utils import excel_response
 
 from .models import AsientoLinea
 from .views import al_dia
+from django.utils import timezone
 
 # código, título, prefijos de cuentas, agrupación ('documento', 'tercero', 'cuenta') o ruta del reporte
 FORMATOS = [
@@ -38,7 +39,7 @@ POR_CODIGO = {f[0]: f for f in FORMATOS}
 
 
 def _ultimo_mes():
-    hoy = date.today()
+    hoy = timezone.localdate()
     return f'{hoy.year - (hoy.month == 1)}{(hoy.month - 2) % 12 + 1:02d}'
 
 

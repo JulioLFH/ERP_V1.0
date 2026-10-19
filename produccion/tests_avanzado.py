@@ -13,9 +13,10 @@ from core.models import Almacen, Producto
 
 from . import abc, avanzado, servicios
 from .models import (ActividadABC, CentroTrabajo, HoraOrden, ListaMateriales, OrdenProduccion, VersionFabricacion)
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 class AvanzadoTest(TestCase):

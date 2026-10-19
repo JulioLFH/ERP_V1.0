@@ -32,8 +32,8 @@ jobs:
       SECRET_KEY: solo-para-pruebas
       DEBUG: '1'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip
@@ -43,5 +43,11 @@ jobs:
         run: python manage.py check --settings=erp.settings_postgres
       - name: Migraciones completas (no falta ninguna)
         run: python manage.py makemigrations --check --dry-run --settings=erp.settings_postgres
+      # el servidor de GitHub está en hora UTC, como un VPS típico: detecta fechas que no sean las de Lima
       - name: Pruebas sobre PostgreSQL
-        run: python manage.py test --noinput --parallel 1 --settings=erp.settings_postgres
+        run: |
+          set -o pipefail
+          python manage.py test --noinput --parallel 1 --settings=erp.settings_postgres 2>&1 | tee salida_pruebas.txt
+      - name: Detalle de las pruebas con falla
+        if: failure()
+        run: python scripts/anotar_fallas_ci.py salida_pruebas.txt

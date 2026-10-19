@@ -8,9 +8,10 @@ from django.urls import reverse
 
 from . import reportes
 from .models import Asiento, AsientoLinea, CuentaContable
+from django.utils import timezone
 
 D = Decimal
-ANIO = date.today().year - 1
+ANIO = timezone.localdate().year - 1
 
 
 class ResultadosMensualTest(TestCase):

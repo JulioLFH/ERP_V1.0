@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Versión visible en el menú del usuario; actualizarla junto con CHANGELOG.md y la etiqueta de git
 ERP_NOMBRE = 'Ceiba ERP'
-ERP_VERSION = '1.33.0'
+ERP_VERSION = '1.33.1'
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insegura-cambiar-en-produccion')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
@@ -107,6 +107,7 @@ EMPRESAS = {'default': os.environ.get('EMPRESA_PRINCIPAL', 'Empresa principal')}
 for _alias, _cfg in leer_empresas_extra(os.environ.get('EMPRESAS_EXTRA')).items():
     DATABASES[_alias] = config_base(_cfg, DATABASES['default'])
     EMPRESAS[_alias] = _cfg.get('nombre', _alias)
+MONITOREO_SINCRONO = 'test' in sys.argv[1:2]  # en las pruebas el aviso de errores no usa otro hilo
 if 'test' in sys.argv[1:2]:  # una segunda empresa para las pruebas de multiempresa
     DATABASES.setdefault('empresa2', {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'empresa2.sqlite3',
                                       'TEST': {'NAME': None}})

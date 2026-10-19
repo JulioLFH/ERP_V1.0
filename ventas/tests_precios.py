@@ -13,6 +13,7 @@ from core import sunat
 from core.models import Empresa, Producto, Tercero
 
 from .models import ListaPrecios, PrecioLista, Venta
+from django.utils import timezone
 
 D = Decimal
 ITEMS = {'items-INITIAL_FORMS': '0', 'items-MIN_NUM_FORMS': '1', 'items-MAX_NUM_FORMS': '1000'}
@@ -51,13 +52,13 @@ class PreciosTest(TestCase):
         r = self._precio(tercero=self.cli.pk, cantidad='12')  # tramo por volumen
         self.assertEqual((D(r['precio']), D(r['descuento'])), (D('450'), D('5')))
         # lista vencida: vuelve al precio del producto
-        self.lista.vigente_hasta = date.today() - timedelta(days=1)
+        self.lista.vigente_hasta = timezone.localdate() - timedelta(days=1)
         self.lista.save()
         self.assertEqual(D(self._precio(tercero=self.cli.pk)['precio']), self.prod.precio_venta)
 
     def test_venta_con_descuento_totales_y_sunat(self):
         data = {'tipo_comprobante': '01', 'serie': '', 'numero': '', 'tercero': self.cli.pk,
-                'fecha_emision': date.today().isoformat(), 'fecha_vencimiento': '', 'forma_pago': 'CONTADO',
+                'fecha_emision': timezone.localdate().isoformat(), 'fecha_vencimiento': '', 'forma_pago': 'CONTADO',
                 'moneda': 'PEN', 'tipo_cambio': '1', 'tipo_operacion': 'GRAVADA', 'detraccion_pct': '0',
                 'retencion_pct': '0', 'percepcion_pct': '0', 'icbper': '0', 'detraccion_codigo': '35', 'vendedor': '',
                 'descontar_stock': '', 'glosa': '', 'lista_precios': self.lista.pk, 'items-TOTAL_FORMS': '1',
@@ -77,7 +78,7 @@ class PreciosTest(TestCase):
 
     def test_descuento_invalido(self):
         data = {'tipo_comprobante': '01', 'serie': '', 'numero': '', 'tercero': self.cli.pk,
-                'fecha_emision': date.today().isoformat(), 'forma_pago': 'CONTADO', 'moneda': 'PEN',
+                'fecha_emision': timezone.localdate().isoformat(), 'forma_pago': 'CONTADO', 'moneda': 'PEN',
                 'tipo_cambio': '1', 'tipo_operacion': 'GRAVADA', 'detraccion_pct': '0', 'retencion_pct': '0',
                 'percepcion_pct': '0', 'icbper': '0', 'items-TOTAL_FORMS': '1', 'items-0-producto': self.prod.pk,
                 'items-0-descripcion': 'x', 'items-0-cantidad': '1', 'items-0-precio_unitario': '10',
@@ -89,7 +90,7 @@ class PreciosTest(TestCase):
     def test_compra_con_descuento_costea_neto(self):
         prov = Tercero.objects.filter(tipo__in=['PROVEEDOR', 'AMBOS']).first()
         mp = Producto.objects.create(nombre='Insumo X', clase='MERCADERIA', unidad='NIU')
-        c = Compra.objects.create(tercero=prov, serie='F001', numero='7777', fecha_emision=date.today())
+        c = Compra.objects.create(tercero=prov, serie='F001', numero='7777', fecha_emision=timezone.localdate())
         CompraItem.objects.create(documento=c, producto=mp, descripcion='Insumo', cantidad=10,
                                   precio_unitario=D('20'), descuento_pct=D('10'))
         c.calcular_totales()

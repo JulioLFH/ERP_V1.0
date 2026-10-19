@@ -14,9 +14,10 @@ from contabilidad.models import Asiento
 
 from .models import ApiToken
 from .modulos import GRUPOS
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 class ApiDatosTest(TestCase):

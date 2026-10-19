@@ -14,9 +14,10 @@ from ventas.models import Cotizacion
 
 from . import almacen as alm
 from .models import ConteoCiclico, OlaPicking
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 class AlmacenAvanzadoTest(TestCase):

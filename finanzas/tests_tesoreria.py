@@ -18,9 +18,10 @@ from ventas.models import Venta, VentaItem
 
 from . import operaciones as op
 from .models import Aplicacion, Cheque, Cuenta, EntregaRendir, GastoRendicion, Letra, Movimiento
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 def saldo_cuenta(codigo, tercero=None):

@@ -16,9 +16,10 @@ from core.models import Bitacora, Producto, Sustento
 from core.modulos import GRUPOS
 from finanzas.models import Cuenta, Movimiento
 from inventario.models import Operacion
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 TC = (D('3.441'), D('3.450'))
 
 

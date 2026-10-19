@@ -27,6 +27,7 @@ from django.db import transaction
 from django.db.models import Max, Sum
 
 from core.management.commands.migrar_excels import _dec, _fecha, _txt
+from django.utils import timezone
 
 D0 = Decimal('0')
 IGV = Decimal('0.18')
@@ -250,11 +251,11 @@ class Command(BaseCommand):
             if moneda not in ('PEN', 'USD'):
                 self.observar('Órdenes de compra', ref, f'Moneda {moneda}: no se importó')
                 continue
-            fecha = fecha_flexible(r['Fecha de Confirmación/Fecha Creación']) or date.today()
+            fecha = fecha_flexible(r['Fecha de Confirmación/Fecha Creación']) or timezone.localdate()
             estado_odoo, abierta = _txt(r['Estado']), False
             if estado_odoo == 'Solicitud de cotización':
                 estado = 'ANULADO'
-            elif (estado_odoo == 'Orden de compra' and (date.today() - fecha).days <= self.dias_abiertas
+            elif (estado_odoo == 'Orden de compra' and (timezone.localdate() - fecha).days <= self.dias_abiertas
                   and any(_dec(l['Pendiente por recibir']) > 0 for l in lineas)):
                 estado, abierta = 'APROBADO', True  # reciente con saldo por recibir: sigue abierta en Ceiba
             else:
@@ -372,7 +373,7 @@ class Command(BaseCommand):
             glosa = (f'{MARCA} {estado_odoo} · lista {_txt(r["lista_de_precio"])} · entrega '
                      f'{_txt(r["direccion_de_entrega"])[:80]}' + (' · con bonificaciones' if gratuito else ''))
             cabeceras.append(Cotizacion(
-                numero=ref[:20], tipo=tipo, fecha=fecha_flexible(r['fecha_orden']) or date.today(), tercero_id=tercero,
+                numero=ref[:20], tipo=tipo, fecha=fecha_flexible(r['fecha_orden']) or timezone.localdate(), tercero_id=tercero,
                 estado=estado, vendedor=_txt(r['vendedor'])[:80], moneda='USD' if _txt(r['moneda']) == 'USD' else 'PEN',
                 tipo_cambio=_dec(r['tipo_de_cambio']) or Decimal('1'), tipo_operacion='GRAVADA', base_imponible=base,
                 igv=igv, total=base + igv, condicion_pago=_txt(r['termino_de_pago'])[:100], glosa=glosa))

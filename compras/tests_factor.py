@@ -14,9 +14,10 @@ from inventario.models import Operacion, TipoOperacion
 from proveedores.servicios import lineas_por_facturar
 
 from .models import Compra, CompraItem, OrdenCompra, OrdenCompraItem
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 class FactorCompraTest(TestCase):

@@ -20,9 +20,10 @@ from ventas.models import Cotizacion
 
 from .management.commands.importar_anteriores import nombre_clave
 from .models import AsientoAnterior, MovimientoAnterior, OrdenFabricacionAnterior, PosicionPresupuestaria
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 def guardar(carpeta, nombre, filas):

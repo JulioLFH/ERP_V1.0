@@ -14,9 +14,10 @@ from core.models import Almacen, Producto, Tercero
 from . import planta, servicios
 from .models import (CentroTrabajo, Equipo, InspeccionCalidad, ListaMateriales, OrdenMantenimiento,
                      OrdenProduccion, ParametroCalidad, PlanMantenimiento, VersionFabricacion)
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 class PlantaTest(TestCase):

@@ -23,6 +23,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 
 D0 = Decimal('0')
 
@@ -117,8 +118,8 @@ class Command(BaseCommand):
         from core.models import Empresa
         actual = Empresa.actual()  # los datos de la empresa no van en el código: parámetros o los ya registrados
         self.ruc, self.razon_social = ruc or actual.ruc, razon_social or actual.razon_social
-        self.corte = date.fromisoformat(corte) if corte else date.today()
-        if self.corte > date.today():
+        self.corte = date.fromisoformat(corte) if corte else timezone.localdate()
+        if self.corte > timezone.localdate():
             raise CommandError('La fecha de corte no puede ser futura.')
         self.obs = defaultdict(list)
         self.resumen = OrderedDict()

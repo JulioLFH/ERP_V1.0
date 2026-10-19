@@ -15,6 +15,7 @@ from core.models import Tercero
 from core.utils import excel_response, fmt_fecha
 
 from .models import ActividadCRM, Oportunidad
+from django.utils import timezone
 
 
 class OportunidadForm(BootstrapMixin, forms.ModelForm):
@@ -62,7 +63,7 @@ def _filtrar(request):
 def embudo(request):
     """Tablero por etapas (se arrastran las tarjetas para cambiar de etapa)."""
     qs = list(_filtrar(request).filter(Q(etapa__in=Oportunidad.ABIERTAS) | Q(
-        actualizado__date__gte=date.today().replace(day=1))))
+        actualizado__date__gte=timezone.localdate().replace(day=1))))
     columnas = []
     for etapa, nombre in Oportunidad.ETAPAS:
         tarjetas = [o for o in qs if o.etapa == etapa]
@@ -70,7 +71,7 @@ def embudo(request):
                          'monto': sum((o.monto for o in tarjetas), Decimal('0')),
                          'ponderado': sum((o.ponderado for o in tarjetas), Decimal('0'))})
     abiertas = [o for o in qs if o.etapa in Oportunidad.ABIERTAS]
-    pendientes = ActividadCRM.objects.filter(hecha=False, fecha__lte=date.today(),
+    pendientes = ActividadCRM.objects.filter(hecha=False, fecha__lte=timezone.localdate(),
                                              oportunidad__etapa__in=Oportunidad.ABIERTAS).select_related('oportunidad')
     if request.GET.get('mias'):
         pendientes = pendientes.filter(oportunidad__responsable=request.user)
@@ -111,7 +112,7 @@ def oportunidad(request, pk):
     o = get_object_or_404(Oportunidad.objects.select_related('tercero', 'responsable', 'cotizacion'), pk=pk)
     form = OportunidadForm(request.POST if request.POST.get('accion') == 'datos' else None, instance=o)
     actividad = ActividadForm(request.POST if request.POST.get('accion') == 'actividad' else None,
-                              initial={'fecha': date.today()})
+                              initial={'fecha': timezone.localdate()})
     if request.method == 'POST':
         accion = request.POST.get('accion')
         if accion == 'datos' and form.is_valid():

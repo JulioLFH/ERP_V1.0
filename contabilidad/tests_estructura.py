@@ -16,9 +16,10 @@ from ventas.models import Venta, VentaItem
 from .centralizar import centralizar_periodo
 from .forms import CentroCostoForm
 from .models import AsientoLinea, CentroBeneficio, CentroCosto
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 PERIODO = HOY.strftime('%Y%m')
 
 

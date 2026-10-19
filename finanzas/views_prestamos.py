@@ -11,6 +11,7 @@ from . import prestamos as srv
 from .forms import PrestamoForm
 from .models import CuotaPrestamo, Prestamo
 from .operaciones import ErrorTesoreria
+from django.utils import timezone
 
 
 @login_required
@@ -56,7 +57,7 @@ def prestamo(request, pk):
         try:
             if accion == 'pagar':
                 cuota = get_object_or_404(CuotaPrestamo, pk=request.POST.get('cuota'), prestamo=p)
-                fecha = date.fromisoformat(request.POST.get('fecha') or date.today().isoformat())
+                fecha = date.fromisoformat(request.POST.get('fecha') or timezone.localdate().isoformat())
                 mov = srv.pagar_cuota(cuota, fecha, request.user, request.POST.get('numero_operacion', ''))
                 messages.success(request, f'Cuota {cuota.numero} pagada ({mov.voucher}).')
             elif accion == 'anular':
@@ -73,6 +74,6 @@ def prestamo(request, pk):
               c.pago.fecha if c.pagada else ''] for c in cuotas])
     siguiente = next((c for c in cuotas if not c.pagada), None)
     return render(request, 'finanzas/prestamo.html', {
-        'p': p, 'cuotas': cuotas, 'siguiente': siguiente, 'hoy': date.today(),
+        'p': p, 'cuotas': cuotas, 'siguiente': siguiente, 'hoy': timezone.localdate(),
         'totales': {k: sum(getattr(c, k) for c in cuotas) for k in ('capital', 'interes', 'comision', 'igv', 'cuota')},
         'desembolso': p.desembolso})

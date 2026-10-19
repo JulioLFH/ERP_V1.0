@@ -16,6 +16,7 @@ from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
 from .models import Asiento, AsientoLinea, CuentaContable, CuentaDefecto, PeriodoContable
+from django.utils import timezone
 
 log = logging.getLogger(__name__)
 D0 = Decimal('0')
@@ -93,7 +94,7 @@ def fecha_inicio():
         (Venta.objects.filter(es_historico=False, es_saldo_inicial=False), 'fecha_emision'),
         (Movimiento.objects.all(), 'fecha'), (Kardex.objects.all(), 'fecha'))]
     fechas = [f for f in fechas if f]
-    inicio = min(fechas) if fechas else date.today()
+    inicio = min(fechas) if fechas else timezone.localdate()
     return inicio.replace(day=1)
 
 

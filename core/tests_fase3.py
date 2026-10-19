@@ -19,9 +19,10 @@ from core.models import Almacen, Producto, Tercero
 from core.usuarios import UsuarioForm
 from inventario import cierre, servicios
 from inventario.models import CierreKardex, Operacion, TipoOperacion
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 TC = (D('3.441'), D('3.450'))
 FIN_MES_ANTERIOR = HOY.replace(day=1) - timedelta(days=1)
 

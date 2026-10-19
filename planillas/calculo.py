@@ -22,6 +22,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from django.db import transaction
 
 from .models import ConceptoPlanilla, FilaPlanilla, LineaPlanilla, Parametro, Trabajador, Vacacion
+from django.utils import timezone
 
 D0 = Decimal('0')
 FACTOR_BENEFICIO = {'GENERAL': Decimal('1'), 'PEQUENA': Decimal('0.5'), 'MICRO': D0}
@@ -80,7 +81,7 @@ def record_vacacional(t, al=None):
     periodos cumplidos con saldo, son vacaciones adelantadas del año en curso."""
     if not t.fecha_ingreso:
         return [], None
-    al = al or date.today()
+    al = al or timezone.localdate()
     tope = min(al, t.fecha_cese) if t.fecha_cese else al
     anios, n, inicio = [], 1, t.fecha_ingreso
     while True:

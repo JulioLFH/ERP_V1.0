@@ -23,7 +23,7 @@ from .models import (CategoriaCuentaHistorial, ConfigRendicion, EnvioERPDetalle,
 from .tests_rendicion import PNG, Base
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 def ind(codigo):

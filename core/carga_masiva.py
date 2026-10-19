@@ -11,6 +11,7 @@ from decimal import Decimal, InvalidOperation
 from django.db import transaction
 
 from .models import Almacen, Producto, Tercero
+from django.utils import timezone
 
 D0 = Decimal('0')
 
@@ -415,10 +416,10 @@ def _fila_saldo(d, actualizar):
         raise ErrorFila('Cantidad: debe ser mayor a cero.')
     costo = _dec(d.get('costo_unitario'), 'Costo unitario', requerido=True, minimo=D0)
     try:
-        fecha = a_fecha(d.get('fecha')) if d.get('fecha') not in (None, '') else date.today()
+        fecha = a_fecha(d.get('fecha')) if d.get('fecha') not in (None, '') else timezone.localdate()
     except ValueError as exc:
         raise ErrorFila(str(exc))
-    if fecha > date.today():
+    if fecha > timezone.localdate():
         raise ErrorFila('La fecha no puede ser futura.')
     if error_cierre(fecha):
         raise ErrorFila(error_cierre(fecha))
@@ -450,7 +451,7 @@ def _fila_documento(d, es_venta):
         vence = a_fecha(d.get('fecha_vencimiento')) if d.get('fecha_vencimiento') not in (None, '') else emision
     except ValueError as exc:
         raise ErrorFila(str(exc))
-    if emision > date.today():
+    if emision > timezone.localdate():
         raise ErrorFila('La fecha de emisión no puede ser futura.')
     moneda = (_txt(d.get('moneda')) or 'PEN').upper()
     if moneda not in ('PEN', 'USD'):
@@ -658,7 +659,7 @@ def _fila_version(d, actualizar):
     if hoja_cod and not hoja:
         raise ErrorFila(f'La hoja de ruta {hoja_cod} no existe.')
     try:
-        desde = a_fecha(d.get('vigente_desde')) if d.get('vigente_desde') not in (None, '') else date.today()
+        desde = a_fecha(d.get('vigente_desde')) if d.get('vigente_desde') not in (None, '') else timezone.localdate()
     except ValueError as exc:
         raise ErrorFila(str(exc))
     lote_min = _dec(d.get('lote_desde'), 'Lote desde', minimo=D0) or D0
@@ -730,7 +731,7 @@ def _fila_trabajador(d, actualizar):
     previa = _dec(d.get('quinta_remuneracion_previa'), 'Remuneraciones previas', minimo=D0) or D0
     retencion = _dec(d.get('quinta_retencion_previa'), 'Retenciones previas', minimo=D0) or D0
     if previa or retencion:
-        datos.update(quinta_anio=date.today().year, quinta_remuneracion_previa=str(previa),
+        datos.update(quinta_anio=timezone.localdate().year, quinta_remuneracion_previa=str(previa),
                      quinta_retencion_previa=str(retencion))
     return {'accion': 'Actualizar' if existente else 'Nuevo', 'codigo': numero, 'datos': datos,
             'resumen': f'{numero} · {paterno} {nombres} · S/ {sueldo:,.2f} · {pensiones}'}

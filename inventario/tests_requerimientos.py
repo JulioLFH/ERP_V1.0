@@ -16,9 +16,10 @@ from core.modulos import GRUPOS
 
 from . import requerimientos as srv
 from .models import RequerimientoInterno
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 class RequerimientosTest(TestCase):

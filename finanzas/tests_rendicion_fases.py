@@ -27,9 +27,10 @@ from . import rendiciones as rd
 from .models import (CategoriaGasto, ConfigRendicion, EntregaRendir, GastoRendicion, LineaGasto, MovimientoTarjeta,
                      Proyecto, Sitio, TarjetaCorporativa)
 from .tests_rendicion import PNG, Base
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 RUC_PROV = '20100047218'
 
 

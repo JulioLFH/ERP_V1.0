@@ -43,7 +43,7 @@ def _mes_anterior(anio, mes, n):
 
 @login_required
 def dashboard(request):
-    hoy = date.today()
+    hoy = timezone.localdate()
     periodo = hoy.strftime('%Y%m')
     ventas = Venta.objects.filter(estado='REGISTRADO')
     compras = Compra.objects.filter(estado='REGISTRADO')
@@ -339,13 +339,13 @@ def carga_masiva(request):
 # ---------------------------------------------------------------- tipo de cambio
 @login_required
 def tipos_cambio(request):
-    form = TipoCambioForm(request.POST or None, initial={'fecha': date.today()})
+    form = TipoCambioForm(request.POST or None, initial={'fecha': timezone.localdate()})
     if request.method == 'POST':
         if 'actualizar' in request.POST:
             dias = int(request.POST.get('dias') or 7)
             ok, fuentes = 0, set()
             for i in range(min(dias, 60)):
-                f = date.today() - timedelta(days=i)
+                f = timezone.localdate() - timedelta(days=i)
                 valores = tipo_cambio.consultar_sunat(f)
                 if valores:
                     fuente = valores[2] if len(valores) > 2 else 'SUNAT'
@@ -368,7 +368,7 @@ def tipos_cambio(request):
             messages.success(request, 'Tipo de cambio guardado.')
             return redirect('tipos_cambio')
     return render(request, 'core/tipos_cambio.html', {
-        'form': form, 'tipos': TipoCambio.objects.all()[:90], 'hoy': tipo_cambio.obtener(date.today()),
+        'form': form, 'tipos': TipoCambio.objects.all()[:90], 'hoy': tipo_cambio.obtener(timezone.localdate()),
         'fuente': tipo_cambio.fuente_actual()[0]})
 
 
@@ -378,7 +378,7 @@ def tipo_cambio_api(request):
     try:
         fecha = date.fromisoformat(request.GET.get('fecha', ''))
     except ValueError:
-        fecha = date.today()
+        fecha = timezone.localdate()
     tc = tipo_cambio.obtener(fecha)
     if not tc:
         return JsonResponse({'ok': False, 'mensaje': 'Sin tipo de cambio registrado'}, status=404)

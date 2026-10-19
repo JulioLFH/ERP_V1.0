@@ -19,6 +19,7 @@ from ventas.models import Venta
 
 from .forms import CuentaForm, ImportarExtractoForm, MovimientoForm, OperacionForm, TransferenciaForm
 from .models import Cuenta, Movimiento
+from django.utils import timezone
 
 
 # ---------------------------------------------------------------- cuentas
@@ -129,7 +130,7 @@ def movimientos(request):
 @login_required
 def movimiento_nuevo(request):
     from core.sustentos import adjuntar
-    initial = {'fecha': date.today(), 'tipo': request.GET.get('tipo', 'EGRESO'), 'cuenta': request.GET.get('cuenta')}
+    initial = {'fecha': timezone.localdate(), 'tipo': request.GET.get('tipo', 'EGRESO'), 'cuenta': request.GET.get('cuenta')}
     form = MovimientoForm(request.POST or None, request.FILES or None, initial=initial)
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
@@ -242,10 +243,10 @@ def cobrar_pagar(request, modo):
     cheque = Cheque.objects.filter(pk=request.GET.get('cheque'), tipo='RECIBIDO', estado='CARTERA').first() \
         if modo == 'cobranza' and request.GET.get('cheque') else None
 
-    inicial = {'fecha': date.today(), 'es_detraccion': request.GET.get('detraccion') == '1'}
+    inicial = {'fecha': timezone.localdate(), 'es_detraccion': request.GET.get('detraccion') == '1'}
     if cheque:
         inicial.update(medio_pago='CHEQUE', numero_operacion=cheque.numero, cuenta=cheque.cuenta_id,
-                       fecha=max(date.today(), cheque.fecha_pago or date.today()))
+                       fecha=max(timezone.localdate(), cheque.fecha_pago or timezone.localdate()))
     form = OperacionForm(request.POST or None, request.FILES or None, initial=inicial)
     if request.method == 'POST' and form.is_valid():
         data = form.cleaned_data
@@ -338,7 +339,7 @@ def cobrar_pagar(request, modo):
 # ---------------------------------------------------------------- transferencias
 @login_required
 def transferencia(request):
-    form = TransferenciaForm(request.POST or None, request.FILES or None, initial={'fecha': date.today()})
+    form = TransferenciaForm(request.POST or None, request.FILES or None, initial={'fecha': timezone.localdate()})
     if request.method == 'POST' and form.is_valid():
         d = form.cleaned_data
         glosa = d['glosa'] or f'Transferencia {d["origen"].nombre} → {d["destino"].nombre}'
@@ -366,7 +367,7 @@ def transferencia(request):
 def conciliacion(request):
     cuentas_qs = Cuenta.objects.filter(activo=True)
     cuenta = cuentas_qs.filter(pk=request.GET.get('cuenta') or request.POST.get('cuenta')).first() or cuentas_qs.filter(tipo='BANCO').first()
-    hasta = request.GET.get('hasta') or request.POST.get('hasta') or date.today().isoformat()
+    hasta = request.GET.get('hasta') or request.POST.get('hasta') or timezone.localdate().isoformat()
     saldo_banco = request.GET.get('saldo_banco') or request.POST.get('saldo_banco') or ''
 
     if request.method == 'POST' and cuenta:
@@ -403,8 +404,8 @@ def conciliacion(request):
 def importar_extracto(request):
     if request.GET.get('plantilla'):
         return excel_response('Plantilla_extracto', 'plantilla', ['fecha', 'descripcion', 'monto', 'operacion'],
-                              [[date.today().strftime('%d/%m/%Y'), 'ABONO CLIENTE X', 1500, '000123'],
-                               [date.today().strftime('%d/%m/%Y'), 'COMISION MANTENIMIENTO', -12.5, '']])
+                              [[timezone.localdate().strftime('%d/%m/%Y'), 'ABONO CLIENTE X', 1500, '000123'],
+                               [timezone.localdate().strftime('%d/%m/%Y'), 'COMISION MANTENIMIENTO', -12.5, '']])
     form = ImportarExtractoForm(request.POST or None, request.FILES or None)
     resultado = None
     if request.method == 'POST' and form.is_valid():

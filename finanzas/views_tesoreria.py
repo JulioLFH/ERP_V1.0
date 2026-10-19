@@ -17,6 +17,7 @@ from ventas.models import Venta
 from . import operaciones as op
 from .forms import ChequeForm, EntregaForm, GastoRendicionForm
 from .models import (Aplicacion, CanjeLetras, Cheque, Cuenta, EntregaRendir, Letra, Movimiento, PagoMasivo)
+from django.utils import timezone
 
 
 def _monto(valor):
@@ -32,7 +33,7 @@ def _monto(valor):
 
 def _fecha(valor, defecto=None):
     try:
-        return a_fecha(valor) if valor else (defecto or date.today())
+        return a_fecha(valor) if valor else (defecto or timezone.localdate())
     except Exception:
         raise op.ErrorTesoreria(f'Fecha inválida: {valor}')
 
@@ -88,7 +89,7 @@ def anticipo_aplicar(request, pk):
         except op.ErrorTesoreria as exc:
             messages.error(request, str(exc))
     return render(request, 'finanzas/anticipo_aplicar.html', {
-        'anticipo': anticipo, 'docs': docs, 'es_cliente': es_cliente, 'hoy': date.today()})
+        'anticipo': anticipo, 'docs': docs, 'es_cliente': es_cliente, 'hoy': timezone.localdate()})
 
 
 @login_required
@@ -115,7 +116,7 @@ def _filtrar_letras(request):
     elif estado:
         qs = qs.filter(estado=estado)
     if f.get('vencidas'):
-        qs = qs.filter(fecha_vencimiento__lt=date.today())
+        qs = qs.filter(fecha_vencimiento__lt=timezone.localdate())
     if f.get('q'):
         qs = qs.filter(Q(numero__icontains=f['q']) | Q(tercero__nombre__icontains=f['q']) |
                        Q(tercero__numero_doc=f['q']) | Q(codigo_banco__icontains=f['q']))
@@ -138,7 +139,7 @@ def letras(request):
         resumen[(l.get_tipo_display(), l.moneda)] = r + l.saldo
     return render(request, 'finanzas/letras.html', {
         'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'estado': estado,
-        'estados': Letra.ESTADOS, 'resumen': sorted(resumen.items()), 'hoy': date.today()})
+        'estados': Letra.ESTADOS, 'resumen': sorted(resumen.items()), 'hoy': timezone.localdate()})
 
 
 @login_required
@@ -166,7 +167,7 @@ def canje_nuevo(request):
         except op.ErrorTesoreria as exc:
             messages.error(request, str(exc))
     return render(request, 'finanzas/canje_nuevo.html', {
-        'tipo': tipo, 'moneda': moneda, 'tercero': tercero, 'docs': docs, 'hoy': date.today(),
+        'tipo': tipo, 'moneda': moneda, 'tercero': tercero, 'docs': docs, 'hoy': timezone.localdate(),
         'fuente': 'clientes' if tipo == 'COBRAR' else 'proveedores'})
 
 
@@ -208,7 +209,7 @@ def letra(request, pk):
         return redirect('finanzas:letra', pk)
     return render(request, 'finanzas/letra.html', {
         'l': l, 'movimientos': l.movimientos.select_related('cuenta'), 'renovaciones': l.renovaciones.all(),
-        'bancos': Cuenta.objects.filter(activo=True, tipo='BANCO'), 'hoy': date.today(),
+        'bancos': Cuenta.objects.filter(activo=True, tipo='BANCO'), 'hoy': timezone.localdate(),
         'estados_manuales': [(e, n) for e, n in Letra.ESTADOS if e in op.ESTADOS_MANUALES]})
 
 
@@ -231,7 +232,7 @@ def cheques(request):
         return excel_response('Cheques', 'Cheques emitidos y recibidos',
                               ['Tipo', 'N°', 'Banco', 'Beneficiario / girador', 'Emisión', 'Pago diferido', 'Moneda',
                                'Monto', 'Estado', 'Fecha estado'], filas)
-    form = ChequeForm(request.POST or None, initial={'fecha_emision': date.today()})
+    form = ChequeForm(request.POST or None, initial={'fecha_emision': timezone.localdate()})
     if request.method == 'POST' and form.is_valid():
         ch = form.save(commit=False)
         ch.tipo, ch.creado_por = 'RECIBIDO', request.user
@@ -241,7 +242,7 @@ def cheques(request):
     totales = qs.values('tipo', 'moneda').annotate(t=Sum('monto')).order_by('tipo', 'moneda')
     return render(request, 'finanzas/cheques.html', {
         'page_obj': Paginator(qs, 50).get_page(f.get('page')), 'form': form, 'estado': estado,
-        'estados': Cheque.ESTADOS, 'totales': totales, 'hoy': date.today()})
+        'estados': Cheque.ESTADOS, 'totales': totales, 'hoy': timezone.localdate()})
 
 
 @login_required
@@ -274,7 +275,7 @@ def entregas(request):
 
 @login_required
 def entrega_nueva(request):
-    form = EntregaForm(request.POST or None, initial={'fecha': date.today(), 'tipo': request.GET.get('tipo', 'ENTREGA')})
+    form = EntregaForm(request.POST or None, initial={'fecha': timezone.localdate(), 'tipo': request.GET.get('tipo', 'ENTREGA')})
     if request.method == 'POST' and form.is_valid():
         d = form.cleaned_data
         try:
@@ -292,7 +293,7 @@ def entrega_nueva(request):
 def entrega(request, pk):
     e = get_object_or_404(EntregaRendir.objects.select_related('responsable', 'centro_costo'), pk=pk)
     gasto_form = GastoRendicionForm(request.POST if request.POST.get('accion') == 'gasto' else None,
-                                    request.FILES or None, initial={'fecha': date.today(),
+                                    request.FILES or None, initial={'fecha': timezone.localdate(),
                                                                     'centro_costo': e.centro_costo_id},
                                     prefix='g')
     if request.method == 'POST':
@@ -338,7 +339,7 @@ def entrega(request, pk):
         'e': e, 'gasto_form': gasto_form, 'gastos': e.gastos.select_related('cuenta_contable', 'centro_costo'),
         'aplicaciones': e.aplicaciones.select_related('compra__tercero'),
         'movimientos': e.movimientos.select_related('cuenta'),
-        'cuentas': Cuenta.objects.filter(activo=True, moneda=e.moneda), 'hoy': date.today()})
+        'cuentas': Cuenta.objects.filter(activo=True, moneda=e.moneda), 'hoy': timezone.localdate()})
 
 
 # ---------------------------------------------------------------- pagos masivos
@@ -353,7 +354,7 @@ def pagos_masivos(request):
 def pago_masivo_nuevo(request):
     bancos = Cuenta.objects.filter(activo=True, tipo='BANCO', es_detracciones=False)
     cuenta = bancos.filter(pk=request.GET.get('cuenta')).first() or bancos.first()
-    hasta = request.GET.get('hasta') or date.today().isoformat()
+    hasta = request.GET.get('hasta') or timezone.localdate().isoformat()
     docs = []
     if cuenta:
         filtro = {'moneda': cuenta.moneda, 'fecha_vencimiento__lte': hasta}
@@ -373,7 +374,7 @@ def pago_masivo_nuevo(request):
     for d in docs:
         d.abono = op.datos_banco(d.tercero, cuenta)
     return render(request, 'finanzas/pago_masivo_nuevo.html', {
-        'bancos': bancos, 'cuenta': cuenta, 'hasta': hasta, 'docs': docs, 'hoy': date.today(),
+        'bancos': bancos, 'cuenta': cuenta, 'hasta': hasta, 'docs': docs, 'hoy': timezone.localdate(),
         'proveedor': Tercero.objects.filter(pk=request.GET.get('proveedor')).first()
         if request.GET.get('proveedor') else None})
 

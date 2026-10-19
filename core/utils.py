@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
+from django.utils import timezone
 
 
 def excel_response(nombre, titulo, encabezados, filas):
@@ -68,7 +69,7 @@ def periodo_actual(request, qs=None):
     """Periodo pedido; si no hay, el actual; y si el actual está vacío, el último con registros."""
     if request.GET.get('periodo'):
         return request.GET['periodo']
-    actual = date.today().strftime('%Y%m')
+    actual = timezone.localdate().strftime('%Y%m')
     if qs is not None and not qs.filter(periodo=actual).exists():
         ultimo = qs.exclude(periodo='').order_by('-periodo').values_list('periodo', flat=True).first()
         if ultimo:
@@ -86,7 +87,7 @@ def rango_por_defecto(request, qs=None, campo='fecha'):
     registros, el mes del último registro."""
     if request.GET.get('desde') and request.GET.get('hasta'):
         return request.GET['desde'], request.GET['hasta']
-    hoy = date.today()
+    hoy = timezone.localdate()
     desde, hasta = hoy.replace(day=1), _fin_de_mes(hoy)
     if qs is not None and not qs.filter(**{f'{campo}__range': [desde, hasta]}).exists():
         ultima = qs.order_by(f'-{campo}').values_list(campo, flat=True).first()

@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.db import models
+from django.utils import timezone
 
 D0 = Decimal('0')
 
@@ -167,7 +168,7 @@ class Trabajador(models.Model):
 
     @property
     def activo(self):
-        return self.fecha_cese is None or self.fecha_cese >= date.today()
+        return self.fecha_cese is None or self.fecha_cese >= timezone.localdate()
 
     # gratificaciones, CTS y vacaciones devengadas por mes, en fracción de la remuneración, según el régimen
     BENEFICIOS = {'GENERAL': (Decimal(2) / 12, (1 + Decimal(1) / 6) / 12, Decimal(1) / 12),
@@ -179,7 +180,7 @@ class Trabajador(models.Model):
         gratificaciones con su bonificación + CTS + vacaciones devengadas, entre las horas del mes (30 × jornada).
         Es el costo con que se valorizan las horas hombre de producción; al cierre, la liquidación del costo real
         lo ajusta a lo que costó la planilla."""
-        fecha = fecha or date.today()
+        fecha = fecha or timezone.localdate()
         try:
             p = Parametro.del_anio(fecha.year)
             essalud, bonif, jornada = p.essalud_pct / 100, p.bonificacion_extraordinaria_pct / 100, p.horas_jornada
@@ -319,8 +320,8 @@ class Turno(models.Model):
     def horas_jornada(self):
         """Horas efectivas del turno (sin refrigerio)."""
         from datetime import datetime, timedelta
-        inicio = datetime.combine(date.today(), self.hora_entrada)
-        fin = datetime.combine(date.today(), self.hora_salida)
+        inicio = datetime.combine(timezone.localdate(), self.hora_entrada)
+        fin = datetime.combine(timezone.localdate(), self.hora_salida)
         if fin <= inicio:
             fin += timedelta(days=1)
         return Decimal((fin - inicio).seconds - self.refrigerio_min * 60) / 3600

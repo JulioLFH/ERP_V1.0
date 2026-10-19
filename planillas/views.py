@@ -12,6 +12,7 @@ from . import calculo, servicios
 from .forms import (AFPFormSet, ConceptosFormSet, FilasFormSet, LiquidacionFormSet, PagoForm, ParametrosFormSet,
                     PlanillaForm, TrabajadorForm, VacacionForm)
 from .models import ConceptoPlanilla, FilaPlanilla, Planilla, Trabajador, Vacacion
+from django.utils import timezone
 
 
 # ---------------------------------------------------------------- trabajadores
@@ -20,7 +21,7 @@ def trabajadores(request):
     from datetime import date
     qs = Trabajador.objects.select_related('afp', 'centro_costo')
     estado = request.GET.get('estado', 'activos')
-    hoy = date.today()
+    hoy = timezone.localdate()
     if estado == 'activos':
         qs = qs.filter(Q(fecha_cese__isnull=True) | Q(fecha_cese__gte=hoy))
     elif estado == 'cesados':
@@ -220,7 +221,7 @@ def aportes_afp(request, periodo):
 def vacaciones(request):
     """Récord vacacional de cada trabajador activo y registro de goces / ventas."""
     from datetime import date
-    form = VacacionForm(request.POST or None, initial={'fecha_inicio': date.today(), 'fecha_fin': date.today()})
+    form = VacacionForm(request.POST or None, initial={'fecha_inicio': timezone.localdate(), 'fecha_fin': timezone.localdate()})
     if request.method == 'POST':
         if request.POST.get('eliminar'):
             v = get_object_or_404(Vacacion, pk=request.POST['eliminar'])
@@ -237,7 +238,7 @@ def vacaciones(request):
                                       f'del mes al "Actualizar trabajadores" (o ingrese los días en la fila).')
             return redirect(request.get_full_path())
     q = request.GET.get('q', '').strip()
-    hoy = date.today()
+    hoy = timezone.localdate()
     qs = Trabajador.objects.filter(Q(fecha_cese__isnull=True) | Q(fecha_cese__gte=hoy)).exclude(
         fecha_ingreso__isnull=True).prefetch_related('vacaciones')
     if q:
@@ -268,7 +269,7 @@ def costo_centros(request):
     """Costo de la planilla (ingresos + aportes del empleador) por centro de costo y mes."""
     from collections import defaultdict
     from datetime import date
-    anio = int(request.GET.get('anio') or date.today().year)
+    anio = int(request.GET.get('anio') or timezone.localdate().year)
     filas = (FilaPlanilla.objects.filter(planilla__periodo__startswith=str(anio),
                                          planilla__estado__in=('CALCULADA', 'CERRADA', 'PAGADA'))
              .select_related('trabajador__centro_costo', 'planilla'))

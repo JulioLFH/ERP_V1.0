@@ -350,7 +350,7 @@ def _venta_desde_json(datos):
     """Convierte el JSON de la API en los datos del formulario de venta (mismas validaciones que la pantalla)."""
     from datetime import date
     items = datos.get('items') or []
-    form = {'tipo_comprobante': '01', 'serie': '', 'numero': '', 'fecha_emision': date.today().isoformat(),
+    form = {'tipo_comprobante': '01', 'serie': '', 'numero': '', 'fecha_emision': timezone.localdate().isoformat(),
             'forma_pago': 'CONTADO', 'moneda': 'PEN', 'tipo_cambio': '1', 'tipo_operacion': 'GRAVADA',
             'detraccion_pct': '0', 'retencion_pct': '0', 'percepcion_pct': '0', 'icbper': '0',
             'detraccion_codigo': '', 'descontar_stock': 'on', 'glosa': ''}

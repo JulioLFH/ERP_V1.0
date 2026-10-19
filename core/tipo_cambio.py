@@ -15,6 +15,7 @@ from decimal import Decimal
 from django.core.cache import cache
 
 from .models import Empresa, TipoCambio
+from django.utils import timezone
 
 log = logging.getLogger(__name__)
 API_URL = 'https://api.apis.net.pe/v1/tipo-cambio-sunat?fecha={fecha}'
@@ -76,7 +77,7 @@ def consultar_sunat(fecha):
 
 def obtener(fecha=None, consultar=True):
     """TipoCambio de la fecha (consultando SUNAT si falta) o el último anterior registrado. Puede ser None."""
-    fecha = min(fecha or date.today(), date.today())  # no existe tipo de cambio de fechas futuras
+    fecha = min(fecha or timezone.localdate(), timezone.localdate())  # no existe tipo de cambio de fechas futuras
     tc = TipoCambio.objects.filter(fecha=fecha).first()
     if tc:
         return tc

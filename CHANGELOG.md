@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.33.1 — 19/10/2026 · Fecha de Lima en todo el sistema
+- **Corrección importante para el servidor**: el sistema tomaba "hoy" de la hora del sistema operativo. En un servidor en hora UTC (lo habitual en un VPS), entre las 7 p. m. y la medianoche de Lima usaba la fecha del día siguiente: comprobantes, movimientos, planillas y reportes con fecha futura (SUNAT rechaza comprobantes con fecha futura). Ahora todo usa la fecha de Lima según la configuración del ERP (124 lugares en 63 archivos). Lo detectaron las pruebas automáticas de GitHub, que corren en hora UTC.
+- Si una prueba falla en GitHub, el resumen de la ejecución muestra cuál y por qué. Acciones de GitHub actualizadas.
+- **`iniciar.bat` arranca con PostgreSQL**, la base de trabajo (antes seguía abriendo la base SQLite anterior, que quedó sin las últimas migraciones y hacía fallar todas las pantallas). Avisa si el servicio de PostgreSQL no está iniciado. `iniciar.bat sqlite` abre la base anterior solo para consultar.
+
 ## v1.33.0 — 19/10/2026 · Monitoreo, velocidad y control
 - **Incidencias y errores** (Ajustes): cada error del sistema se registra solo, agrupado si se repite, con el detalle técnico, y se avisa por correo a los administradores (máximo una vez por hora por error); si un error resuelto vuelve a ocurrir, se reabre.
 - **Reportar un problema** en el menú de cada usuario: queda registrado con la página en la que estaba y llega al administrador.

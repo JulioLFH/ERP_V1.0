@@ -21,9 +21,10 @@ from inventario.models import Operacion, TipoOperacion
 
 from . import servicios
 from .models import AccesoProveedor, FacturaProveedor
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 TC = (D('3.441'), D('3.450'))
 
 

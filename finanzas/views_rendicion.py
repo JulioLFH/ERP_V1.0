@@ -71,7 +71,7 @@ def lista(request):
 def nueva(request):
     entregas = rd.entregas_para_rendir(request.user)
     form = RendicionForm(request.POST or None, entregas=entregas,
-                         initial={'fecha': date.today(), 'entrega': request.GET.get('entrega')})
+                         initial={'fecha': timezone.localdate(), 'entrega': request.GET.get('entrega')})
     if not entregas.exists():
         messages.warning(request, 'No tiene entregas a rendir ni cajas chicas abiertas a su nombre. Pida a tesorería '
                                   'la entrega y al administrador que lo vincule como trabajador (Ajustes › Usuarios).')
@@ -122,7 +122,7 @@ def detalle(request, pk):
     if request.GET.get('editar') and r.editable:
         editar = get_object_or_404(r.lineas, pk=request.GET['editar'])
     form = LineaGastoForm(instance=editar, prefix='g', initial=None if editar else {
-        'fecha': date.today(), 'moneda': r.entrega.moneda, 'centro_costo': r.entrega.centro_costo_id})
+        'fecha': timezone.localdate(), 'moneda': r.entrega.moneda, 'centro_costo': r.entrega.centro_costo_id})
     if request.method == 'POST':
         accion = request.POST.get('accion')
         try:
@@ -224,7 +224,7 @@ def detalle(request, pk):
         'puede_pagar': r.estado == 'CONTABILIZADA' and puede(request.user, 'rendiciones.tesoreria'),
         'en_tramite': en_tramite, 'por_rendir': entrega.saldo - en_tramite, 'por_reembolsar': -entrega.saldo,
         'historial': r.historial.select_related('usuario'),
-        'cuentas': Cuenta.objects.filter(activo=True, moneda=entrega.moneda), 'hoy': date.today(),
+        'cuentas': Cuenta.objects.filter(activo=True, moneda=entrega.moneda), 'hoy': timezone.localdate(),
         'ct_linea': _ct(LineaGasto), 'hay_movilidad': any(l.tipo_comprobante == 'PM' for l in lineas),
         'motivos': MotivoObservacion.objects.filter(activo=True),
         'plantillas': PlantillaDistribucion.objects.filter(activo=True),
@@ -301,7 +301,7 @@ def pagos(request):
                                p['r'].entrega.responsable.cuenta_bancaria, p['r'].entrega.responsable.cci,
                                p['r'].entrega.moneda, max(-p['saldo'], 0), max(p['saldo'], 0)] for p in pendientes])
     return render(request, 'finanzas/rendicion_pagos.html', {
-        'pendientes': pendientes, 'cuentas': Cuenta.objects.filter(activo=True), 'hoy': date.today()})
+        'pendientes': pendientes, 'cuentas': Cuenta.objects.filter(activo=True), 'hoy': timezone.localdate()})
 
 
 @login_required
@@ -326,7 +326,7 @@ def cajas(request):
         filas.append({'c': c, 'aprobadas': len(aprobadas), 'por_aprobar': sum(r.total for r in aprobadas),
                       'en_tramite': c.rendiciones.filter(estado__in=Rendicion.POR_APROBAR).count()})
     return render(request, 'finanzas/rendicion_cajas.html', {
-        'filas': filas, 'cuentas': Cuenta.objects.filter(activo=True), 'hoy': date.today()})
+        'filas': filas, 'cuentas': Cuenta.objects.filter(activo=True), 'hoy': timezone.localdate()})
 
 
 # ---------------------------------------------------------------- reportes
@@ -409,7 +409,7 @@ def config_editar(request, tipo, pk=None):
             # el cambio de imputación queda con su vigencia (los gastos anteriores conservan su cuenta)
             nuevo.cuenta_contable = cuenta_antes
             nuevo.save()
-            rd.cambiar_cuenta_categoria(nuevo, cuenta_nueva, form.cleaned_data.get('vigente_desde') or date.today(),
+            rd.cambiar_cuenta_categoria(nuevo, cuenta_nueva, form.cleaned_data.get('vigente_desde') or timezone.localdate(),
                                         request.user, form.cleaned_data.get('motivo_cambio') or '')
             messages.info(request, 'Cambio de cuenta registrado con su vigencia; se avisó a contabilidad.')
         else:

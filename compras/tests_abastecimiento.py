@@ -13,9 +13,10 @@ from core.models import Producto, Tercero
 
 from . import abastecimiento as ab
 from .models import ContratoMarco, Licitacion, OrdenCompra, OrdenCompraItem
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 class AbastecimientoTest(TestCase):

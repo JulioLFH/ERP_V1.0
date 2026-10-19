@@ -21,9 +21,10 @@ from ventas.models import Venta
 
 from . import servicios
 from .models import Operacion, TipoOperacion
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 def acta():

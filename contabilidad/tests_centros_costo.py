@@ -16,9 +16,10 @@ from .centralizar import centralizar_periodo
 from .forms import AsientoLineaForm
 from .models import Asiento, AsientoLinea, CentroCosto, CuentaContable
 from .pcge import admite_centro, exige_centro
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 PERIODO = HOY.strftime('%Y%m')
 
 

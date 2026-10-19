@@ -18,9 +18,10 @@ from ventas.models import Venta
 from . import servicios
 from .costos import rentabilidad
 from .models import CentroTrabajo, HojaRuta, ListaMateriales, OrdenProduccion, VersionFabricacion
+from django.utils import timezone
 
 D = Decimal
-HOY = date.today()
+HOY = timezone.localdate()
 
 
 class ManufacturaTest(TestCase):
