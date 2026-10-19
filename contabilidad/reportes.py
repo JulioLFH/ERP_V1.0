@@ -6,6 +6,7 @@ from django.db.models import Sum
 
 from core.models import r2
 
+from . import pcge
 from .models import AsientoLinea, CuentaContable
 
 D0 = Decimal('0')
@@ -92,10 +93,11 @@ def estado_resultados(desde, hasta, sumas=None):
     producción (9x salvo 94, 95 y 97) y resta la producción almacenada (71/72): así el resultado siempre es igual al
     de la naturaleza (resultado_ejercicio)."""
     s = sumas_por_cuenta(desde, hasta) if sumas is None else sumas
+    f = pcge.funciones()  # PCGE 2026: 912 administración, 913 ventas, 92-93 inversión y financiamiento
     ventas = -_neto(s, ('70', '74'))
     produccion = -_neto(s, ('71', '72'))
-    gasto_produccion = _neto(s, ('9',), excluir=('94', '95', '97'))
-    adm, vtas, fin = _neto(s, ('94',)), _neto(s, ('95',)), _neto(s, ('97',))
+    gasto_produccion = _neto(s, ('9',), excluir=f['administracion'] + f['ventas'] + f['financieros'])
+    adm, vtas, fin = _neto(s, f['administracion']), _neto(s, f['ventas']), _neto(s, f['financieros'])
     gastos_nat = _neto(s, ('62', '63', '64', '65', '66', '67', '68'))
     sin_destino = gastos_nat - (adm + vtas + fin + gasto_produccion)
     costo = _neto(s, ('69',)) + _neto(s, ('60', '61')) + gasto_produccion - produccion
@@ -173,14 +175,16 @@ def _cuentas_de_linea(vista, s):
                 'Otros ingresos de gestión': de(('73', '74', '75', '76', '78')),
                 'Ingresos financieros': de(('77',)), 'Gastos financieros': de(('67',)),
                 'Impuesto a la renta': de(('88',))}
+    f = pcge.funciones()
+    adm, vtas, fin = f['administracion'], f['ventas'], f['financieros']
     sin_destino = de(('62', '63', '64', '65', '66', '67', '68')) + de(('9',), signo=-1)
-    costo = de(('69', '60', '61', '71', '72')) + de(('9',), excluir=('94', '95', '97'))
+    costo = de(('69', '60', '61', '71', '72')) + de(('9',), excluir=adm + vtas + fin)
     gastos_nat = _neto(s, ('62', '63', '64', '65', '66', '67', '68'))
-    destinos = _neto(s, ('9',), excluir=('94', '95', '97')) + _neto(s, ('94',)) + _neto(s, ('95',)) + _neto(s, ('97',))
+    destinos = _neto(s, ('9',), excluir=adm + vtas + fin) + _neto(s, adm) + _neto(s, vtas) + _neto(s, fin)
     detalle = {'Ventas netas': de(('70', '74')), 'Costo de ventas': costo,
-               'Gastos de administración': de(('94',)), 'Gastos de ventas': de(('95',)),
+               'Gastos de administración': de(adm), 'Gastos de ventas': de(vtas),
                'Otros ingresos de gestión': de(('73', '75', '76', '78')), 'Ingresos financieros': de(('77',)),
-               'Gastos financieros': de(('97',)), 'Impuesto a la renta': de(('88',))}
+               'Gastos financieros': de(fin), 'Impuesto a la renta': de(('88',))}
     if gastos_nat - destinos < 0:  # destinos mayores que los gastos: la diferencia va dentro del costo
         detalle['Costo de ventas'] = costo + sin_destino
     else:
@@ -364,6 +368,7 @@ def sumas_presupuesto(desde, hasta):
     from .centralizar import _destino_por_centro
     from .models import Presupuesto
     sumas, cache = {}, {}
+    plan = pcge.plan()
 
     def sumar(codigo, d, h):
         ad, ah = sumas.get(codigo, (D0, D0))
@@ -386,7 +391,7 @@ def sumas_presupuesto(desde, hasta):
             if codigo.startswith(('62', '63', '64', '65', '66', '67', '68')):
                 debe, haber = _destinos(l.cuenta, cache)
                 if debe is not None:
-                    sumar(_destino_por_centro(debe, l.centro_costo).codigo, importe, D0)
+                    sumar(_destino_por_centro(debe, l.centro_costo, plan).codigo, importe, D0)
                     sumar(haber.codigo, D0, importe)
     return sumas
 

@@ -30,8 +30,9 @@ def crear(imp):
 
 
 def _cuenta_vinculados():
+    from contabilidad import pcge
     from contabilidad.models import CuentaContable
-    return CuentaContable.objects.filter(codigo='6091').first()
+    return CuentaContable.objects.filter(codigo=pcge.codigo('6091')).first()
 
 
 @transaction.atomic

@@ -595,7 +595,8 @@ def plan_cuentas(request):
         periodo = timezone.localdate().strftime('%Y%m')
         lineas = [f'{periodo}00|{c.codigo}|{c.nombre}|01|PLAN CONTABLE GENERAL EMPRESARIAL|||1|' for c in qs]
         return txt_response(f'LE{empresa.ruc}{periodo}00050300001111.txt', lineas)
-    return render(request, 'contabilidad/plan.html', {'cuentas': qs, 'q': q, 'clase': request.GET.get('clase', '')})
+    return render(request, 'contabilidad/plan.html', {'cuentas': qs, 'q': q, 'clase': request.GET.get('clase', ''),
+                                                      'plan_contable': Empresa.actual().get_plan_contable_display()})
 
 
 class CuentaNueva(FormGenerico, CreateView):

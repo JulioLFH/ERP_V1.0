@@ -101,6 +101,10 @@ class Empresa(models.Model):
         'Contabilidad del sistema anterior hasta', null=True, blank=True, editable=False,
         help_text='Hasta esta fecha los libros son los asientos importados del sistema anterior; el ERP contabiliza '
                   'desde el día siguiente')
+    # ---- plan de cuentas: se cambia solo con «manage.py adoptar_pcge2026» (rehace cuentas y referencias)
+    PLANES_CONTABLES = [('PCGE2019', 'PCGE modificado 2019'), ('PCGE2026', 'PCGE 2026')]
+    plan_contable = models.CharField('Plan contable', max_length=8, choices=PLANES_CONTABLES, default='PCGE2019',
+                                     editable=False)
     # ---- control interno
     segregacion_estricta = models.BooleanField(
         'Segregación de funciones estricta', default=False,
@@ -187,7 +191,8 @@ CLASES_PRODUCTO = [
 ]
 PREFIJOS_PRODUCTO = {'MERCADERIA': 'ME', 'MATERIA_PRIMA': 'MP', 'SEMIELABORADO': 'SE', 'PRODUCTO_TERMINADO': 'PT',
                      'SUMINISTRO': 'SU', 'ACTIVO': 'AF', 'SERVICIO': 'SV'}
-# Juego de cuentas por defecto (PCGE): existencias, compra, venta, costo de ventas / consumo
+# Juego de cuentas por defecto (PCGE 2019; en el PCGE 2026 se traducen con pcge.codigo): existencias, compra, venta,
+# costo de ventas / consumo
 CUENTAS_PRODUCTO = {
     'MERCADERIA': ('20111', '6011', '70111', '69111'),
     'MATERIA_PRIMA': ('2411', '6021', '70111', '69111'),
@@ -206,10 +211,12 @@ def tipo_de_clase(clase):
 
 def asignar_cuentas(producto, CuentaContable):
     """Completa las cuentas vacías del producto con el juego por defecto de su tipo (acepta modelo histórico)."""
+    from contabilidad import pcge
     codigos = CUENTAS_PRODUCTO.get(producto.clase, CUENTAS_PRODUCTO['MERCADERIA'])
+    plan = pcge.plan(CuentaContable.objects.db)
     for campo, codigo in zip(CAMPOS_CUENTA, codigos):
         if codigo and not getattr(producto, f'{campo}_id'):
-            setattr(producto, campo, CuentaContable.objects.filter(codigo=codigo).first())
+            setattr(producto, campo, CuentaContable.objects.filter(codigo=pcge.codigo(codigo, plan)).first())
 
 
 class Producto(models.Model):
@@ -981,6 +988,9 @@ class ItemBase(models.Model):
 
     class Meta:
         abstract = True
+        # las líneas salen en el orden en que se registraron (comprobante, PDF, envío a SUNAT): PostgreSQL no lo
+        # garantiza sin un orden explícito
+        ordering = ['id']
 
     def save(self, *args, **kwargs):
         self.subtotal = r2(self.cantidad * self.precio_neto)

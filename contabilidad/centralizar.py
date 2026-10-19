@@ -26,6 +26,7 @@ from core.models import Kardex, r2
 from finanzas.models import Cuenta, Movimiento
 from ventas.models import Venta
 
+from . import pcge
 from .models import ORIGENES_FIJOS, Asiento, AsientoLinea, CuentaDefecto, PeriodoContable
 from .pcge import admite_centro
 
@@ -83,12 +84,13 @@ class Borrador:
 
     def agregar_destinos(self):
         destinos = []
+        plan = pcge.plan() if any(l.centro_costo for l in self.lineas) else None
         for l in self.lineas:
             c = l.cuenta
             if c.destino_debe_id and c.destino_haber_id:
                 neto = l.debe - l.haber
                 if neto:
-                    destino = _destino_por_centro(c.destino_debe, l.centro_costo)
+                    destino = _destino_por_centro(c.destino_debe, l.centro_costo, plan)
                     destinos.append(AsientoLinea(cuenta=destino, debe=max(neto, D0), haber=max(-neto, D0),
                                                  glosa=f'Destino {c.codigo}', centro_costo=l.centro_costo,
                                                  centro_beneficio=l.centro_beneficio, es_destino=True))
@@ -113,18 +115,23 @@ class Borrador:
 _DESTINOS = {}
 
 
-def _destino_por_centro(destino, centro):
+def _destino_por_centro(destino, centro, plan):
     """Gastos de un centro de producción van al costo de producción (90), de ventas a la 95 y de administración a
-    la 94, en vez del destino general de la cuenta (gastos financieros 97 se respetan)."""
-    if centro is None or not destino.codigo.startswith(('94', '95')):
+    la 94, en vez del destino general de la cuenta (gastos financieros 97 se respetan). PCGE 2026: 911, 913 y 912."""
+    if centro is None:
         return destino
-    codigo = centro.DESTINO.get(centro.tipo)
-    if not codigo or destino.codigo.startswith(codigo[:2]):
+    f = pcge.funciones(plan)
+    if not destino.codigo.startswith(f['administracion'] + f['ventas']):
         return destino
-    if codigo not in _DESTINOS:
+    codigo = pcge.codigo(centro.DESTINO.get(centro.tipo), plan)
+    if not codigo or destino.codigo.startswith(codigo[:2] if plan == pcge.PCGE2019 else codigo):
+        return destino
+    from erp.empresas import actual
+    clave = (actual(), codigo)
+    if clave not in _DESTINOS:
         from .models import CuentaContable
-        _DESTINOS[codigo] = CuentaContable.objects.filter(codigo=codigo).first()
-    return _DESTINOS[codigo] or destino
+        _DESTINOS[clave] = CuentaContable.objects.filter(codigo=codigo).first()
+    return _DESTINOS[clave] or destino
 
 
 def _fin_mes(periodo):
@@ -541,7 +548,7 @@ def asiento_inventario(periodo, cta):
     # diferencia de precio factura vs recepción: liquida la 28 contra el inventario (lo que sigue en stock) y el
     # costo de ventas (lo ya vendido o consumido)
     from compras.models import AjustePrecioCompra
-    vinculados = CuentaContable.objects.filter(codigo='6091').select_related('destino_debe').first()
+    vinculados = CuentaContable.objects.filter(codigo=pcge.codigo('6091')).select_related('destino_debe').first()
     for aj in AjustePrecioCompra.objects.filter(fecha__range=[desde, hasta]).select_related('compra', 'importacion'):
         p = productos.get(aj.producto_id)
         doc = f'{aj.compra.tipo_comprobante} {aj.compra.numero_completo}'
@@ -679,7 +686,9 @@ def asiento_vnr(periodo):
     from produccion.models import PruebaVNR
 
     from .models import CuentaContable
-    from .pcge import DESVALORIZACION
+    plan = pcge.plan()
+    DESVALORIZACION = {ex: (pcge.codigo(prov, plan), pcge.codigo(gasto, plan))
+                       for ex, (prov, gasto) in pcge.DESVALORIZACION.items()}
     desde, hasta = _rango(periodo)
     cuentas = {c.codigo: c for c in CuentaContable.objects.filter(codigo__regex=r'^(29|695)')}
     hechos = []

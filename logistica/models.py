@@ -182,3 +182,6 @@ class GuiaItem(models.Model):
     descripcion = models.CharField('Descripción', max_length=250)
     unidad = models.CharField('U.M.', max_length=5, choices=Producto.UNIDADES, default='NIU')
     cantidad = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('1'))
+
+    class Meta:
+        ordering = ['id']  # en el orden en que se registraron (PostgreSQL no lo garantiza sin esto)

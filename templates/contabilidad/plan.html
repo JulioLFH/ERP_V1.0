@@ -2,7 +2,7 @@
 {% block title %}Plan de cuentas{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-  <h1 class="page-title">Plan de cuentas (PCGE)</h1>
+  <h1 class="page-title">Plan de cuentas ({{ plan_contable }})</h1>
   <div class="d-flex gap-2">
     <form method="post">{% csrf_token %}<button name="accion" value="cargar_pcge" class="btn btn-sm btn-outline-secondary" title="Agrega las cuentas del PCGE que falten"><i class="bi bi-cloud-download"></i> Completar PCGE</button></form>
     <a href="?formato=ple" class="btn btn-sm btn-dark"><i class="bi bi-filetype-txt"></i> TXT PLE 5.3</a>

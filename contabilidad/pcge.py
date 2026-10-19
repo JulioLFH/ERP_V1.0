@@ -3,7 +3,12 @@ y cuentas por defecto que usa la centralización automática.
 
 Las cuentas sin subcuentas en esta lista quedan como imputables (aceptan movimientos).
 El usuario puede agregar o editar cuentas desde Contabilidad > Plan de cuentas.
+
+Cada empresa usa el PCGE 2019 (por defecto) o el PCGE 2026 (Empresa.plan_contable, se adopta con
+«manage.py adoptar_pcge2026»). El código usa los códigos del 2019 y los traduce con codigo(); en el 2026
+cambió el contenido de varias cuentas (ej. 7041 ahora es subproductos y los servicios van a la 703).
 """
+PCGE2019, PCGE2026 = 'PCGE2019', 'PCGE2026'
 
 PCGE = [
     ('10', 'EFECTIVO Y EQUIVALENTES DE EFECTIVO'),
@@ -148,12 +153,13 @@ PCGE = [
 ]
 
 # Cuentas de saldo acreedor dentro de clases normalmente deudoras (y viceversa)
-ACREEDORAS = ('19', '29', '39', '122', '4', '5', '7')
+ACREEDORAS = ('19', '29', '39', '122', '4', '5', '7',
+              '36', '279', '132', '605', '606')  # PCGE 2026: deterioro, anticipos recibidos y descuentos obtenidos
 
 # desvalorización de existencias (NIC 2, VNR) según la cuenta de existencias del producto: (provisión 29, gasto 695)
 DESVALORIZACION = {'20': ('2911', '6951'), '21': ('2921', '6952'), '23': ('2941', '6954'), '24': ('2951', '6955'),
                    '25': ('2961', '6956')}
-DEUDORAS_EXCEPCION = ('422', '709')
+DEUDORAS_EXCEPCION = ('422', '709', '432', '706', '502', '512', '592', '5652')
 
 
 # Centro de costo: obligatorio en los gastos que se controlan por área (62 a 65 y 68); se admite en los demás gastos
@@ -171,14 +177,92 @@ def admite_centro(codigo):
     return bool(codigo) and str(codigo).startswith(ADMITEN_CENTRO)
 
 
+# ---------------------------------------------------------------- PCGE 2026
+# cuenta del ERP (PCGE 2019) -> cuenta equivalente del PCGE 2026 (imputable); las que no figuran se mantienen
+MAPA_2026 = {
+    '1011': '101', '1021': '102', '1221': '122', '1231': '1232', '1232': '1234', '1421': '1422', '1821': '182',
+    '2111': '21111', '2311': '23111', '2411': '24111', '2521': '2524', '2811': '281', '2841': '284', '2851': '285',
+    '2911': '29111', '2921': '29211', '2941': '29411', '2951': '29511', '2961': '2962',
+    '3223': '32241', '3224': '32251', '3311': '33111', '3321': '33211', '3331': '33311', '3341': '33411',
+    '3351': '33511', '3361': '33611', '3369': '33691', '3431': '34311', '3913': '39516', '3921': '39613',
+    '4071': '417', '4221': '422', '4231': '423', '4241': '424', '4521': '452', '5821': '582',
+    '6021': '602', '6091': '60919', '6311': '63111', '6511': '651', '6551': '655141', '6561': '656', '6599': '6593',
+    '6731': '67311', '6814': '68316', '6821': '68613', '69111': '69121', '6921': '69221',
+    '70111': '70121', '7021': '70221', '7041': '70321', '7091': '70911', '7563': '75641', '7721': '75961',
+    '7911': '791', '8811': '881', '8911': '891', '8921': '892',
+    '901': '911', '941': '912', '951': '913', '971': '931',
+}
+# divisionarias propias del ERP sobre el PCGE 2026 (el elemento 9 solo trae 91, 92 y 93: la función se define aquí)
+COMPLEMENTO_2026 = [
+    ('6399', 'Otros servicios prestados por terceros'),
+    ('911', 'Costo de producción'), ('912', 'Gastos de administración'), ('913', 'Gastos de ventas'),
+    ('921', 'Gastos de inversión'), ('931', 'Gastos de financiamiento'),
+]
+# activo fijo (prefijo de la cuenta del activo) -> (depreciación / amortización acumulada, gasto) en el PCGE 2026
+DEPRECIACION_2026 = {
+    '332': ('39512', '68312'), '333': ('39513', '68313'), '334': ('39514', '68314'), '335': ('39515', '68315'),
+    '336': ('39516', '68316'), '337': ('39518', '68318'), '341': ('39611', '68611'), '342': ('39612', '68612'),
+    '343': ('39613', '68613'), '344': ('39614', '68614'), '345': ('39615', '68615'), '349': ('39619', '68619'),
+}
+# gastos por función (clase 9): costo de producción, administración, ventas y financieros
+FUNCIONES = {
+    PCGE2019: {'produccion': ('90',), 'administracion': ('94',), 'ventas': ('95',), 'financieros': ('97',)},
+    PCGE2026: {'produccion': ('911',), 'administracion': ('912',), 'ventas': ('913',), 'financieros': ('92', '93')},
+}
+
+_con_columna = set()  # bases que ya tienen core_empresa.plan_contable
+
+
+def plan(alias=None):
+    """Plan contable de la empresa (base de datos); PCGE2019 si aún no se migró la columna."""
+    from django.db import connections
+
+    from erp.empresas import actual
+    alias = alias or actual()
+    con = connections[alias]
+    if alias not in _con_columna:
+        with con.cursor() as c:
+            if 'core_empresa' not in con.introspection.table_names(c) or 'plan_contable' not in {
+                    d.name for d in con.introspection.get_table_description(c, 'core_empresa')}:
+                return PCGE2019
+        _con_columna.add(alias)
+    with con.cursor() as c:
+        c.execute('SELECT plan_contable FROM core_empresa ORDER BY id LIMIT 1')
+        fila = c.fetchone()
+    return fila[0] if fila else PCGE2019
+
+
+def codigo(codigo_2019, plan_contable=None):
+    """Código de la cuenta en el plan de la empresa (los códigos del ERP están escritos en el PCGE 2019)."""
+    if not codigo_2019:
+        return codigo_2019
+    return MAPA_2026.get(codigo_2019, codigo_2019) if (plan_contable or plan()) == PCGE2026 else codigo_2019
+
+
+def funciones(plan_contable=None):
+    return FUNCIONES[plan_contable or plan()]
+
+
 def naturaleza(codigo):
     if codigo.startswith(DEUDORAS_EXCEPCION):
         return 'DEUDORA'
     return 'ACREEDORA' if codigo.startswith(ACREEDORAS) else 'DEUDORA'
 
 
-def destinos(codigo):
+def destinos(codigo, plan_contable=PCGE2019):
     """(destino_debe, destino_haber) para cuentas de gasto por naturaleza."""
+    if plan_contable == PCGE2026:
+        if codigo.startswith(('6011', '6091')):
+            return '281', '6111'
+        if codigo.startswith(('602', '6092')):
+            return '284', '6121'
+        if codigo.startswith(('6032', '6093')):
+            return '285', '6132'
+        if codigo.startswith(('62', '63', '64', '65', '68')):
+            return '912', '791'
+        if codigo.startswith('67'):
+            return '931', '791'
+        return None, None
     if codigo.startswith(('6011', '6091')):
         # la compra queda "por recibir"; el ingreso al almacén (kardex) la pasa a 20111. Los costos vinculados
         # (gastos de importación) también: la liquidación de la importación los lleva al costo de cada producto
@@ -253,22 +337,32 @@ DEFECTOS = [
 ]
 
 
+def catalogo(plan_contable):
+    """[(código, nombre)] del plan: la selección del ERP (2019) o el PCGE 2026 completo con las divisionarias del ERP."""
+    if plan_contable == PCGE2026:
+        from .pcge2026 import CATALOGO
+        return CATALOGO + COMPLEMENTO_2026
+    return PCGE
+
+
 def cargar(CuentaContable, CuentaDefecto):
     """Crea las cuentas que falten y las cuentas por defecto. Acepta modelos reales o históricos."""
-    codigos = [c for c, _ in PCGE]
+    p = plan(CuentaContable.objects.db)
+    lista = catalogo(p)
+    codigos = [c for c, _ in lista]
     existentes = set(CuentaContable.objects.values_list('codigo', flat=True))
-    for codigo, nombre in PCGE:
-        if codigo in existentes:
+    for cod, nombre in lista:
+        if cod in existentes:
             continue
-        hoja = not any(o != codigo and o.startswith(codigo) for o in codigos)
-        CuentaContable.objects.create(codigo=codigo, nombre=nombre, naturaleza=naturaleza(codigo), imputable=hoja)
+        hoja = not any(o != cod and o.startswith(cod) for o in codigos)
+        CuentaContable.objects.create(codigo=cod, nombre=nombre, naturaleza=naturaleza(cod), imputable=hoja)
     por_codigo = {c.codigo: c for c in CuentaContable.objects.all()}
-    for codigo, _ in PCGE:
-        debe, haber = destinos(codigo)
-        cuenta = por_codigo[codigo]
+    for cod, _ in lista:
+        debe, haber = destinos(cod, p)
+        cuenta = por_codigo[cod]
         if debe and cuenta.imputable and not cuenta.destino_debe_id:
             cuenta.destino_debe, cuenta.destino_haber = por_codigo[debe], por_codigo[haber]
             cuenta.save(update_fields=['destino_debe', 'destino_haber'])
-    for clave, descripcion, codigo in DEFECTOS:
+    for clave, descripcion, cod in DEFECTOS:
         CuentaDefecto.objects.get_or_create(clave=clave, defaults={'descripcion': descripcion,
-                                                                   'cuenta': por_codigo[codigo]})
+                                                                   'cuenta': por_codigo[codigo(cod, p)]})

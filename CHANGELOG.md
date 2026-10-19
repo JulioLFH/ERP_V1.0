@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.34.0 — 19/10/2026 · Plan contable PCGE 2026 por empresa
+- **Cada empresa elige su plan contable**: PCGE modificado 2019 (por defecto) o **PCGE 2026**. El catálogo 2026 viene completo (1 634 cuentas a cinco dígitos) con las divisionarias propias del ERP para la clase 9 (911 producción, 912 administración, 913 ventas, 921, 931) y la 6399.
+- El ERP genera los asientos automáticos en el plan de cada empresa: los códigos que cambian de significado en 2026 se traducen solos (ventas de servicios 7041 → 70321, mercaderías 70111 → 70121, caja 1011 → 101, gastos por función 90/94/95/97 → 911/912/913/92-93, depreciación en la 39/68 nuevas, entre otros). Aplica a centralización, cuentas por defecto de productos, reportes, importaciones y destinos de la clase 6.
+- Comando **`adoptar_pcge2026 --empresa <alias> --confirmar`**: cambia una empresa al PCGE 2026; se niega si ya tiene asientos manuales, de apertura o del sistema anterior, o periodos cerrados. La empresa de prueba ya usa el PCGE 2026; la principal sigue en el 2019.
+- El plan de cuentas muestra qué plan usa la empresa, y «Completar PCGE» completa con el catálogo de ese plan.
+- **Corrección**: las líneas de comprobantes (cotizaciones, ventas, órdenes de compra, compras) y de guías de remisión ahora salen siempre en el orden en que se registraron. En PostgreSQL podían salir desordenadas (en el PDF o en el envío a SUNAT). Lo detectaron las pruebas sobre PostgreSQL.
+
 ## v1.33.1 — 19/10/2026 · Fecha de Lima en todo el sistema
 - **Corrección importante para el servidor**: el sistema tomaba "hoy" de la hora del sistema operativo. En un servidor en hora UTC (lo habitual en un VPS), entre las 7 p. m. y la medianoche de Lima usaba la fecha del día siguiente: comprobantes, movimientos, planillas y reportes con fecha futura (SUNAT rechaza comprobantes con fecha futura). Ahora todo usa la fecha de Lima según la configuración del ERP (124 lugares en 63 archivos). Lo detectaron las pruebas automáticas de GitHub, que corren en hora UTC.
 - Si una prueba falla en GitHub, el resumen de la ejecución muestra cuál y por qué. Acciones de GitHub actualizadas.

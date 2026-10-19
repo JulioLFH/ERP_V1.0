@@ -65,7 +65,8 @@ def asegurar_subcuenta(cuenta_fin):
     if cuenta_fin.cuenta_contable_id:
         return cuenta_fin.cuenta_contable
     if cuenta_fin.tipo == 'CAJA':
-        padre = '1011'
+        from .pcge import codigo
+        padre = codigo('1011')  # PCGE 2026: 101
     elif cuenta_fin.es_detracciones:
         padre = '1042'
     else:
