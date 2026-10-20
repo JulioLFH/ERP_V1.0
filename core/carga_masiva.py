@@ -281,6 +281,13 @@ DEFINICIONES = OrderedDict([
             ('imputable', 'Acepta movimientos', False, 'Sí', 'Sí o No. Vacío = Sí'),
             ('destino_debe', 'Destino al debe (código)', False, '941', 'Gastos 62-68: 90, 94, 95 o 97'),
             ('destino_haber', 'Destino al haber (código)', False, '7911', ''),
+            ('columna_balance', 'Columna del balance', False, 'Naturaleza',
+             'Inventario, Naturaleza, Función, Resultado (naturaleza y función) o Saldo. Vacío = según el código'),
+            ('moneda', 'Moneda', False, 'Soles', 'Soles o Dólares. Vacío = Soles'),
+            ('tipo_cambio', 'Tipo de cambio', False, 'Compra', 'Compra o Venta. Vacío = según el código'),
+            ('analisis', 'Análisis por documento', False, 'No', 'Sí o No. Vacío = según el código'),
+            ('centro_costo_regla', 'Centro de costo', False, 'Obligatorio',
+             'No lleva, Opcional u Obligatorio. Vacío = según el código'),
         ]}),
     ('almacenes', {
         'titulo': 'Almacenes', 'icono': 'bi-building', 'modulos': ['inventario'],
@@ -754,11 +761,30 @@ def _fila_cuenta(d, actualizar):
         if c and not CuentaContable.objects.filter(codigo=c).exists() and c not in _CONTEXTO['codigos']:
             raise ErrorFila(f'Cuenta de destino {c} no existe (cárguela antes o en este archivo).')
         destinos[campo] = c
+    from contabilidad import pcge
+    # determinación de la cuenta: vacío = según el código (se completa al grabar)
+    determinacion = {
+        'columna_balance': _elegir(d.get('columna_balance'), _opciones(pcge.COLUMNAS_BALANCE, {
+            'FUNCION': 'FUNCION', 'NATURALEZA Y FUNCION': 'RESULTADO', 'AMBOS': 'RESULTADO', 'BALANCE': 'INVENTARIO'}),
+            'Columna del balance', requerido=False),
+        'moneda': _elegir(d.get('moneda'), _opciones(CuentaContable.MONEDAS, {'S/': 'PEN', 'US$': 'USD'}), 'Moneda',
+                          requerido=False, defecto='PEN'),
+        'tipo_cambio': _elegir(d.get('tipo_cambio'), _opciones(pcge.TIPOS_CAMBIO), 'Tipo de cambio', requerido=False),
+        'centro_costo_regla': _elegir(d.get('centro_costo_regla'), _opciones(pcge.REGLAS_CENTRO, {
+            'NO': 'NO', 'SI': 'OBLIGATORIO', 'EXIGE': 'OBLIGATORIO'}), 'Centro de costo', requerido=False),
+    }
+    if _txt(d.get('analisis')):
+        determinacion['analisis'] = SI_NO.get(normalizar(d.get('analisis')), False)
     existe = CuentaContable.objects.filter(codigo=codigo).exists()
     if existe and not actualizar:
         raise ErrorFila(f'{codigo} ya existe (marque "Actualizar existentes").')
+    # en una actualización, lo que viene vacío no cambia lo configurado
+    determinacion = {k: v for k, v in determinacion.items() if v not in ('', None) or not existe}
+    if existe and not _txt(d.get('moneda')):
+        determinacion.pop('moneda', None)
     return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': codigo,
-            'datos': {'nombre': nombre[:200], 'naturaleza': naturaleza, 'imputable': imputable, **destinos},
+            'datos': {'nombre': nombre[:200], 'naturaleza': naturaleza, 'imputable': imputable, **destinos,
+                      **determinacion},
             'resumen': f'{codigo} · {nombre} · {naturaleza.lower()}' + ('' if imputable else ' · agrupación')}
 
 

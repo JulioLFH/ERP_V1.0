@@ -76,7 +76,8 @@ def asegurar_subcuenta(cuenta_fin):
     while f'{padre}{n}' in usados:
         n += 1
     nombre = f'{cuenta_fin.nombre} ({cuenta_fin.moneda})'[:200]
-    sub = CuentaContable.objects.create(codigo=f'{padre}{n}', nombre=nombre, naturaleza='DEUDORA', imputable=True)
+    sub = CuentaContable.objects.create(codigo=f'{padre}{n}', nombre=nombre, naturaleza='DEUDORA', imputable=True,
+                                        moneda='USD' if cuenta_fin.moneda == 'USD' else 'PEN')
     type(cuenta_fin).objects.filter(pk=cuenta_fin.pk).update(cuenta_contable=sub)
     cuenta_fin.cuenta_contable = sub
     return sub

@@ -84,6 +84,8 @@ def adoptar():
     cuentas = {c.codigo: c for c in CuentaContable.objects.all()}
     nuevas = [CuentaContable(codigo=cod, nombre=nom[:200], naturaleza=pcge.naturaleza(cod))
               for cod, nom in lista if cod not in cuentas]
+    for c in nuevas:  # bulk_create no pasa por save(): columna, tipo de cambio, análisis y centro de costo
+        c.completar_determinacion()
     CuentaContable.objects.bulk_create(nuevas)
     renombradas = 0
     for cod, c in cuentas.items():

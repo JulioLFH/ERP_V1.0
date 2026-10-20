@@ -169,12 +169,77 @@ EXIGEN_CENTRO = ('62', '63', '64', '65', '68')
 ADMITEN_CENTRO = ('61', '62', '63', '64', '65', '66', '67', '68', '9')
 
 
-def exige_centro(codigo):
-    return bool(codigo) and str(codigo).startswith(EXIGEN_CENTRO)
+def _regla_centro(cuenta):
+    """Regla de centro de costo de la cuenta: la configurada en la cuenta o, para un código suelto, la del PCGE."""
+    regla = getattr(cuenta, 'centro_costo_regla', '')
+    return regla or centro_por_defecto(getattr(cuenta, 'codigo', cuenta))
 
 
-def admite_centro(codigo):
-    return bool(codigo) and str(codigo).startswith(ADMITEN_CENTRO)
+def exige_centro(cuenta):
+    """Acepta la cuenta (usa su configuración) o solo el código (regla del PCGE)."""
+    return bool(cuenta) and _regla_centro(cuenta) == 'OBLIGATORIO'
+
+
+def admite_centro(cuenta):
+    return bool(cuenta) and _regla_centro(cuenta) in ('OBLIGATORIO', 'OPCIONAL')
+
+
+# ---------------------------------------------------------------- determinación de la cuenta
+# Valores por defecto de cada cuenta según su código; en la ficha de la cuenta se pueden cambiar.
+NIVELES = {1: 'Cuenta', 2: 'Subcuenta', 3: 'Divisionaria', 4: 'Subdivisionaria'}
+COLUMNAS_BALANCE = [
+    ('INVENTARIO', 'Inventario (balance general)'),
+    ('NATURALEZA', 'Resultados por naturaleza'),
+    ('FUNCION', 'Resultados por función'),
+    ('RESULTADO', 'Resultados por naturaleza y por función'),
+    ('SALDO', 'Solo saldo (no pasa a los estados)'),
+]
+REGLAS_CENTRO = [('NO', 'No lleva'), ('OPCIONAL', 'Opcional'), ('OBLIGATORIO', 'Obligatorio')]
+TIPOS_CAMBIO = [('COMPRA', 'Compra'), ('VENTA', 'Venta')]
+ANALISIS_DOCUMENTO = ('12', '13', '14', '16', '17', '42', '43', '44', '45', '46', '47')
+
+
+def nivel(codigo):
+    """Nivel en el PCGE: 1 cuenta (2 dígitos), 2 subcuenta (3), 3 divisionaria (4), 4 subdivisionaria (5)…"""
+    return max(len(codigo or '') - 1, 1)
+
+
+def nombre_nivel(codigo):
+    n = nivel(codigo)
+    return NIVELES.get(n, f'Auxiliar (nivel {n})')
+
+
+def columna_por_defecto(codigo):
+    """Columna de la hoja de trabajo (balance de comprobación) en la que cae el saldo de la cuenta."""
+    clase = codigo[:1]
+    if clase in '12345':
+        return 'INVENTARIO'
+    if codigo.startswith('79'):  # cargas imputables: se cancelan con la clase 9
+        return 'SALDO'
+    # inventario permanente: la 61 solo refleja compras, por eso el costo de ventas (69) también va por naturaleza;
+    # por función: compras y variación (60/61), costo de ventas (69), ingresos (7), destinos (9) e impuesto (88)
+    naturaleza = codigo.startswith(('60', '61', '62', '63', '64', '65', '66', '67', '68', '69', '88')) or clase == '7'
+    funcion = codigo.startswith(('60', '61', '69', '88')) or clase in '79'
+    if naturaleza and funcion:
+        return 'RESULTADO'
+    return 'NATURALEZA' if naturaleza else 'FUNCION' if funcion else 'SALDO'
+
+
+def centro_por_defecto(codigo):
+    codigo = str(codigo or '')
+    if codigo.startswith(EXIGEN_CENTRO):
+        return 'OBLIGATORIO'
+    return 'OPCIONAL' if codigo.startswith(ADMITEN_CENTRO) else 'NO'
+
+
+def tipo_cambio_por_defecto(codigo):
+    """Activos al tipo de cambio compra y pasivos al de venta (ajuste por diferencia de cambio, criterio SBS)."""
+    return 'VENTA' if str(codigo)[:1] in '45' else 'COMPRA'
+
+
+def analisis_por_defecto(codigo):
+    """Cuentas por cobrar y por pagar: se controlan por número de documento."""
+    return str(codigo).startswith(ANALISIS_DOCUMENTO)
 
 
 # ---------------------------------------------------------------- PCGE 2026

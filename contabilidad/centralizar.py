@@ -58,8 +58,8 @@ class Borrador:
             return None
         if centro_beneficio is None and centro_costo is not None:
             centro_beneficio = centro_costo.beneficio  # la línea de negocio sale del centro de costo
-        if centro_costo is not None and not admite_centro(cuenta.codigo):
-            centro_costo = None  # cuentas de balance, compras (60) y costo de ventas: sin centro de costo
+        if centro_costo is not None and not admite_centro(cuenta):
+            centro_costo = None  # la cuenta no lleva centro de costo (balance, compras 60, costo de ventas…)
         linea = AsientoLinea(cuenta=cuenta, debe=debe, haber=haber, tercero=tercero, documento=documento,
                              glosa=glosa[:200], centro_costo=centro_costo, centro_beneficio=centro_beneficio)
         if self.moneda == 'USD' and importe_me is not None:
@@ -435,16 +435,18 @@ def asiento_rendiciones(periodo, cta, tc_func):
 
 
 def asiento_cambio_cierre(periodo, cta, tc_obj):
-    """Ajusta las cuentas en dólares al tipo de cambio de cierre (compra, por ser activos)."""
+    """Ajusta las cuentas en dólares al tipo de cambio de cierre que indica cada cuenta contable (compra por
+    defecto, por ser activos)."""
     if tc_obj is None:
         return None
     desde, hasta = _rango(periodo)
     a = Asiento(fecha=hasta, libro='05', origen='CAMBIO',
-                glosa=f'Diferencia de cambio al cierre {periodo} (T.C. compra {tc_obj.compra})')
+                glosa=f'Diferencia de cambio al cierre {periodo} (T.C. compra {tc_obj.compra}, venta {tc_obj.venta})')
     b = Borrador(a)
     for c in Cuenta.objects.filter(moneda='USD'):
         sub = cuenta_caja(c, cta)
-        objetivo = r2(c.saldo_al(hasta) * tc_obj.compra)
+        tc = tc_obj.venta if sub.tipo_cambio == 'VENTA' else tc_obj.compra
+        objetivo = r2(c.saldo_al(hasta) * tc)
         agg = AsientoLinea.objects.filter(cuenta=sub, asiento__fecha__lte=hasta).aggregate(d=Sum('debe'), h=Sum('haber'))
         libro = r2((agg['d'] or D0) - (agg['h'] or D0))
         dif = objetivo - libro

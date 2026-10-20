@@ -50,8 +50,9 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         from contabilidad.models import CuentaDefecto
         from contabilidad.pcge import exige_centro
         cuenta = data.get('cuenta_contable') or CuentaDefecto.mapa().get(f'compra_{data.get("clasificacion")}')
-        if cuenta and exige_centro(cuenta.codigo) and not data.get('centro_costo'):
-            self.add_error('centro_costo', f'Obligatorio: la compra va al gasto {cuenta.codigo}. (Los productos de '
+        if cuenta and exige_centro(cuenta) and not data.get('centro_costo'):
+            self.add_error('centro_costo', f'Obligatorio: la compra va a la cuenta {cuenta.codigo}, que exige centro '
+                                           f'de costo. (Los productos de '
                                            'almacén ingresan a existencias y el centro se asigna al consumirlos.)')
         if data.get('ingresar_almacen') and data.get('tipo_comprobante') not in ('07', '08'):
             from inventario.servicios import tiene_recepciones

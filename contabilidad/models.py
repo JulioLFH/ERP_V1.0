@@ -7,6 +7,8 @@ from django.utils import timezone
 
 from core.models import Tercero
 
+from . import pcge
+
 D0 = Decimal('0')
 
 # Libros paralelos: cada asiento es de ambos libros (lo normal), solo NIIF (ajuste contable que no reconoce la ley
@@ -86,6 +88,22 @@ class CuentaContable(models.Model):
     destino_haber = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
                                       verbose_name='Destino al haber', help_text='Ej. 79 Cargas imputables')
     activo = models.BooleanField(default=True)
+    # ---- determinación de la cuenta (vacíos: se completan según el código al guardar; ver contabilidad/pcge.py)
+    MONEDAS = [('PEN', 'Soles'), ('USD', 'Dólares')]
+    columna_balance = models.CharField(
+        'Columna del balance', max_length=10, choices=pcge.COLUMNAS_BALANCE, blank=True,
+        help_text='Dónde cae su saldo en el balance de comprobación (hoja de trabajo)')
+    moneda = models.CharField(max_length=3, choices=MONEDAS, default='PEN',
+                              help_text='Dólares: el asiento guarda también el importe en US$')
+    tipo_cambio = models.CharField(
+        'Tipo de cambio', max_length=6, choices=pcge.TIPOS_CAMBIO, blank=True,
+        help_text='Para el ajuste por diferencia de cambio al cierre: activos a compra, pasivos a venta')
+    analisis = models.BooleanField(
+        'Análisis por documento', null=True, blank=True,
+        help_text='Cada movimiento lleva el número de documento (cuentas por cobrar y por pagar)')
+    centro_costo_regla = models.CharField(
+        'Cuenta analítica (centro de costo)', max_length=11, choices=pcge.REGLAS_CENTRO, blank=True,
+        help_text='Si sus movimientos llevan centro de costo')
 
     class Meta:
         ordering = ['codigo']
@@ -95,13 +113,41 @@ class CuentaContable(models.Model):
     def __str__(self):
         return f'{self.codigo} {self.nombre}'
 
+    def save(self, *args, **kwargs):
+        self.completar_determinacion()
+        super().save(*args, **kwargs)
+
+    def completar_determinacion(self):
+        """Valores por defecto según el código para lo que no se configuró."""
+        if not self.columna_balance:
+            self.columna_balance = pcge.columna_por_defecto(self.codigo)
+        if not self.tipo_cambio:
+            self.tipo_cambio = pcge.tipo_cambio_por_defecto(self.codigo)
+        if self.analisis is None:
+            self.analisis = pcge.analisis_por_defecto(self.codigo)
+        if not self.centro_costo_regla:
+            self.centro_costo_regla = pcge.centro_por_defecto(self.codigo)
+
     @property
     def clase(self):
         return self.codigo[:1]
 
     @property
     def nivel(self):
-        return len(self.codigo)
+        """Nivel en el PCGE: 1 cuenta, 2 subcuenta, 3 divisionaria, 4 subdivisionaria…"""
+        return pcge.nivel(self.codigo)
+
+    @property
+    def nombre_nivel(self):
+        return pcge.nombre_nivel(self.codigo)
+
+    @property
+    def en_naturaleza(self):
+        return (self.columna_balance or pcge.columna_por_defecto(self.codigo)) in ('NATURALEZA', 'RESULTADO')
+
+    @property
+    def en_funcion(self):
+        return (self.columna_balance or pcge.columna_por_defecto(self.codigo)) in ('FUNCION', 'RESULTADO')
 
 
 class CuentaDefecto(models.Model):

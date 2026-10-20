@@ -40,29 +40,26 @@ def balance_comprobacion(desde, hasta, nivel=None):
             ad, ah = agrupado.get(k, (D0, D0))
             agrupado[k] = (ad + d, ah + h)
         sumas = agrupado
-    nombres = dict(CuentaContable.objects.filter(codigo__in=sumas).values_list('codigo', 'nombre'))
+    datos = {c: (n, col) for c, n, col in CuentaContable.objects.filter(codigo__in=sumas)
+             .values_list('codigo', 'nombre', 'columna_balance')}
     filas, tot = [], {k: D0 for k in ('d', 'h', 'sd', 'sa', 'activo', 'pasivo', 'nat_p', 'nat_g', 'fun_p', 'fun_g')}
     for codigo in sorted(sumas):
         d, h = sumas[codigo]
         saldo = d - h
-        f = {'codigo': codigo, 'nombre': nombres.get(codigo, ''), 'd': d, 'h': h,
+        nombre, columna = datos.get(codigo, ('', ''))
+        f = {'codigo': codigo, 'nombre': nombre, 'd': d, 'h': h,
              'sd': max(saldo, D0), 'sa': max(-saldo, D0)}
-        clase = codigo[0]
-        if clase in '12345':
+        # columna configurada en la cuenta (Plan de cuentas › Columna del balance); por defecto, la del PCGE: clases
+        # 1-5 al inventario; 62-68 por naturaleza; 60, 61, 69, 7 y 88 por naturaleza y por función; 9 por función;
+        # la 79 y las de saldo no pasan a los estados
+        columna = columna or pcge.columna_por_defecto(codigo)
+        f['columna'] = columna
+        if columna == 'INVENTARIO':
             f['activo'], f['pasivo'] = f['sd'], f['sa']
-        elif not codigo.startswith('79'):
-            # inventario permanente: la 61 solo refleja compras, por eso el costo de ventas (69)
-            # también entra en la columna por naturaleza
-            if codigo.startswith(('60', '61', '62', '63', '64', '65', '66', '67', '68', '69')) or (
-                    clase == '7' and not codigo.startswith('79')):
-                f['nat_p'], f['nat_g'] = f['sd'], f['sa']
-            # por función: costo de ventas (69), compras y variación de existencias (60/61), destinos (clase 9),
-            # ingresos (7 sin la 79) e impuesto a la renta (88)
-            if codigo.startswith(('60', '61', '69')) or clase == '9' or codigo.startswith('88') or (
-                    clase == '7' and not codigo.startswith('79')):
-                f['fun_p'], f['fun_g'] = f['sd'], f['sa']
-            if codigo.startswith('88'):
-                f['nat_p'], f['nat_g'] = f['sd'], f['sa']
+        if columna in ('NATURALEZA', 'RESULTADO'):
+            f['nat_p'], f['nat_g'] = f['sd'], f['sa']
+        if columna in ('FUNCION', 'RESULTADO'):
+            f['fun_p'], f['fun_g'] = f['sd'], f['sa']
         for k in tot:
             tot[k] += f.get(k, D0)
         filas.append(f)

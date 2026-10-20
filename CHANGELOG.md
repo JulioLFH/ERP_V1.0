@@ -3,6 +3,17 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.35.0 — 19/10/2026 · Determinación de la cuenta contable
+- Al crear o editar una cuenta contable se configura su **determinación** (lo que se deja en «automático» toma el valor que corresponde a su código):
+  - **Nivel**: según los dígitos (1 cuenta, 2 subcuenta, 3 divisionaria, 4 subdivisionaria, más dígitos = auxiliar). Una cuenta nueva debe colgar de una cuenta superior existente.
+  - **Columna del balance**: inventario (balance general), resultados por naturaleza, por función, por ambos, o solo saldo. El **balance de comprobación (hoja de trabajo)** ubica cada cuenta en la columna configurada; con los valores por defecto el resultado es idéntico al anterior (verificado con las 508 cuentas con movimiento del 2026).
+  - **Moneda** (soles o dólares): en el asiento manual, las líneas de cuentas en dólares exigen el tipo de cambio del asiento y guardan también el importe en US$. Las subcuentas de bancos en dólares quedaron marcadas en dólares.
+  - **Tipo de cambio** (compra o venta): el ajuste por diferencia de cambio al cierre usa el de cada cuenta (activos a compra, pasivos a venta).
+  - **Análisis por número de documento**: las líneas de esas cuentas exigen el N° de documento (por defecto, cuentas por cobrar y por pagar 12-14, 16, 17, 42-47).
+  - **Cuenta analítica (centro de costo)**: no lleva, opcional u obligatorio. Reemplaza la regla fija por código en asientos manuales, compras, movimientos de caja, rendiciones y centralización.
+- El plan de cuentas muestra nivel, columna, moneda y tipo de cambio, análisis y centro de costo; la carga masiva desde Excel acepta esas columnas.
+- **Corrección**: el asiento manual no mostraba el motivo cuando faltaba el centro de costo (ahora se ve el error bajo el campo, igual que el del N° de documento).
+
 ## v1.34.0 — 19/10/2026 · Plan contable PCGE 2026 por empresa
 - **Cada empresa elige su plan contable**: PCGE modificado 2019 (por defecto) o **PCGE 2026**. El catálogo 2026 viene completo (1 634 cuentas a cinco dígitos) con las divisionarias propias del ERP para la clase 9 (911 producción, 912 administración, 913 ventas, 921, 931) y la 6399.
 - El ERP genera los asientos automáticos en el plan de cada empresa: los códigos que cambian de significado en 2026 se traducen solos (ventas de servicios 7041 → 70321, mercaderías 70111 → 70121, caja 1011 → 101, gastos por función 90/94/95/97 → 911/912/913/92-93, depreciación en la 39/68 nuevas, entre otros). Aplica a centralización, cuentas por defecto de productos, reportes, importaciones y destinos de la clase 6.

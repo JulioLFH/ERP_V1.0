@@ -20,13 +20,18 @@
     </form>
   </div>
   <div class="table-responsive"><table class="table table-sm table-hover mb-0">
-    <thead><tr><th>Código</th><th>Denominación</th><th>Naturaleza</th><th>Movimientos</th><th>Destino debe / haber</th><th></th></tr></thead>
+    <thead><tr><th>Código</th><th>Denominación</th><th>Nivel</th><th>Naturaleza</th><th>Movimientos</th><th>Columna del balance</th><th>Moneda / T.C.</th><th title="Análisis por número de documento">Análisis</th><th title="Cuenta analítica: centro de costo">C. costo</th><th>Destino debe / haber</th><th></th></tr></thead>
     <tbody>
     {% for c in cuentas %}
       <tr {% if not c.imputable %}class="fw-semibold table-light"{% endif %}>
         <td style="padding-left: {{ c.nivel }}ex">{{ c.codigo }}</td><td>{{ c.nombre }}</td>
+        <td class="small text-nowrap" title="{{ c.nombre_nivel }}">{{ c.nivel }} · {{ c.nombre_nivel }}</td>
         <td class="small">{{ c.get_naturaleza_display }}</td>
         <td>{% if c.imputable %}<span class="badge text-bg-success">Sí</span>{% else %}<span class="badge text-bg-light">Agrupa</span>{% endif %}</td>
+        <td class="small">{{ c.get_columna_balance_display }}</td>
+        <td class="small text-nowrap">{% if c.moneda == 'USD' %}<span class="badge text-bg-warning">US$</span>{% else %}S/{% endif %} · {{ c.get_tipo_cambio_display|lower }}</td>
+        <td class="small">{% if c.analisis %}<span class="badge text-bg-info">N° doc.</span>{% endif %}</td>
+        <td class="small">{% if c.centro_costo_regla == 'OBLIGATORIO' %}<span class="badge text-bg-primary">Obligatorio</span>{% elif c.centro_costo_regla == 'OPCIONAL' %}Opcional{% endif %}</td>
         <td class="small">{% if c.destino_debe %}{{ c.destino_debe.codigo }} / {{ c.destino_haber.codigo }}{% endif %}</td>
         <td class="text-end"><a href="{% url 'contabilidad:cuenta_editar' c.pk %}" class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-pencil"></i></a></td>
       </tr>

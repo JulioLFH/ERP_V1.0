@@ -153,8 +153,9 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
         from contabilidad.models import CuentaDefecto
         from contabilidad.pcge import exige_centro
         cuenta = data.get('cuenta_contable') or CuentaDefecto.mapa().get(f'mov_{data.get("concepto")}')
-        if cuenta and exige_centro(cuenta.codigo) and not data.get('centro_costo'):
-            self.add_error('centro_costo', f'Obligatorio: el movimiento va al gasto {cuenta.codigo}.')
+        if cuenta and exige_centro(cuenta) and not data.get('centro_costo'):
+            self.add_error('centro_costo', f'Obligatorio: el movimiento va a la cuenta {cuenta.codigo}, que exige '
+                                           f'centro de costo.')
         return data
 
 

@@ -109,7 +109,7 @@ def errores_linea(linea):
     if distribucion and sum((d.porcentaje for d in distribucion), D0) != 100:
         e.append('la distribución por centros de costo debe sumar 100%')
     cuenta = linea.categoria.cuenta_en(linea.fecha)
-    if not distribucion and not centro_de(linea) and (linea.categoria.exige_centro or exige_centro(cuenta.codigo)):
+    if not distribucion and not centro_de(linea) and (linea.categoria.exige_centro or exige_centro(cuenta)):
         e.append(f'{linea.categoria} exige centro de costo')
     if linea.con_credito_fiscal and linea.moneda != linea.rendicion.entrega.moneda:
         e.append('una factura con crédito fiscal debe estar en la moneda de la entrega')

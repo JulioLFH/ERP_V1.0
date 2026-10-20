@@ -175,6 +175,31 @@ def asiento_detalle(request, pk):
         'sustentos_origen': sustentos_de_asiento(a)})
 
 
+def _cuentas_en_dolares(formset):
+    return [f.cleaned_data['cuenta'] for f in formset.forms if f.cleaned_data and not f.cleaned_data.get('DELETE')
+            and f.cleaned_data.get('cuenta') and f.cleaned_data['cuenta'].moneda == 'USD']
+
+
+def _tipo_cambio_ok(form, formset):
+    """Las cuentas en dólares necesitan el tipo de cambio del asiento para guardar su importe en US$."""
+    dolares = _cuentas_en_dolares(formset)
+    if dolares and (form.cleaned_data.get('tipo_cambio') or 0) <= 1:
+        form.add_error('tipo_cambio', f'La cuenta {dolares[0].codigo} es en dólares: indique el tipo de cambio del '
+                                      f'asiento para registrar su importe en US$.')
+        return False
+    return True
+
+
+def _importes_en_dolares(asiento):
+    """Líneas de cuentas en dólares: importe en US$ = importe en soles ÷ tipo de cambio del asiento."""
+    if not asiento.tipo_cambio or asiento.tipo_cambio <= 1:
+        return
+    for linea in asiento.lineas.filter(cuenta__moneda='USD'):
+        linea.debe_me = (linea.debe / asiento.tipo_cambio).quantize(Decimal('0.01'))
+        linea.haber_me = (linea.haber / asiento.tipo_cambio).quantize(Decimal('0.01'))
+        linea.save(update_fields=['debe_me', 'haber_me'])
+
+
 @login_required
 def asiento_nuevo(request):
     """Asiento manual con sustento obligatorio. No se edita ni elimina: se corrige con un extorno."""
@@ -182,7 +207,7 @@ def asiento_nuevo(request):
     asiento = Asiento(libro='05')
     form = AsientoForm(request.POST or None, request.FILES or None, instance=asiento)
     formset = lineas_formset(extra=4)(request.POST or None, instance=asiento)
-    if request.method == 'POST' and form.is_valid() and formset.is_valid():
+    if request.method == 'POST' and form.is_valid() and formset.is_valid() and _tipo_cambio_ok(form, formset):
         with transaction.atomic():
             a = form.save(commit=False)
             a.origen, a.creado_por = 'MANUAL', request.user
@@ -190,6 +215,7 @@ def asiento_nuevo(request):
             formset.instance = a
             formset.save()
             a.lineas.update(norma=a.norma)
+            _importes_en_dolares(a)
             adjuntar(a, form.cleaned_data['sustento'], request.user, form.cleaned_data.get('descripcion_sustento', ''))
         messages.success(request, f'Asiento {a.numero} registrado con su sustento.')
         return redirect('contabilidad:asiento_detalle', a.pk)

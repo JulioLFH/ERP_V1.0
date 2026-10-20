@@ -16,20 +16,53 @@ def cuentas_imputables():
 
 
 class CuentaContableForm(BootstrapMixin, forms.ModelForm):
+    """Cuenta contable con su determinación: nivel (según el código), columna del balance, moneda, tipo de cambio,
+    análisis por documento y cuenta analítica (centro de costo). Lo que se deja en «automático» se completa según el
+    código (contabilidad/pcge.py)."""
+    AUTOMATICO = 'Automático según el código'
+
     class Meta:
         model = CuentaContable
-        fields = ['codigo', 'nombre', 'naturaleza', 'imputable', 'destino_debe', 'destino_haber', 'activo']
+        fields = ['codigo', 'nombre', 'naturaleza', 'imputable', 'columna_balance', 'moneda', 'tipo_cambio',
+                  'analisis', 'centro_costo_regla', 'destino_debe', 'destino_haber', 'activo']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['destino_debe'].queryset = cuentas_imputables().filter(codigo__regex=r'^(9|2)')
         self.fields['destino_haber'].queryset = cuentas_imputables().filter(codigo__regex=r'^(79|61)')
+        for campo in ('columna_balance', 'tipo_cambio', 'centro_costo_regla'):
+            self.fields[campo].choices = [('', self.AUTOMATICO)] + list(self.fields[campo].choices)[1:]
+        selector = forms.NullBooleanSelect(attrs={'class': 'form-select'})
+        selector.choices = [('unknown', self.AUTOMATICO), ('true', 'Sí: cada movimiento lleva el N° de documento'),
+                            ('false', 'No')]
+        self.fields['analisis'] = forms.NullBooleanField(
+            label='Análisis (N° de documento)', required=False, widget=selector,
+            help_text=CuentaContable._meta.get_field('analisis').help_text)
+        self.fields['codigo'].help_text = ('Nivel según los dígitos: 2 cuenta (nivel 1), 3 subcuenta (2), '
+                                           '4 divisionaria (3), 5 subdivisionaria (4)')
+        if self.instance.pk:
+            self.fields['codigo'].help_text = f'Nivel {self.instance.nivel}: {self.instance.nombre_nivel}'
 
     def clean_codigo(self):
         codigo = self.cleaned_data['codigo'].strip()
         if not codigo.isdigit():
             raise forms.ValidationError('El código solo lleva dígitos.')
+        if len(codigo) < 2:
+            raise forms.ValidationError('El código tiene al menos 2 dígitos (nivel 1: cuenta).')
+        if len(codigo) > 2 and not self.instance.pk:
+            # debe colgar de alguna cuenta superior existente (la de un dígito menos o, en planes con auxiliares
+            # largos como 10410001, una más arriba)
+            superiores = [codigo[:i] for i in range(2, len(codigo))]
+            if not CuentaContable.objects.filter(codigo__in=superiores).exists():
+                raise forms.ValidationError(f'Primero cree la cuenta {codigo[:2]} (o una de nivel superior a la que '
+                                            f'pertenezca esta cuenta).')
         return codigo
+
+    def clean(self):
+        data = super().clean()
+        if data.get('moneda') == 'USD' and data.get('codigo', '')[:1] in '6789':
+            self.add_error('moneda', 'Las cuentas de resultados y de destino se llevan en soles.')
+        return data
 
 
 class CentroCostoForm(BootstrapMixin, forms.ModelForm):
@@ -190,10 +223,12 @@ class AsientoLineaForm(BootstrapMixin, forms.ModelForm):
             raise forms.ValidationError('Ingrese el importe de la línea.')
         from .pcge import admite_centro, exige_centro
         cuenta = data.get('cuenta')
-        if cuenta and exige_centro(cuenta.codigo) and not data.get('centro_costo'):
-            self.add_error('centro_costo', 'Obligatorio en las cuentas de gasto 62 a 65 y 68.')
-        elif cuenta and data.get('centro_costo') and not admite_centro(cuenta.codigo):
-            data['centro_costo'] = None  # las cuentas de balance no llevan centro de costo
+        if cuenta and exige_centro(cuenta) and not data.get('centro_costo'):
+            self.add_error('centro_costo', f'La cuenta {cuenta.codigo} exige centro de costo.')
+        elif cuenta and data.get('centro_costo') and not admite_centro(cuenta):
+            data['centro_costo'] = None  # la cuenta no lleva centro de costo (p. ej. las de balance)
+        if cuenta and cuenta.analisis and not (data.get('documento') or '').strip():
+            self.add_error('documento', f'La cuenta {cuenta.codigo} se analiza por documento: indique el número.')
         return data
 
 
