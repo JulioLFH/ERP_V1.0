@@ -9,11 +9,16 @@
   {% csrf_token %}
   <div class="row g-3">
     <div class="col-lg-5"><div class="card h-100"><div class="card-header">Datos de acceso</div><div class="card-body"><div class="row g-3">
-      {% for field in form %}{% if field.name != 'modulos' and field.name != 'es_admin' and field.name != 'ver_costos' and field.name != 'acciones' and field.name != 'almacenes' and field.name != 'series' and field.name != 'limite_aprobacion' %}
+      {% for field in form %}{% if field.name not in form.CAMPOS_PROPIOS %}
         <div class="{% if field.name == 'is_active' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>
       {% endif %}{% endfor %}
     </div></div></div></div>
     <div class="col-lg-7"><div class="card h-100"><div class="card-header">Módulos permitidos</div><div class="card-body">
+      <div class="row g-2 align-items-end mb-3 pb-3 border-bottom">
+        <div class="col-md-7">{% with field=form.perfil_acceso %}{% include 'core/_campo.html' %}{% endwith %}</div>
+        <div class="col-md-5"><label class="small">{{ form.aplicar_perfil }} {{ form.aplicar_perfil.label }}</label>
+          <div class="form-text"><a href="{% url 'perfiles_acceso' %}">Administrar perfiles</a></div></div>
+      </div>
       <div class="form-check form-switch mb-3">
         {{ form.es_admin }} <label class="form-check-label fw-semibold" for="{{ form.es_admin.id_for_label }}">{{ form.es_admin.label }}</label>
         {% for e in form.es_admin.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
@@ -64,6 +69,22 @@
       </div>
     </div>
   </div>
+  <div class="card mt-3" id="bloque-datos"><div class="card-header"><i class="bi bi-funnel"></i> Datos sensibles y filtros por dato</div>
+    <div class="card-body"><div class="row g-3">
+      <div class="col-md-4">
+        <label class="d-block small fw-semibold">{{ form.ocultar_sueldos }} {{ form.ocultar_sueldos.label }}</label><div class="form-text mb-2">{{ form.ocultar_sueldos.help_text }}</div>
+        <label class="d-block small fw-semibold">{{ form.ocultar_saldos }} {{ form.ocultar_saldos.label }}</label><div class="form-text mb-2">{{ form.ocultar_saldos.help_text }}</div>
+        {% with field=form.vendedor %}{% include 'core/_campo.html' %}{% endwith %}
+      </div>
+      <div class="col-md-4"><div class="fw-semibold small mb-1">{{ form.centros.label }}</div>
+        <div class="small" style="max-height: 180px; overflow:auto">{% for c in form.centros %}<label class="d-block">{{ c.tag }} {{ c.choice_label }}</label>{% endfor %}</div>
+        <div class="form-text">{{ form.centros.help_text }}</div></div>
+      <div class="col-md-4"><div class="fw-semibold small mb-1">{{ form.cuentas.label }}</div>
+        <div class="small" style="max-height: 180px; overflow:auto">{% for c in form.cuentas %}<label class="d-block">{{ c.tag }} {{ c.choice_label }}</label>{% endfor %}</div>
+        <div class="form-text">{{ form.cuentas.help_text }}</div></div>
+    </div></div>
+  </div>
+  {% include 'core/_pantallas.html' %}
   <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar usuario</button>
 </form>
 {% if form.instance.pk and form.instance.segundo_factor.activo and user.is_superuser %}
@@ -82,12 +103,15 @@
   const admin = document.getElementById('{{ form.es_admin.id_for_label }}');
   const lista = document.getElementById('lista-modulos');
   const permisos = document.getElementById('bloque-permisos');
-  // solo se muestran las acciones de los módulos marcados; el administrador no necesita permisos finos
+  const pantallas = document.getElementById('bloque-pantallas');
+  const datos = document.getElementById('bloque-datos');
+  // solo se muestran las acciones y pantallas de los módulos marcados; el administrador no necesita permisos finos
   const sync = () => {
     lista.classList.toggle('opacity-50', admin.checked);
-    permisos.classList.toggle('d-none', admin.checked);
+    [permisos, pantallas, datos].forEach(b => b.classList.toggle('d-none', admin.checked));
     const marcados = new Set([...lista.querySelectorAll('input[name=modulos]:checked')].map(i => i.value));
-    permisos.querySelectorAll('.grupo-acciones').forEach(g => g.classList.toggle('d-none', !marcados.has(g.dataset.modulo)));
+    document.querySelectorAll('.grupo-acciones').forEach(g => g.classList.toggle('d-none', !marcados.has(g.dataset.modulo)));
+    document.querySelectorAll('.grupo-pantallas').forEach(g => g.classList.toggle('d-none', !g.dataset.origenes.split(' ').some(m => marcados.has(m))));
   };
   admin.addEventListener('change', sync);
   lista.addEventListener('change', sync);

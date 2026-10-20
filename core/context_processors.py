@@ -3,6 +3,7 @@ from django.conf import settings
 from .models import Empresa
 from .modulos import MODULOS, POR_CLAVE, menu_de, modulos_del_usuario, puede_ver_costos
 from .permisos import Permisos
+from .politicas import ocultas, ver_saldos, ver_sueldos
 
 
 def empresa(request):
@@ -24,8 +25,9 @@ def empresa(request):
         'apps': [m for m in MODULOS if m['clave'] in mods],
         'modulo': modulo,
         'menu_modulo': menu_de(modulo, puede_ver_costos(request.user), request.get_full_path(),
-                                       request.user.is_superuser) if modulo else [],
+                               request.user.is_superuser, ocultas(request.user)) if modulo else [],
         'ver_costos': puede_ver_costos(request.user),
+        'ver_sueldos': ver_sueldos(request.user), 'ver_saldos': ver_saldos(request.user),
         'puede': Permisos(request.user),  # {% if puede.ventas_anular %}
         'url_carga': _url_carga(request, mods),
     }

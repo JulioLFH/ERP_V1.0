@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from .forms import BootstrapMixin
+from .models import PerfilAcceso
 from .modulos import GRUPO_COSTOS, GRUPOS, POR_CLAVE
 
 
@@ -45,6 +46,30 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
                               help_text='Con código de país, ej. 51987654321. Para enviar gastos por WhatsApp')
     clave1 = forms.CharField(label='Contraseña', required=False, widget=forms.PasswordInput)
     clave2 = forms.CharField(label='Repetir contraseña', required=False, widget=forms.PasswordInput)
+    # permisos por pantalla, datos sensibles y filtros por dato
+    perfil_acceso = forms.ModelChoiceField(
+        label='Perfil de acceso', required=False, queryset=None,
+        help_text='Al elegir un perfil (o marcar «volver a aplicar») se copian sus módulos, acciones, pantallas y '
+                  'límites; luego puede ajustar lo propio del usuario')
+    aplicar_perfil = forms.BooleanField(label='Volver a aplicar el perfil', required=False)
+    ocultar_sueldos = forms.BooleanField(label='Ocultar sueldos y boletas de pago', required=False,
+                                         help_text='No abre planillas, boletas, PLAME ni movimientos de personal; '
+                                                   'en la lista de trabajadores no ve el sueldo')
+    ocultar_saldos = forms.BooleanField(label='Ocultar saldos de caja y bancos', required=False,
+                                        help_text='Ve sus cuentas sin el saldo; no abre flujo de caja, conciliación '
+                                                  'ni extractos')
+    centros = forms.ModelMultipleChoiceField(
+        label='Solo trabajadores y planillas de estos centros de costo', required=False, queryset=None,
+        widget=forms.CheckboxSelectMultiple, help_text='Ninguno marcado = todos (incluye los subcentros)')
+    cuentas = forms.ModelMultipleChoiceField(label='Solo estas cuentas de caja y bancos', required=False,
+                                             queryset=None, widget=forms.CheckboxSelectMultiple,
+                                             help_text='Ninguna marcada = todas')
+    vendedor = forms.CharField(label='Solo las ventas del vendedor', required=False, max_length=80,
+                               help_text='Comprobantes y pedidos con este vendedor. Vacío = todos')
+
+    CAMPOS_PROPIOS = ('modulos', 'es_admin', 'ver_costos', 'acciones', 'almacenes', 'series', 'limite_aprobacion',
+                      'perfil_acceso', 'aplicar_perfil', 'ocultar_sueldos', 'ocultar_saldos', 'centros', 'cuentas',
+                      'vendedor')
 
     class Meta:
         model = User
@@ -62,7 +87,13 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         self.fields['almacenes'].queryset = Almacen.objects.filter(activo=True)
         self.fields['series'].queryset = Serie.objects.filter(activo=True, tipo__in=['01', '03', '07', '08', '12',
                                                                                       '00', '09', '31'])
-        for nombre in ('acciones', 'almacenes', 'series'):
+        from contabilidad.models import CentroCosto
+        from finanzas.models import Cuenta
+        from .models import PerfilAcceso
+        self.fields['perfil_acceso'].queryset = PerfilAcceso.objects.all()
+        self.fields['centros'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['cuentas'].queryset = Cuenta.objects.all()
+        for nombre in ('acciones', 'almacenes', 'series', 'centros', 'cuentas'):
             self.fields[nombre].widget.attrs.pop('class', None)
         from .models import Tercero
         self.fields['trabajador'].queryset = Tercero.objects.filter(activo=True, tipo_doc__in=['1', '4', '7'])
@@ -87,11 +118,20 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
             self.fields['clave1'].help_text = 'Déjela vacía para no cambiarla.'
         else:
             self.fields['clave1'].required = self.fields['clave2'].required = True
+            from django.contrib.auth.password_validation import password_validators_help_texts
+            self.fields['clave1'].help_text = ' '.join(password_validators_help_texts())
+        self.pantallas_actuales = dict(perfil.pantallas or {}) if perfil else {}
         if perfil:
             self.initial['acciones'] = perfil.acciones
             self.initial['almacenes'] = list(perfil.almacenes.all())
             self.initial['series'] = list(perfil.series.all())
             self.initial['limite_aprobacion'] = perfil.limite_aprobacion
+            self.initial['perfil_acceso'] = perfil.perfil_acceso_id
+            self.initial['ocultar_sueldos'], self.initial['ocultar_saldos'] = not perfil.ver_sueldos, \
+                not perfil.ver_saldos
+            self.initial['centros'] = list(perfil.centros.all())
+            self.initial['cuentas'] = list(perfil.cuentas.all())
+            self.initial['vendedor'] = perfil.vendedor
         elif self.instance.pk:  # sin perfil hoy puede todo en sus módulos (salvo las acciones explícitas)
             from .permisos import EXPLICITAS
             self.initial['acciones'] = [c for c, _ in self.fields['acciones'].choices if c not in EXPLICITAS]
@@ -114,9 +154,24 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
                 self.add_error('is_active', 'No puede desactivar su propio usuario.')
             if self.instance.is_superuser and not data.get('es_admin'):
                 self.add_error('es_admin', 'No puede quitarse a sí mismo el rol de administrador.')
-        if not data.get('es_admin') and not data.get('modulos'):
-            self.add_error('modulos', 'Asigne al menos un módulo.')
+        if not data.get('es_admin') and not data.get('modulos') and not self._perfil_a_aplicar(data):
+            self.add_error('modulos', 'Asigne al menos un módulo (o un perfil de acceso).')
         return data
+
+    def _perfil_a_aplicar(self, data):
+        p = data.get('perfil_acceso')
+        if p is None:
+            return None
+        anterior = self.initial.get('perfil_acceso')
+        return p if data.get('aplicar_perfil') or p.pk != anterior else None
+
+    def pantallas_enviadas(self):
+        """{clave: nivel} de la tabla de pantallas del formulario (campos «pantalla|<ruta>»)."""
+        from .politicas import NIVELES_PANTALLA
+        validos = {n for n, _ in NIVELES_PANTALLA if n}
+        if not self.is_bound:
+            return self.pantallas_actuales
+        return {k.partition('|')[2]: v for k, v in self.data.items() if k.startswith('pantalla|') and v in validos}
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -138,9 +193,20 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         perfil.limite_aprobacion = self.cleaned_data.get('limite_aprobacion') or 0
         perfil.trabajador, perfil.jefe = self.cleaned_data.get('trabajador'), self.cleaned_data.get('jefe')
         perfil.celular = (self.cleaned_data.get('celular') or '').strip()
+        perfil.pantallas = self.pantallas_enviadas()
+        perfil.ver_sueldos = not self.cleaned_data.get('ocultar_sueldos')
+        perfil.ver_saldos = not self.cleaned_data.get('ocultar_saldos')
+        perfil.vendedor = (self.cleaned_data.get('vendedor') or '').strip()
+        perfil.perfil_acceso = self.cleaned_data.get('perfil_acceso')
         perfil.save()
         perfil.almacenes.set(self.cleaned_data.get('almacenes') or [])
         perfil.series.set(self.cleaned_data.get('series') or [])
+        perfil.centros.set(self.cleaned_data.get('centros') or [])
+        perfil.cuentas.set(self.cleaned_data.get('cuentas') or [])
+        aplicar = self._perfil_a_aplicar(self.cleaned_data)
+        if aplicar is not None and not user.is_superuser:
+            from .politicas import aplicar_perfil
+            aplicar_perfil(perfil, aplicar)
         from planillas.models import Trabajador
         t = self.cleaned_data.get('trabajador_planilla')
         Trabajador.objects.filter(usuario=user).exclude(pk=t.pk if t else 0).update(usuario=None)
@@ -178,7 +244,103 @@ def _guardar(request, usuario, titulo):
         for m, lista in ACCIONES.items() if m in POR_CLAVE]
     return render(request, 'core/usuario_form.html', {'form': form, 'titulo': titulo,
                                                        'modulos_info': [POR_CLAVE[c] for c in GRUPOS],
-                                                       'grupos_acciones': grupos_acciones})
+                                                       'grupos_acciones': grupos_acciones,
+                                                       'grupos_pantallas': grupos_pantallas(form.pantallas_enviadas()),
+                                                       'niveles': _niveles()})
+
+
+def _niveles():
+    from .politicas import NIVELES_PANTALLA
+    return NIVELES_PANTALLA
+
+
+def grupos_pantallas(actuales):
+    """Pantallas del menú por módulo con el nivel de acceso actual (para la tabla de permisos por pantalla)."""
+    from .politicas import catalogo
+    grupos = {}
+    for p in catalogo():
+        grupos.setdefault(p['modulo'], []).append({**p, 'nivel': actuales.get(p['clave'], '')})
+    from .modulos import DERIVADOS
+    return [{'modulo': POR_CLAVE[m], 'pantallas': lista,
+             'origenes': ' '.join(sorted({m} | (DERIVADOS.get(m, set()) if m not in GRUPOS else set())))}
+            for m, lista in grupos.items() if m in POR_CLAVE]
+
+
+class PerfilAccesoForm(BootstrapMixin, forms.ModelForm):
+    modulos = forms.MultipleChoiceField(label='Módulos', required=False, widget=forms.CheckboxSelectMultiple,
+                                        choices=[(clave, POR_CLAVE[clave]['nombre']) for clave in GRUPOS])
+    acciones = forms.MultipleChoiceField(label='Acciones', required=False, widget=forms.CheckboxSelectMultiple)
+    actualizar_usuarios = forms.BooleanField(label='Aplicar los cambios a los usuarios que tienen este perfil',
+                                             required=False, initial=True)
+
+    class Meta:
+        model = PerfilAcceso
+        fields = ['nombre', 'descripcion', 'ver_costos', 'ver_sueldos', 'ver_saldos', 'limite_aprobacion']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .permisos import ACCIONES
+        self.fields['acciones'].choices = [(f'{m}.{a}', d) for m, lista in ACCIONES.items() for a, d, _ in lista]
+        for nombre in ('modulos', 'acciones'):
+            self.fields[nombre].widget.attrs.pop('class', None)
+        if self.instance.pk:
+            self.initial['modulos'], self.initial['acciones'] = self.instance.modulos, self.instance.acciones
+
+    def clean_modulos(self):
+        if not self.cleaned_data.get('modulos'):
+            raise forms.ValidationError('Marque al menos un módulo.')
+        return self.cleaned_data['modulos']
+
+    def pantallas_enviadas(self):
+        from .politicas import NIVELES_PANTALLA
+        validos = {n for n, _ in NIVELES_PANTALLA if n}
+        if not self.is_bound:
+            return dict(self.instance.pantallas or {})
+        return {k.partition('|')[2]: v for k, v in self.data.items() if k.startswith('pantalla|') and v in validos}
+
+    def save(self, commit=True):
+        p = super().save(commit=False)
+        p.modulos = sorted(self.cleaned_data.get('modulos') or [])
+        p.acciones = sorted(self.cleaned_data.get('acciones') or [])
+        p.pantallas = self.pantallas_enviadas()
+        p.save()
+        if self.cleaned_data.get('actualizar_usuarios'):
+            from .models import PerfilUsuario
+            from .politicas import aplicar_perfil
+            for pu in PerfilUsuario.objects.filter(perfil_acceso=p, usuario__is_superuser=False).select_related(
+                    'usuario'):
+                aplicar_perfil(pu, p)
+        return p
+
+
+@login_required
+def perfiles(request):
+    """Perfiles de acceso (roles): se definen una vez y se aplican a varios usuarios."""
+    from django.db.models import Count
+
+    from .models import PerfilAcceso
+    return render(request, 'core/perfiles_acceso.html', {
+        'perfiles': PerfilAcceso.objects.annotate(n=Count('usuarios')), 'modulos': POR_CLAVE})
+
+
+@login_required
+def perfil_editar(request, pk=None):
+    from .models import PerfilAcceso
+    from .permisos import ACCIONES
+    perfil = get_object_or_404(PerfilAcceso, pk=pk) if pk else PerfilAcceso()
+    form = PerfilAccesoForm(request.POST or None, instance=perfil)
+    if request.method == 'POST' and form.is_valid():
+        p = form.save()
+        messages.success(request, f'Perfil de acceso «{p.nombre}» guardado.')
+        return redirect('perfiles_acceso')
+    marcadas = set(form['acciones'].value() or [])
+    grupos_acciones = [{'modulo': POR_CLAVE[m], 'acciones': [
+        {'valor': f'{m}.{a}', 'texto': d, 'sensible': s, 'marcada': f'{m}.{a}' in marcadas} for a, d, s in lista]}
+        for m, lista in ACCIONES.items() if m in POR_CLAVE]
+    return render(request, 'core/perfil_acceso_form.html', {
+        'form': form, 'titulo': f'Perfil {perfil.nombre}' if pk else 'Nuevo perfil de acceso',
+        'modulos_info': [POR_CLAVE[c] for c in GRUPOS], 'grupos_acciones': grupos_acciones,
+        'grupos_pantallas': grupos_pantallas(form.pantallas_enviadas()), 'niveles': _niveles()})
 
 
 @login_required

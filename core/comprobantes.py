@@ -105,7 +105,8 @@ class ComprobanteViews:
 
     # ------------------------------------------------------------ vistas
     def lista(self, request):
-        qs = self.modelo.objects.con_saldos().select_related('tercero')
+        from .politicas import filtrar_vendedor
+        qs = filtrar_vendedor(self.modelo.objects.con_saldos().select_related('tercero'), request.user)
         periodo = normalizar_periodo(request.GET.get('periodo', ''))
         if periodo:
             qs = qs.filter(periodo=periodo)

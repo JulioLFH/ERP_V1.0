@@ -201,7 +201,8 @@ ventas_views = VentasViews()
 # ---------------------------------------------------------------- cotizaciones / pedidos
 @login_required
 def cot_lista(request):
-    qs = Cotizacion.objects.select_related('tercero')
+    from core.politicas import filtrar_vendedor
+    qs = filtrar_vendedor(Cotizacion.objects.select_related('tercero'), request.user)
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(numero__icontains=q) | Q(tercero__nombre__icontains=q))

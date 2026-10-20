@@ -8,8 +8,13 @@ from django.utils import timezone
 
 from .models import IntentoAcceso
 
-MAX_INTENTOS = 5
+MAX_INTENTOS = 5  # por defecto; cada empresa lo define en Ajustes › Empresa › Seguridad
 MINUTOS_BLOQUEO = 15
+
+
+def max_intentos():
+    from .models import Empresa
+    return Empresa.actual().intentos_bloqueo or MAX_INTENTOS
 
 
 def _ip(request):
@@ -23,24 +28,24 @@ def intentos_recientes(usuario):
 
 
 class LoginSeguroForm(AuthenticationForm):
-    error_messages = {
-        **AuthenticationForm.error_messages,
-        'bloqueado': f'Usuario bloqueado temporalmente por {MAX_INTENTOS} intentos fallidos. Intente de nuevo en '
-                     f'{MINUTOS_BLOQUEO} minutos o pida al administrador que cambie su contraseña.',
-    }
+    def _bloqueado(self, maximo):
+        return forms.ValidationError(
+            f'Usuario bloqueado temporalmente por {maximo} intentos fallidos. Intente de nuevo en {MINUTOS_BLOQUEO} '
+            f'minutos o pida al administrador que cambie su contraseña.', code='bloqueado')
 
     def clean(self):
         usuario = (self.data.get('username') or '').strip()
-        if usuario and intentos_recientes(usuario) >= MAX_INTENTOS:
-            raise forms.ValidationError(self.error_messages['bloqueado'], code='bloqueado')
+        maximo = max_intentos()
+        if usuario and intentos_recientes(usuario) >= maximo:
+            raise self._bloqueado(maximo)
         try:
             datos = super().clean()
         except forms.ValidationError:
             if usuario:
                 IntentoAcceso.objects.create(usuario=usuario[:150], ip=_ip(self.request) if self.request else '')
-                restantes = MAX_INTENTOS - intentos_recientes(usuario)
+                restantes = maximo - intentos_recientes(usuario)
                 if restantes <= 0:
-                    raise forms.ValidationError(self.error_messages['bloqueado'], code='bloqueado')
+                    raise self._bloqueado(maximo)
                 if restantes <= 2:
                     raise forms.ValidationError(f'Usuario o contraseña incorrectos. Le quedan {restantes} intento(s) '
                                                 f'antes del bloqueo temporal.', code='invalid_login')
@@ -104,4 +109,6 @@ class LoginSeguroView(LoginView):
             return redirect('login_2fa')
         respuesta = super().form_valid(form)
         self.request.session['empresa'] = alias  # después de login(): si cambió de usuario, la sesión se limpió
+        from .politicas import revisar_equipo
+        revisar_equipo(self.request, usuario, respuesta)
         return respuesta

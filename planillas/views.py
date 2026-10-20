@@ -39,7 +39,9 @@ def trabajadores(request):
                     n += 1
                 messages.success(request, f'{n} trabajador(es) asignados al centro de costo {centro}.')
         return redirect(request.get_full_path())
-    qs = Trabajador.objects.select_related('afp', 'centro_costo')
+    from core.politicas import filtrar_centros, ver_sueldos
+    qs = filtrar_centros(Trabajador.objects.select_related('afp', 'centro_costo'), request.user)
+    con_sueldo = ver_sueldos(request.user)
     estado = request.GET.get('estado', 'activos')
     if estado == 'activos':
         qs = qs.filter(vigentes)
@@ -58,7 +60,7 @@ def trabajadores(request):
             'Documento', 'Apellidos y nombres', 'Cargo', 'Centro de costo', 'Ingreso', 'Cese', 'Régimen', 'Sueldo',
             'Asig. familiar', 'Pensiones', 'AFP', 'CUSPP'], [
             [t.numero_doc, t.nombre_completo, t.cargo, str(t.centro_costo or ''), t.fecha_ingreso, t.fecha_cese,
-             t.get_regimen_display(), t.sueldo, 'Sí' if t.asignacion_familiar else 'No',
+             t.get_regimen_display(), t.sueldo if con_sueldo else '', 'Sí' if t.asignacion_familiar else 'No',
              t.get_sistema_pensiones_display(), str(t.afp or ''), t.cuspp] for t in qs])
     return render(request, 'planillas/trabajadores.html', {
         'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'estado': estado, 'q': q,
@@ -71,7 +73,12 @@ def trabajadores(request):
 
 
 def _guardar_trabajador(request, t, titulo):
-    form = TrabajadorForm(request.POST or None, instance=t)
+    from core.politicas import centros_permitidos, ver_sueldos
+    ids = centros_permitidos(request.user)
+    if t.pk and ids is not None and t.centro_costo_id not in ids:
+        messages.error(request, 'El trabajador es de un centro de costo que su usuario no ve.')
+        return redirect('planillas:trabajadores')
+    form = TrabajadorForm(request.POST or None, instance=t, ver_sueldos=ver_sueldos(request.user))
     if request.method == 'POST' and form.is_valid():
         t = form.save()
         messages.success(request, f'Trabajador {t.nombre_completo} guardado.')
@@ -115,8 +122,9 @@ def planilla_nueva(request):
 def planilla_detalle(request, pk):
     planilla = get_object_or_404(Planilla, pk=pk)
     editable = planilla.estado in ('BORRADOR', 'CALCULADA')
-    filas_qs = planilla.filas.select_related('trabajador__afp', 'trabajador__centro_costo') \
-        .prefetch_related('lineas__concepto')
+    from core.politicas import filtrar_centros
+    filas_qs = filtrar_centros(planilla.filas.select_related('trabajador__afp', 'trabajador__centro_costo')
+                               .prefetch_related('lineas__concepto'), request.user, 'trabajador__centro_costo')
     clase = {'MENSUAL': FilasFormSet, 'LIQUIDACION': LiquidacionFormSet}.get(planilla.tipo)
     formset = clase(request.POST or None, queryset=filas_qs, prefix='filas') if editable and clase else None
     if request.method == 'POST':

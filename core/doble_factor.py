@@ -84,7 +84,7 @@ def tiene_doble_factor(usuario):
 # ---------------------------------------------------------------- inicio de sesión (segundo paso)
 def verificar_login(request):
     """Segundo paso del inicio de sesión: código de la app autenticadora o un código de respaldo."""
-    from .acceso import MAX_INTENTOS, _ip, intentos_recientes
+    from .acceso import _ip, intentos_recientes, max_intentos
     pendiente = request.session.get(SESION_PENDIENTE)
     if not pendiente:
         return redirect('login')
@@ -94,7 +94,7 @@ def verificar_login(request):
         return redirect('login')
     error = ''
     if request.method == 'POST':
-        if intentos_recientes(usuario.username) >= MAX_INTENTOS:
+        if intentos_recientes(usuario.username) >= max_intentos():
             request.session.pop(SESION_PENDIENTE, None)
             messages.error(request, 'Demasiados códigos incorrectos: usuario bloqueado temporalmente.')
             return redirect('login')
@@ -111,7 +111,10 @@ def verificar_login(request):
             auth_login(request, usuario, backend=pendiente.get('backend'))
             if not url_has_allowed_host_and_scheme(siguiente, {request.get_host()}, request.is_secure()):
                 siguiente = reverse('home')
-            return redirect(siguiente)
+            respuesta = redirect(siguiente)
+            from .politicas import revisar_equipo
+            revisar_equipo(request, usuario, respuesta)
+            return respuesta
         IntentoAcceso.objects.create(usuario=usuario.username[:150], ip=_ip(request))
         error = 'Código incorrecto o vencido.'
     return render(request, 'registration/doble_factor.html', {'error': error, 'usuario': usuario})

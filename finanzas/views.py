@@ -25,9 +25,11 @@ from django.utils import timezone
 # ---------------------------------------------------------------- cuentas
 @login_required
 def cuentas(request):
-    lista = list(Cuenta.objects.all())
+    from core.politicas import filtrar_cuentas, ver_saldos
+    lista = list(filtrar_cuentas(Cuenta.objects.all(), request.user, 'pk'))
+    con_saldo = ver_saldos(request.user)
     for c in lista:  # diagnóstico: días en que el saldo quedó en negativo (datos anteriores a la validación)
-        c.negativo = None if c.admite_negativo else c.primer_negativo()
+        c.negativo = None if c.admite_negativo or not con_saldo else c.primer_negativo()
     return render(request, 'finanzas/cuentas.html', {'cuentas': lista,
                                                      'con_negativo': [c for c in lista if c.negativo]})
 
@@ -90,7 +92,8 @@ class CuentaEditar(FormGenerico, UpdateView):
 def _filtrar_movs(request):
     f = request.GET
     base = Movimiento.todos if f.get('estado') in ('ANULADO', 'TODOS') else Movimiento.objects
-    qs = base.select_related('cuenta', 'tercero', 'venta', 'compra')
+    from core.politicas import filtrar_cuentas
+    qs = filtrar_cuentas(base.select_related('cuenta', 'tercero', 'venta', 'compra'), request.user)
     if f.get('estado') == 'ANULADO':
         qs = qs.filter(estado='ANULADO')
     if f.get('cuenta'):
@@ -111,6 +114,7 @@ def _filtrar_movs(request):
 
 @login_required
 def movimientos(request):
+    from core.politicas import filtrar_cuentas
     qs = _filtrar_movs(request)
     if request.GET.get('formato') == 'excel':
         filas = [[m.voucher, fmt_fecha(m.fecha), str(m.cuenta), m.get_tipo_display(), m.get_concepto_display(),
@@ -123,8 +127,8 @@ def movimientos(request):
     agg = qs.filter(estado='VIGENTE').aggregate(i=Sum('monto', filter=Q(tipo='INGRESO')),
                                                 e=Sum('monto', filter=Q(tipo='EGRESO')))
     return render(request, 'finanzas/movimientos.html', {
-        'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'cuentas': Cuenta.objects.all(),
-        'conceptos': Movimiento.CONCEPTOS, 'ingresos': agg['i'] or D0, 'egresos': agg['e'] or D0})
+        'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')),
+        'cuentas': filtrar_cuentas(Cuenta.objects.all(), request.user, 'pk'), 'conceptos': Movimiento.CONCEPTOS, 'ingresos': agg['i'] or D0, 'egresos': agg['e'] or D0})
 
 
 @login_required

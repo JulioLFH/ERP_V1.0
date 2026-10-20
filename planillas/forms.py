@@ -31,10 +31,12 @@ class TrabajadorForm(BootstrapMixin, forms.ModelForm):
     # aprobación e historial)
     POR_MOVIMIENTO = ('sueldo', 'puesto', 'centro_costo', 'cargo', 'fecha_cese', 'motivo_cese')
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, ver_sueldos=True, **kwargs):
         super().__init__(*args, **kwargs)
         from django.contrib.auth import get_user_model
         from .models import Puesto
+        if not ver_sueldos:  # sin el permiso «ve sueldos» el campo no se muestra ni se cambia
+            del self.fields['sueldo']
         self.fields['afp'].queryset = AFP.objects.filter(activo=True)
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
         self.fields['puesto'].queryset = Puesto.objects.filter(activo=True)
@@ -43,12 +45,12 @@ class TrabajadorForm(BootstrapMixin, forms.ModelForm):
         # su sueldo y cargas (62) se reparten por centro de costo
         self.fields['centro_costo'].required = True
         if self.instance.pk and self.instance.fecha_ingreso:
-            for campo in self.POR_MOVIMIENTO:
+            for campo in [c for c in self.POR_MOVIMIENTO if c in self.fields]:
                 self.fields[campo].disabled = True
                 self.fields[campo].help_text = 'Se cambia con un movimiento de personal (Planillas › Movimientos).'
 
     def secciones(self):
-        return [(titulo, [self[c] for c in campos]) for titulo, campos in self.SECCIONES]
+        return [(titulo, [self[c] for c in campos if c in self.fields]) for titulo, campos in self.SECCIONES]
 
     def clean(self):
         d = super().clean()

@@ -88,6 +88,11 @@ class AccesoModulosMiddleware:
         almacen = almacen_no_permitido(request, match)
         if almacen is not None:
             return _denegar(request, f'Su usuario no opera en el almacén "{almacen}".')
+        # pantalla oculta, de solo lectura o sin exportar; sueldos y saldos
+        from .politicas import restriccion_de_pantalla
+        motivo = restriccion_de_pantalla(request, match)
+        if motivo:
+            return _denegar(request, motivo)
         return None
 
 

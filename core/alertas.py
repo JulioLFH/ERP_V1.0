@@ -157,8 +157,26 @@ def calcular(user):
             alertas.append(_alerta('info', 'bi-arrow-repeat', 'Periodos con cambios sin centralizar',
                                    'Centralice: ' + ', '.join(f'{p[4:]}/{p[:4]}' for p in pendientes) + '.',
                                    reverse('contabilidad:periodos'), len(pendientes)))
+    if user.is_superuser:
+        alertas += _alertas_seguridad()
     orden = {'danger': 0, 'warning': 1, 'info': 2}
     return sorted(alertas, key=lambda a: orden[a['nivel']])
+
+
+def _alertas_seguridad():
+    """Para los administradores: controles de seguridad apagados antes de operar en producción."""
+    from .models import Empresa
+    e = Empresa.actual()
+    salida = []
+    if not e.segregacion_estricta:
+        salida.append(_alerta('warning', 'bi-shield-exclamation', 'Segregación de funciones no estricta',
+                              'Un mismo usuario puede registrar y aprobar su propio documento. Actívela en Ajustes › '
+                              'Empresa antes de operar en producción.', reverse('segregacion'), 1))
+    if not e.exigir_doble_factor:
+        salida.append(_alerta('info', 'bi-phone', 'Verificación en dos pasos opcional',
+                              'Conviene exigirla al menos a administradores y aprobadores (Ajustes › Empresa).',
+                              reverse('empresa'), 1))
+    return salida
 
 
 def _alertas_rendiciones(user):

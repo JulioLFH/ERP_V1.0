@@ -3,6 +3,16 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.43.0 — 20/10/2026 · Seguridad de acceso: permisos por pantalla, perfiles, contraseñas y doble factor
+- **Permisos por pantalla (n.º 24)**: en Ajustes › Usuarios cada opción del menú puede quedar **oculta** (no aparece y no se abre), **solo lectura** (consulta sin registrar, modificar ni exportar) o **sin exportar** (trabaja normal pero no descarga Excel, CSV ni PDF). Aplica también a las páginas de detalle de cada pantalla y se valida en el servidor.
+- **Datos sensibles**: «Ocultar sueldos» (no abre planillas, boletas, PLAME, AFP, costo por centro ni movimientos de personal; en la lista y la ficha del trabajador no ve el sueldo ni lo exporta) y «Ocultar saldos de caja y bancos» (ve sus cuentas sin el saldo; no abre flujo de caja, conciliación ni extractos).
+- **Filtros por dato**: un usuario puede limitarse a ciertos **centros de costo** (trabajadores y filas de planilla, con sus subcentros), a ciertas **cuentas de caja y bancos** (cuentas y movimientos) y a las ventas de **un vendedor** (comprobantes y pedidos).
+- **Perfiles de acceso (roles)** en Ajustes › Perfiles de acceso: módulos, acciones, pantallas, costos, sueldos, saldos y límite de aprobación definidos una vez («Asistente de compras», «Jefe de almacén»…); se eligen en el usuario y, al cambiar el perfil, se actualizan todos los usuarios que lo tienen.
+- **Política de contraseñas (n.º 28)** en Ajustes › Empresa: largo mínimo (8), mayúsculas y minúsculas, número, símbolo, **no repetir las últimas N** y **vencimiento** cada N días (al vencer, el sistema pide cambiarla antes de seguir). Los intentos fallidos antes del bloqueo también se configuran (5 por defecto).
+- **Verificación en dos pasos obligatoria (n.º 27)**: opcional, obligatoria para administradores y aprobadores (quien tenga acciones sensibles, límite de aprobación o reglas de aprobación) u obligatoria para todos; quien deba tenerla es llevado a activarla antes de usar el sistema.
+- **Cierre de sesión por inactividad** (30 minutos por defecto, configurable) y **aviso por correo del ingreso desde un equipo o navegador nuevo**.
+- Los administradores ven una alerta si la segregación de funciones no está en modo estricto o si la verificación en dos pasos es opcional.
+
 ## v1.42.0 — 20/10/2026 · Motor único de aprobación, estructura organizativa y personal
 - **Motor único de aprobación (n.º 33)** en Ajustes › Reglas de aprobación: para órdenes de compra, solicitudes de pedido, requerimientos, rendiciones, vacaciones y movimientos de personal, por nivel (1 → 2 → 3), con aprobador = jefe del solicitante, responsable del centro de costo, usuario, ocupante de un puesto o jefe N niveles arriba; por monto, centro de costo y tipo (urgente, activo, servicio, material…). Nadie aprueba lo suyo. Historial de cada aprobación, rechazo y reasignación. Sin reglas, todo funciona como antes. Las reglas de liberación de la SolPed pasaron a este motor.
 - **Órdenes de compra por niveles (n.º 25)**: aprobación en cadena con historial; **rechazo con motivo** (vuelve al comprador); si se edita, la aprobación empieza de nuevo. Sin reglas sigue el límite por usuario.

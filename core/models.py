@@ -119,6 +119,23 @@ class Empresa(models.Model):
     plan_contable = models.CharField('Plan contable', max_length=8, choices=PLANES_CONTABLES, default='PCGE2019',
                                      editable=False)
     # ---- control interno
+    # ---- seguridad de acceso
+    DOBLE_FACTOR = [('', 'Opcional para cada usuario'), ('APROBADORES', 'Obligatoria para administradores y '
+                                                                      'aprobadores'),
+                    ('TODOS', 'Obligatoria para todos')]
+    exigir_doble_factor = models.CharField('Verificación en dos pasos', max_length=12, choices=DOBLE_FACTOR,
+                                           blank=True, default='')
+    clave_largo_minimo = models.PositiveSmallIntegerField('Contraseña: largo mínimo', default=8)
+    clave_mayuscula = models.BooleanField('Contraseña: exige mayúscula y minúscula', default=True)
+    clave_numero = models.BooleanField('Contraseña: exige un número', default=True)
+    clave_simbolo = models.BooleanField('Contraseña: exige un símbolo', default=False)
+    clave_vence_dias = models.PositiveSmallIntegerField('Contraseña: vence a los (días)', default=0,
+                                                        help_text='0 = no vence')
+    clave_historial = models.PositiveSmallIntegerField('Contraseña: no repetir las últimas', default=3)
+    intentos_bloqueo = models.PositiveSmallIntegerField('Bloquear tras intentos fallidos', default=5)
+    minutos_inactividad = models.PositiveSmallIntegerField('Cerrar sesión tras minutos sin actividad', default=30,
+                                                           help_text='0 = no cerrar')
+    aviso_equipo_nuevo = models.BooleanField('Avisar por correo el ingreso desde un equipo nuevo', default=True)
     dias_escalamiento = models.PositiveSmallIntegerField(
         'Escalar aprobaciones a los (días)', default=3,
         help_text='Si un nivel de aprobación pasa estos días sin respuesta, también puede aprobarlo el jefe del '
@@ -836,6 +853,21 @@ class PerfilUsuario(models.Model):
     celular = models.CharField(max_length=20, blank=True,
                                help_text='Con código de país (51...). Identifica al usuario cuando envía gastos por '
                                          'WhatsApp')
+    # ---- permisos por pantalla, datos sensibles y filtros por dato
+    perfil_acceso = models.ForeignKey('PerfilAcceso', on_delete=models.SET_NULL, null=True, blank=True,
+                                      related_name='usuarios', verbose_name='Perfil de acceso aplicado')
+    pantallas = models.JSONField(default=dict, blank=True,
+                                 help_text='{ruta: OCULTA | LECTURA | SIN_EXPORTAR}; sin entrada = acceso completo')
+    ver_sueldos = models.BooleanField('Ve sueldos y boletas', default=True)
+    ver_saldos = models.BooleanField('Ve saldos de caja y bancos', default=True)
+    centros = models.ManyToManyField('contabilidad.CentroCosto', blank=True, related_name='+',
+                                     verbose_name='Solo estos centros de costo',
+                                     help_text='Trabajadores, planillas y solicitudes de estos centros. Vacío = todos')
+    cuentas = models.ManyToManyField('finanzas.Cuenta', blank=True, related_name='+',
+                                     verbose_name='Solo estas cuentas de caja y bancos', help_text='Vacío = todas')
+    vendedor = models.CharField('Solo las ventas del vendedor', max_length=80, blank=True,
+                                help_text='Comprobantes y pedidos de este vendedor. Vacío = todos')
+    clave_cambiada_en = models.DateTimeField('Contraseña cambiada el', null=True, blank=True, editable=False)
 
     class Meta:
         verbose_name = 'perfil de usuario'
@@ -856,6 +888,54 @@ class FiltroGuardado(models.Model):
     class Meta:
         ordering = ['reporte', 'nombre']
         unique_together = [('usuario', 'reporte', 'nombre')]
+
+
+class PerfilAcceso(models.Model):
+    """Perfil reutilizable (rol): módulos, acciones, pantallas, datos sensibles y límite de aprobación que se
+    aplican de una vez a varios usuarios (ej. «Asistente de compras», «Jefe de almacén»)."""
+    nombre = models.CharField(max_length=80, unique=True)
+    descripcion = models.CharField('Descripción', max_length=200, blank=True)
+    modulos = models.JSONField(default=list, blank=True)
+    acciones = models.JSONField(default=list, blank=True)
+    pantallas = models.JSONField(default=dict, blank=True)
+    ver_costos = models.BooleanField('Ve costos de inventario', default=False)
+    ver_sueldos = models.BooleanField('Ve sueldos y boletas', default=True)
+    ver_saldos = models.BooleanField('Ve saldos de caja y bancos', default=True)
+    limite_aprobacion = models.DecimalField('Aprueba órdenes de compra hasta S/', max_digits=14, decimal_places=2,
+                                            default=D0)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['nombre']
+        verbose_name = 'perfil de acceso'
+        verbose_name_plural = 'perfiles de acceso'
+
+    def __str__(self):
+        return self.nombre
+
+
+class HistorialClave(models.Model):
+    """Contraseñas anteriores (solo su hash) para no repetir las últimas N."""
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='+')
+    clave = models.CharField(max_length=200)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado', '-id']
+
+
+class DispositivoConocido(models.Model):
+    """Equipos desde los que el usuario ya ingresó: un ingreso desde uno nuevo se avisa por correo."""
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='+')
+    huella = models.CharField(max_length=64, db_index=True)
+    navegador = models.CharField(max_length=200, blank=True)
+    ip = models.CharField(max_length=45, blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+    ultimo = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-ultimo']
+        unique_together = [('usuario', 'huella')]
 
 
 class Incidencia(models.Model):

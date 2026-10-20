@@ -312,6 +312,7 @@ MODULOS = [
         'menu': [
             ('Empresa', 'empresa'),
             ('Usuarios y permisos', [('Usuarios', 'usuarios', 'bi-people'),
+                                     ('Perfiles de acceso (roles)', 'perfiles_acceso', 'bi-person-badge'),
                                      ('Segregación de funciones', 'segregacion', 'bi-shield-exclamation'),
                                      ('Reglas de aprobación (todos los documentos)', 'aprobaciones_reglas',
                                       'bi-diagram-3'),
@@ -367,6 +368,7 @@ RUTAS_CORE = {
                      'contabilidad', 'planillas', 'rendiciones', 'activos'], 'usuarios': ['ajustes'],
     'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'], 'segregacion': ['ajustes'],
+    'perfiles_acceso': ['ajustes'], 'perfil_acceso_nuevo': ['ajustes'], 'perfil_acceso_editar': ['ajustes'],
     'aprobaciones_reglas': ['ajustes', 'compras', 'rendiciones', 'planillas'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
     'tipos_cambio': ['ajustes', 'finanzas'],
@@ -482,15 +484,17 @@ def marcar_activo(items, ruta_completa):
     return items
 
 
-def menu_de(modulo, ver_costos=True, ruta=None, es_admin=True):
-    """Menú del módulo con las URLs ya resueltas (y la opción actual marcada si se da la ruta)."""
+def menu_de(modulo, ver_costos=True, ruta=None, es_admin=True, ocultas=()):
+    """Menú del módulo con las URLs ya resueltas (y la opción actual marcada si se da la ruta). `ocultas`: pantallas
+    que el usuario no ve (permisos por pantalla)."""
     items = []
     for etiqueta, destino in modulo['menu']:
         if isinstance(destino, list):
             hijos = [{'etiqueta': e, 'url': resolver_url(d), 'icono': i} for e, d, i in destino
-                     if (ver_costos or d not in RUTAS_COSTOS) and (es_admin or d.partition('?')[0] not in RUTAS_ADMIN)]
+                     if (ver_costos or d not in RUTAS_COSTOS) and (es_admin or d.partition('?')[0] not in RUTAS_ADMIN)
+                     and d.partition('?')[0] not in ocultas]
             if hijos:
                 items.append({'etiqueta': etiqueta, 'hijos': hijos})
-        else:
+        elif destino.partition('?')[0] not in ocultas:
             items.append({'etiqueta': etiqueta, 'url': resolver_url(destino)})
     return marcar_activo(items, ruta) if ruta else items

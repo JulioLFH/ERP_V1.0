@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{{ titulo }}</h1>
+  <a href="{% url 'perfiles_acceso' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Perfiles</a>
+</div>
+<form method="post" autocomplete="off">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-lg-5"><div class="card h-100"><div class="card-header">Perfil</div><div class="card-body"><div class="row g-3">
+      {% for field in form %}{% if field.name != 'modulos' and field.name != 'acciones' %}
+        <div class="col-12">{% include 'core/_campo.html' %}</div>
+      {% endif %}{% endfor %}
+    </div></div></div></div>
+    <div class="col-lg-7"><div class="card h-100"><div class="card-header">Módulos</div><div class="card-body">
+      <div class="row g-2" id="lista-modulos">
+        {% for m in modulos_info %}
+          <div class="col-md-6">
+            <label class="d-flex align-items-center gap-2 border rounded p-2 h-100" style="cursor:pointer">
+              <input type="checkbox" class="form-check-input mt-0" name="modulos" value="{{ m.clave }}" {% if m.clave in form.modulos.value %}checked{% endif %}>
+              <span class="rounded d-inline-grid text-white" style="width:32px;height:32px;place-items:center;background:{{ m.color }}"><i class="bi {{ m.icono }}"></i></span>
+              <span class="fw-semibold">{{ m.nombre }}</span>
+            </label>
+          </div>
+        {% endfor %}
+      </div>
+      {% for e in form.modulos.errors %}<div class="text-danger small mt-2">{{ e }}</div>{% endfor %}
+    </div></div></div>
+  </div>
+  <div class="card mt-3" id="bloque-permisos"><div class="card-header"><i class="bi bi-ui-checks"></i> Acciones</div>
+    <div class="card-body"><div class="row g-3">
+      {% for g in grupos_acciones %}
+      <div class="col-md-6 col-xl-4 grupo-acciones" data-modulo="{{ g.modulo.clave }}">
+        <div class="border rounded p-2 h-100">
+          <div class="fw-semibold small mb-1"><i class="bi {{ g.modulo.icono }}" style="color:{{ g.modulo.color }}"></i> {{ g.modulo.nombre }}</div>
+          {% for a in g.acciones %}<label class="d-block small"><input type="checkbox" class="form-check-input me-1" name="acciones" value="{{ a.valor }}" {% if a.marcada %}checked{% endif %}> <span {% if a.sensible %}class="text-danger"{% endif %}>{{ a.texto }}</span></label>{% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div></div>
+  </div>
+  {% include 'core/_pantallas.html' %}
+  <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar perfil</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+  const lista = document.getElementById('lista-modulos');
+  const sync = () => {
+    const marcados = new Set([...lista.querySelectorAll('input[name=modulos]:checked')].map(i => i.value));
+    document.querySelectorAll('.grupo-acciones').forEach(g => g.classList.toggle('d-none', !marcados.has(g.dataset.modulo)));
+    document.querySelectorAll('.grupo-pantallas').forEach(g => g.classList.toggle('d-none', !g.dataset.origenes.split(' ').some(m => marcados.has(m))));
+  };
+  lista.addEventListener('change', sync);
+  sync();
+</script>
+{% endblock %}

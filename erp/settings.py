@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Versión visible en el menú del usuario; actualizarla junto con CHANGELOG.md y la etiqueta de git
 ERP_NOMBRE = 'Ceiba ERP'
-ERP_VERSION = '1.42.0'
+ERP_VERSION = '1.43.0'
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insegura-cambiar-en-produccion')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
@@ -62,6 +62,7 @@ MIDDLEWARE = [
     'core.middleware.SeguridadMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'core.auditoria.AuditoriaMiddleware',
+    'core.politicas.PoliticasAccesoMiddleware',  # inactividad, doble factor obligatorio y contraseña vencida
     'core.middleware.AccesoModulosMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -116,8 +117,9 @@ DATABASE_ROUTERS = ['erp.empresas.EmpresaRouter']
 CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
                       'KEY_FUNCTION': 'erp.empresas.clave_cache'}}
 
+# política de contraseñas de Ajustes › Empresa (largo, mayúsculas, números, símbolos y sin repetir las últimas)
 AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'core.politicas.PoliticaClaveValidator'},
 ]
 
 LANGUAGE_CODE = 'es'

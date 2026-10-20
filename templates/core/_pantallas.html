@@ -1,0 +1,22 @@
+<div class="card mt-3" id="bloque-pantallas"><div class="card-header d-flex justify-content-between">
+  <span><i class="bi bi-window-stack"></i> Permisos por pantalla</span>
+  <span class="small text-muted">Sin marcar = acceso completo a la pantalla</span></div>
+  <div class="card-body">
+    <p class="small text-muted mb-2"><b>Oculta</b>: no aparece en el menú y no se abre. <b>Solo lectura</b>: consulta sin registrar, modificar ni exportar. <b>Sin exportar</b>: trabaja normal pero no descarga Excel, CSV ni PDF. Aplica también a las páginas de detalle de cada pantalla.</p>
+    <div class="row g-3">
+      {% for g in grupos_pantallas %}
+      <div class="col-md-6 col-xl-4 grupo-pantallas" data-modulo="{{ g.modulo.clave }}" data-origenes="{{ g.origenes }}">
+        <div class="border rounded p-2 h-100">
+          <div class="fw-semibold small mb-1"><i class="bi {{ g.modulo.icono }}" style="color:{{ g.modulo.color }}"></i> {{ g.modulo.nombre }}</div>
+          {% for p in g.pantallas %}<div class="d-flex justify-content-between align-items-center gap-2 small py-1 border-bottom">
+            <span>{{ p.etiqueta }}</span>
+            <select name="pantalla|{{ p.clave }}" class="form-select form-select-sm py-0" style="width:auto">
+              {% for v, t in niveles %}<option value="{{ v }}" {% if p.nivel == v %}selected{% endif %}>{{ t }}</option>{% endfor %}
+            </select>
+          </div>{% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
