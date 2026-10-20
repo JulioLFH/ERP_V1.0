@@ -16,10 +16,10 @@ from core.utils import excel_response, rango_por_defecto
 from core.views import FormGenerico, ListaGenerica
 
 from . import servicios
-from .forms import (CentroTrabajoForm, ComponentesFormSet, HojaRutaForm, ListaMaterialesForm,
+from .forms import (CentroTrabajoForm, ComponentesFormSet, HojaRutaForm, ListaMaterialesForm, MotivoParadaForm,
                     OperacionesRutaFormSet, OrdenProduccionForm, PlanDemandaForm, SubproductosFormSet, VersionForm)
-from .models import (CambioIngenieria, CentroTrabajo, CorridaMRP, HojaRuta, ListaMateriales, OrdenProduccion,
-                     PlanDemanda, PropuestaMRP, VersionFabricacion)
+from .models import (CambioIngenieria, CentroTrabajo, CorridaMRP, HojaRuta, ListaMateriales, MotivoParada,
+                     OrdenProduccion, PlanDemanda, PropuestaMRP, VersionFabricacion)
 
 
 def _decimal(valor, defecto=None):
@@ -425,6 +425,33 @@ class CentroLista(ListaGenerica):
                 ('Centro de costo', 'centro_costo'), ('Activo', 'activo')]
     url_nuevo, url_editar = 'manufactura:centro_nuevo', 'manufactura:centro_editar'
     buscar_en = ['codigo', 'nombre']
+
+
+@login_required
+def motivos_parada(request):
+    """Maestro de motivos de parada (Manufactura › Ingeniería) y configuración del OEE de la empresa."""
+    from .forms import ConfiguracionPlantaForm
+    from .models import ConfiguracionPlanta
+    config = ConfiguracionPlanta.actual()
+    form = ConfiguracionPlantaForm(request.POST or None, instance=config)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Configuración del OEE guardada.')
+        return redirect('manufactura:motivos_parada')
+    from django.db.models import Count
+    motivos = MotivoParada.objects.prefetch_related('puestos').annotate(n=Count('paradas')).order_by('perdida',
+                                                                                                    'codigo')
+    return render(request, 'produccion/motivos_parada.html', {'motivos': motivos, 'form': form})
+
+
+class MotivoNuevo(FormGenerico, CreateView):
+    model, form_class, titulo = MotivoParada, MotivoParadaForm, 'Nuevo motivo de parada'
+    success_url = reverse_lazy('manufactura:motivos_parada')
+
+
+class MotivoEditar(FormGenerico, UpdateView):
+    model, form_class, titulo = MotivoParada, MotivoParadaForm, 'Editar motivo de parada'
+    success_url = reverse_lazy('manufactura:motivos_parada')
 
 
 class CentroNuevo(FormGenerico, CreateView):

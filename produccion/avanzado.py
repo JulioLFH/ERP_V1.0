@@ -106,19 +106,57 @@ def diagrama(por_centro, desde, dias=21):
 
 
 # ---------------------------------------------------------------- reporte de planta (tablets)
+def errores_parada(motivo, centro, equipo):
+    """Reglas del maestro de motivos: que aplique al puesto y, si lo exige, que lleve equipo."""
+    errores = []
+    if motivo is None:
+        return ['Indique el motivo de la parada.']
+    if not motivo.activo:
+        errores.append(f'El motivo «{motivo}» está desactivado.')
+    if centro is not None and not motivo.aplica_en(centro):
+        errores.append(f'El motivo «{motivo}» no aplica en el puesto {centro}.')
+    if motivo.exige_equipo and equipo is None:
+        errores.append(f'El motivo «{motivo}» exige indicar el equipo.')
+    return errores
+
+
+def al_cerrar_parada(parada, usuario):
+    """Si el motivo lo pide (averías), propone una orden de mantenimiento correctiva programada para el equipo."""
+    from .models import OrdenMantenimiento
+    from .planta import crear_orden
+    if not (parada.fin and parada.equipo_id and parada.motivo.genera_mantenimiento) or parada.orden_mantenimiento_id:
+        return None
+    ot = crear_orden(OrdenMantenimiento(
+        equipo=parada.equipo, tipo='CORRECTIVO', fecha_programada=timezone.localdate(),
+        responsable=(parada.operario or '')[:80],
+        descripcion=f'{parada.motivo} en {parada.centro} el {timezone.localtime(parada.inicio):%d/%m/%Y %H:%M} '
+                    f'({parada.horas} h). {parada.nota}'.strip()), usuario)
+    parada.orden_mantenimiento = ot
+    parada.save(update_fields=['orden_mantenimiento'])
+    return ot
+
+
 @transaction.atomic
-def registrar_parada(orden, hora, motivo, minutos, usuario, operario=''):
-    """Parada de la línea reportada desde la planta: termina ahora y empieza los minutos indicados antes."""
+def registrar_parada(orden, hora, motivo, minutos, usuario, operario='', equipo=None):
+    """Parada de la línea reportada desde la planta: termina ahora y empieza los minutos indicados antes. Si el
+    motivo exige equipo y no se indica, se toma el del puesto (si tiene uno solo)."""
     from .models import Parada
     if hora is None or motivo is None:
         raise ErrorAvanzado('Indique el puesto y el motivo de la parada.')
     if not minutos or minutos <= 0:
         raise ErrorAvanzado('Indique cuántos minutos duró la parada.')
+    equipos = list(hora.centro.equipos.filter(activo=True)[:2])
+    if equipo is None:
+        equipo = equipos[0] if len(equipos) == 1 or (equipos and not motivo.exige_equipo) else None
+    errores = errores_parada(motivo, hora.centro, equipo)
+    if errores:
+        raise ErrorAvanzado(' '.join(errores))
     fin = timezone.now()
-    equipo = hora.centro.equipos.filter(activo=True).first()
-    return Parada.objects.create(centro=hora.centro, equipo=equipo, orden=orden, motivo=motivo,
-                                 inicio=fin - timedelta(minutes=float(minutos)), fin=fin, usuario=usuario,
-                                 operario=(operario or (usuario.get_full_name() if usuario else '') or '')[:80])
+    parada = Parada.objects.create(centro=hora.centro, equipo=equipo, orden=orden, motivo=motivo,
+                                   inicio=fin - timedelta(minutes=float(minutos)), fin=fin, usuario=usuario,
+                                   operario=(operario or (usuario.get_full_name() if usuario else '') or '')[:80])
+    al_cerrar_parada(parada, usuario)
+    return parada
 
 
 @transaction.atomic

@@ -121,6 +121,7 @@ MODULOS = [
                             ('Hojas de ruta', 'manufactura:hojas', 'bi-signpost-split'),
                             ('Versiones de fabricación', 'manufactura:versiones', 'bi-layers'),
                             ('Puestos de trabajo', 'manufactura:centros', 'bi-tools'),
+                            ('Motivos de parada (OEE)', 'manufactura:motivos_parada', 'bi-pause-btn'),
                             ('Carga masiva de maestros (Excel)', 'carga_masiva?tipo=centros_beneficio',
                              'bi-file-earmark-arrow-up')]),
             ('Productos', 'productos'),

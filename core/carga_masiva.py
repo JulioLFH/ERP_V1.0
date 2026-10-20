@@ -324,6 +324,25 @@ DEFINICIONES = OrderedDict([
             ('fecha', 'Fecha', True, '30/11/2026', 'dd/mm/aaaa: cuándo se necesita'),
             ('nota', 'Nota', False, 'Campaña navidad', ''),
         ]}),
+    ('motivos_parada', {
+        'titulo': 'Motivos de parada (OEE)', 'icono': 'bi-pause-btn', 'modulos': ['manufactura'],
+        'descripcion': 'Maestro de motivos de parada con la pérdida del OEE que afectan. Con "Actualizar existentes" '
+                       'se reclasifican los que ya existen (sus paradas se conservan).',
+        'columnas': [
+            ('codigo', 'Código', True, 'AV-MEC', 'Único'), ('nombre', 'Motivo', True, 'Avería mecánica', ''),
+            ('perdida', 'Pérdida OEE', True, 'Disponibilidad',
+             'Disponibilidad, Rendimiento, Calidad o No programado'),
+            ('tipo', 'Tipo', True, 'Avería', 'Planificada, Avería, Proceso, Externa, Microparada, Velocidad reducida '
+                                              'o Calidad'),
+            ('planificada', '¿Planificada?', False, 'No', 'Sí o No. Tipo Planificada = Sí'),
+            ('area', 'Área responsable', False, 'Mantenimiento',
+             'Producción, Mantenimiento, Calidad, Logística, RR. HH., Servicios o Planeamiento. Vacío = Producción'),
+            ('es_falla', 'Cuenta para MTBF / MTTR', False, 'Sí', 'Sí o No. Vacío = Sí solo para averías'),
+            ('exige_equipo', 'Exige equipo', False, 'Sí', 'Sí o No. Vacío = Sí solo para averías'),
+            ('genera_mantenimiento', 'Propone orden de mantenimiento', False, 'Sí', 'Sí o No (requiere exigir equipo)'),
+            ('puestos', 'Puestos donde aplica (códigos)', False, 'ENV1, ENV2', 'Separados por coma. Vacío = todos'),
+            ('activo', 'Activo', False, 'Sí', 'Sí o No. Vacío = Sí'),
+        ]}),
     ('activos', {
         'titulo': 'Activos fijos (saldo inicial)', 'icono': 'bi-building-gear', 'modulos': ['activos'],
         'descripcion': 'Activos que la empresa ya tiene al empezar, con su depreciación acumulada a una fecha. Ya '
@@ -353,7 +372,8 @@ CARGA_DE_LISTA = {'productos': 'productos', 'terceros': 'terceros', 'contabilida
                   'manufactura:centros': 'puestos', 'manufactura:listas': 'recetas', 'manufactura:hojas': 'hojas_ruta',
                   'manufactura:versiones': 'versiones', 'almacenes': 'almacenes', 'planillas:trabajadores': 'trabajadores',
                   'ventas:listas_precios': 'listas_precios', 'manufactura:mrp': 'plan_demanda',
-                  'rendiciones:configuracion': 'categorias_gasto', 'activos:lista': 'activos'}
+                  'rendiciones:configuracion': 'categorias_gasto', 'activos:lista': 'activos',
+                  'manufactura:motivos_parada': 'motivos_parada'}
 
 SI_NO = {'SI': True, 'S': True, 'YES': True, 'TRUE': True, '1': True, 'X': True,
          'NO': False, 'N': False, 'FALSE': False, '0': False}
@@ -620,6 +640,40 @@ def _fila_puesto(d, actualizar):
         'centro_costo': cc, 'horas_turno': str(_dec(d.get('horas_turno'), 'Horas por turno', minimo=D0) or 8),
         'turnos': int(_dec(d.get('turnos'), 'Turnos', minimo=D0) or 1), 'dias_laborables': ''.join(sorted(set(dias))),
         'eficiencia': str(eficiencia)}, 'resumen': f'{codigo} · {nombre}'}
+
+
+def _fila_motivo_parada(d, actualizar):
+    from produccion.models import CentroTrabajo, MotivoParada
+    codigo, nombre = _txt(d.get('codigo')).upper(), _txt(d.get('nombre'))
+    if not codigo or not nombre:
+        raise ErrorFila('Código y motivo son obligatorios.')
+    perdida = _elegir(d.get('perdida'), _opciones(MotivoParada.PERDIDAS, {'NO PROGRAMADO': 'NO_PROGRAMADO'}),
+                      'Pérdida OEE')
+    tipo = _elegir(d.get('tipo'), _opciones(MotivoParada.TIPOS, {'PROCESO': 'PROCESO', 'VELOCIDAD REDUCIDA': 'VELOCIDAD',
+                                                                 'AVERIA': 'AVERIA'}), 'Tipo')
+    if perdida == 'RENDIMIENTO' and tipo not in ('MICROPARADA', 'VELOCIDAD'):
+        raise ErrorFila('Las pérdidas de rendimiento son microparadas o velocidad reducida.')
+    area = _elegir(d.get('area'), _opciones(MotivoParada.AREAS, {'RRHH': 'RRHH', 'RR HH': 'RRHH'}), 'Área',
+                   requerido=False, defecto='PRODUCCION')
+
+    def si_no(campo, defecto):
+        return SI_NO.get(normalizar(d.get(campo)), defecto) if _txt(d.get(campo)) else defecto
+    averia = tipo == 'AVERIA'
+    datos = {'nombre': nombre[:80], 'perdida': perdida, 'tipo': tipo, 'area': area,
+             'planificada': True if tipo == 'PLANIFICADA' else si_no('planificada', False),
+             'es_falla': si_no('es_falla', averia), 'exige_equipo': si_no('exige_equipo', averia),
+             'genera_mantenimiento': si_no('genera_mantenimiento', averia), 'activo': si_no('activo', True)}
+    if datos['genera_mantenimiento'] and not datos['exige_equipo']:
+        raise ErrorFila('Para proponer una orden de mantenimiento el motivo debe exigir el equipo.')
+    puestos = [p.strip().upper() for p in re.split(r'[,;]', _txt(d.get('puestos'))) if p.strip()]
+    faltan = [p for p in puestos if not CentroTrabajo.objects.filter(codigo=p).exists()]
+    if faltan:
+        raise ErrorFila(f'Puesto(s) {", ".join(faltan)} no existen.')
+    existe = MotivoParada.objects.filter(codigo=codigo).exists()
+    if existe and not actualizar:
+        raise ErrorFila(f'{codigo} ya existe (marque "Actualizar existentes").')
+    return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': codigo, 'datos': {**datos, 'puestos': puestos},
+            'resumen': f'{codigo} · {nombre} · {dict(MotivoParada.PERDIDAS)[perdida].lower()}'}
 
 
 def _fila_activo(d, actualizar):
@@ -980,7 +1034,8 @@ VALIDADORES = {'cuentas': _fila_cuenta, 'plan_demanda': _fila_plan_demanda,
                'saldos_cxc': lambda d, a: _fila_documento(d, True), 'saldos_cxp': lambda d, a: _fila_documento(d, False),
                'centros_beneficio': _fila_beneficio, 'centros_costo': _fila_centro_costo, 'puestos': _fila_puesto,
                'recetas': _fila_receta, 'hojas_ruta': _fila_hoja, 'versiones': _fila_version,
-               'listas_precios': _fila_lista_precio, 'activos': _fila_activo}
+               'listas_precios': _fila_lista_precio, 'activos': _fila_activo,
+               'motivos_parada': _fila_motivo_parada}
 MAXIMO_FILAS = {'listas_precios': 30000}
 
 
@@ -1167,6 +1222,14 @@ def cargar(tipo, filas, usuario, adjunto=None):
             for f in filas:
                 Almacen.objects.update_or_create(codigo=f['codigo'], defaults=f['datos'])
             return f'{len(filas)} almacenes cargados.'
+        if tipo == 'motivos_parada':
+            from produccion.models import CentroTrabajo, MotivoParada
+            for f in filas:
+                d = dict(f['datos'])
+                puestos = d.pop('puestos')
+                motivo, _ = MotivoParada.objects.update_or_create(codigo=f['codigo'], defaults=d)
+                motivo.puestos.set(CentroTrabajo.objects.filter(codigo__in=puestos))
+            return f'{len(filas)} motivos de parada cargados.'
         if tipo == 'activos':
             from activos.models import ActivoFijo
             from contabilidad.models import CentroCosto

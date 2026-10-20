@@ -55,6 +55,9 @@ urlpatterns = [
     path('versiones/nueva/', views.VersionNueva.as_view(), name='version_nueva'),
     path('versiones/<int:pk>/editar/', views.VersionEditar.as_view(), name='version_editar'),
     path('puestos/', views.CentroLista.as_view(), name='centros'),
+    path('motivos-parada/', views.motivos_parada, name='motivos_parada'),
+    path('motivos-parada/nuevo/', views.MotivoNuevo.as_view(), name='motivo_parada_nuevo'),
+    path('motivos-parada/<int:pk>/editar/', views.MotivoEditar.as_view(), name='motivo_parada_editar'),
     path('puestos/nuevo/', views.CentroNuevo.as_view(), name='centro_nuevo'),
     path('puestos/<int:pk>/editar/', views.CentroEditar.as_view(), name='centro_editar'),
 ]

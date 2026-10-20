@@ -155,6 +155,8 @@ RUTAS = {
     'manufactura:programacion': {'POST': 'manufactura.ordenes'},
     'manufactura:planta_orden': {'POST': 'manufactura.ordenes'},
     'manufactura:paradas': {'POST': 'manufactura.ordenes'},
+    'manufactura:motivos_parada': {'POST': 'manufactura.recetas'},  # maestro de Ingeniería
+    'manufactura:motivo_parada_nuevo': 'manufactura.recetas', 'manufactura:motivo_parada_editar': 'manufactura.recetas',
     'manufactura:cambio_nuevo': 'manufactura.recetas',
     'manufactura:cambio': lambda r: (None if r.method != 'POST' else 'manufactura.aprobar_cambios'
                                      if r.POST.get('accion') in ('aprobar', 'rechazar') else 'manufactura.recetas'),

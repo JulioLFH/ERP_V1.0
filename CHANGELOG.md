@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.37.0 — 20/10/2026 · Maestro de motivos de parada y OEE por tipo de pérdida
+- **Motivos de parada** en Manufactura › Ingeniería (y carga masiva desde Excel): código, nombre, **pérdida OEE** (disponibilidad, rendimiento, calidad o no programado), **tipo** (planificada, avería, proceso, externa, microparada, velocidad reducida, calidad), área responsable, si cuenta para MTBF/MTTR, si exige equipo, si propone orden de mantenimiento y en qué puestos aplica. Los motivos con paradas no se borran: se desactivan.
+- Los 9 motivos anteriores quedaron clasificados (sus paradas se conservan) y se agregaron los de la lista sugerida que faltaban (sin pedidos, refrigerio, arranque, averías eléctrica y neumática, ajustes, atasco, microparada, velocidad reducida, rechazo, reproceso, merma de arranque).
+- **Paradas de línea y tablet**: solo se ofrecen los motivos del puesto; si el motivo exige equipo y el puesto tiene varios, se elige; las averías **proponen una orden de mantenimiento correctiva** para el equipo.
+- **OEE**: el tiempo no programado queda fuera; las planificadas restan disponibilidad solo si la empresa lo configura; las microparadas (paradas cortas no planificadas, límite configurable, 5 min por defecto) y la velocidad reducida bajan el rendimiento; averías, proceso y externas bajan la disponibilidad. Columnas por cada tipo de pérdida.
+- **Pareto de paradas** (nuevo reporte): horas, número de paradas y % acumulado por motivo, tipo, área, equipo, línea o pérdida OEE. El MTBF y el MTTR usan solo los motivos marcados.
+
 ## v1.36.0 — 19/10/2026 · Correcciones del piloto (checklist v1.34.0)
 - **Kardex sin negativos por fechas atrasadas (MAN-08, crítica)**: una salida (consumo, venta, traslado) con fecha pasada ya no puede usar un ingreso posterior: se valida el saldo en su fecha y en cada movimiento siguiente, con un mensaje que indica cuánto puede salir y desde cuándo.
 - **Órdenes de compra sin aprobar (COM-01)**: no se recibe mercadería ni se registra la factura de una OC pendiente; mensaje claro para aprobarla primero.

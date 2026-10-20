@@ -548,11 +548,29 @@ def _paradas(f):
     return list(qs)
 
 
+def clasificar_parada(p, config):
+    """En qué parte del OEE cae una parada según su motivo (maestro de motivos) y la configuración de la empresa:
+    'no_programado' (fuera del OEE), 'planificada' (solo reduce el tiempo planificado), 'disponibilidad',
+    'rendimiento' (microparadas y velocidad reducida) o 'calidad'."""
+    perdida = p.motivo.perdida
+    if perdida == 'NO_PROGRAMADO':
+        return 'no_programado'
+    if perdida in ('RENDIMIENTO', 'CALIDAD'):
+        return perdida.lower()
+    if p.motivo.planificada:
+        return 'disponibilidad' if config.planificadas_restan else 'planificada'
+    if p.horas * 60 <= config.microparada_minutos:  # parada corta no planificada: microparada
+        return 'rendimiento'
+    return 'disponibilidad'
+
+
 def oee(f):
-    """OEE = disponibilidad × rendimiento × calidad por línea (puesto)."""
-    paradas = defaultdict(lambda: {'plan': D0, 'no_plan': D0})
+    """OEE = disponibilidad × rendimiento × calidad por línea (puesto), con las paradas clasificadas por su motivo."""
+    from .models import ConfiguracionPlanta
+    config = ConfiguracionPlanta.actual()
+    paradas = defaultdict(lambda: defaultdict(lambda: D0))
     for p in _paradas(f):
-        paradas[p.centro_id]['plan' if p.motivo.planificada else 'no_plan'] += p.horas
+        paradas[p.centro_id][clasificar_parada(p, config)] += p.horas
     real, estandar, buena, mala = (defaultdict(lambda: D0) for _ in range(4))
     for a in _registros_planta(f):  # tablets + órdenes terminadas desde su pantalla
         if not a.hora_id:
@@ -567,30 +585,69 @@ def oee(f):
     centros = CentroTrabajo.objects.filter(pk__in=set(real) | set(paradas))
     filas = []
     for c in centros.order_by('codigo'):
+        par = paradas[c.pk]
         funcionando = real[c.pk]
-        no_plan = paradas[c.pk]['no_plan']
-        programado = funcionando + no_plan
-        disp = funcionando / programado if programado else None
-        rend = min(estandar[c.pk] / funcionando, Decimal('1')) if funcionando else None
+        operativo = funcionando + par['rendimiento']  # las microparadas y la velocidad reducida ocurren operando
+        planificado = operativo + par['disponibilidad']
+        disp = operativo / planificado if planificado else None
+        rend = min(estandar[c.pk] / operativo, Decimal('1')) if operativo else None
         total = buena[c.pk] + mala[c.pk]
         cal = buena[c.pk] / total if total else None
         valor = disp * rend * cal if None not in (disp, rend, cal) else None
-        filas.append({'linea': str(c), 'funcionando': r2(funcionando), 'paradas_no_plan': r2(no_plan),
-                      'paradas_plan': r2(paradas[c.pk]['plan']),
+        filas.append({'linea': str(c), 'funcionando': r2(funcionando), 'paradas_no_plan': r2(par['disponibilidad']),
+                      'paradas_rend': r2(par['rendimiento']), 'paradas_plan': r2(par['planificada']),
+                      'no_programado': r2(par['no_programado']), 'paradas_calidad': r2(par['calidad']),
                       'disponibilidad': r2(disp * 100) if disp is not None else None,
                       'rendimiento': r2(rend * 100) if rend is not None else None,
                       'calidad': r2(cal * 100) if cal is not None else None,
                       'oee': r2(valor * 100) if valor is not None else None})
+    restan = 'sí restan' if config.planificadas_restan else 'no restan (solo reducen el tiempo planificado)'
     return {'titulo': 'Eficiencia de equipos (OEE)', 'filas': filas,
             'columnas': [('linea', 'Línea / puesto', 'texto'), ('funcionando', 'Horas produciendo', 'num'),
-                         ('paradas_no_plan', 'Paradas no planificadas (h)', 'num'),
-                         ('paradas_plan', 'Paradas planificadas (h)', 'num'), ('disponibilidad', 'Disponibilidad %', 'pct'),
-                         ('rendimiento', 'Rendimiento %', 'pct'), ('calidad', 'Calidad %', 'pct'), ('oee', 'OEE %', 'pct')],
+                         ('paradas_no_plan', 'Paradas de disponibilidad (h)', 'num'),
+                         ('paradas_rend', 'Microparadas y velocidad (h)', 'num'),
+                         ('paradas_plan', 'Planificadas que no restan (h)', 'num'),
+                         ('no_programado', 'No programado (h)', 'num'), ('paradas_calidad', 'Calidad (h)', 'num'),
+                         ('disponibilidad', 'Disponibilidad %', 'pct'), ('rendimiento', 'Rendimiento %', 'pct'),
+                         ('calidad', 'Calidad %', 'pct'), ('oee', 'OEE %', 'pct')],
             'total': None, 'avisos': [] if paradas else ['Registre las paradas (Manufactura › Paradas o desde la '
                                                         'tablet) para medir la disponibilidad.'],
-            'descripcion': 'Disponibilidad = horas produciendo ÷ (produciendo + paradas no planificadas). '
-                           'Rendimiento = horas estándar de lo producido ÷ horas produciendo. Calidad = buena ÷ '
-                           '(buena + merma). Datos de la planta y de las paradas registradas.'}
+            'descripcion': f'Cada parada cuenta según la pérdida de su motivo (Manufactura › Ingeniería › Motivos de '
+                           f'parada). Disponibilidad = tiempo operativo ÷ (operativo + averías, proceso y externas). '
+                           f'Rendimiento = horas estándar de lo producido ÷ tiempo operativo (que incluye microparadas '
+                           f'de hasta {config.microparada_minutos} min y velocidad reducida). Calidad = buena ÷ '
+                           f'(buena + merma). El tiempo no programado no entra. Las planificadas {restan}.'}
+
+
+# ---------------------------------------------------------------- Pareto de paradas
+def pareto_paradas(f):
+    """Horas y número de paradas por motivo, tipo, área, equipo o pérdida OEE, de mayor a menor, con el porcentaje
+    acumulado (el 20 % de los motivos que explica el 80 % del tiempo perdido)."""
+    por = f.por if f.por in ('motivo', 'tipo', 'area', 'equipo', 'perdida', 'puesto') else 'motivo'
+    grupos = defaultdict(lambda: {'horas': D0, 'eventos': 0})
+    for p in _paradas(f):
+        clave = {'motivo': lambda: f'{p.motivo.codigo} {p.motivo.nombre}', 'tipo': p.motivo.get_tipo_display,
+                 'area': p.motivo.get_area_display, 'perdida': p.motivo.get_perdida_display,
+                 'equipo': lambda: str(p.equipo or 'Sin equipo'), 'puesto': lambda: str(p.centro)}[por]()
+        grupos[clave]['horas'] += p.horas
+        grupos[clave]['eventos'] += 1
+    total = sum((g['horas'] for g in grupos.values()), D0)
+    filas, acumulado = [], D0
+    for clave, g in sorted(grupos.items(), key=lambda x: (-x[1]['horas'], x[0])):
+        acumulado += g['horas']
+        filas.append({'grupo': clave, 'eventos': g['eventos'], 'horas': r2(g['horas']),
+                      'promedio': r2(g['horas'] / g['eventos'] * 60) if g['eventos'] else None,
+                      'pct': pct(g['horas'], total), 'acumulado': pct(acumulado, total)})
+    titulo = {'motivo': 'Motivo', 'tipo': 'Tipo', 'area': 'Área responsable', 'equipo': 'Equipo',
+              'perdida': 'Pérdida OEE', 'puesto': 'Línea / puesto'}[por]
+    return {'titulo': 'Pareto de paradas', 'filas': filas,
+            'columnas': [('grupo', titulo, 'texto'), ('eventos', 'Paradas', 'num'), ('horas', 'Horas', 'num'),
+                         ('promedio', 'Minutos por parada', 'num'), ('pct', '% de las horas', 'pct'),
+                         ('acumulado', '% acumulado', 'pct')],
+            'total': {'eventos': sum(x['eventos'] for x in filas), 'horas': r2(total)},
+            'grafico': [(x['grupo'][:18], x['horas']) for x in filas[:12]], 'avisos': [],
+            'descripcion': 'Paradas cerradas en el periodo, de mayor a menor tiempo perdido. Se pueden agrupar por '
+                           'motivo, tipo, área responsable, equipo, línea o pérdida del OEE.'}
 
 
 def paradas_mantenimiento(f):
@@ -927,7 +984,8 @@ def diario(f):
     # 4. paradas
     paradas = sorted(_paradas(del_dia), key=lambda p: p.inicio)
     filas = [{'puesto': str(p.centro), 'equipo': str(p.equipo or ''), 'motivo': p.motivo.nombre,
-              'tipo': 'Planificada' if p.motivo.planificada else ('Falla' if p.motivo.es_falla else 'No planificada'),
+              'tipo': f'{p.motivo.get_perdida_display()} · {p.motivo.get_tipo_display()}'.replace(
+                  ' (no cuenta en el OEE)', ''),
               'inicio': timezone.localtime(p.inicio).strftime('%H:%M'), 'fin': timezone.localtime(p.fin).strftime('%H:%M'),
               'horas': p.horas, 'orden': p.orden.numero if p.orden_id else '', 'operario': p.operario}
              for p in paradas]
@@ -991,6 +1049,7 @@ REPORTES = OrderedDict([
     ('trazabilidad', ('Trazabilidad de lote', trazabilidad, ['lote', 'producto', 'cliente'])),
     ('calidad', ('Calidad por lote', calidad, ['fechas', 'producto', 'linea'])),
     ('paradas', ('Paradas y mantenimiento', paradas_mantenimiento, ['fechas', 'equipo'])),
+    ('pareto_paradas', ('Pareto de paradas', pareto_paradas, ['fechas', 'linea', 'equipo', 'por'])),
     ('prod_ventas', ('Producción, ventas y stock', produccion_ventas_stock, ['fechas', 'familia', 'producto'])),
     ('tablero', ('Tablero diario de producción', tablero, ['fecha', 'planta'])),
 ])

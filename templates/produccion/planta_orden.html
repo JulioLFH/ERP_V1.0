@@ -35,11 +35,37 @@
 <form method="post" class="card mb-3 border-warning">{% csrf_token %}<input type="hidden" name="accion" value="parada">
   <div class="card-header"><i class="bi bi-pause-circle"></i> Registrar parada de la línea</div>
   <div class="card-body row g-3">
-    <div class="col-12 col-md-4"><label class="form-label">Puesto</label><select name="hora" class="form-select form-select-lg" data-sin-buscador>{% for h, rep in operaciones %}<option value="{{ h.pk }}" {% if hora_sel == h.pk|stringformat:'s' %}selected{% endif %}>{{ h.centro }}</option>{% endfor %}</select></div>
-    <div class="col-12 col-md-4"><label class="form-label">Motivo</label><select name="motivo" class="form-select form-select-lg" required data-sin-buscador><option value="">—</option>{% for m in motivos_parada %}<option value="{{ m.pk }}">{{ m.nombre }}</option>{% endfor %}</select></div>
-    <div class="col-6 col-md-2"><label class="form-label">Minutos</label><input name="minutos" class="form-control form-control-lg text-end" inputmode="numeric" required></div>
-    <div class="col-6 col-md-2 d-flex align-items-end"><button class="btn btn-lg btn-warning w-100">Registrar</button></div>
-    <div class="col-12 small text-muted">La parada termina ahora y empieza los minutos indicados antes. Sirve para la disponibilidad (OEE) y el tiempo entre fallas.</div>
+    <div class="col-12 col-md-3"><label class="form-label">Puesto</label><select name="hora" id="parada-hora" class="form-select form-select-lg" data-sin-buscador>{% for h, rep in operaciones %}<option value="{{ h.pk }}" data-centro="{{ h.centro_id }}" {% if hora_sel == h.pk|stringformat:'s' %}selected{% endif %}>{{ h.centro }}</option>{% endfor %}</select></div>
+    <div class="col-12 col-md-4"><label class="form-label">Motivo</label><select name="motivo" id="parada-motivo" class="form-select form-select-lg" required data-sin-buscador><option value="">—</option>{% for m in motivos_parada %}<option value="{{ m.pk }}" data-puestos="{{ m.puestos_ids }}" data-equipo="{{ m.exige_equipo|yesno:'1,0' }}">{{ m.nombre }} · {{ m.get_perdida_display|lower }}</option>{% endfor %}</select></div>
+    <div class="col-12 col-md-3"><label class="form-label">Equipo</label><select name="equipo" id="parada-equipo" class="form-select form-select-lg" data-sin-buscador><option value="">— el del puesto —</option>{% for e in equipos %}<option value="{{ e.pk }}" data-centro="{{ e.centro_id }}">{{ e }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-1"><label class="form-label">Minutos</label><input name="minutos" class="form-control form-control-lg text-end" inputmode="numeric" required></div>
+    <div class="col-6 col-md-1 d-flex align-items-end"><button class="btn btn-lg btn-warning w-100">Registrar</button></div>
+    <div class="col-12 small text-muted">La parada termina ahora y empieza los minutos indicados antes. Solo aparecen los motivos del puesto; los que exigen equipo (averías) piden elegirlo si el puesto tiene varios. Las averías proponen una orden de mantenimiento.</div>
+    <script>
+    (function () {
+      const hora = document.getElementById('parada-hora'), motivo = document.getElementById('parada-motivo');
+      const equipo = document.getElementById('parada-equipo');
+      function filtrar() {
+        const centro = hora.selectedOptions[0] ? hora.selectedOptions[0].dataset.centro : '';
+        for (const op of motivo.options) {
+          if (!op.value) continue;
+          const puestos = op.dataset.puestos ? op.dataset.puestos.split(',') : [];
+          op.hidden = puestos.length > 0 && !puestos.includes(centro);
+          if (op.hidden && op.selected) motivo.value = '';
+        }
+        for (const op of equipo.options) {
+          if (!op.value) continue;
+          op.hidden = op.dataset.centro !== centro;
+          if (op.hidden && op.selected) equipo.value = '';
+        }
+        const exige = motivo.selectedOptions[0] && motivo.selectedOptions[0].dataset.equipo === '1';
+        equipo.required = exige && [...equipo.options].filter((o) => o.value && !o.hidden).length > 1;
+      }
+      hora.addEventListener('change', filtrar);
+      motivo.addEventListener('change', filtrar);
+      filtrar();
+    })();
+    </script>
   </div>
 </form>
 {% endif %}

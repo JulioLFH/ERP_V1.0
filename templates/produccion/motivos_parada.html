@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Motivos de parada{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Motivos de parada (OEE)</h1>
+  <div class="d-flex gap-2">
+    {% if url_carga %}<a href="{{ url_carga }}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-arrow-up"></i> Importar desde Excel</a>{% endif %}
+    <a href="{% url 'manufactura:motivo_parada_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo motivo</a>
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-9">
+    <div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small align-middle">
+      <thead><tr><th>Código</th><th>Motivo</th><th>Pérdida OEE</th><th>Tipo</th><th>Área</th><th title="Cuenta para el tiempo medio entre fallas y de reparación">MTBF/MTTR</th><th>Equipo</th><th>Puestos</th><th class="num">Paradas</th><th></th></tr></thead>
+      <tbody>{% for m in motivos %}<tr class="{% if not m.activo %}text-muted{% endif %}">
+        <td>{{ m.codigo }}</td>
+        <td>{{ m.nombre }}{% if not m.activo %} <span class="badge text-bg-light">inactivo</span>{% endif %}</td>
+        <td><span class="badge {% if m.perdida == 'DISPONIBILIDAD' %}text-bg-primary{% elif m.perdida == 'RENDIMIENTO' %}text-bg-warning{% elif m.perdida == 'CALIDAD' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ m.get_perdida_display }}</span></td>
+        <td>{{ m.get_tipo_display }}{% if m.planificada %} · planificada{% endif %}</td>
+        <td>{{ m.get_area_display }}</td>
+        <td>{% if m.es_falla %}Sí{% endif %}</td>
+        <td>{% if m.exige_equipo %}Exige{% endif %}{% if m.genera_mantenimiento %} · propone OT{% endif %}</td>
+        <td>{% for p in m.puestos.all %}{{ p.codigo }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="text-muted">todos</span>{% endfor %}</td>
+        <td class="num">{{ m.n }}</td>
+        <td class="text-end"><a href="{% url 'manufactura:motivo_parada_editar' m.pk %}" class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-pencil"></i></a></td>
+      </tr>{% empty %}<tr><td colspan="10" class="text-center text-muted py-4">Sin motivos.</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+    <p class="small text-muted mt-2">La planta elige el motivo y el OEE se calcula solo. <b>No programado</b>: sin pedidos, refrigerio (no cuenta en el OEE). <b>Disponibilidad</b>: averías, proceso, externas y, si lo configura, las planificadas. <b>Rendimiento</b>: microparadas y velocidad reducida. <b>Calidad</b>: rechazos, reprocesos y merma de arranque. Los motivos con paradas no se borran: se desactivan.</p>
+  </div>
+  <div class="col-lg-3">
+    <div class="card"><div class="card-header">Cálculo del OEE en esta empresa</div><div class="card-body">
+      <form method="post">{% csrf_token %}
+        {% for field in form %}{% include 'core/_campo.html' %}{% endfor %}
+        <button class="btn btn-sm btn-primary">Guardar</button>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

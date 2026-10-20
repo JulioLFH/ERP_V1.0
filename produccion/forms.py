@@ -4,10 +4,42 @@ from django.forms import inlineformset_factory
 from core.forms import remoto, BootstrapMixin, validar_periodo_abierto
 from core.models import Almacen, Producto
 
-from .models import (DIAS, CentroTrabajo, ComponenteLista, HojaRuta, ListaMateriales, OperacionRuta,
-                     OrdenProduccion, PlanDemanda, SubproductoLista, VersionFabricacion)
+from .models import (DIAS, CentroTrabajo, ComponenteLista, ConfiguracionPlanta, HojaRuta, ListaMateriales,
+                     MotivoParada, OperacionRuta, OrdenProduccion, PlanDemanda, SubproductoLista, VersionFabricacion)
 
 FABRICABLES = ['PRODUCTO_TERMINADO', 'SEMIELABORADO']
+
+
+class MotivoParadaForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = MotivoParada
+        fields = ['codigo', 'nombre', 'perdida', 'tipo', 'planificada', 'area', 'es_falla', 'exige_equipo',
+                  'genera_mantenimiento', 'puestos', 'activo']
+        widgets = {'puestos': forms.CheckboxSelectMultiple}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['puestos'].queryset = CentroTrabajo.objects.filter(activo=True)
+
+    def clean_codigo(self):
+        return self.cleaned_data['codigo'].strip().upper()
+
+    def clean(self):
+        d = super().clean()
+        if d.get('genera_mantenimiento') and not d.get('exige_equipo'):
+            self.add_error('genera_mantenimiento', 'Para proponer una orden de mantenimiento el motivo debe exigir '
+                                                   'el equipo.')
+        if d.get('tipo') == 'PLANIFICADA':
+            d['planificada'] = True
+        if d.get('perdida') == 'RENDIMIENTO' and d.get('tipo') not in ('MICROPARADA', 'VELOCIDAD'):
+            self.add_error('tipo', 'Las pérdidas de rendimiento son microparadas o velocidad reducida.')
+        return d
+
+
+class ConfiguracionPlantaForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = ConfiguracionPlanta
+        fields = ['planificadas_restan', 'microparada_minutos']
 
 
 class CentroTrabajoForm(BootstrapMixin, forms.ModelForm):

@@ -277,6 +277,99 @@ class OrdenTerminadaSinTabletTest(Base):
                          (D('25.00'), D('27.50'), D('2.50'), D('10.00')))
 
 
+class MotivosParadaOEETest(Base):
+    """Piloto n.º 9: maestro de motivos de parada con su pérdida OEE, reglas en tablet y pantalla, OEE y Pareto."""
+
+    def parada(self, codigo, minutos, centro=None, equipo=None, hace=60):
+        fin = timezone.now() - timedelta(minutes=hace)
+        return Parada.objects.create(centro=centro or self.horno, equipo=equipo, motivo=MotivoParada.objects.get(
+            codigo=codigo), inicio=fin - timedelta(minutes=minutos), fin=fin)
+
+    def test_maestro_reglas_oee_y_pareto(self):
+        from .avanzado import ErrorAvanzado, registrar_parada
+        from .models import ConfiguracionPlanta, OrdenMantenimiento
+        averia = MotivoParada.objects.get(codigo='AVERIA')  # los 9 anteriores quedaron clasificados
+        self.assertEqual((averia.perdida, averia.tipo, averia.es_falla, averia.exige_equipo,
+                          averia.genera_mantenimiento), ('DISPONIBILIDAD', 'AVERIA', True, True, True))
+        self.assertEqual(MotivoParada.objects.get(codigo='RE-MIC').perdida, 'RENDIMIENTO')
+        self.assertEqual(MotivoParada.objects.get(codigo='NP-SPED').perdida, 'NO_PROGRAMADO')
+        # tablet: la avería toma el único equipo del puesto y propone la orden de mantenimiento
+        o = self.orden()
+        h = o.horas.get()
+        p = registrar_parada(o, h, averia, 30, self.user)
+        self.assertEqual(p.equipo, self.equipo)
+        ot = p.orden_mantenimiento
+        self.assertEqual((ot.tipo, ot.estado, ot.equipo), ('CORRECTIVO', 'PROGRAMADA', self.equipo))
+        Equipo.objects.create(codigo='H2', nombre='Horno 2', centro=self.horno)  # con dos equipos hay que elegir
+        with self.assertRaises(ErrorAvanzado):
+            registrar_parada(o, h, averia, 10, self.user)
+        otro = CentroTrabajo.objects.create(codigo='ENV', nombre='Envasado', costo_hora_mo=D('10'))
+        limpieza = MotivoParada.objects.get(codigo='LIMPIEZA')
+        limpieza.puestos.set([otro])  # ya no aplica en el horno
+        with self.assertRaises(ErrorAvanzado):
+            registrar_parada(o, h, limpieza, 10, self.user)
+        limpieza.puestos.clear()
+        Parada.objects.all().delete()
+        OrdenMantenimiento.objects.all().delete()
+        # OEE: 2 h reportadas; avería 30 min (disponibilidad), limpieza 60 min (planificada: no resta por defecto),
+        # sin pedidos 120 min (fuera del OEE), falta de material 3 min (microparada: rendimiento)
+        avanzado.registrar_avance(o, h, D('100'), D('0'), D('2'), 'Ana', '', self.user)
+        self.parada('AVERIA', 30, equipo=self.equipo, hace=300)
+        self.parada('LIMPIEZA', 60, hace=200)
+        self.parada('NP-SPED', 120, hace=100)
+        self.parada('FALTA_MAT', 3, hace=10)
+        fila = rp.oee(F())['filas'][0]
+        self.assertEqual((fila['paradas_no_plan'], fila['paradas_rend'], fila['paradas_plan'], fila['no_programado']),
+                         (D('0.50'), D('0.05'), D('1.00'), D('2.00')))
+        self.assertEqual(fila['disponibilidad'], D('80.39'))  # 2.05 ÷ (2.05 + 0.5)
+        config = ConfiguracionPlanta.actual()
+        config.planificadas_restan = True  # ahora la limpieza también baja la disponibilidad
+        config.save()
+        self.assertEqual(rp.oee(F())['filas'][0]['disponibilidad'], D('57.75'))  # 2.05 ÷ (2.05 + 1.5)
+        # Pareto: de mayor a menor, con acumulado
+        par = rp.pareto_paradas(F(por='motivo'))
+        self.assertEqual([x['grupo'].split()[0] for x in par['filas']], ['NP-SPED', 'LIMPIEZA', 'AVERIA', 'FALTA_MAT'])
+        self.assertEqual(par['filas'][-1]['acumulado'], D('100.00'))
+        self.assertEqual(rp.pareto_paradas(F(por='area'))['filas'][0]['grupo'], 'Planeamiento')
+
+    def test_pantalla_carga_masiva_y_paradas(self):
+        r = self.client.get(reverse('manufactura:motivos_parada'))
+        self.assertContains(r, 'Motivos de parada (OEE)')
+        self.assertContains(r, 'Avería mecánica')
+        self.client.post(reverse('manufactura:motivo_parada_nuevo'), {
+            'codigo': 'av-hid', 'nombre': 'Avería hidráulica', 'perdida': 'DISPONIBILIDAD', 'tipo': 'AVERIA',
+            'area': 'MANTENIMIENTO', 'es_falla': 'on', 'exige_equipo': 'on', 'genera_mantenimiento': 'on',
+            'activo': 'on'})
+        self.assertTrue(MotivoParada.objects.filter(codigo='AV-HID', es_falla=True).exists())
+        r = self.client.post(reverse('manufactura:motivo_parada_nuevo'), {
+            'codigo': 'X1', 'nombre': 'Mal', 'perdida': 'RENDIMIENTO', 'tipo': 'AVERIA', 'area': 'PRODUCCION',
+            'activo': 'on'})
+        self.assertContains(r, 'microparadas o velocidad reducida')
+        self.client.post(reverse('manufactura:motivos_parada'), {'planificadas_restan': 'on',
+                                                                 'microparada_minutos': '3'})
+        from .models import ConfiguracionPlanta
+        self.assertEqual(ConfiguracionPlanta.actual().microparada_minutos, 3)
+        # carga masiva
+        from core.carga_masiva import ErrorFila, _fila_motivo_parada, cargar
+        fila = _fila_motivo_parada({'codigo': 'ex-agu', 'nombre': 'Corte de agua', 'perdida': 'Disponibilidad',
+                                    'tipo': 'Externa', 'area': 'Servicios', 'puestos': 'HOR'}, False)
+        cargar('motivos_parada', [fila], self.user)
+        m = MotivoParada.objects.get(codigo='EX-AGU')
+        self.assertEqual((m.tipo, m.area, list(m.puestos.values_list('codigo', flat=True))),
+                         ('EXTERNA', 'SERVICIOS', ['HOR']))
+        with self.assertRaises(ErrorFila):
+            _fila_motivo_parada({'codigo': 'Y', 'nombre': 'Y', 'perdida': 'Rendimiento', 'tipo': 'Avería'}, False)
+        # pantalla de paradas: la avería exige equipo y propone la orden de mantenimiento
+        inicio = timezone.localtime().replace(second=0, microsecond=0) - timedelta(hours=3)
+        datos = {'centro': self.horno.pk, 'motivo': MotivoParada.objects.get(codigo='AVERIA').pk,
+                 'inicio': inicio.strftime('%Y-%m-%dT%H:%M'),
+                 'fin': (inicio + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M')}
+        self.assertContains(self.client.post(reverse('manufactura:paradas'), datos), 'exige indicar el equipo')
+        self.client.post(reverse('manufactura:paradas'), {**datos, 'equipo': self.equipo.pk})
+        self.assertIsNotNone(Parada.objects.get().orden_mantenimiento)
+        self.assertEqual(self.client.get(reverse('manufactura:reporte', args=['pareto_paradas'])).status_code, 200)
+
+
 class VistasReportesTest(Base):
     def test_paginas_excel_filtros_y_tablet(self):
         o = self.terminar(self.orden())

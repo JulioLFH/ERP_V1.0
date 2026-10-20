@@ -21,7 +21,9 @@ from .models import CentroTrabajo, Equipo, MotivoParada, OrdenProduccion, Parada
 POR = {'produccion': [('producto', 'Producto'), ('familia', 'Familia'), ('linea', 'Línea / puesto'),
                       ('planta', 'Planta')],
        'productividad': [('linea', 'Línea / puesto'), ('turno', 'Turno'), ('operario', 'Operario')],
-       'costo_kg': [('producto', 'Producto'), ('mes', 'Mes'), ('orden', 'Orden')]}
+       'costo_kg': [('producto', 'Producto'), ('mes', 'Mes'), ('orden', 'Orden')],
+       'pareto_paradas': [('motivo', 'Motivo'), ('tipo', 'Tipo'), ('area', 'Área responsable'), ('equipo', 'Equipo'),
+                          ('puesto', 'Línea / puesto'), ('perdida', 'Pérdida OEE')]}
 AGRUPAR = {'produccion': rp.AGRUPAR_TIEMPO + [('orden', 'Detalle por orden (fecha real y contable)')],
            'plan_real': [('orden', 'Por orden'), ('linea', 'Por línea'), ('semana', 'Por semana')]}
 MAX_FILAS = 2000  # en pantalla; el Excel lleva todo
@@ -207,17 +209,25 @@ class ParadaForm(BootstrapMixin, forms.ModelForm):
             self.add_error('fin', 'Debe ser posterior al inicio.')
         if d.get('equipo') and d.get('centro') and d['equipo'].centro_id not in (None, d['centro'].pk):
             self.add_error('equipo', 'El equipo es de otro puesto.')
+        if d.get('motivo'):  # reglas del maestro: que aplique al puesto y, si lo exige, con equipo
+            from .avanzado import errores_parada
+            for error in errores_parada(d['motivo'], d.get('centro'), d.get('equipo')):
+                self.add_error('equipo' if 'equipo' in error else 'motivo', error)
         return d
 
 
 @login_required
 def paradas(request):
+    from .avanzado import al_cerrar_parada
     form = ParadaForm(request.POST or None, initial={'inicio': timezone.localtime().replace(second=0, microsecond=0)})
     if request.method == 'POST' and form.is_valid():
         p = form.save(commit=False)
         p.usuario = request.user
         p.save()
-        messages.success(request, 'Parada registrada.')
+        ot = al_cerrar_parada(p, request.user)
+        messages.success(request, 'Parada registrada.' + (f' Se propuso la orden de mantenimiento {ot.numero}.'
+                                                          if ot else ''))
         return redirect('manufactura:paradas')
     return render(request, 'produccion/paradas.html', {
-        'form': form, 'paradas': Parada.objects.select_related('centro', 'equipo', 'motivo', 'orden')[:150]})
+        'form': form, 'paradas': Parada.objects.select_related('centro', 'equipo', 'motivo', 'orden',
+                                                                'orden_mantenimiento')[:150]})

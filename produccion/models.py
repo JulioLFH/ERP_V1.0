@@ -748,21 +748,74 @@ class AvanceOrden(models.Model):
 
 
 class MotivoParada(models.Model):
-    codigo = models.CharField('Código', max_length=20, unique=True)
-    nombre = models.CharField(max_length=80)
+    """Maestro de motivos de parada (Manufactura › Ingeniería): cada motivo dice qué pérdida del OEE afecta; la planta
+    elige el motivo y el OEE se calcula solo."""
+    PERDIDAS = [('DISPONIBILIDAD', 'Disponibilidad'), ('RENDIMIENTO', 'Rendimiento'), ('CALIDAD', 'Calidad'),
+                ('NO_PROGRAMADO', 'No programado (no cuenta en el OEE)')]
+    TIPOS = [('PLANIFICADA', 'Planificada'), ('AVERIA', 'Avería'), ('PROCESO', 'Proceso / operacional'),
+             ('EXTERNA', 'Externa'), ('MICROPARADA', 'Microparada'), ('VELOCIDAD', 'Velocidad reducida'),
+             ('CALIDAD', 'Calidad')]
+    AREAS = [('PRODUCCION', 'Producción'), ('MANTENIMIENTO', 'Mantenimiento'), ('CALIDAD', 'Calidad'),
+             ('LOGISTICA', 'Logística'), ('RRHH', 'RR. HH.'), ('SERVICIOS', 'Servicios'),
+             ('PLANEAMIENTO', 'Planeamiento')]
+    codigo = models.CharField('Código', max_length=20, unique=True, help_text='Ej. AV-MEC')
+    nombre = models.CharField(max_length=80, help_text='Lo que ve el operario en la tablet')
+    perdida = models.CharField('Pérdida OEE', max_length=14, choices=PERDIDAS, default='DISPONIBILIDAD')
+    tipo = models.CharField(max_length=12, choices=TIPOS, default='PROCESO')
     planificada = models.BooleanField('Parada planificada', default=False,
-                                      help_text='Limpieza, cambio de formato, refrigerio: no resta disponibilidad (OEE)')
-    es_falla = models.BooleanField('Es una falla del equipo', default=False,
-                                   help_text='Cuenta para el tiempo medio entre fallas y de reparación')
-    activo = models.BooleanField(default=True)
+                                      help_text='Limpieza, cambio de formato, preventivo: resta disponibilidad solo si '
+                                                'la empresa lo configura')
+    area = models.CharField('Área responsable', max_length=13, choices=AREAS, default='PRODUCCION')
+    es_falla = models.BooleanField('Cuenta para MTBF / MTTR', default=False,
+                                   help_text='Averías: tiempo medio entre fallas y de reparación')
+    exige_equipo = models.BooleanField('Exige equipo', default=False,
+                                       help_text='Averías y mantenimiento: la parada se registra con su equipo')
+    genera_mantenimiento = models.BooleanField(
+        'Propone orden de mantenimiento', default=False,
+        help_text='Al cerrar la parada crea una orden correctiva programada para el equipo')
+    puestos = models.ManyToManyField(CentroTrabajo, blank=True, related_name='motivos_parada',
+                                     verbose_name='Puestos donde aplica', help_text='Vacío = todos')
+    activo = models.BooleanField(default=True, help_text='Los motivos con paradas no se borran: se desactivan')
 
     class Meta:
-        ordering = ['nombre']
+        ordering = ['codigo']
         verbose_name = 'motivo de parada'
         verbose_name_plural = 'motivos de parada'
 
     def __str__(self):
         return self.nombre
+
+    def aplica_en(self, centro):
+        """Vacío = todos los puestos."""
+        ids = [p.pk for p in self.puestos.all()]
+        return not ids or (centro is not None and getattr(centro, 'pk', centro) in ids)
+
+    @classmethod
+    def para_puesto(cls, centro):
+        """Motivos activos que aplican al puesto (los sin puestos asignados aplican a todos)."""
+        from django.db.models import Q
+        qs = cls.objects.filter(activo=True)
+        if centro is None:
+            return qs
+        return qs.filter(Q(puestos__isnull=True) | Q(puestos=centro)).distinct()
+
+
+class ConfiguracionPlanta(models.Model):
+    """Cómo se calcula el OEE en esta empresa (una fila)."""
+    planificadas_restan = models.BooleanField(
+        'Las paradas planificadas restan disponibilidad', default=False,
+        help_text='No: solo reducen el tiempo planificado (no bajan el OEE). Sí: bajan la disponibilidad')
+    microparada_minutos = models.PositiveSmallIntegerField(
+        'Duración máxima de microparada (min)', default=5,
+        help_text='Las paradas no planificadas más cortas se cuentan como microparada (bajan el rendimiento)')
+
+    class Meta:
+        verbose_name = 'configuración de planta'
+
+    @classmethod
+    def actual(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
 
 
 class Parada(models.Model):
@@ -773,6 +826,9 @@ class Parada(models.Model):
     orden = models.ForeignKey(OrdenProduccion, on_delete=models.SET_NULL, null=True, blank=True,
                               related_name='paradas', verbose_name='Orden de producción')
     motivo = models.ForeignKey(MotivoParada, on_delete=models.PROTECT, related_name='paradas')
+    orden_mantenimiento = models.ForeignKey('OrdenMantenimiento', on_delete=models.SET_NULL, null=True, blank=True,
+                                            related_name='paradas', editable=False,
+                                            verbose_name='Orden de mantenimiento propuesta')
     inicio = models.DateTimeField()
     fin = models.DateTimeField(null=True, blank=True)
     operario = models.CharField(max_length=80, blank=True)

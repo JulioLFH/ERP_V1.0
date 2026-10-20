@@ -65,9 +65,14 @@ def planta_orden(request, pk):
         hora = next((h for h in operaciones if str(h.pk) == request.POST.get('hora')), None)
         try:
             if request.POST.get('accion') == 'parada':
-                avanzado.registrar_parada(orden, hora, MotivoParada.objects.filter(pk=request.POST.get('motivo'))
-                                          .first(), _dec(request.POST.get('minutos')), request.user)
-                messages.success(request, 'Parada registrada.')
+                from .models import Equipo
+                equipo = Equipo.objects.filter(pk=request.POST.get('equipo') or 0, activo=True).first()
+                parada = avanzado.registrar_parada(
+                    orden, hora, MotivoParada.objects.filter(pk=request.POST.get('motivo')).first(),
+                    _dec(request.POST.get('minutos')), request.user, equipo=equipo)
+                messages.success(request, 'Parada registrada.' + (
+                    f' Se propuso la orden de mantenimiento {parada.orden_mantenimiento.numero}.'
+                    if parada.orden_mantenimiento_id else ''))
             else:
                 turno = next((t for t in turnos if str(t.pk) == request.POST.get('turno')), None)
                 avanzado.registrar_avance(orden, hora, _dec(request.POST.get('buena')),
@@ -90,7 +95,21 @@ def planta_orden(request, pk):
         'activa': orden.estado in ('CONFIRMADA', 'EN_PROCESO'),
         'hora_sel': request.GET.get('hora') or (str(operaciones[0].pk) if operaciones else ''),
         'turnos': turnos, 'turno_actual': _turno_de(turnos),
-        'motivos_parada': MotivoParada.objects.filter(activo=True)})
+        'motivos_parada': _motivos_con_puestos(), 'equipos': _equipos_de(operaciones)})
+
+
+def _motivos_con_puestos():
+    """Motivos activos con los ids de sus puestos (para filtrarlos en la tablet según el puesto elegido)."""
+    from .models import MotivoParada
+    motivos = list(MotivoParada.objects.filter(activo=True).prefetch_related('puestos'))
+    for m in motivos:
+        m.puestos_ids = ','.join(str(p.pk) for p in m.puestos.all())
+    return motivos
+
+
+def _equipos_de(operaciones):
+    from .models import Equipo
+    return Equipo.objects.filter(activo=True, centro_id__in={h.centro_id for h in operaciones})
 
 
 def _turno_de(turnos):
