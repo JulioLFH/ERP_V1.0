@@ -8,8 +8,12 @@
 {% if sin_grupo %}
 <div class="alert alert-info">Para consolidar se necesitan dos o más empresas en el sistema (multiempresa). Hoy solo hay una.</div>
 {% else %}
-<p class="small text-muted mb-3">Suma los libros (NIIF) de todas las empresas del grupo y elimina las operaciones entre ellas: ventas, compras, cobros y pagos cuyo cliente o proveedor es otra empresa del grupo (por su RUC). Al {{ hasta|slice:'4:' }}/{{ hasta|slice:':4' }}; el resultado es del ejercicio {{ hasta|slice:':4' }}. La utilidad no realizada en inventarios comprados dentro del grupo no se elimina.</p>
+<p class="small text-muted mb-3">Suma los libros (NIIF) de todas las empresas del grupo y elimina las operaciones entre ellas: ventas, compras, cobros y pagos cuyo cliente o proveedor es otra empresa del grupo (por su RUC). Al {{ hasta|slice:'4:' }}/{{ hasta|slice:':4' }}; el resultado es del ejercicio {{ hasta|slice:':4' }}. También se elimina la <b>utilidad no realizada</b>: el margen de la empresa que vendió mercadería que la compradora del grupo aún tiene en su inventario al cierre (por código de producto).</p>
 {% if sin_ruc %}<div class="alert alert-warning py-2 small">Sin RUC registrado (no se detectan sus operaciones con el grupo): {{ sin_ruc|join:', ' }}.</div>{% endif %}
+{% if unr_detalle %}<div class="card mb-3"><div class="card-header">Utilidad no realizada eliminada: S/ {{ unr|money }} <span class="small text-muted">(menos inventario, más costo de ventas)</span></div><div class="table-responsive"><table class="table table-sm mb-0 small">
+  <thead><tr><th>Vendió</th><th>Tiene el inventario</th><th>Producto</th><th class="num">Cantidad en stock</th><th class="num">Inventario S/</th><th class="num">Margen %</th><th class="num">Eliminado S/</th></tr></thead>
+  <tbody>{% for u in unr_detalle %}<tr><td>{{ u.vendedora }}</td><td>{{ u.compradora }}</td><td>{{ u.codigo }}</td><td class="num">{{ u.cantidad|money }}</td><td class="num">{{ u.inventario|money }}</td><td class="num">{{ u.margen_pct }}</td><td class="num">{{ u.eliminar|money }}</td></tr>{% endfor %}</tbody>
+</table></div></div>{% endif %}
 <div class="card mb-3"><div class="card-header">Empresas del grupo</div><div class="table-responsive"><table class="table table-sm mb-0">
   <thead><tr><th>Empresa</th><th>RUC</th><th class="num">Resultado del ejercicio</th><th class="num">Ventas al grupo (eliminadas)</th><th class="num">Por cobrar al grupo</th><th class="num">Por pagar al grupo</th></tr></thead>
   <tbody>{% for e in empresas %}<tr><td>{{ e.nombre }}</td><td>{{ e.ruc }}</td><td class="num">{{ e.resultado|money }}</td><td class="num">{{ e.ventas_grupo|money }}</td><td class="num">{{ e.cxc_grupo|money }}</td><td class="num">{{ e.cxp_grupo|money }}</td></tr>{% endfor %}</tbody>

@@ -79,5 +79,7 @@ class AfectacionPorLineaTest(TestCase):
         self.client.force_login(self.admin)
         r = self.client.get(reverse('ventas:nuevo'))
         self.assertContains(r, 'js-afectacion')
-        self.assertContains(r, '"afectacion_igv": "EXONERADA"')
+        # el formulario pide los datos del producto al elegirlo (ya no trae todo el catálogo)
+        datos = self.client.get(reverse('producto_datos', args=[libro.pk])).json()
+        self.assertEqual(datos['afectacion_igv'], 'EXONERADA')
         self.assertEqual(libro.afectacion_igv, 'EXONERADA')

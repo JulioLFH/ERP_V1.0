@@ -40,6 +40,7 @@ urlpatterns = [
     path('ordenes/<int:pk>/eliminar/', views.orden_eliminar, name='orden_eliminar'),
     path('requerimiento/', views.requerimiento, name='requerimiento'),
     path('planificacion/', views.mrp, name='mrp'),
+    path('planificacion/pronostico/', views.pronostico, name='pronostico'),
     path('capacidad/', views.capacidad, name='capacidad'),
     path('listas/', views.listas, name='listas'),
     path('listas/nueva/', views.lista_nueva, name='lista_nueva'),

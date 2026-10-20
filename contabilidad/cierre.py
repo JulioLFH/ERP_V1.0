@@ -129,6 +129,80 @@ def _sumar(destino, origen, signo=1):
         destino[codigo] = (ad + d * signo, ah + h * signo)
 
 
+def _fin_periodo(periodo):
+    import calendar
+    from datetime import date
+    anio, mes = int(periodo[:4]), int(periodo[4:])
+    return date(anio, mes, calendar.monthrange(anio, mes)[1])
+
+
+def utilidad_no_realizada(datos, hasta):
+    """Margen que una empresa del grupo ganó vendiendo a otra mercadería que la compradora aún tiene en su
+    inventario al cierre: no está realizado frente a terceros y se elimina del inventario y del resultado.
+
+    Por producto (mismo código en ambas empresas): margen de la vendedora en sus ventas al grupo del ejercicio
+    (venta − costo promedio) × inventario de la compradora al cierre que vino de ella (lo menor entre su stock y lo
+    que le compró en el ejercicio, a su precio promedio de compra)."""
+    from collections import defaultdict
+    from datetime import date
+
+    from compras.models import CompraItem
+    from core.inventario import valor_inventario
+    from erp.empresas import activar, restaurar
+    from ventas.models import VentaItem
+    fin = _fin_periodo(hasta)
+    inicio = date(fin.year, 1, 1)
+    con_ruc = [d for d in datos if d['ruc']]
+    detalle, total = [], D0
+    for vendedora in con_ruc:
+        for compradora in con_ruc:
+            if vendedora is compradora:
+                continue
+            token = activar(vendedora['alias'])
+            try:
+                ventas = defaultdict(lambda: [D0, D0])  # código -> [valor de venta S/, costo S/]
+                for i in (VentaItem.objects.filter(documento__tercero__numero_doc=compradora['ruc'],
+                                                   documento__fecha_emision__range=[inicio, fin],
+                                                   producto__isnull=False)
+                          .exclude(documento__estado='ANULADO').exclude(documento__tipo_comprobante__in=['07', '08'])
+                          .select_related('documento', 'producto')):
+                    v = ventas[i.producto.codigo]
+                    v[0] += i.subtotal * i.documento.tc_efectivo
+                    v[1] += i.cantidad * (i.producto.costo_promedio or D0)
+            finally:
+                restaurar(token)
+            margenes = {c: (v - k) / v for c, (v, k) in ventas.items() if v > 0 and v > k}
+            if not margenes:
+                continue
+            token = activar(compradora['alias'])
+            try:
+                compras = defaultdict(lambda: [D0, D0])  # código -> [cantidad, valor S/]
+                for i in (CompraItem.objects.filter(documento__tercero__numero_doc=vendedora['ruc'],
+                                                    documento__fecha_emision__range=[inicio, fin],
+                                                    producto__codigo__in=list(margenes))
+                          .exclude(documento__estado='ANULADO').exclude(documento__tipo_comprobante__in=['07', '08'])
+                          .select_related('documento', 'producto')):
+                    c = compras[i.producto.codigo]
+                    c[0] += i.cantidad
+                    c[1] += i.subtotal * i.documento.tc_efectivo
+                filas, _ = valor_inventario(fin, None)
+                stock = {f['p'].codigo: f['cantidad'] for f in filas if f['p'].codigo in compras}
+            finally:
+                restaurar(token)
+            for codigo, (cantidad, valor) in compras.items():
+                queda = min(stock.get(codigo, D0), cantidad)
+                if queda <= 0 or not cantidad:
+                    continue
+                inventario = r2(queda * valor / cantidad)
+                eliminar = r2(inventario * margenes[codigo])
+                if eliminar:
+                    total += eliminar
+                    detalle.append({'vendedora': vendedora['nombre'], 'compradora': compradora['nombre'],
+                                    'codigo': codigo, 'cantidad': queda, 'inventario': inventario,
+                                    'margen_pct': r2(margenes[codigo] * 100), 'eliminar': eliminar})
+    return total, detalle
+
+
 def consolidar(hasta):
     """Suma los libros de todas las empresas del grupo y elimina las operaciones entre ellas: los asientos de
     ventas, compras, cobros y pagos cuyo cliente o proveedor es otra empresa del grupo (por su RUC).
@@ -168,8 +242,16 @@ def consolidar(hasta):
         d['ventas_grupo'] = -reportes._neto(inter['ejercicio'], ('70',))
         d['cxc_grupo'] = reportes._neto(inter['acumulado'], ('12', '13'))
         d['cxp_grupo'] = -reportes._neto(inter['acumulado'], ('42', '43'))
+    # utilidad no realizada en los inventarios: más costo de ventas, menos inventario
+    unr, unr_detalle = utilidad_no_realizada(datos, hasta)
+    if unr:
+        from .models import CuentaDefecto
+        cta = CuentaDefecto.mapa()
+        ajuste = {cta['costo_ventas'].codigo: (unr, D0), cta['mercaderias'].codigo: (D0, unr)}
+        _sumar(acumulado, ajuste)
+        _sumar(ejercicio, ajuste)
     situacion = reportes.situacion_financiera(hasta, desde_ej, saldos=acumulado, sumas_ejercicio=ejercicio,
                                               anterior=anterior)
     lineas, neta = reportes.estado_resultados(desde_ej, hasta, sumas=ejercicio)
     return {'empresas': datos, 'situacion': situacion, 'resultados': lineas, 'neta': neta,
-            'sin_ruc': [d['nombre'] for d in datos if not d['ruc']]}
+            'sin_ruc': [d['nombre'] for d in datos if not d['ruc']], 'unr': unr, 'unr_detalle': unr_detalle}

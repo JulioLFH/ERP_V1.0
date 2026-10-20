@@ -156,6 +156,7 @@ RUTAS = {
     'manufactura:hoja_editar': 'manufactura.recetas', 'manufactura:hoja_obsoleta': 'manufactura.recetas',
     'manufactura:lista_obsoleta': 'manufactura.recetas', 'manufactura:version_nueva': 'manufactura.recetas',
     'manufactura:version_editar': 'manufactura.recetas', 'manufactura:mrp': {'POST': 'manufactura.ordenes'},
+    'manufactura:pronostico': {'POST': 'manufactura.ordenes'},
     'costos:estandar': {'POST': 'costos.liberar'},
     'costos:liquidacion': {'POST': 'costos.liquidar'}, 'costos:vnr': {'POST': 'costos.liquidar'},
     'costos:comportamiento': {'POST': 'costos.liquidar'},

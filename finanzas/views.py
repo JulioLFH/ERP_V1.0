@@ -460,6 +460,30 @@ def importar_extracto(request):
 
 # ---------------------------------------------------------------- flujo de caja
 @login_required
+def flujo_proyectado(request):
+    """Flujo de caja proyectado por semana (12 semanas por defecto)."""
+    from core.politicas import cuentas_permitidas
+    from core.utils import excel_response
+
+    from .proyeccion import proyectar
+    try:
+        semanas = min(max(int(request.GET.get('semanas', 12)), 4), 26)
+    except ValueError:
+        semanas = 12
+    p = proyectar(semanas, cuentas=cuentas_permitidas(request.user))
+    if request.GET.get('formato') == 'excel':
+        encabezado = ['Concepto', 'Tipo'] + [f'{d:%d/%m}-{h:%d/%m}' for d, h in p['semanas']] + ['Total']
+        filas = [['Saldo inicial de caja y bancos', ''] + [''] * semanas + [p['saldo_inicial']]]
+        filas += [[f['concepto'], f['tipo'].capitalize()] + f['valores'] + [f['total']] for f in p['filas']]
+        filas += [['Total ingresos', ''] + p['ingresos'] + [sum(p['ingresos'], D0)],
+                  ['Total egresos', ''] + p['egresos'] + [sum(p['egresos'], D0)],
+                  ['Saldo proyectado al final de la semana', ''] + p['saldos'] + ['']]
+        return excel_response('Flujo_proyectado', 'FLUJO DE CAJA PROYECTADO (S/)', encabezado, filas)
+    return render(request, 'finanzas/flujo_proyectado.html', {'p': p, 'semanas_n': semanas,
+                                                              'opciones_semanas': [4, 8, 12, 16, 26]})
+
+
+@login_required
 def flujo_caja(request):
     desde, hasta = rango_por_defecto(request, Movimiento.objects.exclude(concepto='TRANSFERENCIA'))
     qs = Movimiento.objects.filter(fecha__range=[desde, hasta]).exclude(concepto='TRANSFERENCIA')

@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.47.0 — 20/10/2026 · Flujo proyectado, pronóstico de demanda, consolidación y formularios más rápidos
+- **Formularios de venta, compra y almacén más rápidos (n.º 83)**: ya no descargan el catálogo completo de productos (más de 1 MB) al abrirse; solo viajan los productos del documento y el resto se pide uno a uno al elegirlo (precio, unidad e IGV; el costo solo para quien puede verlo).
+- **Flujo de caja proyectado (n.º 61)** en Finanzas › Reportes: saldo de hoy de caja y bancos y lo que se espera cobrar y pagar por semana (4 a 26 semanas): cobranzas vencidas y por vencer, letras, pedidos aprobados por facturar, pagos a proveedores, órdenes de compra aprobadas, cuotas de préstamos y leasing, y la planilla estimada. Avisa la semana en que el saldo quedaría en negativo, con el detalle de documentos de cada concepto y exportación a Excel. Respeta los permisos de saldos y de cuentas.
+- **Pronóstico de demanda (n.º 65)** en Manufactura › Planificación: con las ventas de los últimos 24 meses prueba promedio móvil, suavizamiento exponencial, Holt (con tendencia) y estacional, y elige por producto el que menos se equivocó en los últimos 3 meses (con su error %). Lo marcado pasa al plan de demanda que usa el MRP; un nuevo pase reemplaza el anterior.
+- **Consolidación del grupo (n.º 53)**: ahora elimina la **utilidad no realizada** en inventarios: el margen de la empresa que vendió mercadería que la compradora del grupo aún tiene al cierre (por código de producto), con su detalle.
+- **Verificado con pruebas**: el MRP propone comprar la mercadería de reventa (n.º 77) con el proveedor y plazo del registro info, y las órdenes planificadas se convierten en bloque en una solicitud de pedido (n.º 82). Las planillas (n.º 50 a 52) ya tenían sus pruebas; falta cargar la fecha de ingreso y el sueldo de los trabajadores.
+
 ## v1.46.0 — 20/10/2026 · Facturación electrónica directa con SUNAT (sin intermediario)
 - **SUNAT directo** en Ajustes › Facturación electrónica (nueva opción junto a Nubefact): el sistema arma el XML UBL 2.1 de **facturas, boletas, notas de crédito y notas de débito**, lo **firma con el certificado digital** de la empresa y lo envía al servicio de SUNAT, que responde al momento con la **CDR** (aceptado, rechazado u observado). El XML firmado y la CDR quedan como sustento del comprobante, con su código hash y la cadena del QR.
 - **Anulaciones directas**: comunicación de baja para facturas y sus notas, resumen diario (estado anulado) para boletas y sus notas, con ticket que se consulta solo (y con «Consultar estado» si SUNAT demora).

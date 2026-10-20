@@ -166,11 +166,26 @@
     }).catch(() => {});
   }
 
+  // datos del producto: los del documento vienen en la página; los demás se piden al elegirlos y se guardan
+  async function producto(id) {
+    let p = productos.find((x) => String(x.id) === String(id));
+    if (p || !id || !window.ERP_PRODUCTO_URL) return p;
+    try {
+      const r = await fetch(window.ERP_PRODUCTO_URL.replace('/0/', `/${id}/`));
+      if (!r.ok) return undefined;
+      p = await r.json();
+      productos.push(p);
+      return p;
+    } catch (e) {
+      return undefined;
+    }
+  }
+
   function enlazar(tr) {
     const sel = tr.querySelector('.js-producto');
     if (sel) {
-      sel.addEventListener('change', () => {
-        const p = productos.find((x) => String(x.id) === sel.value);
+      sel.addEventListener('change', async () => {
+        const p = await producto(sel.value);
         if (!p) return;
         const desc = tr.querySelector('.js-descripcion');
         if (desc) desc.value = p.nombre;

@@ -41,4 +41,5 @@ urlpatterns = [
     path('conciliacion/', views.conciliacion, name='conciliacion'),
     path('importar/', views.importar_extracto, name='importar'),
     path('flujo/', views.flujo_caja, name='flujo'),
+    path('flujo/proyectado/', views.flujo_proyectado, name='flujo_proyectado'),
 ]

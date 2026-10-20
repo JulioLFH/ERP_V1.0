@@ -1,0 +1,35 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Flujo de caja proyectado{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title"><i class="bi bi-graph-up-arrow"></i> Flujo de caja proyectado</h1>
+  <form class="d-flex gap-2 align-items-center" method="get">
+    <select name="semanas" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+      {% for n in opciones_semanas %}<option value="{{ n }}" {% if n == semanas_n %}selected{% endif %}>{{ n }} semanas</option>{% endfor %}
+    </select>
+    <a href="?semanas={{ semanas_n }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
+  </form>
+</div>
+<p class="small text-muted">Saldo de hoy de caja y bancos más lo que se espera cobrar y pagar según la fecha de vencimiento de cada documento (lo vencido se espera en la primera semana). En soles al tipo de cambio de hoy ({{ p.tc }}).{% if p.planilla_base %} Planilla estimada con {{ p.planilla_base }}.{% endif %}</p>
+{% if p.semana_negativa %}<div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-triangle"></i> El saldo proyectado queda en negativo en la semana del {{ p.semana_negativa.0|date:'d/m' }} al {{ p.semana_negativa.1|date:'d/m' }}: adelante cobranzas, negocie plazos con proveedores o prevea financiamiento.</div>{% endif %}
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0 small">
+  <thead><tr><th style="min-width:220px">Concepto</th>{% for d, h in p.semanas %}<th class="num text-nowrap">{{ d|date:'d/m' }}–{{ h|date:'d/m' }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
+  <tbody>
+    <tr class="table-light"><th>Saldo inicial de caja y bancos</th>{% for _ in p.semanas %}<td></td>{% endfor %}<th class="num">{{ p.saldo_inicial|money }}</th></tr>
+    {% for f in p.filas %}<tr>
+      <td>{% if f.tipo == 'INGRESO' %}<i class="bi bi-arrow-down-left text-success"></i>{% else %}<i class="bi bi-arrow-up-right text-danger"></i>{% endif %} {{ f.concepto }}{% if f.documentos %} <a href="#det-{{ forloop.counter }}" data-bs-toggle="collapse" class="small">({{ f.documentos|length }})</a>{% endif %}</td>
+      {% for v in f.valores %}<td class="num {% if f.tipo == 'EGRESO' and v %}text-danger{% endif %}">{% if v %}{% if f.tipo == 'EGRESO' %}-{% endif %}{{ v|money }}{% endif %}</td>{% endfor %}
+      <td class="num fw-semibold">{% if f.tipo == 'EGRESO' %}-{% endif %}{{ f.total|money }}</td>
+    </tr>
+    {% if f.documentos %}<tr class="collapse" id="det-{{ forloop.counter }}"><td colspan="{{ p.semanas|length|add:2 }}" class="bg-light">
+      <div class="small" style="max-height:220px; overflow:auto">{% for d in f.documentos %}<div class="d-flex justify-content-between border-bottom py-1"><span>{{ d.doc }}{% if d.doc.tercero %} · {{ d.doc.tercero.nombre }}{% endif %}</span><span>{{ d.fecha|date:'d/m/Y' }} · semana {{ d.semana }} · S/ {{ d.monto|money }}</span></div>{% endfor %}</div>
+    </td></tr>{% endif %}
+    {% empty %}<tr><td colspan="{{ p.semanas|length|add:2 }}" class="text-center text-muted py-4">No hay cobros ni pagos previstos en el periodo.</td></tr>{% endfor %}
+  </tbody>
+  <tfoot>
+    <tr><th>Total ingresos</th>{% for v in p.ingresos %}<td class="num text-success">{{ v|money }}</td>{% endfor %}<td></td></tr>
+    <tr><th>Total egresos</th>{% for v in p.egresos %}<td class="num text-danger">{{ v|money }}</td>{% endfor %}<td></td></tr>
+    <tr class="table-light"><th>Saldo al final de la semana</th>{% for v in p.saldos %}<th class="num {% if v < 0 %}text-danger{% endif %}">{{ v|money }}</th>{% endfor %}<td></td></tr>
+  </tfoot>
+</table></div></div>
+{% endblock %}

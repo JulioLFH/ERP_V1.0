@@ -495,6 +495,42 @@ def _fecha(texto):
 
 # ---------------------------------------------------------------- planificación (MRP)
 @login_required
+def pronostico(request):
+    """Pronóstico de demanda con la historia de ventas; lo marcado pasa al plan de demanda que usa el MRP."""
+    from core.models import Producto
+
+    from . import pronostico as pr
+    try:
+        h = min(max(int(request.GET.get('meses', 3)), 1), 12)
+    except ValueError:
+        h = 3
+    q = request.GET.get('q', '').strip()
+    productos = Producto.objects.filter(activo=True, es_plantilla=False, tipo='BIEN',
+                                        clase__in=['PRODUCTO_TERMINADO', 'MERCADERIA', 'SEMIELABORADO'])
+    if q:
+        productos = productos.filter(nombre__icontains=q) | productos.filter(codigo__icontains=q)
+    datos = pr.tabla(list(productos.order_by('nombre')[:400]), h)
+    if request.method == 'POST':
+        elegidos = set(request.POST.getlist('producto'))
+        n = 0
+        for f in datos['filas']:
+            if str(f['producto'].pk) in elegidos:
+                pr.pasar_al_plan(f['producto'], datos['meses_futuros'], f['pronostico'], f['metodo'], request.user)
+                n += 1
+        messages.success(request, f'Pronóstico de {n} producto(s) pasado al plan de demanda: el MRP lo usará en su '
+                                  f'próxima corrida.')
+        return redirect(f"{request.path}?meses={h}&q={q}")
+    if request.GET.get('formato') == 'excel':
+        encabezado = (['Código', 'Producto'] + [f'Venta {m:%m/%Y}' for m in datos['meses_historia']] +
+                      ['Método', 'Error %'] + [f'Pronóstico {m:%m/%Y}' for m in datos['meses_futuros']])
+        filas = [[f['producto'].codigo, f['producto'].nombre] + f['historia'] + [f['metodo_nombre'], f['error_pct']] +
+                 f['pronostico'] for f in datos['filas']]
+        return excel_response('Pronostico_demanda', 'PRONÓSTICO DE DEMANDA', encabezado, filas)
+    return render(request, 'produccion/pronostico.html', {**datos, 'h': h, 'q': q,
+                                                          'opciones_meses': [1, 3, 6, 12]})
+
+
+@login_required
 def mrp(request):
     hoy = timezone.localdate()
     form = PlanDemandaForm(request.POST or None, initial={'fecha': hoy + timedelta(days=7)})

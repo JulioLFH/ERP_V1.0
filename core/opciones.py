@@ -64,6 +64,37 @@ MODULOS = {  # quién puede pedir cada lista (además del administrador)
 }
 
 
+CAMPOS_PRODUCTO = ('id', 'nombre', 'unidad', 'precio_venta', 'costo_promedio', 'precio_compra', 'afectacion_igv')
+
+
+def datos_productos(user, ids=None):
+    """Datos que el detalle de ítems usa al elegir un producto (precio, unidad, IGV). El costo solo viaja a quien
+    puede verlo."""
+    from .modulos import puede_ver_costos
+    qs = Producto.objects.filter(activo=True)
+    if ids is not None:
+        qs = qs.filter(pk__in=ids)
+    productos = list(qs.values(*CAMPOS_PRODUCTO))
+    costos = puede_ver_costos(user)
+    for p in productos:  # compras: precio de compra referencial o, si no hay (y puede ver costos), el costo promedio
+        p['precio_compra'] = p['precio_compra'] or (p['costo_promedio'] if costos else 0)
+        if not costos:
+            p.pop('costo_promedio')
+    return productos
+
+
+@login_required
+def producto_datos(request, pk):
+    """Un producto para el detalle de ítems (el formulario ya no descarga todo el catálogo)."""
+    from .modulos import modulos_del_usuario
+    if not request.user.is_superuser and not (_PRODUCTOS & modulos_del_usuario(request.user)):
+        raise Http404
+    datos = datos_productos(request.user, [pk])
+    if not datos:
+        raise Http404
+    return JsonResponse(datos[0], json_dumps_params={'ensure_ascii': False})
+
+
 @login_required
 def opciones(request, fuente):
     if fuente not in FUENTES:

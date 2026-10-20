@@ -217,16 +217,16 @@ def guardar_documento(request, form_class, formset_class, instance, template, co
             formset = fs_cls(instance=form.instance, initial=items_iniciales)
         else:
             formset = formset_class(instance=form.instance)
-    from .models import Producto
-    productos = list(Producto.objects.filter(activo=True).values('id', 'nombre', 'unidad', 'precio_venta', 'costo_promedio',
-                                                                 'precio_compra', 'afectacion_igv'))
-    from .modulos import puede_ver_costos
-    costos = puede_ver_costos(request.user)
-    for p in productos:  # compras: precio de compra referencial o, si no hay (y puede ver costos), el costo promedio
-        p['precio_compra'] = p['precio_compra'] or (p['costo_promedio'] if costos else 0)
-        if not costos:
-            p.pop('costo_promedio')  # el costo no viaja al navegador de quien no puede verlo
-    contexto.update(form=form, formset=formset, productos=productos)
+    # solo los productos que ya están en el documento: los demás se piden uno a uno al elegirlos (antes viajaba
+    # todo el catálogo, más de 1 MB, en cada formulario)
+    from .opciones import datos_productos
+    ids = set()
+    for f in formset.forms:
+        if 'producto' in f.fields:
+            valor = f['producto'].value()
+            if str(valor or '').isdigit():
+                ids.add(int(valor))
+    contexto.update(form=form, formset=formset, productos=datos_productos(request.user, ids))
     return render(request, template, contexto)
 
 

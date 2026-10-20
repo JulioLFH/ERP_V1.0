@@ -65,15 +65,18 @@ def _tipo_recepcion_transito():
     return TipoOperacion.objects.filter(clase='TRANSITO_RECEPCION', activo=True).first()
 
 
-def _contexto_form(op, titulo, costos=True):
+def _contexto_form(op, titulo, costos=True, user=None, formset=None):
     tipo = op.tipo
-    campos = ['id', 'nombre', 'unidad'] + (['costo_promedio'] if costos else [])
+    # solo los productos del documento; los demás se piden al elegirlos (no viaja todo el catálogo)
+    from core.opciones import datos_productos
+    ids = {int(f['producto'].value()) for f in (formset.forms if formset else [])
+           if 'producto' in f.fields and str(f['producto'].value() or '').isdigit()}
     return {'titulo': titulo, 'op': op, 'tipo': tipo,
             # sin permiso de costos solo se pide el costo cuando el tipo lo exige (saldo inicial, ajuste ingreso)
             'muestra_costo': tipo.requiere_costo or (tipo.clase == 'INGRESO' and costos),
             'muestra_rol': tipo.clase == 'MANUFACTURA',
             'usa_lotes': Producto.objects.filter(activo=True).exclude(control='').exists(),
-            'productos': list(Producto.objects.filter(activo=True, tipo='BIEN').values(*campos))}
+            'productos': datos_productos(user, ids) if user is not None else []}
 
 
 def _guardar(request, op, titulo, initial=None, items=None):
@@ -111,7 +114,7 @@ def _guardar(request, op, titulo, initial=None, items=None):
         else:
             formset = formset_cls(instance=op)
     from core.modulos import puede_ver_costos
-    ctx = _contexto_form(op, titulo, puede_ver_costos(request.user))
+    ctx = _contexto_form(op, titulo, puede_ver_costos(request.user), request.user, formset)
     ctx.update(form=form, formset=formset)
     return render(request, 'inventario/operacion_form.html', ctx)
 

@@ -22,6 +22,7 @@ urlpatterns = [
     path('ajustes/usuarios/nuevo/', usuarios.nuevo, name='usuario_nuevo'),
     path('ajustes/usuarios/<int:pk>/', usuarios.editar, name='usuario_editar'),
     path('ajustes/segregacion/', usuarios.segregacion, name='segregacion'),
+    path('producto-datos/<int:pk>/', opciones.producto_datos, name='producto_datos'),
     path('sire/', views_sire.lista, name='sire_propuestas'),
     path('sire/<int:pk>/', views_sire.detalle, name='sire_propuesta'),
     path('ajustes/perfiles/', usuarios.perfiles, name='perfiles_acceso'),

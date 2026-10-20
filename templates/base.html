@@ -102,7 +102,7 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
-<script>window.ERP_TC_URL = "{% url 'tipo_cambio_api' %}";</script>
+<script>window.ERP_TC_URL = "{% url 'tipo_cambio_api' %}"; window.ERP_PRODUCTO_URL = "{% url 'producto_datos' 0 %}";</script>
 <script src="{% static 'js/app.js' %}?v={{ erp_version }}"></script>
 {% block scripts %}{% endblock %}
 </body>

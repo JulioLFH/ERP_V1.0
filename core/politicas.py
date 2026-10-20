@@ -22,7 +22,7 @@ NIVELES_PANTALLA = [('', 'Completo'), ('SIN_EXPORTAR', 'Sin exportar'), ('LECTUR
 RUTAS_SUELDOS = {'planillas:lista', 'planillas:nueva', 'planillas:detalle', 'planillas:boletas', 'planillas:plame',
                  'planillas:afp', 'planillas:costo_centros', 'planillas:movimientos', 'planillas:movimiento',
                  'planillas:movimiento_nuevo'}
-RUTAS_SALDOS = {'finanzas:flujo', 'finanzas:conciliacion', 'finanzas:saldo_inicial', 'finanzas:extractos',
+RUTAS_SALDOS = {'finanzas:flujo', 'finanzas:flujo_proyectado', 'finanzas:conciliacion', 'finanzas:saldo_inicial', 'finanzas:extractos',
                 'finanzas:extracto'}
 
 # rutas que siempre se pueden abrir aunque falte activar el doble factor o cambiar la contraseña vencida

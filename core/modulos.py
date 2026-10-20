@@ -124,6 +124,7 @@ MODULOS = [
                           ('Todos los reportes de producción', 'manufactura:reportes', 'bi-bar-chart-line'),
                           ('Log de modificaciones', 'manufactura:modificaciones', 'bi-journal-text')]),
             ('Planificación', [('MRP: necesidades y órdenes planificadas', 'manufactura:mrp', 'bi-diagram-2'),
+                               ('Pronóstico de demanda', 'manufactura:pronostico', 'bi-graph-up'),
                                ('Programación detallada de planta', 'manufactura:programacion', 'bi-calendar-range'),
                                ('Carga y capacidad de puestos', 'manufactura:capacidad', 'bi-speedometer')]),
             ('Calidad', [('Inspecciones de calidad', 'manufactura:inspecciones', 'bi-clipboard2-check'),
@@ -269,7 +270,8 @@ MODULOS = [
             ('Bancos', [('Conciliación automática (extracto)', 'finanzas:extractos', 'bi-magic'),
                         ('Conciliación bancaria', 'finanzas:conciliacion', 'bi-check2-square'),
                         ('Importar estado de cuenta', 'finanzas:importar', 'bi-upload')]),
-            ('Reportes', [('Flujo de caja', 'finanzas:flujo', 'bi-water')]),
+            ('Reportes', [('Flujo de caja', 'finanzas:flujo', 'bi-water'),
+                          ('Flujo de caja proyectado', 'finanzas:flujo_proyectado', 'bi-graph-up-arrow')]),
             ('Configuración', [('Tipo de cambio', 'tipos_cambio', 'bi-currency-exchange')]),
         ],
     },
@@ -401,6 +403,7 @@ RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'c
                 'sustento_subir', 'sustento_ver',  # los sustentos validan el módulo del documento
                 'api_claves',  # cada usuario administra sus claves de API (actúan con sus propios permisos)
                 'opciones',  # listas de los selectores (códigos y nombres, sin importes)
+                'producto_datos',  # precio y unidad del producto elegido (valida los módulos; el costo según permiso)
                 'reportar', 'salud',  # «Reportar problema» lo usa cualquiera; /salud/ es para el monitor de caídas
                 # cada usuario ve y resuelve lo que le toca aprobar y delega sus aprobaciones (cada acción valida)
                 'aprobaciones_bandeja', 'aprobaciones_delegaciones',
