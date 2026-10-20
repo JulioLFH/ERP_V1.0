@@ -83,7 +83,7 @@ class OperacionesTest(TestCase):
 
     def test_recepcion_parcial_de_orden_de_compra(self):
         prov = Tercero.objects.filter(tipo='PROVEEDOR').first()
-        oc = OrdenCompra.objects.create(numero='OC01-00000099', tercero=prov)
+        oc = OrdenCompra.objects.create(numero='OC01-00000099', tercero=prov, estado='APROBADO')  # solo aprobadas
         OrdenCompraItem.objects.create(documento=oc, producto=self.p1, descripcion='Laptop', cantidad=10,
                                        precio_unitario=D('2000'))
         antes = self.stock(self.p1, self.principal)

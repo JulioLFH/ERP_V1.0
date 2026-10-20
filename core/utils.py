@@ -110,12 +110,37 @@ def lineas_formset(formset):
     return lineas
 
 
-def faltantes_stock(lineas, almacen, devolver=None):
+def saldo_minimo_desde(producto, almacen, fecha):
+    """(saldo, fecha) más bajo del producto en el almacén desde `fecha` en adelante: el saldo al cierre de ese día y
+    después de cada movimiento posterior. Es lo máximo que puede salir con esa fecha sin dejar el kardex en negativo
+    en ningún momento (p. ej. un consumo del 05/10 no puede usar un ingreso del 10/10). Se calcula desde el stock
+    actual descontando los movimientos posteriores, así no depende de los saldos migrados."""
+    from .models import Kardex
+    actual = producto.stock_en(almacen)
+    posteriores = list(Kardex.objects.filter(producto=producto, almacen=almacen, fecha__gt=fecha)
+                       .order_by('fecha', 'id').values_list('fecha', 'tipo', 'cantidad'))
+    if not posteriores:
+        return actual, fecha
+    neto = sum((c if t == 'ENTRADA' else -c for _, t, c in posteriores), Decimal('0'))
+    saldo = actual - neto  # al cierre del día `fecha`
+    minimo = (saldo, fecha)
+    for dia, tipo, cantidad in posteriores:
+        saldo += cantidad if tipo == 'ENTRADA' else -cantidad
+        if saldo < minimo[0]:
+            minimo = (saldo, dia)
+    return minimo
+
+
+def faltantes_stock(lineas, almacen, devolver=None, fecha=None):
     """Mensajes por cada producto cuya salida supera el stock del almacén.
 
     devolver: {producto_id: cantidad} que el mismo documento ya había descontado (al editar).
+    fecha: fecha del movimiento; si es anterior a hoy, la salida no puede dejar el kardex en negativo en esa fecha
+    ni en ningún movimiento posterior.
     """
     from collections import defaultdict
+
+    from django.utils import timezone
 
     from .models import Almacen, Empresa
     if Empresa.actual().permitir_stock_negativo:
@@ -128,7 +153,18 @@ def faltantes_stock(lineas, almacen, devolver=None):
             productos[producto.pk] = producto
     mensajes = []
     for pk, cantidad in pedido.items():
-        disponible = productos[pk].stock_en(almacen) + (devolver or {}).get(pk, Decimal('0'))
+        extra = (devolver or {}).get(pk, Decimal('0'))
+        if fecha and fecha < timezone.localdate():
+            minimo, dia = saldo_minimo_desde(productos[pk], almacen, fecha)
+            disponible = minimo + extra
+            if cantidad > disponible:
+                cuando = f'al {fecha:%d/%m/%Y}' if dia == fecha else f'el {dia:%d/%m/%Y}'
+                mensajes.append(
+                    f'Stock insuficiente de "{productos[pk].nombre}" en {almacen} {cuando}: con fecha '
+                    f'{fecha:%d/%m/%Y} pueden salir {max(disponible, Decimal("0")):,.2f} y se necesitan '
+                    f'{cantidad:,.2f}. Registre primero el ingreso con una fecha anterior o use la fecha de hoy.')
+            continue
+        disponible = productos[pk].stock_en(almacen) + extra
         if cantidad > disponible:
             mensajes.append(f'Stock insuficiente de "{productos[pk].nombre}" en {almacen}: hay {disponible:,.2f} y '
                             f'se necesitan {cantidad:,.2f}.')

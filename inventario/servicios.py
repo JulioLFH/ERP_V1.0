@@ -163,6 +163,9 @@ def errores_confirmacion(op):
         errores.append('El almacén de destino debe ser distinto del origen.')
     if tipo.origen == 'ORDEN_COMPRA' and not (op.orden_compra_id or op.compra_id):
         errores.append('Indique la orden de compra o la factura que se recibe.')
+    if op.orden_compra_id and op.orden_compra.estado not in ('APROBADO', 'ATENDIDO'):
+        errores.append(f'La orden de compra {op.orden_compra.numero} está «{op.orden_compra.get_estado_display()}»: '
+                       f'solo se recibe mercadería de órdenes aprobadas. Apruébela primero en Compras.')
     if tipo.origen == 'COMPRA' and not op.compra_id:
         errores.append('Indique la factura de compra.')
     if tipo.origen == 'VENTA' and not op.venta_id:
@@ -188,7 +191,7 @@ def errores_confirmacion(op):
     salidas = _lineas_que_salen(op, items)
     if salidas:
         almacen = Almacen.especial('TRANSITO') if tipo.clase == 'TRANSITO_RECEPCION' else op.almacen_origen
-        errores += faltantes_stock(salidas, almacen)
+        errores += faltantes_stock(salidas, almacen, fecha=op.fecha)  # sin negativos en su fecha ni después
     errores += errores_lotes(op, items)
     return errores
 

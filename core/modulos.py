@@ -151,7 +151,8 @@ MODULOS = [
         'inicio': 'activos:lista', 'descripcion': 'Registro de activos, depreciación y bajas',
         'menu': [
             ('Activos', [('Activos fijos', 'activos:lista', 'bi-building-gear'),
-                         ('Nuevo activo', 'activos:nuevo', 'bi-plus-circle')]),
+                         ('Nuevo activo', 'activos:nuevo', 'bi-plus-circle'),
+                         ('Carga masiva de activos (Excel)', 'carga_masiva?tipo=activos', 'bi-file-earmark-arrow-up')]),
             ('Depreciación', 'activos:depreciacion'),
             ('Reportes', [('Registro de activos fijos 7.1', 'activos:registro', 'bi-journal-text'),
                           ('Cuadre con contabilidad', 'activos:cuadre', 'bi-check2-square')]),
@@ -337,7 +338,8 @@ RUTAS_CORE = {
     'incidencias': ['ajustes'], 'incidencia': ['ajustes'],
     'modificaciones': [m['clave'] for m in MODULOS],  # se ve dentro del módulo; la vista exige ser administrador
     'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'finanzas', 'contactos', 'manufactura',
-                     'contabilidad', 'planillas', 'rendiciones'], 'usuarios': ['ajustes'], 'usuario_nuevo': ['ajustes'],
+                     'contabilidad', 'planillas', 'rendiciones', 'activos'], 'usuarios': ['ajustes'],
+    'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'], 'segregacion': ['ajustes'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
     'tipos_cambio': ['ajustes', 'finanzas'],

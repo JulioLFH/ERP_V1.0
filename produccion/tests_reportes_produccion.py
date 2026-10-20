@@ -254,6 +254,29 @@ class LogModificacionesTest(Base):
         self.assertContains(self.client.get(reverse('manufactura:ordenes')), 'Reporte diario de producción')
 
 
+class OrdenTerminadaSinTabletTest(Base):
+    """Piloto MAN-04 y diagnóstico n.º 16: OEE y productividad con órdenes terminadas desde su pantalla, y merma
+    contra la receta de lo PRODUCIDO."""
+
+    def test_oee_sin_tablet_y_merma_sobre_lo_producido(self):
+        o = self.terminar(self.orden(), producida='50', masa='27.5')  # 100 planificadas, 50 producidas
+        h = o.horas.get()
+        self.assertFalse(o.avances.exists())
+        Parada.objects.create(centro=self.horno, equipo=self.equipo, orden=o,
+                              motivo=MotivoParada.objects.get(codigo='AVERIA'),
+                              inicio=timezone.now() - timedelta(hours=1), fin=timezone.now() - timedelta(minutes=30))
+        fila = rp.oee(F())['filas'][0]
+        self.assertEqual(fila['funcionando'], D('2.00'))  # las horas reales de la orden, no 0
+        self.assertEqual(fila['disponibilidad'], D('80.00'))  # 2 ÷ (2 + 0.5)
+        prod = rp.productividad(F(por='linea'))['filas'][0]
+        self.assertEqual((prod['kg'], prod['horas_maquina']), (D('25.00'), D('2.00')))  # 50 paquetes × 0.5 kg
+        self.assertEqual(h.horas_real, D('2'))
+        m = rp.merma(F())['filas'][0]
+        # receta de 50 paquetes = 25 kg de masa (no 50 de lo planificado); consumo 27.5 → merma 2.5 kg (10 %)
+        self.assertEqual((m['plan'], m['real'], m['merma'], m['merma_pct']),
+                         (D('25.00'), D('27.50'), D('2.50'), D('10.00')))
+
+
 class VistasReportesTest(Base):
     def test_paginas_excel_filtros_y_tablet(self):
         o = self.terminar(self.orden())

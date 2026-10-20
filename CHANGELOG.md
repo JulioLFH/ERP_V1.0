@@ -3,6 +3,19 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.36.0 — 19/10/2026 · Correcciones del piloto (checklist v1.34.0)
+- **Kardex sin negativos por fechas atrasadas (MAN-08, crítica)**: una salida (consumo, venta, traslado) con fecha pasada ya no puede usar un ingreso posterior: se valida el saldo en su fecha y en cada movimiento siguiente, con un mensaje que indica cuánto puede salir y desde cuándo.
+- **Órdenes de compra sin aprobar (COM-01)**: no se recibe mercadería ni se registra la factura de una OC pendiente; mensaje claro para aprobarla primero.
+- **Vencimiento de ventas al crédito (VEN-01)**: vacío = emisión + días de crédito del cliente (o los días entre cuotas); un vencimiento igual o anterior a la emisión se rechaza. Las compras al crédito toman los días de la orden o del proveedor.
+- **Producto sin versión de fabricación (MAN-02)**: la orden de producción avisa por qué el producto no aparece, con enlace a crear su versión (producto y receta ya elegidos); la carga masiva de recetas lista los productos que quedaron sin versión.
+- **Carga masiva de puestos (PLAT-04)**: días laborables como 123456, 1,2,3,4,5,6, 1-6 o el número que deja Excel; vacío = lunes a sábado.
+- **OEE y productividad (MAN-04)**: incluyen las horas reales de las órdenes terminadas desde su pantalla (sin tablet); también las horas de operación para el MTBF.
+- **Merma (diagnóstico n.º 16)**: se compara con la receta para lo **producido**, no para lo planificado (una orden de 1 200 kg que produjo 500 ya no figura con 58 % de «ahorro»). Aplica a merma, consumo de materias primas y reporte diario.
+- **Carga masiva de activos fijos (checklist n.º 86)**: activos existentes con su depreciación acumulada a una fecha, sin asiento de compra (ya están en el balance); el Excel queda como sustento. Botón «Importar desde Excel» en Activos fijos.
+- **UIT 2026 = S/ 5,500** (diagnóstico n.º 9; la carga inicial tenía la de 2025). Solo se corrige si conservaba el valor inicial.
+- **Kardex del sistema anterior** (diagnóstico n.º 18): las listas de filtros se calculan en una sola pasada y quedan en memoria (primera carga de 2,6 s a 1,3 s; luego 0,17 s).
+- Verificado con pruebas: límite de crédito, MRP de mercadería de reventa como propuesta de compra y lanzamiento masivo de propuestas a órdenes de compra.
+
 ## v1.35.0 — 19/10/2026 · Determinación de la cuenta contable
 - Al crear o editar una cuenta contable se configura su **determinación** (lo que se deja en «automático» toma el valor que corresponde a su código):
   - **Nivel**: según los dígitos (1 cuenta, 2 subcuenta, 3 divisionaria, 4 subdivisionaria, más dígitos = auxiliar). Una cuenta nueva debe colgar de una cuenta superior existente.

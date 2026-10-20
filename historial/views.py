@@ -80,9 +80,15 @@ def _listas_kardex():
     from django.core.cache import cache
     listas = cache.get('historial_listas_kardex')
     if listas is None:
-        listas = {campo: list(MovimientoAnterior.objects.order_by(campo).values_list(campo, flat=True).distinct())
-                  for campo in ('almacen', 'transaccion')}
-        cache.set('historial_listas_kardex', listas, 3600)
+        # una sola pasada por los ~900 mil movimientos (antes eran dos); el historial no cambia: sin vencimiento
+        pares = MovimientoAnterior.objects.order_by().values_list('almacen', 'transaccion').distinct()
+        almacenes, transacciones = set(), set()
+        for almacen, transaccion in pares:
+            almacenes.add(almacen)
+            transacciones.add(transaccion)
+        listas = {'almacen': sorted(a for a in almacenes if a is not None),
+                  'transaccion': sorted(t for t in transacciones if t is not None)}
+        cache.set('historial_listas_kardex', listas, None)
     return {'almacenes': listas['almacen'], 'transacciones': listas['transaccion']}
 
 

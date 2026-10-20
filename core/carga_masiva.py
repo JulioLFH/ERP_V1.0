@@ -3,6 +3,7 @@
 Flujo: se descarga la plantilla, se sube el archivo, se valida fila por fila sin grabar nada y, si no hay
 errores, se confirma la carga (todo o nada).
 """
+import re
 import unicodedata
 from collections import OrderedDict
 from datetime import date
@@ -233,7 +234,8 @@ DEFINICIONES = OrderedDict([
             ('costo_hora_cif', 'Tarifa CIF S/ h máquina', True, '12', 'Se reparte por horas máquina'),
             ('centro_costo', 'Centro de costo (código)', False, 'PL-HOR', ''),
             ('horas_turno', 'Horas por turno', False, '8', ''), ('turnos', 'Turnos por día', False, '1', ''),
-            ('dias_laborables', 'Días laborables', False, '123456', '1 = lunes … 7 = domingo'),
+            ('dias_laborables', 'Días laborables', False, '123456',
+             '1 = lunes … 7 = domingo: 123456, 1,2,3,4,5,6 o 1-6. Vacío = lunes a sábado'),
             ('eficiencia', 'Eficiencia %', False, '100', ''),
         ]}),
     ('recetas', {
@@ -322,6 +324,28 @@ DEFINICIONES = OrderedDict([
             ('fecha', 'Fecha', True, '30/11/2026', 'dd/mm/aaaa: cuándo se necesita'),
             ('nota', 'Nota', False, 'Campaña navidad', ''),
         ]}),
+    ('activos', {
+        'titulo': 'Activos fijos (saldo inicial)', 'icono': 'bi-building-gear', 'modulos': ['activos'],
+        'descripcion': 'Activos que la empresa ya tiene al empezar, con su depreciación acumulada a una fecha. Ya '
+                       'están en el balance: no se genera asiento de compra; la depreciación mensual sigue desde el '
+                       'mes siguiente. El Excel queda como sustento de cada activo.',
+        'columnas': [
+            ('codigo', 'Código', False, 'AF-0001', 'Vacío = se numera solo'),
+            ('nombre', 'Descripción', True, 'Pasteurizador de placas 5000 L', ''),
+            ('categoria', 'Categoría (código o nombre)', True, 'MAQ', 'Activos fijos › Categorías y cuentas'),
+            ('centro_costo', 'Centro de costo (código)', True, 'PL-LAC', 'Recibe su depreciación mensual'),
+            ('fecha_adquisicion', 'Fecha de adquisición', True, '15/03/2021', 'dd/mm/aaaa'),
+            ('fecha_uso', 'Inicio de uso', False, '01/04/2021', 'Vacío = la fecha de adquisición'),
+            ('valor', 'Valor de adquisición S/', True, '185000', ''),
+            ('valor_residual', 'Valor residual S/', False, '0', ''),
+            ('vida_util_meses', 'Vida útil (meses)', False, '120', 'Vacío = la de la categoría'),
+            ('dep_inicial', 'Depreciación acumulada S/', False, '101750', 'A la fecha de la columna siguiente'),
+            ('dep_inicial_hasta', 'Depreciado hasta', False, '30/09/2026', 'dd/mm/aaaa (obligatorio si hay '
+                                                                            'depreciación acumulada)'),
+            ('marca', 'Marca', False, 'Tetra Pak', ''), ('modelo', 'Modelo', False, 'C6', ''),
+            ('serie', 'Serie / placa', False, 'TP-88231', ''), ('ubicacion', 'Ubicación', False, 'Planta lácteos', ''),
+            ('responsable', 'Responsable', False, 'Jefe de planta', ''),
+        ]}),
 ])
 # lista de cada maestro -> tipo de carga (botón «Importar desde Excel» en la lista)
 CARGA_DE_LISTA = {'productos': 'productos', 'terceros': 'terceros', 'contabilidad:centros': 'centros_costo',
@@ -329,7 +353,7 @@ CARGA_DE_LISTA = {'productos': 'productos', 'terceros': 'terceros', 'contabilida
                   'manufactura:centros': 'puestos', 'manufactura:listas': 'recetas', 'manufactura:hojas': 'hojas_ruta',
                   'manufactura:versiones': 'versiones', 'almacenes': 'almacenes', 'planillas:trabajadores': 'trabajadores',
                   'ventas:listas_precios': 'listas_precios', 'manufactura:mrp': 'plan_demanda',
-                  'rendiciones:configuracion': 'categorias_gasto'}
+                  'rendiciones:configuracion': 'categorias_gasto', 'activos:lista': 'activos'}
 
 SI_NO = {'SI': True, 'S': True, 'YES': True, 'TRUE': True, '1': True, 'X': True,
          'NO': False, 'N': False, 'FALSE': False, '0': False}
@@ -582,9 +606,7 @@ def _fila_puesto(d, actualizar):
     cc = _txt(d.get('centro_costo')).upper()
     if cc and not CentroCosto.objects.filter(codigo=cc).exists():
         raise ErrorFila(f'Centro de costo {cc} no existe.')
-    dias = _txt(d.get('dias_laborables')) or '123456'
-    if not set(dias) <= set('1234567'):
-        raise ErrorFila('Días laborables: dígitos del 1 (lunes) al 7 (domingo).')
+    dias = _dias_laborables(d.get('dias_laborables'))
     existe = CentroTrabajo.objects.filter(codigo=codigo).exists()
     if existe and not actualizar:
         raise ErrorFila(f'{codigo} ya existe (marque "Actualizar existentes").')
@@ -598,6 +620,96 @@ def _fila_puesto(d, actualizar):
         'centro_costo': cc, 'horas_turno': str(_dec(d.get('horas_turno'), 'Horas por turno', minimo=D0) or 8),
         'turnos': int(_dec(d.get('turnos'), 'Turnos', minimo=D0) or 1), 'dias_laborables': ''.join(sorted(set(dias))),
         'eficiencia': str(eficiencia)}, 'resumen': f'{codigo} · {nombre}'}
+
+
+def _fila_activo(d, actualizar):
+    """Activo existente al empezar (saldo inicial): mismas reglas que la pantalla de nuevo activo."""
+    from activos.models import ActivoFijo, CategoriaActivo
+    from contabilidad.models import CentroCosto
+
+    from .utils import a_fecha
+    nombre = _txt(d.get('nombre'))
+    if not nombre:
+        raise ErrorFila('Descripción: obligatoria.')
+    cat_txt = _txt(d.get('categoria'))
+    categoria = (CategoriaActivo.objects.filter(codigo__iexact=cat_txt).first()
+                 or CategoriaActivo.objects.filter(nombre__iexact=cat_txt).first()) if cat_txt else None
+    if categoria is None:
+        raise ErrorFila(f'Categoría "{cat_txt}" no existe (Activos fijos › Categorías y cuentas).')
+    cc = _txt(d.get('centro_costo')).upper()
+    if not cc:
+        raise ErrorFila('Centro de costo: obligatorio (recibe la depreciación mensual).')
+    if not CentroCosto.objects.filter(codigo=cc).exists():
+        raise ErrorFila(f'Centro de costo {cc} no existe.')
+
+    def fecha(campo, titulo, requerido):
+        if d.get(campo) in (None, ''):
+            if requerido:
+                raise ErrorFila(f'{titulo}: obligatoria.')
+            return None
+        try:
+            return a_fecha(d.get(campo))
+        except ValueError as exc:
+            raise ErrorFila(f'{titulo}: {exc}')
+    adquisicion = fecha('fecha_adquisicion', 'Fecha de adquisición', True)
+    uso = fecha('fecha_uso', 'Inicio de uso', False) or adquisicion
+    if uso < adquisicion:
+        raise ErrorFila('Inicio de uso: no puede ser anterior a la adquisición.')
+    valor = _dec(d.get('valor'), 'Valor de adquisición', requerido=True)
+    if valor <= 0:
+        raise ErrorFila('Valor de adquisición: debe ser mayor a cero.')
+    residual = _dec(d.get('valor_residual'), 'Valor residual', minimo=D0) or D0
+    if residual >= valor:
+        raise ErrorFila('Valor residual: debe ser menor al valor de adquisición.')
+    vida = _dec(d.get('vida_util_meses'), 'Vida útil', minimo=D0)
+    vida = int(vida) if vida else categoria.vida_util_meses
+    if categoria.deprecia and not vida:
+        raise ErrorFila('Vida útil: indíquela (la categoría no tiene una por defecto).')
+    dep = _dec(d.get('dep_inicial'), 'Depreciación acumulada', minimo=D0) or D0
+    hasta = fecha('dep_inicial_hasta', 'Depreciado hasta', bool(dep))
+    if dep > valor - residual:
+        raise ErrorFila('Depreciación acumulada: no puede superar el valor depreciable.')
+    if hasta and hasta < uso:
+        raise ErrorFila('Depreciado hasta: no puede ser anterior al inicio de uso.')
+    codigo = _txt(d.get('codigo')).upper()
+    existe = bool(codigo) and ActivoFijo.objects.filter(codigo=codigo).exists()
+    if existe and not actualizar:
+        raise ErrorFila(f'{codigo} ya existe (marque "Actualizar existentes").')
+    neto = valor - dep
+    return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': codigo, 'datos': {
+        'nombre': nombre[:200], 'categoria': categoria.pk, 'centro_costo': cc,
+        'fecha_adquisicion': adquisicion.isoformat(), 'fecha_uso': uso.isoformat(), 'valor': str(valor),
+        'valor_residual': str(residual), 'vida_util_meses': vida, 'dep_inicial': str(dep),
+        'dep_inicial_hasta': hasta.isoformat() if hasta and dep else None,
+        **{c: _txt(d.get(c))[:120 if c in ('ubicacion', 'responsable') else 80]
+           for c in ('marca', 'modelo', 'serie', 'ubicacion', 'responsable')}},
+        'resumen': f'{codigo or "(nuevo)"} · {nombre[:50]} · S/ {valor:,.2f} · neto S/ {neto:,.2f}'}
+
+
+def _dias_laborables(valor):
+    """Días laborables en cualquier forma habitual: 123456, 1,2,3,4,5,6, «1 2 3», 1-6 (rango) o el número que deja
+    Excel (123456.0). Vacío = lunes a sábado."""
+    texto = _txt(valor)
+    if re.fullmatch(r'\d+\.0+', texto):  # número de Excel leído como decimal (123456.0, 123456.00)
+        texto = texto.split('.')[0]
+    if not texto:
+        return '123456'
+    dias = set()
+    for parte in re.split(r'[,;/\s]+', texto):
+        if not parte:
+            continue
+        rango = re.fullmatch(r'([1-7])\s*[-–a]\s*([1-7])', parte)
+        if rango:
+            desde, hasta = int(rango.group(1)), int(rango.group(2))
+            if desde > hasta:
+                raise ErrorFila(f'Días laborables: el rango {parte} va al revés (use 1-6).')
+            dias.update(str(n) for n in range(desde, hasta + 1))
+        elif parte.isdigit() and set(parte) <= set('1234567'):
+            dias.update(parte)
+        else:
+            raise ErrorFila(f'Días laborables "{texto}": use dígitos del 1 (lunes) al 7 (domingo), por ejemplo '
+                            f'123456, 1,2,3,4,5,6 o 1-6.')
+    return ''.join(sorted(dias))
 
 
 def _fila_receta(d, actualizar):
@@ -868,7 +980,7 @@ VALIDADORES = {'cuentas': _fila_cuenta, 'plan_demanda': _fila_plan_demanda,
                'saldos_cxc': lambda d, a: _fila_documento(d, True), 'saldos_cxp': lambda d, a: _fila_documento(d, False),
                'centros_beneficio': _fila_beneficio, 'centros_costo': _fila_centro_costo, 'puestos': _fila_puesto,
                'recetas': _fila_receta, 'hojas_ruta': _fila_hoja, 'versiones': _fila_version,
-               'listas_precios': _fila_lista_precio}
+               'listas_precios': _fila_lista_precio, 'activos': _fila_activo}
 MAXIMO_FILAS = {'listas_precios': 30000}
 
 
@@ -1055,6 +1167,28 @@ def cargar(tipo, filas, usuario, adjunto=None):
             for f in filas:
                 Almacen.objects.update_or_create(codigo=f['codigo'], defaults=f['datos'])
             return f'{len(filas)} almacenes cargados.'
+        if tipo == 'activos':
+            from activos.models import ActivoFijo
+            from contabilidad.models import CentroCosto
+            nuevos = 0
+            for f in filas:
+                d = dict(f['datos'])
+                activo = ActivoFijo.objects.filter(codigo=f['codigo']).first() if f['codigo'] else None
+                if activo is None:
+                    activo, nuevos = ActivoFijo(codigo=f['codigo'], origen='SALDO_INICIAL'), nuevos + 1
+                    activo.creado_por = usuario if usuario and usuario.is_authenticated else None
+                activo.categoria_id = d.pop('categoria')
+                activo.centro_costo = CentroCosto.objects.get(codigo=d.pop('centro_costo'))
+                for campo in ('fecha_adquisicion', 'fecha_uso', 'dep_inicial_hasta'):
+                    d[campo] = date.fromisoformat(d[campo]) if d[campo] else None
+                for campo in ('valor', 'valor_residual', 'dep_inicial'):
+                    d[campo] = Decimal(d[campo])
+                for campo, valor in d.items():
+                    setattr(activo, campo, valor)
+                activo.save()
+                sustentar(activo)
+            return (f'{len(filas)} activos fijos cargados ({nuevos} nuevos). Siguen en el balance tal como estaban: '
+                    f'la depreciación mensual continúa desde el mes siguiente a la fecha "Depreciado hasta".')
         if tipo == 'plan_demanda':
             from produccion.models import PlanDemanda
             for f in filas:
@@ -1111,7 +1245,15 @@ def _cargar_maestro(tipo, filas):
                                                                cantidad_base=Decimal(d['base']), estado='APROBADA')
             listas[clave].componentes.create(producto_id=d['insumo'], cantidad=Decimal(d['cantidad']),
                                              merma=Decimal(d['merma']), operacion=d['operacion'])
-        return f'{len(listas)} recetas cargadas ({len(filas)} insumos).'
+        # sin versión de fabricación el producto no aparece al crear la orden: se avisa (las versiones se cargan en
+        # el paso 6 o se crean desde la receta; crearlas aquí duplicaría las del paso 6)
+        sin_version = sorted({lista.producto.codigo for lista in listas.values()
+                              if not VersionFabricacion.objects.filter(producto_id=lista.producto_id,
+                                                                       activa=True).exists()})
+        extra = (f' {len(sin_version)} producto(s) aún sin versión de fabricación (no aparecen al crear la orden de '
+                 f'producción): {", ".join(sin_version[:10])}{"…" if len(sin_version) > 10 else ""}. Cárguelas en '
+                 f'«6. Versiones de fabricación» o créelas en Manufactura › Versiones.') if sin_version else ''
+        return f'{len(listas)} recetas cargadas ({len(filas)} insumos).{extra}'
     if tipo == 'hojas_ruta':
         hojas = {}
         for f in filas:

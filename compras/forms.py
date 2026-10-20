@@ -44,6 +44,18 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
             self.add_error('fecha_emision', error_cierre(data.get('fecha_emision')))
         if self.instance.pk and self.instance.stock_aplicado and error_cierre(self.instance.fecha_emision):
             self.add_error(None, error_cierre(self.instance.fecha_emision))
+        if data.get('forma_pago') == 'CREDITO' and data.get('fecha_emision') and not data.get('fecha_vencimiento'):
+            from datetime import timedelta  # vacío: emisión + días de crédito de la orden o del proveedor
+            oc_ = data.get('orden_compra')
+            dias = (oc_.dias_credito if oc_ and oc_.dias_credito else 0) or (
+                data['tercero'].dias_credito if data.get('tercero') else 0)
+            if dias:
+                data['fecha_vencimiento'] = data['fecha_emision'] + timedelta(days=dias)
+                self.instance.fecha_vencimiento = data['fecha_vencimiento']
+        oc = data.get('orden_compra')
+        if oc and oc.estado not in ('APROBADO', 'ATENDIDO') and oc.pk != self.instance.orden_compra_id:
+            self.add_error('orden_compra', f'La orden de compra {oc.numero} está «{oc.get_estado_display()}»: solo se '
+                                           f'facturan órdenes aprobadas. Apruébela primero.')
         if data.get('orden_compra') and not data.get('centro_costo'):
             data['centro_costo'] = data['orden_compra'].centro_costo
         # gasto directo (62 a 65 y 68): el centro de costo es obligatorio

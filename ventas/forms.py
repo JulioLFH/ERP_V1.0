@@ -60,6 +60,16 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
             self.add_error('cuotas', 'Máximo 36 cuotas.')
         if data['cuotas'] > 1 and data.get('forma_pago') != 'CREDITO':
             self.add_error('cuotas', 'Las cuotas son solo para ventas al crédito.')
+        emision, vence = data.get('fecha_emision'), data.get('fecha_vencimiento')
+        if data.get('forma_pago') == 'CREDITO' and emision:
+            if not vence:  # vacío: emisión + días de crédito del cliente (o los días entre cuotas)
+                from datetime import timedelta
+                dias = (data['tercero'].dias_credito if data.get('tercero') else 0) or data['dias_entre_cuotas']
+                data['fecha_vencimiento'] = emision + timedelta(days=dias)
+                self.instance.fecha_vencimiento = data['fecha_vencimiento']
+            elif vence <= emision:
+                self.add_error('fecha_vencimiento', 'En una venta al crédito el vencimiento debe ser posterior a la '
+                                                    'emisión (déjelo vacío para usar los días de crédito del cliente).')
         tipo = data.get('tipo_comprobante')
         if tipo in ('07', '08') and not data.get('doc_referencia'):
             self.add_error('doc_referencia', 'Indique el comprobante que modifica la nota.')

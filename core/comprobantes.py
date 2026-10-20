@@ -90,7 +90,8 @@ class ComprobanteViews:
             if anterior.stock_aplicado and anterior.almacen_id == doc.almacen_id:
                 for i in anterior.items.all():
                     devolver[i.producto_id] = devolver.get(i.producto_id, D0) + i.cantidad
-        return faltantes_stock(lineas_formset(formset), doc.almacen, devolver)
+        return faltantes_stock(lineas_formset(formset), doc.almacen, devolver,
+                               fecha=getattr(doc, 'fecha_emision', None))
 
     def mueve_stock(self, doc):
         return True

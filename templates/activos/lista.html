@@ -5,6 +5,7 @@
   <h1 class="page-title">Activos fijos</h1>
   <div class="d-flex gap-2">
     <a href="?{{ request.GET.urlencode }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    {% if url_carga %}<a href="{{ url_carga }}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-arrow-up"></i> Importar desde Excel</a>{% endif %}
     <a href="{% url 'activos:nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo activo</a>
   </div>
 </div>

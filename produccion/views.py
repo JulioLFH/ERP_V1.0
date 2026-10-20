@@ -62,6 +62,19 @@ def _guardar_orden(request, orden, titulo):
         return redirect('manufactura:orden', orden.pk)
     if not orden.pk and request.GET.get('producto'):
         form.initial['producto'] = request.GET['producto']
+        if request.method == 'GET' and request.GET['producto'].isdigit() and not VersionFabricacion.objects.filter(
+                producto_id=request.GET['producto'], activa=True).exists():
+            from django.urls import reverse
+            from django.utils.html import format_html
+            lista = ListaMateriales.objects.filter(producto_id=request.GET['producto'], estado='APROBADA').first()
+            url = reverse('manufactura:version_nueva') + f'?producto={request.GET["producto"]}' + (
+                f'&lista={lista.pk}' if lista else '')
+            from core.models import Producto
+            producto = Producto.objects.filter(pk=request.GET['producto']).first()
+            messages.warning(request, format_html(
+                'El producto «{}» no tiene versión de fabricación vigente: por eso no aparece en la lista. '
+                '<a href="{}">Crear su versión de fabricación</a> (receta + hoja de ruta).',
+                producto.nombre if producto else '', url))
     versiones = {v.pk: v.producto_id for v in VersionFabricacion.objects.filter(activa=True)}
     return render(request, 'produccion/orden_form.html', {'form': form, 'titulo': titulo, 'orden': orden,
                                                          'versiones': versiones})
@@ -384,6 +397,16 @@ class VersionLista(ListaGenerica):
 class VersionNueva(FormGenerico, CreateView):
     model, form_class, titulo = VersionFabricacion, VersionForm, 'Nueva versión de fabricación'
     success_url = reverse_lazy('manufactura:versiones')
+
+    def get_initial(self):
+        """Desde el aviso de la orden de producción: ?producto=…&lista=… ya elegidos."""
+        inicial = super().get_initial()
+        for campo in ('producto', 'lista'):
+            if self.request.GET.get(campo, '').isdigit():
+                inicial[campo] = self.request.GET[campo]
+        if 'producto' in inicial:
+            inicial.setdefault('codigo', '1')
+        return inicial
 
 
 class VersionEditar(FormGenerico, UpdateView):

@@ -345,6 +345,11 @@ def _consumos(f):
             'orden_id', 'id').iterator(chunk_size=5000):
         c = SimpleNamespace(**x)
         c.orden, c.producto = ordenes[c.orden_id], insumos[c.producto_id]
+        # estándar = receta para lo PRODUCIDO (no para lo planificado): una orden de 1 200 kg que produjo 500 no
+        # "ahorra" el insumo de los 700 que no se fabricaron
+        o = c.orden
+        factor = (o.cantidad_producida / o.cantidad) if o.cantidad and o.cantidad_producida else Decimal('1')
+        c.cantidad_estandar = (c.cantidad_plan * factor).quantize(Decimal('0.0001'))
         salida.append(c)
     return salida
 
@@ -357,13 +362,13 @@ def merma(f, ver_costos=True):
         g = por_orden.setdefault(o.pk, {'orden': o.numero, 'producto': f'{o.producto.codigo} {o.producto.nombre}',
                                          'fecha': fecha_real(o), 'plan': D0, 'real': D0, 'soles': D0,
                                          'rechazo': D0})
-        kp, kr = kg(c.producto, c.cantidad_plan), kg(c.producto, c.cantidad_real)
+        kp, kr = kg(c.producto, c.cantidad_estandar), kg(c.producto, c.cantidad_real)
         if kp is None:
             sin_peso.add(c.producto)
             continue
         g['plan'] += kp
         g['real'] += kr
-        g['soles'] += (c.cantidad_real - c.cantidad_plan) * c.costo_unitario
+        g['soles'] += (c.cantidad_real - c.cantidad_estandar) * c.costo_unitario
     rechazos = dict(AvanceOrden.objects.filter(orden__in=_terminadas_qs(f).values('pk')).values_list('orden')
                     .annotate(s=Sum('cantidad_merma')))
     filas = []
@@ -386,8 +391,8 @@ def merma(f, ver_costos=True):
     return {'titulo': 'Rendimiento y merma por orden', 'columnas': cols, 'filas': filas,
             'total': {'plan': r2(tp), 'real': r2(trr), 'merma': r2(trr - tp), 'merma_pct': pct(trr - tp, tp)},
             'avisos': _avisos_peso(sin_peso),
-            'descripcion': 'Merma = consumo real − consumo según la receta (con su merma normal). Negativo = ahorro. '
-                           'Ordenado de mayor a menor merma.'}
+            'descripcion': 'Merma = consumo real − consumo según la receta para lo producido (con su merma normal). '
+                           'Negativo = ahorro (o un consumo registrado en cero). Ordenado de mayor a menor merma.'}
 
 
 def consumo_mp(f, ver_costos=True):
@@ -399,13 +404,13 @@ def consumo_mp(f, ver_costos=True):
     for c in sorted(consumos, key=lambda c: c.producto.codigo):
         mes = fecha_real(c.orden).strftime('%m/%Y')
         g = grupos.setdefault((mes, c.producto), {'plan': D0, 'real': D0, 'soles': D0})
-        kp, kr = kg(c.producto, c.cantidad_plan), kg(c.producto, c.cantidad_real)
+        kp, kr = kg(c.producto, c.cantidad_estandar), kg(c.producto, c.cantidad_real)
         if kp is None:
             sin_peso.add(c.producto)
             continue
         g['plan'] += kp
         g['real'] += kr
-        g['soles'] += (c.cantidad_real - c.cantidad_plan) * c.costo_unitario
+        g['soles'] += (c.cantidad_real - c.cantidad_estandar) * c.costo_unitario
     filas = [{'mes': mes, 'insumo': f'{p.codigo} {p.nombre}', 'familia': p.familia, 'real_tm': r3(g['real'] / 1000),
               'plan_tm': r3(g['plan'] / 1000), 'variacion_kg': r2(g['real'] - g['plan']),
               'variacion_pct': pct(g['real'] - g['plan'], g['plan']), 'variacion_soles': r2(g['soles']) if ver_costos
@@ -423,7 +428,7 @@ def consumo_mp(f, ver_costos=True):
                       else None},
             'avisos': _avisos_peso(sin_peso),
             'descripcion': 'Insumos de las órdenes terminadas en el periodo. Estándar = cantidad de la receta para '
-                           'lo planificado (con su merma normal).'}
+                           'lo producido (con su merma normal).'}
 
 
 # ---------------------------------------------------------------- 5 y 9. productividad, turno y operario
@@ -446,11 +451,38 @@ def _avances(f):
     return salida
 
 
+def _registros_planta(f):
+    """Lo reportado en las tablets más, por cada orden terminada en el periodo SIN reportes de tablet (terminada
+    desde su pantalla), un registro por operación con sus horas reales y la cantidad producida. Así el OEE y la
+    productividad no quedan en cero cuando la planta no usa las tablets."""
+    from planillas.models import Turno
+    registros = _avances(f)
+    if f.operario:  # las órdenes terminadas desde su pantalla no tienen operario
+        return registros
+    turnos = list(Turno.objects.all())
+    sin_tablet = _terminadas_qs(f).exclude(pk__in=AvanceOrden.objects.values('orden_id')).values('pk')
+    qs = (HoraOrden.objects.filter(orden__in=sin_tablet, horas_real__gt=0)
+          .select_related('orden__producto', 'centro'))
+    if f.linea:
+        qs = qs.filter(centro_id=f.linea)
+    for h in qs.order_by('orden_id', 'secuencia', 'id'):
+        o = h.orden
+        momento = o.terminado_en or timezone.make_aware(datetime.combine(o.fecha_fin or o.fecha, datetime.min.time()))
+        turno = turno_de(momento, turnos)
+        if f.turno and (not turno or turno.pk != f.turno):
+            continue
+        registros.append(SimpleNamespace(
+            orden=o, orden_id=o.pk, hora=h, hora_id=h.pk, cantidad_buena=o.cantidad_producida, cantidad_merma=D0,
+            horas=h.horas_real, operario='', registrado=momento, turno=turno, turno_efectivo=turno))
+    return registros
+
+
 def productividad(f):
-    """kg por hora hombre y por hora máquina por línea, turno u operario (lo reportado en la planta)."""
+    """kg por hora hombre y por hora máquina por línea, turno u operario (lo reportado en la planta y las horas
+    reales de las órdenes terminadas desde su pantalla)."""
     por = f.por if f.por in ('linea', 'turno', 'operario') else 'linea'
     grupos, sin_peso = OrderedDict(), set()
-    for a in _avances(f):
+    for a in _registros_planta(f):
         dim = {'linea': lambda: str(a.hora.centro) if a.hora_id else 'Sin operación',
                'turno': lambda: str(a.turno_efectivo or 'Sin turno'),
                'operario': lambda: a.operario or 'Sin operario'}[por]()
@@ -522,7 +554,7 @@ def oee(f):
     for p in _paradas(f):
         paradas[p.centro_id]['plan' if p.motivo.planificada else 'no_plan'] += p.horas
     real, estandar, buena, mala = (defaultdict(lambda: D0) for _ in range(4))
-    for a in _avances(f):
+    for a in _registros_planta(f):  # tablets + órdenes terminadas desde su pantalla
         if not a.hora_id:
             continue
         c = a.hora.centro_id
@@ -583,7 +615,7 @@ def paradas_mantenimiento(f):
             d['reparacion'] += ot.horas_parada
             d['parada'] += ot.horas_parada
     operacion = defaultdict(lambda: D0)  # horas trabajadas del puesto del equipo en el periodo
-    for a in _avances(Filtros({'desde': f.desde.isoformat(), 'hasta': f.hasta.isoformat()})):
+    for a in _registros_planta(Filtros({'desde': f.desde.isoformat(), 'hasta': f.hasta.isoformat()})):
         if a.hora_id:
             operacion[a.hora.centro_id] += a.horas
     filas = []
@@ -883,7 +915,7 @@ def diario(f):
     insumos = OrderedDict()
     for c in sorted(_consumos(del_dia), key=lambda c: c.producto.codigo):
         g = insumos.setdefault(c.producto, {'plan': D0, 'real': D0})
-        g['plan'] += c.cantidad_plan
+        g['plan'] += c.cantidad_estandar
         g['real'] += c.cantidad_real
     filas = [{'insumo': f'{p.codigo} {p.nombre}', 'unidad': p.unidad, 'plan': g['plan'], 'real': g['real'],
               'variacion': g['real'] - g['plan'], 'variacion_pct': pct(g['real'] - g['plan'], g['plan'])}

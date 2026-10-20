@@ -54,8 +54,9 @@ class Fase2Test(TestCase):
             self.addCleanup(p.stop)
 
     def crear_oc(self, cantidad=10, precio='2000'):
+        # aprobada: solo de una orden aprobada se recibe mercadería y se factura (piloto COM-01)
         oc = OrdenCompra.objects.create(numero=f'OC01-{OrdenCompra.objects.count() + 100:08d}', tercero=self.prov,
-                                        centro_costo=self.cc)
+                                        centro_costo=self.cc, estado='APROBADO')
         OrdenCompraItem.objects.create(documento=oc, producto=self.p1, descripcion='Laptop', cantidad=cantidad,
                                        precio_unitario=D(precio))
         oc.calcular_totales()
