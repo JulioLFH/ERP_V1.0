@@ -987,6 +987,42 @@ class PropuestaSIRE(models.Model):
         return f'{self.libro} {self.periodo[4:]}/{self.periodo[:4]}'
 
 
+class EmpresaGrupo(models.Model):
+    """Registro de las empresas del grupo creadas desde el sistema (vive siempre en la base principal). Cada una tiene
+    su propia base de datos en el mismo servidor; al arrancar y cada minuto el sistema las agrega a sus conexiones."""
+    ESTADOS = [('CREANDO', 'Creando'), ('LISTA', 'Lista'), ('ERROR', 'Error al crear'), ('INACTIVA', 'Inactiva')]
+    alias = models.SlugField(max_length=30, unique=True)
+    base = models.CharField('Base de datos', max_length=63, unique=True)
+    razon_social = models.CharField('Razón social', max_length=200)
+    ruc = models.CharField('RUC', max_length=11)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='CREANDO')
+    mensaje = models.TextField(blank=True)
+    creado_por = models.CharField(max_length=150, blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['creado']
+        verbose_name = 'empresa del grupo'
+        verbose_name_plural = 'empresas del grupo'
+
+    def __str__(self):
+        return self.razon_social
+
+
+class UsuarioCorporativo(models.Model):
+    """Usuario de la empresa principal que maneja varias empresas del grupo con un solo ingreso: cambia de empresa
+    sin volver a iniciar sesión y, si se le permite, crea empresas nuevas. (Vive en la base principal.)
+    Los administradores de la empresa principal son corporativos de todas las empresas sin necesidad de registro."""
+    usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='corporativo')
+    todas = models.BooleanField('Todas las empresas del grupo', default=True)
+    empresas = models.JSONField(default=list, blank=True, help_text='Alias de las empresas si no son todas')
+    puede_crear = models.BooleanField('Puede crear empresas', default=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'usuario corporativo'
+
+
 class ChequeoServicio(models.Model):
     """Resultado de cada chequeo del servicio (cada 5 minutos con el comando chequear_servicio o el monitor externo
     que consulta /salud/): alimenta la página pública de estado y la disponibilidad del mes."""

@@ -109,6 +109,8 @@ def verificar_login(request):
             request.session.pop(SESION_PENDIENTE, None)
             IntentoAcceso.objects.filter(usuario__iexact=usuario.username).delete()
             auth_login(request, usuario, backend=pendiente.get('backend'))
+            from .grupo import marcar
+            marcar(request, usuario, request.session.get('empresa', 'default'))
             if not url_has_allowed_host_and_scheme(siguiente, {request.get_host()}, request.is_secure()):
                 siguiente = reverse('home')
             respuesta = redirect(siguiente)

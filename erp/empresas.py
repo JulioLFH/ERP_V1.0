@@ -74,8 +74,53 @@ def crear_base_si_falta(alias):
         c.execute(f'CREATE DATABASE "{conf["NAME"]}"')  # nombre validado en config_base
     return True
 
-# tablas que siempre están en la base principal (la sesión dice qué empresa usar)
+# tablas que siempre están en la base principal (la sesión dice qué empresa usar; el registro del grupo y los
+# usuarios corporativos son del grupo, no de una empresa)
 APPS_PRINCIPAL = {'sessions'}
+MODELOS_PRINCIPAL = {'empresagrupo', 'usuariocorporativo'}
+
+
+def _de_principal(model):
+    return model._meta.app_label in APPS_PRINCIPAL or (model._meta.app_label == 'core' and
+                                                        model._meta.model_name in MODELOS_PRINCIPAL)
+
+
+def nombre_base(alias):
+    """Base de una empresa nueva en el servidor de la principal: ceiba_principal -> ceiba_<alias>."""
+    principal = str(settings.DATABASES['default'].get('NAME', 'erp'))
+    prefijo = Path(principal).stem.split('_')[0] if principal else 'erp'
+    prefijo = re.sub(r'[^a-z0-9]', '', prefijo.lower()) or 'erp'
+    return f'{prefijo}_{alias}'
+
+
+def registrar_conexion(alias, base, nombre):
+    """Agrega la empresa a las conexiones del proceso (sin reiniciar el servidor)."""
+    from django.db import connections
+    if alias not in settings.DATABASES:
+        conf = config_base({'base': base}, settings.DATABASES['default'])
+        settings.DATABASES[alias] = conf
+        completas = connections.configure_settings({'default': dict(settings.DATABASES['default']),
+                                                    alias: dict(conf)})  # exige la 'default' para completar
+        connections.settings[alias] = completas[alias]
+    if alias not in settings.EMPRESAS:
+        settings.EMPRESAS[alias] = nombre
+
+
+_SINCRONIZADO = {'hora': 0.0}
+
+
+def sincronizar(forzar=False):
+    """Carga las empresas creadas desde el sistema (registro en la base principal). Cada minuto como máximo."""
+    import time
+    if not forzar and time.monotonic() - _SINCRONIZADO['hora'] < 60:
+        return
+    _SINCRONIZADO['hora'] = time.monotonic()
+    try:
+        from core.models import EmpresaGrupo
+        for e in EmpresaGrupo.objects.using('default').exclude(estado__in=['ERROR', 'INACTIVA']):
+            registrar_conexion(e.alias, e.base, e.razon_social)
+    except Exception:  # base principal aún sin la tabla (antes de migrar): solo las configuradas
+        pass
 
 
 def empresas():
@@ -128,10 +173,10 @@ class EmpresaRouter:
     """Todas las consultas van a la base de la empresa activa; las sesiones, a la principal."""
 
     def db_for_read(self, model, **hints):
-        return 'default' if model._meta.app_label in APPS_PRINCIPAL else actual()
+        return 'default' if _de_principal(model) else actual()
 
     def db_for_write(self, model, **hints):
-        return 'default' if model._meta.app_label in APPS_PRINCIPAL else actual()
+        return 'default' if _de_principal(model) else actual()
 
     def allow_relation(self, obj1, obj2, **hints):
         return True
@@ -149,6 +194,7 @@ class EmpresaMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        sincronizar()  # empresas creadas desde el sistema (también las creadas por otro proceso del servidor)
         alias = request.session.get('empresa', 'default') if es_multiempresa() else 'default'
         token = activar(alias)
         request.empresa_alias = actual()

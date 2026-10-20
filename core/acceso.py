@@ -62,6 +62,16 @@ def cambiar_empresa(request):
 
     from erp.empresas import empresas
     alias = request.POST.get('empresa', 'default')
+    if request.method == 'POST' and request.user.is_authenticated:
+        from .grupo import ErrorGrupo, corporativo, entrar
+        if corporativo(request) is not None:  # usuario corporativo: cambia de empresa sin cerrar la sesión
+            try:
+                entrar(request, alias)
+                return redirect('home')
+            except ErrorGrupo as exc:
+                from django.contrib import messages
+                messages.error(request, str(exc))
+                return redirect('home')
     if request.method == 'POST':
         logout(request)
     destino = reverse('login')
@@ -111,6 +121,8 @@ class LoginSeguroView(LoginView):
             return redirect('login_2fa')
         respuesta = super().form_valid(form)
         self.request.session['empresa'] = alias  # después de login(): si cambió de usuario, la sesión se limpió
+        from .grupo import marcar
+        marcar(self.request, usuario, alias)  # usuario corporativo: pasa a las demás empresas sin volver a ingresar
         from .politicas import revisar_equipo
         revisar_equipo(self.request, usuario, respuesta)
         return respuesta

@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}Empresas del grupo{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2"><i class="bi bi-buildings"></i> Empresas del grupo</h1>
+<p class="small text-muted">Como usuario corporativo ({{ principal.get_full_name|default:principal.username }}) entra a cada empresa sin volver a iniciar sesión. Cada empresa tiene su propia base de datos: sus datos, usuarios y configuración están separados.</p>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Empresa</th><th>RUC</th><th>Estado</th><th></th></tr></thead>
+    <tbody>{% for f in filas %}<tr class="{% if f.actual %}table-success{% endif %}">
+      <td>{{ f.nombre }}{% if f.alias == 'default' %} <span class="badge text-bg-light border">principal</span>{% endif %}{% if f.actual %} <span class="badge text-bg-success">actual</span>{% endif %}</td>
+      <td class="small">{{ f.registro.ruc|default:'' }}</td>
+      <td class="small">{% if f.registro %}<span class="badge {% if f.registro.estado == 'LISTA' %}text-bg-success{% elif f.registro.estado == 'ERROR' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ f.registro.get_estado_display }}</span>{% if f.registro.estado != 'LISTA' %}<div class="text-muted">{{ f.registro.mensaje|truncatechars:160 }}</div>{% endif %}{% else %}<span class="badge text-bg-success">Lista</span>{% endif %}</td>
+      <td class="text-end text-nowrap">
+        {% if f.puede_entrar and not f.actual %}<form method="post" action="{% url 'grupo_entrar' %}" class="d-inline">{% csrf_token %}<button name="empresa" value="{{ f.alias }}" class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-box-arrow-in-right"></i> Entrar</button></form>{% endif %}
+        {% if f.registro.estado == 'ERROR' and puede_crear %}<form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="accion" value="reintentar"><button name="id" value="{{ f.registro.pk }}" class="btn btn-sm btn-outline-warning py-0">Reintentar</button></form>{% endif %}
+      </td>
+    </tr>{% endfor %}</tbody>
+  </table></div></div></div>
+  {% if puede_crear %}<div class="col-lg-5"><div class="card"><div class="card-header"><i class="bi bi-plus-circle"></i> Crear empresa</div><div class="card-body">
+    <form method="post" class="row g-2" autocomplete="off">{% csrf_token %}<input type="hidden" name="accion" value="crear">
+      <div class="col-12"><label class="form-label small">Razón social</label><input name="razon_social" class="form-control form-control-sm" required maxlength="200"></div>
+      <div class="col-md-6"><label class="form-label small">RUC</label><input name="ruc" class="form-control form-control-sm" required pattern="[0-9]{11}" maxlength="11"></div>
+      <div class="col-12"><button class="btn btn-sm btn-primary" data-confirm="¿Crear la empresa? Se crea una base de datos nueva con su plan contable; tarda un par de minutos."><i class="bi bi-buildings"></i> Crear empresa</button></div>
+    </form>
+    <p class="small text-muted mt-2 mb-0">Se crea su base de datos en el mismo servidor, con sus tablas y el plan contable, y usted queda como administrador. Luego complete en esa empresa sus datos (dirección, series, correo, facturación) y registre a sus usuarios.</p>
+  </div></div></div>{% endif %}
+</div>
+{% if corporativos %}
+<div class="card mt-3"><div class="card-header"><i class="bi bi-person-badge"></i> Usuarios corporativos <span class="small text-muted">(usuarios de la empresa principal; los administradores de la principal ya lo son)</span></div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0 small">
+    <thead><tr><th>Usuario</th><th>Acceso</th><th></th></tr></thead>
+    <tbody>{% for x in corporativos %}<tr>
+      <td>{{ x.u.username }}<div class="text-muted">{{ x.u.get_full_name }} {{ x.u.email }}</div></td>
+      <td>{% if x.u.is_superuser %}<span class="badge text-bg-primary">Administrador: todas las empresas y crea empresas</span>
+        {% else %}<form method="post" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}<input type="hidden" name="accion" value="corporativo"><input type="hidden" name="usuario" value="{{ x.u.pk }}">
+          <label><input type="checkbox" name="todas" value="1" {% if not x.c or x.c.todas %}checked{% endif %}> Todas</label>
+          {% for a in aliases %}<label><input type="checkbox" name="empresas" value="{{ a }}" {% if x.c and a in x.c.empresas %}checked{% endif %}> {{ a }}</label>{% endfor %}
+          <label><input type="checkbox" name="puede_crear" value="1" {% if x.c.puede_crear %}checked{% endif %}> Crea empresas</label>
+          <button class="btn btn-sm btn-outline-primary py-0">{% if x.c %}Guardar{% else %}Hacer corporativo{% endif %}</button>
+          {% if x.c %}<button name="quitar" value="1" class="btn btn-sm btn-outline-danger py-0">Quitar</button>{% endif %}
+        </form>{% endif %}</td>
+      <td>{% if x.c or x.u.is_superuser %}<span class="badge text-bg-success">corporativo</span>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if creando %}<script>
+  // mientras se crea una empresa, la página consulta su avance y se recarga al terminar
+  const revisar = () => fetch("{% url 'grupo_estado' %}").then(r => r.json()).then(d => {
+    if (!Object.values(d).some(e => e.estado === 'CREANDO')) { window.location.reload(); } else { setTimeout(revisar, 4000); }
+  }).catch(() => setTimeout(revisar, 8000));
+  setTimeout(revisar, 4000);
+</script>{% endif %}
+{% endblock %}

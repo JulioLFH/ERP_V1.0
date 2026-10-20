@@ -46,5 +46,26 @@ DATABASES = {
     'empresa2': {**_CONEXION, 'NAME': _dato('PG_BASE_EMPRESA2', 'ceiba_empresa2')},
 }
 EMPRESAS = {'default': os.environ.get('EMPRESA_PRINCIPAL', 'Empresa principal'), 'empresa2': 'SEGUNDA EMPRESA'}
+
+
+def _empresas_registradas():
+    """Empresas creadas desde el sistema (Ajustes › Empresas del grupo): así migrate y los comandos las conocen."""
+    import sys
+    if 'test' in sys.argv[1:2]:
+        return []
+    try:
+        import psycopg
+        with psycopg.connect(dbname=DATABASES['default']['NAME'], user=_CONEXION['USER'],
+                             password=_CONEXION['PASSWORD'], host=_CONEXION['HOST'], port=_CONEXION['PORT'],
+                             connect_timeout=3) as conexion:
+            return conexion.execute("SELECT alias, base, razon_social FROM core_empresagrupo "
+                                    "WHERE estado NOT IN ('ERROR', 'INACTIVA')").fetchall()
+    except Exception:  # sin servidor o sin la tabla todavía: solo las empresas configuradas
+        return []
+
+
+for _alias, _base, _nombre in _empresas_registradas():
+    DATABASES.setdefault(_alias, {**_CONEXION, 'NAME': _base})
+    EMPRESAS.setdefault(_alias, _nombre)
 SESSION_COOKIE_NAME = 'ceiba_pg_sesion'  # no se mezcla con las sesiones de las bases SQLite
 CSRF_COOKIE_NAME = 'ceiba_pg_csrf'

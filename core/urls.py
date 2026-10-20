@@ -3,7 +3,7 @@ from django.contrib.messages.views import SuccessMessageMixin
 from django.urls import path, reverse_lazy
 
 from . import (alertas, inventario, libros_inventario, lotes, manuales, monitoreo, opciones, sustentos, usuarios,
-               sso, views, views_api, views_aprobaciones, views_sire)
+               sso, views, views_api, views_aprobaciones, views_grupo, views_sire)
 
 
 class CambiarClave(SuccessMessageMixin, auth_views.PasswordChangeView):
@@ -24,6 +24,9 @@ urlpatterns = [
     path('ajustes/segregacion/', usuarios.segregacion, name='segregacion'),
     path('producto-datos/<int:pk>/', opciones.producto_datos, name='producto_datos'),
     path('estado/', monitoreo.estado, name='estado_servicio'),
+    path('grupo/', views_grupo.empresas, name='grupo_empresas'),
+    path('grupo/entrar/', views_grupo.entrar, name='grupo_entrar'),
+    path('grupo/estado/', views_grupo.estado, name='grupo_estado'),
     path('sso/<int:pk>/', sso.iniciar, name='sso_iniciar'),
     path('sso/callback/', sso.callback, name='sso_callback'),
     path('ajustes/inicio-corporativo/', sso.lista, name='sso_lista'),

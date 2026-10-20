@@ -179,6 +179,8 @@ def callback(request):
         auth_login(request, usuario, backend='django.contrib.auth.backends.ModelBackend')
         request.session['empresa'] = pendiente['empresa']
         request.session['sso'] = proveedor.tipo  # el proveedor ya exige su propia verificación
+        from .grupo import marcar
+        marcar(request, usuario, pendiente['empresa'])
         from .auditoria import registrar
         registrar('MODIFICAR', usuario, {'Inicio de sesión': ['', f'Corporativo ({proveedor.nombre})']})
     finally:

@@ -406,7 +406,8 @@ RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'c
                 'opciones',  # listas de los selectores (códigos y nombres, sin importes)
                 'producto_datos',  # precio y unidad del producto elegido (valida los módulos; el costo según permiso)
                 'reportar', 'salud',  # «Reportar problema» lo usa cualquiera; /salud/ es para el monitor de caídas
-                'estado_servicio', 'sso_iniciar', 'sso_callback',  # estado público y entrada corporativa
+                'estado_servicio', 'sso_iniciar', 'sso_callback',  # estado público e ingreso Microsoft / Google
+                'grupo_empresas', 'grupo_entrar', 'grupo_estado',  # cada vista exige ser usuario corporativo
                 # cada usuario ve y resuelve lo que le toca aprobar y delega sus aprobaciones (cada acción valida)
                 'aprobaciones_bandeja', 'aprobaciones_delegaciones',
                 'mi_portal', 'mi_boleta'}  # autoservicio: cada trabajador ve solo lo suyo
