@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Contar {{ doc.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h1 class="page-title mb-0"><i class="bi bi-phone"></i> {% if recontar %}Reconteo{% else %}Conteo{% endif %} {{ doc.numero }}</h1>
+  <a href="{% url 'inventario:fisico' doc.pk %}" class="btn btn-sm btn-outline-secondary">Documento</a>
+</div>
+<p class="small text-muted mb-2">{{ doc.almacen }} · {{ pendientes|length }} por {% if recontar %}recontar{% else %}contar{% endif %} de {{ items|length }} · conteo a ciegas</p>
+<input id="buscar" class="form-control mb-3" placeholder="Escanee el código de barras o escriba el código" autocomplete="off" autofocus>
+<form method="post" action="{% url 'inventario:fisico' doc.pk %}">{% csrf_token %}
+  <input type="hidden" name="accion" value="{% if recontar %}recontar{% else %}contar{% endif %}">
+  <input type="hidden" name="volver" value="{{ request.get_full_path }}">
+  {% for i in pendientes %}<div class="card mb-2 js-linea" data-codigos="{{ i.producto.codigo|lower }} {{ i.lote.codigo|default:''|lower }}">
+    <div class="card-body py-2">
+      <div class="d-flex justify-content-between"><b>{{ i.producto.nombre }}</b><span class="badge text-bg-light border">{{ i.ubicacion|default:'sin ubicación' }}</span></div>
+      <div class="small text-muted">{{ i.producto.codigo }}{% if i.lote %} · lote {{ i.lote.codigo }}{% endif %} · {{ i.producto.unidad }}</div>
+      <input name="c_{{ i.pk }}" class="form-control form-control-lg text-end mt-2" inputmode="decimal" placeholder="Cantidad encontrada">
+    </div></div>
+  {% empty %}<div class="alert alert-success">No queda nada por {% if recontar %}recontar{% else %}contar{% endif %}.</div>{% endfor %}
+  {% if pendientes %}<button class="btn btn-primary btn-lg w-100 mb-3"><i class="bi bi-save"></i> Guardar lo contado</button>{% endif %}
+</form>
+<script>
+document.getElementById('buscar').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const q = e.target.value.trim().toLowerCase();
+  if (!q) return;
+  const linea = [...document.querySelectorAll('.js-linea')].find(l => l.dataset.codigos.split(' ').includes(q));
+  if (linea) { linea.scrollIntoView({block: 'center'}); linea.querySelector('input').focus(); e.target.value = ''; }
+  else { e.target.classList.add('is-invalid'); setTimeout(() => e.target.classList.remove('is-invalid'), 1200); }
+});
+</script>
+{% endblock %}

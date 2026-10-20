@@ -19,6 +19,7 @@ ACCIONES = {
                 ('convertir_solped', 'Convertir solicitudes de pedido en órdenes de compra o licitaciones', False)],
     'inventario': [('operar', 'Registrar y confirmar operaciones de almacén', False),
                    ('ajustar', 'Ajustes de inventario', True),
+                   ('aprobar_mayor', 'Aprobar diferencias de inventario físico sobre el tope', True),
                    ('anular', 'Anular operaciones', True),
                    ('cerrar', 'Cerrar el kardex', True)],
     'logistica': [('emitir', 'Emitir guías de remisión', False),
@@ -61,7 +62,7 @@ ACCIONES = {
 TODAS = {f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, _ in lista}
 # acciones sensibles nuevas: nunca se dan por defecto (ni a usuarios sin perfil); el administrador las asigna
 EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar', 'manufactura.aprobar_cambios',
-              'costos.liquidar', 'requerimientos.liberar_solped'}
+              'costos.liquidar', 'requerimientos.liberar_solped', 'inventario.aprobar_mayor'}
 
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
@@ -95,6 +96,7 @@ RUTAS = {
     'inventario:cierres': {'POST': 'inventario.cerrar'}, 'ubicaciones': {'POST': 'inventario.operar'},
     'inventario:ola_nueva': {'POST': 'inventario.operar'}, 'inventario:ola': {'POST': 'inventario.operar'},
     'inventario:ciclico': {'POST': 'inventario.operar'}, 'inventario:conteo': {'POST': 'inventario.ajustar'},
+    'inventario:fisico_nuevo': {'POST': 'inventario.operar'},
     'logistica:nueva': 'logistica.emitir', 'logistica:editar': 'logistica.emitir',
     'logistica:enviar_sunat': 'logistica.emitir', 'logistica:anular': 'logistica.anular',
     'finanzas:movimiento_nuevo': 'finanzas.registrar', 'finanzas:cobranza': 'finanzas.registrar',

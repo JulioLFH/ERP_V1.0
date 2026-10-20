@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Nuevo inventario físico{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-clipboard2-plus"></i> Nuevo documento de inventario físico</h1>
+  <a href="{% url 'inventario:fisico_lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+<form method="post" class="card"><div class="card-body row g-3">{% csrf_token %}
+  <div class="col-md-4"><label class="form-label small mb-1">Almacén <span class="text-danger">*</span></label><select name="almacen" class="form-select form-select-sm" required>{% for a in almacenes %}<option value="{{ a.pk }}" {% if almacen_id == a.pk|stringformat:'s' %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></div>
+  <div class="col-md-4"><label class="form-label small mb-1">Tipo de conteo</label><select name="tipo" class="form-select form-select-sm" id="tipo">{% for v, t in tipos %}<option value="{{ v }}">{{ t }}</option>{% endfor %}</select></div>
+  <div class="col-md-4"><label class="form-label small mb-1">Contador asignado</label><select name="contador" class="form-select form-select-sm"><option value="">— Cualquiera del almacén —</option>{% for u in usuarios %}<option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select><div class="form-text">Cuenta a ciegas: no ve el stock del sistema.</div></div>
+  <div class="col-md-4 js-tipo" data-tipos="ALEATORIO"><label class="form-label small mb-1">Productos al azar</label><input name="n" type="number" min="1" max="500" value="20" class="form-control form-control-sm"></div>
+  <div class="col-md-4 js-tipo" data-tipos="ALEATORIO"><label class="form-label small mb-1">Semilla del sorteo</label><input name="semilla" class="form-control form-control-sm" placeholder="Vacío = fecha y hora"><div class="form-text">Queda registrada con el usuario: la misma semilla reproduce la misma selección (auditoría).</div></div>
+  <div class="col-md-4 js-tipo" data-tipos="UBICACION CERO"><label class="form-label small mb-1">Ubicación o pasillo</label><input name="ubicacion" class="form-control form-control-sm" placeholder="Ej. A-01"><div class="form-text">Todo lo que empieza con este código.</div></div>
+  <div class="col-md-4 js-tipo" data-tipos="CICLICO"><label class="form-label small mb-1">Clases ABC</label><div>{% for c in 'ABC' %}<label class="me-3 small"><input type="checkbox" class="form-check-input" name="clase" value="{{ c }}" checked> {{ c }}</label>{% endfor %}</div><div class="form-text">A cada 30 días, B cada 90 y C cada 180.</div></div>
+  <div class="col-md-4 js-tipo" data-tipos="CICLICO"><label class="form-label small mb-1">Máximo de productos</label><input name="maximo" type="number" min="1" max="500" value="40" class="form-control form-control-sm"></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Tolerancia %</label><input name="tolerancia_pct" class="form-control form-control-sm text-end" value="2"></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Tolerancia S/</label><input name="tolerancia_valor" class="form-control form-control-sm text-end" value="500"></div>
+  <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="bloquear" value="1" id="bloquear"><label class="form-check-label small" for="bloquear">Bloquear los movimientos de estos productos en el almacén mientras se cuenta (recomendado en el inventario general). Sin bloqueo, lo que se mueva después de la foto se descuenta al comparar.</label></div></div>
+  <div class="col-12 small text-muted">Al crear el documento se toma la <b>foto del stock</b> (cantidad y costo de cada producto o lote). Las diferencias mayores a la tolerancia exigen un reconteo por otro contador; quien cuenta no aprueba.</div>
+  <div class="col-12"><button class="btn btn-primary"><i class="bi bi-camera"></i> Crear y tomar la foto del stock</button></div>
+</div></form>
+<script>
+const tipo = document.getElementById('tipo');
+function mostrar() { document.querySelectorAll('.js-tipo').forEach(e => { e.style.display = e.dataset.tipos.split(' ').includes(tipo.value) ? '' : 'none'; }); }
+tipo.addEventListener('change', mostrar); mostrar();
+</script>
+{% endblock %}

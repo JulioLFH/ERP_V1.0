@@ -6,6 +6,7 @@
     <div class="small text-muted">{{ c.almacen }} · {{ c.fecha|date:'d/m/Y' }}</div></div>
   <div class="d-flex gap-2">
     {% if c.estado == 'ABIERTO' %}<a href="?{% if not ciego %}ciego=1{% endif %}" class="btn btn-sm btn-outline-secondary">{% if ciego %}Mostrar stock del sistema{% else %}Conteo a ciegas{% endif %}</a>{% endif %}
+    <a href="{% url 'inventario:fisico' c.pk %}" class="btn btn-sm btn-outline-primary" title="Conteo por contador, reconteo de las diferencias fuera de la tolerancia, aprobación y contabilización"><i class="bi bi-clipboard2-check"></i> Flujo completo con aprobación</a>
     <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Hoja de conteo</a>
     <a href="{% url 'inventario:ciclico' %}?almacen={{ c.almacen_id }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Programa</a></div>
 </div>

@@ -91,6 +91,10 @@ class Empresa(models.Model):
         'Presupuesto en solicitudes de pedido', max_length=8, choices=CONTROL_PRESUPUESTO, default='AVISAR',
         blank=True, help_text='Si la solicitud supera lo que queda del presupuesto de su centro de costo y cuenta (real '
                               'más lo comprometido en solicitudes y órdenes de compra)')
+    tope_diferencias_inventario = models.DecimalField(
+        'Tope de diferencias de inventario S/', max_digits=12, decimal_places=2, default=Decimal('5000'),
+        help_text='Inventario físico: el jefe de almacén aprueba diferencias hasta este valor absoluto; más, la '
+                  'contraloría o la gerencia (permiso «Aprobar diferencias de inventario sobre el tope»)')
     tolerancia_cantidad = models.DecimalField(
         'Tolerancia de cantidad (±)', max_digits=10, decimal_places=2, default=Decimal('1'),
         help_text='Diferencia permitida entre la cantidad facturada por el proveedor y la recibida / pedida')
@@ -433,6 +437,8 @@ class Producto(models.Model):
         from inventario.cierre import validar_fecha
         validar_fecha(fecha or timezone.localdate())  # kardex cerrado: no se mueve el almacén en esa fecha
         almacen = almacen or Almacen.principal()
+        from inventario.fisico import validar_movimiento
+        validar_movimiento(self, almacen)  # producto en un inventario físico con bloqueo
         with transaction.atomic():
             # se relee y bloquea el producto: dos líneas del mismo producto no deben pisarse
             actual = Producto.objects.select_for_update().get(pk=self.pk)

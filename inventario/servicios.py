@@ -153,6 +153,13 @@ def errores_confirmacion(op):
     from .cierre import error_cierre
     if error_cierre(op.fecha):
         errores.append(error_cierre(op.fecha))
+    from .fisico import ProductoEnConteo, validar_movimiento
+    for almacen in {op.almacen_origen, op.almacen_destino} - {None}:  # inventario físico con bloqueo
+        for i in items:
+            try:
+                validar_movimiento(i.producto, almacen)
+            except ProductoEnConteo as exc:
+                errores.append(str(exc))
     if tipo.requiere_sustento and op.pk:
         from core.sustentos import tiene
         if not tiene(op):

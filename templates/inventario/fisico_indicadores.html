@@ -1,0 +1,26 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Indicadores de inventario físico{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-speedometer2"></i> Indicadores de inventario físico</h1>
+  <form method="get" class="d-flex flex-wrap gap-2">
+    <select name="almacen" class="form-select form-select-sm" style="width:auto"><option value="">Todos los almacenes</option>{% for a in almacenes %}<option value="{{ a.pk }}" {% if almacen.pk == a.pk %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+    <input type="date" name="desde" value="{{ d.desde|date:'Y-m-d' }}" class="form-control form-control-sm">
+    <input type="date" name="hasta" value="{{ d.hasta|date:'Y-m-d' }}" class="form-control form-control-sm">
+    <button class="btn btn-sm btn-primary">Ver</button>
+  </form>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="small text-muted">Exactitud del inventario (IRA)</div><div class="fs-3 fw-bold {% if d.ira_total is not None and d.ira_total < 95 %}text-danger{% else %}text-success{% endif %}">{% if d.ira_total is not None %}{{ d.ira_total }} %{% else %}—{% endif %}</div><div class="small text-muted">{{ d.lineas }} línea(s) contadas · meta ≥ 95 %</div></div></div></div>
+  <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="small text-muted">Cumplimiento del programa cíclico</div><div class="fs-3 fw-bold">{% if d.cumplimiento %}{{ d.cumplimiento.pct }} %{% else %}—{% endif %}</div><div class="small text-muted">{% if d.cumplimiento %}{{ d.cumplimiento.contados }} de {{ d.cumplimiento.tocaban }} que tocaban{% else %}elija un almacén{% endif %}</div></div></div></div>
+  <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="small text-muted">Productos sin conteo en 12 meses</div><div class="fs-3 fw-bold {% if d.nunca %}text-warning{% endif %}">{{ d.nunca|length }}</div><a href="?{{ request.GET.urlencode }}&formato=excel" class="small">Excel</a></div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-4"><div class="card h-100"><div class="card-header">IRA por almacén</div><table class="table table-sm mb-0"><tbody>{% for n, l, p in d.ira.almacen %}<tr><td>{{ n }}</td><td class="num">{{ l }}</td><td class="num fw-semibold">{{ p }} %</td></tr>{% empty %}<tr><td class="text-muted">Sin conteos contabilizados.</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-header">IRA por clase ABC</div><table class="table table-sm mb-0"><tbody>{% for n, l, p in d.ira.clase %}<tr><td>{{ n }}</td><td class="num">{{ l }}</td><td class="num fw-semibold">{{ p }} %</td></tr>{% empty %}<tr><td class="text-muted">—</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-header">IRA por contador</div><table class="table table-sm mb-0"><tbody>{% for n, l, p in d.ira.contador %}<tr><td>{{ n }}</td><td class="num">{{ l }}</td><td class="num fw-semibold">{{ p }} %</td></tr>{% empty %}<tr><td class="text-muted">—</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Valor de diferencias por motivo</div><table class="table table-sm mb-0"><tbody>{% for m, v in d.por_motivo %}<tr><td>{{ m }}</td><td class="num {% if v < 0 %}text-danger{% else %}text-success{% endif %}">{{ v|money }}</td></tr>{% empty %}<tr><td class="text-muted">Sin diferencias.</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Faltantes y sobrantes por mes</div><table class="table table-sm mb-0"><thead><tr><th>Mes</th><th class="num">Faltantes S/</th><th class="num">Sobrantes S/</th></tr></thead><tbody>{% for m, f, s in d.por_mes %}<tr><td>{{ m }}</td><td class="num text-danger">{{ f|money }}</td><td class="num text-success">{{ s|money }}</td></tr>{% empty %}<tr><td colspan="3" class="text-muted">Sin diferencias.</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-12"><div class="card"><div class="card-header">Productos con stock sin conteo en los últimos 12 meses</div><div class="table-responsive" style="max-height:420px"><table class="table table-sm mb-0"><thead><tr><th>Código</th><th>Producto</th><th>Almacén</th><th class="num">Stock</th><th>Último conteo</th></tr></thead><tbody>{% for f in d.nunca|slice:':300' %}<tr><td>{{ f.p.codigo }}</td><td>{{ f.p.nombre }}</td><td class="small">{{ f.almacen }}</td><td class="num">{{ f.stock|money }}</td><td>{{ f.ultimo|date:'d/m/Y'|default:'nunca' }}</td></tr>{% empty %}<tr><td colspan="5" class="text-muted">Todo lo que tiene stock se contó en los últimos 12 meses.</td></tr>{% endfor %}</tbody></table></div></div></div>
+</div>
+{% endblock %}

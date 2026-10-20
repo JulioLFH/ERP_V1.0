@@ -1,10 +1,17 @@
 from django.urls import path
 
-from . import views, views_almacen
+from . import views, views_almacen, views_fisico
 
 app_name = 'inventario'
 
 urlpatterns = [
+    path('fisico/', views_fisico.lista, name='fisico_lista'),
+    path('fisico/nuevo/', views_fisico.nuevo, name='fisico_nuevo'),
+    path('fisico/indicadores/', views_fisico.indicadores, name='fisico_indicadores'),
+    path('fisico/<int:pk>/', views_fisico.detalle, name='fisico'),
+    path('fisico/<int:pk>/contar/', views_fisico.contar_movil, name='fisico_movil'),
+    path('reportes/', views_fisico.reportes, name='reportes_masivos'),
+    path('reportes/<str:clave>/', views_fisico.reporte, name='reporte_masivo'),
     path('olas/', views_almacen.olas, name='olas'),
     path('olas/nueva/', views_almacen.ola_nueva, name='ola_nueva'),
     path('olas/<int:pk>/', views_almacen.ola, name='ola'),

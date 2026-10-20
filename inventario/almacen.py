@@ -148,7 +148,7 @@ def programa(almacen, hoy=None):
 def generar_conteo(almacen, usuario, clases=('A', 'B', 'C'), maximo=40, hoy=None):
     """Conteo con los productos a los que les toca (A primero), hasta `maximo` líneas, en orden de ubicación."""
     hoy = hoy or timezone.localdate()
-    abiertos = set(ConteoItem.objects.filter(conteo__almacen=almacen, conteo__estado='ABIERTO')
+    abiertos = set(ConteoItem.objects.filter(conteo__almacen=almacen, conteo__estado__in=ConteoCiclico.VIGENTES)
                    .values_list('producto_id', flat=True))
     candidatos = [f for f in programa(almacen, hoy) if f['vencido'] and f['clase'] in clases
                   and f['p'].pk not in abiertos]
@@ -157,11 +157,11 @@ def generar_conteo(almacen, usuario, clases=('A', 'B', 'C'), maximo=40, hoy=None
     if not candidatos:
         raise ErrorAlmacen('No hay productos que toque contar (o ya están en un conteo abierto).')
     conteo = ConteoCiclico.objects.create(numero=_numero('CIC', 'CIC'), almacen=almacen, fecha=hoy,
-                                          creado_por=usuario)
+                                          creado_por=usuario, tipo='CICLICO')
     lugares = StockAlmacen.ubicaciones(almacen.pk, [f['p'].pk for f in candidatos])
     for f in candidatos:
         ConteoItem.objects.create(conteo=conteo, producto=f['p'], clase=f['clase'], sistema=f['stock'],
-                                  ubicacion=lugares.get(f['p'].pk, ''))
+                                  ubicacion=lugares.get(f['p'].pk, ''), costo=f['p'].costo_promedio)
     return conteo
 
 
@@ -180,7 +180,7 @@ def cerrar_conteo(conteo, contados, usuario):
     from core.sustentos import guardar_archivo, vincular
 
     from . import servicios
-    if conteo.estado != 'ABIERTO':
+    if conteo.estado not in ('ABIERTO', 'CONTADO'):
         raise ErrorAlmacen('El conteo ya está cerrado.')
     items = list(conteo.items.select_related('producto'))
     for i in items:
@@ -193,6 +193,9 @@ def cerrar_conteo(conteo, contados, usuario):
         raise ErrorAlmacen('Registre al menos un conteo.')
     acta = guardar_archivo(None, usuario, datos=_acta(conteo), nombre=f'Acta_{conteo.numero}.xlsx',
                            tipo='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    # se cierra antes de ajustar: un bloqueo de movimientos del propio conteo no aplica a sus ajustes
+    conteo.estado, conteo.cerrado_por, conteo.cerrado_en = 'CERRADO', usuario, timezone.now()
+    conteo.save(update_fields=['estado', 'cerrado_por', 'cerrado_en'])
     for codigo, signo, campo in (('AJ_ING', 1, 'ajuste_ingreso'), ('AJ_SAL', -1, 'ajuste_salida')):
         lineas = [i for i in items if i.diferencia is not None and i.diferencia * signo > 0]
         if not lineas:
@@ -210,8 +213,7 @@ def cerrar_conteo(conteo, contados, usuario):
         except servicios.ErrorOperacion as exc:
             raise ErrorAlmacen(f'No se pudo ajustar: {exc}') from exc
         setattr(conteo, campo, op)
-    conteo.estado, conteo.cerrado_por, conteo.cerrado_en = 'CERRADO', usuario, timezone.now()
-    conteo.save()
+    conteo.save(update_fields=['ajuste_ingreso', 'ajuste_salida'])
     return conteo
 
 

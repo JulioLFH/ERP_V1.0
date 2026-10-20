@@ -317,43 +317,109 @@ class LineaOla(models.Model):
 
 
 class ConteoCiclico(models.Model):
-    """Conteo cíclico: se cuentan pocos productos cada vez según su clase ABC (los A más seguido). Al cerrarlo, las
-    diferencias se ajustan con su acta de conteo como sustento."""
-    ESTADOS = [('ABIERTO', 'En conteo'), ('CERRADO', 'Cerrado'), ('ANULADO', 'Anulado')]
+    """Documento de inventario físico (MI01 de SAP): general, cíclico ABC, aleatorio, por ubicación o de stock en
+    cero. Se toma la foto del stock al crearlo; se cuenta (a ciegas), se recuentan las diferencias fuera de la
+    tolerancia, se aprueba (quien cuenta no aprueba) y se contabiliza con ajustes que llevan el acta como sustento."""
+    TIPOS = [('GENERAL', 'General (todo el almacén)'), ('CICLICO', 'Cíclico ABC'), ('ALEATORIO', 'Aleatorio'),
+             ('UBICACION', 'Por ubicación'), ('CERO', 'Stock en cero')]
+    ESTADOS = [('ABIERTO', 'En conteo'), ('CONTADO', 'Contado: revisar diferencias'), ('APROBADO', 'Aprobado'),
+               ('CERRADO', 'Contabilizado'), ('ANULADO', 'Anulado')]
+    VIGENTES = ('ABIERTO', 'CONTADO', 'APROBADO')
     numero = models.CharField('N°', max_length=20, editable=False)
     fecha = models.DateField(default=timezone.localdate)
     almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, related_name='+')
+    tipo = models.CharField(max_length=10, choices=TIPOS, default='CICLICO')
     estado = models.CharField(max_length=8, choices=ESTADOS, default='ABIERTO')
+    foto_en = models.DateTimeField('Foto del stock', default=timezone.now,
+                                   help_text='Momento en que se tomó el stock del sistema')
+    contador = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name='+', help_text='Quien cuenta (no ve el stock del sistema)')
+    bloquear = models.BooleanField('Bloquear movimientos', default=False,
+                                   help_text='Los productos del documento no se mueven en el almacén hasta '
+                                             'contabilizarlo o anularlo')
+    semilla = models.CharField('Semilla del sorteo', max_length=40, blank=True,
+                               help_text='Conteo aleatorio: con la semilla se reproduce la misma selección')
+    filtro_ubicacion = models.CharField('Ubicación / pasillo', max_length=20, blank=True)
+    tolerancia_pct = models.DecimalField('Tolerancia %', max_digits=5, decimal_places=2, default=Decimal('2'),
+                                         help_text='Diferencias mayores exigen un reconteo por otro contador')
+    tolerancia_valor = models.DecimalField('Tolerancia S/', max_digits=12, decimal_places=2, default=Decimal('500'))
+    observaciones = models.TextField(blank=True)
     ajuste_ingreso = models.ForeignKey(Operacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     ajuste_salida = models.ForeignKey(Operacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+')
+    aprobado_en = models.DateTimeField(null=True, blank=True)
     cerrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='+')
     cerrado_en = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-fecha', '-id']
-        verbose_name = 'conteo cíclico'
-        verbose_name_plural = 'conteos cíclicos'
+        verbose_name = 'documento de inventario físico'
+        verbose_name_plural = 'documentos de inventario físico'
 
     def __str__(self):
         return f'Conteo {self.numero}'
 
 
 class ConteoItem(models.Model):
+    MOTIVOS = [('', '—'), ('ERROR_REGISTRO', 'Error de registro'), ('MERMA', 'Merma / evaporación'),
+               ('DANO', 'Daño o rotura'), ('VENCIMIENTO', 'Vencimiento'), ('ROBO', 'Robo o pérdida'),
+               ('UBICACION', 'Mal ubicado'), ('SOBRANTE', 'Sobrante no registrado'), ('OTRO', 'Otro')]
     conteo = models.ForeignKey(ConteoCiclico, on_delete=models.CASCADE, related_name='items')
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='+')
+    lote = models.ForeignKey('core.Lote', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
     clase = models.CharField('Clase ABC', max_length=1)
     ubicacion = models.CharField(max_length=20, blank=True)
     sistema = models.DecimalField('Stock del sistema', max_digits=14, decimal_places=2)
+    costo = models.DecimalField('Costo unitario', max_digits=14, decimal_places=4, default=D0)
+    movimientos = models.DecimalField('Movimientos después de la foto', max_digits=14, decimal_places=2, default=D0)
     contado = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    contado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+')
+    contado_en = models.DateTimeField(null=True, blank=True)
+    reconteo = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    reconteo_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+')
+    reconteo_en = models.DateTimeField(null=True, blank=True)
+    motivo = models.CharField(max_length=16, choices=MOTIVOS, blank=True)
 
     class Meta:
-        ordering = ['ubicacion', 'producto__nombre']
+        ordering = ['ubicacion', 'producto__nombre', 'lote__codigo']
+
+    @property
+    def esperado(self):
+        """Stock del sistema al momento del conteo: la foto más lo que se movió después (sin bloqueo)."""
+        return self.sistema + self.movimientos
+
+    @property
+    def final(self):
+        return self.reconteo if self.reconteo is not None else self.contado
 
     @property
     def diferencia(self):
-        return None if self.contado is None else self.contado - self.sistema
+        return None if self.final is None else self.final - self.esperado
+
+    @property
+    def valor_diferencia(self):
+        return None if self.diferencia is None else (self.diferencia * (self.costo or D0)).quantize(Decimal('0.01'))
+
+    @property
+    def pct_diferencia(self):
+        if self.diferencia is None:
+            return None
+        base = abs(self.esperado)
+        return (abs(self.diferencia) / base * 100).quantize(Decimal('0.1')) if base else (
+            Decimal('100') if self.diferencia else D0)
+
+    @property
+    def exige_reconteo(self):
+        """Fuera de la tolerancia del documento y aún sin reconteo."""
+        if self.contado is None or self.reconteo is not None or not self.diferencia:
+            return False
+        c = self.conteo
+        return self.pct_diferencia > c.tolerancia_pct or abs(self.valor_diferencia) > c.tolerancia_valor
 
 
 class RequerimientoItem(models.Model):

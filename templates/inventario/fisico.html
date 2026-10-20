@@ -1,0 +1,59 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ doc }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="page-title"><i class="bi bi-clipboard2-check"></i> {{ doc }} <span class="badge {% if doc.estado == 'CERRADO' %}text-bg-success{% elif doc.estado == 'APROBADO' %}text-bg-primary{% elif doc.estado == 'CONTADO' %}text-bg-warning{% elif doc.estado == 'ABIERTO' %}text-bg-info{% else %}badge-ANULADO{% endif %} fs-6 align-middle">{{ doc.get_estado_display }}</span>{% if doc.bloquear and doc.estado in 'ABIERTO CONTADO APROBADO' %} <span class="badge text-bg-warning fs-6 align-middle"><i class="bi bi-lock-fill"></i> Movimientos bloqueados</span>{% endif %}</h1>
+    <div class="text-muted small">{{ doc.get_tipo_display }} · {{ doc.almacen }} · foto del stock {{ doc.foto_en|date:'d/m/Y H:i' }} · creó {{ doc.creado_por.username|default:'—' }}{% if doc.contador %} · contador {{ doc.contador.get_full_name|default:doc.contador.username }}{% endif %}{% if doc.semilla %} · semilla <code>{{ doc.semilla }}</code>{% endif %}{% if doc.filtro_ubicacion %} · ubicación {{ doc.filtro_ubicacion }}{% endif %} · tolerancia {{ doc.tolerancia_pct|floatformat:2 }} % o S/ {{ doc.tolerancia_valor|money }}</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'inventario:fisico_lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+    <a href="?formato=hoja" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Hoja de conteo</a>
+    {% if doc.estado == 'ABIERTO' or doc.estado == 'CONTADO' %}<a href="{% url 'inventario:fisico_movil' doc.pk %}{% if r.reconteos %}?recontar=1{% endif %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-phone"></i> Contar en el celular</a>{% endif %}
+    {% if not ciego %}<a href="?formato=acta" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Acta</a>{% endif %}
+    {% if doc.estado == 'CONTADO' and puede_aprobar %}<form method="post">{% csrf_token %}<button name="accion" value="aprobar" class="btn btn-sm btn-success"><i class="bi bi-check2-circle"></i> Aprobar diferencias</button></form>{% endif %}
+    {% if doc.estado == 'APROBADO' and puede_ajustar %}<form method="post" data-confirm="¿Contabilizar? Se registran los ajustes de inventario con el acta como sustento.">{% csrf_token %}<button name="accion" value="contabilizar" class="btn btn-sm btn-primary"><i class="bi bi-journal-check"></i> Contabilizar ajustes</button></form>{% endif %}
+    {% if doc.estado in 'ABIERTO CONTADO APROBADO' %}<form method="post" data-confirm="¿Anular el documento?">{% csrf_token %}<button name="accion" value="anular" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular</button></form>{% endif %}
+  </div>
+</div>
+{% if ciego %}<div class="alert alert-info py-2 small"><i class="bi bi-eye-slash"></i> Conteo a ciegas: no se muestra el stock del sistema. Registre lo que encuentra físicamente.</div>
+{% else %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Líneas</div><div class="fs-5 fw-bold">{{ r.contados }} / {{ r.total }}</div><div class="small text-muted">contadas</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Con diferencia</div><div class="fs-5 fw-bold">{{ r.con_diferencia }}</div><div class="small text-muted">{% if r.exactitud is not None %}exactitud {{ r.exactitud }} %{% endif %}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Por recontar</div><div class="fs-5 fw-bold {% if r.reconteos %}text-danger{% endif %}">{{ r.reconteos|length }}</div></div></div>
+  {% if ver_costos %}<div class="col-6 col-md-2"><div class="kpi"><div class="label">Faltantes S/</div><div class="fs-5 fw-bold text-danger">{{ r.faltante|money }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Sobrantes S/</div><div class="fs-5 fw-bold text-success">{{ r.sobrante|money }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Neto S/</div><div class="fs-5 fw-bold">{{ r.neto|money }}</div></div></div>{% endif %}
+</div>
+{% if doc.estado == 'CONTADO' and not puede_aprobar %}<div class="alert alert-light border py-2 small">Aprobación: {{ motivo_aprobar }}</div>{% endif %}
+{% if doc.aprobado_por %}<p class="small text-muted">Aprobado por {{ doc.aprobado_por.get_full_name|default:doc.aprobado_por.username }} el {{ doc.aprobado_en|date:'d/m/Y H:i' }}{% if doc.cerrado_por %} · contabilizado por {{ doc.cerrado_por.get_full_name|default:doc.cerrado_por.username }} el {{ doc.cerrado_en|date:'d/m/Y H:i' }}{% endif %}{% if doc.ajuste_ingreso %} · <a href="{% url 'inventario:detalle' doc.ajuste_ingreso_id %}">{{ doc.ajuste_ingreso.numero }}</a> (sobrantes){% endif %}{% if doc.ajuste_salida %} · <a href="{% url 'inventario:detalle' doc.ajuste_salida_id %}">{{ doc.ajuste_salida.numero }}</a> (faltantes){% endif %}</p>{% endif %}
+{% endif %}
+
+<form method="post">{% csrf_token %}
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Ubicación</th><th>Producto</th><th>Lote</th>{% if not ciego %}<th class="num">Sistema (foto)</th><th class="num">Mov. después</th>{% endif %}<th class="num" style="width:11%">Contado</th>{% if not ciego %}<th class="num" style="width:11%">Reconteo</th><th class="num">Diferencia</th><th class="num">%</th>{% if ver_costos %}<th class="num">S/</th>{% endif %}<th style="width:14%">Motivo</th>{% endif %}</tr></thead>
+  <tbody>{% for i in r.items %}<tr class="{% if i.exige_reconteo and not ciego %}table-warning{% endif %}">
+    <td class="small">{{ i.ubicacion|default:'—' }}</td>
+    <td>{{ i.producto.codigo }} {{ i.producto.nombre }}<div class="small text-muted">{{ i.producto.unidad }}{% if i.clase %} · clase {{ i.clase }}{% endif %}{% if i.contado_por %} · contó {{ i.contado_por.username }}{% endif %}{% if i.reconteo_por %} · recontó {{ i.reconteo_por.username }}{% endif %}</div></td>
+    <td class="small">{{ i.lote.codigo|default:'' }}{% if i.lote.vencimiento %}<div class="text-muted">vence {{ i.lote.vencimiento|date:'d/m/Y' }}</div>{% endif %}</td>
+    {% if not ciego %}<td class="num">{{ i.sistema|money }}</td><td class="num small">{% if i.movimientos %}{{ i.movimientos|money }}{% endif %}</td>{% endif %}
+    <td class="num">{% if editable and not i.reconteo_por %}<input name="c_{{ i.pk }}" class="form-control form-control-sm text-end" inputmode="decimal" value="{% if i.contado is not None %}{{ i.contado|stringformat:'s' }}{% endif %}">{% else %}{{ i.contado|default_if_none:'—' }}{% endif %}</td>
+    {% if not ciego %}<td class="num">{% if doc.estado == 'CONTADO' and i.exige_reconteo or doc.estado == 'CONTADO' and i.reconteo is not None %}<input form="form-reconteo" name="c_{{ i.pk }}" class="form-control form-control-sm text-end border-warning" inputmode="decimal" value="{% if i.reconteo is not None %}{{ i.reconteo|stringformat:'s' }}{% endif %}">{% else %}{{ i.reconteo|default_if_none:'' }}{% endif %}</td>
+    <td class="num fw-semibold {% if i.diferencia < 0 %}text-danger{% elif i.diferencia > 0 %}text-success{% endif %}">{{ i.diferencia|default_if_none:'' }}</td><td class="num small">{{ i.pct_diferencia|default_if_none:'' }}</td>
+    {% if ver_costos %}<td class="num">{% if i.valor_diferencia is not None %}{{ i.valor_diferencia|money }}{% endif %}</td>{% endif %}
+    <td>{% if i.diferencia and doc.estado == 'CONTADO' %}<select name="m_{{ i.pk }}" class="form-select form-select-sm"><option value="">— motivo —</option>{% for v, t in motivos %}<option value="{{ v }}" {% if i.motivo == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>{% else %}<span class="small">{{ i.get_motivo_display|default:'' }}</span>{% endif %}</td>{% endif %}
+  </tr>{% endfor %}</tbody>
+</table></div>
+{% if editable %}<div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
+  <button name="accion" value="contar" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Guardar conteo{% if doc.estado == 'CONTADO' %} y motivos{% endif %}</button>
+  <span class="small text-muted">Se registra quién contó y cuándo. Puede guardar por partes; al completar todas las líneas el documento pasa a «Contado».</span>
+</div>{% endif %}
+</div>
+</form>
+{% if doc.estado == 'CONTADO' and not ciego %}<form method="post" id="form-reconteo">{% csrf_token %}<input type="hidden" name="accion" value="recontar">
+{% if r.reconteos %}<div class="alert alert-warning d-flex flex-wrap gap-2 align-items-center py-2"><span><i class="bi bi-arrow-repeat"></i> {{ r.reconteos|length }} diferencia(s) fuera de la tolerancia: las recuenta <b>otro contador</b> (columna Reconteo).</span><button class="btn btn-sm btn-warning">Guardar reconteo</button></div>{% endif %}
+</form>{% endif %}
+{% include 'core/_sustentos.html' with objeto=doc %}
+{% include 'core/_bitacora.html' with objeto=doc %}
+{% endblock %}
