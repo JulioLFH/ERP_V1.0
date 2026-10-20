@@ -319,6 +319,7 @@ MODULOS = [
             ('Empresa', 'empresa'),
             ('Usuarios y permisos', [('Usuarios', 'usuarios', 'bi-people'),
                                      ('Perfiles de acceso (roles)', 'perfiles_acceso', 'bi-person-badge'),
+                                     ('Ingreso con Microsoft / Google', 'sso_lista', 'bi-microsoft'),
                                      ('Segregación de funciones', 'segregacion', 'bi-shield-exclamation'),
                                      ('Reglas de aprobación (todos los documentos)', 'aprobaciones_reglas',
                                       'bi-diagram-3'),
@@ -375,7 +376,7 @@ RUTAS_CORE = {
     'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'], 'segregacion': ['ajustes'],
     'sire_propuestas': ['compras', 'ventas', 'contabilidad'], 'sire_propuesta': ['compras', 'ventas', 'contabilidad'],
-    'perfiles_acceso': ['ajustes'], 'perfil_acceso_nuevo': ['ajustes'], 'perfil_acceso_editar': ['ajustes'],
+    'perfiles_acceso': ['ajustes'], 'sso_lista': ['ajustes'], 'sso_nuevo': ['ajustes'], 'sso_editar': ['ajustes'], 'perfil_acceso_nuevo': ['ajustes'], 'perfil_acceso_editar': ['ajustes'],
     'aprobaciones_reglas': ['ajustes', 'compras', 'rendiciones', 'planillas'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
     'tipos_cambio': ['ajustes', 'finanzas'],
@@ -405,6 +406,7 @@ RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'c
                 'opciones',  # listas de los selectores (códigos y nombres, sin importes)
                 'producto_datos',  # precio y unidad del producto elegido (valida los módulos; el costo según permiso)
                 'reportar', 'salud',  # «Reportar problema» lo usa cualquiera; /salud/ es para el monitor de caídas
+                'estado_servicio', 'sso_iniciar', 'sso_callback',  # estado público y entrada corporativa
                 # cada usuario ve y resuelve lo que le toca aprobar y delega sus aprobaciones (cada acción valida)
                 'aprobaciones_bandeja', 'aprobaciones_delegaciones',
                 'mi_portal', 'mi_boleta'}  # autoservicio: cada trabajador ve solo lo suyo
@@ -468,7 +470,7 @@ def resolver_url(destino):
 
 
 RUTAS_COSTOS = {'inv_valorizacion', 'inventario:cierres'}  # solo con el permiso de ver costos
-RUTAS_ADMIN = {'manuales', 'contabilidad:consolidacion', 'manufactura:modificaciones', 'modificaciones'}  # solo los administradores (superusuarios) las ven
+RUTAS_ADMIN = {'manuales', 'contabilidad:consolidacion', 'manufactura:modificaciones', 'modificaciones', 'sso_lista'}  # solo los administradores (superusuarios) las ven
 
 
 def marcar_activo(items, ruta_completa):

@@ -987,6 +987,58 @@ class PropuestaSIRE(models.Model):
         return f'{self.libro} {self.periodo[4:]}/{self.periodo[:4]}'
 
 
+class ChequeoServicio(models.Model):
+    """Resultado de cada chequeo del servicio (cada 5 minutos con el comando chequear_servicio o el monitor externo
+    que consulta /salud/): alimenta la página pública de estado y la disponibilidad del mes."""
+    fecha = models.DateTimeField(auto_now_add=True, db_index=True)
+    ok = models.BooleanField()
+    milisegundos = models.PositiveIntegerField(default=0)
+    componentes = models.JSONField(default=dict)  # {componente: 'OPERATIVO' | 'DEGRADADO' | 'CAIDO'}
+
+    class Meta:
+        ordering = ['-fecha']
+
+
+class ProveedorSSO(models.Model):
+    """Inicio de sesión corporativo (OpenID Connect): Microsoft Entra ID (Office 365), Google Workspace u otro.
+    El usuario entra con su cuenta de la empresa y se reconoce por su correo, que debe coincidir con el de un usuario
+    activo del sistema (los módulos y permisos siguen siendo los del sistema)."""
+    TIPOS = [('MICROSOFT', 'Microsoft (Office 365 / Entra ID)'), ('GOOGLE', 'Google Workspace'),
+             ('OIDC', 'Otro (OpenID Connect)')]
+    tipo = models.CharField(max_length=10, choices=TIPOS, default='MICROSOFT')
+    nombre = models.CharField('Texto del botón', max_length=60, default='Ingresar con Microsoft')
+    client_id = models.CharField('ID de la aplicación (client_id)', max_length=200)
+    client_secret = models.CharField(max_length=500, blank=True, editable=False)  # cifrado
+    tenant = models.CharField('Inquilino (tenant) de Microsoft', max_length=100, blank=True,
+                              help_text='ID o dominio del directorio (ej. miempresa.onmicrosoft.com). Vacío = '
+                                        '«organizations»')
+    emisor = models.URLField('Emisor (issuer) OpenID', max_length=300, blank=True,
+                             help_text='Solo para «Otro»: la URL base que publica /.well-known/openid-configuration')
+    dominios = models.CharField('Dominios de correo permitidos', max_length=300, blank=True,
+                                help_text='Separados por coma (ej. miempresa.com.pe). Vacío = cualquiera')
+    activo = models.BooleanField(default=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['nombre']
+        verbose_name = 'inicio de sesión corporativo'
+
+    def __str__(self):
+        return self.nombre
+
+    @property
+    def url_emisor(self):
+        if self.tipo == 'GOOGLE':
+            return 'https://accounts.google.com'
+        if self.tipo == 'MICROSOFT':
+            return f'https://login.microsoftonline.com/{self.tenant or "organizations"}/v2.0'
+        return (self.emisor or '').rstrip('/')
+
+    def dominio_permitido(self, correo):
+        permitidos = [d.strip().lower().lstrip('@') for d in self.dominios.split(',') if d.strip()]
+        return not permitidos or correo.lower().rsplit('@', 1)[-1] in permitidos
+
+
 class HistorialClave(models.Model):
     """Contraseñas anteriores (solo su hash) para no repetir las últimas N."""
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='+')

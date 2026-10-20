@@ -1,0 +1,21 @@
+{% extends 'registration/publico_base.html' %}
+{% block title %}Estado del servicio{% endblock %}
+{% block tarjeta %}
+<h2>Estado del servicio</h2>
+<div class="alert {% if general == 'OPERATIVO' %}alert-success{% elif general == 'DEGRADADO' %}alert-warning{% else %}alert-danger{% endif %} py-2 text-center">
+  {% if general == 'OPERATIVO' %}<i class="bi bi-check-circle"></i> Todos los sistemas operativos{% elif general == 'DEGRADADO' %}<i class="bi bi-exclamation-circle"></i> Servicio operativo con avisos{% else %}<i class="bi bi-x-circle"></i> Servicio con fallas{% endif %}
+</div>
+<ul class="list-group mb-3 small">
+  {% for nombre, e in componentes %}<li class="list-group-item d-flex justify-content-between align-items-center">{{ nombre }}
+    <span class="badge {% if e == 'OPERATIVO' %}text-bg-success{% elif e == 'DEGRADADO' %}text-bg-warning{% else %}text-bg-danger{% endif %}">{% if e == 'OPERATIVO' %}Operativo{% elif e == 'DEGRADADO' %}Aviso{% else %}Caído{% endif %}</span></li>{% endfor %}
+</ul>
+<div class="d-flex justify-content-between small mb-1"><span>Disponibilidad (meta {{ meta }}%)</span><span>30 días: <b>{% if disp_30 is not None %}{{ disp_30 }}%{% else %}—{% endif %}</b> · 90 días: <b>{% if disp_90 is not None %}{{ disp_90 }}%{% else %}—{% endif %}</b></span></div>
+<div class="d-flex gap-1 mb-1" style="height:28px" aria-label="Disponibilidad de los últimos 30 días">
+  {% for b in barras %}<div class="flex-fill rounded-1 {% if b.pct is None %}bg-secondary-subtle{% elif b.pct >= 99.9 %}bg-success{% elif b.pct >= 95 %}bg-warning{% else %}bg-danger{% endif %}" title="{{ b.dia|date:'d/m' }}: {% if b.pct is None %}sin datos{% else %}{{ b.pct }}%{% endif %}"></div>{% endfor %}
+</div>
+<div class="d-flex justify-content-between small text-muted mb-3"><span>hace 30 días</span><span>hoy</span></div>
+<div class="small"><b>Caídas de los últimos 90 días</b>
+  {% for c in caidas %}<div class="d-flex justify-content-between border-bottom py-1"><span>{{ c.desde|date:'d/m/Y H:i' }}</span><span>{% if c.hasta %}{{ c.minutos }} min{% else %}en curso{% endif %}</span></div>
+  {% empty %}<div class="text-muted">Sin caídas registradas.</div>{% endfor %}
+</div>
+{% endblock %}

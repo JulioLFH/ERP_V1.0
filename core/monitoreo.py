@@ -161,6 +161,20 @@ def incidencia(request, pk):
 
 # ---------------------------------------------------------------- salud del servidor
 @never_cache
+def estado(request):
+    """Página pública del estado del servicio: componentes, disponibilidad y caídas (sin datos de la empresa)."""
+    from django.shortcuts import render
+
+    from . import estado_servicio as es
+    _, _, estados, _ = es.chequear()
+    general = (es.CAIDO if es.CAIDO in estados.values() else
+               es.DEGRADADO if es.DEGRADADO in estados.values() else es.OPERATIVO)
+    return render(request, 'core/estado_servicio.html', {
+        'general': general, 'componentes': [(es.NOMBRES[k], v) for k, v in estados.items()],
+        'disp_30': es.disponibilidad(30), 'disp_90': es.disponibilidad(90), 'barras': es.barras(30),
+        'caidas': es.caidas(90)[:20], 'version': settings.ERP_VERSION, 'meta': 99.9})
+
+
 def salud(request):
     """Estado de cada base (responde y sin migraciones pendientes). 200 si todo está bien, 503 si no. No muestra
     datos de la empresa: sirve para un monitor de caídas externo."""
@@ -180,6 +194,11 @@ def salud(request):
         except Exception as exc:
             bases[alias] = f'sin conexión ({type(exc).__name__})'
             ok = False
+    try:  # cada consulta del monitor externo alimenta el historial de disponibilidad (/estado/)
+        from .estado_servicio import registrar
+        registrar()
+    except Exception:  # el historial nunca debe tumbar el chequeo de salud
+        pass
     return JsonResponse({'estado': 'ok' if ok else 'falla', 'version': settings.ERP_VERSION,
                          'hora': timezone.now().isoformat(timespec='seconds'), 'bases': bases},
                         status=200 if ok else 503, json_dumps_params={'ensure_ascii': False})

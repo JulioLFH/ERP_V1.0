@@ -83,6 +83,8 @@ class LoginSeguroView(LoginView):
         if es_multiempresa():
             ctx['empresas'] = [(alias, razon_social(alias)) for alias in empresas()]
             ctx['empresa_elegida'] = self._empresa()
+        from .sso import proveedores_para
+        ctx['sso'] = proveedores_para(self._empresa())  # botones «Ingresar con Microsoft / Google»
         return ctx
 
     def post(self, request, *args, **kwargs):

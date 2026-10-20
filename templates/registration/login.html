@@ -21,6 +21,18 @@
   <input type="hidden" name="next" value="{{ next }}">
   <button class="btn btn-ingresar w-100">Ingresar</button>
 </form>
+{% if sso %}
+<div class="text-center small text-muted my-2">o</div>
+{% for p in sso %}<a href="{% url 'sso_iniciar' p.pk %}?empresa={{ empresa_elegida|default:'default' }}{% if next %}&next={{ next|urlencode }}{% endif %}" class="btn btn-outline-secondary w-100 mb-2 js-sso"><i class="bi {% if p.tipo == 'MICROSOFT' %}bi-microsoft{% elif p.tipo == 'GOOGLE' %}bi-google{% else %}bi-shield-lock{% endif %}"></i> {{ p.nombre }}</a>{% endfor %}
+{% endif %}
+{% if empresas %}<script>
+  // cada empresa tiene su propio inicio corporativo: al cambiar de empresa se recarga para mostrar el suyo
+  document.getElementById('id_empresa').addEventListener('change', (e) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('empresa', e.target.value);
+    window.location.href = url.toString();
+  });
+</script>{% endif %}
 <div class="text-center small mt-3"><a href="{% url 'recuperar' %}">¿Olvidó su contraseña?</a></div>
 <div class="lema">El ERP que crece con Latinoamérica</div>
 {% endblock %}

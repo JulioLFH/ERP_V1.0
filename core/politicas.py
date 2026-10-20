@@ -360,7 +360,7 @@ class PoliticasAccesoMiddleware:
                 request.session['ultima_actividad'] = ahora
         if nombre in RUTAS_SEGURIDAD:
             return None
-        if exige_doble_factor(user, e):
+        if exige_doble_factor(user, e) and not request.session.get('sso'):  # el proveedor corporativo ya verificó
             from .doble_factor import tiene_doble_factor
             if not tiene_doble_factor(user):
                 messages.warning(request, 'La empresa exige la verificación en dos pasos para su usuario: actívela '

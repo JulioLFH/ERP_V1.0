@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Ingreso con Microsoft / Google{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h1 class="page-title"><i class="bi bi-microsoft"></i> Ingreso con Microsoft / Google</h1>
+  <a href="{% url 'sso_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Agregar proveedor</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Botón</th><th>Proveedor</th><th>Dominios</th><th>Estado</th><th></th></tr></thead>
+    <tbody>{% for p in proveedores %}<tr>
+      <td>{{ p.nombre }}</td><td class="small">{{ p.get_tipo_display }}{% if p.tenant %}<div class="text-muted">{{ p.tenant }}</div>{% endif %}</td>
+      <td class="small">{{ p.dominios|default:'Cualquiera' }}</td>
+      <td>{% if p.activo %}<span class="badge text-bg-success">Activo</span>{% else %}<span class="badge text-bg-secondary">Inactivo</span>{% endif %}</td>
+      <td class="text-end"><a href="{% url 'sso_editar' p.pk %}" class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-pencil"></i></a></td>
+    </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">Sin proveedores: los usuarios ingresan con usuario y contraseña.</td></tr>{% endfor %}</tbody>
+  </table></div></div></div>
+  <div class="col-lg-5"><div class="card"><div class="card-header">Cómo configurarlo</div><div class="card-body small">
+    <p>Los usuarios entran con su cuenta de la empresa (Office 365 o Google Workspace). Se reconocen por su <b>correo</b>, que debe ser el mismo que tienen en Ajustes › Usuarios; los módulos y permisos siguen siendo los del sistema. Quien entra así no necesita la verificación en dos pasos del sistema: la exige su proveedor.</p>
+    <p class="mb-1"><b>Microsoft (Entra ID):</b> en portal.azure.com › Registros de aplicaciones › Nuevo registro. Copie el <i>Id. de aplicación</i> y el <i>Id. de directorio (tenant)</i>, y en Certificados y secretos cree un secreto.</p>
+    <p class="mb-1"><b>Google:</b> en console.cloud.google.com › APIs y servicios › Credenciales › ID de cliente de OAuth (aplicación web).</p>
+    <p class="mb-1">En ambos registre esta <b>URL de redirección</b>:</p>
+    <code class="d-block user-select-all p-2 bg-light border rounded">{{ redireccion }}</code>
+    <p class="mt-2 mb-0 text-muted">Con «Dominios de correo permitidos» limite el ingreso a las cuentas de la empresa.</p>
+  </div></div></div>
+</div>
+{% endblock %}
