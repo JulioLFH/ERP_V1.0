@@ -1,0 +1,53 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Bandeja de compras{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-inbox"></i> Bandeja de compras <span class="badge text-bg-light border fs-6 align-middle">{{ total }} línea(s) por pedir</span></h1>
+  <a href="{% url 'solicitudes:lista' %}?vista=todas" class="btn btn-sm btn-outline-secondary"><i class="bi bi-cart"></i> Todas las solicitudes</a>
+</div>
+<form method="get" class="card mb-3"><div class="card-body py-2 row g-2 align-items-end">
+  <div class="col-md-3"><label class="form-label small mb-1">Agrupar por</label><select name="agrupar" class="form-select form-select-sm">{% for v, t in agrupaciones %}<option value="{{ v }}" {% if agrupar == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label small mb-1">Proveedor</label><select name="proveedor" class="form-select form-select-sm"><option value="">Todos</option>{% for p in proveedores %}<option value="{{ p.pk }}" {% if proveedor == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><label class="form-label small mb-1">Producto o descripción</label><input name="producto" value="{{ producto }}" class="form-control form-control-sm"></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Se necesita hasta</label><input type="date" name="hasta" value="{{ hasta }}" class="form-control form-control-sm"></div>
+  <div class="col-md-1"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-funnel"></i></button></div>
+</div></form>
+<form method="post">{% csrf_token %}
+{% for clave, lineas in grupos.items %}
+<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><b>{{ clave }}</b>
+  <label class="small"><input type="checkbox" class="form-check-input js-todo" data-grupo="g{{ forloop.counter }}"> Marcar todo</label></div>
+<div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th></th><th>Solicitud</th><th>Ítem</th><th class="num">Falta pedir</th><th class="num">Precio est. S/</th><th class="num">S/</th><th>Centro de costo</th><th>Se necesita</th><th>Proveedor sugerido</th></tr></thead>
+  <tbody>{% for l in lineas %}<tr>
+    <td><input type="checkbox" class="form-check-input g{{ forloop.parentloop.counter }}" name="linea" value="{{ l.pk }}"></td>
+    <td><a href="{% url 'solicitudes:detalle' l.solicitud_id %}">{{ l.solicitud.numero }}</a>{% if l.solicitud.urgente %} <span class="badge text-bg-danger">Urgente</span>{% endif %}<div class="small text-muted">{{ l.solicitud.get_origen_display }}</div></td>
+    <td>{% if l.producto %}{{ l.producto.codigo }} {% endif %}{{ l.descripcion }}<div class="small text-muted">{{ l.get_unidad_display }}{% if l.pedido %} · ya pedido {{ l.pedido|money }} de {{ l.cantidad|money }}{% endif %}</div></td>
+    <td class="num fw-semibold">{{ l.pendiente|money }}</td><td class="num">{{ l.precio|floatformat:4 }}</td><td class="num">{{ l.importe|money }}</td>
+    <td class="small">{{ l.solicitud.centro_costo }}</td>
+    <td class="{% if l.solicitud.fecha_requerida and l.solicitud.fecha_requerida < hoy %}text-danger{% endif %}">{{ l.solicitud.fecha_requerida|date:'d/m/Y'|default:'—' }}</td>
+    <td class="small">{{ l.proveedor_sugerido.nombre|default:l.producto.proveedor.nombre|default:'—' }}</td>
+  </tr>{% endfor %}</tbody>
+</table></div></div>
+{% empty %}<div class="alert alert-light border">No hay líneas liberadas por pedir.</div>
+{% endfor %}
+{% if grupos %}
+<div class="card border-primary mb-3"><div class="card-header">Convertir las líneas marcadas</div><div class="card-body"><div class="row g-3">
+  <div class="col-lg-4"><div class="border rounded p-2 h-100"><b class="small">Orden de compra</b><div class="small text-muted mb-2">Una por proveedor y centro de costo. Proveedor vacío = el sugerido de cada línea o el habitual del producto. Queda pendiente de aprobar.</div>
+    <select name="proveedor" class="form-select form-select-sm mb-2"><option value="">— Proveedor sugerido / habitual —</option>{% for p in proveedores %}<option value="{{ p.pk }}">{{ p.nombre }}</option>{% endfor %}</select>
+    <button class="btn btn-sm btn-primary w-100" name="convertir" value="oc"><i class="bi bi-clipboard-check"></i> Crear orden(es) de compra</button></div></div>
+  <div class="col-lg-4"><div class="border rounded p-2 h-100"><b class="small">Pedido contra contrato marco</b><div class="small text-muted mb-2">Toma los precios pactados y descuenta el saldo del contrato.</div>
+    <select name="contrato" class="form-select form-select-sm mb-2"><option value="">— Contrato vigente —</option>{% for c in contratos %}<option value="{{ c.pk }}">{{ c.numero }} · {{ c.proveedor.nombre }}</option>{% endfor %}</select>
+    <button class="btn btn-sm btn-outline-primary w-100" name="convertir" value="contrato"><i class="bi bi-file-earmark-text"></i> Pedir contra el contrato</button></div></div>
+  <div class="col-lg-4"><div class="border rounded p-2 h-100"><b class="small">Licitación / cuadro comparativo</b><div class="small text-muted mb-2">Para cotizar a varios proveedores; al adjudicar, las órdenes quedan vinculadas a las solicitudes.</div>
+    <input name="descripcion" class="form-control form-control-sm mb-2" placeholder="Qué se licita">
+    <input type="date" name="fecha_limite" class="form-control form-control-sm mb-2" title="Recibir ofertas hasta">
+    <button class="btn btn-sm btn-outline-dark w-100" name="convertir" value="licitacion"><i class="bi bi-trophy"></i> Crear licitación</button></div></div>
+</div></div></div>
+{% endif %}
+</form>
+<script>
+document.querySelectorAll('.js-todo').forEach(t => t.addEventListener('change', () => {
+  document.querySelectorAll('.' + t.dataset.grupo).forEach(c => { c.checked = t.checked; });
+}));
+</script>
+{% endblock %}

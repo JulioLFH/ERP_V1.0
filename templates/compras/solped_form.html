@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-cart-plus"></i> {{ titulo }}</h1>
+  <a href="{% if sp.pk %}{% url 'solicitudes:detalle' sp.pk %}{% else %}{% url 'solicitudes:lista' %}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+{% if sp.estado == 'OBSERVADA' and sp.comentario %}<div class="alert alert-info py-2 small"><b>Observación del liberador:</b> {{ sp.comentario }}</div>{% endif %}
+<form method="post" novalidate>
+  {% csrf_token %}<input type="hidden" name="origen_ot" value="{{ origen_ot }}">
+  {% if form.errors or lineas.total_error_count %}<div class="alert alert-danger py-2">Revise los campos marcados.</div>{% endif %}
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  <div class="card mb-3"><div class="card-body"><div class="row g-3">
+    {% for field in form %}<div class="{% if field.name == 'motivo' %}col-12{% elif field.name == 'centro_costo' %}col-md-6{% else %}col-6 col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div></div></div>
+  <div class="card mb-3"><div class="card-header">Qué se necesita</div>
+    {{ lineas.management_form }}
+    {% for e in lineas.non_form_errors %}<div class="alert alert-danger m-3 py-2">{{ e }}</div>{% endfor %}
+    <div class="table-responsive"><table class="table table-sm mb-0 align-top">
+      <thead><tr><th style="min-width:200px">Producto (vacío = servicio o texto libre)</th><th style="min-width:180px">Descripción</th><th style="min-width:110px">Unidad</th><th class="num" style="min-width:90px">Cantidad</th><th class="num" style="min-width:110px">Precio estimado S/</th><th style="min-width:150px">Cuenta de gasto o activo</th><th style="min-width:160px">Proveedor sugerido</th><th class="text-center"><i class="bi bi-trash"></i></th></tr></thead>
+      <tbody id="ln-body" data-prefix="{{ lineas.prefix }}">{% for f in lineas %}<tr>
+        <td>{{ f.id }}{{ f.producto }}{% for e in f.producto.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+        <td>{{ f.descripcion }}{% for e in f.descripcion.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+        <td>{{ f.unidad }}</td>
+        <td>{{ f.cantidad }}{% for e in f.cantidad.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+        <td>{{ f.precio_estimado }}</td><td>{{ f.cuenta_contable }}</td><td>{{ f.proveedor_sugerido }}</td>
+        <td class="text-center">{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <template id="ln-template"><tr><td>{{ lineas.empty_form.id }}{{ lineas.empty_form.producto }}</td><td>{{ lineas.empty_form.descripcion }}</td><td>{{ lineas.empty_form.unidad }}</td><td>{{ lineas.empty_form.cantidad }}</td><td>{{ lineas.empty_form.precio_estimado }}</td><td>{{ lineas.empty_form.cuenta_contable }}</td><td>{{ lineas.empty_form.proveedor_sugerido }}</td><td class="text-center">{{ lineas.empty_form.DELETE }}</td></tr></template>
+    <div class="card-body small text-muted d-flex flex-wrap gap-2 align-items-center">
+      <button type="button" class="btn btn-sm btn-outline-primary js-agregar" data-body="ln-body" data-template="ln-template"><i class="bi bi-plus-lg"></i> Agregar ítem</button>
+      <span>Precio estimado vacío = el último precio de compra del producto. Servicios: deje el producto vacío, describa el servicio y elija la unidad (servicio, hora, día o mes).</span>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-primary" name="accion" value="guardar"><i class="bi bi-save"></i> Guardar borrador</button>
+    <button class="btn btn-primary" name="accion" value="enviar"><i class="bi bi-send"></i> Guardar y enviar a liberación</button>
+  </div>
+</form>
+{% include 'produccion/_filas_js.html' %}
+{% endblock %}

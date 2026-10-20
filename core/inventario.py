@@ -183,11 +183,26 @@ def en_camino():
     return pendiente
 
 
+def solicitado():
+    """{producto_id: cantidad} de solicitudes de pedido por liberar o liberadas que aún no se pidió en una OC."""
+    from collections import defaultdict
+    from compras.models import LineaSolicitud
+    pendiente = defaultdict(lambda: D0)
+    for l in (LineaSolicitud.objects.filter(solicitud__estado__in=['ENVIADA', 'OBSERVADA', 'LIBERADA', 'PARCIAL'],
+                                            producto__isnull=False, cerrada=False)
+              .prefetch_related('items_oc__documento', 'items_oc__producto')):
+        pendiente[l.producto_id] += l.pendiente
+    return pendiente
+
+
 def sugerencias_compra():
-    """Productos a reponer: stock + en camino ≤ punto de reorden (o stock mínimo). Cantidad sugerida hasta el
-    stock máximo (o el doble del punto de reorden), redondeada al lote mínimo de compra."""
+    """Productos a reponer: stock + en camino (órdenes de compra y solicitudes de pedido) ≤ punto de reorden (o
+    stock mínimo). Cantidad sugerida hasta el stock máximo (o el doble del punto de reorden), redondeada al lote
+    mínimo de compra."""
     import math
     camino = en_camino()
+    for pid, cantidad in solicitado().items():
+        camino[pid] += cantidad
     filas = []
     for p in Producto.objects.filter(activo=True, tipo='BIEN', puede_comprarse=True, es_plantilla=False) \
             .select_related('proveedor'):
@@ -215,6 +230,26 @@ def sugerencias_compra():
 def reposicion(request):
     from collections import OrderedDict
     filas = sugerencias_compra()
+    if request.method == 'POST':  # solicitudes de pedido por proveedor habitual (o OC directa con contrato marco)
+        from compras.solped import ErrorSolped, desde_reposicion
+        from contabilidad.models import CentroCosto
+        from .permisos import puede
+        elegidos = set(request.POST.getlist('producto'))
+        centro = CentroCosto.objects.filter(pk=request.POST.get('centro_costo') or 0).first()
+        try:
+            if not puede(request.user, 'requerimientos.solped'):
+                raise ErrorSolped('Su usuario no registra solicitudes de pedido.')
+            solicitudes, ordenes = desde_reposicion([f for f in filas if str(f['p'].pk) in elegidos], request.user,
+                                                    centro)
+            if not (solicitudes or ordenes):
+                raise ErrorSolped('Marque los productos a reponer.')
+            messages.success(request, 'Solicitudes de pedido enviadas a liberación: ' +
+                             (', '.join(s.numero for s in solicitudes) or 'ninguna') +
+                             ('. Con contrato marco, órdenes de compra: ' + ', '.join(o.numero for o in ordenes)
+                              if ordenes else ''))
+        except ErrorSolped as exc:
+            messages.error(request, str(exc))
+        return redirect('inv_reposicion')
     grupos = OrderedDict()
     for f in sorted(filas, key=lambda f: (f['p'].proveedor.nombre if f['p'].proveedor else 'ZZZ', f['p'].nombre)):
         clave = f['p'].proveedor_id or 0
@@ -226,9 +261,11 @@ def reposicion(request):
                   f['cantidad'], f['p'].proveedor.nombre if f['p'].proveedor else '', f['p'].tiempo_entrega]
                  for f in filas]
         return excel_response('Sugerencia_de_compra', 'Sugerencia de compra (reposición)',
-                              ['Código', 'Producto', 'U.M.', 'Stock', 'En camino (OC)', 'Punto de reorden',
+                              ['Código', 'Producto', 'U.M.', 'Stock', 'En camino (OC y solicitudes)', 'Punto de reorden',
                                'Stock objetivo', 'Cantidad sugerida', 'Proveedor habitual', 'Entrega (días)'], datos)
-    return render(request, 'inventario/reposicion.html', {'grupos': grupos, 'total_filas': len(filas)})
+    from contabilidad.models import CentroCosto
+    return render(request, 'inventario/reposicion.html', {'grupos': grupos, 'total_filas': len(filas),
+                                                          'centros': CentroCosto.objects.filter(activo=True)})
 
 
 def valor_inventario(corte, almacen=None):

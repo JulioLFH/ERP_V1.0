@@ -41,6 +41,11 @@ MODULOS = [
         'clave': 'compras', 'nombre': 'Compras', 'icono': 'bi-bag', 'color': '#e8590c',
         'inicio': 'compras:lista', 'descripcion': 'Órdenes de compra, facturas y pagos',
         'menu': [
+            ('Solicitudes de pedido', [('Bandeja de compras', 'compras:solped_bandeja', 'bi-inbox'),
+                                       ('Todas las solicitudes', 'solicitudes:lista?vista=todas', 'bi-cart'),
+                                       ('Nueva solicitud', 'solicitudes:nueva', 'bi-plus-circle'),
+                                       ('Por liberar', 'solicitudes:lista?vista=liberar', 'bi-check2-circle'),
+                                       ('Reglas de liberación', 'compras:solped_reglas', 'bi-diagram-3')]),
             ('Compras', [('Órdenes de compra', 'compras:oc_lista', 'bi-clipboard-check'),
                          ('Registro de compras', 'compras:lista', 'bi-bag'),
                          ('Notas de crédito / débito', 'compras:notas', 'bi-file-earmark-diff'),
@@ -58,6 +63,7 @@ MODULOS = [
             ('Productos', 'productos'),
             ('Reportes', [('Registro de compras 8.1 / PLE', 'compras:registro', 'bi-journal-text'),
                           ('Reportes de compras', 'compras:reportes', 'bi-bar-chart'),
+                          ('Solicitudes de pedido: estado y tiempos', 'compras:solped_reportes', 'bi-hourglass-split'),
                           ('Cruce con propuesta SIRE', 'compras:sire', 'bi-arrow-left-right'),
                           ('Importar desde Excel', 'compras:importar', 'bi-file-earmark-arrow-up')]),
         ],
@@ -184,6 +190,10 @@ MODULOS = [
             ('Nuevo requerimiento', 'requerimientos:nuevo'),
             ('Por aprobar', 'requerimientos:lista?estado=ENVIADO'),
             ('Por atender', 'requerimientos:lista?estado=APROBADO'),
+            ('Solicitudes de pedido', [('Mis solicitudes de pedido', 'solicitudes:lista', 'bi-cart'),
+                                       ('Nueva solicitud de pedido', 'solicitudes:nueva', 'bi-plus-circle'),
+                                       ('Por liberar', 'solicitudes:lista?vista=liberar', 'bi-check2-circle'),
+                                       ('Liberar desde el celular', 'solicitudes:movil', 'bi-phone')]),
         ],
     },
     {
@@ -328,7 +338,8 @@ GRUPOS = {m['clave']: m['nombre'] for m in MODULOS if m['clave'] != 'contactos'}
 
 # Contactos no tiene grupo propio: lo usan quienes venden, compran, cobran o despachan
 DERIVADOS = {'contactos': {'ventas', 'compras', 'finanzas', 'logistica', 'contabilidad'},
-             'requerimientos': {'inventario'},  # el almacén atiende los requerimientos de las áreas
+             # el almacén atiende los requerimientos de las áreas; Compras ve y libera sus solicitudes de pedido
+             'requerimientos': {'inventario', 'compras'},
              'rendiciones': {'finanzas', 'contabilidad'}}  # tesorería y contabilidad revisan las rendiciones
 
 # Rutas sin espacio de nombres (app core) -> módulos que pueden abrirlas (el primero es el principal)
@@ -403,6 +414,10 @@ def modulos_del_usuario(user):
     return cache
 
 
+# espacios de nombres que no son un módulo pero se usan desde varios (el primero es el principal)
+NAMESPACES_COMPARTIDOS = {'solicitudes': ['requerimientos', 'compras', 'manufactura']}
+
+
 def modulos_de_ruta(match):
     """Módulos que pueden abrir la vista resuelta; None = libre (cualquier usuario autenticado)."""
     if match is None:
@@ -410,6 +425,8 @@ def modulos_de_ruta(match):
     if match.namespace:
         if match.namespace == 'admin':
             return None
+        if match.namespace in NAMESPACES_COMPARTIDOS:
+            return NAMESPACES_COMPARTIDOS[match.namespace]
         return [match.namespace] if match.namespace in POR_CLAVE else None
     if match.url_name in RUTAS_LIBRES:
         return None

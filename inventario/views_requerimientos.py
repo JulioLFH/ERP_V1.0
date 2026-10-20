@@ -116,15 +116,18 @@ def detalle(request, pk):
     if req.solicitante_id != request.user.pk and not _puede_ver_todos(request.user):
         messages.error(request, 'Solo puede ver sus requerimientos.')
         return redirect('requerimientos:lista')
-    items = list(req.items.select_related('producto', 'orden_compra'))
+    items = list(req.items.select_related('producto', 'orden_compra').prefetch_related(
+        'lineas_solped__solicitud', 'lineas_solped__items_oc__documento', 'lineas_solped__items_oc__producto'))
     for i in items:
         i.stock = i.producto.stock_en(req.almacen)
+        i.solped = [l for l in i.lineas_solped.all() if l.solicitud.estado not in ('RECHAZADA', 'ANULADA')]
     return render(request, 'inventario/requerimiento_detalle.html', {
         'req': req, 'items': items, 'atenciones': req.atenciones.all(),
         'puede_aprobar': puede(request.user, 'requerimientos.aprobar') and (
             req.solicitante_id != request.user.pk or request.user.is_superuser),
         'puede_atender': puede(request.user, 'inventario.operar'),
-        'puede_comprar': puede(request.user, 'compras.oc'), 'faltantes': srv.faltantes(req)})
+        'puede_comprar': puede(request.user, 'requerimientos.aprobar') or puede(request.user, 'inventario.operar'),
+        'faltantes': srv.faltantes(req)})
 
 
 def _decimal(valor):
@@ -150,7 +153,9 @@ def accion(request, pk, que):
                 raise srv.ErrorRequerimiento('Su usuario no aprueba requerimientos.')
             if que == 'aprobar':
                 srv.aprobar(req, request.user)
-                messages.success(request, f'{req} aprobado: el almacén ya puede atenderlo.')
+                sp = req.solicitudes.exclude(estado__in=['RECHAZADA', 'ANULADA']).first()
+                messages.success(request, f'{req} aprobado: el almacén ya puede atenderlo.' + (
+                    f' Lo que no hay en stock pasó a la solicitud de pedido {sp.numero}.' if sp else ''))
             else:
                 srv.rechazar(req, request.user, request.POST.get('motivo', ''))
                 messages.success(request, f'{req} rechazado.')
@@ -166,10 +171,10 @@ def accion(request, pk, que):
             op = srv.atender(req, request.user, cantidades)
             messages.success(request, f'Entrega registrada ({op.numero}). Estado: {req.get_estado_display()}.')
         elif que == 'comprar':
-            if not puede(request.user, 'compras.oc'):
-                raise srv.ErrorRequerimiento('Su usuario no crea órdenes de compra.')
-            ordenes = srv.pasar_a_compras(req, request.user)
-            messages.success(request, 'Faltantes pedidos en: ' + (', '.join(o.numero for o in ordenes) or 'ninguna'))
+            if not (puede(request.user, 'requerimientos.aprobar') or puede(request.user, 'inventario.operar')):
+                raise srv.ErrorRequerimiento('Su usuario no pide faltantes a compras.')
+            sp = srv.pasar_a_compras(req, request.user)
+            messages.success(request, f'Faltantes pedidos a compras en la solicitud de pedido {sp.numero}.')
     except srv.ErrorRequerimiento as exc:
         messages.error(request, str(exc))
     return redirect('requerimientos:detalle', pk)

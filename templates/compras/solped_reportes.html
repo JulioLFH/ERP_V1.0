@@ -1,0 +1,26 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Reportes de solicitudes de pedido{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-hourglass-split"></i> Solicitudes de pedido: estado y tiempos</h1>
+  <form method="get" class="d-flex flex-wrap gap-2">
+    <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm">
+    <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm">
+    <button class="btn btn-sm btn-primary">Ver</button>
+    <a href="?desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
+  </form>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="small text-muted">Solicitudes enviadas en el rango</div><div class="fs-3 fw-bold">{{ d.total }}</div></div></div></div>
+  <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="small text-muted">Tiempo promedio de liberación</div><div class="fs-3 fw-bold">{% if d.horas_liberacion is not None %}{{ d.horas_liberacion }} h{% else %}—{% endif %}</div><div class="small text-muted">de enviada a liberada</div></div></div></div>
+  <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="small text-muted">De solicitud liberada a orden de compra</div><div class="fs-3 fw-bold">{% if d.dias_a_oc is not None %}{{ d.dias_a_oc }} días{% else %}—{% endif %}</div><div class="small text-muted">promedio, primera OC</div></div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-4"><div class="card h-100"><div class="card-header">Por estado</div><table class="table table-sm mb-0"><thead><tr><th>Estado</th><th class="num">N°</th><th class="num">S/</th></tr></thead>
+    <tbody>{% for e, n, m in d.por_estado %}<tr><td>{{ e }}</td><td class="num">{{ n }}</td><td class="num">{{ m|money }}</td></tr>{% empty %}<tr><td colspan="3" class="text-muted">Sin datos.</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-8"><div class="card h-100"><div class="card-header">Abiertas por antigüedad (por liberar, observadas o por pedir)</div><table class="table table-sm mb-0"><thead><tr><th>Antigüedad</th><th class="num">N°</th><th class="num">S/</th><th>Solicitudes</th></tr></thead>
+    <tbody>{% for t, v in d.antiguedad.items %}<tr><td>{{ t }}</td><td class="num">{{ v.n }}</td><td class="num">{{ v.monto|money }}</td><td class="small">{% for sp, dias in v.filas %}<a href="{% url 'solicitudes:detalle' sp.pk %}">{{ sp.numero }}</a> ({{ sp.get_estado_display|lower }}, {{ dias }} d){% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-12"><div class="card"><div class="card-header">Por centro de costo</div><div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Centro de costo</th><th class="num">Solicitudes</th><th class="num">S/</th><th class="num">Liberadas</th><th class="num">Pedidas</th></tr></thead>
+    <tbody>{% for c, v in d.por_centro %}<tr><td>{{ c }}</td><td class="num">{{ v.n }}</td><td class="num">{{ v.monto|money }}</td><td class="num">{{ v.liberadas }}</td><td class="num">{{ v.pedidas }}</td></tr>{% empty %}<tr><td colspan="5" class="text-muted">Sin datos.</td></tr>{% endfor %}</tbody></table></div></div></div>
+</div>
+{% endblock %}

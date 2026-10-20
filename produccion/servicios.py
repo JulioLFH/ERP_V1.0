@@ -732,6 +732,14 @@ def ejecutar_mrp(horizonte, usuario=None):
         if pendiente > 0:
             entradas[oc_item.producto_id].append((max(oc.fecha_entrega or oc.fecha, hoy), pendiente,
                                                   f'OC {oc.numero}'))
+    # lo solicitado y aún no pedido en solicitudes de pedido (por liberar o liberadas) también llegará
+    from compras.models import LineaSolicitud
+    for l in (LineaSolicitud.objects.filter(solicitud__estado__in=['ENVIADA', 'OBSERVADA', 'LIBERADA', 'PARCIAL'],
+                                            producto__isnull=False, cerrada=False)
+              .select_related('solicitud').prefetch_related('items_oc__documento', 'items_oc__producto')):
+        if l.pendiente > 0:
+            entradas[l.producto_id].append((max(l.solicitud.fecha_requerida or l.solicitud.fecha, hoy), l.pendiente,
+                                            f'SolPed {l.solicitud.numero}'))
     with transaction.atomic():
         corrida = CorridaMRP.objects.create(horizonte=horizonte,
                                             usuario=usuario if usuario and usuario.is_authenticated else None)

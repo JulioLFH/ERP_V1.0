@@ -1,0 +1,12 @@
+{% extends 'proveedores/correo_base.html' %}{% load erp_tags %}
+{% block cuerpo %}
+{% if evento == 'enviada' %}<p>Tiene por liberar la <b>solicitud de pedido {{ sp.numero }}</b> de {{ sp.solicitante.get_full_name|default:sp.solicitante.username }} ({{ sp.centro_costo }}) por <b>S/ {{ sp.monto|money }}</b> sin IGV{% if sp.nivel_pendiente %}, nivel {{ sp.nivel_pendiente.nivel }} de {{ sp.niveles|length }}{% endif %}{% if sp.urgente %} — <b>urgente</b>{% endif %}.</p>
+<p>Para qué: {{ sp.motivo }}</p>
+{% elif evento == 'liberada' %}<p>Su <b>solicitud de pedido {{ sp.numero }}</b> ({{ sp.motivo }}) fue <b>liberada</b>: Compras ya puede pedirla.</p>
+{% elif evento == 'observada' %}<p>Su <b>solicitud de pedido {{ sp.numero }}</b> ({{ sp.motivo }}) fue <b>observada</b>. Corríjala y vuelva a enviarla.</p>
+{% elif evento == 'rechazada' %}<p>Su <b>solicitud de pedido {{ sp.numero }}</b> ({{ sp.motivo }}) fue <b>rechazada</b>.</p>
+{% endif %}
+{% if sp.comentario %}<p style="background:#f0f3f7; padding:8px; border-radius:4px;">{{ sp.comentario }}</p>{% endif %}
+{% if sp.aviso_presupuesto and evento == 'enviada' %}<p style="background:#fff3cd; padding:8px; border-radius:4px;">Presupuesto: {{ sp.aviso_presupuesto }}</p>{% endif %}
+<p>Ingrese al sistema, módulo <b>Requerimientos › Solicitudes de pedido</b> (también desde el celular: «Liberar desde el celular»).</p>
+{% endblock %}

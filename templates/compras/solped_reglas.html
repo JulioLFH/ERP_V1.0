@@ -1,0 +1,27 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Reglas de liberación{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3"><i class="bi bi-diagram-3"></i> Reglas de liberación de solicitudes de pedido</h1>
+<div class="row g-3">
+<div class="col-lg-7">
+  <div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Nivel</th><th>Quién libera</th><th class="num">Desde S/</th><th>Centro de costo</th><th>Aplica a</th><th></th></tr></thead>
+    <tbody>{% for r in reglas %}<tr class="{% if not r.activo %}text-muted text-decoration-line-through{% endif %}">
+      <td>{{ r.nivel }}</td><td>{{ r.get_tipo_display }}{% if r.aprobador %}: {{ r.aprobador.get_full_name|default:r.aprobador.username }}{% endif %}</td>
+      <td class="num">{{ r.monto_desde|money }}</td><td class="small">{{ r.centro_costo|default:'Todos' }}</td><td class="small">{{ r.get_aplica_a_display }}</td>
+      <td class="text-end text-nowrap"><a href="?editar={{ r.pk }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>{% if r.activo %}<form method="post" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" name="quitar" value="{{ r.pk }}" title="Desactivar"><i class="bi bi-x"></i></button></form>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="6" class="text-muted text-center py-3">Sin reglas: cada solicitud la libera cualquier usuario con el permiso «Liberar solicitudes de pedido» (las del MRP quedan liberadas solas).</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-body small text-muted">Los niveles se liberan en orden (1, luego 2, 3…). En cada nivel aplica la regla de mayor monto que cumpla el monto valorizado de la solicitud (cantidad × precio estimado o último precio de compra, sin IGV), su centro de costo y su tipo. Ejemplo: nivel 1 jefe directo desde S/ 0; nivel 2 responsable del centro desde S/ 2,000; nivel 3 gerente general desde S/ 20,000; un nivel adicional «Solo activo fijo» o «Solo urgentes». Nadie libera su propia solicitud: pasa al siguiente nivel.</div></div>
+  <div class="card mt-3"><div class="card-header">Responsables de los centros de costo</div><ul class="list-group list-group-flush small">
+    {% for c in centros %}<li class="list-group-item d-flex justify-content-between"><span>{{ c }}</span><span>{% if c.responsable_usuario %}{{ c.responsable_usuario.get_full_name|default:c.responsable_usuario.username }}{% else %}<span class="text-muted">sin usuario responsable</span>{% endif %}</span></li>{% endfor %}
+  </ul><div class="card-body small text-muted">Se asigna en Contabilidad › Centros de costo («Usuario responsable»); el jefe directo, en Ajustes › Usuarios.</div></div>
+</div>
+<div class="col-lg-5"><div class="card"><div class="card-header">{% if regla %}Editar regla{% else %}Nueva regla{% endif %}</div><div class="card-body">
+  <form method="post" class="row g-2">{% csrf_token %}
+    {% for field in form %}<div class="{% if field.name == 'activo' %}col-12{% else %}col-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12 d-flex gap-2"><button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Guardar</button>{% if regla %}<a href="{% url 'compras:solped_reglas' %}" class="btn btn-sm btn-outline-secondary">Cancelar</a>{% endif %}</div>
+  </form>
+</div></div></div>
+</div>
+{% endblock %}

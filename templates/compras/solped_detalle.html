@@ -1,0 +1,57 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ sp }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div>
+    <h1 class="page-title"><i class="bi bi-cart"></i> {{ sp }} {% include 'compras/_estado_solped.html' with s=sp grande=True %}{% if sp.urgente %} <span class="badge text-bg-danger fs-6 align-middle">Urgente</span>{% endif %}</h1>
+    <div class="text-muted small">{{ sp.get_tipo_display }} · {{ sp.get_origen_display }} · {{ sp.centro_costo }} · pidió {{ sp.solicitante.get_full_name|default:sp.solicitante.username }} el {{ sp.fecha|date:'d/m/Y' }}{% if sp.fecha_requerida %} · se necesita el {{ sp.fecha_requerida|date:'d/m/Y' }}{% endif %} · <b>S/ {{ sp.monto|money }}</b> sin IGV</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'solicitudes:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+    {% if sp.editable and sp.solicitante_id == user.pk %}
+      <a href="{% url 'solicitudes:editar' sp.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
+      <form method="post" action="{% url 'solicitudes:enviar' sp.pk %}">{% csrf_token %}<button class="btn btn-sm btn-primary"><i class="bi bi-send"></i> Enviar a liberación</button></form>
+    {% endif %}
+    {% if puede_liberar %}
+      <form method="post" action="{% url 'solicitudes:liberar' sp.pk %}">{% csrf_token %}<button class="btn btn-sm btn-success"><i class="bi bi-check2"></i> Liberar{% if sp.niveles|length > 1 %} nivel {{ sp.nivel_pendiente.nivel }}{% endif %}</button></form>
+      <button class="btn btn-sm btn-outline-info" data-bs-toggle="collapse" data-bs-target="#form-observar"><i class="bi bi-chat-left-text"></i> Observar</button>
+      <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-rechazar"><i class="bi bi-x"></i> Rechazar</button>
+    {% endif %}
+    {% if puede_convertir %}<a href="{% url 'compras:solped_bandeja' %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-inbox"></i> Pedir desde la bandeja</a>{% endif %}
+    {% if sp.estado != 'ANULADA' and sp.estado != 'RECHAZADA' and sp.estado != 'CERRADA' and sp.estado != 'PEDIDA' %}<button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>{% endif %}
+  </div>
+</div>
+<p class="mb-2"><b>Para:</b> {{ sp.motivo }}{% if sp.requerimiento %} · requerimiento <a href="{% url 'requerimientos:detalle' sp.requerimiento_id %}">{{ sp.requerimiento.numero }}</a>{% endif %}{% if sp.orden_mantenimiento %} · <a href="{% url 'manufactura:orden_mant' sp.orden_mantenimiento_id %}">{{ sp.orden_mantenimiento }}</a>{% endif %}</p>
+{% if sp.comentario %}<div class="alert {% if sp.estado == 'RECHAZADA' or sp.estado == 'ANULADA' %}alert-danger{% elif sp.estado == 'OBSERVADA' %}alert-info{% else %}alert-light border{% endif %} py-2 small">{{ sp.comentario }}</div>{% endif %}
+{% if sp.aviso_presupuesto %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> <b>Presupuesto:</b> {{ sp.aviso_presupuesto }}</div>{% endif %}
+<div class="collapse mb-3" id="form-observar"><div class="card border-info"><div class="card-body"><form method="post" action="{% url 'solicitudes:observar' sp.pk %}" class="row g-2 align-items-end">{% csrf_token %}<div class="col-md-9"><input name="comentario" class="form-control form-control-sm" minlength="5" required placeholder="Qué debe corregir el solicitante (vuelve a él para editarla)"></div><div class="col-md-3"><button class="btn btn-sm btn-info w-100">Devolver con observación</button></div></form></div></div></div>
+<div class="collapse mb-3" id="form-rechazar"><div class="card border-danger"><div class="card-body"><form method="post" action="{% url 'solicitudes:rechazar' sp.pk %}" class="row g-2 align-items-end">{% csrf_token %}<div class="col-md-9"><input name="comentario" class="form-control form-control-sm" minlength="10" required placeholder="Motivo del rechazo"></div><div class="col-md-3"><button class="btn btn-sm btn-danger w-100">Rechazar</button></div></form></div></div></div>
+<div class="collapse mb-3" id="form-anular"><div class="card border-secondary"><div class="card-body"><form method="post" action="{% url 'solicitudes:anular' sp.pk %}" class="row g-2 align-items-end">{% csrf_token %}<div class="col-md-9"><input name="comentario" class="form-control form-control-sm" minlength="10" required placeholder="Motivo de la anulación"></div><div class="col-md-3"><button class="btn btn-sm btn-secondary w-100">Anular</button></div></form></div></div></div>
+
+{% if sp.niveles %}<div class="card mb-3"><div class="card-header"><i class="bi bi-diagram-3"></i> Liberación</div><ul class="list-group list-group-flush small">
+  {% for n in sp.niveles %}<li class="list-group-item d-flex justify-content-between"><span>Nivel {{ n.nivel }}: {{ n.nombre }}</span><span>{% if n.nivel <= sp.nivel_aprobado %}<span class="text-success"><i class="bi bi-check2-circle"></i> Liberado</span>{% elif sp.estado == 'ENVIADA' and n.nivel == sp.nivel_pendiente.nivel %}<span class="text-warning">Pendiente</span>{% else %}<span class="text-muted">—</span>{% endif %}</span></li>{% endfor %}
+</ul>{% if sp.liberada_en %}<div class="card-body py-2 small text-muted">Liberada el {{ sp.liberada_en|date:'d/m/Y H:i' }}{% if sp.enviada_en %} (enviada el {{ sp.enviada_en|date:'d/m/Y H:i' }}){% endif %}</div>{% endif %}</div>
+{% elif sp.estado == 'LIBERADA' and sp.liberada_en %}<p class="small text-muted">Liberada automáticamente el {{ sp.liberada_en|date:'d/m/Y H:i' }} (ninguna regla de liberación aplica).</p>{% endif %}
+
+<form method="post" action="{% url 'solicitudes:cerrar' sp.pk %}" data-confirm="¿Cerrar las líneas marcadas? Ya no se pedirá lo que falta.">{% csrf_token %}
+<div class="card mb-3"><div class="card-header"><i class="bi bi-diagram-2"></i> Ítems y trazabilidad (solicitud → orden de compra → recepción → factura → pago)</div>
+<div class="table-responsive"><table class="table table-sm mb-0 align-top">
+  <thead><tr>{% if puede_convertir %}<th></th>{% endif %}<th>Ítem</th><th class="num">Pedido</th><th class="num">En OC</th><th class="num">Falta</th><th class="num">S/</th><th>Proveedor sugerido</th><th>Órdenes de compra, recepciones, facturas y pago</th></tr></thead>
+  <tbody>{% for f in filas %}{% with l=f.l %}<tr>
+    {% if puede_convertir %}<td>{% if l.pendiente > 0 %}<input type="checkbox" class="form-check-input" name="linea" value="{{ l.pk }}">{% endif %}</td>{% endif %}
+    <td>{% if l.producto %}{{ l.producto.codigo }} {% endif %}{{ l.descripcion }}<div class="small text-muted">{{ l.get_unidad_display }}{% if l.cuenta_contable %} · {{ l.cuenta_contable.codigo }}{% endif %}{% if l.requerimiento_item %} · req. {{ l.requerimiento_item.requerimiento.numero }}{% endif %}{% if l.cerrada %} · <span class="text-danger">cerrada</span>{% endif %}</div></td>
+    <td class="num">{{ l.cantidad|money }}</td><td class="num">{{ l.pedido|money }}</td><td class="num fw-semibold">{{ l.pendiente|money }}</td><td class="num">{{ l.valor|money }}</td>
+    <td class="small">{{ l.proveedor_sugerido.nombre|default:'' }}</td>
+    <td class="small">{% for o in f.ocs %}<div class="mb-1"><a href="{% url 'compras:oc_detalle' o.oc.pk %}">{{ o.oc.numero }}</a> {{ o.oc.tercero.nombre|truncatechars:30 }} · {{ o.item.cantidad|money }} · <span class="badge badge-{{ o.oc.estado }}">{{ o.oc.get_estado_display }}</span>
+      {% for pk, numero, fecha in o.recepciones %} · <i class="bi bi-box-arrow-in-down"></i> {% if 'inventario' in mods %}<a href="{% url 'inventario:detalle' pk %}">{{ numero }}</a>{% else %}{{ numero }}{% endif %} {{ fecha|date:'d/m' }}{% endfor %}
+      {% for c in o.conformidades %} · <i class="bi bi-patch-check"></i> {{ c.numero }}{% endfor %}
+      {% for x in o.facturas %} · <i class="bi bi-receipt"></i> {% if 'compras' in mods %}<a href="{% url 'compras:detalle' x.c.pk %}">{{ x.c.numero_completo }}</a>{% else %}{{ x.c.numero_completo }}{% endif %} {% if x.saldo <= 0 %}<span class="text-success">pagada</span>{% else %}<span class="text-muted">por pagar {{ x.saldo|money }}</span>{% endif %}{% endfor %}
+    </div>{% endfor %}{% for lic in f.licitaciones %}<div><i class="bi bi-trophy"></i> {% if 'compras' in mods %}<a href="{% url 'compras:licitacion' lic.pk %}">{{ lic.numero }}</a>{% else %}{{ lic.numero }}{% endif %} {{ lic.get_estado_display }}</div>{% endfor %}{% if not f.ocs and not f.licitaciones %}<span class="text-muted">—</span>{% endif %}</td>
+  </tr>{% endwith %}{% endfor %}</tbody>
+</table></div>
+{% if puede_convertir %}<div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-slash-circle"></i> Cerrar lo que falta de las líneas marcadas</button></div>{% endif %}
+</div>
+</form>
+{% if propuestas %}<div class="card mb-3"><div class="card-header">Propuestas del MRP</div><ul class="list-group list-group-flush small">{% for p in propuestas %}<li class="list-group-item">{{ p.producto.nombre }} · {{ p.cantidad|money }} para el {{ p.fecha_necesidad|date:'d/m/Y' }} · {{ p.origen }}</li>{% endfor %}</ul></div>{% endif %}
+{% include 'core/_bitacora.html' with objeto=sp %}
+{% endblock %}

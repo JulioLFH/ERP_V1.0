@@ -1,0 +1,18 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Liberar solicitudes{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3"><i class="bi bi-phone"></i> Liberar solicitudes de pedido</h1>
+{% for sp in pendientes %}
+<div class="card mb-3 {% if sp.urgente %}border-danger{% endif %}"><div class="card-body">
+  <div class="d-flex justify-content-between"><b>{{ sp.numero }}</b><span class="fw-bold">S/ {{ sp.monto|money }}</span></div>
+  <div class="small text-muted">{{ sp.solicitante.get_full_name|default:sp.solicitante.username }} · {{ sp.centro_costo }} · {{ sp.fecha|date:'d/m/Y' }}{% if sp.urgente %} · <span class="text-danger fw-semibold">Urgente</span>{% endif %}</div>
+  <p class="my-2">{{ sp.motivo }}</p>
+  <ul class="small ps-3 mb-2">{% for l in sp.lineas.all %}<li>{{ l.descripcion }} — {{ l.cantidad|money }} {{ l.get_unidad_display|lower }} · S/ {{ l.valor|money }}</li>{% endfor %}</ul>
+  {% if sp.aviso_presupuesto %}<div class="alert alert-warning py-1 px-2 small mb-2">{{ sp.aviso_presupuesto }}</div>{% endif %}
+  <form method="post" action="{% url 'solicitudes:liberar' sp.pk %}" class="mb-2">{% csrf_token %}<input type="hidden" name="volver" value="{% url 'solicitudes:movil' %}"><button class="btn btn-success btn-lg w-100"><i class="bi bi-check2"></i> Liberar{% if sp.niveles|length > 1 %} (nivel {{ sp.nivel_pendiente.nivel }} de {{ sp.niveles|length }}){% endif %}</button></form>
+  <form method="post" action="{% url 'solicitudes:observar' sp.pk %}" class="d-flex gap-2 mb-2">{% csrf_token %}<input type="hidden" name="volver" value="{% url 'solicitudes:movil' %}"><input name="comentario" class="form-control" minlength="5" required placeholder="Observación"><button class="btn btn-outline-info">Observar</button></form>
+  <form method="post" action="{% url 'solicitudes:rechazar' sp.pk %}" class="d-flex gap-2">{% csrf_token %}<input type="hidden" name="volver" value="{% url 'solicitudes:movil' %}"><input name="comentario" class="form-control" minlength="10" required placeholder="Motivo del rechazo"><button class="btn btn-outline-danger">Rechazar</button></form>
+</div></div>
+{% empty %}<div class="alert alert-success">No tiene solicitudes por liberar.</div>
+{% endfor %}
+{% endblock %}

@@ -10,6 +10,10 @@ REGLAS = [
     ('compras.registrar', 'finanzas.registrar', 'ALTO', 'Registra facturas de proveedores y también las paga'),
     ('finanzas.cuentas', 'finanzas.registrar', 'MEDIO', 'Crea cuentas bancarias y registra pagos en ellas'),
     ('requerimientos.solicitar', 'requerimientos.aprobar', 'MEDIO', 'Pide materiales y aprueba sus pedidos'),
+    ('requerimientos.solped', 'requerimientos.liberar_solped', 'MEDIO',
+     'Solicita compras y libera solicitudes de pedido'),
+    ('compras.convertir_solped', 'compras.aprobar_oc', 'MEDIO',
+     'Convierte solicitudes en órdenes de compra y las aprueba'),
     ('inventario.operar', 'inventario.ajustar', 'MEDIO', 'Opera el almacén y ajusta sus diferencias'),
     ('ventas.emitir', 'ventas.anular', 'MEDIO', 'Emite comprobantes y los anula'),
     ('ventas.emitir', 'finanzas.registrar', 'BAJO', 'Vende y cobra (aceptable en caja de tienda)'),
@@ -22,7 +26,8 @@ REGLAS = [
     ('rendiciones.rendir', 'rendiciones.contabilizar', 'MEDIO', 'Rinde gastos y contabiliza las rendiciones'),
 ]
 # reglas fijas del sistema (se cumplen siempre, sin importar los permisos)
-REGLAS_FIJAS = ['Nadie aprueba su propia rendición de gastos: pasa al siguiente nivel o a otro aprobador.']
+REGLAS_FIJAS = ['Nadie aprueba su propia rendición de gastos: pasa al siguiente nivel o a otro aprobador.',
+                'Nadie libera su propia solicitud de pedido: pasa al siguiente nivel o a otro liberador.']
 NOMBRES = {f'{m}.{a}': d for m, lista in ACCIONES.items() for a, d, _ in lista}
 
 

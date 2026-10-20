@@ -56,6 +56,11 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         if oc and oc.estado not in ('APROBADO', 'ATENDIDO') and oc.pk != self.instance.orden_compra_id:
             self.add_error('orden_compra', f'La orden de compra {oc.numero} está «{oc.get_estado_display()}»: solo se '
                                            f'facturan órdenes aprobadas. Apruébela primero.')
+        if oc and not self.instance.pk and data.get('tipo_comprobante') not in ('07', '08'):
+            from .solped import exige_conformidad
+            if exige_conformidad(oc) and not oc.conformidades.exists():
+                self.add_error('orden_compra', f'La orden {oc.numero} es de servicios de una solicitud de pedido: '
+                                               f'registre primero la conformidad del servicio (en la orden de compra).')
         if data.get('orden_compra') and not data.get('centro_costo'):
             data['centro_costo'] = data['orden_compra'].centro_costo
         # gasto directo (62 a 65 y 68): el centro de costo es obligatorio

@@ -10,7 +10,8 @@ from core.models import Empresa, r2
 from core.utils import fmt_fecha, guardar_documento
 
 from .forms import CompraForm, OrdenCompraForm
-from .models import Compra, CompraItem, OrdenCompra, OrdenCompraItem
+from .models import Compra, CompraItem, OrdenCompra, OrdenCompraItem, SolicitudPedido
+from .solped import exige_conformidad
 
 
 class ComprasViews(ComprobanteViews):
@@ -178,6 +179,9 @@ def oc_detalle(request, pk):
             reverse('portal:oc_aceptacion', args=[oc.token_aceptacion()])),
         'facturas_portal': oc.facturas_portal.all(), 'fecha_ingreso': oc.fecha_ingreso(),
         'errores_contrato': validar_orden(oc) if oc.contrato_id else [],
+        'solicitudes_oc': SolicitudPedido.objects.filter(lineas__items_oc__documento=oc).distinct().select_related(
+            'centro_costo'),
+        'servicios_oc': exige_conformidad(oc),
         'doc': oc, 'items': oc.items.all(), 'app': 'compras', 'titulo_doc': 'ORDEN DE COMPRA',
         'etiqueta_tercero': 'Proveedor', 'relacionados': oc.compras.all(),
         'url_editar': 'compras:oc_editar', 'url_estado': 'compras:oc_estado', 'url_lista': 'compras:oc_lista',
@@ -212,5 +216,8 @@ def oc_estado(request, pk):
                 return redirect('compras:oc_detalle', pk)
         oc.estado = estado
         oc.save(update_fields=['estado'])
+        if estado == 'ANULADO':  # lo que tenía de solicitudes de pedido vuelve a la bandeja de compras
+            from .solped import actualizar_estados
+            actualizar_estados(SolicitudPedido.objects.filter(lineas__items_oc__documento=oc).distinct())
         messages.success(request, f'Orden {oc.numero}: {oc.get_estado_display()}.')
     return redirect('compras:oc_detalle', pk)

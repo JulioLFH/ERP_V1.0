@@ -82,6 +82,15 @@ class Empresa(models.Model):
     exigir_orden_compra = models.BooleanField(
         'Exigir orden de compra', default=True,
         help_text='Las compras de mercadería (facturas y boletas) solo se registran desde una orden de compra')
+    oc_directa_con_contrato = models.BooleanField(
+        'OC directa con contrato marco', default=True,
+        help_text='El MRP y la reposición crean la orden de compra directamente (sin solicitud de pedido) para los '
+                  'productos con proveedor habitual y contrato marco vigente; lo demás pasa por solicitud de pedido')
+    CONTROL_PRESUPUESTO = [('', 'No controlar'), ('AVISAR', 'Avisar'), ('BLOQUEAR', 'Bloquear')]
+    presupuesto_solped = models.CharField(
+        'Presupuesto en solicitudes de pedido', max_length=8, choices=CONTROL_PRESUPUESTO, default='AVISAR',
+        blank=True, help_text='Si la solicitud supera lo que queda del presupuesto de su centro de costo y cuenta (real '
+                              'más lo comprometido en solicitudes y órdenes de compra)')
     tolerancia_cantidad = models.DecimalField(
         'Tolerancia de cantidad (±)', max_digits=10, decimal_places=2, default=Decimal('1'),
         help_text='Diferencia permitida entre la cantidad facturada por el proveedor y la recibida / pedida')

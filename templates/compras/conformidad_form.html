@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Conformidad de servicio{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-patch-check"></i> Conformidad de servicio · {{ oc.numero }}</h1>
+  <a href="{% url 'compras:oc_detalle' oc.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Orden de compra</a>
+</div>
+<p class="small text-muted">Hoja de entrada de servicio: el área confirma que {{ oc.tercero.nombre }} prestó el servicio. Las órdenes que vienen de solicitudes de servicios exigen la conformidad antes de registrar la factura.</p>
+<form method="post" class="card"><div class="card-body row g-3">{% csrf_token %}
+  {% for field in form %}<div class="{% if field.name == 'descripcion' %}col-12{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+  <div class="col-12"><button class="btn btn-primary"><i class="bi bi-check2"></i> Registrar conformidad</button></div>
+</div></form>
+{% endblock %}

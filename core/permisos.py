@@ -15,7 +15,8 @@ ACCIONES = {
                 ('oc', 'Crear y editar órdenes de compra', False),
                 ('aprobar_oc', 'Aprobar órdenes de compra', True),
                 ('anular', 'Anular compras y órdenes de compra', True),
-                ('portal', 'Aprobar o rechazar facturas del portal', True)],
+                ('portal', 'Aprobar o rechazar facturas del portal', True),
+                ('convertir_solped', 'Convertir solicitudes de pedido en órdenes de compra o licitaciones', False)],
     'inventario': [('operar', 'Registrar y confirmar operaciones de almacén', False),
                    ('ajustar', 'Ajustes de inventario', True),
                    ('anular', 'Anular operaciones', True),
@@ -45,7 +46,9 @@ ACCIONES = {
                   ('cerrar', 'Cerrar, reabrir y pagar planillas', True),
                   ('configurar', 'Parámetros, AFP y conceptos de planilla', True)],
     'requerimientos': [('solicitar', 'Pedir materiales al almacén', False),
-                       ('aprobar', 'Aprobar o rechazar requerimientos', True)],
+                       ('aprobar', 'Aprobar o rechazar requerimientos', True),
+                       ('solped', 'Registrar y enviar solicitudes de pedido (compras)', False),
+                       ('liberar_solped', 'Liberar, observar o rechazar solicitudes de pedido', True)],
     'rendiciones': [('rendir', 'Registrar y enviar sus rendiciones de gastos', False),
                     ('aprobar', 'Aprobar, observar o rechazar rendiciones', True),
                     ('contabilizar', 'Revisar y contabilizar rendiciones (revisor contable)', True),
@@ -58,7 +61,7 @@ ACCIONES = {
 TODAS = {f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, _ in lista}
 # acciones sensibles nuevas: nunca se dan por defecto (ni a usuarios sin perfil); el administrador las asigna
 EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar', 'manufactura.aprobar_cambios',
-              'costos.liquidar'}
+              'costos.liquidar', 'requerimientos.liberar_solped'}
 
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
@@ -162,6 +165,10 @@ RUTAS = {
                                      if r.POST.get('accion') in ('aprobar', 'rechazar') else 'manufactura.recetas'),
     'requerimientos:nuevo': 'requerimientos.solicitar', 'requerimientos:editar': 'requerimientos.solicitar',
     'requerimientos:enviar': 'requerimientos.solicitar',
+    'solicitudes:nueva': 'requerimientos.solped', 'solicitudes:editar': 'requerimientos.solped',
+    'solicitudes:enviar': 'requerimientos.solped',
+    'compras:solped_bandeja': {'POST': 'compras.convertir_solped'},
+    'compras:solped_reglas': {'POST': 'compras.aprobar_oc'}, 'compras:conformidad': {'POST': 'compras.oc'},
     'activos:nuevo': 'activos.registrar', 'activos:editar': 'activos.registrar', 'activos:baja': 'activos.baja',
     'activos:anular': 'activos.baja', 'activos:depreciacion': {'POST': 'activos.depreciar'},
     'activos:proceso_revertir': 'activos.depreciar', 'activos:categoria_nueva': 'activos.depreciar',

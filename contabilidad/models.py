@@ -1,6 +1,7 @@
 from contextvars import ContextVar
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import models
 from django.db.models import Sum
 from django.utils import timezone
@@ -201,6 +202,10 @@ class CentroCosto(models.Model):
     centro_beneficio = models.ForeignKey(CentroBeneficio, on_delete=models.SET_NULL, null=True, blank=True,
                                          related_name='centros_costo', verbose_name='Centro de beneficio')
     responsable = models.CharField(max_length=120, blank=True)
+    responsable_usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        verbose_name='Usuario responsable', help_text='Libera las solicitudes de pedido del centro (si así lo indican '
+                                                      'las reglas de liberación)')
     activo = models.BooleanField(default=True)
 
     class Meta:

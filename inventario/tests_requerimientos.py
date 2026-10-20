@@ -79,10 +79,20 @@ class RequerimientosTest(TestCase):
         self.assertEqual((req.estado, item.cantidad_atendida, item.pendiente), ('PARCIAL', D('6'), D('4')))
         op = req.atenciones.get()
         self.assertEqual((op.centro_costo, op.cuenta_gasto.codigo), (self.mant, '6343'))
-        # lo que falta va a compras (el almacenero no crea OC: lo hace el administrador)
-        ordenes = srv.pasar_a_compras(req, self.admin)
+        # lo que no había en stock al aprobar pasó solo a una solicitud de pedido vinculada; Compras la libera y
+        # la convierte en orden de compra
+        from compras import solped
+        sp = req.solicitudes.get()
+        self.assertEqual((sp.origen, sp.estado, sp.centro_costo, sp.solicitante), ('REQUERIMIENTO', 'ENVIADA',
+                                                                                    self.mant, self.area))
+        self.assertEqual(sp.lineas.get().cantidad, D('4'))
+        with self.assertRaises(srv.ErrorRequerimiento):  # ya está pedido: no se duplica
+            srv.pasar_a_compras(req, self.admin)
+        solped.liberar(sp, self.admin)
+        ordenes = solped.a_orden_compra([sp.lineas.get().pk], self.admin)
         self.assertEqual(ordenes[0].items.get().cantidad, D('4'))
         self.assertEqual(ordenes[0].centro_costo, self.mant)
+        self.assertEqual(sp.lineas.get().items_oc.get().documento, ordenes[0])
         # asiento: el consumo va a 6343 con el centro de mantenimiento (planta -> 901), no a la 6561
         periodo = HOY.strftime('%Y%m')
         centralizar_periodo(periodo)

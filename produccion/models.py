@@ -342,13 +342,15 @@ class PropuestaMRP(models.Model):
                                          related_name='+')
     orden_compra = models.ForeignKey('compras.OrdenCompra', on_delete=models.SET_NULL, null=True, blank=True,
                                      related_name='+')
+    solicitud = models.ForeignKey('compras.SolicitudPedido', on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='propuestas_mrp', verbose_name='Solicitud de pedido')
 
     class Meta:
         ordering = ['nivel', 'fecha_inicio', 'producto__nombre']
 
     @property
     def convertida(self):
-        return bool(self.orden_produccion_id or self.orden_compra_id)
+        return bool(self.orden_produccion_id or self.orden_compra_id or self.solicitud_id)
 
 
 class OrdenProduccion(models.Model):

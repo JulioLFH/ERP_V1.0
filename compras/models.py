@@ -82,6 +82,9 @@ class OrdenCompra(DocumentoBase):
 
 class OrdenCompraItem(ItemBase):
     documento = models.ForeignKey(OrdenCompra, on_delete=models.CASCADE, related_name='items')
+    linea_solped = models.ForeignKey('LineaSolicitud', on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='items_oc', editable=False,
+                                     verbose_name='Línea de la solicitud de pedido')
 
 
 class Compra(ComprobanteBase):
@@ -277,6 +280,8 @@ class LineaLicitacion(models.Model):
                                    related_name='+', editable=False)
     orden_compra = models.ForeignKey(OrdenCompra, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
                                      editable=False)
+    linea_solped = models.ForeignKey('LineaSolicitud', on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='lineas_licitacion', editable=False)
 
     class Meta:
         ordering = ['id']
@@ -329,3 +334,178 @@ class GastoImportacion(models.Model):
 
     class Meta:
         ordering = ['id']
+
+
+# ================================================================ solicitud de pedido (SolPed, ME51N de SAP)
+class ReglaLiberacion(models.Model):
+    """Quién libera las solicitudes de pedido, por niveles secuenciales (1, luego 2, 3…). Por nivel aplica la regla
+    más específica (mayor monto) que cumpla el monto, el centro de costo y el tipo de la solicitud."""
+    TIPOS = [('JEFE', 'Jefe directo del solicitante'), ('RESPONSABLE_CC', 'Responsable del centro de costo'),
+             ('USUARIO', 'Usuario específico')]
+    APLICA = [('', 'Todas las solicitudes'), ('ACTIVO', 'Solo activo fijo'), ('SERVICIO', 'Solo servicios'),
+              ('URGENTE', 'Solo urgentes')]
+    nivel = models.PositiveSmallIntegerField(default=1, help_text='1 libera primero, luego 2, 3…')
+    tipo = models.CharField('Quién libera', max_length=14, choices=TIPOS, default='JEFE')
+    aprobador = models.ForeignKey('auth.User', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                  help_text='Solo para «Usuario específico»')
+    monto_desde = models.DecimalField('Desde el monto S/', max_digits=14, decimal_places=2, default=Decimal('0'),
+                                      help_text='Monto valorizado (cantidad × último precio de compra o precio '
+                                                'estimado, sin IGV) mayor o igual. 0 = siempre')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
+                                     help_text='Aplica a las solicitudes de este centro (o sus subcentros). Vacío = '
+                                               'todos')
+    aplica_a = models.CharField('Aplica a', max_length=8, choices=APLICA, blank=True,
+                                help_text='Un nivel adicional para activo fijo, servicios o compras urgentes')
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['nivel', 'monto_desde', 'id']
+        verbose_name = 'regla de liberación'
+        verbose_name_plural = 'reglas de liberación'
+
+    def __str__(self):
+        quien = {'USUARIO': str(self.aprobador), 'JEFE': 'jefe directo',
+                 'RESPONSABLE_CC': 'responsable del centro'}[self.tipo]
+        return f'Nivel {self.nivel}: {quien}'
+
+
+class SolicitudPedido(models.Model):
+    """Necesidad de compra que un área, el MRP, la reposición, un requerimiento o una orden de mantenimiento piden y
+    Compras convierte en orden de compra, licitación o pedido contra contrato marco."""
+    ORIGENES = [('MANUAL', 'Del área'), ('MRP', 'Planificación (MRP)'), ('REPOSICION', 'Punto de reorden'),
+                ('REQUERIMIENTO', 'Requerimiento sin stock'), ('MANTENIMIENTO', 'Orden de mantenimiento')]
+    TIPOS = [('MATERIAL', 'Materiales'), ('SERVICIO', 'Servicios'), ('ACTIVO', 'Activo fijo')]
+    ESTADOS = [('BORRADOR', 'Borrador'), ('ENVIADA', 'Por liberar'), ('OBSERVADA', 'Observada'),
+               ('LIBERADA', 'Liberada'), ('PARCIAL', 'Pedida en parte'), ('PEDIDA', 'Pedida'),
+               ('CERRADA', 'Cerrada'), ('RECHAZADA', 'Rechazada'), ('ANULADA', 'Anulada')]
+    EDITABLES = ('BORRADOR', 'OBSERVADA')
+    ABIERTAS = ('LIBERADA', 'PARCIAL')  # se pueden convertir
+    numero = models.CharField('N°', max_length=20, editable=False)
+    fecha = models.DateField(default=timezone.localdate)
+    fecha_requerida = models.DateField('Se necesita el', null=True, blank=True)
+    solicitante = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+', editable=False)
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT,
+                                     verbose_name='Centro de costo')
+    tipo = models.CharField(max_length=8, choices=TIPOS, default='MATERIAL')
+    origen = models.CharField(max_length=14, choices=ORIGENES, default='MANUAL', editable=False)
+    urgente = models.BooleanField(default=False)
+    motivo = models.CharField('Para qué se necesita', max_length=250)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='BORRADOR', editable=False)
+    requerimiento = models.ForeignKey('inventario.RequerimientoInterno', on_delete=models.SET_NULL, null=True,
+                                      blank=True, related_name='solicitudes', editable=False)
+    orden_mantenimiento = models.ForeignKey('produccion.OrdenMantenimiento', on_delete=models.SET_NULL, null=True,
+                                            blank=True, related_name='solicitudes', editable=False,
+                                            verbose_name='Orden de mantenimiento')
+    niveles = models.JSONField(default=list, blank=True, editable=False,
+                               help_text='Liberadores calculados al enviar: [{nivel, usuario, nombre}]')
+    nivel_aprobado = models.PositiveSmallIntegerField(default=0, editable=False)
+    enviada_en = models.DateTimeField(null=True, blank=True, editable=False)
+    liberada_en = models.DateTimeField(null=True, blank=True, editable=False)
+    comentario = models.CharField('Observación o motivo de rechazo', max_length=300, blank=True, editable=False)
+    aviso_presupuesto = models.CharField(max_length=300, blank=True, editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'solicitud de pedido'
+        verbose_name_plural = 'solicitudes de pedido'
+
+    def __str__(self):
+        return f'SolPed {self.numero or "(borrador)"}'
+
+    @property
+    def editable(self):
+        return self.estado in self.EDITABLES
+
+    @property
+    def monto(self):
+        """Monto valorizado sin IGV: cantidad × precio estimado (o el último precio de compra)."""
+        return sum((l.valor for l in self.lineas.all()), Decimal('0'))
+
+    @property
+    def nivel_pendiente(self):
+        for n in self.niveles:
+            if n['nivel'] > self.nivel_aprobado:
+                return n
+        return None
+
+
+class LineaSolicitud(models.Model):
+    UNIDADES = [('NIU', 'Unidad'), ('KGM', 'Kilogramo'), ('LTR', 'Litro'), ('MTR', 'Metro'), ('BX', 'Caja'),
+                ('GLL', 'Galón'), ('ZZ', 'Servicio'), ('HUR', 'Hora'), ('DAY', 'Día'), ('MON', 'Mes')]
+    solicitud = models.ForeignKey(SolicitudPedido, on_delete=models.CASCADE, related_name='lineas')
+    producto = models.ForeignKey('core.Producto', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                 help_text='Vacío = servicio o material no codificado (texto libre)')
+    descripcion = models.CharField('Descripción', max_length=250)
+    unidad = models.CharField(max_length=5, choices=UNIDADES, default='NIU')
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2)
+    precio_estimado = models.DecimalField('Precio estimado S/ (sin IGV)', max_digits=14, decimal_places=4,
+                                          default=Decimal('0'),
+                                          help_text='Vacío o 0 = el último precio de compra del producto')
+    cuenta_contable = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                        blank=True, related_name='+', limit_choices_to={'imputable': True},
+                                        verbose_name='Cuenta de gasto o activo',
+                                        help_text='Vacío = la cuenta de compra del producto')
+    proveedor_sugerido = models.ForeignKey('core.Tercero', on_delete=models.SET_NULL, null=True, blank=True,
+                                           related_name='+', verbose_name='Proveedor sugerido')
+    requerimiento_item = models.ForeignKey('inventario.RequerimientoItem', on_delete=models.SET_NULL, null=True,
+                                           blank=True, related_name='lineas_solped', editable=False)
+    cerrada = models.BooleanField('Cerrada', default=False, editable=False,
+                                  help_text='No se pedirá lo que falta (cerrada por Compras)')
+
+    class Meta:
+        ordering = ['id']
+
+    @property
+    def precio(self):
+        if self.precio_estimado:
+            return self.precio_estimado
+        return self.producto.precio_compra / (self.producto.factor or 1) if self.producto_id else Decimal('0')
+
+    @property
+    def valor(self):
+        return (self.cantidad * self.precio).quantize(Decimal('0.01'))
+
+    @property
+    def es_servicio(self):
+        return (self.producto.tipo == 'SERVICIO') if self.producto_id else self.unidad in ('ZZ', 'HUR', 'DAY', 'MON')
+
+    @property
+    def pedido(self):
+        """Cantidad ya pedida en órdenes de compra vigentes (en la unidad de la solicitud)."""
+        total = Decimal('0')
+        for i in self.items_oc.all():
+            if i.documento.estado == 'ANULADO':
+                continue
+            total += i.producto.a_stock(i.cantidad) if i.producto_id else i.cantidad
+        return total
+
+    @property
+    def en_licitacion(self):
+        return any(l.licitacion.estado == 'ABIERTA' for l in self.lineas_licitacion.all())
+
+    @property
+    def pendiente(self):
+        if self.cerrada:
+            return Decimal('0')
+        return max(self.cantidad - self.pedido, Decimal('0'))
+
+
+class ConformidadServicio(models.Model):
+    """Hoja de entrada de servicio: el área conforma lo que el proveedor prestó antes de registrar su factura."""
+    numero = models.CharField('N°', max_length=20, editable=False)
+    orden_compra = models.ForeignKey(OrdenCompra, on_delete=models.PROTECT, related_name='conformidades')
+    fecha = models.DateField(default=timezone.localdate)
+    descripcion = models.CharField('Servicio recibido', max_length=250)
+    porcentaje = models.DecimalField('Avance conforme %', max_digits=5, decimal_places=2, default=Decimal('100'),
+                                     help_text='100 = servicio completo')
+    conforme_por = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'conformidad de servicio'
+        verbose_name_plural = 'conformidades de servicio'
+
+    def __str__(self):
+        return f'Conformidad {self.numero}'

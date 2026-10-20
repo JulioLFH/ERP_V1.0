@@ -32,7 +32,7 @@
     <td class="num">{{ i.cantidad|money }}</td><td class="num">{{ i.cantidad_atendida|money }}</td><td class="num fw-semibold">{{ i.pendiente|money }}</td>
     <td class="num {% if i.stock < i.pendiente %}text-danger{% endif %}">{{ i.stock|money }}</td>
     {% if puede_atender and req.estado in 'APROBADO PARCIAL' %}<td>{% if i.pendiente > 0 %}<input name="entregar_{{ i.pk }}" class="form-control form-control-sm text-end" inputmode="decimal" value="{% if i.stock >= i.pendiente %}{{ i.pendiente|stringformat:'s' }}{% elif i.stock > 0 %}{{ i.stock|stringformat:'s' }}{% endif %}">{% endif %}</td>{% endif %}
-    <td class="small">{% if i.orden_compra %}<a href="{% url 'compras:oc_detalle' i.orden_compra_id %}">{{ i.orden_compra.numero }}</a>{% endif %}</td>
+    <td class="small">{% if i.orden_compra %}<a href="{% url 'compras:oc_detalle' i.orden_compra_id %}">{{ i.orden_compra.numero }}</a>{% endif %}{% for l in i.solped %}<div><a href="{% url 'solicitudes:detalle' l.solicitud_id %}">{{ l.solicitud.numero }}</a> · {{ l.solicitud.get_estado_display|lower }}{% if l.pedido %} · en OC {{ l.pedido|money }}{% endif %}</div>{% endfor %}</td>
   </tr>{% endfor %}</tbody>
 </table></div>
 {% if puede_atender and req.estado in 'APROBADO PARCIAL' %}<div class="card-body d-flex flex-wrap gap-2 align-items-center">
@@ -44,7 +44,7 @@
 {% if faltantes and puede_comprar and req.estado in 'APROBADO PARCIAL' %}
 <div class="alert alert-warning d-flex flex-wrap gap-2 align-items-center justify-content-between py-2">
   <span><i class="bi bi-cart"></i> No alcanza el stock de {{ faltantes|length }} producto(s).</span>
-  <form method="post" action="{% url 'requerimientos:comprar' req.pk %}" data-confirm="¿Crear órdenes de compra por lo que falta?">{% csrf_token %}<button class="btn btn-sm btn-outline-dark">Pedir faltantes a compras</button></form>
+  <form method="post" action="{% url 'requerimientos:comprar' req.pk %}" data-confirm="¿Crear una solicitud de pedido por lo que falta?">{% csrf_token %}<button class="btn btn-sm btn-outline-dark">Pedir faltantes a compras (solicitud de pedido)</button></form>
 </div>
 {% endif %}
 {% if atenciones %}<div class="card mb-3"><div class="card-header">Entregas</div><ul class="list-group list-group-flush small">

@@ -1,9 +1,9 @@
-"""Requerimientos internos: un área pide materiales al almacén contra su centro de costo.
+"""Requerimientos internos: un área pide materiales al almacén contra su centro de costo (la reserva de SAP).
 
 Borrador -> Por aprobar -> Aprobado -> Atendido parcialmente / Atendido (o Rechazado / Anulado, con motivo).
-El almacén atiende lo que tiene (despacho parcial); lo que falta se puede pasar a una orden de compra. El consumo sale
-con una operación "Atención de requerimiento" que lleva la cuenta de gasto y el centro de costo del requerimiento."""
-from collections import defaultdict
+El almacén atiende lo que tiene (despacho parcial); lo que no tiene stock al aprobarse pasa solo a una solicitud de
+pedido vinculada (Compras la convierte en orden de compra). El consumo sale con una operación "Atención de
+requerimiento" que lleva la cuenta de gasto y el centro de costo del requerimiento."""
 from decimal import Decimal
 
 from django.db import transaction
@@ -35,7 +35,9 @@ def enviar(req, usuario):
     return req
 
 
+@transaction.atomic
 def aprobar(req, usuario):
+    """Aprueba y pasa a una solicitud de pedido lo que el almacén no tiene (el área ve el avance)."""
     if req.estado != 'ENVIADO':
         raise ErrorRequerimiento('Solo se aprueban requerimientos por aprobar.')
     if req.solicitante_id == usuario.pk and not usuario.is_superuser:
@@ -45,6 +47,11 @@ def aprobar(req, usuario):
         raise ErrorRequerimiento(error_aprobacion(usuario, req))
     req.estado, req.aprobado_por, req.aprobado_en = 'APROBADO', usuario, timezone.now()
     req.save()
+    try:
+        with transaction.atomic():
+            pasar_a_compras(req, usuario, exigir=False)
+    except ErrorRequerimiento:
+        pass  # p. ej. supera el presupuesto: queda el botón «Pedir faltantes a compras» con el motivo
     return req
 
 
@@ -99,43 +106,28 @@ def atender(req, usuario, cantidades, fecha=None):
 
 
 def faltantes(req):
-    """[(item, cantidad que no alcanza en el almacén)] de lo pendiente del requerimiento."""
+    """[(item, cantidad que no alcanza en el almacén)] de lo pendiente del requerimiento que aún no se pidió a compras
+    (orden de compra del flujo anterior o solicitud de pedido vigente)."""
     filas = []
-    for i in req.items.select_related('producto'):
+    for i in req.items.select_related('producto').prefetch_related('lineas_solped__solicitud'):
         stock = i.producto.stock_en(req.almacen)
-        if i.pendiente > stock and not i.orden_compra_id:
+        pedido = i.orden_compra_id or any(l.solicitud.estado not in ('RECHAZADA', 'ANULADA')
+                                          for l in i.lineas_solped.all())
+        if i.pendiente > stock and not pedido:
             filas.append((i, i.pendiente - max(stock, D0)))
     return filas
 
 
-def pasar_a_compras(req, usuario):
-    """Lo que el almacén no puede atender se pide al proveedor habitual: una orden de compra por proveedor."""
-    from compras.models import OrdenCompra, OrdenCompraItem
+def pasar_a_compras(req, usuario, exigir=True):
+    """Lo que el almacén no puede atender pasa a una solicitud de pedido vinculada al requerimiento (Compras la
+    convierte en orden de compra). None si no falta nada."""
+    from compras.solped import ErrorSolped, desde_requerimiento
     if req.estado not in ('APROBADO', 'PARCIAL'):
         raise ErrorRequerimiento('Solo se compran faltantes de requerimientos aprobados.')
-    por_proveedor = defaultdict(list)
-    sin_proveedor = []
-    for item, cantidad in faltantes(req):
-        (por_proveedor[item.producto.proveedor_id] if item.producto.proveedor_id else sin_proveedor).append(
-            (item, cantidad))
-    if sin_proveedor:
-        raise ErrorRequerimiento('Sin proveedor habitual: ' + ', '.join(i.producto.nombre for i, _ in sin_proveedor)
-                                 + '. Asígnelo en el producto.')
-    ordenes = []
-    with transaction.atomic():
-        for proveedor_id, filas in por_proveedor.items():
-            serie, numero = Serie.siguiente('OC', 'OC01')
-            oc = OrdenCompra.objects.create(numero=f'{serie}-{numero}', tercero_id=proveedor_id,
-                                            fecha=timezone.localdate(), fecha_entrega=req.fecha_requerida,
-                                            centro_costo=req.centro_costo,
-                                            glosa=f'Faltantes del requerimiento {req.numero}')
-            for item, cantidad in filas:  # en unidad de compra
-                OrdenCompraItem.objects.create(documento=oc, producto=item.producto, descripcion=item.producto.nombre,
-                                               cantidad=item.producto.a_compra(cantidad),
-                                               precio_unitario=item.producto.precio_compra or D0)
-                item.orden_compra = oc
-                item.save(update_fields=['orden_compra'])
-            oc.calcular_totales()
-            oc.save()
-            ordenes.append(oc)
-    return ordenes
+    try:
+        sp = desde_requerimiento(req, req.solicitante)
+    except ErrorSolped as exc:
+        raise ErrorRequerimiento(f'No se pudo crear la solicitud de pedido: {exc}') from exc
+    if sp is None and exigir:
+        raise ErrorRequerimiento('No hay faltantes por pedir: el stock alcanza o ya están en una solicitud de pedido.')
+    return sp

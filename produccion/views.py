@@ -503,6 +503,7 @@ def mrp(request):
             messages.success(request, f'MRP ejecutado: {corrida.propuestas.count()} órdenes planificadas.')
             return redirect('manufactura:mrp')
         if accion in ('fabricar', 'comprar'):
+            from compras.solped import ErrorSolped
             ids = request.POST.getlist('propuesta')
             propuestas = list(PropuestaMRP.objects.filter(pk__in=ids).select_related('producto', 'version'))
             try:
@@ -510,18 +511,24 @@ def mrp(request):
                     hechas = [servicios.convertir_en_orden(p, request.user) for p in propuestas
                               if p.tipo == 'PRODUCIR' and not p.convertida]
                     messages.success(request, f'{len(hechas)} orden(es) de producción creadas en borrador.')
-                else:
+                else:  # compras: solicitud de pedido (u OC directa si hay contrato marco y la empresa lo permite)
+                    from compras.solped import desde_mrp
                     from contabilidad.models import CentroCosto
                     centro = CentroCosto.objects.filter(pk=request.POST.get('centro_costo') or 0).first()
-                    hechas = servicios.convertir_en_compras(propuestas, request.user, centro)
-                    messages.success(request, f'{len(hechas)} orden(es) de compra creadas (pendientes de aprobar): '
-                                              + ', '.join(o.numero for o in hechas))
-            except servicios.ErrorProduccion as exc:
+                    sp, ordenes = desde_mrp(propuestas, request.user, centro)
+                    if sp:
+                        messages.success(request, f'Solicitud de pedido {sp.numero} '
+                                                  f'{"liberada" if sp.estado == "LIBERADA" else "enviada a liberación"}'
+                                                  f' con {sp.lineas.count()} ítem(s).')
+                    if ordenes:
+                        messages.success(request, 'Con contrato marco, órdenes de compra directas (pendientes de '
+                                                  'aprobar): ' + ', '.join(o.numero for o in ordenes))
+            except (servicios.ErrorProduccion, ErrorSolped) as exc:
                 messages.error(request, str(exc))
             return redirect('manufactura:mrp')
     corrida = CorridaMRP.objects.select_related('usuario').first()
     propuestas = (corrida.propuestas.select_related('producto', 'version', 'proveedor', 'orden_produccion',
-                                                    'orden_compra') if corrida else [])
+                                                    'orden_compra', 'solicitud') if corrida else [])
     from contabilidad.models import CentroCosto
     return render(request, 'produccion/mrp.html', {
         'form': form, 'plan': PlanDemanda.objects.select_related('producto').filter(fecha__gte=hoy - timedelta(30)),

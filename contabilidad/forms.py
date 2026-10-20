@@ -68,10 +68,14 @@ class CuentaContableForm(BootstrapMixin, forms.ModelForm):
 class CentroCostoForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = CentroCosto
-        fields = ['codigo', 'nombre', 'tipo', 'padre', 'centro_beneficio', 'responsable', 'activo']
+        fields = ['codigo', 'nombre', 'tipo', 'padre', 'centro_beneficio', 'responsable', 'responsable_usuario',
+                  'activo']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        from django.contrib.auth import get_user_model
+        self.fields['responsable_usuario'].queryset = get_user_model().objects.filter(is_active=True).order_by(
+            'username')
         qs = CentroCosto.objects.filter(activo=True)
         if self.instance.pk:  # no puede depender de sí mismo ni de uno de sus dependientes (ciclo)
             qs = qs.exclude(pk__in=self.instance.descendientes_ids())

@@ -26,16 +26,17 @@ def _numero(tipo, serie):
 
 # ---------------------------------------------------------------- licitaciones
 def crear_licitacion(lic, lineas, usuario):
-    """lineas: [(producto o None, descripción, cantidad)]."""
+    """lineas: [(producto o None, descripción, cantidad[, línea de solicitud de pedido])]."""
     lineas = [li for li in lineas if li[2] and li[2] > 0 and (li[0] or li[1])]
     if not lineas:
         raise ErrorAbastecimiento('Agregue al menos un ítem con cantidad.')
     with transaction.atomic():
         lic.numero, lic.creado_por = _numero('LIC', 'LIC'), usuario
         lic.save()
-        for producto, descripcion, cantidad in lineas:
+        for producto, descripcion, cantidad, *solped in lineas:
             LineaLicitacion.objects.create(licitacion=lic, producto=producto,
-                                           descripcion=(descripcion or producto.nombre)[:250], cantidad=cantidad)
+                                           descripcion=(descripcion or producto.nombre)[:250], cantidad=cantidad,
+                                           linea_solped=solped[0] if solped else None)
     return lic
 
 
@@ -117,7 +118,8 @@ def adjudicar(lic, eleccion, usuario, justificacion=''):
             glosa=f'Adjudicada en la {lic}: {lic.descripcion}'[:500])
         for linea, precio in lineas:
             OrdenCompraItem.objects.create(documento=oc, producto=linea.producto, descripcion=linea.descripcion,
-                                           cantidad=linea.cantidad, precio_unitario=precio.precio_unitario)
+                                           cantidad=linea.cantidad, precio_unitario=precio.precio_unitario,
+                                           linea_solped_id=linea.linea_solped_id)
             linea.adjudicada, linea.orden_compra = o, oc
             linea.save(update_fields=['adjudicada', 'orden_compra'])
         oc.calcular_totales()
@@ -126,6 +128,9 @@ def adjudicar(lic, eleccion, usuario, justificacion=''):
     lic.estado, lic.adjudicado_por, lic.adjudicado_en = 'ADJUDICADA', usuario, timezone.now()
     lic.justificacion = (justificacion or '')[:300]
     lic.save()
+    from .solped import actualizar_estados
+    actualizar_estados(l.linea_solped.solicitud for l in lic.lineas.select_related('linea_solped__solicitud')
+                       if l.linea_solped_id)
     return ordenes
 
 

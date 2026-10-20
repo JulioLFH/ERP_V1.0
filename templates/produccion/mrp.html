@@ -31,8 +31,8 @@
     <span><i class="bi bi-list-task"></i> Órdenes planificadas</span>
     <span class="d-flex flex-wrap gap-2 align-items-center">
       <button name="accion" value="fabricar" class="btn btn-sm btn-outline-primary"><i class="bi bi-gear"></i> Crear órdenes de producción</button>
-      <select name="centro_costo" class="form-select form-select-sm" style="width:auto"><option value="">Centro de costo para las OC…</option>{% for c in centros %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}</select>
-      <button name="accion" value="comprar" class="btn btn-sm btn-outline-primary"><i class="bi bi-cart"></i> Crear órdenes de compra</button>
+      <select name="centro_costo" class="form-select form-select-sm" style="width:auto"><option value="">Centro de costo de la compra…</option>{% for c in centros %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}</select>
+      <button name="accion" value="comprar" class="btn btn-sm btn-outline-primary" title="Crea una solicitud de pedido para Compras; con contrato marco vigente, la orden de compra directa"><i class="bi bi-cart"></i> Comprar (solicitud de pedido)</button>
     </span>
   </div>
   <div class="table-responsive"><table class="table table-sm table-hover mb-0">
@@ -45,7 +45,7 @@
       <td class="{% if p.fecha_inicio <= corrida.fecha.date %}text-danger fw-semibold{% endif %}">{{ p.fecha_inicio|date:'d/m/Y' }}</td><td>{{ p.fecha_necesidad|date:'d/m/Y' }}</td>
       <td class="small">{% if p.version %}{{ p.version.codigo }}{% elif p.proveedor %}{{ p.proveedor.nombre }}{% else %}<span class="text-warning">sin proveedor</span>{% endif %}</td>
       <td class="small text-muted">{{ p.origen }}</td>
-      <td class="small">{% if p.orden_produccion %}<a href="{% url 'manufactura:orden' p.orden_produccion_id %}">OP borrador</a>{% elif p.orden_compra %}<a href="{% url 'compras:oc_detalle' p.orden_compra_id %}">{{ p.orden_compra.numero }}</a>{% endif %}</td>
+      <td class="small">{% if p.orden_produccion %}<a href="{% url 'manufactura:orden' p.orden_produccion_id %}">OP borrador</a>{% elif p.orden_compra %}<a href="{% url 'compras:oc_detalle' p.orden_compra_id %}">{{ p.orden_compra.numero }}</a>{% elif p.solicitud %}<a href="{% url 'solicitudes:detalle' p.solicitud_id %}">{{ p.solicitud.numero }}</a>{% endif %}</td>
     </tr>{% empty %}<tr><td colspan="10" class="text-center text-muted py-4">Sin necesidades: el stock, la producción y las compras en curso cubren la demanda.</td></tr>{% endfor %}</tbody>
   </table></div>
 </div>

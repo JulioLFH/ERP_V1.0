@@ -205,7 +205,8 @@ class VerificacionesTest(Base):
         self.assertContains(r, 'límite S/ 100.00')
         self.assertEqual(Venta.objects.count(), antes)
         # MRP (n.º 77 y 82): una mercadería de reventa con demanda genera propuesta de COMPRA a su proveedor, y
-        # todas las propuestas seleccionadas se convierten en órdenes de compra de un solo clic
+        # todas las propuestas seleccionadas pasan de un solo clic a una solicitud de pedido (sin reglas de
+        # liberación queda liberada) que Compras convierte en orden de compra
         from contabilidad.models import CentroCosto
         from produccion.models import PlanDemanda, PropuestaMRP
         prov = Tercero.objects.filter(tipo='PROVEEDOR').first()
@@ -221,5 +222,9 @@ class VerificacionesTest(Base):
         self.client.post(reverse('manufactura:mrp'), {
             'accion': 'comprar', 'propuesta': [p.pk for p in propuestas],
             'centro_costo': CentroCosto.objects.filter(activo=True).first().pk})
-        self.assertEqual(OrdenCompraItem.objects.filter(producto__in=merc).count(), 2)
         self.assertTrue(all(p.convertida for p in PropuestaMRP.objects.filter(producto__in=merc)))
+        from compras.models import LineaSolicitud
+        lineas = LineaSolicitud.objects.filter(producto__in=merc)
+        self.assertEqual((lineas.count(), lineas.first().solicitud.estado), (2, 'LIBERADA'))
+        self.client.post(reverse('compras:solped_bandeja'), {'linea': [l.pk for l in lineas], 'convertir': 'oc'})
+        self.assertEqual(OrdenCompraItem.objects.filter(producto__in=merc).count(), 2)

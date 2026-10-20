@@ -1,0 +1,35 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Solicitudes de pedido{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-cart"></i> Solicitudes de pedido</h1>
+  <div class="d-flex flex-wrap gap-2">
+    {% if 'compras' in mods %}<a href="{% url 'compras:solped_bandeja' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-inbox"></i> Bandeja de compras</a>{% endif %}
+    {% if puede.requerimientos_solped %}<a href="{% url 'solicitudes:nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva solicitud</a>{% endif %}
+  </div>
+</div>
+<ul class="nav nav-tabs mb-0">
+  <li class="nav-item"><a class="nav-link {% if vista == 'mias' %}active{% endif %}" href="?vista=mias">Mis solicitudes</a></li>
+  <li class="nav-item"><a class="nav-link {% if vista == 'liberar' %}active{% endif %}" href="?vista=liberar">Por liberar {% if por_liberar %}<span class="badge text-bg-warning">{{ por_liberar }}</span>{% endif %}</a></li>
+  {% if ve_todas %}<li class="nav-item"><a class="nav-link {% if vista == 'todas' %}active{% endif %}" href="?vista=todas">Todas</a></li>{% endif %}
+</ul>
+<div class="card border-top-0">
+  <div class="card-body border-bottom py-2">
+    <form method="get" class="d-flex flex-wrap gap-2"><input type="hidden" name="vista" value="{{ vista }}">
+      <input name="q" value="{{ q }}" class="form-control form-control-sm" style="max-width:260px" placeholder="Número, motivo o ítem">
+      <select name="estado" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="">Todos los estados</option>
+      {% for v, e in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ e }}</option>{% endfor %}</select>
+      <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></form>
+  </div>
+  <div class="table-responsive"><table class="table table-hover mb-0">
+    <thead><tr><th>Fecha</th><th>Número</th><th>Origen</th><th>Centro de costo</th><th>Para qué</th><th>Solicitante</th><th>Se necesita</th><th class="num">Monto S/</th><th>Estado</th></tr></thead>
+    <tbody>{% for s in solicitudes %}<tr onclick="location.href='{% url 'solicitudes:detalle' s.pk %}'" style="cursor:pointer">
+      <td>{{ s.fecha|date:'d/m/Y' }}</td><td class="fw-semibold">{{ s.numero|default:'(borrador)' }}{% if s.urgente %} <span class="badge text-bg-danger">Urgente</span>{% endif %}</td>
+      <td class="small">{{ s.get_origen_display }}</td><td class="small">{{ s.centro_costo }}</td>
+      <td class="small">{{ s.motivo|truncatechars:60 }}</td><td class="small">{{ s.solicitante.get_full_name|default:s.solicitante.username }}</td>
+      <td>{{ s.fecha_requerida|date:'d/m/Y'|default:'—' }}</td><td class="num">{{ s.monto|money }}</td>
+      <td>{% include 'compras/_estado_solped.html' %}</td>
+    </tr>{% empty %}<tr><td colspan="9" class="text-center text-muted py-4">Sin solicitudes.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}
