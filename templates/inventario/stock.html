@@ -11,7 +11,7 @@
 <div class="row g-3 mb-3">
   <div class="col-md-4"><div class="kpi">{% if ver_costos %}<div class="label">Inventario valorizado</div><div class="value">S/ {{ total_valor|money }}</div>{% else %}<div class="label">Productos con stock</div><div class="value">{{ n_filas }}</div>{% endif %}</div></div>
   <div class="col-md-4"><a href="?bajo=1" class="text-decoration-none"><div class="kpi"><div class="label">Productos bajo stock mínimo</div><div class="value {% if n_bajo %}text-danger{% endif %}">{{ n_bajo }}</div></div></a></div>
-  <div class="col-md-4"><div class="kpi"><div class="label">Almacenes activos</div><div class="value">{{ almacenes|length }}</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="label">Almacenes activos</div><div class="value">{{ n_activos }}</div>{% if sin_stock %}<div class="small text-muted">{{ sin_stock|length }} sin stock: {{ sin_stock|join:', ' }}</div>{% endif %}</div></div>
 </div>
 <div class="card">
   <div class="card-body border-bottom py-2">
@@ -19,6 +19,7 @@
       <div class="col-md-4"><input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Código o producto"></div>
       <div class="col-auto form-check ms-2"><input type="checkbox" class="form-check-input" name="bajo" value="1" id="bajo" {% if solo_bajo %}checked{% endif %}><label for="bajo" class="form-check-label small">Solo bajo mínimo</label></div>
       <div class="col-auto form-check ms-2"><input type="checkbox" class="form-check-input" name="todos" value="1" id="todos" {% if todos %}checked{% endif %}><label for="todos" class="form-check-label small">Incluir productos sin stock</label></div>
+      <div class="col-auto form-check ms-2"><input type="checkbox" class="form-check-input" name="vacios" value="1" id="vacios" {% if vacios %}checked{% endif %}><label for="vacios" class="form-check-label small">Incluir almacenes sin stock</label></div>
       <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button>
         <button name="formato" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i> Excel</button></div>
     </form>

@@ -39,9 +39,11 @@ PCGE = [
     ('24', 'MATERIAS PRIMAS'), ('241', 'Materias primas para productos manufacturados'),
     ('2411', 'Materias primas para productos manufacturados'),
     ('25', 'MATERIALES AUXILIARES, SUMINISTROS Y REPUESTOS'), ('252', 'Suministros'), ('2521', 'Suministros'),
+    ('26', 'ENVASES Y EMBALAJES'), ('261', 'Envases'), ('2611', 'Envases y embalajes'),
     ('28', 'INVENTARIOS POR RECIBIR'), ('281', 'Mercaderías'), ('2811', 'Mercaderías por recibir'),
     ('284', 'Materias primas'), ('2841', 'Materias primas por recibir'),
     ('285', 'Materiales auxiliares, suministros y repuestos'), ('2851', 'Suministros por recibir'),
+    ('286', 'Envases y embalajes'), ('2861', 'Envases y embalajes por recibir'),
     ('29', 'DESVALORIZACIÓN DE EXISTENCIAS'), ('291', 'Mercaderías'), ('2911', 'Mercaderías'),
     ('292', 'Productos terminados'), ('2921', 'Productos terminados'),
     ('294', 'Productos en proceso'), ('2941', 'Productos en proceso'),
@@ -93,10 +95,12 @@ PCGE = [
     ('60', 'COMPRAS'), ('601', 'Mercaderías'), ('6011', 'Mercaderías'),
     ('602', 'Materias primas'), ('6021', 'Materias primas para productos manufacturados'),
     ('603', 'Materiales auxiliares, suministros y repuestos'), ('6032', 'Suministros'),
+    ('604', 'Envases y embalajes'), ('6041', 'Envases y embalajes'),
     ('609', 'Costos vinculados con las compras'), ('6091', 'Costos vinculados con compras de mercaderías'),
     ('61', 'VARIACIÓN DE INVENTARIOS'), ('611', 'Mercaderías'), ('6111', 'Mercaderías'),
     ('612', 'Materias primas'), ('6121', 'Materias primas'),
     ('613', 'Materiales auxiliares, suministros y repuestos'), ('6132', 'Suministros'),
+    ('614', 'Envases y embalajes'), ('6141', 'Envases y embalajes'),
     ('62', 'GASTOS DE PERSONAL Y DIRECTORES'), ('621', 'Remuneraciones'), ('6211', 'Sueldos y salarios'),
     ('6214', 'Gratificaciones'), ('6215', 'Vacaciones'),
     ('627', 'Seguridad, previsión social y otras contribuciones'), ('6271', 'Régimen de prestaciones de salud (ESSALUD)'),
@@ -323,6 +327,8 @@ def destinos(codigo, plan_contable=PCGE2019):
             return '284', '6121'
         if codigo.startswith(('6032', '6093')):
             return '285', '6132'
+        if codigo.startswith('604'):
+            return '286', '6141'
         if codigo.startswith(('62', '63', '64', '65', '68')):
             return '912', '791'
         if codigo.startswith('67'):
@@ -336,6 +342,8 @@ def destinos(codigo, plan_contable=PCGE2019):
         return '2841', '6121'
     if codigo.startswith('6032'):
         return '2851', '6132'
+    if codigo.startswith('6041'):
+        return '2861', '6141'
     if codigo.startswith(('62', '63', '64', '65', '68')):
         return '941', '7911'
     if codigo.startswith('67'):
@@ -358,6 +366,7 @@ DEFECTOS = [
     ('compra_MERCADERIA', 'Compras: mercadería', '6011'),
     ('compra_MATERIA_PRIMA', 'Compras: materias primas e insumos', '6021'),
     ('compra_SUMINISTRO', 'Compras: suministros y repuestos', '6032'),
+    ('compra_ENVASE', 'Compras: envases y embalajes', '6041'),
     ('compra_GASTO', 'Compras: gasto', '6599'),
     ('compra_SERVICIO', 'Compras: servicio', '6399'),
     ('compra_HONORARIOS', 'Compras: honorarios', '6321'),

@@ -75,10 +75,18 @@ def planta_orden(request, pk):
                     if parada.orden_mantenimiento_id else ''))
             else:
                 turno = next((t for t in turnos if str(t.pk) == request.POST.get('turno')), None)
+                trabajadores = {str(t.pk): t for t in _obreros()}
+                personal, n = [], 0
+                while f'pp_{n}_trab' in request.POST:  # filas de personal (botón «Agregar trabajador»)
+                    t = trabajadores.get(request.POST.get(f'pp_{n}_trab'))
+                    if t is not None:
+                        personal.append({'trabajador': t, 'rol': request.POST.get(f'pp_{n}_rol'),
+                                         'horas': _dec(request.POST.get(f'pp_{n}_horas'))})
+                    n += 1
                 avanzado.registrar_avance(orden, hora, _dec(request.POST.get('buena')),
                                           _dec(request.POST.get('merma')), _dec(request.POST.get('horas')),
                                           request.POST.get('operario', ''), request.POST.get('nota', ''), request.user,
-                                          turno=turno)
+                                          turno=turno, personal=personal)
                 messages.success(request, 'Avance registrado.')
         except avanzado.ErrorAvanzado as exc:
             messages.error(request, str(exc))
@@ -94,8 +102,18 @@ def planta_orden(request, pk):
         'o': orden, 'operaciones': [(h, reportado.get(h.pk)) for h in operaciones], 'resumen': resumen,
         'activa': orden.estado in ('CONFIRMADA', 'EN_PROCESO'),
         'hora_sel': request.GET.get('hora') or (str(operaciones[0].pk) if operaciones else ''),
-        'turnos': turnos, 'turno_actual': _turno_de(turnos),
+        'turnos': turnos, 'turno_actual': _turno_de(turnos), 'trabajadores': _obreros(),
         'motivos_parada': _motivos_con_puestos(), 'equipos': _equipos_de(operaciones)})
+
+
+def _obreros():
+    """Trabajadores vigentes de la planilla (primero obreros y los de centros de producción)."""
+    from planillas.models import Trabajador
+    hoy = timezone.localdate()
+    todos = list(Trabajador.objects.select_related('centro_costo').filter(fecha_ingreso__isnull=False).exclude(
+        fecha_cese__lt=hoy).order_by('apellido_paterno', 'apellido_materno', 'nombres'))
+    planta = [t for t in todos if t.tipo == 'OBRERO' or (t.centro_costo_id and t.centro_costo.tipo == 'PRODUCCION')]
+    return planta or todos
 
 
 def _motivos_con_puestos():

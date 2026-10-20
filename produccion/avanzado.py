@@ -160,19 +160,26 @@ def registrar_parada(orden, hora, motivo, minutos, usuario, operario='', equipo=
 
 
 @transaction.atomic
-def registrar_avance(orden, hora, buena, merma, horas, operario, nota, usuario, turno=None):
+def registrar_avance(orden, hora, buena, merma, horas, operario, nota, usuario, turno=None, personal=None):
     """Registra lo producido, la merma y las horas de una operación. La orden confirmada pasa a en proceso y las
-    horas reales de la operación se actualizan con la suma reportada (así llegan al costeo al terminar)."""
+    horas reales de la operación se actualizan con la suma reportada (así llegan al costeo al terminar).
+    personal: [{'trabajador': Trabajador, 'rol', 'horas'}] = horas hombre de quienes trabajaron."""
     from . import servicios
+    from .models import AvancePersonal
     if orden.estado not in ('CONFIRMADA', 'EN_PROCESO'):
         raise ErrorAvanzado('La orden no está en producción.')
     buena, merma, horas = buena or D0, merma or D0, horas or D0
-    if min(buena, merma, horas) < 0:
+    personal = [p for p in (personal or []) if p.get('trabajador') and p.get('horas')]
+    if min([buena, merma, horas] + [p['horas'] for p in personal]) < 0:
         raise ErrorAvanzado('Las cantidades y horas no pueden ser negativas.')
-    if not (buena or merma or horas):
+    if not (buena or merma or horas or personal):
         raise ErrorAvanzado('Indique la cantidad producida, la merma o las horas.')
+    if personal and hora is None:
+        raise ErrorAvanzado('Elija la operación en la que trabajó el personal.')
     if hora is not None and hora.orden_id != orden.pk:
         raise ErrorAvanzado('La operación no es de esta orden.')
+    if personal and not operario:
+        operario = ', '.join(p['trabajador'].nombre_completo for p in personal)
     if orden.estado == 'CONFIRMADA':
         servicios.iniciar(orden)
     if turno is None:  # el turno que corresponde a la hora del reporte
@@ -181,6 +188,9 @@ def registrar_avance(orden, hora, buena, merma, horas, operario, nota, usuario, 
     avance = AvanceOrden.objects.create(orden=orden, hora=hora, cantidad_buena=buena, cantidad_merma=merma,
                                         horas=horas, operario=(operario or '')[:80], nota=(nota or '')[:200],
                                         usuario=usuario, turno=turno)
+    for p in personal:
+        AvancePersonal.objects.create(avance=avance, trabajador=p['trabajador'], horas=p['horas'],
+                                      rol=p.get('rol') if p.get('rol') in ('MAQUINISTA', 'AYUDANTE') else 'MAQUINISTA')
     if hora is not None and horas:
         hora.horas_real = hora.avances.aggregate(s=Sum('horas'))['s'] or D0
         hora.save(update_fields=['horas_real'])

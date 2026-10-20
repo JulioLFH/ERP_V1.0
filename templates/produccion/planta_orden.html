@@ -27,6 +27,26 @@
       {% if turnos %}<div class="col-6 col-md-3"><label class="form-label">Turno</label><select name="turno" class="form-select form-select-lg" data-sin-buscador><option value="">Según la hora</option>{% for t in turnos %}<option value="{{ t.pk }}" {% if turno_actual and turno_actual.pk == t.pk %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>{% endif %}
       <div class="col-12 {% if turnos %}col-md-9{% endif %}"><label class="form-label">Nota</label><input name="nota" class="form-control form-control-lg" maxlength="200" placeholder="Incidencias…"></div>
     </div>
+    {% if trabajadores %}<div class="mt-3"><label class="form-label fw-semibold">Personal que trabajó (horas hombre)</label>
+      <div id="pp-filas"><div class="row g-2 mb-2 pp-fila">
+        <div class="col-12 col-md-6"><select name="pp_0_trab" class="form-select form-select-lg" data-sin-buscador><option value="">— Trabajador —</option>{% for t in trabajadores %}<option value="{{ t.pk }}">{{ t.nombre_completo }}{% if t.cargo %} · {{ t.cargo }}{% endif %}</option>{% endfor %}</select></div>
+        <div class="col-6 col-md-3"><select name="pp_0_rol" class="form-select form-select-lg" data-sin-buscador><option value="MAQUINISTA">Maquinista</option><option value="AYUDANTE">Ayudante</option></select></div>
+        <div class="col-6 col-md-3"><input name="pp_0_horas" class="form-control form-control-lg text-end" inputmode="decimal" placeholder="Horas"></div>
+      </div></div>
+      <button type="button" class="btn btn-outline-secondary" id="pp-agregar"><i class="bi bi-person-plus"></i> Agregar trabajador</button>
+      <div class="small text-muted mt-1">Se precargan como la cuadrilla real al terminar la orden; cada uno se valoriza al costo real de su hora.</div>
+    </div>
+    <script>
+    document.getElementById('pp-agregar').addEventListener('click', () => {
+      const cont = document.getElementById('pp-filas'), n = cont.querySelectorAll('.pp-fila').length;
+      const fila = cont.querySelector('.pp-fila').cloneNode(true);
+      fila.querySelectorAll('[name]').forEach(c => {
+        c.name = c.name.replace(/^pp_\d+_/, 'pp_' + n + '_');
+        if (c.tagName === 'SELECT') c.selectedIndex = c.name.endsWith('_rol') ? 1 : 0; else c.value = '';
+      });
+      cont.appendChild(fila);
+    });
+    </script>{% endif %}
     <button class="btn btn-lg btn-success w-100 mt-3"><i class="bi bi-check2-circle"></i> Registrar avance</button>
     <div class="small text-muted mt-2">Las horas reportadas reemplazan las horas reales de la operación al terminar la orden. La orden confirmada pasa a «En proceso» con el primer reporte.</div>
   </div>
@@ -72,6 +92,6 @@
 {% else %}<div class="alert alert-secondary">La orden está {{ o.get_estado_display|lower }}: ya no recibe reportes.</div>{% endif %}
 {% if resumen %}<div class="card"><div class="card-header">Reportes</div><div class="table-responsive"><table class="table table-sm mb-0">
   <thead><tr><th>Fecha y hora</th><th>Operación</th><th class="num">Buena</th><th class="num">Merma</th><th class="num">Horas</th><th>Operario</th><th>Nota</th></tr></thead>
-  <tbody>{% for a in resumen.avances %}<tr><td class="small">{{ a.registrado|date:'d/m/Y H:i' }}</td><td class="small">{{ a.hora.descripcion|default:'—' }}</td><td class="num">{{ a.cantidad_buena|money }}</td><td class="num">{{ a.cantidad_merma|money }}</td><td class="num">{{ a.horas|floatformat:2 }}</td><td class="small">{{ a.operario }}</td><td class="small">{{ a.nota }}</td></tr>{% endfor %}</tbody>
+  <tbody>{% for a in resumen.avances %}<tr><td class="small">{{ a.registrado|date:'d/m/Y H:i' }}</td><td class="small">{{ a.hora.descripcion|default:'—' }}</td><td class="num">{{ a.cantidad_buena|money }}</td><td class="num">{{ a.cantidad_merma|money }}</td><td class="num">{{ a.horas|floatformat:2 }}</td><td class="small">{{ a.operario }}{% for p in a.personal.all %}<div class="text-muted">{{ p.trabajador.nombre_completo }} · {{ p.get_rol_display|lower }} · {{ p.horas|floatformat:2 }} h</div>{% endfor %}</td><td class="small">{{ a.nota }}</td></tr>{% endfor %}</tbody>
 </table></div></div>{% endif %}
 {% endblock %}

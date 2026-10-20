@@ -92,12 +92,13 @@ class Compra(ComprobanteBase):
         ('MERCADERIA', 'Mercadería'),
         ('MATERIA_PRIMA', 'Materia prima e insumos'),
         ('SUMINISTRO', 'Suministros y repuestos'),
+        ('ENVASE', 'Envases y embalajes'),
         ('GASTO', 'Gasto'),
         ('ACTIVO_FIJO', 'Activo fijo'),
         ('SERVICIO', 'Servicio'),
         ('HONORARIOS', 'Honorarios (4ta categoría)'),
     ]
-    DE_ALMACEN = ('MERCADERIA', 'MATERIA_PRIMA', 'SUMINISTRO')  # clasificaciones de bienes que ingresan al almacén
+    DE_ALMACEN = ('MERCADERIA', 'MATERIA_PRIMA', 'SUMINISTRO', 'ENVASE')  # clasificaciones de bienes que ingresan al almacén
     clasificacion = models.CharField('Clasificación', max_length=20, choices=CLASIFICACION, default='MERCADERIA')
     orden_compra = models.ForeignKey(OrdenCompra, on_delete=models.SET_NULL, null=True, blank=True,
                                      related_name='compras', verbose_name='Orden de compra')

@@ -5,7 +5,7 @@
   <h1 class="page-title">Sugerencia de compra (reposición)</h1>
   <a href="?formato=excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
 </div>
-<p class="small text-muted">Productos cuyo stock más lo pedido en órdenes de compra vigentes y lo solicitado en solicitudes de pedido (en camino) llegó al punto de reorden (o al stock mínimo). La cantidad sugerida completa el stock máximo (o el doble del punto de reorden) y se redondea al lote mínimo de compra. Estos datos se configuran en cada producto, pestaña Planificación.</p>
+<p class="small text-muted">Productos cuyo stock más lo pedido en órdenes de compra vigentes y lo solicitado en solicitudes de pedido (en camino) llegó al punto de reorden (o al stock mínimo). La cantidad sugerida completa el stock máximo (o el doble del punto de reorden) y se redondea al lote mínimo de compra. Estos datos se configuran en cada producto, pestaña Planificación. Los productos que se fabrican (terminados, semielaborados o con versión de fabricación) no aparecen: los repone el MRP con órdenes de producción.</p>
 <form method="post">{% csrf_token %}
 {% for clave, g in grupos.items %}
 <div class="card mb-3">

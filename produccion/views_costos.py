@@ -77,9 +77,13 @@ def absorcion(request):
     from django.utils import timezone
     periodo = (request.GET.get('periodo') or timezone.localdate().strftime('%Y-%m')).replace('-', '')[:6]
     filas, sin_centro = servicios.absorcion(periodo)
-    totales = {k: sum((f[k] for f in filas), D0) for k in ('real', 'mo', 'cif', 'absorbido', 'diferencia')}
+    totales = {k: sum((f[k] for f in filas), D0) for k in ('real', 'real_mo', 'real_cif', 'mo', 'cif', 'absorbido',
+                                                           'dif_mo', 'dif_cif', 'diferencia')}
+    from .models import LiquidacionCosto
     return render(request, 'produccion/absorcion.html', {
         'filas': filas, 'totales': totales, 'sin_centro': sin_centro, 'periodo': periodo,
+        'puestos': servicios.absorcion_por_puesto(periodo),
+        'liquidado': LiquidacionCosto.objects.filter(periodo=periodo).first(),
         'periodo_input': f'{periodo[:4]}-{periodo[4:]}'})
 
 

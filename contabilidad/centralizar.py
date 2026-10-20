@@ -492,7 +492,7 @@ def asiento_inventario(periodo, cta):
     por_codigo = {c.codigo: c for c in CuentaContable.objects.filter(codigo__regex=r'^(61|71)')}
     # manufactura (PCGE): el insumo consumido va a la variación de existencias (61) y el producto obtenido a la
     # variación de la producción almacenada (71), según la cuenta de existencias de cada producto
-    VARIACION = {'24': '6121', '25': '6132', '20': '6111', '23': '7131', '21': '7111'}
+    VARIACION = {'24': '6121', '25': '6132', '26': '6141', '20': '6111', '23': '7131', '21': '7111'}
     PRODUCCION = {'23': '7131', '21': '7111'}
 
     def contra_manufactura(ex, entrada):

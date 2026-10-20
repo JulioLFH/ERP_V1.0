@@ -166,6 +166,11 @@ class CotizacionForm(BootstrapMixin, forms.ModelForm):
             tipo = self.instance.tipo
             serie, numero = Serie.siguiente(tipo, 'CT01' if tipo == 'COT' else 'PD01')
             self.instance.numero = f'{serie}-{numero}'
+        # sin condición escrita se hereda la del cliente (cliente → pedido → factura)
+        cliente = self.instance.tercero if self.instance.tercero_id else None
+        if not (self.instance.condicion_pago or '').strip() and cliente is not None:
+            self.instance.condicion_pago = (f'Crédito {cliente.dias_credito} días' if cliente.dias_credito
+                                            else 'Contado')
         return super().save(commit)
 
 

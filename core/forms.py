@@ -331,6 +331,15 @@ class AlmacenForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
         model = Almacen
         fields = '__all__'
 
+    def clean(self):
+        datos = super().clean()
+        # un almacén físico es punto de partida de las guías de remisión: dirección y ubigeo obligatorios
+        if not datos.get('uso') and datos.get('activo'):
+            for campo in ('direccion', 'ubigeo'):
+                if not (datos.get(campo) or '').strip():
+                    self.add_error(campo, 'Obligatorio: es el punto de partida de las guías de remisión.')
+        return datos
+
 
 class TipoCambioForm(BootstrapMixin, forms.ModelForm):
     class Meta:

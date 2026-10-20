@@ -180,8 +180,13 @@ REPORTES = {
                      'Inventario valorizado a cualquier fecha y cuadre automático con las cuentas 20 a 26.'),
     'rotacion': ('Rotación y stock sin movimiento', 'MC.9 / MC46', 'bi-arrow-repeat',
                  'Rotación, días de inventario y productos sin movimiento en 90, 180 o 365 días.'),
+    'negativos': ('Saldos negativos en el kardex', 'Regularización', 'bi-exclamation-triangle',
+                  'Productos y almacenes cuyo kardex quedó en negativo en alguna fecha (salidas registradas antes de '
+                  'su ingreso): desde cuándo, con qué movimiento, el peor saldo y el de hoy. Para regularizar antes '
+                  'del cierre de kardex.'),
 }
 LIMITE_PANTALLA = 1000
+LIMITE_EXCEL = 200000  # más filas: CSV o por correo
 
 
 @login_required
@@ -212,7 +217,7 @@ def reporte(request, clave):
         dias = 365
     sin_mov = int(g['sin_movimiento']) if g.get('sin_movimiento', '').isdigit() else None
     ver = bool(g.get('ver')) or bool(g.get('formato'))
-    total, cuadre, encabezados, filas = None, [], [], []
+    total, cuadre, encabezados, filas, n_total = None, [], [], [], None
     nombre = f'{clave}_{hoy:%Y%m%d}'
     if ver:
         if clave == 'stock_fecha':
@@ -223,12 +228,32 @@ def reporte(request, clave):
             encabezados, filas, total, cuadre = rm.valorizacion(fecha, almacenes, q, familia)
         elif clave == 'rotacion':
             encabezados, filas, total = rm.rotacion(almacenes, q, familia, dias, sin_mov)
+        elif clave == 'negativos':
+            encabezados, filas, total = rm.saldos_negativos(almacenes, q, familia)
         elif clave == 'kardex':
+            if g.get('formato') == 'correo':
+                if not request.user.email:
+                    messages.error(request, 'Su usuario no tiene correo: regístrelo en Ajustes › Usuarios.')
+                else:
+                    rm.kardex_en_segundo_plano(request.user, desde, hasta, almacenes, q, familia)
+                    messages.success(request, f'El kardex se está generando en segundo plano: llegará a '
+                                              f'{request.user.email} como CSV comprimido.')
+                return redirect(f'{request.path}?{g.urlencode().replace("formato=correo", "").strip("&")}')
+            n_mov = n_total = rm.contar_kardex(desde, hasta, almacenes, q, familia)
+            if g.get('formato') == 'excel' and n_mov > LIMITE_EXCEL:
+                messages.warning(request, f'Son {n_mov:,} movimientos: para más de {LIMITE_EXCEL:,} use el CSV o '
+                                          f'«Enviarme por correo».')
+                return redirect(f'{request.path}?{g.urlencode().replace("formato=excel", "").strip("&")}')
             if g.get('formato') == 'csv':
                 return _csv(f'Kardex_{desde}_{hasta}', rm.ENCABEZADOS_KARDEX,
                             rm.kardex_masivo(desde, hasta, almacenes, q, familia))
             encabezados = rm.ENCABEZADOS_KARDEX
-            filas = list(rm.kardex_masivo(desde, hasta, almacenes, q, familia))
+            filas = rm.kardex_masivo(desde, hasta, almacenes, q, familia)
+            if g.get('formato') != 'excel':  # en pantalla solo las primeras filas (el total se cuenta aparte)
+                import itertools
+                filas = list(itertools.islice(filas, LIMITE_PANTALLA))
+            else:
+                filas = list(filas)
         if not costos:  # sin permiso de costos no se muestran costos ni valores
             quitar = [i for i, e in enumerate(encabezados) if 'Costo' in e or 'S/' in e]
             encabezados = [e for i, e in enumerate(encabezados) if i not in quitar]
@@ -244,7 +269,8 @@ def reporte(request, clave):
             return excel_response(nombre, f'{titulo} ({sap})', encabezados, datos)
     return render(request, 'inventario/reporte_masivo.html', {
         'clave': clave, 'titulo': titulo, 'sap': sap, 'icono': icono, 'descripcion': descripcion,
-        'encabezados': encabezados, 'filas': filas[:LIMITE_PANTALLA], 'n_filas': len(filas), 'total': total,
+        'encabezados': encabezados, 'filas': filas[:LIMITE_PANTALLA],
+        'n_filas': n_total if n_total is not None else len(filas), 'total': total,
         'cuadre': cuadre, 'limite': LIMITE_PANTALLA, 'ver': ver, 'almacenes': Almacen.objects.filter(activo=True),
         'elegidos': almacenes, 'familias': rm.familias(), 'f': {'q': q, 'familia': familia, 'ubicacion': ubicacion,
                                                                 'lote': por_lote, 'fecha': fecha, 'desde': desde,

@@ -316,7 +316,9 @@ def indicadores(almacen=None, desde=None, hasta=None):
     por_motivo, por_mes = defaultdict(lambda: D0), defaultdict(lambda: [D0, D0])
     for i in items:
         exacto = not i.diferencia
-        for clave, valor in (('almacen', str(i.conteo.almacen)), ('clase', i.clase or '—'),
+        alm = i.conteo.almacen
+        nombre_alm = f'{alm} · {alm.get_modelo_control_display().lower()}' if alm.modelo_control else str(alm)
+        for clave, valor in (('almacen', nombre_alm), ('clase', i.clase or '—'),
                              ('contador', i.contado_por.username if i.contado_por_id else '—')):
             ira[clave][valor][0] += 1
             ira[clave][valor][1] += exacto

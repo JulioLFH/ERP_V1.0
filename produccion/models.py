@@ -749,6 +749,18 @@ class AvanceOrden(models.Model):
         return f'Avance de la orden {self.orden.numero}: {self.cantidad_buena} buenas, {self.horas} h'
 
 
+class AvancePersonal(models.Model):
+    """Horas hombre que la planta declara en un avance: quién trabajó (de la planilla), con qué rol y cuántas horas.
+    Al terminar la orden se precargan como su cuadrilla real."""
+    avance = models.ForeignKey(AvanceOrden, on_delete=models.CASCADE, related_name='personal')
+    trabajador = models.ForeignKey('planillas.Trabajador', on_delete=models.PROTECT, related_name='+')
+    rol = models.CharField(max_length=10, choices=HoraHombre.ROLES, default='MAQUINISTA')
+    horas = models.DecimalField(max_digits=8, decimal_places=2)
+
+    class Meta:
+        ordering = ['id']
+
+
 class MotivoParada(models.Model):
     """Maestro de motivos de parada (Manufactura › Ingeniería): cada motivo dice qué pérdida del OEE afecta; la planta
     elige el motivo y el OEE se calcula solo."""

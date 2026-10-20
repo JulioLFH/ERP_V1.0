@@ -8,6 +8,7 @@
 <form method="post" novalidate>
   {% csrf_token %}
   {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  {% if form.errors and not form.non_field_errors or formset.total_error_count %}<div class="alert alert-danger py-2"><b>Revise los campos marcados.</b>{% for campo in form %}{% if campo.errors %}<div class="small">• {{ campo.label }}: {{ campo.errors|join:' ' }}</div>{% endif %}{% endfor %}{% if formset.total_error_count %}<div class="small">• Revise las líneas del detalle.</div>{% endif %}</div>{% endif %}
   <div class="card mb-3">
     <div class="card-header">Datos del documento</div>
     <div class="card-body">

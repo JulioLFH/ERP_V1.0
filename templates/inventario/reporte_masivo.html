@@ -19,7 +19,8 @@
   <div class="col-6 col-md-2"><label class="form-label small mb-1">Sin movimiento</label><select name="sin_movimiento" class="form-select form-select-sm"><option value="">Todos</option>{% for n in opciones_dias %}<option value="{{ n }}" {% if f.sin_movimiento == n %}selected{% endif %}>Más de {{ n }} días</option>{% endfor %}</select></div>{% endif %}
   <div class="col-12 d-flex flex-wrap gap-2"><button class="btn btn-sm btn-primary"><i class="bi bi-search"></i> Ver</button>
     <button name="formato" value="excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</button>
-    {% if clave == 'kardex' %}<button name="formato" value="csv" class="btn btn-sm btn-outline-secondary"><i class="bi bi-filetype-csv"></i> CSV (sin límite de filas)</button>{% endif %}</div>
+    {% if clave == 'kardex' %}<button name="formato" value="csv" class="btn btn-sm btn-outline-secondary"><i class="bi bi-filetype-csv"></i> CSV (sin límite de filas)</button>
+    <button name="formato" value="correo" class="btn btn-sm btn-outline-secondary" title="Para rangos grandes: se genera en segundo plano y llega como CSV comprimido"><i class="bi bi-envelope"></i> Enviarme por correo</button>{% endif %}</div>
 </div></form>
 {% if ver %}
 {% if n_filas > limite %}<div class="alert alert-info py-2 small">Se muestran las primeras {{ limite }} de {{ n_filas }} filas: descargue el Excel{% if clave == 'kardex' %} o el CSV{% endif %} para verlas todas.</div>{% endif %}

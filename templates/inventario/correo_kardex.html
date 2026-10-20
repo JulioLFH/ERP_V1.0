@@ -1,0 +1,5 @@
+{% extends 'proveedores/correo_base.html' %}
+{% block cuerpo %}
+<p>Hola {{ usuario.get_full_name|default:usuario.username }}:</p>
+<p>Adjuntamos el <b>kardex masivo</b> del {{ desde|date:'d/m/Y' }} al {{ hasta|date:'d/m/Y' }}: {{ n }} movimiento(s) en un archivo CSV comprimido (separado por punto y coma; se abre con Excel).</p>
+{% endblock %}

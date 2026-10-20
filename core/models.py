@@ -547,6 +547,11 @@ class Almacen(models.Model):
     uso = models.CharField('Uso', max_length=12, choices=USOS, blank=True)
     tercero = models.ForeignKey('Tercero', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
                                 help_text='Solo almacenes en poder de terceros: el maquilador que tiene la mercadería')
+    CONTROLES = [('', 'No definido'), ('ANUAL', 'Inventario general anual'), ('CICLICO', 'Cíclico ABC'),
+                 ('AMBOS', 'Cíclico ABC y general anual')]
+    modelo_control = models.CharField('Modelo de control de inventario', max_length=8, choices=CONTROLES,
+                                      blank=True, help_text='Cómo se audita el stock de este almacén (indicadores '
+                                                            'de inventario físico)')
     activo = models.BooleanField(default=True)
 
     class Meta:

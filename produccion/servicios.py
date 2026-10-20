@@ -648,12 +648,20 @@ def variaciones(orden):
 
 
 # ---------------------------------------------------------------- absorción de costos de planta
-def absorcion(periodo):
-    """Por centro de costo de planta: gasto real del periodo (contabilidad, 62-68) frente a mano de obra y CIF
-    absorbidos por las órdenes terminadas. Positivo = subaplicación (costó más de lo que se cargó a productos)."""
+def _real_centro(periodo, ids, regex):
     from django.db.models import Sum
 
-    from contabilidad.models import AsientoLinea, CentroCosto
+    from contabilidad.models import AsientoLinea
+    agg = AsientoLinea.objects.filter(asiento__periodo=periodo, es_destino=False, centro_costo_id__in=ids,
+                                      cuenta__codigo__regex=regex).aggregate(d=Sum('debe'), h=Sum('haber'))
+    return (agg['d'] or D0) - (agg['h'] or D0)
+
+
+def absorcion(periodo):
+    """Por centro de costo de planta: gasto real del periodo (contabilidad) frente a lo absorbido por las órdenes
+    terminadas, separado en mano de obra (planilla, 62) y máquina + CIF (63 a 68: depreciación, energía,
+    mantenimiento…). Positivo = subaplicación (costó más de lo que se cargó a los productos)."""
+    from contabilidad.models import CentroCosto
     from contabilidad.centralizar import _rango
     desde, hasta = _rango(periodo)
     absorbido = defaultdict(lambda: [D0, D0])
@@ -667,19 +675,37 @@ def absorcion(periodo):
     filas = []
     for cc in centros.order_by('codigo'):
         ids = cc.descendientes_ids()
-        real = (AsientoLinea.objects.filter(asiento__periodo=periodo, es_destino=False, centro_costo_id__in=ids,
-                                            cuenta__codigo__regex=r'^6[2-8]')
-                .aggregate(s=Sum('debe'))['s'] or D0) - (
-            AsientoLinea.objects.filter(asiento__periodo=periodo, es_destino=False, centro_costo_id__in=ids,
-                                        cuenta__codigo__regex=r'^6[2-8]').aggregate(s=Sum('haber'))['s'] or D0)
+        real_mo, real_cif = _real_centro(periodo, ids, r'^62'), _real_centro(periodo, ids, r'^6[3-8]')
         mo, cif = sum((absorbido[i][0] for i in ids if i in absorbido), D0), sum(
             (absorbido[i][1] for i in ids if i in absorbido), D0)
+        real = real_mo + real_cif
         if not (real or mo or cif):
             continue
-        filas.append({'centro': cc, 'real': real, 'mo': mo, 'cif': cif, 'absorbido': mo + cif,
+        filas.append({'centro': cc, 'real': real, 'real_mo': real_mo, 'real_cif': real_cif, 'mo': mo, 'cif': cif,
+                      'absorbido': mo + cif, 'dif_mo': real_mo - mo, 'dif_cif': real_cif - cif,
                       'diferencia': real - mo - cif,
                       'pct': ((mo + cif) / real * 100).quantize(Decimal('0.1')) if real else None})
     return filas, sin_centro
+
+
+def absorcion_por_puesto(periodo):
+    """Por puesto de trabajo: horas reales, mano de obra, máquina y CIF absorbidos en el periodo y la tarifa
+    aplicada; el gasto real se compara por el centro de costo del puesto (absorcion)."""
+    from contabilidad.centralizar import _rango
+    desde, hasta = _rango(periodo)
+    filas = defaultdict(lambda: {'horas': D0, 'hh': D0, 'mo': D0, 'maquina': D0, 'cif': D0, 'ordenes': set()})
+    for h in HoraOrden.objects.filter(orden__estado='TERMINADA', orden__fecha_fin__range=[desde, hasta]) \
+            .select_related('centro__centro_costo').prefetch_related('personal'):
+        f = filas[h.centro]
+        f['horas'] += h.horas_real
+        f['hh'] += h.horas_hombre
+        f['mo'] += h.costo_mo
+        f['maquina'] += h.costo_maquina
+        f['cif'] += h.costo_cif
+        f['ordenes'].add(h.orden_id)
+    return sorted(({'puesto': c, **{k: v for k, v in f.items() if k != 'ordenes'}, 'ordenes': len(f['ordenes']),
+                    'total': f['mo'] + f['maquina'] + f['cif']} for c, f in filas.items()),
+                  key=lambda x: x['puesto'].codigo)
 
 
 # ---------------------------------------------------------------- MRP

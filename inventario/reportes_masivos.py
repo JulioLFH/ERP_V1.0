@@ -139,23 +139,92 @@ def stock_actual(almacenes=None, q='', familia='', por_lote=False, ubicacion='')
 
 
 # ---------------------------------------------------------------- MB51: kardex masivo
-ENCABEZADOS_KARDEX = ['Fecha', 'Código', 'Producto', 'Almacén', 'Lote', 'Tipo', 'Tabla 12', 'Origen', 'Referencia',
-                      'Entrada', 'Salida', 'Costo unit.', 'Valor S/', 'Centro de costo']
+ENCABEZADOS_KARDEX = ['Fecha', 'Código', 'Producto', 'Almacén', 'Lote', 'Tipo', 'Tabla 12', 'Origen', 'Documento',
+                      'Entrada', 'Salida', 'Saldo', 'Costo unit.', 'Valor S/', 'Centro de costo']
+
+
+def contar_kardex(desde, hasta, almacenes=None, q='', familia=''):
+    qs = Kardex.objects.filter(fecha__range=(desde, hasta), producto__in=_productos(q, familia))
+    return (qs.filter(almacen_id__in=almacenes) if almacenes else qs).count()
 
 
 def kardex_masivo(desde, hasta, almacenes=None, q='', familia=''):
-    """Iterador de filas (un movimiento por fila) para la pantalla, el Excel o el CSV."""
-    qs = (Kardex.objects.filter(fecha__range=(desde, hasta), producto__in=_productos(q, familia))
+    """Iterador de filas (un movimiento por fila, con el saldo del producto en su almacén) para la pantalla, el
+    Excel o el CSV."""
+    productos = _productos(q, familia)
+    qs = (Kardex.objects.filter(fecha__range=(desde, hasta), producto__in=productos)
           .select_related('producto', 'almacen', 'lote', 'centro_costo').order_by('fecha', 'id'))
+    previo = Kardex.objects.filter(fecha__lt=desde, producto__in=productos)
     if almacenes:
-        qs = qs.filter(almacen_id__in=almacenes)
+        qs, previo = qs.filter(almacen_id__in=almacenes), previo.filter(almacen_id__in=almacenes)
+    saldos = defaultdict(lambda: D0, {(f['producto_id'], f['almacen_id']): f['c'] for f in
+                                      previo.values('producto_id', 'almacen_id').annotate(c=_NETO).order_by()})
     for k in qs.iterator(chunk_size=2000):
         entrada = k.cantidad if k.tipo == 'ENTRADA' else None
         salida = k.cantidad if k.tipo != 'ENTRADA' else None
+        clave = (k.producto_id, k.almacen_id)
+        saldos[clave] += k.cantidad if k.tipo == 'ENTRADA' else -k.cantidad
         yield [k.fecha, k.producto.codigo, k.producto.nombre, k.almacen.codigo if k.almacen_id else '',
                k.lote.codigo if k.lote_id else '', k.tipo.capitalize(), k.codigo_sunat, k.origen, k.referencia,
-               entrada, salida, k.costo_unitario, r2(k.cantidad * (k.costo_unitario or D0)),
+               entrada, salida, saldos[clave], k.costo_unitario, r2(k.cantidad * (k.costo_unitario or D0)),
                k.centro_costo.codigo if k.centro_costo_id else '']
+
+
+def kardex_por_correo(usuario_id, alias, desde, hasta, almacenes, q, familia):
+    """Genera el kardex masivo en CSV comprimido y lo envía al correo del usuario (se llama en segundo plano)."""
+    import csv
+    import io
+    import logging
+    import zipfile
+
+    from django.contrib.auth import get_user_model
+
+    from erp.empresas import activar, restaurar
+    token = activar(alias)
+    try:
+        usuario = get_user_model().objects.get(pk=usuario_id)
+        texto = io.StringIO()
+        escritor = csv.writer(texto, delimiter=';')
+        escritor.writerow(ENCABEZADOS_KARDEX)
+        n = 0
+        for fila in kardex_masivo(desde, hasta, almacenes, q, familia):
+            escritor.writerow(['' if v is None else str(v) for v in fila])
+            n += 1
+        datos = io.BytesIO()
+        nombre = f'Kardex_{desde}_{hasta}'
+        with zipfile.ZipFile(datos, 'w', zipfile.ZIP_DEFLATED) as z:
+            z.writestr(f'{nombre}.csv', '﻿' + texto.getvalue())
+        from core.correo import ErrorCorreo, enviar
+        try:
+            enviar([usuario.email], f'Kardex masivo {desde:%d/%m/%Y} al {hasta:%d/%m/%Y} ({n:,} movimientos)',
+                   'inventario/correo_kardex.html', {'usuario': usuario, 'n': n, 'desde': desde, 'hasta': hasta},
+                   adjuntos=[(f'{nombre}.zip', datos.getvalue(), 'application/zip')])
+        except ErrorCorreo as exc:
+            logging.getLogger(__name__).warning('Kardex masivo no enviado a %s: %s', usuario.email, exc)
+        return n
+    finally:
+        restaurar(token)
+
+
+def kardex_en_segundo_plano(usuario, desde, hasta, almacenes, q, familia):
+    """Lanza kardex_por_correo en otro hilo (en las pruebas, en el mismo)."""
+    import threading
+
+    from django.conf import settings
+    from django.db import connections
+
+    from erp.empresas import actual
+    argumentos = (usuario.pk, actual(), desde, hasta, almacenes, q, familia)
+    if getattr(settings, 'MONITOREO_SINCRONO', False):
+        return kardex_por_correo(*argumentos)
+
+    def tarea():
+        try:
+            kardex_por_correo(*argumentos)
+        finally:
+            connections.close_all()  # el hilo abrió sus propias conexiones
+    threading.Thread(target=tarea, daemon=True).start()
+    return None
 
 
 # ---------------------------------------------------------------- MB5B con valores / MC.9: valorización y cuadre
@@ -181,6 +250,46 @@ def valorizacion(fecha, almacenes=None, q='', familia=''):
             kardex, conta = por_cuenta.get(cuenta, D0), contable.get(cuenta) or D0
             cuadre.append([cuenta, nombres.get(cuenta, ''), kardex, conta, kardex - conta])
     return encabezados, filas, total, cuadre
+
+
+# ---------------------------------------------------------------- saldos negativos (regularizar antes del cierre)
+def saldos_negativos(almacenes=None, q='', familia=''):
+    """Productos y almacenes cuyo kardex quedó en negativo en alguna fecha (p. ej. salidas registradas antes de su
+    ingreso, anteriores al control de v1.36): desde cuándo, el peor saldo y el saldo de hoy."""
+    productos = {p.pk: p for p in _productos(q, familia)}
+    qs = Kardex.objects.filter(producto_id__in=productos).order_by('producto_id', 'almacen_id', 'fecha', 'id')
+    if almacenes:
+        qs = qs.filter(almacen_id__in=almacenes)
+    from core.models import Almacen
+    nombres = dict(Almacen.objects.values_list('pk', 'codigo'))
+    filas, actual, saldo, info = [], None, D0, None
+
+    def cerrar():
+        if info and info['minimo'] < 0:
+            p = productos[actual[0]]
+            filas.append([p.codigo, p.nombre, nombres.get(actual[1], ''), p.unidad, info['desde'], info['referencia'],
+                          info['minimo'], info['fecha_minimo'], saldo, info['dias']])
+    for k in qs.only('producto_id', 'almacen_id', 'fecha', 'tipo', 'cantidad', 'referencia').iterator(chunk_size=5000):
+        clave = (k.producto_id, k.almacen_id)
+        if clave != actual:
+            cerrar()
+            actual, saldo, info = clave, D0, {'minimo': D0, 'desde': None, 'referencia': '', 'fecha_minimo': None,
+                                              'dias': 0, 'neg_desde': None}
+        saldo += k.cantidad if k.tipo == 'ENTRADA' else -k.cantidad
+        if saldo < 0:
+            if info['neg_desde'] is None:
+                info['neg_desde'] = k.fecha
+                if info['desde'] is None:
+                    info['desde'], info['referencia'] = k.fecha, k.referencia
+            if saldo < info['minimo']:
+                info['minimo'], info['fecha_minimo'] = saldo, k.fecha
+        elif info['neg_desde'] is not None:
+            info['dias'] += (k.fecha - info['neg_desde']).days
+            info['neg_desde'] = None
+    cerrar()
+    encabezados = ['Código', 'Producto', 'Almacén', 'U.M.', 'Negativo desde', 'Movimiento que lo dejó negativo',
+                   'Peor saldo', 'Fecha del peor saldo', 'Saldo de hoy', 'Días en negativo (cerrados)']
+    return encabezados, filas, None
 
 
 # ---------------------------------------------------------------- MC.9 / MC46: rotación y sin movimiento

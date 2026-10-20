@@ -5,19 +5,26 @@
   <h1 class="page-title">Absorción de costos de planta</h1>
   <form method="get"><input type="month" name="periodo" value="{{ periodo_input }}" class="form-control form-control-sm" onchange="this.form.submit()"></form>
 </div>
-<div class="card"><div class="table-responsive"><table class="table mb-0">
-  <thead><tr><th>Centro de costo</th><th class="num">Gasto real S/</th><th class="num">Mano de obra absorbida</th><th class="num">Máquina y CIF absorbidos</th><th class="num">Total absorbido</th><th class="num">Sub (+) / sobre (−) aplicación</th><th class="num">% absorbido</th></tr></thead>
+<div class="card mb-3"><div class="card-header">Por centro de costo: gasto real frente a lo absorbido por las órdenes</div><div class="table-responsive"><table class="table mb-0">
+  <thead><tr><th rowspan="2">Centro de costo</th><th class="text-center border-start" colspan="3">Mano de obra (planilla, 62)</th><th class="text-center border-start" colspan="3">Máquina y CIF (63 a 68)</th><th class="num border-start" rowspan="2">Total sub (+) / sobre (−)</th><th class="num" rowspan="2">% absorbido</th></tr>
+    <tr><th class="num border-start">Real</th><th class="num">Absorbida</th><th class="num">Diferencia</th><th class="num border-start">Real</th><th class="num">Absorbido</th><th class="num">Diferencia</th></tr></thead>
   <tbody>{% for f in filas %}<tr>
     <td>{{ f.centro.codigo }} {{ f.centro.nombre }} <span class="small text-muted">{{ f.centro.get_tipo_display }}</span></td>
-    <td class="num">{{ f.real|money }}</td><td class="num">{{ f.mo|money }}</td><td class="num">{{ f.cif|money }}</td><td class="num">{{ f.absorbido|money }}</td>
-    <td class="num fw-semibold {% if f.diferencia > 0 %}text-danger{% elif f.diferencia < 0 %}text-success{% endif %}">{{ f.diferencia|money }}</td>
+    <td class="num border-start">{{ f.real_mo|money }}</td><td class="num">{{ f.mo|money }}</td><td class="num {% if f.dif_mo > 0 %}text-danger{% elif f.dif_mo < 0 %}text-success{% endif %}">{{ f.dif_mo|money }}</td>
+    <td class="num border-start">{{ f.real_cif|money }}</td><td class="num">{{ f.cif|money }}</td><td class="num {% if f.dif_cif > 0 %}text-danger{% elif f.dif_cif < 0 %}text-success{% endif %}">{{ f.dif_cif|money }}</td>
+    <td class="num fw-semibold border-start {% if f.diferencia > 0 %}text-danger{% elif f.diferencia < 0 %}text-success{% endif %}">{{ f.diferencia|money }}</td>
     <td class="num">{% if f.pct is not None %}{{ f.pct }}%{% endif %}</td>
-  </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin gasto de planta ni absorción en el periodo. Asigne un centro de costo de tipo Producción a cada puesto de trabajo y a los gastos de planta.</td></tr>{% endfor %}</tbody>
-  {% if filas %}<tfoot><tr class="fw-bold"><td>Total</td><td class="num">{{ totales.real|money }}</td><td class="num">{{ totales.mo|money }}</td><td class="num">{{ totales.cif|money }}</td><td class="num">{{ totales.absorbido|money }}</td><td class="num">{{ totales.diferencia|money }}</td><td></td></tr></tfoot>{% endif %}
-</table></div>
-<div class="card-body py-2 small text-muted">
-  Gasto real: cuentas 62 a 68 del periodo con el centro de costo (y los que dependen de él), que van al costo de producción (90). Absorbido: horas reales de las órdenes terminadas por las tarifas de cada puesto.
-  <b>Subaplicación</b> (positivo): la planta costó más de lo que se cargó a los productos — revise tarifas o capacidad ociosa. <b>Sobreaplicación</b> (negativo): las tarifas son altas.
-  {% if sin_centro.0 or sin_centro.1 %}<br><span class="text-warning">S/ {{ sin_centro.0|money }} de mano de obra y S/ {{ sin_centro.1|money }} de CIF se absorbieron en puestos sin centro de costo.</span>{% endif %}
+  </tr>{% empty %}<tr><td colspan="9" class="text-center text-muted py-4">Sin gasto de planta ni absorción en el periodo. Asigne un centro de costo de tipo Producción a cada puesto de trabajo y a los gastos y trabajadores de planta.</td></tr>{% endfor %}</tbody>
+  {% if filas %}<tfoot><tr class="fw-bold"><td>Total</td><td class="num border-start">{{ totales.real_mo|money }}</td><td class="num">{{ totales.mo|money }}</td><td class="num">{{ totales.dif_mo|money }}</td><td class="num border-start">{{ totales.real_cif|money }}</td><td class="num">{{ totales.cif|money }}</td><td class="num">{{ totales.dif_cif|money }}</td><td class="num border-start">{{ totales.diferencia|money }}</td><td></td></tr></tfoot>{% endif %}
+</table></div></div>
+<div class="card mb-3"><div class="card-header">Por puesto de trabajo: lo aplicado a las órdenes terminadas</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Puesto</th><th>Centro de costo</th><th class="num">Órdenes</th><th class="num">Horas máquina</th><th class="num">Horas hombre</th><th class="num">Mano de obra</th><th class="num">Máquina</th><th class="num">CIF</th><th class="num">Total aplicado</th><th class="num">Tarifas S/ h (máq. · CIF)</th></tr></thead>
+  <tbody>{% for p in puestos %}<tr><td>{{ p.puesto.codigo }} {{ p.puesto.nombre }}</td><td class="small">{{ p.puesto.centro_costo|default:'—' }}</td><td class="num">{{ p.ordenes }}</td><td class="num">{{ p.horas|money }}</td><td class="num">{{ p.hh|money }}</td><td class="num">{{ p.mo|money }}</td><td class="num">{{ p.maquina|money }}</td><td class="num">{{ p.cif|money }}</td><td class="num fw-semibold">{{ p.total|money }}</td><td class="num small">{{ p.puesto.costo_hora_maquina|money }} · {{ p.puesto.costo_hora_cif|money }}</td></tr>{% empty %}<tr><td colspan="10" class="text-muted text-center py-3">Sin órdenes terminadas en el periodo.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<div class="card"><div class="card-body small">
+  <p class="mb-2"><b>Cómo se contabiliza.</b> Al terminar cada orden, el producto entra al inventario con su costo completo (materiales + mano de obra + máquina + CIF) contra la cuenta <b>71 Variación de la producción almacenada</b>, que hace de cuenta de <b>costos aplicados</b>; el gasto real de la planta queda en las 62 a 68 con su centro de costo y su destino a producción. La diferencia entre ambos es la sub o sobreaplicación de esta pantalla.</p>
+  <p class="mb-2"><b>Cierre del mes.</b> La <a href="{% url 'costos:liquidacion' %}?periodo={{ periodo_input }}">liquidación de costo real (NIC 2)</a> reparte la diferencia: lo que sigue en stock al inventario, lo vendido al costo de ventas y la capacidad ociosa a gasto. {% if liquidado %}<span class="text-success">Este periodo ya está liquidado.</span>{% else %}<span class="text-warning">Este periodo aún no se liquidó.</span>{% endif %}</p>
+  <p class="mb-0 text-muted"><b>Subaplicación</b> (positivo): la planta costó más de lo que se cargó a los productos — revise tarifas o capacidad ociosa. <b>Sobreaplicación</b> (negativo): las tarifas son altas. La mano de obra real es la planilla de los trabajadores del centro (o repartida según sus horas en las órdenes).
+  {% if sin_centro.0 or sin_centro.1 %}<br><span class="text-warning">S/ {{ sin_centro.0|money }} de mano de obra y S/ {{ sin_centro.1|money }} de máquina y CIF se absorbieron en puestos sin centro de costo.</span>{% endif %}</p>
 </div></div>
 {% endblock %}

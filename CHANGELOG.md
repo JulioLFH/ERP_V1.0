@@ -3,6 +3,20 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.41.0 — 20/10/2026 · Correcciones del piloto (hoja de 42 puntos): pendientes y completar lo parcial
+- **Saldos negativos en el kardex (n.º 12)**: nuevo reporte en Inventario › Reportes masivos con el producto, el almacén, desde cuándo quedó en negativo, el movimiento que lo dejó así, el peor saldo y el saldo de hoy, para regularizar antes del cierre.
+- **Aviso general en los formularios de comprobantes (n.º 13)**: arriba aparece «Revise los campos marcados» con la lista de los campos y su error (por ejemplo, la orden de compra sin aprobar).
+- **Absorción de costos de planta (n.º 15 y 17)**: separa la mano de obra (planilla 62 real frente a la absorbida en las órdenes) de la máquina y el CIF (63 a 68 real frente a lo aplicado), agrega el detalle por puesto de trabajo (horas máquina, horas hombre, mano de obra, máquina, CIF y tarifas) y explica la contabilización: la cuenta 71 hace de «costos aplicados» y la diferencia se cierra con la liquidación de costo real (enlace e indicador de si el mes ya se liquidó).
+- **Trabajadores sin centro de costo (n.º 16)**: filtro «Sin centro de costo», aviso con el número de trabajadores y **asignación masiva** (marcar y asignar el centro).
+- **Personal desde la tablet (n.º 18)**: el avance de la planta registra quién trabajó (trabajador de planilla, rol y horas) con el botón «Agregar trabajador»; al terminar la orden se precarga como la cuadrilla real.
+- **Envases y embalajes (n.º 22)**: nueva clasificación de compras con su cuenta 604 (destino 2861 por recibir y variación 614); se agregaron al plan las cuentas 26, 2861, 604 y 614.
+- **Almacenes (n.º 23)**: un almacén físico exige dirección y ubigeo (punto de partida de las guías); los de tránsito, cuarentena o terceros no.
+- **Sugerencia de compra (n.º 30)**: ya no propone comprar productos que se fabrican (terminados, semielaborados o con versión de fabricación): los repone el MRP.
+- **Kardex masivo (n.º 39)**: columna de saldo por producto y almacén (con el saldo al inicio del rango) y opción **«Enviarme por correo»**: se genera en segundo plano y llega como CSV comprimido. El Excel acepta hasta 200,000 movimientos; para más, el CSV.
+- **Modelo de control del almacén (n.º 41)**: inventario general anual, cíclico ABC o ambos; se muestra en los indicadores de exactitud.
+- **Stock por almacén (n.º 42)**: cuenta todos los almacenes activos, lista los que están sin stock y la opción «Incluir almacenes sin stock» muestra sus columnas en cero.
+- **Condición de pago (n.º 20)**: un pedido sin condición escrita hereda la del cliente («Crédito 45 días» o «Contado») y la factura la del pedido.
+
 ## v1.40.0 — 20/10/2026 · Inventario físico y reportes masivos de inventario (al estilo SAP)
 - **Inventario físico** (Inventario › Operaciones › Inventario físico): documento con número, almacén, tipo, contador asignado y **foto del stock** (cantidad y costo de cada producto, una línea por lote en los productos con lote). Tipos: **general** (todo el almacén), **cíclico ABC** (A cada 30 días, B 90, C 180), **aleatorio** (N productos al azar; la semilla y el usuario quedan registrados y la misma semilla reproduce la selección), **por ubicación** (todo un pasillo o rack) y **stock en cero** (confirmar que no queda saldo).
 - **Bloqueo de movimientos** opcional: mientras se cuenta, los productos del documento no se mueven en ese almacén (ventas, compras, producción, operaciones), con un aviso claro. Sin bloqueo, lo que se mueve después de la foto se descuenta al comparar.

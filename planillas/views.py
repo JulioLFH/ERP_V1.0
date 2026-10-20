@@ -18,16 +18,37 @@ from django.utils import timezone
 # ---------------------------------------------------------------- trabajadores
 @login_required
 def trabajadores(request):
-    from datetime import date
+    from contabilidad.models import CentroCosto
+    from core.permisos import puede
+    hoy = timezone.localdate()
+    vigentes = Q(fecha_cese__isnull=True) | Q(fecha_cese__gte=hoy)
+    if request.method == 'POST' and request.POST.get('accion') == 'asignar_centro':
+        # asignación masiva del centro de costo (destino del gasto de planilla)
+        if not puede(request.user, 'planillas.calcular'):
+            messages.error(request, 'Su usuario no edita trabajadores.')
+        else:
+            centro = CentroCosto.objects.filter(pk=request.POST.get('centro_costo') or 0, activo=True).first()
+            ids = [int(x) for x in request.POST.getlist('trabajador') if x.isdigit()]
+            if centro is None or not ids:
+                messages.error(request, 'Marque los trabajadores y elija el centro de costo.')
+            else:
+                n = 0
+                for t in Trabajador.objects.filter(pk__in=ids):
+                    t.centro_costo = centro
+                    t.save(update_fields=['centro_costo'])  # save: queda en la bitácora de auditoría
+                    n += 1
+                messages.success(request, f'{n} trabajador(es) asignados al centro de costo {centro}.')
+        return redirect(request.get_full_path())
     qs = Trabajador.objects.select_related('afp', 'centro_costo')
     estado = request.GET.get('estado', 'activos')
-    hoy = timezone.localdate()
     if estado == 'activos':
-        qs = qs.filter(Q(fecha_cese__isnull=True) | Q(fecha_cese__gte=hoy))
+        qs = qs.filter(vigentes)
     elif estado == 'cesados':
         qs = qs.filter(fecha_cese__lt=hoy)
     elif estado == 'incompletos':
         qs = qs.filter(Q(fecha_ingreso__isnull=True) | Q(sueldo__lte=0)).filter(fecha_cese__isnull=True)
+    elif estado == 'sin_centro':
+        qs = qs.filter(vigentes, centro_costo__isnull=True)
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(numero_doc__startswith=q) | Q(apellido_paterno__icontains=q) | Q(nombres__icontains=q) |
@@ -42,9 +63,11 @@ def trabajadores(request):
     return render(request, 'planillas/trabajadores.html', {
         'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'estado': estado, 'q': q,
         'estados': [('activos', 'Activos'), ('cesados', 'Cesados'), ('incompletos', 'Por completar'),
-                    ('todos', 'Todos')],
+                    ('sin_centro', 'Sin centro de costo'), ('todos', 'Todos')],
         'incompletos': Trabajador.objects.filter(Q(fecha_ingreso__isnull=True) | Q(sueldo__lte=0),
-                                                 fecha_cese__isnull=True).count()})
+                                                 fecha_cese__isnull=True).count(),
+        'sin_centro': Trabajador.objects.filter(vigentes, centro_costo__isnull=True).count(),
+        'centros': CentroCosto.objects.filter(activo=True)})
 
 
 def _guardar_trabajador(request, t, titulo):

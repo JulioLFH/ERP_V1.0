@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -106,11 +107,21 @@ def orden_detalle(request, pk):
     horas = list(orden.horas.select_related('centro').prefetch_related('personal__trabajador'))
     trabajadores = []
     if abierta and horas:
-        # la cuadrilla prevista (con las horas máquina) y una fila libre para quien se sume
+        # lo que la planta declaró en la tablet (trabajador, rol y horas) o, si no, la cuadrilla prevista con las
+        # horas máquina; más una fila libre para quien se sume
+        from .models import AvancePersonal
+        declarado = defaultdict(lambda: defaultdict(lambda: Decimal('0')))
+        for p in AvancePersonal.objects.filter(avance__orden=orden, avance__hora__isnull=False).values(
+                'avance__hora_id', 'trabajador_id', 'rol', 'horas'):
+            declarado[p['avance__hora_id']][(p['trabajador_id'], p['rol'])] += p['horas']
         for h in horas:
-            h.filas_personal = ([{'rol': 'MAQUINISTA', 'horas': h.horas_real}] * h.maquinistas +
-                                [{'rol': 'AYUDANTE', 'horas': h.horas_real}] * h.ayudantes +
-                                [{'rol': 'AYUDANTE', 'horas': None}])
+            if declarado.get(h.pk):
+                h.filas_personal = [{'rol': rol, 'trabajador': t, 'horas': hh}
+                                    for (t, rol), hh in declarado[h.pk].items()]
+            else:
+                h.filas_personal = ([{'rol': 'MAQUINISTA', 'horas': h.horas_real}] * h.maquinistas +
+                                    [{'rol': 'AYUDANTE', 'horas': h.horas_real}] * h.ayudantes)
+            h.filas_personal.append({'rol': 'AYUDANTE', 'horas': None})
         from planillas.models import Trabajador
         hoy = timezone.localdate()
         trabajadores = [t for t in Trabajador.objects.select_related('centro_costo').filter(fecha_ingreso__isnull=False).exclude(

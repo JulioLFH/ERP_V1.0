@@ -37,9 +37,12 @@ def stock(request):
     productos = Producto.objects.filter(activo=True, tipo='BIEN', es_plantilla=False).prefetch_related('stocks')
     if not todos:  # por defecto solo lo que tiene stock (la lista completa puede tener miles de productos)
         productos = productos.exclude(stock=0)
-    # columnas: solo los almacenes con mercadería (o todos los activos si se piden todos los productos)
+    # columnas: los almacenes con mercadería; con «Incluir almacenes sin stock» (o todos los productos), todos los
+    # activos aunque estén en cero
     con_stock = set(StockAlmacen.objects.exclude(cantidad=0).values_list('almacen_id', flat=True))
-    almacenes = [a for a in Almacen.objects.filter(activo=True) if todos or a.pk in con_stock]
+    vacios = todos or request.GET.get('vacios') == '1'
+    activos = list(Almacen.objects.filter(activo=True))
+    almacenes = [a for a in activos if vacios or a.pk in con_stock]
     q = request.GET.get('q', '').strip()
     if q:
         productos = productos.filter(Q(codigo__icontains=q) | Q(nombre__icontains=q))
@@ -60,7 +63,8 @@ def stock(request):
     from django.core.paginator import Paginator
     return render(request, 'inventario/stock.html', {
         'almacenes': almacenes, 'page_obj': Paginator(filas, 100).get_page(request.GET.get('page')),
-        'n_filas': len(filas), 'q': q, 'solo_bajo': solo_bajo, 'todos': todos,
+        'n_filas': len(filas), 'q': q, 'solo_bajo': solo_bajo, 'todos': todos, 'vacios': vacios,
+        'n_activos': len(activos), 'sin_stock': [a for a in activos if a.pk not in con_stock],
         'total_valor': total_valor if costos else None,
         'n_bajo': sum(1 for p in Producto.objects.filter(activo=True, tipo='BIEN') if p.bajo_minimo)})
 
@@ -204,7 +208,11 @@ def sugerencias_compra():
     for pid, cantidad in solicitado().items():
         camino[pid] += cantidad
     filas = []
+    # lo que se fabrica no se compra: lo repone el MRP con una orden de producción
+    from produccion.models import VersionFabricacion
+    fabricados = set(VersionFabricacion.objects.values_list('producto_id', flat=True))
     for p in Producto.objects.filter(activo=True, tipo='BIEN', puede_comprarse=True, es_plantilla=False) \
+            .exclude(clase__in=['PRODUCTO_TERMINADO', 'SEMIELABORADO']).exclude(pk__in=fabricados) \
             .select_related('proveedor'):
         limite = p.punto_reorden or p.stock_minimo
         if not limite:
