@@ -158,7 +158,8 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
         model = Empresa
         fields = '__all__'
         widgets = {'token_tipo_cambio': forms.PasswordInput(render_value=True),
-                   'sunat_client_secret': forms.PasswordInput(render_value=True)}
+                   'sunat_client_secret': forms.PasswordInput(render_value=True),
+                   'sire_client_secret': forms.PasswordInput(render_value=True)}
 
     def clean(self):
         datos = super().clean()

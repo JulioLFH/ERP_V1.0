@@ -109,6 +109,15 @@ class Empresa(models.Model):
         help_text='Credenciales de "Consulta de validez de comprobantes" (SUNAT Operaciones en Línea > '
                   'Empresas > Comprobantes de pago > Credenciales de API SUNAT)')
     sunat_client_secret = models.CharField('SUNAT API: client_secret', max_length=200, blank=True)
+    # ---- SIRE (registros de ventas y compras): API con usuario SOL; la clave SOL no se guarda, se pide al usarla
+    sire_client_id = models.CharField(
+        'SIRE: client_id', max_length=100, blank=True,
+        help_text='Credenciales de API SUNAT generadas en SUNAT Operaciones en Línea con el usuario SOL que '
+                  'opera el SIRE. Vacío = las de la consulta de validez')
+    sire_client_secret = models.CharField('SIRE: client_secret', max_length=200, blank=True)
+    sire_usuario_sol = models.CharField('SIRE: usuario SOL', max_length=30, blank=True,
+                                        help_text='Solo el usuario (sin el RUC). La clave SOL se pide cada vez '
+                                                  'y no se guarda en el sistema')
     # ---- migración: hasta esta fecha la contabilidad es la del sistema anterior (se importa tal cual)
     fecha_corte_contable = models.DateField(
         'Contabilidad del sistema anterior hasta', null=True, blank=True, editable=False,
@@ -912,6 +921,38 @@ class PerfilAcceso(models.Model):
 
     def __str__(self):
         return self.nombre
+
+
+class PropuestaSIRE(models.Model):
+    """Propuesta del registro de ventas (RVIE) o de compras (RCE) que SUNAT arma en el SIRE para un periodo:
+    traída por la API (ticket → archivo) o subida a mano. Guarda el archivo como sustento y los comprobantes leídos
+    para cruzarlos con lo registrado y crear lo que falte."""
+    LIBROS = [('RVIE', 'Registro de ventas (RVIE)'), ('RCE', 'Registro de compras (RCE)')]
+    ESTADOS = [('SOLICITADA', 'Solicitada a SUNAT'), ('LISTA', 'Lista'), ('ERROR', 'Error')]
+    ORIGENES = [('API', 'API SUNAT'), ('ARCHIVO', 'Archivo subido')]
+    libro = models.CharField(max_length=4, choices=LIBROS)
+    periodo = models.CharField('Periodo (AAAAMM)', max_length=6)
+    origen = models.CharField(max_length=8, choices=ORIGENES, default='API')
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='SOLICITADA')
+    ticket = models.CharField(max_length=20, blank=True)
+    mensaje = models.TextField(blank=True)
+    archivo = models.BinaryField(null=True, blank=True, editable=False)
+    nombre_archivo = models.CharField(max_length=200, blank=True)
+    registros = models.JSONField(default=list, blank=True)
+    creados = models.PositiveIntegerField('Comprobantes creados desde la propuesta', default=0)
+    ticket_aceptacion = models.CharField(max_length=20, blank=True)
+    aceptada_en = models.DateTimeField(null=True, blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-creado', '-id']
+        verbose_name = 'propuesta SIRE'
+        verbose_name_plural = 'propuestas SIRE'
+
+    def __str__(self):
+        return f'{self.libro} {self.periodo[4:]}/{self.periodo[:4]}'
 
 
 class HistorialClave(models.Model):

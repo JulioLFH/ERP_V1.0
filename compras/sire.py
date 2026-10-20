@@ -97,8 +97,12 @@ def leer(archivo):
          'numero': col('nro cp', 'numero', 'nro comprobante', 'nro. cp'),
          'ruc': col('nro doc identidad', 'nro. doc identidad', 'numero de documento de identidad', 'ruc proveedor'),
          'nombre': col('apellidos nombres', 'apellidos y nombres', 'razon social', ultima=True),
-         'fecha': col('fecha de emision', 'fecha emision'), 'base': col('bi gravado dg', 'base imponible'),
-         'igv': col('igv / ipm dg', 'igv'), 'total': col('total cp', 'importe total', 'total')}
+         'fecha': col('fecha de emision', 'fecha emision'), 'base': col('bi grav', 'base imponible'),
+         'igv': col('igv / ipm', 'igv'), 'total': col('total cp', 'importe total', 'total'),
+         'tipo_doc': col('tipo doc identidad', 'tipo de documento de identidad'),
+         'vencimiento': col('fecha vcto', 'fecha de vencimiento'), 'moneda': col('moneda', 'cod moneda'),
+         'tc': col('tipo cambio', 'tipo de cambio'), 'exonerado': col('mto exonerado', 'valor adq. ng', 'adq no grav'),
+         'inafecto': col('mto inafecto')}
     if None in (c['serie'], c['numero'], c['ruc'], c['total']):
         raise ErrorSIRE('Faltan columnas en la propuesta (serie, número, documento del proveedor o total).')
     valor = lambda fila, k: fila[c[k]] if c[k] is not None and c[k] < len(fila) else ''
@@ -117,8 +121,27 @@ def leer(archivo):
                           'tipo': tipo.zfill(2) if tipo.isdigit() else tipo, 'serie': serie,
                           'numero': numero.lstrip('0') or '0', 'fecha': _fecha(valor(fila, 'fecha')),
                           'base': _dec(valor(fila, 'base')), 'igv': _dec(valor(fila, 'igv')),
-                          'total': _dec(valor(fila, 'total'))})
+                          'total': _dec(valor(fila, 'total')),
+                          'tipo_doc': str(valor(fila, 'tipo_doc') or '').strip(),
+                          'vencimiento': _fecha(valor(fila, 'vencimiento')),
+                          'moneda': str(valor(fila, 'moneda') or 'PEN').strip().upper() or 'PEN',
+                          'tc': _dec(valor(fila, 'tc')),
+                          'no_gravado': _dec(valor(fila, 'exonerado')) + _dec(valor(fila, 'inafecto'))})
     return registros
+
+
+FECHAS, IMPORTES = ('fecha', 'vencimiento'), ('base', 'igv', 'total', 'tc', 'no_gravado')
+
+
+def a_json(registros):
+    """Registros leídos → datos guardables en JSON (sesión o PropuestaSIRE.registros)."""
+    return [{**r, **{k: r[k].isoformat() if r.get(k) else None for k in FECHAS if k in r},
+             **{k: str(r[k]) for k in IMPORTES if k in r}} for r in registros]
+
+
+def de_json(datos):
+    return [{**r, **{k: date.fromisoformat(r[k]) if r.get(k) else None for k in FECHAS if k in r},
+             **{k: Decimal(r[k]) for k in IMPORTES if k in r}} for r in datos]
 
 
 def _clave(ruc, tipo, serie, numero):
@@ -163,3 +186,94 @@ def comparar(registros, periodo):
     return {'coinciden': coinciden, 'diferencias': diferencias, 'solo_sunat': solo_sunat, 'solo_erp': solo_erp,
             'por_rendicion': sum(1 for x in coinciden + diferencias if x['rendicion']),
             'nadie_rindio': [x for x in solo_sunat if x['nadie_rindio']]}
+
+
+def _clave_venta(tipo, serie, numero):
+    return (tipo, serie.upper(), str(numero).lstrip('0') or '0')
+
+
+def comparar_ventas(registros, periodo):
+    """Cruza la propuesta RVIE con los comprobantes de venta del periodo (la empresa es la emisora: la clave es tipo,
+    serie y número)."""
+    from ventas.models import Venta
+    ventas = (Venta.objects.filter(periodo=periodo).exclude(estado='ANULADO').exclude(es_historico=True)
+              .select_related('tercero'))
+    erp = {_clave_venta(v.tipo_comprobante, v.serie, v.numero): v for v in ventas}
+    sunat = {_clave_venta(r['tipo'], r['serie'], r['numero']): r for r in registros}
+    coinciden, diferencias, solo_sunat = [], [], []
+    for clave, r in sunat.items():
+        v = erp.get(clave)
+        if v is None:
+            otra = Venta.objects.filter(tipo_comprobante=r['tipo'], serie=r['serie'],
+                                        numero__in=[r['numero'], r['numero'].zfill(8)]).first()
+            solo_sunat.append({**r, 'otro_periodo': otra, 'rendicion': None, 'nadie_rindio': otra is None})
+        elif abs(v.total - r['total']) > TOLERANCIA:
+            diferencias.append({**r, 'compra': v, 'dif': v.total - r['total'], 'rendicion': None})
+        else:
+            coinciden.append({**r, 'compra': v, 'rendicion': None})
+    solo_erp = [v for clave, v in erp.items() if clave not in sunat]
+    return {'coinciden': coinciden, 'diferencias': diferencias, 'solo_sunat': solo_sunat, 'solo_erp': solo_erp,
+            'por_rendicion': 0, 'nadie_rindio': [x for x in solo_sunat if x['nadie_rindio']]}
+
+
+def cruzar(libro, registros, periodo):
+    return comparar_ventas(registros, periodo) if libro == 'RVIE' else comparar(registros, periodo)
+
+
+def _tercero(r, tipo_tercero):
+    from core.models import Tercero
+    doc = (r.get('ruc') or '').strip()
+    if not doc or doc in ('0', '-') or set(doc) == {'0'}:  # boleta a clientes varios
+        tercero, _ = Tercero.objects.get_or_create(numero_doc='00000000', defaults={
+            'nombre': 'CLIENTES VARIOS', 'tipo': tipo_tercero, 'tipo_doc': '0'})
+        return tercero
+    tipo_doc = r.get('tipo_doc') or ('6' if len(doc) == 11 else '1')
+    tercero, creado = Tercero.objects.get_or_create(numero_doc=doc, defaults={
+        'nombre': (r.get('nombre') or doc)[:200], 'tipo': tipo_tercero,
+        'tipo_doc': tipo_doc if tipo_doc in ('6', '1', '4', '7', '0') else '0'})
+    if not creado and tercero.tipo not in (tipo_tercero, 'AMBOS'):
+        tercero.tipo = 'AMBOS'
+        tercero.save(update_fields=['tipo'])
+    return tercero
+
+
+def crear_faltantes(libro, registros, periodo, claves, usuario=None):
+    """Crea en el ERP los comprobantes de la propuesta marcados (los que están solo en SUNAT). Las ventas quedan
+    como ya informadas a SUNAT (emitidas fuera del sistema): no se reenvían al OSE ni mueven stock. Devuelve
+    (creados, errores)."""
+    from django.db import IntegrityError, transaction
+
+    from ventas.models import Venta
+
+    from .models import Compra
+    resultado = cruzar(libro, registros, periodo)
+    faltan = {f'{r["tipo"]}|{r["serie"]}|{r["numero"]}|{r["ruc"]}': r for r in resultado['solo_sunat']
+              if not r['otro_periodo']}
+    creados, errores = 0, []
+    for clave in claves:
+        r = faltan.get(clave)
+        if r is None:
+            continue
+        try:
+            with transaction.atomic():
+                tercero = _tercero(r, 'CLIENTE' if libro == 'RVIE' else 'PROVEEDOR')
+                base, igv, no_grav = r['base'], r['igv'], r.get('no_gravado') or D0
+                total = r['total'] or base + igv + no_grav
+                datos = dict(tipo_comprobante=r['tipo'], serie=r['serie'], numero=r['numero'],
+                             fecha_emision=r['fecha'], fecha_vencimiento=r.get('vencimiento') or r['fecha'],
+                             tercero=tercero, moneda=r.get('moneda') or 'PEN',
+                             tipo_cambio=r.get('tc') or Decimal('1'), tipo_operacion='GRAVADA' if igv else 'EXONERADA',
+                             base_imponible=base, no_gravado=no_grav, exonerado=no_grav, igv=igv, total=total,
+                             periodo=periodo, glosa=f'Creado desde la propuesta SIRE {periodo}')
+                if libro == 'RVIE':
+                    Venta.objects.create(**datos, descontar_stock=False, estado_sunat='ACEPTADO',
+                                         sunat_descripcion='Informado en SUNAT (propuesta SIRE): emitido fuera del '
+                                                           'sistema')
+                else:
+                    Compra.objects.create(**datos)
+            creados += 1
+        except IntegrityError:
+            errores.append(f'{r["serie"]}-{r["numero"]}: ya existe en el sistema.')
+        except Exception as exc:  # dato de la propuesta que el modelo no acepta: se informa y se sigue
+            errores.append(f'{r["serie"]}-{r["numero"]}: {exc}')
+    return creados, errores

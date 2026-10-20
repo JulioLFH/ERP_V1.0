@@ -1,6 +1,3 @@
-from datetime import date
-from decimal import Decimal
-
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -29,19 +26,14 @@ class PropuestaForm(BootstrapMixin, forms.Form):
 
 def _guardar(request, periodo, registros):
     """La última propuesta leída queda en la sesión para exportar el cruce sin volver a subir el archivo."""
-    request.session[SESION] = {'periodo': periodo, 'registros': [
-        {**r, 'fecha': r['fecha'].isoformat() if r['fecha'] else None,
-         'base': str(r['base']), 'igv': str(r['igv']), 'total': str(r['total'])} for r in registros]}
+    request.session[SESION] = {'periodo': periodo, 'registros': sire.a_json(registros)}
 
 
 def _de_sesion(request):
     datos = request.session.get(SESION)
     if not datos:
         return None, None
-    registros = [{**r, 'fecha': date.fromisoformat(r['fecha']) if r['fecha'] else None,
-                  'base': Decimal(r['base']), 'igv': Decimal(r['igv']), 'total': Decimal(r['total'])}
-                 for r in datos['registros']]
-    return datos['periodo'], registros
+    return datos['periodo'], sire.de_json(datos['registros'])
 
 
 def _rend(x):

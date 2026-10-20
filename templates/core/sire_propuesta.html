@@ -1,0 +1,65 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Propuesta SIRE {{ p }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-cloud-download"></i> {{ p.get_libro_display }} · {{ p.periodo|slice:'4:' }}/{{ p.periodo|slice:':4' }}</h1>
+  <div class="d-flex gap-2">
+    {% if p.archivo %}<a href="?descargar=1" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-zip"></i> Archivo de SUNAT</a>{% endif %}
+    {% if r %}<a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Exportar cruce</a>{% endif %}
+    <a href="{% url 'sire_propuestas' %}?libro={{ p.libro }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Propuestas</a>
+  </div>
+</div>
+<div class="alert {% if p.estado == 'LISTA' %}alert-success{% elif p.estado == 'ERROR' %}alert-danger{% else %}alert-warning{% endif %} small py-2">
+  <b>{{ p.get_estado_display }}</b> · {{ p.mensaje }}{% if p.ticket %} · Ticket {{ p.ticket }}{% endif %}{% if p.aceptada_en %} · <b>Aceptada en SUNAT</b> el {{ p.aceptada_en|date:'d/m/Y H:i' }}{% if p.ticket_aceptacion %} (ticket {{ p.ticket_aceptacion }}){% endif %}{% endif %}
+</div>
+{% if p.estado == 'SOLICITADA' %}
+<form method="post" class="card card-body mb-3 row g-2 align-items-end flex-row" autocomplete="off">{% csrf_token %}
+  <input type="hidden" name="accion" value="consultar">
+  {% if not sesion %}<div class="col-md-4"><label class="form-label small">Clave SOL (la sesión con SUNAT venció)</label><input type="password" name="clave_sol" class="form-control form-control-sm" required></div>{% endif %}
+  <div class="col-md-4"><button class="btn btn-sm btn-primary"><i class="bi bi-arrow-repeat"></i> Consultar a SUNAT de nuevo</button></div>
+</form>
+{% endif %}
+{% if r %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Coinciden</div><div class="fs-5 fw-semibold text-success">{{ r.coinciden|length }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Con diferencia de importe</div><div class="fs-5 fw-semibold {% if r.diferencias %}text-danger{% endif %}">{{ r.diferencias|length }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Solo en SUNAT (faltan en el ERP)</div><div class="fs-5 fw-semibold {% if r.solo_sunat %}text-warning{% endif %}">{{ r.solo_sunat|length }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Solo en el ERP</div><div class="fs-5 fw-semibold">{{ r.solo_erp|length }}</div></div></div></div>
+</div>
+{% if r.solo_sunat %}
+<form method="post" class="card mb-3">{% csrf_token %}<input type="hidden" name="accion" value="crear">
+  <div class="card-header text-warning-emphasis">En la propuesta de SUNAT pero no registrados en el periodo</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr>{% if puede_crear %}<th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=falta]').forEach(c => c.checked = this.checked)"></th>{% endif %}<th>{% if p.libro == 'RVIE' %}Cliente{% else %}Proveedor{% endif %}</th><th>Comprobante</th><th>Emisión</th><th class="num">Base</th><th class="num">IGV</th><th class="num">Total</th><th></th></tr></thead>
+    <tbody>{% for x in r.solo_sunat %}<tr>
+      {% if puede_crear %}<td>{% if not x.otro_periodo %}<input type="checkbox" class="form-check-input" name="falta" value="{{ x.clave }}">{% endif %}</td>{% endif %}
+      <td>{{ x.ruc }} {{ x.nombre }}</td><td>{{ x.tipo }} {{ x.serie }}-{{ x.numero }}</td><td>{{ x.fecha|date:'d/m/Y' }}</td>
+      <td class="num">{{ x.base|money }}</td><td class="num">{{ x.igv|money }}</td><td class="num">{{ x.total|money }}</td>
+      <td class="small">{% if x.otro_periodo %}Registrado en {{ x.otro_periodo.periodo }}{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if puede_crear %}<div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
+    <button class="btn btn-sm btn-primary" data-confirm="¿Crear en el sistema los comprobantes marcados con los datos de SUNAT?"><i class="bi bi-plus-circle"></i> Crear los marcados</button>
+    <span class="small text-muted">{% if p.libro == 'RVIE' %}Se registran como ventas ya informadas a SUNAT (emitidas fuera del sistema): no se reenvían ni mueven stock.{% else %}Se registran como compras del periodo con base, IGV y total de SUNAT; complete luego su centro de costo y clasificación si corresponde.{% endif %}</span>
+  </div>{% endif %}
+</form>
+{% endif %}
+{% if r.diferencias %}<div class="card mb-3"><div class="card-header text-danger">Diferencias de importe</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>{% if p.libro == 'RVIE' %}Cliente{% else %}Proveedor{% endif %}</th><th>Comprobante</th><th class="num">Total SUNAT</th><th class="num">Total ERP</th><th class="num">Diferencia</th></tr></thead>
+  <tbody>{% for x in r.diferencias %}<tr><td>{{ x.ruc }} {{ x.nombre }}</td><td><a href="{% if p.libro == 'RVIE' %}{% url 'ventas:detalle' x.compra.pk %}{% else %}{% url 'compras:detalle' x.compra.pk %}{% endif %}">{{ x.tipo }} {{ x.serie }}-{{ x.numero }}</a></td><td class="num">{{ x.total|money }}</td><td class="num">{{ x.compra.total|money }}</td><td class="num text-danger">{{ x.dif|money }}</td></tr>{% endfor %}</tbody>
+</table></div></div>{% endif %}
+{% if r.solo_erp %}<div class="card mb-3"><div class="card-header">Registrados en el ERP pero no están en la propuesta</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>{% if p.libro == 'RVIE' %}Cliente{% else %}Proveedor{% endif %}</th><th>Comprobante</th><th>Emisión</th><th class="num">Total</th></tr></thead>
+  <tbody>{% for c in r.solo_erp %}<tr><td>{{ c.tercero.numero_doc }} {{ c.tercero.nombre }}</td><td><a href="{% if p.libro == 'RVIE' %}{% url 'ventas:detalle' c.pk %}{% else %}{% url 'compras:detalle' c.pk %}{% endif %}">{{ c.tipo_comprobante }} {{ c.serie }}-{{ c.numero }}</a></td><td>{{ c.fecha_emision|date:'d/m/Y' }}</td><td class="num">{{ c.total|money }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<div class="card-body small text-muted py-2">{% if p.libro == 'RVIE' %}Revise si el comprobante llegó a SUNAT (estado en el comprobante) o si es de otro periodo.{% else %}Normal para comprobantes físicos, recibos por honorarios o documentos no electrónicos; si es una factura electrónica, revise el RUC, la serie y el número.{% endif %}</div></div>{% endif %}
+{% if p.origen == 'API' and not p.aceptada_en and puede_aceptar %}
+<form method="post" class="card border-primary mb-3" autocomplete="off">{% csrf_token %}<input type="hidden" name="accion" value="aceptar">
+  <div class="card-body row g-2 align-items-end">
+    <div class="col-md-7 small"><b>Aceptar la propuesta en SUNAT.</b> Hágalo cuando el cruce esté conforme: SUNAT la toma como el registro preliminar del periodo. Si la propuesta tiene errores, corríjalos antes en el portal SIRE.</div>
+    {% if not sesion %}<div class="col-md-3"><input type="password" name="clave_sol" class="form-control form-control-sm" placeholder="Clave SOL" required></div>{% endif %}
+    <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100" data-confirm="¿Aceptar en SUNAT la propuesta {{ p }}? Esta acción se registra en SUNAT."><i class="bi bi-check2-circle"></i> Aceptar</button></div>
+  </div>
+</form>
+{% endif %}
+{% endif %}
+{% endblock %}

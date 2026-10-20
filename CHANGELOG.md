@@ -3,6 +3,14 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.44.0 — 20/10/2026 · SIRE conectado con SUNAT: propuestas de ventas y compras
+- **Propuestas del SIRE por la API de SUNAT** (Ventas › Reportes y Compras › Reportes › «SIRE: propuesta de SUNAT»): se elige el registro (ventas RVIE o compras RCE) y el periodo, se ingresa la clave SOL y el sistema pide la propuesta a SUNAT, espera su ticket y descarga el archivo. Si SUNAT aún lo está preparando, queda «Solicitada» con el botón «Consultar a SUNAT de nuevo». El archivo original queda guardado como sustento.
+- **Cruce y creación de lo que falta**: coincidencias, diferencias de importe, lo que está solo en SUNAT y lo que está solo en el sistema, exportable a Excel. Los comprobantes que faltan se marcan y se **crean de un golpe** con los datos de SUNAT (proveedor o cliente nuevo incluido). Las ventas así creadas quedan como ya informadas a SUNAT (emitidas fuera del sistema): no se reenvían al OSE ni mueven stock.
+- **Aceptar la propuesta en SUNAT** desde el sistema (solo con el permiso de cerrar periodos contables), con su ticket y registro en la auditoría.
+- **Sin credenciales**, la misma pantalla acepta el archivo descargado del portal SIRE (también para ventas, que antes no tenía cruce).
+- Credenciales en Ajustes › Empresa: client_id, client_secret y usuario SOL del SIRE. **La clave SOL no se guarda**: se pide al traer o aceptar la propuesta y la sesión con SUNAT dura lo que SUNAT indique (alrededor de una hora).
+- Implementado según los manuales oficiales de la API del SIRE (Ventas v31 y Compras v28).
+
 ## v1.43.0 — 20/10/2026 · Seguridad de acceso: permisos por pantalla, perfiles, contraseñas y doble factor
 - **Permisos por pantalla (n.º 24)**: en Ajustes › Usuarios cada opción del menú puede quedar **oculta** (no aparece y no se abre), **solo lectura** (consulta sin registrar, modificar ni exportar) o **sin exportar** (trabaja normal pero no descarga Excel, CSV ni PDF). Aplica también a las páginas de detalle de cada pantalla y se valida en el servidor.
 - **Datos sensibles**: «Ocultar sueldos» (no abre planillas, boletas, PLAME, AFP, costo por centro ni movimientos de personal; en la lista y la ficha del trabajador no ve el sueldo ni lo exporta) y «Ocultar saldos de caja y bancos» (ve sus cuentas sin el saldo; no abre flujo de caja, conciliación ni extractos).

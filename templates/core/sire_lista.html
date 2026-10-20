@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}SIRE: propuestas de SUNAT{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2"><i class="bi bi-cloud-download"></i> SIRE: propuestas de SUNAT</h1>
+<p class="small text-muted mb-3">SUNAT arma cada mes, con las facturas electrónicas que recibe, la lista de sus ventas (RVIE) y de sus compras (RCE). Tráigala aquí para compararla con lo registrado, crear lo que falte y aceptarla.</p>
+{% if not configurada %}<div class="alert alert-info small py-2"><i class="bi bi-info-circle"></i> Para traerla directamente de SUNAT registre el client_id, el client_secret y el usuario SOL del SIRE en <a href="{% url 'empresa' %}">Ajustes › Empresa</a>. Mientras tanto puede subir el archivo descargado del portal SIRE.</div>{% endif %}
+<div class="card mb-3"><div class="card-body">
+  <form method="post" enctype="multipart/form-data" class="row g-3 align-items-end" autocomplete="off">
+    {% csrf_token %}
+    <div class="col-md-3">{% with field=form.libro %}{% include 'core/_campo.html' %}{% endwith %}</div>
+    <div class="col-md-2">{% with field=form.periodo %}{% include 'core/_campo.html' %}{% endwith %}</div>
+    {% if configurada %}<div class="col-md-3">{% with field=form.clave_sol %}{% include 'core/_campo.html' %}{% endwith %}{% if sesion %}<div class="form-text text-success">Sesión con SUNAT activa: puede dejarla vacía.</div>{% endif %}</div>{% endif %}
+    <div class="col-md-4">{% with field=form.archivo %}{% include 'core/_campo.html' %}{% endwith %}</div>
+    <div class="col-12"><button class="btn btn-primary"><i class="bi bi-cloud-download"></i> {% if configurada %}Traer de SUNAT (o leer el archivo){% else %}Leer el archivo{% endif %}</button></div>
+  </form>
+</div></div>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+  <thead><tr><th>Registro</th><th>Periodo</th><th>Origen</th><th>Estado</th><th class="text-center">Comprobantes</th><th class="text-center">Creados</th><th>Aceptada en SUNAT</th><th>Por</th></tr></thead>
+  <tbody>{% for p in propuestas %}<tr>
+    <td><a href="{% url 'sire_propuesta' p.pk %}">{{ p.get_libro_display }}</a></td>
+    <td>{{ p.periodo|slice:'4:' }}/{{ p.periodo|slice:':4' }}</td>
+    <td class="small">{{ p.get_origen_display }}{% if p.ticket %} · ticket {{ p.ticket }}{% endif %}</td>
+    <td><span class="badge {% if p.estado == 'LISTA' %}text-bg-success{% elif p.estado == 'ERROR' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ p.get_estado_display }}</span></td>
+    <td class="text-center">{{ p.registros|length }}</td>
+    <td class="text-center">{{ p.creados }}</td>
+    <td class="small">{% if p.aceptada_en %}{{ p.aceptada_en|date:'d/m/Y H:i' }}{% else %}—{% endif %}</td>
+    <td class="small">{{ p.usuario|default:'' }} · {{ p.creado|date:'d/m/Y H:i' }}</td>
+  </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Aún no se ha traído ninguna propuesta.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}
