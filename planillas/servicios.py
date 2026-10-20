@@ -21,12 +21,48 @@ def _marcar(periodo):
     marcar_pendiente(periodo, posteriores=False)
 
 
+def centros_de_trabajadores(trabajadores, periodo):
+    """{trabajador_id: {centro de costo: peso}}: el centro del trabajador; si no tiene, las horas hombre que declaró
+    en las órdenes de producción terminadas en el periodo (centro del puesto o de la orden). Sin ninguno: {}."""
+    from produccion.models import HoraHombre
+    desde, hasta = rango(periodo)
+    resultado = {}
+    sin_centro = []
+    for t in trabajadores:
+        if t.centro_costo_id:
+            resultado[t.pk] = {t.centro_costo: Decimal('1')}
+        else:
+            resultado[t.pk] = {}
+            sin_centro.append(t.pk)
+    if sin_centro:
+        for h in HoraHombre.objects.filter(trabajador_id__in=sin_centro, horas__gt=0, hora__orden__estado='TERMINADA',
+                                           hora__orden__fecha_fin__range=(desde, hasta)).select_related(
+                'hora__centro__centro_costo', 'hora__orden__centro_costo'):
+            centro = h.hora.centro.centro_costo or h.hora.orden.centro_costo
+            if centro is not None:
+                pesos = resultado[h.trabajador_id]
+                pesos[centro] = pesos.get(centro, D0) + h.horas
+    return resultado
+
+
+def trabajadores_sin_centro(planilla):
+    filas = list(planilla.filas.select_related('trabajador__centro_costo'))
+    centros = centros_de_trabajadores([f.trabajador for f in filas], planilla.periodo)
+    return [f.trabajador for f in filas if not centros[f.trabajador_id]]
+
+
 @transaction.atomic
 def cerrar(planilla):
     if planilla.estado != 'CALCULADA':
         raise ErrorPlanilla('Calcule la planilla antes de cerrarla.')
     if not planilla.filas.exists():
         raise ErrorPlanilla('La planilla no tiene trabajadores.')
+    sin_centro = trabajadores_sin_centro(planilla)
+    if sin_centro:
+        nombres = ', '.join(t.nombre_completo for t in sin_centro[:8]) + (' …' if len(sin_centro) > 8 else '')
+        raise ErrorPlanilla(f'{len(sin_centro)} trabajador(es) sin centro de costo: {nombres}. El gasto de personal se '
+                            f'contabiliza por centro: asígnelo en Planillas › Trabajadores (o registre sus horas en las '
+                            f'órdenes de producción del mes).')
     planilla.estado = 'CERRADA'
     planilla.save(update_fields=['estado'])
     _marcar(planilla.periodo)
@@ -77,7 +113,7 @@ def liberar_pago(movimiento):
 def asiento_planillas(periodo, cta):
     """Gasto de personal por concepto y centro de costo (con su destino 90/94/95), descuentos a sus cuentas por
     pagar (ONP, AFP, quinta) o por cobrar (adelantos), aportes del empleador y neto a 4111."""
-    from contabilidad.centralizar import Borrador
+    from contabilidad.centralizar import Borrador, _repartir
     from contabilidad.models import Asiento
     planillas = Planilla.objects.filter(periodo=periodo, estado__in=('CERRADA', 'PAGADA'))
     if not planillas.exists():
@@ -87,20 +123,23 @@ def asiento_planillas(periodo, cta):
     b = Borrador(a)
     gastos, abonos, neto = defaultdict(lambda: D0), defaultdict(lambda: D0), D0
     sin_cuenta = set()
-    for fila in FilaPlanilla.objects.filter(planilla__in=planillas).select_related(
-            'trabajador__centro_costo').prefetch_related('lineas__concepto__cuenta', 'lineas__concepto__cuenta_pasivo'):
-        centro = fila.trabajador.centro_costo
+    filas = list(FilaPlanilla.objects.filter(planilla__in=planillas).select_related(
+        'trabajador__centro_costo').prefetch_related('lineas__concepto__cuenta', 'lineas__concepto__cuenta_pasivo'))
+    centros = centros_de_trabajadores({f.trabajador for f in filas}, periodo)
+    for fila in filas:
+        # el gasto va al centro del trabajador o, si no tiene, a los centros donde trabajó (horas en las órdenes)
+        pesos = centros[fila.trabajador_id] or {None: Decimal('1')}
         for l in fila.lineas.all():
             c = l.concepto
             if c.cuenta is None or (c.tipo == 'APORTE' and c.cuenta_pasivo is None):
                 sin_cuenta.add(c.nombre)
                 continue
-            if c.tipo == 'INGRESO':
-                gastos[(c.cuenta, centro)] += l.monto
-            elif c.tipo == 'DESCUENTO':
+            if c.tipo == 'DESCUENTO':
                 abonos[c.cuenta] += l.monto
-            else:
-                gastos[(c.cuenta, centro)] += l.monto
+                continue
+            for centro, parte in _repartir(l.monto, pesos):
+                gastos[(c.cuenta, centro)] += parte
+            if c.tipo != 'INGRESO':
                 abonos[c.cuenta_pasivo] += l.monto
         neto += fila.neto
     if sin_cuenta:

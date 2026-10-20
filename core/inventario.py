@@ -288,6 +288,11 @@ class AlmacenNuevo(FormGenerico, CreateView):
     model, form_class, titulo = Almacen, AlmacenForm, 'Nuevo almacén'
     success_url = reverse_lazy('almacenes')
 
+    def get_initial(self):
+        # suele estar en el mismo local: se propone la dirección del principal (punto de partida de las guías)
+        principal = Almacen.objects.filter(es_principal=True).first()
+        return {'direccion': principal.direccion, 'ubigeo': principal.ubigeo} if principal else {}
+
 
 class AlmacenEditar(FormGenerico, UpdateView):
     model, form_class, titulo = Almacen, AlmacenForm, 'Editar almacén'

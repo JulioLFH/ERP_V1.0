@@ -30,7 +30,8 @@ class ComprasViews(ComprobanteViews):
         from inventario.servicios import tiene_recepciones
         initial = {'orden_compra': oc.pk, 'tercero': oc.tercero_id, 'moneda': oc.moneda,
                    'tipo_cambio': oc.tipo_cambio, 'tipo_operacion': oc.tipo_operacion,
-                   'centro_costo': oc.centro_costo_id, 'forma_pago': 'CREDITO' if oc.dias_credito else 'CONTADO'}
+                   'centro_costo': oc.centro_costo_id, 'forma_pago': 'CREDITO' if oc.dias_credito else 'CONTADO',
+                   'clasificacion': Compra.clasificacion_de(oc.items.select_related('producto'))}
         if tiene_recepciones(orden=oc):
             initial['ingresar_almacen'] = False  # ya se recibió en Inventario
         items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,

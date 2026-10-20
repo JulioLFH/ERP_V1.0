@@ -18,6 +18,21 @@ from .forms import CotizacionForm, ListaPreciosForm, PreciosListaFormSet, VentaF
 from .models import Cotizacion, CotizacionItem, ListaPrecios, Venta, VentaItem
 
 
+def condicion_a_forma_pago(condicion, cliente=None):
+    """Condición de pago del pedido (texto libre: «Crédito 30 días», «Contado», «45 días») -> (forma, días).
+    Sin condición escrita manda la del cliente (días de crédito)."""
+    import re
+    texto = (condicion or '').lower()
+    numero = re.search(r'(\d+)\s*d', texto)
+    if 'contado' in texto:
+        return 'CONTADO', 0
+    if 'cr' in texto and 'dito' in texto or numero:
+        return 'CREDITO', int(numero.group(1)) if numero else (getattr(cliente, 'dias_credito', 0) or 0)
+    if not texto and cliente is not None and cliente.dias_credito:
+        return 'CREDITO', cliente.dias_credito
+    return 'CONTADO', 0
+
+
 class VentasViews(ComprobanteViews):
     app = 'ventas'
     modelo, item_modelo, form_class = Venta, VentaItem, VentaForm
@@ -35,6 +50,12 @@ class VentasViews(ComprobanteViews):
         initial = {'cotizacion': cot.pk, 'tercero': cot.tercero_id, 'moneda': cot.moneda, 'vendedor': cot.vendedor,
                    'tipo_cambio': cot.tipo_cambio, 'tipo_operacion': cot.tipo_operacion,
                    'tipo_comprobante': '01' if cot.tercero.tipo_doc == '6' else '03'}
+        forma, dias = condicion_a_forma_pago(cot.condicion_pago, cot.tercero)
+        initial['forma_pago'] = forma
+        if dias:
+            from datetime import timedelta
+            from django.utils import timezone
+            initial['fecha_vencimiento'] = timezone.localdate() + timedelta(days=dias)
         items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,
                   'precio_unitario': i.precio_unitario, 'descuento_pct': i.descuento_pct} for i in cot.items.all()]
         return initial, items
@@ -208,11 +229,22 @@ def cot_nuevo(request):
 @login_required
 def cot_editar(request, pk):
     cot = get_object_or_404(Cotizacion, pk=pk)
-    if cot.estado not in ('PENDIENTE', 'APROBADO'):
-        messages.error(request, 'Solo se pueden editar cotizaciones pendientes o aprobadas.')
+    if cot.estado not in ('PENDIENTE', 'APROBADO') or cot.ventas.exclude(estado='ANULADO').exists():
+        messages.error(request, 'Solo se editan cotizaciones y pedidos pendientes o aprobados sin comprobante emitido.')
         return redirect('ventas:cot_detalle', pk)
+
+    def volver_a_pendiente(doc):
+        # un pedido aprobado que se modifica (cantidades, precios, cliente) vuelve a aprobarse
+        if doc.estado == 'APROBADO':
+            Cotizacion.objects.filter(pk=doc.pk).update(estado='PENDIENTE')
+            messages.warning(request, f'{doc.numero} se modificó: volvió a «Pendiente» y debe aprobarse otra vez.')
+
+    if cot.estado == 'APROBADO' and request.method == 'GET':
+        messages.info(request, 'Este documento está aprobado: al guardar los cambios volverá a «Pendiente» de '
+                               'aprobación.')
     return guardar_documento(request, CotizacionForm, item_formset(Cotizacion, CotizacionItem, extra=0), cot,
-                             'core/comprobante_form.html', _cot_ctx(f'Editar {cot.numero}', cot))
+                             'core/comprobante_form.html', _cot_ctx(f'Editar {cot.numero}', cot),
+                             al_guardar=volver_a_pendiente)
 
 
 @login_required

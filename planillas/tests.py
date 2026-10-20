@@ -40,7 +40,8 @@ class PlanillaTest(TestCase):
             afp=self.integra, cuspp='123456ABCDE1', centro_costo=self.planta)
         self.luis = Trabajador.objects.create(
             numero_doc='41234567', apellido_paterno='ROJAS', nombres='LUIS', fecha_ingreso=date(2025, 1, 16),
-            sueldo=D('1500'), sistema_pensiones='ONP')
+            sueldo=D('1500'), sistema_pensiones='ONP',
+            centro_costo=CentroCosto.objects.create(codigo='AD', nombre='Administración', tipo='ADMINISTRACION'))
 
     def _planilla(self, tipo, periodo):
         p = Planilla.objects.create(tipo=tipo, periodo=periodo)

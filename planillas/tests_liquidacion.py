@@ -10,7 +10,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from contabilidad.centralizar import centralizar_periodo
-from contabilidad.models import AsientoLinea
+from contabilidad.models import AsientoLinea, CentroCosto
 
 from . import calculo, servicios
 from .models import AFP, Planilla, Trabajador, Vacacion
@@ -33,7 +33,9 @@ class LiquidacionTest(TestCase):
         self.ana = Trabajador.objects.create(
             numero_doc='45678912', apellido_paterno='QUISPE', nombres='ANA', fecha_ingreso=date(2024, 3, 1),
             sueldo=D('3000'), asignacion_familiar=True, sistema_pensiones='AFP',
-            afp=AFP.objects.get(codigo='INTEGRA'))
+            afp=AFP.objects.get(codigo='INTEGRA'),
+            centro_costo=CentroCosto.objects.get_or_create(codigo='AD', defaults={
+                'nombre': 'Administración', 'tipo': 'ADMINISTRACION'})[0])
 
     def test_record_vacacional(self):
         Vacacion.objects.create(trabajador=self.ana, fecha_inicio=date(2025, 4, 1), fecha_fin=date(2025, 4, 30))

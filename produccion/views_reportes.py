@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import models
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -202,11 +203,44 @@ class ParadaForm(BootstrapMixin, forms.ModelForm):
         self.fields['orden'].queryset = OrdenProduccion.objects.filter(
             estado__in=['CONFIRMADA', 'EN_PROCESO', 'TERMINADA'], fecha__gte=desde).order_by('-id')
         self.fields['motivo'].queryset = MotivoParada.objects.filter(activo=True)
+        # operario: trabajadores de planilla vigentes (no texto libre)
+        from planillas.models import Trabajador
+        hoy = timezone.localdate()
+        nombres = [t.nombre_completo for t in Trabajador.objects.filter(fecha_ingreso__isnull=False).exclude(
+            fecha_cese__lt=hoy).order_by('apellido_paterno', 'apellido_materno', 'nombres')]
+        actual = self.instance.operario if self.instance.pk else ''
+        if actual and actual not in nombres:
+            nombres.insert(0, actual)
+        self.fields['operario'].widget = forms.Select(choices=[('', '— Sin indicar —')] + [(n, n) for n in nombres],
+                                                      attrs={'class': 'form-select'})
 
     def clean(self):
         d = super().clean()
-        if d.get('inicio') and d.get('fin') and d['fin'] <= d['inicio']:
+        inicio, fin, orden = d.get('inicio'), d.get('fin'), d.get('orden')
+        if inicio and fin and fin <= inicio:
             self.add_error('fin', 'Debe ser posterior al inicio.')
+        ahora = timezone.now() + timedelta(minutes=5)  # tolerancia por el reloj de la tablet
+        for campo in ('inicio', 'fin'):
+            if d.get(campo) and d[campo] > ahora:
+                self.add_error(campo, 'No puede ser una hora futura: registre la parada cuando ocurra.')
+        if orden and inicio:
+            if orden.fecha_inicio and timezone.localtime(inicio).date() < orden.fecha_inicio:
+                self.add_error('inicio', f'La orden {orden.numero} empezó el {orden.fecha_inicio:%d/%m/%Y}: la parada '
+                                         f'no puede ser anterior.')
+            if orden.terminado_en and (fin or inicio) > orden.terminado_en:
+                termino = timezone.localtime(orden.terminado_en).strftime('%d/%m/%Y %H:%M')
+                self.add_error('fin' if fin else 'inicio',
+                               f'La orden {orden.numero} terminó el {termino}: la parada debe ser anterior.')
+            centros = set(orden.horas.values_list('centro_id', flat=True))
+            if d.get('centro') and centros and d['centro'].pk not in centros:
+                self.add_error('orden', f'La orden {orden.numero} no pasa por el puesto {d["centro"]}.')
+        if d.get('centro') and inicio:
+            cruce = Parada.objects.filter(centro=d['centro'], inicio__lt=fin or ahora).filter(
+                models.Q(fin__isnull=True) | models.Q(fin__gt=inicio)).exclude(pk=self.instance.pk)
+            if d.get('equipo'):
+                cruce = cruce.filter(models.Q(equipo=d['equipo']) | models.Q(equipo__isnull=True))
+            if cruce.exists():
+                self.add_error('inicio', f'Se cruza con otra parada del mismo puesto ({cruce.first()}).')
         if d.get('equipo') and d.get('centro') and d['equipo'].centro_id not in (None, d['centro'].pk):
             self.add_error('equipo', 'El equipo es de otro puesto.')
         if d.get('motivo'):  # reglas del maestro: que aplique al puesto y, si lo exige, con equipo

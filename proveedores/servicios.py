@@ -275,7 +275,8 @@ def registrar_compra(factura, usuario):
         c = Compra(tipo_comprobante=factura.tipo_comprobante, serie=factura.serie, numero=factura.numero,
                    tercero=factura.tercero, fecha_emision=factura.fecha_emision, moneda=factura.moneda,
                    tipo_cambio=venta_del_dia(factura.fecha_emision) if factura.moneda == 'USD' else Decimal('1'),
-                   tipo_operacion=oc.tipo_operacion, clasificacion='MERCADERIA', orden_compra=oc,
+                   tipo_operacion=oc.tipo_operacion, orden_compra=oc,
+                   clasificacion=Compra.clasificacion_de(oc.items.select_related('producto')),
                    centro_costo=oc.centro_costo, forma_pago='CREDITO' if oc.dias_credito else 'CONTADO',
                    ingresar_almacen=not recibida, almacen=Almacen.principal(),
                    glosa=f'Factura registrada por el proveedor en el portal ({oc.numero})')

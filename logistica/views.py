@@ -42,13 +42,22 @@ def _al_guardar(guia):
         transaction.on_commit(enviar)
 
 
+def punto_partida(almacen, empresa):
+    """(ubigeo, dirección) de partida: la del almacén; si no la tiene, la del almacén principal y luego la de la
+    empresa (domicilio fiscal)."""
+    principal = Almacen.principal()
+    ubigeo = almacen.ubigeo or principal.ubigeo or empresa.ubigeo
+    direccion = almacen.direccion or principal.direccion or empresa.direccion
+    return ubigeo, direccion
+
+
 def _initial_desde_venta(venta):
     empresa = Empresa.actual()
     almacen = venta.almacen or Almacen.principal()
+    ubigeo, direccion = punto_partida(almacen, empresa)
     initial = {
         'venta': venta.pk, 'destinatario': venta.tercero_id, 'motivo_traslado': '01',
-        'partida_ubigeo': almacen.ubigeo or empresa.ubigeo,
-        'partida_direccion': almacen.direccion or empresa.direccion,
+        'partida_ubigeo': ubigeo, 'partida_direccion': direccion,
         'llegada_ubigeo': venta.tercero.ubigeo, 'llegada_direccion': venta.tercero.direccion,
         'almacen_origen': almacen.pk,
         # si la venta ya descontó stock la guía no vuelve a moverlo
@@ -173,6 +182,10 @@ def nueva(request):
         initial, items = _initial_desde_venta(venta)
         if not items and request.method == 'GET':
             messages.warning(request, f'{venta}: ya se despachó todo lo facturado con guías emitidas.')
+        almacen = venta.almacen
+        if almacen and not (almacen.direccion and almacen.ubigeo) and request.method == 'GET':
+            messages.info(request, f'El almacén {almacen} no tiene dirección o ubigeo: el punto de partida se tomó del '
+                                   f'almacén principal o de la empresa. Complételo en Inventario › Almacenes.')
     titulo = 'Nueva guía de remisión ' + ('transportista' if tipo == '31' else 'remitente')
     return guardar_documento(request, _form_class(tipo), guia_formset(), GuiaRemision(tipo=tipo),
                              'logistica/guia_form.html', _ctx(titulo, tipo), al_guardar=_al_guardar,

@@ -137,7 +137,9 @@ def items_desde_origen(op):
     """Ítems sugeridos (pendientes) para prellenar el formulario."""
     filas = []
     for pid, (cantidad, costo) in pendientes(op).items():
-        filas.append({'producto': pid, 'cantidad': cantidad, 'costo_unitario': costo, 'observacion': ''})
+        # cantidad × factor deja 4–6 decimales (160.560000) y el formulario solo admite 2: se normaliza
+        filas.append({'producto': pid, 'cantidad': Decimal(cantidad).quantize(Decimal('0.01')), 'costo_unitario': costo,
+                      'observacion': ''})
     return filas
 
 

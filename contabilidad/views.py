@@ -554,7 +554,7 @@ def resultados_por_linea(request):
     hasta = _periodo(request, 'hasta')
     desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')
     lineas = list(CentroBeneficio.objects.filter(activo=True))
-    columnas = [(cb.pk, cb.nombre) for cb in lineas] + [(None, 'Sin línea')]
+    columnas = [(cb.pk, cb.nombre) for cb in lineas] + [(None, 'Sin línea / producción en curso')]
     # cada línea se calcula igual que el estado de resultados por función, con sus propias cuentas, así el total es
     # exactamente el del estado oficial: ventas 70/74, costo 69 + 60/61 + producción (9x) − 71/72, gastos por destino
     por_linea = {pk: {} for pk, _ in columnas}
@@ -566,6 +566,22 @@ def resultados_por_linea(request):
     calculo = {pk: {n: v for n, v, _ in reportes.estado_resultados(desde, hasta, sumas=s)[0]}
                for pk, s in por_linea.items()}
     oficial, _ = reportes.estado_resultados(desde, hasta)
+    # en cada línea el costo de ventas es el costo de lo vendido (69). Lo comprado, consumido y producido en el
+    # periodo (60/61, destinos de producción 9x y producción almacenada 71/72) no se identifica con una línea hasta
+    # que se vende: esa diferencia pasa a «Sin línea», así el margen por línea es confiable y el total no cambia
+    acumulados = [n for n, _, e in oficial[oficial.index(next(x for x in oficial if x[0] == 'Costo de ventas')) + 1:]
+                  if e in ('subtotal', 'total')]
+    for pk, s in por_linea.items():
+        if pk is None:
+            continue
+        costo_vendido = -reportes._neto(s, ('69',))
+        delta = calculo[pk].get('Costo de ventas', D0) - costo_vendido
+        if delta:
+            calculo[pk]['Costo de ventas'] = costo_vendido
+            calculo[None]['Costo de ventas'] = calculo[None].get('Costo de ventas', D0) + delta
+            for n in acumulados:
+                calculo[pk][n] = calculo[pk].get(n, D0) - delta
+                calculo[None][n] = calculo[None].get(n, D0) + delta
     filas = [(n, {pk: calculo[pk].get(n, D0) for pk, _ in columnas}, e in ('subtotal', 'total'), v)
              for n, v, e in oficial]
     # cuentas por cobrar e inventario por línea al cierre

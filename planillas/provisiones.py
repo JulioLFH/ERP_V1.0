@@ -35,10 +35,13 @@ def provisiones_del_mes(periodo):
     except ValueError:
         param = None
     bonif = (param.bonificacion_extraordinaria_pct / 100) if param else Decimal('0.09')
+    from contabilidad.centralizar import _repartir
+    from .servicios import centros_de_trabajadores
     filas, por_centro = [], {k: defaultdict(lambda: D0) for k in ('gratificacion', 'cts', 'vacaciones')}
-    for t in Trabajador.objects.filter(sueldo__gt=0).select_related('centro_costo'):
-        if not t.activo_en(desde, hasta):
-            continue
+    trabajadores = [t for t in Trabajador.objects.filter(sueldo__gt=0).select_related('centro_costo')
+                    if t.activo_en(desde, hasta)]
+    centros = centros_de_trabajadores(trabajadores, periodo)  # igual que el gasto de la planilla
+    for t in trabajadores:
         inicio, fin = max(desde, t.fecha_ingreso), min(hasta, t.fecha_cese or hasta)
         fraccion = Decimal((fin - inicio).days + 1) / dias_mes
         base = t.sueldo + (param.asignacion_familiar if param and t.asignacion_familiar else D0)
@@ -51,7 +54,8 @@ def provisiones_del_mes(periodo):
                       'vacaciones': vac})
         for clave, monto in (('gratificacion', grati), ('cts', cts), ('vacaciones', vac)):
             if monto:
-                por_centro[clave][t.centro_costo] += monto
+                for centro, parte in _repartir(monto, centros[t.pk] or {None: Decimal('1')}):
+                    por_centro[clave][centro] += parte
     cta = {d.clave: d.cuenta_id for d in CuentaDefecto.objects.filter(
         clave__in=['prov_gratificacion', 'prov_cts', 'prov_vacaciones'])}
     pagado = dict(LineaPlanilla.objects.filter(

@@ -356,6 +356,8 @@ DEFECTOS = [
     ('honorarios_por_pagar', 'Honorarios por pagar (recibos por honorarios)', '4241'),
     ('retencion_cuarta', 'Retención de renta de cuarta categoría', '40172'),
     ('compra_MERCADERIA', 'Compras: mercadería', '6011'),
+    ('compra_MATERIA_PRIMA', 'Compras: materias primas e insumos', '6021'),
+    ('compra_SUMINISTRO', 'Compras: suministros y repuestos', '6032'),
     ('compra_GASTO', 'Compras: gasto', '6599'),
     ('compra_SERVICIO', 'Compras: servicio', '6399'),
     ('compra_HONORARIOS', 'Compras: honorarios', '6321'),

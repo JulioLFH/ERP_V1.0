@@ -87,12 +87,15 @@ class OrdenCompraItem(ItemBase):
 class Compra(ComprobanteBase):
     CLASIFICACION = [
         ('MERCADERIA', 'Mercadería'),
+        ('MATERIA_PRIMA', 'Materia prima e insumos'),
+        ('SUMINISTRO', 'Suministros y repuestos'),
         ('GASTO', 'Gasto'),
         ('ACTIVO_FIJO', 'Activo fijo'),
         ('SERVICIO', 'Servicio'),
         ('HONORARIOS', 'Honorarios (4ta categoría)'),
     ]
-    clasificacion = models.CharField('Clasificación', max_length=12, choices=CLASIFICACION, default='MERCADERIA')
+    DE_ALMACEN = ('MERCADERIA', 'MATERIA_PRIMA', 'SUMINISTRO')  # clasificaciones de bienes que ingresan al almacén
+    clasificacion = models.CharField('Clasificación', max_length=20, choices=CLASIFICACION, default='MERCADERIA')
     orden_compra = models.ForeignKey(OrdenCompra, on_delete=models.SET_NULL, null=True, blank=True,
                                      related_name='compras', verbose_name='Orden de compra')
     doc_referencia = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True,
@@ -110,6 +113,18 @@ class Compra(ComprobanteBase):
     class Meta(ComprobanteBase.Meta):
         verbose_name = 'compra'
         unique_together = [('tercero', 'tipo_comprobante', 'serie', 'numero')]
+
+    @staticmethod
+    def clasificacion_de(items):
+        """Clasificación sugerida por el tipo de producto que más pesa en los ítems (OC → factura)."""
+        por_clase = {'MERCADERIA': 'MERCADERIA', 'PRODUCTO_TERMINADO': 'MERCADERIA', 'MATERIA_PRIMA': 'MATERIA_PRIMA',
+                     'SEMIELABORADO': 'MATERIA_PRIMA', 'SUMINISTRO': 'SUMINISTRO', 'ACTIVO': 'ACTIVO_FIJO',
+                     'SERVICIO': 'SERVICIO'}
+        pesos = {}
+        for i in items:
+            clave = por_clase.get(i.producto.clase, 'GASTO') if i.producto_id else 'GASTO'
+            pesos[clave] = pesos.get(clave, 0) + (i.cantidad or 0) * (i.precio_unitario or 0)
+        return max(pesos, key=pesos.get) if pesos else 'MERCADERIA'
 
     def _signo_stock(self):
         return -1 if self.es_nota_credito else 1

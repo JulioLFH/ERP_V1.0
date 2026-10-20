@@ -84,7 +84,7 @@
         </tr>
         <tr><td colspan="5" class="pt-0">
           <table class="table table-sm table-borderless mb-1 small"><thead><tr class="text-muted"><th style="width:18%">Horas hombre</th><th>Trabajador</th><th class="num" style="width:14%">Horas</th>{% if ver_costos and not abierta %}<th class="num">S/ por hora</th><th class="num">Costo</th>{% endif %}</tr></thead>
-          <tbody>
+          <tbody id="hh-{{ h.pk }}">
           {% if abierta %}{% for fila in h.filas_personal %}<tr>
             <td><select name="hh_{{ h.pk }}_{{ forloop.counter0 }}_rol" class="form-select form-select-sm"><option value="MAQUINISTA" {% if fila.rol == 'MAQUINISTA' %}selected{% endif %}>Maquinista</option><option value="AYUDANTE" {% if fila.rol == 'AYUDANTE' %}selected{% endif %}>Ayudante</option></select></td>
             <td><select name="hh_{{ h.pk }}_{{ forloop.counter0 }}_trab" class="form-select form-select-sm"><option value="">— Sin asignar (tarifa referencial del puesto) —</option>{% for t in trabajadores %}<option value="{{ t.pk }}">{{ t.nombre_completo }}{% if t.cargo %} · {{ t.cargo }}{% endif %}</option>{% endfor %}</select></td>
@@ -92,6 +92,7 @@
           </tr>{% endfor %}
           {% else %}{% for p in h.personal.all %}<tr><td>{{ p.get_rol_display }}</td><td>{{ p.trabajador.nombre_completo|default:'Sin asignar (tarifa referencial)' }}</td><td class="num">{{ p.horas }}</td>{% if ver_costos %}<td class="num">{{ p.costo_hora|floatformat:4 }}</td><td class="num">{{ p.costo|money }}</td>{% endif %}</tr>{% empty %}<tr><td colspan="5" class="text-muted">Sin horas hombre registradas.</td></tr>{% endfor %}{% endif %}
           </tbody></table>
+          {% if abierta %}<button type="button" class="btn btn-sm btn-outline-secondary js-agregar-hh" data-hora="{{ h.pk }}"><i class="bi bi-person-plus"></i> Agregar persona</button>{% endif %}
         </td></tr>{% empty %}<tr><td colspan="5" class="text-muted small">La receta no registra horas: el costo será solo de materiales.</td></tr>{% endfor %}</tbody>
       </table></div>
       <div class="card-body py-2 small text-muted">Máquina y CIF se reparten por las horas máquina reales. La mano de obra se valoriza por las horas hombre de cada maquinista y ayudante al costo real de su hora (sueldo, EsSalud, gratificaciones, CTS y vacaciones); sin trabajador asignado, a la tarifa referencial del puesto.</div>
@@ -124,6 +125,18 @@
       document.querySelectorAll('.js-hh-' + inp.dataset.hora).forEach(hh => { if (!hh.dataset.editado) hh.value = inp.value; });
     }));
     document.addEventListener('input', e => { if (String(e.target.className).includes('js-hh-')) e.target.dataset.editado = '1'; });
+    /* una fila más de horas hombre (el servidor lee hh_<operación>_<n> en orden, sin saltos) */
+    document.querySelectorAll('.js-agregar-hh').forEach(btn => btn.addEventListener('click', () => {
+      const cuerpo = document.getElementById('hh-' + btn.dataset.hora);
+      const n = cuerpo.rows.length;
+      const fila = cuerpo.rows[n - 1].cloneNode(true);
+      fila.querySelectorAll('[name]').forEach(campo => {
+        campo.name = campo.name.replace(/^(hh_\d+_)\d+(_\w+)$/, '$1' + n + '$2');
+        if (campo.tagName === 'SELECT') campo.selectedIndex = campo.name.endsWith('_rol') ? 1 : 0;
+        else { campo.value = ''; campo.className = campo.className.replace(/\s?js-hh-\d+/, ''); }
+      });
+      cuerpo.appendChild(fila);
+    }));
     </script>
     {% endif %}
     </form>

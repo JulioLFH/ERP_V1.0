@@ -3,6 +3,17 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.38.0 — 20/10/2026 · Correcciones del flujo integral de punta a punta
+- **Recepción con decimales (COM-03)**: la recepción de una OC (ej. 160.56 L) se prellenaba con 160.560000 y el formulario la rechazaba; ahora se propone con 2 decimales.
+- **Clasificación de compras (COM-04)**: nuevas clasificaciones **Materia prima e insumos** (602) y **Suministros y repuestos** (603). La factura que se registra desde una OC propone la clasificación según los productos que más pesan; también la del portal de proveedores. «Exigir orden de compra» aplica a los tres tipos de bienes de almacén.
+- **Venta desde un pedido al crédito (VEN-09)**: toma la condición de pago del pedido («Crédito 30 días», «45 días», «Contado»; sin condición, los días de crédito del cliente) y propone el vencimiento.
+- **Pedido aprobado modificado (VEN-10)**: al guardar cambios vuelve a «Pendiente» y debe aprobarse otra vez (se avisa antes de editar); con un comprobante emitido ya no se edita.
+- **Cuadrilla de la orden (MAN-10)**: botón **Agregar persona** en cada puesto para registrar todas las horas hombre que hagan falta (antes solo la cuadrilla prevista y una fila libre).
+- **Paradas (MAN-11)**: no se aceptan horas futuras, ni anteriores al inicio o posteriores al término de la orden, ni de un puesto por el que la orden no pasa, ni cruzadas con otra parada del mismo puesto o equipo. El operario se elige de los trabajadores de planilla.
+- **Guía de remisión (LOG-03)**: si el almacén no tiene dirección, el punto de partida se toma del almacén principal (y luego de la empresa) y se avisa; un almacén nuevo propone la dirección del principal.
+- **Planilla por centro de costo (PLA-06/07)**: el gasto de un trabajador sin centro de costo se reparte según las horas hombre que registró en las órdenes de producción del mes (centro del puesto o de la orden), también en las provisiones de beneficios sociales. La planilla no se cierra si algún trabajador queda sin centro: el mensaje los lista.
+- **Resultados por línea de negocio (CON-05)**: en cada línea el costo de ventas es el **costo de lo vendido (69)**, así el margen por línea es el real; lo comprado, consumido y producido en el periodo que aún no se vende (60/61, destinos de producción, 71/72) va a la columna «Sin línea / producción en curso». El total sigue siendo el del estado de resultados por función.
+
 ## v1.37.0 — 20/10/2026 · Maestro de motivos de parada y OEE por tipo de pérdida
 - **Motivos de parada** en Manufactura › Ingeniería (y carga masiva desde Excel): código, nombre, **pérdida OEE** (disponibilidad, rendimiento, calidad o no programado), **tipo** (planificada, avería, proceso, externa, microparada, velocidad reducida, calidad), área responsable, si cuenta para MTBF/MTTR, si exige equipo, si propone orden de mantenimiento y en qué puestos aplica. Los motivos con paradas no se borran: se desactivan.
 - Los 9 motivos anteriores quedaron clasificados (sus paradas se conservan) y se agregaron los de la lista sugerida que faltaban (sin pedidos, refrigerio, arranque, averías eléctrica y neumática, ajustes, atasco, microparada, velocidad reducida, rechazo, reproceso, merma de arranque).

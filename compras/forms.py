@@ -35,9 +35,9 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
             self.add_error('doc_referencia', 'Indique el comprobante que modifica la nota.')
         validar_periodo_abierto(self, 'fecha_emision', data.get('periodo'))
         from core.models import Empresa
-        if not self.instance.pk and Empresa.actual().exigir_orden_compra and data.get('clasificacion') == 'MERCADERIA' \
+        if not self.instance.pk and Empresa.actual().exigir_orden_compra and data.get('clasificacion') in Compra.DE_ALMACEN \
                 and data.get('tipo_comprobante') not in ('07', '08') and not data.get('orden_compra'):
-            self.add_error('orden_compra', 'Las compras de mercadería se registran desde una orden de compra '
+            self.add_error('orden_compra', 'Las compras de bienes de almacén se registran desde una orden de compra '
                                            '(Ajustes > Empresa > Exigir orden de compra).')
         from inventario.cierre import error_cierre
         if data.get('ingresar_almacen') and data.get('tipo_comprobante') != '08' and error_cierre(data.get('fecha_emision')):
