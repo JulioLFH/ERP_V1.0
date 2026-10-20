@@ -97,6 +97,13 @@ class LoginSeguroView(LoginView):
         ctx['sso'] = proveedores_para(self._empresa())  # botones «Ingresar con Microsoft / Google»
         return ctx
 
+    def get(self, request, *args, **kwargs):
+        from .instalacion import pendiente
+        if pendiente():  # instalación nueva, sin usuarios: primero el asistente
+            from django.shortcuts import redirect
+            return redirect('instalacion')
+        return super().get(request, *args, **kwargs)
+
     def post(self, request, *args, **kwargs):
         # multiempresa: el usuario se valida en la base de la empresa elegida
         from erp.empresas import activar, restaurar

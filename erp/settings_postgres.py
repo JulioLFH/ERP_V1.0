@@ -41,11 +41,15 @@ _CONEXION = {
     'CONN_MAX_AGE': 600,
     'CONN_HEALTH_CHECKS': True,
 }
-DATABASES = {
-    'default': {**_CONEXION, 'NAME': _dato('PG_BASE_PRINCIPAL', 'ceiba_principal')},
-    'empresa2': {**_CONEXION, 'NAME': _dato('PG_BASE_EMPRESA2', 'ceiba_empresa2')},
-}
-EMPRESAS = {'default': os.environ.get('EMPRESA_PRINCIPAL', 'Empresa principal'), 'empresa2': 'SEGUNDA EMPRESA'}
+DATABASES = {'default': {**_CONEXION, 'NAME': _dato('PG_BASE_PRINCIPAL', 'ceiba_principal')}}
+EMPRESAS = {'default': os.environ.get('EMPRESA_PRINCIPAL', 'Empresa principal')}
+# segunda empresa configurada a mano (PG_BASE_EMPRESA2=- para una instalación sin ella; las demás empresas se crean
+# desde el Panel del grupo). Las pruebas siempre la usan.
+_EMPRESA2 = _dato('PG_BASE_EMPRESA2', 'ceiba_empresa2')
+_SIN_EMPRESA2 = _EMPRESA2.lower() in ('-', 'ninguna')
+if not _SIN_EMPRESA2 or 'test' in __import__('sys').argv[1:2]:
+    DATABASES['empresa2'] = {**_CONEXION, 'NAME': 'ceiba_empresa2' if _SIN_EMPRESA2 else _EMPRESA2}
+    EMPRESAS['empresa2'] = 'SEGUNDA EMPRESA'
 
 
 def _empresas_registradas():
@@ -67,5 +71,7 @@ def _empresas_registradas():
 for _alias, _base, _nombre in _empresas_registradas():
     DATABASES.setdefault(_alias, {**_CONEXION, 'NAME': _base})
     EMPRESAS.setdefault(_alias, _nombre)
-SESSION_COOKIE_NAME = 'ceiba_pg_sesion'  # no se mezcla con las sesiones de las bases SQLite
-CSRF_COOKIE_NAME = 'ceiba_pg_csrf'
+# cada instalación con su propia cookie (PG_COOKIE): dos copias del sistema en el mismo equipo no cruzan sesiones
+_COOKIE = _dato('PG_COOKIE', 'ceiba_pg')
+SESSION_COOKIE_NAME = f'{_COOKIE}_sesion'  # no se mezcla con las sesiones de las bases SQLite
+CSRF_COOKIE_NAME = f'{_COOKIE}_csrf'

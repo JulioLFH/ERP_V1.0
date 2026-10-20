@@ -1,0 +1,17 @@
+{% extends 'registration/publico_base.html' %}
+{% block title %}Primera instalación{% endblock %}
+{% block tarjeta %}
+<h2>Primera instalación</h2>
+{% if bloqueado %}
+<div class="alert alert-warning small">El sistema aún no tiene usuarios. Por seguridad, la instalación se completa desde el mismo equipo del servidor (http://127.0.0.1) o con la clave de instalación (variable de entorno <code>CLAVE_INSTALACION</code>, en la dirección <code>/instalacion/?clave=…</code>).</div>
+{% else %}
+<p class="small text-muted">Registre la empresa principal y cree el administrador del sistema. Desde su Panel del grupo podrá crear las demás empresas y sus usuarios.</p>
+<form method="post" autocomplete="off">{% csrf_token %}
+  {% if request.GET.clave %}<input type="hidden" name="clave" value="{{ request.GET.clave }}">{% endif %}
+  <div class="small fw-semibold text-muted mb-1">Empresa principal</div>
+  {% for field in form %}{% if field.name == 'usuario' %}<div class="small fw-semibold text-muted mb-1 mt-2">Administrador</div>{% endif %}
+  <div class="mb-2"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for e in field.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}{% if field.help_text %}<div class="form-text">{{ field.help_text|safe }}</div>{% endif %}</div>{% endfor %}
+  <button class="btn btn-ingresar w-100 mt-2">Instalar</button>
+</form>
+{% endif %}
+{% endblock %}

@@ -45,7 +45,7 @@ class CambioSinCerrarSesionTest(Base):
         self.assertEqual(self.client.session['corporativo']['username'], 'gerente')
         r = self.client.get(reverse('home'))
         self.assertContains(r, 'Ir a FILIAL NORTE S.A.C.')
-        self.assertContains(r, 'Empresas del grupo')
+        self.assertContains(r, 'Panel del grupo')
         r = self.client.post(reverse('cambiar_empresa'), {'empresa': 'empresa2'})
         self.assertRedirects(r, reverse('home'), fetch_redirect_response=False)  # no lo manda a iniciar sesión
         self.assertEqual(self.client.session['empresa'], 'empresa2')
@@ -108,3 +108,51 @@ class CrearEmpresaTest(Base):
         self.assertEqual(self.client.get(reverse('grupo_estado')).json()['empresa3']['estado'], 'CREANDO')
         with self.assertRaisesMessage(grupo.ErrorGrupo, 'ya se está creando'):
             grupo.crear_empresa('REPETIDA', '20100066603', admin)
+
+
+class PrimeraInstalacionTest(Base):
+    def test_asistente_sin_usuarios(self):
+        self.assertFalse(User.objects.exists())
+        self.assertRedirects(self.client.get(reverse('login')), reverse('instalacion'), fetch_redirect_response=False)
+        r = self.client.get(reverse('instalacion'), REMOTE_ADDR='200.48.10.5')  # desde fuera del servidor
+        self.assertEqual(r.status_code, 403)
+        with patch.dict('os.environ', {'CLAVE_INSTALACION': 'clave-del-instalador'}):
+            self.assertEqual(self.client.get(reverse('instalacion') + '?clave=clave-del-instalador',
+                                             REMOTE_ADDR='200.48.10.5').status_code, 200)
+        r = self.client.post(reverse('instalacion'), {
+            'razon_social': 'Grupo Andino S.A.C.', 'ruc': '20100066603', 'direccion': 'Av. Lima 100',
+            'usuario': 'admin', 'nombre': 'Julio Flores', 'email': 'julio@grupo.pe', 'clave1': CLAVE,
+            'clave2': CLAVE})
+        self.assertRedirects(r, reverse('grupo_panel'), fetch_redirect_response=False)
+        admin = User.objects.get()
+        self.assertTrue(admin.is_superuser)
+        self.assertEqual((admin.first_name, admin.last_name), ('Julio', 'Flores'))
+        e = Empresa.actual()
+        self.assertEqual((e.ruc, e.razon_social, e.direccion), ('20100066603', 'GRUPO ANDINO S.A.C.', 'Av. Lima 100'))
+        self.assertEqual(self.client.session['corporativo']['username'], 'admin')
+        self.assertContains(self.client.get(reverse('grupo_panel')), 'FILIAL NORTE S.A.C.')
+        self.assertEqual(self.client.get(reverse('instalacion')).status_code, 404)  # ya no existe
+
+
+class PanelDelGrupoTest(Base):
+    def test_panel_y_usuario_corporativo_que_crea_empresas(self):
+        User.objects.create_superuser('jefe', 'j@holding.pe', CLAVE)
+        self.ingresar('jefe')
+        r = self.client.get(reverse('grupo_panel'))
+        self.assertContains(r, 'HOLDING PRINCIPAL S.A.C.')
+        self.assertContains(r, 'FILIAL NORTE S.A.C.')
+        self.assertContains(r, 'Falta configurar')
+        self.client.post(reverse('grupo_panel'), {'accion': 'nuevo_corporativo', 'usuario': 'socia',
+                                                  'nombre': 'Rosa Pérez', 'email': 'rosa@holding.pe', 'clave': CLAVE,
+                                                  'todas': '1', 'puede_crear': '1'})
+        socia = User.objects.get(username='socia')
+        c = UsuarioCorporativo.objects.get(usuario=socia)
+        self.assertTrue(c.todas and c.puede_crear)
+        self.assertFalse(socia.is_superuser)
+        self.client.logout()
+        self.ingresar('socia')
+        r = self.client.get(reverse('grupo_panel'))
+        self.assertContains(r, 'Crear empresa')
+        self.assertNotContains(r, 'Nuevo usuario corporativo')  # eso es solo del administrador
+        self.client.post(reverse('grupo_panel'), {'accion': 'nuevo_corporativo', 'usuario': 'otro', 'clave': CLAVE})
+        self.assertFalse(User.objects.filter(username='otro').exists())

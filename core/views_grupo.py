@@ -31,7 +31,7 @@ def empresas(request):
                                           f'actualiza sola.')
             except grupo.ErrorGrupo as exc:
                 messages.error(request, str(exc))
-        return redirect('grupo_empresas')
+        return redirect('grupo_panel' if request.POST.get('volver') == 'panel' else 'grupo_empresas')
     if accion == 'reintentar' and grupo.puede_crear(request):
         r = get_object_or_404(EmpresaGrupo.objects.using('default'), pk=request.POST.get('id'), estado='ERROR')
         grupo.reintentar(r, principal)
@@ -69,6 +69,95 @@ def empresas(request):
         'filas': filas, 'puede_crear': grupo.puede_crear(request), 'principal': principal,
         'corporativos': corporativos, 'aliases': list(reg.empresas()),
         'creando': any(f['registro'] and f['registro'].estado == 'CREANDO' for f in filas)})
+
+
+def _resumen(alias):
+    """Indicadores de una empresa para el panel (sin datos sensibles más allá de totales)."""
+    from django.db.models import Max, Sum
+    from django.utils import timezone
+
+    from .models import CorreoConfig, Empresa, FacturacionConfig, Serie
+    token = reg.activar(alias)
+    try:
+        from ventas.models import Venta
+        hoy = timezone.localdate()
+        e = Empresa.objects.first()
+        ventas = Venta.objects.filter(periodo=hoy.strftime('%Y%m')).exclude(estado='ANULADO')
+        pendientes = []
+        if not Serie.objects.filter(activo=True).exists():
+            pendientes.append('series')
+        correo, facturacion = CorreoConfig.objects.first(), FacturacionConfig.objects.first()  # solo lectura
+        if not (correo and correo.activa):
+            pendientes.append('correo')
+        if not (facturacion and facturacion.activa):
+            pendientes.append('facturación electrónica')
+        if e and not (e.direccion or '').strip():
+            pendientes.append('dirección')
+        return {'ruc': e.ruc if e else '', 'usuarios': get_user_model().objects.filter(is_active=True).count(),
+                'ventas_mes': ventas.aggregate(t=Sum('total_pen'))['t'] or 0,
+                'ultima_venta': Venta.objects.aggregate(f=Max('fecha_emision'))['f'], 'pendientes': pendientes,
+                'error': ''}
+    except Exception as exc:  # base no disponible o en creación
+        return {'error': type(exc).__name__}
+    finally:
+        reg.restaurar(token)
+
+
+@login_required
+def panel(request):
+    """Panel del administrador del grupo: todas las empresas, su estado y lo que les falta configurar."""
+    _exigir_corporativo(request)
+    principal = grupo.corporativo(request)
+    if request.method == 'POST' and request.POST.get('accion') == 'nuevo_corporativo':
+        if not principal.is_superuser:
+            messages.error(request, 'Solo un administrador de la empresa principal crea usuarios corporativos.')
+            return redirect('grupo_panel')
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+        User = get_user_model()
+        usuario = (request.POST.get('usuario') or '').strip()
+        clave = request.POST.get('clave') or ''
+        try:
+            if not usuario or User.objects.using('default').filter(username__iexact=usuario).exists():
+                raise ValidationError('Indique un usuario que no exista.')
+            validate_password(clave)
+        except ValidationError as exc:
+            messages.error(request, ' '.join(exc.messages))
+            return redirect('grupo_panel')
+        token = reg.activar('default')
+        try:
+            nombres = (request.POST.get('nombre') or '').strip().split(' ', 1)
+            u = User.objects.create_user(usuario, (request.POST.get('email') or '').strip(), clave,
+                                         first_name=nombres[0], last_name=nombres[1] if len(nombres) > 1 else '')
+            UsuarioCorporativo.objects.create(usuario=u, todas=bool(request.POST.get('todas')),
+                                              empresas=[a for a in request.POST.getlist('empresas')
+                                                        if a in reg.empresas()],
+                                              puede_crear=bool(request.POST.get('puede_crear')))
+        finally:
+            reg.restaurar(token)
+        messages.success(request, f'Usuario corporativo {u.username} creado: ingresa en la empresa principal y '
+                                  f'pasa a sus empresas desde el menú de usuario.')
+        return redirect('grupo_panel')
+    registradas = {e.alias: e for e in EmpresaGrupo.objects.using('default')}
+    permitidas = dict(grupo.empresas_de(request))
+    tarjetas = []
+    for alias in reg.empresas():
+        if alias not in permitidas:
+            continue
+        e = registradas.get(alias)
+        listo = e is None or e.estado == 'LISTA'
+        resumen = _resumen(alias) if listo else {}
+        tarjetas.append({'alias': alias, 'nombre': reg.razon_social(alias), 'registro': e, 'actual': alias == reg.actual(),
+                         'listo': listo and not resumen.get('error'),
+                         **resumen, 'ruc': resumen.get('ruc') or (e.ruc if e else '')})
+    tarjetas += [{'alias': e.alias, 'nombre': e.razon_social, 'registro': e, 'actual': False, 'listo': False,
+                  'ruc': e.ruc} for e in registradas.values() if e.alias not in reg.empresas()]
+    from . import estado_servicio as es
+    from django.conf import settings
+    return render(request, 'core/grupo_panel.html', {
+        'tarjetas': tarjetas, 'principal': principal, 'puede_crear': grupo.puede_crear(request),
+        'aliases': list(reg.empresas()), 'version': settings.ERP_VERSION, 'disp_30': es.disponibilidad(30),
+        'creando': any(t['registro'] and t['registro'].estado == 'CREANDO' for t in tarjetas)})
 
 
 @login_required
