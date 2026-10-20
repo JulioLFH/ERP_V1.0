@@ -387,7 +387,9 @@ class OrdenProduccion(models.Model):
     prioridad = models.PositiveSmallIntegerField(default=5, help_text='1 = la más urgente; ordena la programación '
                                                                       'de planta')
     fecha_inicio = models.DateField(null=True, blank=True)
-    fecha_fin = models.DateField('Fecha de término', null=True, blank=True)
+    fecha_fin = models.DateField('Fecha de término', null=True, blank=True,
+                                 help_text='Fecha contable de la producción (kardex, costos y asientos); la fecha y '
+                                           'hora reales quedan en «terminado en»')
     terminado_en = models.DateTimeField('Fecha y hora de término', null=True, blank=True)
     cantidad_producida = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
     # costeo

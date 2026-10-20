@@ -58,6 +58,7 @@
       {% if app == 'compras' and not doc.stock_aplicado and doc.tipo_comprobante != '08' and not operaciones_inv %}
         <form method="post" action="{% url 'compras:ingresar_almacen' doc.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-in-down"></i> Ingresar a almacén</button></form>
       {% endif %}
+      {% if app == 'compras' and puede.compras_registrar %}<a href="{% url 'compras:distribuir' doc.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-diagram-3"></i> Centros de costo</a>{% endif %}
       {% if app == 'ventas' and puede.ventas_anular or app == 'compras' and puede.compras_anular %}<button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>{% endif %}
     {% endif %}
   </div>
@@ -87,7 +88,10 @@
           {% empty %}<tr><td colspan="5" class="text-muted text-center">Comprobante sin detalle (importado).</td></tr>{% endfor %}
         </tbody>
       </table>
-    </div></div>
+    </div>
+    {% if doc.ajuste_redondeo %}<div class="card-body py-2 small text-muted border-top"><i class="bi bi-info-circle"></i> Se registró el total del proveedor: diferencia de redondeo de {{ doc.simbolo }} {{ doc.ajuste_redondeo|money }} frente al calculado con las líneas (va a su propia cuenta en el asiento).</div>{% endif %}
+    {% if app == 'compras' and doc.distribucion.exists %}<div class="card-body py-2 small border-top"><i class="bi bi-diagram-3"></i> Gasto repartido: {% for d in doc.distribucion.all %}{{ d.centro_costo }} {{ d.porcentaje|floatformat:2 }}%{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+    </div>
 
     {% if notas %}
     <div class="card mb-3"><div class="card-header">Notas de crédito / débito</div>

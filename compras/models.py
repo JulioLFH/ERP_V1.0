@@ -118,10 +118,34 @@ class Compra(ComprobanteBase):
                                         blank=True, related_name='+', limit_choices_to={'imputable': True},
                                         verbose_name='Cuenta de gasto / compra',
                                         help_text='Vacío = según la clasificación')
+    ajuste_redondeo = models.DecimalField(
+        'Diferencia de redondeo del proveedor', max_digits=10, decimal_places=2, default=Decimal('0'),
+        editable=False, help_text='Total de la factura del proveedor (XML / SUNAT) menos el calculado con sus líneas, '
+                                  'dentro de la tolerancia: se registra el total del proveedor y la diferencia va a '
+                                  'su propia cuenta')
 
     class Meta(ComprobanteBase.Meta):
         verbose_name = 'compra'
         unique_together = [('tercero', 'tipo_comprobante', 'serie', 'numero')]
+
+    def cuadrar_con(self, total_proveedor, tolerancia):
+        """Registra el total del proveedor si la diferencia con el calculado está dentro de la tolerancia (redondeo
+        por línea, por ejemplo). Devuelve la diferencia; lanza ValueError si la excede."""
+        self.ajuste_redondeo = Decimal('0')
+        self.calcular_totales()
+        diferencia = (total_proveedor - self.total).quantize(Decimal('0.01'))
+        if abs(diferencia) > tolerancia:
+            raise ValueError(f'El total del proveedor ({total_proveedor:,.2f}) no cuadra con el calculado '
+                             f'({self.total:,.2f}); la tolerancia es ±{tolerancia:,.2f}.')
+        if diferencia:
+            self.ajuste_redondeo = diferencia
+            self.calcular_totales()
+        return diferencia
+
+    @property
+    def ajuste_pen(self):
+        from core.models import r2
+        return r2(self.ajuste_redondeo * self.tc_efectivo)
 
     @staticmethod
     def clasificacion_de(items):
@@ -147,6 +171,8 @@ class Compra(ComprobanteBase):
 
     def calcular_totales(self):
         super().calcular_totales()
+        if self.ajuste_redondeo:  # redondeo del proveedor: el total es el de su factura
+            self.total += self.ajuste_redondeo
         # Recibo por honorarios: retención de 4ta categoría del 8% si supera S/ 1,500
         if self.tipo_comprobante == '02' and not self.retencion_pct and self.total * self.tipo_cambio > 1500:
             from core.models import r2
@@ -247,6 +273,64 @@ class LineaContrato(models.Model):
     class Meta:
         ordering = ['id']
         unique_together = [('contrato', 'producto')]
+
+
+class DistribucionCompra(models.Model):
+    """Reparto del gasto de una factura de compra en varios centros de costo (en %): el asiento divide la cuenta de
+    gasto en una línea por centro."""
+    compra = models.ForeignKey(Compra, on_delete=models.CASCADE, related_name='distribucion')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, related_name='+',
+                                     verbose_name='Centro de costo')
+    porcentaje = models.DecimalField(max_digits=6, decimal_places=2)
+
+    class Meta:
+        ordering = ['-porcentaje', 'id']
+        unique_together = [('compra', 'centro_costo')]
+
+
+class RegistroInfo(models.Model):
+    """Registro info (fuente de aprovisionamiento): qué proveedores venden cada producto, a qué precio, con qué plazo
+    de entrega y lote mínimo, y cuál es el preferido. Se actualiza solo con cada compra registrada (último precio y
+    fecha) y lo usan el MRP, la sugerencia de compra y las solicitudes de pedido para elegir proveedor y plazo."""
+    producto = models.ForeignKey('core.Producto', on_delete=models.CASCADE, related_name='registros_info')
+    proveedor = models.ForeignKey('core.Tercero', on_delete=models.CASCADE, related_name='registros_info',
+                                  limit_choices_to={'tipo__in': ['PROVEEDOR', 'AMBOS']})
+    codigo_proveedor = models.CharField('Código del proveedor', max_length=40, blank=True)
+    moneda = models.CharField(max_length=3, choices=[('PEN', 'Soles'), ('USD', 'Dólares')], default='PEN')
+    precio = models.DecimalField('Precio (sin IGV)', max_digits=14, decimal_places=4, null=True, blank=True,
+                                 help_text='Precio acordado o cotizado. Vacío = el de la última compra')
+    plazo_entrega = models.PositiveSmallIntegerField('Plazo de entrega (días)', default=0)
+    cantidad_minima = models.DecimalField('Lote mínimo de compra', max_digits=14, decimal_places=2, default=0)
+    vigente_hasta = models.DateField('Precio vigente hasta', null=True, blank=True)
+    preferido = models.BooleanField('Proveedor preferido', default=False)
+    activo = models.BooleanField(default=True)
+    ultimo_precio = models.DecimalField('Último precio comprado', max_digits=14, decimal_places=4, null=True,
+                                        blank=True, editable=False)
+    ultima_compra = models.DateField('Última compra', null=True, blank=True, editable=False)
+    compras = models.PositiveIntegerField('Compras registradas', default=0, editable=False)
+    observaciones = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['producto__nombre', '-preferido', 'proveedor__nombre']
+        unique_together = [('producto', 'proveedor')]
+        verbose_name = 'registro info (proveedor por producto)'
+        verbose_name_plural = 'registros info'
+
+    def __str__(self):
+        return f'{self.producto} · {self.proveedor}'
+
+    @property
+    def precio_vigente(self):
+        hoy = timezone.localdate()
+        if self.precio is not None and (self.vigente_hasta is None or self.vigente_hasta >= hoy):
+            return self.precio
+        return self.ultimo_precio
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.preferido:  # un solo preferido por producto
+            RegistroInfo.objects.filter(producto=self.producto, preferido=True).exclude(pk=self.pk).update(
+                preferido=False)
 
 
 class Licitacion(models.Model):

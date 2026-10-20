@@ -48,11 +48,14 @@ def crear(cabecera, lineas, usuario, origen='MANUAL'):
 
 
 def _contrato_para(producto, fecha=None):
-    """(contrato, línea pactada) vigente del proveedor habitual del producto, o (None, None)."""
+    """(contrato, línea pactada) vigente del proveedor preferido (registro info) o habitual del producto, o
+    (None, None)."""
     from .abastecimiento import contratos_vigentes
-    if not producto.proveedor_id:
+    from .registro_info import proveedor_y_plazo
+    proveedor = proveedor_y_plazo(producto)[0]
+    if proveedor is None:
         return None, None
-    for c in contratos_vigentes(producto.proveedor, fecha):
+    for c in contratos_vigentes(proveedor, fecha):
         linea = c.lineas.filter(producto=producto).first()
         if linea:
             return c, linea

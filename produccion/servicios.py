@@ -327,7 +327,7 @@ def _momento_termino(fecha):
 
 
 def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, personal=None, salidas=None,
-             merma_a_gasto=False):
+             merma_a_gasto=False, fecha_contable=None):
     """Registra la producción: salen los insumos realmente consumidos y entran el producto y sus subproductos.
 
     Costo de la orden = materiales consumidos + mano de obra + máquina + CIF (+ maquila):
@@ -347,9 +347,19 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
     if not cantidad_producida or cantidad_producida <= 0:
         raise ErrorProduccion('Indique la cantidad producida.')
     fecha, momento = _momento_termino(fecha)
+    # fecha contable (kardex y asientos) distinta de la de término: la del documento queda como referencia
+    if isinstance(fecha_contable, str):
+        try:
+            fecha_contable = date.fromisoformat(fecha_contable.strip()) if fecha_contable.strip() else None
+        except ValueError:
+            raise ErrorProduccion('Fecha contable no válida.')
+    contable = fecha_contable or fecha
+    if contable > timezone.localdate():
+        raise ErrorProduccion('La fecha contable no puede ser futura.')
     from inventario.cierre import error_cierre
-    if error_cierre(fecha):
-        raise ErrorProduccion(error_cierre(fecha))
+    if error_cierre(contable):
+        raise ErrorProduccion(error_cierre(contable))
+    documento = fecha if contable != fecha else None
     personal = personal or {}
     salidas = salidas or {}
     with transaction.atomic():
@@ -434,8 +444,8 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
                 por_almacen[c.almacen_id or orden.almacen_insumos_id].append(c)
         principal = orden.almacen_insumos_id
         op = Operacion.objects.create(
-            tipo=tipo, fecha=fecha, almacen_origen_id=principal, almacen_destino=orden.almacen_destino,
-            referencia=orden.numero, creado_por=usuario,
+            tipo=tipo, fecha=contable, fecha_documento=documento, almacen_origen_id=principal,
+            almacen_destino=orden.almacen_destino, referencia=orden.numero, creado_por=usuario,
             costo_adicional=mo + maq + cif + orden.costo_servicio - merma,
             glosa=f'Orden de producción {orden.numero}: {orden.producto.nombre}')
         for c in por_almacen.pop(principal, []):
@@ -450,7 +460,8 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
         # insumos de otros almacenes de consumo: se trasladan al almacén de insumos y desde ahí se consumen
         for almacen_id, filas in por_almacen.items():
             traslado = Operacion.objects.create(
-                tipo=TipoOperacion.objects.get(codigo='TRAS_ALM'), fecha=fecha, almacen_origen_id=almacen_id,
+                tipo=TipoOperacion.objects.get(codigo='TRAS_ALM'), fecha=contable, fecha_documento=documento,
+                almacen_origen_id=almacen_id,
                 almacen_destino_id=principal, referencia=orden.numero, creado_por=usuario,
                 glosa=f'Abastecimiento de {orden.numero}')
             for c in filas:
@@ -477,8 +488,9 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
         orden.merma_anormal = min(merma, materiales)
         orden.costo_subproductos = sum((s.costo for s in lista_salidas), D0)
         orden.costo_unitario = op.items.get(rol='PRODUCTO').costo_unitario
-        orden.cantidad_producida, orden.fecha_fin, orden.terminado_en = cantidad_producida, fecha, momento
-        orden.fecha_inicio = orden.fecha_inicio or fecha
+        # la fecha de término de la orden es la contable (periodo del costo); la real queda en terminado_en
+        orden.cantidad_producida, orden.fecha_fin, orden.terminado_en = cantidad_producida, contable, momento
+        orden.fecha_inicio = orden.fecha_inicio or contable
         orden.estado, orden.operacion = 'TERMINADA', op
         orden.save()
         registrar_variaciones(orden)
@@ -804,12 +816,14 @@ def ejecutar_mrp(horizonte, usuario=None):
                         demanda[c.producto_id].append((inicio, (c.cantidad_con_merma * factor).quantize(D4),
                                                        f'Insumo de OP planificada de {p.nombre}'))
                     disponible += cantidad_op
-                else:
-                    cantidad_oc = _redondear(falta if mto else max(falta, p.lote_compra or D0), None)
-                    pedir = max(fecha - timedelta(days=p.tiempo_entrega or 0), hoy)
+                else:  # comprar (también la mercadería de reventa): proveedor y plazo del registro info
+                    from compras.registro_info import proveedor_y_plazo
+                    proveedor, plazo, lote = proveedor_y_plazo(p)
+                    cantidad_oc = _redondear(falta if mto else max(falta, lote or D0), None)
+                    pedir = max(fecha - timedelta(days=plazo), hoy)
                     PropuestaMRP.objects.create(corrida=corrida, producto=p, tipo='COMPRAR', nivel=niveles[pid],
                                                 cantidad=r2(cantidad_oc), fecha_necesidad=fecha, fecha_inicio=pedir,
-                                                proveedor=p.proveedor, origen=origen[:250])
+                                                proveedor=proveedor, origen=origen[:250])
                     disponible += cantidad_oc
         _reponer_por_reorden(corrida, entradas, niveles, hoy)
     return corrida
@@ -833,10 +847,12 @@ def _reponer_por_reorden(corrida, entradas, niveles, hoy):
                                         cantidad=r2(cantidad), fecha_necesidad=hoy, fecha_inicio=hoy,
                                         version=version, origen=origen[:250])
         else:
+            from compras.registro_info import proveedor_y_plazo
+            proveedor, plazo, lote = proveedor_y_plazo(p)
             PropuestaMRP.objects.create(corrida=corrida, producto=p, tipo='COMPRAR', nivel=niveles[p.pk],
-                                        cantidad=r2(_redondear(cantidad, None)),
-                                        fecha_necesidad=hoy + timedelta(days=p.tiempo_entrega or 0),
-                                        fecha_inicio=hoy, proveedor=p.proveedor, origen=origen[:250])
+                                        cantidad=r2(_redondear(max(cantidad, lote or D0), None)),
+                                        fecha_necesidad=hoy + timedelta(days=plazo),
+                                        fecha_inicio=hoy, proveedor=proveedor, origen=origen[:250])
 
 
 def convertir_en_orden(propuesta, usuario):

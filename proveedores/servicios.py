@@ -285,7 +285,15 @@ def registrar_compra(factura, usuario):
             CompraItem.objects.create(documento=c, producto=i.producto, descripcion=i.descripcion,
                                       cantidad=i.cantidad, precio_unitario=i.precio_unitario)
         c.calcular_totales()
+        if factura.total_declarado:  # el total de la factura del proveedor (ya validado contra la tolerancia)
+            try:
+                c.cuadrar_con(factura.total_declarado, Empresa.actual().tolerancia_total)
+            except ValueError:
+                c.ajuste_redondeo = D0
+                c.calcular_totales()
         c.save()
+        from compras.registro_info import aprender
+        aprender(c)
         if c.ingresar_almacen:
             c.aplicar_stock()
         OrdenCompra.objects.filter(pk=oc.pk).exclude(estado='ANULADO').update(estado='ATENDIDO')

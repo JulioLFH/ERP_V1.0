@@ -96,7 +96,11 @@ class Operacion(models.Model):
 
     numero = models.CharField('Número', max_length=20, blank=True, editable=False)
     tipo = models.ForeignKey(TipoOperacion, on_delete=models.PROTECT, related_name='operaciones')
-    fecha = models.DateField(default=timezone.localdate)
+    fecha = models.DateField('Fecha contable', default=timezone.localdate,
+                             help_text='Fecha del movimiento en el kardex y en la contabilidad')
+    fecha_documento = models.DateField('Fecha del documento', null=True, blank=True,
+                                       help_text='Fecha de la guía, acta u otro documento físico, si es distinta '
+                                                 '(ej. guía del proveedor del 30, recibida el 1)')
     almacen_origen = models.ForeignKey(Almacen, on_delete=models.PROTECT, null=True, blank=True,
                                        related_name='operaciones_salida', verbose_name='Almacén de origen')
     almacen_destino = models.ForeignKey(Almacen, on_delete=models.PROTECT, null=True, blank=True,

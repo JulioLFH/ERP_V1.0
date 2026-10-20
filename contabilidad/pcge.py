@@ -377,6 +377,8 @@ DEFECTOS = [
     ('bancos', 'Bancos (cuentas bancarias sin cuenta asignada)', '1041'),
     ('detracciones', 'Banco de la Nación - detracciones', '1042'),
     ('ingreso_otro', 'Tesorería: otros ingresos', '7599'),
+    ('redondeo_perdida', 'Diferencia de redondeo en facturas de proveedores (pérdida)', '6599'),
+    ('redondeo_ganancia', 'Diferencia de redondeo en facturas de proveedores (ganancia)', '7599'),
     ('egreso_otro', 'Tesorería: otros egresos', '6599'),
     ('mov_GASTO_BANCARIO', 'Tesorería: gastos bancarios / ITF', '6391'),
     ('mov_SERVICIOS', 'Tesorería: servicios públicos', '6361'),

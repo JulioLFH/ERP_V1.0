@@ -1,0 +1,37 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Distribuir {{ doc }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-diagram-3"></i> Distribuir en centros de costo</h1>
+  <a href="{% url 'compras:detalle' doc.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> {{ doc }}</a>
+</div>
+<p class="small text-muted">{{ doc }} · {{ doc.tercero.nombre }} · base {{ doc.simbolo }} {{ doc.base_imponible|money }}. El gasto se reparte en el asiento en una línea por centro de costo según los porcentajes (deben sumar 100%). Sin filas, va al centro de costo de la factura{% if doc.centro_costo %} ({{ doc.centro_costo }}){% endif %}.</p>
+<form method="post" class="card" style="max-width: 640px">{% csrf_token %}
+  <div class="card-body">
+    <table class="table table-sm align-middle mb-2" id="tabla-reparto">
+      <thead><tr><th>Centro de costo</th><th style="width:140px" class="num">%</th></tr></thead>
+      <tbody>
+        {% for f in filas %}<tr><td><select name="centro_costo" class="form-select form-select-sm"><option value="">—</option>{% for c in centros %}<option value="{{ c.pk }}" {% if c.pk == f.centro_costo_id %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></td>
+          <td><input name="porcentaje" value="{{ f.porcentaje }}" class="form-control form-control-sm text-end" inputmode="decimal"></td></tr>{% endfor %}
+        {% for _ in vacias %}<tr><td><select name="centro_costo" class="form-select form-select-sm"><option value="">—</option>{% for c in centros %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}</select></td>
+          <td><input name="porcentaje" class="form-control form-control-sm text-end" inputmode="decimal"></td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr><th class="text-end">Total</th><th class="num" id="suma-reparto">0%</th></tr></tfoot>
+    </table>
+    <button class="btn btn-primary btn-sm"><i class="bi bi-check-lg"></i> Guardar distribución</button>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+  const tabla = document.getElementById('tabla-reparto');
+  const suma = () => {
+    const total = [...tabla.querySelectorAll('input[name=porcentaje]')].reduce((s, i) => s + (parseFloat(i.value.replace(',', '.')) || 0), 0);
+    const celda = document.getElementById('suma-reparto');
+    celda.textContent = total.toFixed(2) + '%';
+    celda.classList.toggle('text-danger', total !== 0 && Math.abs(total - 100) > 0.001);
+  };
+  tabla.addEventListener('input', suma);
+  suma();
+</script>
+{% endblock %}

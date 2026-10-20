@@ -193,7 +193,8 @@ def orden_terminar(request, pk):
         from inventario.cierre import KardexCerrado
         try:
             servicios.terminar(orden, request.user, cantidad, consumos, horas, fecha, personal=personal,
-                               salidas=salidas, merma_a_gasto=request.POST.get('merma_a_gasto') == '1')
+                               salidas=salidas, merma_a_gasto=request.POST.get('merma_a_gasto') == '1',
+                               fecha_contable=request.POST.get('fecha_contable') or None)
             messages.success(request, f'Orden {orden.numero} terminada: ingresaron {orden.cantidad_producida:,.2f} '
                                       f'{orden.producto.unidad} de {orden.producto.nombre} al almacén.')
         except (servicios.ErrorProduccion, KardexCerrado) as exc:

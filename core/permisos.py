@@ -82,6 +82,8 @@ RUTAS = {
     'compras:licitacion': lambda r: (None if r.method != 'POST' else 'compras.aprobar_oc'
                                      if r.POST.get('accion') == 'adjudicar' else 'compras.oc'),
     'compras:contrato_nuevo': 'compras.aprobar_oc', 'compras:contrato_editar': 'compras.aprobar_oc',
+    'compras:distribuir': {'POST': 'compras.registrar'},
+    'compras:registro_info_nuevo': {'POST': 'compras.oc'}, 'compras:registro_info': {'POST': 'compras.oc'},
     'compras:anular': 'compras.anular', 'compras:eliminar': 'compras.anular',
     'compras:oc_nuevo': 'compras.oc', 'compras:oc_editar': 'compras.oc', 'compras:oc_enviar': 'compras.oc',
     'compras:oc_estado': lambda r: {'APROBADO': _aprobar_oc(), 'ANULADO': 'compras.anular'}.get(

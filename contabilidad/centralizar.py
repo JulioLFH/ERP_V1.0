@@ -157,7 +157,11 @@ def _repartir(total, pesos):
 
 
 def _distribucion_compra(compra):
-    """{centro de costo: porcentaje} si la compra viene de un gasto rendido distribuido en varios centros."""
+    """{centro de costo: porcentaje} si la compra se repartió en varios centros (en la propia factura o al rendir el
+    gasto)."""
+    propia = {d.centro_costo: d.porcentaje for d in compra.distribucion.select_related('centro_costo')}
+    if propia:
+        return propia
     from finanzas.models import DistribucionLinea
     filas = DistribucionLinea.objects.filter(linea__compra=compra).select_related('centro_costo')
     return {d.centro_costo: d.porcentaje for d in filas} or None
@@ -245,7 +249,8 @@ def asiento_compra(c, cta):
     b = Borrador(a, c.moneda, c.tc_efectivo)
     doc = f'{c.tipo_comprobante} {c.numero_completo}'
     honorarios = c.tipo_comprobante == '02'
-    base = c.total_pen - c.igv_pen
+    ajuste = getattr(c, 'ajuste_pen', D0)  # redondeo del proveedor: a su propia cuenta, no al gasto
+    base = c.total_pen - c.igv_pen - ajuste
     cuenta_gasto = c.cuenta_contable or cta.get(f'compra_{c.clasificacion}') or cta['compra_GASTO']
     # los productos de almacén (suministros, insumos, mercadería) van siempre a su cuenta de compra: ingresan a sus
     # existencias (20-25) y el gasto con su centro de costo nace al consumirlos (requerimiento); en lo demás manda la
@@ -269,6 +274,12 @@ def asiento_compra(c, cta):
         else:
             b.add(cuenta, debe=parte, documento=doc, centro_costo=c.centro_costo, importe_me=me)
     b.add(cta['igv'], debe=c.igv_pen, documento=doc, importe_me=c.igv)
+    if ajuste > 0:
+        b.add(cta.get('redondeo_perdida') or cta['egreso_otro'], debe=ajuste, documento=doc,
+              glosa='Diferencia de redondeo del proveedor', importe_me=c.ajuste_redondeo)
+    elif ajuste < 0:
+        b.add(cta.get('redondeo_ganancia') or cta['ingreso_otro'], haber=-ajuste, documento=doc,
+              glosa='Diferencia de redondeo del proveedor', importe_me=-c.ajuste_redondeo)
     cuenta_prov = cta['honorarios_por_pagar'] if honorarios else cta['proveedor']
     if c.ret_pen:
         b.add(cta['retencion_cuarta'] if honorarios else cta['igv_retencion'], haber=c.ret_pen, documento=doc,

@@ -25,9 +25,10 @@ class OperacionForm(BootstrapMixin, forms.ModelForm):
 
     class Meta:
         model = Operacion
-        fields = ['fecha', 'almacen_origen', 'almacen_destino', 'tercero', 'orden_compra', 'compra', 'venta', 'envio',
-                  'referencia', 'centro_costo', 'glosa']
-        widgets = {'glosa': forms.Textarea(attrs={'rows': 2})}
+        fields = ['fecha', 'fecha_documento', 'almacen_origen', 'almacen_destino', 'tercero', 'orden_compra', 'compra',
+                  'venta', 'envio', 'referencia', 'centro_costo', 'glosa']
+        widgets = {'glosa': forms.Textarea(attrs={'rows': 2}),
+                   'fecha_documento': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d')}
 
     def __init__(self, *args, tipo=None, **kwargs):
         super().__init__(*args, **kwargs)

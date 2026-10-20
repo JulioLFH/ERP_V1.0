@@ -2,11 +2,13 @@ from django.urls import path
 
 from proveedores import views_erp as portal
 
-from . import views, views_abastecimiento, views_importacion, views_sire, views_solped, views_xml
+from . import (views, views_abastecimiento, views_importacion, views_registro_info, views_sire, views_solped,
+               views_xml)
 
 app_name = 'compras'
 
 urlpatterns = views.compras_views.urls() + [
+    path('<int:pk>/distribuir/', views.distribuir, name='distribuir'),
     path('solicitudes/bandeja/', views_solped.bandeja, name='solped_bandeja'),
     path('solicitudes/reglas/', views_solped.reglas, name='solped_reglas'),
     path('solicitudes/reportes/', views_solped.reportes, name='solped_reportes'),
@@ -14,6 +16,9 @@ urlpatterns = views.compras_views.urls() + [
     path('licitaciones/', views_abastecimiento.licitaciones, name='licitaciones'),
     path('licitaciones/nueva/', views_abastecimiento.licitacion_nueva, name='licitacion_nueva'),
     path('licitaciones/<int:pk>/', views_abastecimiento.licitacion, name='licitacion'),
+    path('proveedores-por-producto/', views_registro_info.lista, name='registros_info'),
+    path('proveedores-por-producto/nuevo/', views_registro_info.editar, name='registro_info_nuevo'),
+    path('proveedores-por-producto/<int:pk>/', views_registro_info.editar, name='registro_info'),
     path('contratos/', views_abastecimiento.contratos, name='contratos'),
     path('contratos/nuevo/', views_abastecimiento.contrato_nuevo, name='contrato_nuevo'),
     path('contratos/<int:pk>/', views_abastecimiento.contrato, name='contrato'),

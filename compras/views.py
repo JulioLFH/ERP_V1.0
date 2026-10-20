@@ -53,6 +53,8 @@ class ComprasViews(ComprobanteViews):
             doc.orden_compra.actualizar_vencimientos()  # vence desde el ingreso de la mercadería
         from .precios import liquidar
         liquidar(doc)  # diferencia entre el precio facturado y el costo con que se recibió
+        from .registro_info import aprender
+        aprender(doc)  # último precio por proveedor y producto (registro info)
 
     def ingresar_almacen(self, request, pk):
         from inventario.servicios import tiene_recepciones
@@ -97,6 +99,50 @@ class ComprasViews(ComprobanteViews):
 
 
 compras_views = ComprasViews()
+
+
+@login_required
+def distribuir(request, pk):
+    """Reparte el gasto de la factura en varios centros de costo (porcentajes que suman 100)."""
+    from decimal import Decimal, InvalidOperation
+
+    from contabilidad.automatico import marcar_pendiente
+    from contabilidad.models import CentroCosto
+    from core.forms import periodo_cerrado
+
+    from .models import DistribucionCompra
+    compra = get_object_or_404(Compra, pk=pk)
+    filas = compra.distribucion.select_related('centro_costo')
+    if request.method == 'POST':
+        if periodo_cerrado(compra.periodo):
+            messages.error(request, f'El periodo contable {compra.periodo} está cerrado.')
+            return redirect('compras:detalle', pk)
+        repartos = {}
+        for c, p in zip(request.POST.getlist('centro_costo'), request.POST.getlist('porcentaje')):
+            if not c or not p:
+                continue
+            try:
+                pct = Decimal(p.replace(',', '.'))
+            except InvalidOperation:
+                pct = Decimal('0')
+            centro = CentroCosto.objects.filter(pk=c, activo=True).first()
+            if centro is None or pct <= 0:
+                messages.error(request, 'Revise los centros de costo y porcentajes (mayores a cero).')
+                return redirect('compras:distribuir', pk)
+            repartos[centro] = repartos.get(centro, Decimal('0')) + pct
+        if repartos and sum(repartos.values()) != 100:
+            messages.error(request, f'Los porcentajes suman {sum(repartos.values())}%: deben sumar 100%.')
+            return redirect('compras:distribuir', pk)
+        compra.distribucion.all().delete()
+        for centro, pct in repartos.items():
+            DistribucionCompra.objects.create(compra=compra, centro_costo=centro, porcentaje=pct)
+        marcar_pendiente(compra.periodo)  # el asiento se rehace al centralizar
+        messages.success(request, 'Distribución guardada.' if repartos else
+                         'Distribución quitada: el gasto va al centro de costo de la factura.')
+        return redirect('compras:detalle', pk)
+    return render(request, 'compras/distribuir.html', {
+        'doc': compra, 'filas': filas, 'centros': CentroCosto.objects.filter(activo=True),
+        'vacias': range(max(3, 6 - len(filas)))})
 
 
 # ---------------------------------------------------------------- órdenes de compra
