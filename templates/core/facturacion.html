@@ -5,33 +5,68 @@
 <div class="row g-3">
   <div class="col-lg-6"><div class="card"><div class="card-body">
     <div class="mb-3">Estado:
-      {% if cfg.activa %}<span class="badge text-bg-success">Conectado con {{ cfg.get_proveedor_display }}</span>
+      {% if cfg.activa %}<span class="badge text-bg-success">Conectado con {{ cfg.get_proveedor_display }}{% if cfg.proveedor == 'SUNAT' %} · {{ cfg.get_entorno_display }}{% endif %}</span>
       {% else %}<span class="badge text-bg-secondary">No configurado</span>{% endif %}</div>
-    <form method="post">{% csrf_token %}
-      <div class="row g-3">{% for field in form %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endfor %}</div>
+    <form method="post" enctype="multipart/form-data" autocomplete="off">{% csrf_token %}
+      <div class="row g-3">
+        {% with field=form.proveedor %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endwith %}
+        <div class="col-12 solo-nubefact">{% with field=form.ruta %}{% include 'core/_campo.html' %}{% endwith %}</div>
+        <div class="col-12 solo-nubefact">{% with field=form.token %}{% include 'core/_campo.html' %}{% endwith %}</div>
+        <div class="col-12 solo-sunat">{% with field=form.entorno %}{% include 'core/_campo.html' %}{% endwith %}</div>
+        <div class="col-md-6 solo-sunat solo-produccion">{% with field=form.sol_usuario %}{% include 'core/_campo.html' %}{% endwith %}</div>
+        <div class="col-md-6 solo-sunat solo-produccion">{% with field=form.sol_clave_nueva %}{% include 'core/_campo.html' %}{% endwith %}{% if cfg.sol_clave %}<div class="form-text text-success">Hay una clave guardada.</div>{% endif %}</div>
+        <div class="col-12 solo-sunat">
+          <div class="border rounded p-2 small mb-2">
+            {% if cfg.certificado %}<i class="bi bi-patch-check text-success"></i> Certificado: <b>{{ cfg.certificado_nombre }}</b>{% if cfg.certificado_vence %} · vence el {{ cfg.certificado_vence|date:'d/m/Y' }}{% endif %}{% if cfg.certificado_prueba %} <span class="badge text-bg-warning">de prueba (solo beta)</span>{% endif %}
+            {% else %}<i class="bi bi-exclamation-triangle text-warning"></i> Sin certificado digital.{% endif %}
+          </div>
+        </div>
+        <div class="col-md-7 solo-sunat">{% with field=form.certificado_archivo %}{% include 'core/_campo.html' %}{% endwith %}</div>
+        <div class="col-md-5 solo-sunat">{% with field=form.certificado_clave_nueva %}{% include 'core/_campo.html' %}{% endwith %}</div>
+        {% with field=form.envio_automatico %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endwith %}
+      </div>
       <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>
     </form>
-    {% if cfg.activa %}
-    <form method="post" class="mt-2">{% csrf_token %}
-      <button name="accion" value="probar" class="btn btn-outline-success"><i class="bi bi-plug"></i> Probar conexión con Nubefact</button>
-    </form>
-    {% endif %}
+    <div class="d-flex flex-wrap gap-2 mt-2">
+      {% if cfg.activa %}<form method="post">{% csrf_token %}
+        <button name="accion" value="probar" class="btn btn-outline-success"><i class="bi bi-plug"></i> Probar conexión con {% if cfg.proveedor == 'SUNAT' %}SUNAT{% else %}Nubefact{% endif %}</button>
+      </form>{% endif %}
+      {% if cfg.proveedor == 'SUNAT' and cfg.entorno == 'BETA' %}<form method="post">{% csrf_token %}
+        <button name="accion" value="certificado_prueba" class="btn btn-outline-secondary" {% if cfg.certificado and not cfg.certificado_prueba %}data-confirm="Ya hay un certificado cargado. ¿Reemplazarlo por uno de prueba?"{% endif %}><i class="bi bi-file-earmark-lock"></i> Generar certificado de prueba</button>
+      </form>{% endif %}
+    </div>
   </div></div></div>
   <div class="col-lg-6"><div class="card"><div class="card-header">¿Cómo funciona?</div><div class="card-body small">
+    <p class="mb-2"><b>SUNAT directo</b> (sin intermediario):</p>
     <ol class="mb-3">
-      <li>{{ erp_nombre }} envía la factura, boleta, nota o guía a un <b>OSE/PSE autorizado por SUNAT</b> (integración lista para <b>Nubefact</b>).</li>
-      <li>El OSE firma el XML con su certificado, lo envía a SUNAT y devuelve el <b>CDR</b>, el PDF, el hash y el QR.</li>
-      <li>El estado (Aceptado / Rechazado) queda en cada comprobante, con botones para reenviar, consultar o dar de baja.</li>
+      <li>{{ erp_nombre }} arma el XML del comprobante (UBL 2.1), lo <b>firma con el certificado digital de la empresa</b> y lo envía al servicio de SUNAT.</li>
+      <li>SUNAT responde al momento con la <b>CDR</b> (aceptado, rechazado u observado). El XML firmado y la CDR quedan como sustento del comprobante, con su hash y QR.</li>
+      <li>Las anulaciones van por <b>comunicación de baja</b> (facturas) o <b>resumen diario</b> (boletas), con ticket que se consulta solo.</li>
     </ol>
-    <p class="mb-2"><b>Para activarlo:</b></p>
     <ul class="mb-3">
-      <li>Cree una cuenta en <a href="https://www.nubefact.com" target="_blank" rel="noopener">nubefact.com</a>. Hay una cuenta <b>DEMO gratuita</b> para pruebas sin validez tributaria.</li>
-      <li>En su panel de Nubefact: <i>API (integración)</i> → copie la <b>RUTA</b> y el <b>TOKEN</b> aquí.</li>
-      <li>Use las mismas series que tenga habilitadas en Nubefact, en <a href="{% url 'series' %}">Correlativos</a>. SUNAT exige 4 caracteres: facturas y sus notas empiezan con <b>F</b>, boletas y sus notas con <b>B</b>, guías remitente con <b>T</b> y guías transportista con <b>V</b>.</li>
-      <li>Las guías se envían en dos pasos: el sistema las envía y consulta la respuesta de SUNAT. Si queda "Pendiente", use <b>Consultar</b> en unos minutos.</li>
-      <li>Pruebe primero con la cuenta DEMO; cuando todo salga <b>Aceptado</b>, cambie a la ruta y token de producción.</li>
+      <li><b>Pruebas:</b> entorno <b>beta</b> de SUNAT, sin clave SOL (usa RUC + MODDATOS) y con un certificado de prueba generado aquí. Lo enviado no tiene validez tributaria.</li>
+      <li><b>Producción:</b> necesita el <b>certificado digital</b> de la empresa (.pfx), un <b>usuario SOL secundario</b> con perfil de envío de comprobantes y estar afiliado como emisor electrónico (SEE del contribuyente) en SUNAT.</li>
+      <li>Aún no van directo: <b>guías de remisión</b> (otra API de SUNAT), detracciones, percepciones, ICBPER y operaciones gratuitas. Para esos casos use Nubefact.</li>
     </ul>
+    <p class="mb-2"><b>Nubefact</b> (OSE/PSE): copie la <b>RUTA</b> y el <b>TOKEN</b> de su panel (API integración). Hay cuenta DEMO gratuita.</p>
+    <p class="mb-3">Series en <a href="{% url 'series' %}">Correlativos</a>: 4 caracteres; facturas y sus notas con <b>F</b>, boletas y sus notas con <b>B</b>, guías remitente con <b>T</b> y transportista con <b>V</b>.</p>
     <div class="alert alert-warning py-2 mb-0">Sin esta configuración {{ erp_nombre }} registra e imprime comprobantes, pero <b>no los envía a SUNAT</b>: no tienen validez como comprobantes electrónicos.</div>
   </div></div></div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const proveedor = document.getElementById('{{ form.proveedor.id_for_label }}');
+  const entorno = document.getElementById('{{ form.entorno.id_for_label }}');
+  const sync = () => {
+    document.querySelectorAll('.solo-nubefact').forEach(e => e.classList.toggle('d-none', proveedor.value !== 'NUBEFACT'));
+    document.querySelectorAll('.solo-sunat').forEach(e => e.classList.toggle('d-none', proveedor.value !== 'SUNAT'));
+    if (proveedor.value === 'SUNAT') {
+      document.querySelectorAll('.solo-produccion').forEach(e => e.classList.toggle('d-none', entorno.value !== 'PRODUCCION'));
+    }
+  };
+  proveedor.addEventListener('change', sync);
+  entorno.addEventListener('change', sync);
+  sync();
+</script>
 {% endblock %}

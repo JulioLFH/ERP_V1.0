@@ -3,6 +3,14 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.46.0 — 20/10/2026 · Facturación electrónica directa con SUNAT (sin intermediario)
+- **SUNAT directo** en Ajustes › Facturación electrónica (nueva opción junto a Nubefact): el sistema arma el XML UBL 2.1 de **facturas, boletas, notas de crédito y notas de débito**, lo **firma con el certificado digital** de la empresa y lo envía al servicio de SUNAT, que responde al momento con la **CDR** (aceptado, rechazado u observado). El XML firmado y la CDR quedan como sustento del comprobante, con su código hash y la cadena del QR.
+- **Anulaciones directas**: comunicación de baja para facturas y sus notas, resumen diario (estado anulado) para boletas y sus notas, con ticket que se consulta solo (y con «Consultar estado» si SUNAT demora).
+- **Entorno de pruebas (beta) de SUNAT**: sin clave SOL (RUC + MODDATOS) y con un **certificado de prueba** que se genera con un botón. Lo enviado no tiene validez tributaria. Se probó contra el beta real: factura, boleta, notas de crédito y débito de ambas, factura al crédito en dólares, baja de factura y resumen de boleta, todos aceptados.
+- **Producción**: certificado digital de la empresa (.pfx) con su clave, usuario SOL secundario y su clave. **Las claves se guardan cifradas.** No deja pasar a producción con el certificado de prueba.
+- Aún van por Nubefact (o se emiten en SUNAT): guías de remisión electrónicas (SUNAT usa otra API para ellas), detracciones, percepciones, ICBPER y operaciones gratuitas; el sistema avisa antes de enviar.
+- Nuevas librerías: signxml, lxml y cryptography (requirements.txt).
+
 ## v1.45.0 — 20/10/2026 · Proveedores por producto, redondeo de facturas, reparto por centro de costo y fecha contable
 - **Proveedores por producto (registro info, n.º 103)** en Compras › Abastecimiento: precio acordado y su vigencia, plazo de entrega, lote mínimo, código del proveedor y **proveedor preferido** (uno por producto). El último precio, la fecha y el número de compras se actualizan solos con cada compra registrada. El **MRP** (también para la mercadería de reventa), el punto de reorden y la solicitud de pedido toman de aquí el proveedor, el plazo y el lote; sin registro, los de la ficha del producto.
 - **Diferencia pequeña en la factura del proveedor (n.º 104)**: al registrar desde el XML o aprobar la factura del portal, se registra **el total del proveedor** (el de SUNAT) cuando la diferencia con el calculado por líneas está dentro de la tolerancia, y esa diferencia va a su propia cuenta en el asiento (pérdida 6599 / ganancia 7599, configurables) en vez de mezclarse con el gasto. Se muestra en el comprobante.

@@ -118,7 +118,15 @@ def facturacion_config(request):
         ok, mensaje = probar_conexion()
         (messages.success if ok else messages.error)(request, mensaje)
         return redirect('facturacion')
-    form = FacturacionConfigForm(request.POST or None, instance=cfg)
+    if request.method == 'POST' and request.POST.get('accion') == 'certificado_prueba':
+        if cfg.entorno != 'BETA':
+            messages.error(request, 'El certificado de prueba solo sirve en el entorno beta de SUNAT.')
+        else:
+            from .sunat_directo import generar_certificado_prueba
+            generar_certificado_prueba(cfg)
+            messages.success(request, 'Certificado de prueba generado: sirve solo para el entorno beta de SUNAT.')
+        return redirect('facturacion')
+    form = FacturacionConfigForm(request.POST or None, request.FILES or None, instance=cfg)
     if request.method == 'POST' and form.is_valid():
         form.save()
         messages.success(request, 'Configuración de facturación electrónica guardada.')

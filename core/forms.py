@@ -349,10 +349,57 @@ class TipoCambioForm(BootstrapMixin, forms.ModelForm):
 
 
 class FacturacionConfigForm(BootstrapMixin, forms.ModelForm):
+    sol_clave_nueva = forms.CharField(label='Clave SOL del usuario secundario', required=False,
+                                      widget=forms.PasswordInput, help_text='Se guarda cifrada. Vacía = no cambia')
+    certificado_archivo = forms.FileField(label='Certificado digital (.pfx / .p12)', required=False,
+                                          help_text='El certificado de la empresa para firmar los comprobantes')
+    certificado_clave_nueva = forms.CharField(label='Clave del certificado', required=False,
+                                              widget=forms.PasswordInput)
+
     class Meta:
         model = FacturacionConfig
-        fields = '__all__'
+        fields = ['proveedor', 'ruta', 'token', 'entorno', 'sol_usuario', 'envio_automatico']
         widgets = {'token': forms.PasswordInput(render_value=True)}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['entorno'].required = False
+
+    def clean(self):
+        datos = super().clean()
+        datos['entorno'] = datos.get('entorno') or 'BETA'
+        archivo = datos.get('certificado_archivo')
+        if archivo:
+            if archivo.size > 200 * 1024:
+                self.add_error('certificado_archivo', 'El certificado no debería pesar más de 200 KB.')
+            else:
+                from .sunat_directo import ErrorSunatDirecto, _leer_pfx
+                self._pfx = archivo.read()
+                try:
+                    _leer_pfx(self._pfx, datos.get('certificado_clave_nueva') or '')
+                except ErrorSunatDirecto as exc:
+                    self.add_error('certificado_clave_nueva', str(exc))
+        if datos.get('proveedor') == 'SUNAT' and datos.get('entorno') == 'PRODUCCION':
+            if not datos.get('sol_usuario'):
+                self.add_error('sol_usuario', 'En producción indique el usuario SOL secundario.')
+            if not (datos.get('sol_clave_nueva') or self.instance.sol_clave):
+                self.add_error('sol_clave_nueva', 'En producción indique la clave SOL del usuario secundario.')
+            if not (archivo or self.instance.certificado) or (self.instance.certificado_prueba and not archivo):
+                self.add_error('certificado_archivo', 'En producción cargue el certificado digital de la empresa '
+                                                      '(el de prueba no sirve).')
+        return datos
+
+    def save(self, commit=True):
+        cfg = super().save(commit=False)
+        if self.cleaned_data.get('sol_clave_nueva'):
+            from .cifrado import cifrar
+            cfg.sol_clave = cifrar(self.cleaned_data['sol_clave_nueva'])
+        cfg.save()
+        if getattr(self, '_pfx', None):
+            from .sunat_directo import guardar_certificado
+            guardar_certificado(cfg, self._pfx, self.cleaned_data.get('certificado_clave_nueva') or '',
+                                self.cleaned_data['certificado_archivo'].name)
+        return cfg
 
 
 class CorreoConfigForm(BootstrapMixin, forms.ModelForm):

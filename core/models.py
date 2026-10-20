@@ -671,13 +671,26 @@ class TipoCambio(models.Model):
 
 class FacturacionConfig(models.Model):
     """Conexión con el OSE/PSE para comprobantes y guías electrónicas."""
-    PROVEEDORES = [('NINGUNO', 'Sin facturación electrónica'), ('NUBEFACT', 'Nubefact (OSE/PSE)')]
+    PROVEEDORES = [('NINGUNO', 'Sin facturación electrónica'), ('NUBEFACT', 'Nubefact (OSE/PSE)'),
+                   ('SUNAT', 'SUNAT directo (sistema del contribuyente)')]
+    ENTORNOS = [('BETA', 'Pruebas (beta de SUNAT, sin validez tributaria)'), ('PRODUCCION', 'Producción')]
     proveedor = models.CharField(max_length=10, choices=PROVEEDORES, default='NINGUNO')
     ruta = models.URLField('Ruta / URL de la API', max_length=300, blank=True,
                            help_text='La entrega el proveedor (ej. https://api.nubefact.com/api/v1/xxxx)')
     token = models.CharField(max_length=200, blank=True)
     envio_automatico = models.BooleanField('Enviar al emitir', default=False,
                                            help_text='Envía facturas, boletas, notas y guías al guardarlas')
+    # ---- SUNAT directo: el sistema arma el XML UBL 2.1, lo firma con el certificado de la empresa y lo envía
+    entorno = models.CharField('Entorno de SUNAT', max_length=10, choices=ENTORNOS, default='BETA')
+    sol_usuario = models.CharField('Usuario SOL secundario', max_length=30, blank=True,
+                                   help_text='Producción: usuario secundario con el perfil de envío de comprobantes '
+                                             '(sin el RUC). En pruebas se usa MODDATOS')
+    sol_clave = models.CharField(max_length=300, blank=True, editable=False)  # cifrada (core/cifrado.py)
+    certificado = models.BinaryField(null=True, blank=True, editable=False)  # archivo .pfx / .p12
+    certificado_clave = models.CharField(max_length=300, blank=True, editable=False)  # cifrada
+    certificado_nombre = models.CharField(max_length=200, blank=True, editable=False)
+    certificado_vence = models.DateField(null=True, blank=True, editable=False)
+    certificado_prueba = models.BooleanField(default=False, editable=False)
 
     class Meta:
         verbose_name = 'configuración de facturación electrónica'
@@ -688,7 +701,26 @@ class FacturacionConfig(models.Model):
 
     @property
     def activa(self):
+        if self.proveedor == 'SUNAT':
+            return bool(self.certificado) and (self.entorno == 'BETA' or bool(self.sol_usuario and self.sol_clave))
         return self.proveedor != 'NINGUNO' and bool(self.ruta and self.token)
+
+
+class EnvioResumenSUNAT(models.Model):
+    """Comunicación de baja (RA) o resumen diario (RC) enviados directo a SUNAT: van con ticket y se consulta su
+    estado después."""
+    TIPOS = [('RA', 'Comunicación de baja'), ('RC', 'Resumen diario de boletas')]
+    tipo = models.CharField(max_length=2, choices=TIPOS)
+    identificador = models.CharField(max_length=30)  # RA-AAAAMMDD-n
+    fecha = models.DateField()
+    ticket = models.CharField(max_length=40, blank=True)
+    estado = models.CharField(max_length=12, default='ENVIADO')  # ENVIADO, ACEPTADO, RECHAZADO, ERROR
+    respuesta = models.TextField(blank=True)
+    venta = models.ForeignKey('ventas.Venta', on_delete=models.CASCADE, related_name='envios_resumen')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado', '-id']
 
 
 class ArchivoSustento(models.Model):

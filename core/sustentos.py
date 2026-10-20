@@ -125,5 +125,6 @@ def ver(request, pk):
     if not _puede(request, s.content_type):
         raise Http404
     resp = HttpResponse(s.archivo.contenido, content_type=s.archivo.tipo or 'application/octet-stream')
-    resp['Content-Disposition'] = f'inline; filename="{s.archivo.nombre}"'
+    modo = 'attachment' if request.GET.get('descargar') else 'inline'  # XML y CDR de SUNAT: se descargan
+    resp['Content-Disposition'] = f'{modo}; filename="{s.archivo.nombre}"'
     return resp

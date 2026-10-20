@@ -111,8 +111,15 @@ def _post(payload):
     raise ultimo
 
 
+def _directo():
+    return FacturacionConfig.actual().proveedor == 'SUNAT'
+
+
 def probar_conexion():
     """Consulta un comprobante inexistente: si responde algo distinto a error de RUTA/TOKEN, la conexión es válida."""
+    if _directo():
+        from . import sunat_directo
+        return sunat_directo.probar_conexion()
     try:
         _post({'operacion': 'consultar_comprobante', 'tipo_de_comprobante': 1, 'serie': 'F001', 'numero': 99999999})
     except ErrorFacturacion as exc:
@@ -308,6 +315,17 @@ def payload_comprobante(venta):
 def enviar_comprobante(venta):
     if venta.es_saldo_inicial or venta.es_historico:
         raise ErrorFacturacion('Es un documento emitido con el sistema anterior: no se envía a SUNAT.')
+    if _directo():
+        from . import sunat_directo
+        cfg = FacturacionConfig.actual()
+        try:
+            if not cfg.activa:
+                raise ErrorValidacion('Falta el certificado digital (o las credenciales SOL) en Ajustes › '
+                                      'Facturación electrónica.')
+            return sunat_directo.enviar(venta)
+        except ErrorFacturacion as exc:
+            _registrar_error(venta, exc)
+            raise
     try:
         return _guardar_respuesta(venta, _post(payload_comprobante(venta)))
     except ErrorFacturacion as exc:
@@ -319,6 +337,9 @@ def enviar_comprobante(venta):
 
 
 def consultar_comprobante(venta):
+    if _directo():
+        from . import sunat_directo
+        return sunat_directo.consultar(venta)
     data = _post({'operacion': 'consultar_comprobante', 'tipo_de_comprobante': TIPO_NUBEFACT[venta.tipo_comprobante],
                   'serie': venta.serie, 'numero': _sin_ceros(venta.numero)})
     return _guardar_respuesta(venta, data)
@@ -326,6 +347,9 @@ def consultar_comprobante(venta):
 
 def anular_comprobante(venta, motivo='ANULACION DE LA OPERACION'):
     """Comunicación de baja (facturas) / resumen de anulación (boletas)."""
+    if _directo():
+        from . import sunat_directo
+        return sunat_directo.anular(venta, motivo)
     data = _post({'operacion': 'generar_anulacion', 'tipo_de_comprobante': TIPO_NUBEFACT[venta.tipo_comprobante],
                   'serie': venta.serie, 'numero': _sin_ceros(venta.numero), 'motivo': motivo[:100],
                   'codigo_unico': ''})
@@ -451,6 +475,11 @@ def payload_guia(guia):
 
 def enviar_guia(guia):
     """Paso 1 'generar_guia'; inmediatamente intenta el paso 2 'consultar_guia'."""
+    if _directo():  # la guía electrónica de SUNAT usa otra API (REST con clave SOL), aún no conectada
+        exc = ErrorValidacion('Las guías de remisión electrónicas aún no se envían directo a SUNAT: use Nubefact o '
+                              'emítalas en SUNAT Operaciones en Línea.')
+        _registrar_error(guia, exc)
+        raise exc
     try:
         _guardar_respuesta(guia, _post(payload_guia(guia)))
     except ErrorFacturacion as exc:
@@ -464,6 +493,8 @@ def enviar_guia(guia):
 
 
 def consultar_guia(guia):
+    if _directo():
+        raise ErrorValidacion('Las guías de remisión electrónicas aún no se envían directo a SUNAT.')
     data = _post({'operacion': 'consultar_guia', 'tipo_de_comprobante': TIPO_GUIA_NUBEFACT[guia.tipo],
                   'serie': guia.serie, 'numero': str(_sin_ceros(guia.numero))})
     return _guardar_respuesta(guia, data)
