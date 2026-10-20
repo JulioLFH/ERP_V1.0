@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Solicitudes de vacaciones y permisos{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3"><i class="bi bi-calendar-check"></i> Solicitudes de vacaciones y permisos</h1>
+<div class="card mb-3"><div class="card-header">Le toca aprobar</div>
+{% for v in mias %}<form method="post" class="card-body border-bottom d-flex flex-wrap gap-2 align-items-center justify-content-between">{% csrf_token %}<input type="hidden" name="vacacion" value="{{ v.pk }}">
+  <div><b>{{ v.trabajador.nombre_completo }}</b> · {{ v.get_tipo_display }} del {{ v.fecha_inicio|date:'d/m/Y' }} al {{ v.fecha_fin|date:'d/m/Y' }} ({{ v.dias }} día(s)){% if v.observaciones %}<div class="small text-muted">{{ v.observaciones }}</div>{% endif %}</div>
+  <div class="d-flex gap-2"><input name="comentario" class="form-control form-control-sm" placeholder="Comentario"><button name="accion" value="aprobar" class="btn btn-sm btn-success">Aprobar</button><button name="accion" value="rechazar" class="btn btn-sm btn-outline-danger">Rechazar</button></div>
+</form>{% empty %}<div class="card-body text-muted small">Nada por aprobar.</div>{% endfor %}
+</div>
+{% if todas %}<div class="card mb-3"><div class="card-header">Todas las pendientes</div><ul class="list-group list-group-flush small">{% for v in todas %}<li class="list-group-item d-flex justify-content-between"><span>{{ v.trabajador.nombre_completo }} · {{ v.get_tipo_display }} {{ v.fecha_inicio|date:'d/m/Y' }} – {{ v.fecha_fin|date:'d/m/Y' }}</span><span class="text-muted">{% for n in v.niveles %}{% if n.nivel > v.nivel_aprobado %}espera a {{ n.nombre }}{% endif %}{% endfor %}</span></li>{% endfor %}</ul></div>{% endif %}
+<div class="card"><div class="card-header">Resueltas recientemente</div><ul class="list-group list-group-flush small">{% for v in recientes %}<li class="list-group-item d-flex justify-content-between"><span>{{ v.trabajador.nombre_completo }} · {{ v.get_tipo_display }} {{ v.fecha_inicio|date:'d/m/Y' }} – {{ v.fecha_fin|date:'d/m/Y' }}</span><span>{{ v.get_estado_display }}</span></li>{% empty %}<li class="list-group-item text-muted">—</li>{% endfor %}</ul></div>
+{% endblock %}

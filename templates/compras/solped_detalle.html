@@ -53,5 +53,6 @@
 </div>
 </form>
 {% if propuestas %}<div class="card mb-3"><div class="card-header">Propuestas del MRP</div><ul class="list-group list-group-flush small">{% for p in propuestas %}<li class="list-group-item">{{ p.producto.nombre }} · {{ p.cantidad|money }} para el {{ p.fecha_necesidad|date:'d/m/Y' }} · {{ p.origen }}</li>{% endfor %}</ul></div>{% endif %}
+{% include 'core/_sustentos.html' with objeto=sp %}
 {% include 'core/_bitacora.html' with objeto=sp %}
 {% endblock %}

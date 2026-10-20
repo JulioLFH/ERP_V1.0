@@ -128,6 +128,18 @@ def calcular(user):
                                    reverse('manufactura:requerimiento'), len(faltan)))
     if 'rendiciones' in mods:
         alertas += _alertas_rendiciones(user)
+    if 'planillas' in mods:  # contratos y documentos del legajo (EMO, antecedentes) que vencen en 30 días
+        from planillas.organizacion import por_vencer
+        contratos, documentos = por_vencer()
+        if contratos:
+            alertas.append(_alerta('warning', 'bi-file-earmark-person', 'Contratos por vencer',
+                                   f'{len(contratos)} contrato(s) vencen en 30 días o ya vencieron sin renovación: '
+                                   + ', '.join(c.trabajador.nombre_completo for c in contratos[:4]),
+                                   reverse('planillas:trabajadores'), len(contratos)))
+        if documentos:
+            alertas.append(_alerta('info', 'bi-folder2-open', 'Documentos del legajo por vencer',
+                                   f'{len(documentos)} documento(s) (EMO, antecedentes…) vencen en 30 días.',
+                                   reverse('planillas:trabajadores'), len(documentos)))
     mes_anterior = (hoy.replace(day=1) - timedelta(days=1)).strftime('%Y%m')
     if 'activos' in mods and puede(user, 'activos.depreciar'):
         from activos.models import ActivoFijo

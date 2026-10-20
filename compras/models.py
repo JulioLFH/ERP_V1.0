@@ -27,6 +27,11 @@ class OrdenCompra(DocumentoBase):
     contrato = models.ForeignKey('ContratoMarco', on_delete=models.PROTECT, null=True, blank=True,
                                  related_name='ordenes', verbose_name='Contrato marco',
                                  help_text='Pedido contra un contrato marco: toma sus precios y descuenta su saldo')
+    # aprobación por niveles (motor único, core/aprobaciones.py)
+    niveles = models.JSONField(default=list, blank=True, editable=False)
+    nivel_aprobado = models.PositiveSmallIntegerField(default=0, editable=False)
+    observacion_aprobacion = models.CharField('Observación de la aprobación', max_length=300, blank=True,
+                                              editable=False)
 
     class Meta(DocumentoBase.Meta):
         verbose_name = 'orden de compra'
@@ -338,38 +343,7 @@ class GastoImportacion(models.Model):
 
 
 # ================================================================ solicitud de pedido (SolPed, ME51N de SAP)
-class ReglaLiberacion(models.Model):
-    """Quién libera las solicitudes de pedido, por niveles secuenciales (1, luego 2, 3…). Por nivel aplica la regla
-    más específica (mayor monto) que cumpla el monto, el centro de costo y el tipo de la solicitud."""
-    TIPOS = [('JEFE', 'Jefe directo del solicitante'), ('RESPONSABLE_CC', 'Responsable del centro de costo'),
-             ('USUARIO', 'Usuario específico')]
-    APLICA = [('', 'Todas las solicitudes'), ('ACTIVO', 'Solo activo fijo'), ('SERVICIO', 'Solo servicios'),
-              ('URGENTE', 'Solo urgentes')]
-    nivel = models.PositiveSmallIntegerField(default=1, help_text='1 libera primero, luego 2, 3…')
-    tipo = models.CharField('Quién libera', max_length=14, choices=TIPOS, default='JEFE')
-    aprobador = models.ForeignKey('auth.User', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
-                                  help_text='Solo para «Usuario específico»')
-    monto_desde = models.DecimalField('Desde el monto S/', max_digits=14, decimal_places=2, default=Decimal('0'),
-                                      help_text='Monto valorizado (cantidad × último precio de compra o precio '
-                                                'estimado, sin IGV) mayor o igual. 0 = siempre')
-    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
-                                     help_text='Aplica a las solicitudes de este centro (o sus subcentros). Vacío = '
-                                               'todos')
-    aplica_a = models.CharField('Aplica a', max_length=8, choices=APLICA, blank=True,
-                                help_text='Un nivel adicional para activo fijo, servicios o compras urgentes')
-    activo = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ['nivel', 'monto_desde', 'id']
-        verbose_name = 'regla de liberación'
-        verbose_name_plural = 'reglas de liberación'
-
-    def __str__(self):
-        quien = {'USUARIO': str(self.aprobador), 'JEFE': 'jefe directo',
-                 'RESPONSABLE_CC': 'responsable del centro'}[self.tipo]
-        return f'Nivel {self.nivel}: {quien}'
-
-
+# quién la libera: reglas del motor único de aprobación (core.ReglaAprobacion, documento SOLPED)
 class SolicitudPedido(models.Model):
     """Necesidad de compra que un área, el MRP, la reposición, un requerimiento o una orden de mantenimiento piden y
     Compras convierte en orden de compra, licitación o pedido contra contrato marco."""

@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Suplencias de aprobación{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3"><i class="bi bi-person-check"></i> Suplencias de aprobación</h1>
+<div class="row g-3">
+<div class="col-lg-7"><div class="card"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Titular</th><th>Suplente</th><th>Desde</th><th>Hasta</th><th>Motivo</th><th></th></tr></thead>
+  <tbody>{% for d in delegaciones %}<tr class="{% if not d.activo or d.hasta < hoy %}text-muted{% endif %}">
+    <td>{{ d.titular.get_full_name|default:d.titular.username }}</td><td>{{ d.suplente.get_full_name|default:d.suplente.username }}</td>
+    <td>{{ d.desde|date:'d/m/Y' }}</td><td>{{ d.hasta|date:'d/m/Y' }}</td><td class="small">{{ d.motivo }}{% if not d.activo %} (terminada){% endif %}</td>
+    <td>{% if d.activo and d.hasta >= hoy %}<form method="post">{% csrf_token %}<button class="btn btn-sm btn-outline-danger py-0" name="quitar" value="{{ d.pk }}">Terminar</button></form>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="6" class="text-muted text-center py-3">Sin suplencias.</td></tr>{% endfor %}</tbody>
+</table></div>
+<div class="card-body small text-muted">Mientras dure la suplencia, el suplente aprueba lo que le toca al titular (órdenes de compra, solicitudes, requerimientos, rendiciones, vacaciones y movimientos de personal); el titular también puede seguir aprobando. Además, si un nivel pasa los días de escalamiento de la empresa sin respuesta (Ajustes › Empresa), también lo puede aprobar el jefe del aprobador.</div></div></div>
+<div class="col-lg-5"><div class="card"><div class="card-header">Nueva suplencia</div><div class="card-body">
+  <form method="post" class="row g-2">{% csrf_token %}
+    {% for field in form %}<div class="{% if field.name == 'motivo' %}col-12{% else %}col-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Registrar</button></div>
+  </form>
+</div></div></div>
+</div>
+{% endblock %}

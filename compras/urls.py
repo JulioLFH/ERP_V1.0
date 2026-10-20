@@ -29,6 +29,7 @@ urlpatterns = views.compras_views.urls() + [
     path('ordenes/<int:pk>/', views.oc_detalle, name='oc_detalle'),
     path('ordenes/<int:pk>/editar/', views.oc_editar, name='oc_editar'),
     path('ordenes/<int:pk>/estado/', views.oc_estado, name='oc_estado'),
+    path('ordenes/<int:pk>/rechazar/', views.oc_rechazar, name='oc_rechazar'),
     path('ordenes/<int:pk>/enviar/', portal.oc_enviar, name='oc_enviar'),
     # portal de proveedores (lado del ERP)
     path('portal/facturas/', portal.facturas, name='portal_facturas'),

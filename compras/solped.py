@@ -16,7 +16,7 @@ from django.utils import timezone
 from core.models import Empresa, PerfilUsuario, Serie, r2
 from core.permisos import puede
 
-from .models import (LineaSolicitud, OrdenCompra, OrdenCompraItem, ReglaLiberacion, SolicitudPedido)
+from .models import LineaSolicitud, OrdenCompra, OrdenCompraItem, SolicitudPedido
 
 log = logging.getLogger(__name__)
 D0 = Decimal('0')
@@ -29,10 +29,6 @@ class ErrorSolped(Exception):
 def _numero(tipo, serie):
     s, n = Serie.siguiente(tipo, serie)
     return f'{s}-{n}'
-
-
-def _otro_usuario(user):
-    return get_user_model().objects.filter(is_active=True).exclude(pk=user.pk).exists()
 
 
 # ---------------------------------------------------------------- creación (todos los orígenes)
@@ -185,70 +181,23 @@ def iniciales_mantenimiento(ot):
     return cabecera, lineas
 
 
-# ---------------------------------------------------------------- liberación por niveles
-def _usuario_regla(regla, sp):
-    if regla.tipo == 'USUARIO':
-        return regla.aprobador
-    if regla.tipo == 'RESPONSABLE_CC':
-        c, n = sp.centro_costo, 0
-        while c is not None and n < 20:  # el responsable del centro o el de su centro superior
-            if c.responsable_usuario_id:
-                return c.responsable_usuario
-            c, n = c.padre, n + 1
-        raise ErrorSolped(f'El centro de costo {sp.centro_costo} no tiene usuario responsable: asígnelo en '
-                          f'Contabilidad › Centros de costo.')
-    perfil = PerfilUsuario.objects.filter(usuario=sp.solicitante).select_related('jefe').first()
-    if perfil is None or perfil.jefe is None:
-        raise ErrorSolped(f'{sp.solicitante.get_full_name() or sp.solicitante} no tiene jefe directo: asígnelo en '
-                          f'Ajustes › Usuarios.')
-    return perfil.jefe
-
-
+# ---------------------------------------------------------------- liberación por niveles (motor único)
 def calcular_niveles(sp):
-    """[{nivel, usuario, nombre}] según las reglas activas que aplican a la solicitud (monto, centro, tipo)."""
-    monto = sp.monto
-    centros = None
-    por_nivel = {}
-    for regla in ReglaLiberacion.objects.filter(activo=True).select_related('aprobador', 'centro_costo'):
-        if monto < regla.monto_desde:
-            continue
-        if regla.centro_costo_id:
-            centros = centros if centros is not None else {}
-            ids = centros.setdefault(regla.centro_costo_id, regla.centro_costo.descendientes_ids())
-            if sp.centro_costo_id not in ids:
-                continue
-        if regla.aplica_a == 'ACTIVO' and sp.tipo != 'ACTIVO':
-            continue
-        if regla.aplica_a == 'SERVICIO' and sp.tipo != 'SERVICIO':
-            continue
-        if regla.aplica_a == 'URGENTE' and not sp.urgente:
-            continue
-        actual = por_nivel.get(regla.nivel)
-        if actual is None or regla.monto_desde > actual.monto_desde:
-            por_nivel[regla.nivel] = regla
-    niveles = []
-    for nivel in sorted(por_nivel):
-        usuario = _usuario_regla(por_nivel[nivel], sp)
-        if usuario.pk == sp.solicitante_id:
-            continue  # nadie libera su propia solicitud: pasa al siguiente nivel
-        if niveles and niveles[-1]['usuario'] == usuario.pk:
-            continue
-        niveles.append({'nivel': len(niveles) + 1, 'usuario': usuario.pk,
-                        'nombre': usuario.get_full_name() or usuario.username})
-    return niveles
+    """[{nivel, usuario, nombre, desde}] según las reglas de aprobación de solicitudes (monto, centro, tipo)."""
+    from core import aprobaciones
+    try:
+        return aprobaciones.calcular_niveles('SOLPED', sp.solicitante, sp.monto, sp.centro_costo, sp.tipo,
+                                             sp.urgente)
+    except aprobaciones.ErrorAprobacion as exc:
+        raise ErrorSolped(str(exc)) from exc
 
 
 def puede_liberar(user, sp):
-    if sp.estado != 'ENVIADA' or not user.is_authenticated:
+    """Nadie libera su propia solicitud; el titular del nivel, su suplente o su jefe si el nivel escaló."""
+    from core import aprobaciones
+    if sp.estado != 'ENVIADA':
         return False
-    if user.pk == sp.solicitante_id and _otro_usuario(user):
-        return False  # segregación de funciones: nadie libera su propia solicitud
-    n = sp.nivel_pendiente
-    if n is None:
-        return False
-    if n['usuario']:
-        return user.pk == n['usuario'] or user.is_superuser
-    return puede(user, 'requerimientos.liberar_solped')
+    return aprobaciones.puede_aprobar(user, 'SOLPED', sp.niveles, sp.nivel_aprobado, sp.solicitante_id)
 
 
 def _validar(sp):
@@ -289,20 +238,27 @@ def enviar(sp, usuario, liberar_sin_reglas=False, comentario=''):
         sp.comentario = ''
         sp.save()
         return sp
-    sp.niveles = niveles or [{'nivel': 1, 'usuario': None, 'nombre': 'Liberador de solicitudes'}]
+    sp.niveles = niveles or [{'nivel': 1, 'usuario': None, 'nombre': 'Liberador de solicitudes',
+                              'desde': ahora.isoformat()}]
     sp.estado, sp.nivel_aprobado, sp.enviada_en, sp.comentario = 'ENVIADA', 0, ahora, (comentario or '')[:300]
     sp.save()
+    from core.aprobaciones import registrar
+    registrar('SOLPED', sp, usuario, 'ENVIADA', comentario)
     notificar(sp, 'enviada')
     return sp
 
 
 @transaction.atomic
 def liberar(sp, usuario, comentario=''):
+    from core import aprobaciones
     if not puede_liberar(usuario, sp):
         raise ErrorSolped('No le corresponde liberar esta solicitud (nivel, permiso o es su propia solicitud).')
     sp.nivel_aprobado = sp.nivel_pendiente['nivel']
+    aprobaciones.registrar('SOLPED', sp, usuario, 'LIBERADA', comentario, sp.nivel_aprobado)
     if sp.nivel_pendiente is None:
         sp.estado, sp.liberada_en = 'LIBERADA', timezone.now()
+    else:
+        aprobaciones.avanzar(sp.niveles, sp.nivel_aprobado)
     sp.comentario = (comentario or '')[:300]
     sp.save()
     notificar(sp, 'liberada' if sp.estado == 'LIBERADA' else 'enviada')
@@ -317,6 +273,9 @@ def observar(sp, usuario, comentario):
         raise ErrorSolped('Escriba qué debe corregir el solicitante.')
     sp.estado, sp.comentario = 'OBSERVADA', comentario.strip()[:300]
     sp.save()
+    from core.aprobaciones import registrar
+    registrar('SOLPED', sp, usuario, 'OBSERVADA', comentario, sp.nivel_pendiente['nivel'] if sp.nivel_pendiente
+              else None)
     notificar(sp, 'observada')
     return sp
 
@@ -329,6 +288,8 @@ def rechazar(sp, usuario, comentario):
         raise ErrorSolped('Indique el motivo del rechazo (mínimo 10 caracteres).')
     sp.estado, sp.comentario = 'RECHAZADA', comentario.strip()[:300]
     sp.save()
+    from core.aprobaciones import registrar
+    registrar('SOLPED', sp, usuario, 'RECHAZADA', comentario)
     notificar(sp, 'rechazada')
     return sp
 
@@ -608,8 +569,9 @@ def destinatarios(sp, evento):
         n = sp.nivel_pendiente
         if n is None:
             return []
-        if n['usuario']:
-            return list(get_user_model().objects.filter(pk=n['usuario'], is_active=True))
+        if n['usuario']:  # el titular y sus suplentes vigentes
+            from core.aprobaciones import aprobadores
+            return [u for u in aprobadores(n) if u.is_active]
         return [u for u in get_user_model().objects.filter(is_active=True)
                 if u.pk != sp.solicitante_id and puede(u, 'requerimientos.liberar_solped')]
     return [sp.solicitante]

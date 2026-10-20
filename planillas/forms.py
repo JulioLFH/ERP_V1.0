@@ -19,20 +19,33 @@ class TrabajadorForm(BootstrapMixin, forms.ModelForm):
     SECCIONES = [
         ('Datos personales', ['tipo_doc', 'numero_doc', 'apellido_paterno', 'apellido_materno', 'nombres',
                               'fecha_nacimiento', 'sexo', 'email', 'telefono', 'direccion']),
-        ('Datos laborales', ['fecha_ingreso', 'fecha_cese', 'motivo_cese', 'cargo', 'tipo', 'regimen',
-                             'centro_costo', 'sueldo', 'asignacion_familiar', 'turno']),
+        ('Datos laborales', ['fecha_ingreso', 'fecha_cese', 'motivo_cese', 'puesto', 'cargo', 'tipo', 'regimen',
+                             'centro_costo', 'sueldo', 'asignacion_familiar', 'turno', 'usuario']),
         ('Pensiones', ['sistema_pensiones', 'afp', 'comision_afp', 'cuspp']),
         ('Quinta categoría: datos del año antes del sistema', ['quinta_anio', 'quinta_remuneracion_previa',
                                                               'quinta_retencion_previa']),
         ('Cuentas bancarias', ['banco', 'cuenta_sueldo', 'banco_cts', 'cuenta_cts']),
     ]
 
+    # con vínculo vigente, estos datos cambian solo con un movimiento de personal (fecha efectiva, motivo,
+    # aprobación e historial)
+    POR_MOVIMIENTO = ('sueldo', 'puesto', 'centro_costo', 'cargo', 'fecha_cese', 'motivo_cese')
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        from django.contrib.auth import get_user_model
+        from .models import Puesto
         self.fields['afp'].queryset = AFP.objects.filter(activo=True)
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['puesto'].queryset = Puesto.objects.filter(activo=True)
+        ocupados = Trabajador.objects.exclude(usuario=None).exclude(pk=self.instance.pk).values('usuario')
+        self.fields['usuario'].queryset = get_user_model().objects.exclude(pk__in=ocupados).order_by('username')
         # su sueldo y cargas (62) se reparten por centro de costo
         self.fields['centro_costo'].required = True
+        if self.instance.pk and self.instance.fecha_ingreso:
+            for campo in self.POR_MOVIMIENTO:
+                self.fields[campo].disabled = True
+                self.fields[campo].help_text = 'Se cambia con un movimiento de personal (Planillas › Movimientos).'
 
     def secciones(self):
         return [(titulo, [self[c] for c in campos]) for titulo, campos in self.SECCIONES]

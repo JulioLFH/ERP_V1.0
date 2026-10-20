@@ -1,0 +1,32 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ m }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">{{ m.get_tipo_display }} {{ m.numero }} <span class="badge text-bg-light border fs-6 align-middle">{{ m.get_estado_display }}</span></h1>
+    <div class="text-muted small"><a href="{% url 'planillas:legajo' m.trabajador_id %}">{{ m.trabajador.nombre_completo }}</a> · fecha efectiva {{ m.fecha_efectiva|date:'d/m/Y' }}{% if m.solicitante %} · registró {{ m.solicitante.username }}{% endif %}</div></div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'planillas:movimientos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+    {% if m.estado == 'BORRADOR' %}<form method="post">{% csrf_token %}<button name="accion" value="enviar" class="btn btn-sm btn-primary"><i class="bi bi-send"></i> Enviar a aprobación</button></form>{% endif %}
+    {% if m.estado in 'BORRADOR ENVIADO APROBADO' and puede.planillas_calcular %}<form method="post" data-confirm="¿Anular el movimiento?">{% csrf_token %}<button name="accion" value="anular" class="btn btn-sm btn-outline-danger">Anular</button></form>{% endif %}
+  </div>
+</div>
+<div class="card mb-3"><table class="table table-sm mb-0">
+  <tr><th style="width:30%">Motivo</th><td>{{ m.motivo }}</td></tr>
+  {% if m.sueldo %}<tr><th>Nueva remuneración</th><td>S/ {{ m.sueldo|money }}{% if m.anterior.sueldo %} <span class="text-muted">(antes S/ {{ m.anterior.sueldo }})</span>{% endif %}</td></tr>{% endif %}
+  {% if m.puesto %}<tr><th>Nuevo puesto</th><td>{{ m.puesto }}</td></tr>{% endif %}
+  {% if m.cargo %}<tr><th>Nuevo cargo</th><td>{{ m.cargo }}</td></tr>{% endif %}
+  {% if m.centro_costo %}<tr><th>Nuevo centro de costo</th><td>{{ m.centro_costo }}</td></tr>{% endif %}
+  {% if m.tipo == 'CESE' %}<tr><th>Motivo de cese</th><td>{{ m.motivo_cese }}</td></tr>{% endif %}
+  {% if m.aplicado_en %}<tr><th>Aplicado a la ficha</th><td>{{ m.aplicado_en|date:'d/m/Y H:i' }}</td></tr>{% endif %}
+  {% if m.comentario %}<tr><th>Comentario</th><td>{{ m.comentario }}</td></tr>{% endif %}
+</table></div>
+{% if puede_aprobar %}<form method="post" class="card border-primary mb-3"><div class="card-body d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+  <input name="comentario" class="form-control form-control-sm" style="max-width:360px" placeholder="Comentario (obligatorio para rechazar)">
+  <button name="accion" value="aprobar" class="btn btn-sm btn-success"><i class="bi bi-check2"></i> Aprobar{% if pendiente and m.niveles|length > 1 %} nivel {{ pendiente.nivel }}{% endif %}</button>
+  <button name="accion" value="rechazar" class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i> Rechazar</button></div></form>{% endif %}
+{% if m.niveles or historial %}<div class="card mb-3"><div class="card-header">Aprobación</div><ul class="list-group list-group-flush small">
+  {% for n in m.niveles %}<li class="list-group-item d-flex justify-content-between"><span>Nivel {{ n.nivel }}: {{ n.nombre }}</span><span>{% if n.nivel <= m.nivel_aprobado %}<span class="text-success">Aprobado</span>{% elif pendiente and n.nivel == pendiente.nivel %}<span class="text-warning">Pendiente</span>{% else %}—{% endif %}</span></li>{% endfor %}
+  {% for h in historial %}<li class="list-group-item text-muted">{{ h.fecha|date:'d/m/Y H:i' }} · {{ h.usuario.username|default:'Sistema' }} · {{ h.accion|lower }}{% if h.comentario %}: {{ h.comentario }}{% endif %}</li>{% endfor %}
+</ul></div>{% endif %}
+{% include 'core/_sustentos.html' with objeto=m %}
+{% endblock %}

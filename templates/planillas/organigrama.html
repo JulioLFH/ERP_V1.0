@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Organigrama{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3"><i class="bi bi-diagram-3"></i> Estructura organizativa</h1>
+{% if sin_puesto %}<div class="alert alert-warning small py-2">{{ sin_puesto }} trabajador(es) vigentes sin puesto: asígnelo en su ficha para que su jefe salga de la jerarquía (aprobaciones, vacaciones).</div>{% endif %}
+<div class="row g-3">
+<div class="col-lg-7"><div class="card"><div class="card-body">
+  {% if arbol %}<ul class="list-unstyled mb-0">{% for n in arbol %}{% include 'planillas/_nodo_organigrama.html' %}{% endfor %}</ul>
+  {% else %}<p class="text-muted mb-0">Aún no hay unidades: cree la gerencia general y luego sus áreas, secciones y puestos.</p>{% endif %}
+</div><div class="card-body border-top small text-muted">El jefe de un trabajador es quien ocupa el puesto superior al suyo (si está vacante, el siguiente hacia arriba). Las reglas de aprobación «Jefe del solicitante», «Ocupante de un puesto» y «Nivel N de la jerarquía» usan esta estructura.</div></div></div>
+{% if puede.planillas_configurar %}<div class="col-lg-5">
+  <div class="card mb-3"><div class="card-header">{% if unidad %}Editar unidad{% else %}Nueva unidad organizativa{% endif %}</div><div class="card-body">
+    <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="que" value="unidad">
+      {% for field in fu %}<div class="col-6">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-primary">Guardar unidad</button>{% if unidad %} <a href="{% url 'planillas:organigrama' %}" class="btn btn-sm btn-outline-secondary">Cancelar</a>{% endif %}</div></form></div></div>
+  <div class="card"><div class="card-header">{% if puesto %}Editar puesto{% else %}Nuevo puesto{% endif %}</div><div class="card-body">
+    <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="que" value="puesto">
+      {% for field in fp %}<div class="col-6">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-primary">Guardar puesto</button>{% if puesto %} <a href="{% url 'planillas:organigrama' %}" class="btn btn-sm btn-outline-secondary">Cancelar</a>{% endif %}</div></form></div></div>
+</div>{% endif %}
+</div>
+{% endblock %}

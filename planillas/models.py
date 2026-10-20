@@ -3,6 +3,7 @@ gratificación y de CTS. El cálculo está en calculo.py."""
 from datetime import date
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -91,6 +92,57 @@ class ConceptoPlanilla(models.Model):
         return self.nombre
 
 
+class UnidadOrganizativa(models.Model):
+    """Estructura organizativa: gerencia → área → sección (con su centro de costo)."""
+    TIPOS = [('GERENCIA', 'Gerencia'), ('AREA', 'Área'), ('SECCION', 'Sección')]
+    codigo = models.CharField('Código', max_length=12, unique=True)
+    nombre = models.CharField(max_length=100)
+    tipo = models.CharField(max_length=10, choices=TIPOS, default='AREA')
+    padre = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True, related_name='hijas',
+                              verbose_name='Depende de')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
+                                     verbose_name='Centro de costo')
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['codigo']
+        verbose_name = 'unidad organizativa'
+        verbose_name_plural = 'unidades organizativas'
+
+    def __str__(self):
+        return f'{self.codigo} {self.nombre}'
+
+
+class Puesto(models.Model):
+    """Posición de la estructura: a qué unidad pertenece, a qué puesto reporta y su centro de costo. El jefe de un
+    trabajador es quien ocupa el puesto superior al suyo."""
+    codigo = models.CharField('Código', max_length=12, unique=True)
+    nombre = models.CharField(max_length=100)
+    unidad = models.ForeignKey(UnidadOrganizativa, on_delete=models.PROTECT, related_name='puestos',
+                               verbose_name='Unidad organizativa')
+    superior = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True, related_name='subordinados',
+                                 verbose_name='Reporta a (puesto superior)')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
+                                     verbose_name='Centro de costo', help_text='Vacío = el de su unidad')
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['codigo']
+        verbose_name = 'puesto'
+        verbose_name_plural = 'puestos'
+
+    def __str__(self):
+        return f'{self.codigo} {self.nombre}'
+
+    @property
+    def centro(self):
+        return self.centro_costo or self.unidad.centro_costo
+
+    def ocupantes(self, fecha=None):
+        fecha = fecha or timezone.localdate()
+        return Trabajador.objects.filter(puesto=self, fecha_ingreso__isnull=False).exclude(fecha_cese__lt=fecha)
+
+
 class Trabajador(models.Model):
     TIPOS_DOC = [('01', 'DNI'), ('04', 'Carné de extranjería'), ('07', 'Pasaporte')]
     TIPOS = [('EMPLEADO', 'Empleado'), ('OBRERO', 'Obrero')]
@@ -115,6 +167,12 @@ class Trabajador(models.Model):
     fecha_cese = models.DateField('Fecha de cese', null=True, blank=True)
     motivo_cese = models.CharField('Motivo de cese', max_length=100, blank=True)
     cargo = models.CharField(max_length=80, blank=True)
+    puesto = models.ForeignKey(Puesto, on_delete=models.SET_NULL, null=True, blank=True, related_name='trabajadores',
+                               help_text='Puesto en la estructura organizativa (define su jefe)')
+    usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='trabajador_planilla', verbose_name='Usuario del sistema',
+                                   help_text='Al registrar el cese, el usuario se desactiva y sus aprobaciones '
+                                             'pendientes pasan a su jefe')
     tipo = models.CharField('Tipo de trabajador', max_length=10, choices=TIPOS, default='EMPLEADO')
     regimen = models.CharField('Régimen laboral', max_length=10, choices=REGIMENES, default='GENERAL')
     centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
@@ -152,6 +210,12 @@ class Trabajador(models.Model):
 
     def __str__(self):
         return f'{self.nombre_completo} ({self.numero_doc})'
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.fecha_cese and self.fecha_cese <= timezone.localdate() and self.usuario_id:
+            from .organizacion import aplicar_cese  # el usuario se desactiva y sus aprobaciones pasan al jefe
+            aplicar_cese(self)
 
     @property
     def nombre_completo(self):
@@ -270,15 +334,23 @@ class FilaPlanilla(models.Model):
 
 
 class Vacacion(models.Model):
-    """Días de vacaciones gozados o vendidos; el récord vacacional se calcula en calculo.record_vacacional."""
-    TIPOS = [('GOCE', 'Goce vacacional (descanso)'), ('VENTA', 'Venta / compensación (trabaja y cobra)')]
+    """Días de vacaciones gozados o vendidos, y permisos; el récord vacacional se calcula en
+    calculo.record_vacacional. Las que pide el trabajador (autoservicio) entran a la planilla al aprobarse."""
+    TIPOS = [('GOCE', 'Goce vacacional (descanso)'), ('VENTA', 'Venta / compensación (trabaja y cobra)'),
+             ('PERMISO', 'Permiso o licencia con goce')]
+    ESTADOS = [('SOLICITADA', 'Por aprobar'), ('APROBADA', 'Aprobada'), ('RECHAZADA', 'Rechazada')]
     trabajador = models.ForeignKey(Trabajador, on_delete=models.CASCADE, related_name='vacaciones')
-    tipo = models.CharField(max_length=5, choices=TIPOS, default='GOCE')
+    tipo = models.CharField(max_length=7, choices=TIPOS, default='GOCE')
     fecha_inicio = models.DateField('Desde')
     fecha_fin = models.DateField('Hasta')
     anio_servicio = models.PositiveIntegerField('Año de servicio que se descuenta', null=True, blank=True,
                                                 help_text='Vacío = el periodo pendiente más antiguo')
     observaciones = models.CharField(max_length=200, blank=True)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='APROBADA')
+    solicitado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='+')
+    niveles = models.JSONField(default=list, blank=True)
+    nivel_aprobado = models.PositiveSmallIntegerField(default=0)
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -357,3 +429,92 @@ class LineaPlanilla(models.Model):
 
     class Meta:
         ordering = ['concepto__orden']
+
+
+class MovimientoPersonal(models.Model):
+    """Alta, cambio de puesto, de remuneración o de centro de costo y cese, con fecha efectiva, motivo, aprobación e
+    historial. Al aprobarse se aplica a la ficha (o en su fecha, si es futura); la planilla de cada periodo usa el
+    valor vigente en ese periodo."""
+    TIPOS = [('ALTA', 'Alta'), ('CAMBIO_PUESTO', 'Cambio de puesto'), ('AUMENTO', 'Cambio de remuneración'),
+             ('CAMBIO_CC', 'Cambio de centro de costo'), ('CESE', 'Cese')]
+    ESTADOS = [('BORRADOR', 'Borrador'), ('ENVIADO', 'Por aprobar'), ('APROBADO', 'Aprobado (por aplicar)'),
+               ('APLICADO', 'Aplicado'), ('RECHAZADO', 'Rechazado'), ('ANULADO', 'Anulado')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    trabajador = models.ForeignKey(Trabajador, on_delete=models.PROTECT, related_name='movimientos')
+    tipo = models.CharField(max_length=14, choices=TIPOS)
+    fecha_efectiva = models.DateField('Fecha efectiva')
+    motivo = models.CharField(max_length=250)
+    sueldo = models.DecimalField('Nueva remuneración S/', max_digits=10, decimal_places=2, null=True, blank=True)
+    puesto = models.ForeignKey(Puesto, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                               verbose_name='Nuevo puesto')
+    cargo = models.CharField('Nuevo cargo', max_length=80, blank=True)
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='+', verbose_name='Nuevo centro de costo')
+    motivo_cese = models.CharField('Motivo de cese', max_length=100, blank=True)
+    anterior = models.JSONField(default=dict, blank=True, editable=False,
+                                help_text='Valores de la ficha antes de aplicar el movimiento')
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='BORRADOR', editable=False)
+    solicitante = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+                                    related_name='+', editable=False)
+    niveles = models.JSONField(default=list, blank=True, editable=False)
+    nivel_aprobado = models.PositiveSmallIntegerField(default=0, editable=False)
+    comentario = models.CharField(max_length=300, blank=True, editable=False)
+    aplicado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_efectiva', '-id']
+        verbose_name = 'movimiento de personal'
+        verbose_name_plural = 'movimientos de personal'
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} {self.numero} · {self.trabajador.nombre_completo}'
+
+
+class Contrato(models.Model):
+    """Contratos de trabajo con su modalidad y vencimiento (alerta 30 días antes) y sus renovaciones."""
+    TIPOS = [('INDETERMINADO', 'Plazo indeterminado'), ('INICIO_ACTIVIDAD', 'Inicio o incremento de actividad'),
+             ('NECESIDAD_MERCADO', 'Necesidad de mercado'), ('RECONVERSION', 'Reconversión empresarial'),
+             ('OCASIONAL', 'Ocasional'), ('SUPLENCIA', 'Suplencia'), ('EMERGENCIA', 'Emergencia'),
+             ('OBRA', 'Obra determinada o servicio específico'), ('INTERMITENTE', 'Intermitente'),
+             ('TEMPORADA', 'Temporada'), ('PARCIAL', 'Tiempo parcial'), ('FORMATIVA', 'Modalidad formativa')]
+    trabajador = models.ForeignKey(Trabajador, on_delete=models.CASCADE, related_name='contratos')
+    tipo = models.CharField('Modalidad', max_length=18, choices=TIPOS, default='INDETERMINADO')
+    inicio = models.DateField()
+    fin = models.DateField('Vence', null=True, blank=True, help_text='Vacío = plazo indeterminado')
+    renueva = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='renovaciones',
+                                verbose_name='Renueva el contrato')
+    observaciones = models.CharField(max_length=200, blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-inicio', '-id']
+        verbose_name = 'contrato'
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} desde {self.inicio:%d/%m/%Y}'
+
+    @property
+    def dias_para_vencer(self):
+        return (self.fin - timezone.localdate()).days if self.fin else None
+
+
+class DocumentoLegajo(models.Model):
+    """Legajo digital del trabajador: cada documento con su archivo (sustento) y su vencimiento si lo tiene."""
+    TIPOS = [('DNI', 'Documento de identidad'), ('CONTRATO', 'Contrato firmado'), ('CV', 'Currículum'),
+             ('ANT_POLICIALES', 'Antecedentes policiales'), ('ANT_PENALES', 'Antecedentes penales'),
+             ('EMO', 'Examen médico ocupacional (EMO)'), ('TITULO', 'Título o certificado'),
+             ('DERECHOHABIENTES', 'Derechohabientes'), ('OTRO', 'Otro')]
+    trabajador = models.ForeignKey(Trabajador, on_delete=models.CASCADE, related_name='legajo')
+    tipo = models.CharField(max_length=16, choices=TIPOS)
+    descripcion = models.CharField('Descripción', max_length=150, blank=True)
+    vence = models.DateField(null=True, blank=True, help_text='EMO, antecedentes…: se avisa 30 días antes')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['tipo', '-creado']
+        verbose_name = 'documento del legajo'
+        verbose_name_plural = 'legajo'
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} · {self.trabajador.nombre_completo}'

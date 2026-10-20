@@ -16,8 +16,9 @@ from core.models import Empresa, PerfilUsuario, Producto, Tercero
 from core.modulos import GRUPOS
 
 from . import solped as srv
-from .models import (ContratoMarco, LineaSolicitud, OrdenCompra, OrdenCompraItem, ReglaLiberacion,
-                     SolicitudPedido)
+from core.models import ReglaAprobacion
+
+from .models import ContratoMarco, LineaSolicitud, OrdenCompra, OrdenCompraItem, SolicitudPedido
 
 D = Decimal
 HOY = timezone.localdate()
@@ -66,10 +67,10 @@ class LiberacionPorNivelesTest(Base):
         gerente = User.objects.create_user('gerente', password='x')
         self.centro.responsable_usuario = responsable
         self.centro.save()
-        ReglaLiberacion.objects.create(nivel=1, tipo='JEFE')
-        ReglaLiberacion.objects.create(nivel=2, tipo='RESPONSABLE_CC', monto_desde=D('2000'))
-        ReglaLiberacion.objects.create(nivel=3, tipo='USUARIO', aprobador=gerente, monto_desde=D('20000'))
-        ReglaLiberacion.objects.create(nivel=4, tipo='USUARIO', aprobador=gerente, aplica_a='URGENTE')
+        ReglaAprobacion.objects.create(documento='SOLPED', nivel=1, tipo='JEFE')
+        ReglaAprobacion.objects.create(documento='SOLPED', nivel=2, tipo='RESPONSABLE_CC', monto_desde=D('2000'))
+        ReglaAprobacion.objects.create(documento='SOLPED', nivel=3, tipo='USUARIO', aprobador=gerente, monto_desde=D('20000'))
+        ReglaAprobacion.objects.create(documento='SOLPED', nivel=4, tipo='USUARIO', aprobador=gerente, aplica_a='URGENTE')
         sp = self.solicitud('100')  # 100 × 25 = S/ 2,500
         self.assertEqual(sp.monto, D('2500.00'))
         self.assertEqual([n['usuario'] for n in sp.niveles], [self.jefe.pk, responsable.pk])
@@ -198,7 +199,7 @@ class OrigenMrpTest(Base):
         with self.assertRaises(srv.ErrorSolped):  # ya convertidas
             srv.desde_mrp(PropuestaMRP.objects.filter(pk__in=[x.pk for x in props]), self.admin, self.centro)
         # con una regla que aplica, la del MRP queda por liberar
-        ReglaLiberacion.objects.create(nivel=1, tipo='USUARIO', aprobador=self.jefe)
+        ReglaAprobacion.objects.create(documento='SOLPED', nivel=1, tipo='USUARIO', aprobador=self.jefe)
         p3 = PropuestaMRP.objects.create(corrida=corrida, producto=self.repuesto, tipo='COMPRAR', cantidad=D('5'),
                                          fecha_necesidad=HOY, fecha_inicio=HOY)
         sp2, _ = srv.desde_mrp([p3], self.admin, self.centro)
@@ -347,19 +348,22 @@ class PantallasYPermisosTest(Base):
         self.client.force_login(self.admin)
         for url in [reverse('solicitudes:lista') + '?vista=todas', reverse('solicitudes:lista') + '?vista=liberar',
                     reverse('solicitudes:detalle', args=[sp.pk]), reverse('compras:solped_bandeja'),
-                    reverse('compras:solped_bandeja') + '?agrupar=producto', reverse('compras:solped_reglas'),
-                    reverse('compras:solped_reportes'), reverse('solicitudes:nueva'), reverse('inv_reposicion'),
+                    reverse('compras:solped_bandeja') + '?agrupar=producto',
+                    reverse('aprobaciones_reglas') + '?documento=SOLPED', reverse('compras:solped_reportes'), reverse('solicitudes:nueva'), reverse('inv_reposicion'),
                     reverse('compras:solped_reportes') + '?formato=excel']:
             self.assertEqual(self.client.get(url).status_code, 200, url)
         r = self.client.post(reverse('compras:solped_bandeja'), {'linea': [sp.lineas.get().pk], 'convertir': 'oc'})
         oc = OrdenCompra.objects.get(items__linea_solped__solicitud=sp)
         self.assertRedirects(r, reverse('compras:oc_detalle', args=[oc.pk]))
-        datos_regla = {'nivel': '1', 'tipo': 'USUARIO', 'aprobador': '', 'monto_desde': '0', 'centro_costo': '',
-                       'aplica_a': '', 'activo': 'on'}
-        self.assertContains(self.client.post(reverse('compras:solped_reglas'), datos_regla), 'Elija el usuario')
+        self.assertRedirects(self.client.get(reverse('compras:solped_reglas')),
+                             reverse('aprobaciones_reglas') + '?documento=SOLPED')
+        datos_regla = {'documento': 'SOLPED', 'nivel': '1', 'tipo': 'USUARIO', 'aprobador': '', 'puesto': '',
+                       'niveles_arriba': '2', 'monto_desde': '0', 'centro_costo': '', 'aplica_a': '', 'activo': 'on'}
+        url_reglas = reverse('aprobaciones_reglas') + '?documento=SOLPED'
+        self.assertContains(self.client.post(url_reglas, datos_regla), 'Elija el usuario')
         datos_regla['aprobador'] = self.jefe.pk
-        self.client.post(reverse('compras:solped_reglas'), datos_regla)
-        self.assertEqual(ReglaLiberacion.objects.count(), 1)
+        self.client.post(url_reglas, datos_regla)
+        self.assertEqual(ReglaAprobacion.objects.filter(documento='SOLPED').count(), 1)
         # reportes: tiempos de liberación y de liberada a OC
         d = srv.reporte(HOY - timedelta(days=1), HOY)
         self.assertEqual(d['total'], 1)

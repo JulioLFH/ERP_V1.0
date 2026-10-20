@@ -5,6 +5,7 @@ from django.urls import include, path
 
 from core import doble_factor
 from core.acceso import LoginSeguroView, cambiar_empresa
+from planillas import views_personal as personal
 
 # el panel de Django solo se publica con ADMIN_URL (en producción no hay /admin/)
 urlpatterns = [path(f'{settings.ADMIN_URL}/', admin.site.urls)] if settings.ADMIN_URL else []
@@ -35,6 +36,8 @@ urlpatterns += [
     path('historial/', include('historial.urls')),
     path('requerimientos/', include('inventario.urls_requerimientos')),
     path('solicitudes/', include('compras.urls_solped')),
+    path('mi-portal/', personal.mi_portal, name='mi_portal'),
+    path('mi-portal/boleta/<int:pk>/', personal.mi_boleta, name='mi_boleta'),
     path('rendiciones/', include('finanzas.urls_rendiciones')),
     path('', include('core.urls')),
 ]

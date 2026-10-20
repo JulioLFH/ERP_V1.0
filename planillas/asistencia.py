@@ -44,7 +44,8 @@ def resumen(periodo, hasta_hoy=True):
     for m in Marcacion.objects.filter(fecha__range=[desde, hasta]):
         marcas[m.trabajador_id][m.fecha] = m
     vac = defaultdict(set)
-    for v in Vacacion.objects.filter(tipo='GOCE', fecha_inicio__lte=hasta, fecha_fin__gte=desde):
+    for v in Vacacion.objects.filter(tipo__in=['GOCE', 'PERMISO'], estado='APROBADA', fecha_inicio__lte=hasta,
+                                     fecha_fin__gte=desde):
         d = max(v.fecha_inicio, desde)
         while d <= min(v.fecha_fin, hasta):
             vac[v.trabajador_id].add(d)

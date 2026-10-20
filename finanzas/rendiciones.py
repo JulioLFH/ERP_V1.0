@@ -242,6 +242,14 @@ def calcular_niveles(rendicion):
     """[{nivel, usuario, nombre}] según las reglas activas. Por nivel aplica la regla más específica (mayor monto).
     Sin reglas: un nivel que aprueba cualquier usuario con el permiso «Aprobar rendiciones»."""
     total_pen = sum((_pen(l) for l in rendicion.lineas.exclude(estado='RECHAZADA')), D0)
+    from core import aprobaciones
+    if aprobaciones.hay_reglas('RENDICION'):  # motor único de aprobación (Ajustes › Aprobaciones)
+        try:
+            niveles = aprobaciones.calcular_niveles('RENDICION', rendicion.rendidor, total_pen,
+                                                    rendicion.entrega.centro_costo)
+        except aprobaciones.ErrorAprobacion as exc:
+            raise ErrorRendicion(str(exc)) from exc
+        return niveles or [{'nivel': 1, 'usuario': None, 'nombre': 'Aprobador de rendiciones'}]
     centros = set(rendicion.lineas.exclude(centro_costo=None).values_list('centro_costo_id', flat=True))
     por_nivel = {}
     for regla in ReglaAprobacion.objects.filter(activo=True).select_related('aprobador', 'centro_costo'):
@@ -280,8 +288,9 @@ def puede_aprobar(user, rendicion):
     n = rendicion.nivel_pendiente
     if n is None:
         return False
-    if n['usuario']:
-        return user.pk == n['usuario'] or user.is_superuser
+    if n['usuario']:  # el titular, su suplente vigente o su jefe si el nivel escaló (motor único)
+        from core.aprobaciones import aprobadores
+        return user.is_superuser or user.pk in {u.pk for u in aprobadores(n)}
     return puede(user, 'rendiciones.aprobar')
 
 

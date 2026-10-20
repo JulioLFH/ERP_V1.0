@@ -3,6 +3,19 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.42.0 — 20/10/2026 · Motor único de aprobación, estructura organizativa y personal
+- **Motor único de aprobación (n.º 33)** en Ajustes › Reglas de aprobación: para órdenes de compra, solicitudes de pedido, requerimientos, rendiciones, vacaciones y movimientos de personal, por nivel (1 → 2 → 3), con aprobador = jefe del solicitante, responsable del centro de costo, usuario, ocupante de un puesto o jefe N niveles arriba; por monto, centro de costo y tipo (urgente, activo, servicio, material…). Nadie aprueba lo suyo. Historial de cada aprobación, rechazo y reasignación. Sin reglas, todo funciona como antes. Las reglas de liberación de la SolPed pasaron a este motor.
+- **Órdenes de compra por niveles (n.º 25)**: aprobación en cadena con historial; **rechazo con motivo** (vuelve al comprador); si se edita, la aprobación empieza de nuevo. Sin reglas sigue el límite por usuario.
+- **Requerimientos (n.º 26)**: los aprueba el jefe del solicitante o el responsable del centro, por monto valorizado, aunque no tenga el permiso general; el aprobador los ve en su lista.
+- **«Mis aprobaciones»** (menú del usuario): todo lo que le toca aprobar hoy, de cualquier módulo, aprobando o rechazando ahí mismo.
+- **Suplencias y escalamiento (n.º 34)**: cada usuario delega sus aprobaciones por un periodo; si un nivel pasa los días de escalamiento de la empresa (3 por defecto) sin respuesta, también lo aprueba el jefe del aprobador. Aplica también a las rendiciones.
+- **Estructura organizativa (n.º 32)**: unidades (gerencia → área → sección) y puestos con su centro de costo y su puesto superior; **organigrama** con ocupantes y vacantes. El jefe de un trabajador es quien ocupa el puesto superior (si está vacante, el siguiente).
+- **Usuario ↔ trabajador (n.º 31)**: relación 1 a 1 desde la ficha del trabajador o desde Ajustes › Usuarios («Trabajador de la planilla»). Al registrar el **cese** se desactiva el usuario, se le quitan módulos y permisos y sus aprobaciones pendientes pasan a su jefe.
+- **Movimientos de personal (n.º 35)**: alta, cambio de puesto, de remuneración o de centro de costo y cese, con fecha efectiva, motivo, aprobación e historial (valores anteriores). Se aplican a la ficha al aprobarse o en su fecha; la planilla de cada periodo usa la **remuneración vigente** en ese periodo. En la ficha, sueldo, puesto, centro de costo, cargo y cese ya no se editan directamente.
+- **Contratos y legajo (n.º 36)**: contratos por modalidad con vencimiento y renovaciones (alerta 30 días antes), legajo digital (DNI, contrato, antecedentes, EMO…) con archivo y vencimiento, y **Excel con los datos para el T-Registro** (altas, bajas y vigentes).
+- **Portal del trabajador (n.º 37)**: «Mi portal» con sus boletas, solicitud de vacaciones y permisos (las aprueba su jefe según la jerarquía; solo las aprobadas entran a la planilla), días pendientes y sus datos de contacto.
+- **Sustentos**: ahora se pueden adjuntar en el documento de inventario físico (faltaba), en la solicitud de pedido, en los movimientos de personal y en el legajo.
+
 ## v1.41.0 — 20/10/2026 · Correcciones del piloto (hoja de 42 puntos): pendientes y completar lo parcial
 - **Saldos negativos en el kardex (n.º 12)**: nuevo reporte en Inventario › Reportes masivos con el producto, el almacén, desde cuándo quedó en negativo, el movimiento que lo dejó así, el peor saldo y el saldo de hoy, para regularizar antes del cierre.
 - **Aviso general en los formularios de comprobantes (n.º 13)**: arriba aparece «Revise los campos marcados» con la lista de los campos y su error (por ejemplo, la orden de compra sin aprobar).

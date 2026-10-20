@@ -93,7 +93,8 @@ def record_vacacional(t, al=None):
         inicio, n = fin + timedelta(days=1), n + 1
     trunco = {'anio': n, 'inicio': inicio, 'fin': tope, 'adelantados': 0} if inicio <= tope else None
     por_anio = {a['anio']: a for a in anios}
-    for v in t.vacaciones.filter(fecha_inicio__lte=tope).order_by('fecha_inicio', 'id'):
+    for v in t.vacaciones.filter(fecha_inicio__lte=tope, estado='APROBADA', tipo__in=['GOCE', 'VENTA']).order_by(
+            'fecha_inicio', 'id'):
         campo = 'vendidos' if v.tipo == 'VENTA' else 'gozados'
         restante = v.dias
         destinos = [por_anio[v.anio_servicio]] if v.anio_servicio in por_anio else anios
@@ -117,10 +118,10 @@ def vacaciones_del_mes(t, periodo):
     """(días de goce, días vendidos) registrados en el mes."""
     desde, hasta = rango(periodo)
     goce = vendidos = 0
-    for v in t.vacaciones.filter(fecha_inicio__lte=hasta, fecha_fin__gte=desde):
+    for v in t.vacaciones.filter(fecha_inicio__lte=hasta, fecha_fin__gte=desde, estado='APROBADA'):
         if v.tipo == 'GOCE':
             goce += v.dias_en(desde, hasta)
-        elif desde <= v.fecha_inicio <= hasta:  # la venta se paga en el mes en que se registra
+        elif v.tipo == 'VENTA' and desde <= v.fecha_inicio <= hasta:  # la venta se paga en el mes en que se registra
             vendidos += v.dias
     return Decimal(min(goce, 30)), Decimal(vendidos)
 
@@ -178,8 +179,12 @@ def calcular(planilla):
     faltan = {'BASICO', 'GRATIFICACION', 'CTS', 'ESSALUD', 'QUINTA'} - set(conceptos)
     if faltan:
         raise ErrorPlanilla(f'Faltan conceptos de planilla: {", ".join(sorted(faltan))}.')
+    from .organizacion import vigente
+    _, fin_periodo = rango(planilla.periodo)
     for fila in planilla.filas.select_related('trabajador__afp'):
         fila.lineas.all().delete()
+        # remuneración vigente en el periodo según los movimientos de personal (no la de hoy en la ficha)
+        fila.trabajador.sueldo = vigente(fila.trabajador, 'sueldo', fin_periodo)
         if planilla.tipo == 'MENSUAL':
             lineas, notas = _mensual(fila, p, planilla)
         elif planilla.tipo == 'GRATIFICACION':

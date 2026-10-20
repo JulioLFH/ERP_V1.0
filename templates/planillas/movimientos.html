@@ -1,0 +1,22 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Movimientos de personal{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-arrow-left-right"></i> Movimientos de personal</h1>
+  {% if puede.planillas_calcular %}<a href="{% url 'planillas:movimiento_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo movimiento</a>{% endif %}
+</div>
+{% if por_aprobar %}<div class="alert alert-warning py-2 small">{{ por_aprobar|length }} movimiento(s) esperan su aprobación.</div>{% endif %}
+<div class="card">
+  <div class="card-body border-bottom py-2"><form method="get"><select name="estado" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="">Todos los estados</option>{% for v, t in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></form></div>
+  <div class="table-responsive"><table class="table table-hover mb-0">
+    <thead><tr><th>Fecha efectiva</th><th>N°</th><th>Trabajador</th><th>Movimiento</th><th>Nuevo valor</th><th>Motivo</th><th>Estado</th></tr></thead>
+    <tbody>{% for m in movimientos %}<tr onclick="location.href='{% url 'planillas:movimiento' m.pk %}'" style="cursor:pointer">
+      <td>{{ m.fecha_efectiva|date:'d/m/Y' }}</td><td>{{ m.numero|default:'(borrador)' }}</td><td>{{ m.trabajador.nombre_completo }}</td><td>{{ m.get_tipo_display }}</td>
+      <td class="small">{% if m.sueldo %}S/ {{ m.sueldo|money }} {% endif %}{% if m.puesto %}{{ m.puesto.nombre }} {% endif %}{% if m.centro_costo %}{{ m.centro_costo.codigo }}{% endif %}{% if m.tipo == 'CESE' %}{{ m.motivo_cese }}{% endif %}</td>
+      <td class="small">{{ m.motivo|truncatechars:50 }}</td>
+      <td><span class="badge {% if m.estado == 'APLICADO' %}text-bg-success{% elif m.estado == 'APROBADO' %}text-bg-primary{% elif m.estado == 'ENVIADO' %}text-bg-warning{% elif m.estado == 'BORRADOR' %}text-bg-light border{% else %}badge-ANULADO{% endif %}">{{ m.get_estado_display }}</span></td>
+    </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin movimientos.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-body small text-muted">Los cambios de remuneración, puesto, centro de costo y el cese se registran aquí (no sobre la ficha) con fecha efectiva, motivo y aprobación. Al aprobarse se aplican a la ficha (o en su fecha, si es futura); la planilla de cada periodo usa la remuneración vigente en ese periodo.</div>
+</div>
+{% endblock %}

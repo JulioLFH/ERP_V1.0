@@ -1,0 +1,8 @@
+<li class="mb-2">
+  <div class="d-flex flex-wrap gap-2 align-items-center"><span class="badge text-bg-primary">{{ n.u.get_tipo_display }}</span><b>{{ n.u.nombre }}</b><span class="small text-muted">{{ n.u.codigo }}{% if n.u.centro_costo %} · {{ n.u.centro_costo }}{% endif %}</span>
+    {% if puede.planillas_configurar %}<a href="?unidad={{ n.u.pk }}" class="small"><i class="bi bi-pencil"></i></a>{% endif %}</div>
+  {% if n.puestos %}<ul class="list-unstyled ms-4 mt-1 small">{% for p in n.puestos %}<li class="mb-1"><i class="bi bi-person-badge"></i> <b>{{ p.nombre }}</b> <span class="text-muted">{{ p.codigo }}{% if p.superior %} · reporta a {{ p.superior.nombre }}{% endif %}{% if p.centro %} · {{ p.centro.codigo }}{% endif %}</span>
+    {% if puede.planillas_configurar %}<a href="?puesto={{ p.pk }}"><i class="bi bi-pencil"></i></a>{% endif %}
+    {% for t in p.lista_ocupantes %}<div class="ms-3">{% if puede.planillas_calcular %}<a href="{% url 'planillas:legajo' t.pk %}">{{ t.nombre_completo }}</a>{% else %}{{ t.nombre_completo }}{% endif %}{% if t.usuario %} <span class="badge text-bg-light border">{{ t.usuario.username }}</span>{% else %} <span class="text-warning">sin usuario</span>{% endif %}</div>{% empty %}<div class="ms-3 text-warning">vacante</div>{% endfor %}</li>{% endfor %}</ul>{% endif %}
+  {% if n.hijas %}<ul class="list-unstyled ms-4 border-start ps-3">{% for h in n.hijas %}{% include 'planillas/_nodo_organigrama.html' with n=h %}{% endfor %}</ul>{% endif %}
+</li>

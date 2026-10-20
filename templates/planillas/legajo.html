@@ -1,0 +1,36 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Legajo · {{ t.nombre_completo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-folder2-open"></i> Legajo de {{ t.nombre_completo }}</h1>
+    <div class="text-muted small">{{ t.get_tipo_doc_display }} {{ t.numero_doc }} · {% if t.puesto %}{{ t.puesto.nombre }}{% else %}{{ t.cargo|default:'sin puesto' }}{% endif %}{% if jefe %} · jefe: {{ jefe.nombre_completo }}{% endif %}{% if t.usuario %} · usuario {{ t.usuario.username }}{% endif %} · ingreso {{ t.fecha_ingreso|date:'d/m/Y'|default:'—' }}{% if t.fecha_cese %} · cese {{ t.fecha_cese|date:'d/m/Y' }}{% endif %}</div></div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'planillas:trabajador_editar' t.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person"></i> Ficha</a>
+    {% if puede.planillas_calcular %}<a href="{% url 'planillas:movimiento_nuevo' %}?trabajador={{ t.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-left-right"></i> Movimiento de personal</a>{% endif %}
+  </div>
+</div>
+<div class="row g-3">
+<div class="col-lg-7">
+  <div class="card mb-3"><div class="card-header">Contratos</div><div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Modalidad</th><th>Inicio</th><th>Vence</th><th></th></tr></thead>
+    <tbody>{% for c in contratos %}<tr><td>{{ c.get_tipo_display }}{% if c.renueva %}<div class="small text-muted">renueva el de {{ c.renueva.inicio|date:'d/m/Y' }}</div>{% endif %}</td><td>{{ c.inicio|date:'d/m/Y' }}</td><td>{{ c.fin|date:'d/m/Y'|default:'Indeterminado' }}</td>
+      <td>{% if c.dias_para_vencer is not None and not c.renovaciones.exists %}{% if c.dias_para_vencer < 0 %}<span class="badge text-bg-danger">vencido</span>{% elif c.dias_para_vencer <= 30 %}<span class="badge text-bg-warning">vence en {{ c.dias_para_vencer }} d</span>{% endif %}{% endif %}</td></tr>{% empty %}<tr><td colspan="4" class="text-muted">Sin contratos registrados.</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+  <div class="card mb-3"><div class="card-header">Documentos del legajo</div><ul class="list-group list-group-flush small">
+    {% for d in documentos %}<li class="list-group-item d-flex justify-content-between gap-2"><span><b>{{ d.get_tipo_display }}</b>{% if d.descripcion %} · {{ d.descripcion }}{% endif %}{% for s in d.archivos %} · <a href="{% url 'sustento_ver' s.pk %}" target="_blank"><i class="bi bi-file-earmark"></i> {{ s.archivo.nombre }}</a>{% endfor %}</span>
+      <span>{% if d.vence %}{% if d.vence < hoy %}<span class="badge text-bg-danger">venció {{ d.vence|date:'d/m/Y' }}</span>{% else %}vence {{ d.vence|date:'d/m/Y' }}{% endif %}{% endif %}</span></li>{% empty %}<li class="list-group-item text-muted">Sin documentos.</li>{% endfor %}
+  </ul></div>
+  <div class="card"><div class="card-header">Historial de movimientos</div><ul class="list-group list-group-flush small">
+    {% for m in movimientos %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'planillas:movimiento' m.pk %}">{{ m.get_tipo_display }} {{ m.numero }}</a><span>{{ m.fecha_efectiva|date:'d/m/Y' }} · {{ m.get_estado_display }}</span></li>{% empty %}<li class="list-group-item text-muted">Sin movimientos.</li>{% endfor %}
+  </ul></div>
+</div>
+{% if puede.planillas_calcular %}<div class="col-lg-5">
+  <div class="card mb-3"><div class="card-header">Nuevo contrato o renovación</div><div class="card-body"><form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="que" value="contrato">
+    {% for field in fc %}<div class="{% if field.name == 'observaciones' %}col-12{% else %}col-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12"><button class="btn btn-sm btn-primary">Registrar contrato</button></div></form></div></div>
+  <div class="card"><div class="card-header">Agregar documento</div><div class="card-body"><form method="post" enctype="multipart/form-data" class="row g-2">{% csrf_token %}<input type="hidden" name="que" value="documento">
+    {% for field in fd %}<div class="{% if field.name == 'archivo' or field.name == 'descripcion' %}col-12{% else %}col-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-upload"></i> Agregar al legajo</button></div></form></div></div>
+</div>{% endif %}
+</div>
+{% endblock %}

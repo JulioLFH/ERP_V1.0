@@ -17,7 +17,7 @@ from core.models import Producto, Tercero
 from core.permisos import puede
 
 from . import solped as srv
-from .models import ConformidadServicio, ContratoMarco, LineaSolicitud, OrdenCompra, ReglaLiberacion, SolicitudPedido
+from .models import ConformidadServicio, ContratoMarco, LineaSolicitud, OrdenCompra, SolicitudPedido
 
 
 class SolicitudForm(BootstrapMixin, forms.ModelForm):
@@ -312,38 +312,11 @@ def bandeja(request):
         'hoy': timezone.localdate()})
 
 
-# ---------------------------------------------------------------- reglas de liberación
-class ReglaForm(BootstrapMixin, forms.ModelForm):
-    class Meta:
-        model = ReglaLiberacion
-        fields = ['nivel', 'tipo', 'aprobador', 'monto_desde', 'centro_costo', 'aplica_a', 'activo']
-
-    def clean(self):
-        d = super().clean()
-        if d.get('tipo') == 'USUARIO' and not d.get('aprobador'):
-            self.add_error('aprobador', 'Elija el usuario que libera.')
-        return d
-
-
+# ---------------------------------------------------------------- reglas de liberación (motor único)
 @login_required
 def reglas(request):
-    regla = None
-    if request.GET.get('editar'):
-        regla = get_object_or_404(ReglaLiberacion, pk=request.GET['editar'])
-    form = ReglaForm(request.POST or None, instance=regla)
-    if request.method == 'POST':
-        if request.POST.get('quitar'):
-            ReglaLiberacion.objects.filter(pk=request.POST['quitar']).update(activo=False)
-            messages.success(request, 'Regla desactivada.')
-            return redirect('compras:solped_reglas')
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Regla de liberación guardada.')
-            return redirect('compras:solped_reglas')
-    from contabilidad.models import CentroCosto
-    return render(request, 'compras/solped_reglas.html', {
-        'form': form, 'regla': regla, 'reglas': ReglaLiberacion.objects.select_related('aprobador', 'centro_costo'),
-        'centros': CentroCosto.objects.filter(activo=True).select_related('responsable_usuario')})
+    from django.urls import reverse
+    return redirect(reverse('aprobaciones_reglas') + '?documento=SOLPED')
 
 
 # ---------------------------------------------------------------- reportes

@@ -1,0 +1,30 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Mi portal{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3"><i class="bi bi-person-vcard"></i> Mi portal</h1>
+{% if sin_trabajador %}<div class="alert alert-info">Su usuario no está vinculado a un trabajador de la planilla. Pida a Recursos Humanos que lo vincule en la ficha del trabajador («Usuario del sistema»).</div>
+{% else %}
+<p class="text-muted">{{ t.nombre_completo }}{% if t.puesto %} · {{ t.puesto.nombre }}{% endif %}{% if jefe %} · su jefe: {{ jefe.nombre_completo }}{% endif %}</p>
+<div class="row g-3">
+<div class="col-lg-6">
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-receipt"></i> Mis boletas de pago</div><ul class="list-group list-group-flush small">
+    {% for f in boletas %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'mi_boleta' f.pk %}" target="_blank">{{ f.planilla.get_tipo_display }} {{ f.planilla.periodo|slice:'4:' }}/{{ f.planilla.periodo|slice:':4' }}</a><span>Neto S/ {{ f.neto|money }}</span></li>{% empty %}<li class="list-group-item text-muted">Aún no hay boletas.</li>{% endfor %}
+  </ul><div class="card-body py-2 small text-muted">Se abre la boleta para imprimir o guardar en PDF.</div></div>
+  <div class="card"><div class="card-header"><i class="bi bi-person-lines-fill"></i> Mis datos de contacto</div><div class="card-body"><form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="que" value="datos">
+    {% for field in datos %}<div class="{% if field.name == 'direccion' %}col-12{% else %}col-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12"><button class="btn btn-sm btn-primary">Guardar</button></div></form></div></div>
+</div>
+<div class="col-lg-6">
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-sun"></i> Vacaciones y permisos <span class="badge text-bg-light border">{{ pendientes_vac }} día(s) de vacaciones pendientes</span></div><div class="card-body">
+    <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="que" value="vacaciones">
+      <div class="col-12"><select name="tipo" class="form-select form-select-sm"><option value="GOCE">Vacaciones</option><option value="PERMISO">Permiso o licencia</option></select></div>
+      <div class="col-6"><label class="form-label small mb-1">Desde</label><input type="date" name="desde" class="form-control form-control-sm" required></div>
+      <div class="col-6"><label class="form-label small mb-1">Hasta</label><input type="date" name="hasta" class="form-control form-control-sm" required></div>
+      <div class="col-12"><input name="observaciones" class="form-control form-control-sm" maxlength="200" placeholder="Comentario"></div>
+      <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-send"></i> Solicitar (la aprueba su jefe)</button></div>
+    </form></div>
+    <ul class="list-group list-group-flush small">{% for v in solicitudes %}<li class="list-group-item d-flex justify-content-between"><span>{{ v.get_tipo_display }} {{ v.fecha_inicio|date:'d/m/Y' }} – {{ v.fecha_fin|date:'d/m/Y' }} ({{ v.dias }} d)</span><span class="badge {% if v.estado == 'APROBADA' %}text-bg-success{% elif v.estado == 'RECHAZADA' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ v.get_estado_display }}</span></li>{% endfor %}</ul></div>
+</div>
+</div>
+{% endif %}
+{% endblock %}

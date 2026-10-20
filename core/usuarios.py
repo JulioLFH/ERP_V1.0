@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, User
 from django.contrib.auth.password_validation import validate_password
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from .forms import BootstrapMixin
 from .modulos import GRUPO_COSTOS, GRUPOS, POR_CLAVE
@@ -33,8 +34,13 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
     trabajador = forms.ModelChoiceField(label='Rinde gastos como', required=False, queryset=None,
                                         help_text='Trabajador responsable de sus entregas a rendir (rendición de '
                                                   'gastos)')
+    trabajador_planilla = forms.ModelChoiceField(
+        label='Trabajador de la planilla', required=False, queryset=None,
+        help_text='Relación 1 a 1: su jefe sale de la estructura organizativa y, al registrar su cese, el usuario se '
+                  'desactiva y sus aprobaciones pendientes pasan a su jefe')
     jefe = forms.ModelChoiceField(label='Jefe directo', required=False, queryset=None,
-                                  help_text='Aprueba sus rendiciones de gastos si las reglas lo indican')
+                                  help_text='Solo si no tiene puesto en la estructura organizativa (allí el jefe es '
+                                            'quien ocupa el puesto superior)')
     celular = forms.CharField(label='Celular (WhatsApp)', required=False, max_length=20,
                               help_text='Con código de país, ej. 51987654321. Para enviar gastos por WhatsApp')
     clave1 = forms.CharField(label='Contraseña', required=False, widget=forms.PasswordInput)
@@ -62,6 +68,13 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         self.fields['trabajador'].queryset = Tercero.objects.filter(activo=True, tipo_doc__in=['1', '4', '7'])
         jefes = User.objects.filter(is_active=True).order_by('username')
         self.fields['jefe'].queryset = jefes.exclude(pk=self.instance.pk) if self.instance.pk else jefes
+        from planillas.models import Trabajador
+        libres = Trabajador.objects.filter(fecha_ingreso__isnull=False).exclude(fecha_cese__lt=timezone.localdate())
+        self.fields['trabajador_planilla'].queryset = (
+            libres.filter(usuario__isnull=True) | libres.filter(usuario=self.instance.pk or 0)).distinct()
+        if self.instance.pk:
+            self.initial['trabajador_planilla'] = Trabajador.objects.filter(usuario=self.instance).values_list(
+                'pk', flat=True).first()
         perfil = PerfilUsuario.objects.filter(usuario=self.instance).first() if self.instance.pk else None
         if perfil:
             self.initial['trabajador'], self.initial['jefe'] = perfil.trabajador_id, perfil.jefe_id
@@ -128,6 +141,11 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         perfil.save()
         perfil.almacenes.set(self.cleaned_data.get('almacenes') or [])
         perfil.series.set(self.cleaned_data.get('series') or [])
+        from planillas.models import Trabajador
+        t = self.cleaned_data.get('trabajador_planilla')
+        Trabajador.objects.filter(usuario=user).exclude(pk=t.pk if t else 0).update(usuario=None)
+        if t is not None and t.usuario_id != user.pk:
+            Trabajador.objects.filter(pk=t.pk).update(usuario=user)
         return user
 
 

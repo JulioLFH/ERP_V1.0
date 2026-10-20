@@ -162,8 +162,12 @@ def oc_editar(request, pk):
     if oc.estado != 'PENDIENTE':
         messages.error(request, 'Solo se pueden editar órdenes pendientes.')
         return redirect('compras:oc_detalle', pk)
+    def reiniciar_aprobacion(doc):  # cambió el monto o el detalle: los niveles se vuelven a calcular
+        if doc.niveles:
+            OrdenCompra.objects.filter(pk=doc.pk).update(niveles=[], nivel_aprobado=0)
     return guardar_documento(request, OrdenCompraForm, item_formset(OrdenCompra, OrdenCompraItem, extra=0), oc,
-                             'core/comprobante_form.html', _oc_ctx(f'Editar orden {oc.numero}', oc))
+                             'core/comprobante_form.html', _oc_ctx(f'Editar orden {oc.numero}', oc),
+                             al_guardar=reiniciar_aprobacion)
 
 
 @login_required
@@ -181,6 +185,7 @@ def oc_detalle(request, pk):
         'errores_contrato': validar_orden(oc) if oc.contrato_id else [],
         'solicitudes_oc': SolicitudPedido.objects.filter(lineas__items_oc__documento=oc).distinct().select_related(
             'centro_costo'),
+        **_aprobacion_ctx(request.user, oc),
         'servicios_oc': exige_conformidad(oc),
         'doc': oc, 'items': oc.items.all(), 'app': 'compras', 'titulo_doc': 'ORDEN DE COMPRA',
         'etiqueta_tercero': 'Proveedor', 'relacionados': oc.compras.all(),
@@ -189,31 +194,47 @@ def oc_detalle(request, pk):
         'url_rel': 'compras:detalle'})
 
 
+def _aprobacion_ctx(user, oc):
+    """Niveles, historial y si el usuario puede aprobar o rechazar la OC (para la pantalla)."""
+    from core import aprobaciones
+
+    from .aprobacion_oc import ErrorAprobacionOC, por_niveles, puede_aprobar
+    try:
+        niveles = por_niveles(oc)
+        error = ''
+    except ErrorAprobacionOC as exc:
+        niveles, error = False, str(exc)
+    return {'oc_niveles': oc.niveles if niveles else [], 'oc_pendiente': aprobaciones.pendiente(oc.niveles,
+                                                                                             oc.nivel_aprobado),
+            'oc_error_niveles': error, 'oc_historial': aprobaciones.historial('OC', oc),
+            'oc_puede_aprobar': oc.estado == 'PENDIENTE' and not error and puede_aprobar(user, oc)}
+
+
+@login_required
+def oc_rechazar(request, pk):
+    """Rechazo de una OC por aprobar: vuelve al comprador con el motivo y la aprobación empieza de nuevo."""
+    from .aprobacion_oc import ErrorAprobacionOC, rechazar
+    oc = get_object_or_404(OrdenCompra, pk=pk)
+    if request.method == 'POST':
+        try:
+            messages.success(request, rechazar(oc, request.user, request.POST.get('motivo', '')))
+        except ErrorAprobacionOC as exc:
+            messages.error(request, str(exc))
+    return redirect('compras:oc_detalle', pk)
+
+
 @login_required
 def oc_estado(request, pk):
     oc = get_object_or_404(OrdenCompra, pk=pk)
     estado = request.POST.get('estado')
     if request.method == 'POST' and estado in dict(OrdenCompra._meta.get_field('estado').choices):
-        if estado == 'APROBADO':
-            from .abastecimiento import validar_orden
-            errores = validar_orden(oc)
-            if errores:
-                messages.error(request, 'No se aprueba: no cumple el contrato marco. ' + ' '.join(errores))
-                return redirect('compras:oc_detalle', pk)
-            from core.segregacion import error_aprobacion
-            error = error_aprobacion(request.user, oc)
-            if error:
-                messages.error(request, error)
-                return redirect('compras:oc_detalle', pk)
-            from core.permisos import perfil_de, puede_aprobar
-            monto = r2(oc.total * (oc.tipo_cambio or 1)) if oc.moneda == 'USD' else oc.total
-            if not puede_aprobar(request.user, monto):
-                perfil = perfil_de(request.user)
-                messages.error(request, f'La orden suma S/ {monto:,.2f} y su límite de aprobación es S/ '
-                                        f'{perfil.limite_aprobacion:,.2f}: debe aprobarla un usuario con mayor '
-                                        'límite.' if perfil and perfil.limite_aprobacion else
-                               'Su usuario no puede aprobar órdenes de compra.')
-                return redirect('compras:oc_detalle', pk)
+        if estado == 'APROBADO':  # por niveles (Ajustes › Aprobaciones) o, sin reglas, por el límite del usuario
+            from .aprobacion_oc import ErrorAprobacionOC, aprobar
+            try:
+                messages.success(request, aprobar(oc, request.user))
+            except ErrorAprobacionOC as exc:
+                messages.error(request, str(exc))
+            return redirect('compras:oc_detalle', pk)
         oc.estado = estado
         oc.save(update_fields=['estado'])
         if estado == 'ANULADO':  # lo que tenía de solicitudes de pedido vuelve a la bandeja de compras

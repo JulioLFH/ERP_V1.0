@@ -45,7 +45,8 @@ MODULOS = [
                                        ('Todas las solicitudes', 'solicitudes:lista?vista=todas', 'bi-cart'),
                                        ('Nueva solicitud', 'solicitudes:nueva', 'bi-plus-circle'),
                                        ('Por liberar', 'solicitudes:lista?vista=liberar', 'bi-check2-circle'),
-                                       ('Reglas de liberación', 'compras:solped_reglas', 'bi-diagram-3')]),
+                                       ('Reglas de aprobación (OC y solicitudes)', 'aprobaciones_reglas?documento=OC',
+                                        'bi-diagram-3')]),
             ('Compras', [('Órdenes de compra', 'compras:oc_lista', 'bi-clipboard-check'),
                          ('Registro de compras', 'compras:lista', 'bi-bag'),
                          ('Notas de crédito / débito', 'compras:notas', 'bi-file-earmark-diff'),
@@ -179,11 +180,16 @@ MODULOS = [
                            ('Nueva planilla', 'planillas:nueva', 'bi-plus-circle'),
                            ('Liquidación de beneficios (ceses)', 'planillas:nueva?tipo=LIQUIDACION',
                             'bi-box-arrow-right')]),
+            ('Organización', [('Organigrama, unidades y puestos', 'planillas:organigrama', 'bi-diagram-3'),
+                              ('Movimientos de personal', 'planillas:movimientos', 'bi-arrow-left-right'),
+                              ('Solicitudes de vacaciones y permisos', 'planillas:solicitudes_personal',
+                               'bi-calendar-check')]),
             ('Personal', [('Trabajadores', 'planillas:trabajadores', 'bi-people'),
                           ('Vacaciones y récord vacacional', 'planillas:vacaciones', 'bi-sun'),
                           ('Asistencia y marcaciones', 'planillas:asistencia', 'bi-fingerprint'),
                           ('Turnos de trabajo', 'planillas:turnos', 'bi-clock')]),
-            ('Reportes', [('Costo por centro de costo', 'planillas:costo_centros', 'bi-diagram-3')]),
+            ('Reportes', [('Costo por centro de costo', 'planillas:costo_centros', 'bi-diagram-3'),
+                          ('Datos para el T-Registro (Excel)', 'planillas:t_registro', 'bi-file-earmark-excel')]),
             ('Configuración', [('Parámetros, AFP y conceptos', 'planillas:configuracion', 'bi-gear')]),
         ],
     },
@@ -306,7 +312,10 @@ MODULOS = [
         'menu': [
             ('Empresa', 'empresa'),
             ('Usuarios y permisos', [('Usuarios', 'usuarios', 'bi-people'),
-                                     ('Segregación de funciones', 'segregacion', 'bi-shield-exclamation')]),
+                                     ('Segregación de funciones', 'segregacion', 'bi-shield-exclamation'),
+                                     ('Reglas de aprobación (todos los documentos)', 'aprobaciones_reglas',
+                                      'bi-diagram-3'),
+                                     ('Suplencias de aprobación', 'aprobaciones_delegaciones', 'bi-person-check')]),
             ('Control', [('Auditoría de todo el sistema', 'auditoria', 'bi-journal-text'),
                          ('Incidencias y errores', 'incidencias', 'bi-bug')]),
             ('Configuración', [('Correlativos / series', 'series', 'bi-123'),
@@ -358,6 +367,7 @@ RUTAS_CORE = {
                      'contabilidad', 'planillas', 'rendiciones', 'activos'], 'usuarios': ['ajustes'],
     'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'], 'segregacion': ['ajustes'],
+    'aprobaciones_reglas': ['ajustes', 'compras', 'rendiciones', 'planillas'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
     'tipos_cambio': ['ajustes', 'finanzas'],
     'terceros': ['contactos', 'ventas', 'compras'], 'tercero_nuevo': ['contactos', 'ventas', 'compras'],
@@ -384,7 +394,10 @@ RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'c
                 'sustento_subir', 'sustento_ver',  # los sustentos validan el módulo del documento
                 'api_claves',  # cada usuario administra sus claves de API (actúan con sus propios permisos)
                 'opciones',  # listas de los selectores (códigos y nombres, sin importes)
-                'reportar', 'salud'}  # «Reportar problema» lo usa cualquiera; /salud/ es para el monitor de caídas
+                'reportar', 'salud',  # «Reportar problema» lo usa cualquiera; /salud/ es para el monitor de caídas
+                # cada usuario ve y resuelve lo que le toca aprobar y delega sus aprobaciones (cada acción valida)
+                'aprobaciones_bandeja', 'aprobaciones_delegaciones',
+                'mi_portal', 'mi_boleta'}  # autoservicio: cada trabajador ve solo lo suyo
 
 
 # Permiso especial: ver costos de inventario (costo promedio, valorizado, kardex valorizado)

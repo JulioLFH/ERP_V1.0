@@ -21,23 +21,58 @@ class ErrorRequerimiento(Exception):
     pass
 
 
+def monto(req):
+    """Monto valorizado: cantidad × costo promedio de cada producto."""
+    return sum((i.cantidad * i.producto.costo_promedio for i in req.items.select_related('producto')), D0)
+
+
 def enviar(req, usuario):
+    """Envía a aprobación. Con reglas de aprobación de requerimientos (jefe del solicitante, responsable del centro
+    de costo…, por monto valorizado) se calculan los niveles; sin reglas lo aprueba quien tenga el permiso."""
+    from core import aprobaciones
     if req.estado != 'BORRADOR':
         raise ErrorRequerimiento('Solo se envían requerimientos en borrador.')
     if not req.items.exists():
         raise ErrorRequerimiento('Agregue al menos un producto.')
+    try:
+        niveles = aprobaciones.calcular_niveles('REQUERIMIENTO', req.solicitante, monto(req), req.centro_costo)
+    except aprobaciones.ErrorAprobacion as exc:
+        raise ErrorRequerimiento(str(exc)) from exc
     with transaction.atomic():
         if not req.numero:
             serie, numero = Serie.siguiente('REQ', 'RQ01')
             req.numero = f'{serie}-{numero}'
-        req.estado = 'ENVIADO'
+        req.estado, req.niveles, req.nivel_aprobado = 'ENVIADO', niveles, 0
         req.save()
+        aprobaciones.registrar('REQUERIMIENTO', req, usuario, 'ENVIADO')
     return req
+
+
+def pendiente(req):
+    from core.aprobaciones import pendiente as siguiente
+    return siguiente(req.niveles, req.nivel_aprobado) if req.estado == 'ENVIADO' else None
+
+
+def historial(req):
+    from core.aprobaciones import historial as h
+    return h('REQUERIMIENTO', req)
+
+
+def puede_aprobar(user, req):
+    from core import aprobaciones
+    from core.permisos import puede
+    if req.estado != 'ENVIADO':
+        return False
+    if req.niveles:
+        return aprobaciones.puede_aprobar(user, 'REQUERIMIENTO', req.niveles, req.nivel_aprobado, req.solicitante_id)
+    return puede(user, 'requerimientos.aprobar') and (req.solicitante_id != user.pk or user.is_superuser)
 
 
 @transaction.atomic
 def aprobar(req, usuario):
-    """Aprueba y pasa a una solicitud de pedido lo que el almacén no tiene (el área ve el avance)."""
+    """Aprueba su nivel; en el último, el requerimiento queda aprobado y lo que el almacén no tiene pasa a una
+    solicitud de pedido (el área ve el avance)."""
+    from core import aprobaciones
     if req.estado != 'ENVIADO':
         raise ErrorRequerimiento('Solo se aprueban requerimientos por aprobar.')
     if req.solicitante_id == usuario.pk and not usuario.is_superuser:
@@ -45,6 +80,18 @@ def aprobar(req, usuario):
     from core.segregacion import error_aprobacion
     if error_aprobacion(usuario, req):  # estricta: tampoco el administrador aprueba lo suyo
         raise ErrorRequerimiento(error_aprobacion(usuario, req))
+    if req.niveles:
+        if not puede_aprobar(usuario, req):
+            n = aprobaciones.pendiente(req.niveles, req.nivel_aprobado)
+            raise ErrorRequerimiento(f'Lo aprueba ahora el nivel {n["nivel"]}: {n["nombre"]}.')
+        req.nivel_aprobado = aprobaciones.pendiente(req.niveles, req.nivel_aprobado)['nivel']
+        aprobaciones.registrar('REQUERIMIENTO', req, usuario, 'APROBADO', '', req.nivel_aprobado)
+        if aprobaciones.pendiente(req.niveles, req.nivel_aprobado) is not None:
+            aprobaciones.avanzar(req.niveles, req.nivel_aprobado)
+            req.save(update_fields=['niveles', 'nivel_aprobado'])
+            return req
+    else:
+        aprobaciones.registrar('REQUERIMIENTO', req, usuario, 'APROBADO')
     req.estado, req.aprobado_por, req.aprobado_en = 'APROBADO', usuario, timezone.now()
     req.save()
     try:
@@ -67,6 +114,10 @@ def rechazar(req, usuario, motivo, anular=False):
             raise ErrorRequerimiento('Solo se rechazan requerimientos por aprobar.')
         if req.solicitante_id == usuario.pk and not usuario.is_superuser:
             raise ErrorRequerimiento('Un requerimiento no lo rechaza quien lo pidió.')
+        if not puede_aprobar(usuario, req):
+            raise ErrorRequerimiento('No le corresponde revisar este requerimiento.')
+        from core.aprobaciones import registrar
+        registrar('REQUERIMIENTO', req, usuario, 'RECHAZADO', motivo)
         req.estado, req.aprobado_por, req.aprobado_en = 'RECHAZADO', usuario, timezone.now()
     req.motivo_rechazo = motivo.strip()[:250]
     req.save()

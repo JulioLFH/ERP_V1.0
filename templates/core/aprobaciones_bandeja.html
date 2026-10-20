@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Mis aprobaciones{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-check2-square"></i> Mis aprobaciones</h1>
+  <a href="{% url 'aprobaciones_delegaciones' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person-check"></i> Suplencias</a>
+</div>
+<p class="small text-muted">Lo que le toca aprobar hoy como titular del nivel, como suplente o porque el nivel pasó el plazo sin respuesta y escaló a usted. {% if rendiciones %}Además tiene <a href="{% url 'rendiciones:lista' %}?vista=aprobar">{{ rendiciones }} rendición(es) de gastos</a> por aprobar.{% endif %}</p>
+{% for codigo, nombre, obj, nivel, url, detalle in filas %}
+<div class="card mb-2"><div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center justify-content-between">
+  <div><span class="badge text-bg-light border">{{ nombre }}</span> <a href="{{ url }}" class="fw-semibold">{{ obj }}</a>
+    <div class="small text-muted">{{ detalle }}{% if nivel %} · nivel {{ nivel.nivel }}{% if nivel.usuario and nivel.usuario != user.pk %} de {{ nivel.nombre }} (suplencia o escalamiento){% endif %}{% endif %}</div></div>
+  <form method="post" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}<input type="hidden" name="doc" value="{{ codigo }}"><input type="hidden" name="pk" value="{{ obj.pk }}">
+    <input name="comentario" class="form-control form-control-sm" style="width:220px" placeholder="Comentario (obligatorio para rechazar)">
+    <button name="accion" value="aprobar" class="btn btn-sm btn-success"><i class="bi bi-check2"></i> Aprobar</button>
+    <button name="accion" value="rechazar" class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i> Rechazar</button></form>
+</div></div>
+{% empty %}<div class="alert alert-success">No tiene aprobaciones pendientes.</div>
+{% endfor %}
+{% endblock %}

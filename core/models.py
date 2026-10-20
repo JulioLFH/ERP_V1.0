@@ -119,6 +119,10 @@ class Empresa(models.Model):
     plan_contable = models.CharField('Plan contable', max_length=8, choices=PLANES_CONTABLES, default='PCGE2019',
                                      editable=False)
     # ---- control interno
+    dias_escalamiento = models.PositiveSmallIntegerField(
+        'Escalar aprobaciones a los (días)', default=3,
+        help_text='Si un nivel de aprobación pasa estos días sin respuesta, también puede aprobarlo el jefe del '
+                  'aprobador. 0 = no escalar')
     segregacion_estricta = models.BooleanField(
         'Segregación de funciones estricta', default=False,
         help_text='Nadie aprueba lo que registró (órdenes de compra, requerimientos, planillas), ni siquiera el '
@@ -726,6 +730,79 @@ class Bitacora(models.Model):
         ordering = ['-fecha', '-id']
         verbose_name = 'registro de auditoría'
         verbose_name_plural = 'bitácora de auditoría'
+
+
+class ReglaAprobacion(models.Model):
+    """Motor único de aprobación (core/aprobaciones.py): quién aprueba cada nivel de un documento."""
+    DOCUMENTOS = [('OC', 'Órdenes de compra'), ('SOLPED', 'Solicitudes de pedido'),
+                  ('REQUERIMIENTO', 'Requerimientos de materiales'), ('RENDICION', 'Rendiciones de gastos'),
+                  ('VACACION', 'Vacaciones y permisos'), ('MOVIMIENTO', 'Movimientos de personal')]
+    TIPOS = [('JEFE', 'Jefe del solicitante'), ('RESPONSABLE_CC', 'Responsable del centro de costo'),
+             ('USUARIO', 'Usuario específico'), ('PUESTO', 'Ocupante de un puesto'),
+             ('JERARQUIA', 'Nivel N de la jerarquía (jefe del jefe…)')]
+    APLICA = [('', 'Todos'), ('URGENTE', 'Solo urgentes'), ('ACTIVO', 'Activo fijo'), ('SERVICIO', 'Servicios'),
+              ('MATERIAL', 'Materiales'), ('MERCADERIA', 'Mercadería'), ('GASTO', 'Gastos')]
+    documento = models.CharField(max_length=14, choices=DOCUMENTOS)
+    nivel = models.PositiveSmallIntegerField(default=1, help_text='1 aprueba primero, luego 2, 3…')
+    tipo = models.CharField('Quién aprueba', max_length=14, choices=TIPOS, default='JEFE')
+    aprobador = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+                                  related_name='+', help_text='Solo para «Usuario específico»')
+    puesto = models.ForeignKey('planillas.Puesto', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                               help_text='Solo para «Ocupante de un puesto»')
+    niveles_arriba = models.PositiveSmallIntegerField('Niveles arriba', default=2,
+                                                      help_text='Solo para «Nivel N de la jerarquía»: 2 = el jefe '
+                                                                'del jefe')
+    monto_desde = models.DecimalField('Desde el monto S/', max_digits=14, decimal_places=2, default=D0,
+                                      help_text='0 = siempre')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='+',
+                                     help_text='Aplica a los documentos de este centro (o sus subcentros). Vacío = '
+                                               'todos')
+    aplica_a = models.CharField('Tipo de documento', max_length=10, choices=APLICA, blank=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['documento', 'nivel', 'monto_desde', 'id']
+        verbose_name = 'regla de aprobación'
+        verbose_name_plural = 'reglas de aprobación'
+
+    def __str__(self):
+        return f'{self.get_documento_display()} · nivel {self.nivel}: {self.get_tipo_display()}'
+
+
+class Delegacion(models.Model):
+    """Suplencia: mientras dure, el suplente aprueba lo que le toca al titular (vacaciones, viajes)."""
+    titular = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='delegaciones')
+    suplente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='suplencias')
+    desde = models.DateField()
+    hasta = models.DateField()
+    motivo = models.CharField(max_length=150, blank=True)
+    activo = models.BooleanField(default=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-desde']
+        verbose_name = 'delegación de aprobaciones'
+        verbose_name_plural = 'delegaciones de aprobaciones'
+
+    def __str__(self):
+        return f'{self.suplente} por {self.titular} ({self.desde:%d/%m/%Y} – {self.hasta:%d/%m/%Y})'
+
+
+class HistorialAprobacion(models.Model):
+    """Rastro de cada aprobación, rechazo, observación o escalamiento de los documentos del motor único."""
+    documento = models.CharField(max_length=14)
+    objeto_id = models.PositiveIntegerField()
+    descripcion = models.CharField(max_length=120, blank=True)
+    accion = models.CharField(max_length=20)
+    nivel = models.PositiveSmallIntegerField(null=True, blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    comentario = models.CharField(max_length=300, blank=True)
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['fecha', 'id']
+        indexes = [models.Index(fields=['documento', 'objeto_id'])]
 
 
 class IntentoAcceso(models.Model):

@@ -84,7 +84,7 @@ RUTAS = {
     'compras:contrato_nuevo': 'compras.aprobar_oc', 'compras:contrato_editar': 'compras.aprobar_oc',
     'compras:anular': 'compras.anular', 'compras:eliminar': 'compras.anular',
     'compras:oc_nuevo': 'compras.oc', 'compras:oc_editar': 'compras.oc', 'compras:oc_enviar': 'compras.oc',
-    'compras:oc_estado': lambda r: {'APROBADO': 'compras.aprobar_oc', 'ANULADO': 'compras.anular'}.get(
+    'compras:oc_estado': lambda r: {'APROBADO': _aprobar_oc(), 'ANULADO': 'compras.anular'}.get(
         r.POST.get('estado'), 'compras.oc'),
     'compras:portal_factura_aprobar': 'compras.portal', 'compras:portal_factura_rechazar': 'compras.portal',
     'compras:portal_acceso_nuevo': 'compras.portal', 'compras:portal_acceso_editar': 'compras.portal',
@@ -128,6 +128,7 @@ RUTAS = {
     'planillas:detalle': lambda r: (None if r.method != 'POST' else 'planillas.cerrar'
                                     if r.POST.get('accion') in ('cerrar', 'reabrir', 'pagar') else 'planillas.calcular'),
     'planillas:configuracion': {'POST': 'planillas.configurar'},
+    'planillas:movimiento_nuevo': 'planillas.calcular',
     'planillas:vacaciones': {'POST': 'planillas.calcular'},
     'planillas:asistencia': {'POST': 'planillas.calcular'},
     'planillas:turnos': {'POST': 'planillas.configurar'}, 'planillas:turno': {'POST': 'planillas.configurar'},
@@ -187,6 +188,12 @@ RUTAS = {
     'rendiciones:integracion': {'POST': 'rendiciones.contabilizar'},
 }
 CAMPOS_ALMACEN = ('almacen', 'almacen_origen', 'almacen_destino', 'almacen_insumos')
+
+
+def _aprobar_oc():
+    """Con reglas de aprobación de OC, la vista valida el nivel (el aprobador puede no tener el permiso general)."""
+    from .aprobaciones import hay_reglas
+    return None if hay_reglas('OC') else 'compras.aprobar_oc'
 
 
 def _tipo(request):

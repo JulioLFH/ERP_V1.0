@@ -264,6 +264,9 @@ class RequerimientoInterno(models.Model):
                                      related_name='+')
     aprobado_en = models.DateTimeField(null=True, blank=True)
     motivo_rechazo = models.CharField('Motivo de rechazo / anulación', max_length=250, blank=True)
+    # aprobación por niveles (motor único): jefe del solicitante, responsable del centro, por monto valorizado
+    niveles = models.JSONField(default=list, blank=True, editable=False)
+    nivel_aprobado = models.PositiveSmallIntegerField(default=0, editable=False)
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -1,0 +1,28 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Reglas de aprobación{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3"><i class="bi bi-diagram-3"></i> Reglas de aprobación</h1>
+<ul class="nav nav-tabs">{% for d, nombre, n in documentos %}<li class="nav-item"><a class="nav-link {% if documento == d %}active{% endif %}" href="?documento={{ d }}">{{ nombre }}{% if n %} <span class="badge text-bg-light border">{{ n }}</span>{% endif %}</a></li>{% endfor %}</ul>
+<div class="row g-3 mt-0">
+<div class="col-lg-7">
+  <div class="card border-top-0"><div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Nivel</th><th>Quién aprueba</th><th class="num">Desde S/</th><th>Centro de costo</th><th>Aplica a</th><th></th></tr></thead>
+    <tbody>{% for r in reglas %}<tr class="{% if not r.activo %}text-muted text-decoration-line-through{% endif %}">
+      <td>{{ r.nivel }}</td><td>{{ r.get_tipo_display }}{% if r.tipo == 'USUARIO' %}: {{ r.aprobador.get_full_name|default:r.aprobador.username }}{% elif r.tipo == 'PUESTO' %}: {{ r.puesto }}{% elif r.tipo == 'JERARQUIA' %}: {{ r.niveles_arriba }} niveles arriba{% endif %}</td>
+      <td class="num">{{ r.monto_desde|money }}</td><td class="small">{{ r.centro_costo|default:'Todos' }}</td><td class="small">{{ r.get_aplica_a_display }}</td>
+      <td class="text-end text-nowrap"><a href="?documento={{ documento }}&editar={{ r.pk }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>{% if r.activo %}<form method="post" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" name="quitar" value="{{ r.pk }}" title="Desactivar"><i class="bi bi-x"></i></button></form>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="6" class="text-muted text-center py-3">Sin reglas: lo aprueba cualquier usuario con el permiso del documento (comportamiento anterior; en las órdenes de compra, hasta su límite de aprobación).</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-body small text-muted">Los niveles se aprueban en orden (1, luego 2, 3…). En cada nivel aplica la regla de mayor monto que cumpla el monto del documento (en soles, sin IGV; en vacaciones, los días), su centro de costo y su tipo. <b>Jefe del solicitante</b>: el ocupante del puesto superior en la estructura organizativa o, si no tiene puesto, el «Jefe directo» de Ajustes › Usuarios. <b>Nivel N de la jerarquía</b>: 2 = el jefe del jefe. Nadie aprueba lo suyo: su nivel se salta. Con suplencias vigentes aprueba el suplente y, si el nivel pasa los días de escalamiento sin respuesta, también el jefe del aprobador.</div></div>
+  <div class="card mt-3"><div class="card-header">Responsables de los centros de costo</div><ul class="list-group list-group-flush small">
+    {% for c in centros %}<li class="list-group-item d-flex justify-content-between"><span>{{ c }}</span><span>{% if c.responsable_usuario %}{{ c.responsable_usuario.get_full_name|default:c.responsable_usuario.username }}{% else %}<span class="text-muted">sin usuario responsable</span>{% endif %}</span></li>{% endfor %}
+  </ul></div>
+</div>
+<div class="col-lg-5"><div class="card"><div class="card-header">{% if regla %}Editar regla{% else %}Nueva regla{% endif %}</div><div class="card-body">
+  <form method="post" class="row g-2">{% csrf_token %}
+    {% for field in form %}<div class="{% if field.name == 'activo' %}col-12{% else %}col-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12 d-flex gap-2"><button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Guardar</button>{% if regla %}<a href="?documento={{ documento }}" class="btn btn-sm btn-outline-secondary">Cancelar</a>{% endif %}</div>
+  </form>
+</div></div></div>
+</div>
+{% endblock %}

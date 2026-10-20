@@ -6,6 +6,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import Q
 from django.forms import inlineformset_factory
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -65,8 +66,9 @@ def _puede_ver_todos(user):
 @login_required
 def lista(request):
     qs = RequerimientoInterno.objects.select_related('centro_costo', 'solicitante', 'almacen')
-    if not _puede_ver_todos(request.user):
-        qs = qs.filter(solicitante=request.user)
+    if not _puede_ver_todos(request.user):  # los suyos y los que le toca aprobar (jefe, responsable del centro…)
+        mios = [r.pk for r in qs.filter(estado='ENVIADO').exclude(niveles=[]) if srv.puede_aprobar(request.user, r)]
+        qs = qs.filter(Q(solicitante=request.user) | Q(pk__in=mios))
     if request.GET.get('estado'):
         qs = qs.filter(estado=request.GET['estado'])
     return render(request, 'inventario/requerimientos.html', {
@@ -113,7 +115,8 @@ def editar(request, pk):
 def detalle(request, pk):
     req = get_object_or_404(RequerimientoInterno.objects.select_related(
         'centro_costo', 'cuenta_gasto', 'almacen', 'solicitante', 'aprobado_por'), pk=pk)
-    if req.solicitante_id != request.user.pk and not _puede_ver_todos(request.user):
+    if req.solicitante_id != request.user.pk and not _puede_ver_todos(request.user) and \
+            not srv.puede_aprobar(request.user, req):
         messages.error(request, 'Solo puede ver sus requerimientos.')
         return redirect('requerimientos:lista')
     items = list(req.items.select_related('producto', 'orden_compra').prefetch_related(
@@ -123,8 +126,8 @@ def detalle(request, pk):
         i.solped = [l for l in i.lineas_solped.all() if l.solicitud.estado not in ('RECHAZADA', 'ANULADA')]
     return render(request, 'inventario/requerimiento_detalle.html', {
         'req': req, 'items': items, 'atenciones': req.atenciones.all(),
-        'puede_aprobar': puede(request.user, 'requerimientos.aprobar') and (
-            req.solicitante_id != request.user.pk or request.user.is_superuser),
+        'puede_aprobar': srv.puede_aprobar(request.user, req),
+        'pendiente': srv.pendiente(req), 'historial': srv.historial(req),
         'puede_atender': puede(request.user, 'inventario.operar'),
         'puede_comprar': puede(request.user, 'requerimientos.aprobar') or puede(request.user, 'inventario.operar'),
         'faltantes': srv.faltantes(req)})
@@ -149,10 +152,15 @@ def accion(request, pk, que):
             srv.enviar(req, request.user)
             messages.success(request, f'{req} enviado para su aprobación.')
         elif que in ('aprobar', 'rechazar'):
-            if not puede(request.user, 'requerimientos.aprobar'):
-                raise srv.ErrorRequerimiento('Su usuario no aprueba requerimientos.')
+            if not srv.puede_aprobar(request.user, req):
+                raise srv.ErrorRequerimiento('No le corresponde aprobar este requerimiento (su nivel, su permiso o '
+                                             'es suyo).')
             if que == 'aprobar':
                 srv.aprobar(req, request.user)
+                if req.estado != 'APROBADO':
+                    n = srv.pendiente(req)
+                    messages.success(request, f'{req}: nivel {req.nivel_aprobado} aprobado; pasa a {n["nombre"]}.')
+                    return redirect('requerimientos:detalle', pk)
                 sp = req.solicitudes.exclude(estado__in=['RECHAZADA', 'ANULADA']).first()
                 messages.success(request, f'{req} aprobado: el almacén ya puede atenderlo.' + (
                     f' Lo que no hay en stock pasó a la solicitud de pedido {sp.numero}.' if sp else ''))

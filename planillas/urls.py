@@ -1,10 +1,17 @@
 from django.urls import path
 
-from . import views, views_asistencia
+from . import views, views_asistencia, views_personal as vp
 
 app_name = 'planillas'
 
 urlpatterns = [
+    path('organigrama/', vp.organigrama, name='organigrama'),
+    path('movimientos/', vp.movimientos, name='movimientos'),
+    path('movimientos/nuevo/', vp.movimiento_nuevo, name='movimiento_nuevo'),
+    path('movimientos/<int:pk>/', vp.movimiento, name='movimiento'),
+    path('trabajadores/<int:pk>/legajo/', vp.legajo, name='legajo'),
+    path('t-registro/', vp.t_registro, name='t_registro'),
+    path('solicitudes/', vp.solicitudes_personal, name='solicitudes_personal'),
     path('asistencia/', views_asistencia.asistencia_mes, name='asistencia'),
     path('turnos/', views_asistencia.turnos, name='turnos'),
     path('turnos/<int:pk>/', views_asistencia.turnos, name='turno'),
