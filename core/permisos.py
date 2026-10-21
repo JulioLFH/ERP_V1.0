@@ -126,6 +126,7 @@ RUTAS = {
     'contabilidad:cuenta_nueva': 'contabilidad.configurar', 'contabilidad:cuenta_editar': 'contabilidad.configurar',
     'contabilidad:cierre': {'POST': 'contabilidad.periodos'},
     'contabilidad:configuracion': {'POST': 'contabilidad.configurar'},
+    'contabilidad:cuentas_tipo': {'POST': 'contabilidad.configurar'},
     'contabilidad:cc_nuevo': 'contabilidad.configurar', 'contabilidad:cc_editar': 'contabilidad.configurar',
     'planillas:nueva': 'planillas.calcular', 'planillas:trabajador_nuevo': 'planillas.calcular',
     'planillas:trabajador_editar': {'POST': 'planillas.calcular'},

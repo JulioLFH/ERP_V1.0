@@ -13,7 +13,7 @@ from django.utils import timezone
 
 # Tabla 5: tipo de existencia
 TIPO_EXISTENCIA = {'MERCADERIA': '01', 'PRODUCTO_TERMINADO': '02', 'MATERIA_PRIMA': '03', 'SEMIELABORADO': '02',
-                   'SUMINISTRO': '05'}
+                   'SUMINISTRO': '05', 'ENVASE': '04'}
 # Tabla 6: unidad de medida (los códigos del sistema ya son los de SUNAT)
 _DOCS = sorted([(nombre, codigo) for codigo, nombre in TIPO_COMPROBANTE] +
                [('Guía de remisión remitente', '09'), ('Guía de remisión transportista', '31')],

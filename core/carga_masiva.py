@@ -71,7 +71,8 @@ def _opciones(choices, extras=None):
 
 
 CLASES = _opciones(Producto.CLASES, {'SUMINISTRO': 'SUMINISTRO', 'SUMINISTROS': 'SUMINISTRO', 'ACTIVO': 'ACTIVO',
-                                     'ACTIVO FIJO': 'ACTIVO', 'SEMIELABORADO': 'SEMIELABORADO'})
+                                     'ACTIVO FIJO': 'ACTIVO', 'SEMIELABORADO': 'SEMIELABORADO', 'ENVASE': 'ENVASE',
+                                     'ENVASES': 'ENVASE', 'EMBALAJE': 'ENVASE', 'EMBALAJES': 'ENVASE'})
 UNIDADES = _opciones(Producto.UNIDADES, {'UND': 'NIU', 'UNIDADES': 'NIU', 'KG': 'KGM', 'LT': 'LTR', 'M': 'MTR',
                                          'CAJA': 'BX'})
 TIPOS_TERCERO = _opciones(Tercero.TIPOS)

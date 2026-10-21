@@ -234,14 +234,31 @@ def sugerencias_compra():
     fabricados = set(VersionFabricacion.objects.values_list('producto_id', flat=True))
     for p in Producto.objects.filter(activo=True, tipo='BIEN', puede_comprarse=True, es_plantilla=False) \
             .exclude(clase__in=['PRODUCTO_TERMINADO', 'SEMIELABORADO']).exclude(pk__in=fabricados) \
-            .select_related('proveedor'):
-        limite = p.punto_reorden or p.stock_minimo
-        if not limite:
-            continue
-        disponible = p.stock + camino.get(p.pk, D0)
-        if disponible > limite:
-            continue
-        objetivo = p.stock_maximo if p.stock_maximo > limite else limite * 2
+            .select_related('proveedor').prefetch_related('stocks__almacen'):
+        por_almacen = [s for s in p.stocks.all() if s.punto_reorden or s.stock_minimo]
+        almacenes_bajo = ''
+        if por_almacen:  # límites por almacén (pestaña Almacenes del producto): se repone cada almacén bajo su límite
+            limite, objetivo, faltante, bajos = D0, D0, D0, []
+            for s in por_almacen:
+                lim = s.punto_reorden or s.stock_minimo
+                obj = s.stock_maximo if s.stock_maximo and s.stock_maximo > lim else lim * 2
+                limite, objetivo = limite + lim, objetivo + obj
+                if s.cantidad <= lim:
+                    faltante += obj - s.cantidad
+                    bajos.append(s.almacen.codigo)
+            disponible = p.stock + camino.get(p.pk, D0)
+            if not bajos or faltante - camino.get(p.pk, D0) <= 0:
+                continue
+            objetivo = disponible + faltante - camino.get(p.pk, D0)
+            almacenes_bajo = ', '.join(bajos)
+        else:
+            limite = p.punto_reorden or p.stock_minimo
+            if not limite:
+                continue
+            disponible = p.stock + camino.get(p.pk, D0)
+            if disponible > limite:
+                continue
+            objetivo = p.stock_maximo if p.stock_maximo > limite else limite * 2
         # se pide en unidad de compra (cajas) y en múltiplos del lote mínimo de compra
         cantidad = p.a_compra(objetivo - disponible)
         if p.lote_compra and p.lote_compra > 0:
@@ -250,6 +267,7 @@ def sugerencias_compra():
             continue
         filas.append({'p': p, 'limite': limite, 'camino': camino.get(p.pk, D0), 'disponible': disponible,
                       'objetivo': objetivo, 'cantidad': cantidad, 'unidad_compra': p.unidad_de_compra,
+                      'almacenes_bajo': almacenes_bajo,
                       'unidades': p.a_stock(cantidad), 'precio': p.precio_compra,
                       'importe': r2(cantidad * p.precio_compra)})
     return filas

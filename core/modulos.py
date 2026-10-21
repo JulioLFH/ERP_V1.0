@@ -306,7 +306,8 @@ MODULOS = [
             ('Configuración', [('Plan de cuentas', 'contabilidad:plan', 'bi-list-ol'),
                                ('Centros de beneficio (líneas)', 'contabilidad:beneficios', 'bi-briefcase'),
                                ('Centros de costo', 'contabilidad:centros', 'bi-bullseye'),
-                               ('Cuentas por operación', 'contabilidad:configuracion', 'bi-gear')]),
+                               ('Cuentas por operación', 'contabilidad:configuracion', 'bi-gear'),
+                               ('Cuentas por tipo de producto', 'contabilidad:cuentas_tipo', 'bi-box-seam')]),
         ],
     },
     {

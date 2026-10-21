@@ -314,10 +314,25 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
         self.fields['estrategia'].required = False
         self.fields['peso_neto'].required = False
         self.fields['unidad_reporte'].required = False
+        from django.db.models import Q
+
         from contabilidad.models import CuentaContable
+
+        from .models import PREFIJOS_CAMPO, cuentas_de_clase
+        del_tipo = cuentas_de_clase(self.instance.clase or self.initial.get('clase') or 'MERCADERIA')
         for campo in ('cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo'):
-            self.fields[campo].queryset = CuentaContable.objects.filter(imputable=True).order_by('codigo')
-            self.fields[campo].help_text = 'Vacío = la del tipo de producto'
+            # solo la clase de cuenta que corresponde (INV-12): existencias 20-28, compra 60, venta 70, costo 69
+            filtro = Q()
+            for prefijo in PREFIJOS_CAMPO[campo]:
+                filtro |= Q(codigo__startswith=prefijo)
+            actual = getattr(self.instance, f'{campo}_id', None)
+            self.fields[campo].queryset = CuentaContable.objects.filter(
+                filtro | Q(pk=actual or 0), imputable=True).order_by('codigo')
+            tipo = del_tipo.get(campo)
+            texto = f'Del tipo: {tipo.codigo} {tipo.nombre}' if tipo else 'El tipo no la usa'
+            if self.instance.pk and actual and tipo and actual != tipo.pk:
+                texto = f'⚠ Excepción: el tipo usa {tipo.codigo} {tipo.nombre}'
+            self.fields[campo].help_text = f'{texto}. Vacío = la del tipo (Contabilidad › Cuentas por tipo de producto)'
         self.fields['proveedor'].queryset = Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS'])
         self.fields['almacen_defecto'].queryset = Almacen.objects.filter(activo=True, uso='')
         if self.instance.pk:  # el tipo define el código y el inventario: no se cambia luego de crearlo

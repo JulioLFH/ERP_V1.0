@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Cuentas por tipo de producto{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2"><i class="bi bi-box-seam"></i> Cuentas por tipo de producto</h1>
+<p class="small text-muted">La clase de valoración de cada tipo de producto: el producto hereda estas cuentas al crearse y solo se cambian en su ficha (pestaña Contabilidad) por excepción. La centralización usa la variación (61), la producción almacenada (71) y la diferencia de precio de aquí. Marque «Aplicar» para pasar a la cuenta nueva los productos del tipo que seguían la anterior; las excepciones no se tocan. Revise el juego con su contador (PCGE).</p>
+{% if formset.non_form_errors %}<div class="alert alert-danger">{{ formset.non_form_errors }}</div>{% endif %}
+<form method="post">{% csrf_token %}{{ formset.management_form }}
+  {% for form, excepciones in filas %}
+  <div class="card mb-2"><div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center py-2">
+    <b>{{ form.instance.get_clase_display }}</b>
+    <span class="small">{% if excepciones %}<span class="badge text-bg-warning">{{ excepciones }} cuenta{{ excepciones|pluralize }} de productos con excepción</span>{% endif %}
+      <label class="ms-2">{{ form.aplicar }} Aplicar a los productos del tipo</label></span>
+  </div><div class="card-body py-2">
+    {{ form.id }}{% for e in form.non_field_errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    <div class="row g-2">
+      {% for field in form %}{% if field.name != 'aplicar' and field.name != 'id' %}<div class="col-md-6 col-xl-3">{% include 'core/_campo.html' %}</div>{% endif %}{% endfor %}
+    </div>
+  </div></div>
+  {% endfor %}
+  <button class="btn btn-primary btn-sm"><i class="bi bi-check-lg"></i> Guardar</button>
+</form>
+{% endblock %}

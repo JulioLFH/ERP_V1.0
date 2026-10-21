@@ -1,10 +1,11 @@
 from django.urls import path
 
-from . import views, views_cierre, views_libro3, views_presupuesto
+from . import views, views_cierre, views_cuentas_tipo, views_libro3, views_presupuesto
 
 app_name = 'contabilidad'
 
 urlpatterns = [
+    path('cuentas-por-tipo-de-producto/', views_cuentas_tipo.cuentas_tipo, name='cuentas_tipo'),
     path('cierre/', views_cierre.cierre_mes, name='cierre'),
     path('conciliacion-niif-tributaria/', views_cierre.conciliacion_normas, name='conciliacion_normas'),
     path('consolidacion/', views_cierre.consolidacion, name='consolidacion'),

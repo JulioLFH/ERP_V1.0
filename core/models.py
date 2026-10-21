@@ -255,11 +255,12 @@ CLASES_PRODUCTO = [
     ('SEMIELABORADO', 'Semi elaborado'),
     ('PRODUCTO_TERMINADO', 'Producto terminado'),
     ('SUMINISTRO', 'Suministros y materiales'),
+    ('ENVASE', 'Envases y embalajes'),
     ('ACTIVO', 'Activo fijo (solo compra)'),
     ('SERVICIO', 'Servicio'),
 ]
 PREFIJOS_PRODUCTO = {'MERCADERIA': 'ME', 'MATERIA_PRIMA': 'MP', 'SEMIELABORADO': 'SE', 'PRODUCTO_TERMINADO': 'PT',
-                     'SUMINISTRO': 'SU', 'ACTIVO': 'AF', 'SERVICIO': 'SV'}
+                     'SUMINISTRO': 'SU', 'ENVASE': 'EM', 'ACTIVO': 'AF', 'SERVICIO': 'SV'}
 # Juego de cuentas por defecto (PCGE 2019; en el PCGE 2026 se traducen con pcge.codigo): existencias, compra, venta,
 # costo de ventas / consumo
 CUENTAS_PRODUCTO = {
@@ -268,24 +269,60 @@ CUENTAS_PRODUCTO = {
     'SEMIELABORADO': ('2311', '6021', '7021', '6921'),
     'PRODUCTO_TERMINADO': ('2111', '6011', '7021', '6921'),
     'SUMINISTRO': ('2521', '6032', '7599', '6561'),
+    'ENVASE': ('2611', '6041', '70111', '69111'),
     'ACTIVO': ('', '3369', '7599', ''),
     'SERVICIO': ('', '6399', '7041', ''),
 }
 CAMPOS_CUENTA = ('cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo')
+# clases de cuenta permitidas en cada campo del producto (INV-12): no se puede poner «101 Caja» como existencias
+PREFIJOS_CAMPO = {'cuenta_existencias': ('20', '21', '22', '23', '24', '25', '26', '27', '28'),
+                  'cuenta_compra': ('60', '33', '63'), 'cuenta_venta': ('70', '75'), 'cuenta_costo': ('69', '65')}
 
 
 def tipo_de_clase(clase):
     return {'SERVICIO': 'SERVICIO', 'ACTIVO': 'ACTIVO'}.get(clase, 'BIEN')
 
 
-def asignar_cuentas(producto, CuentaContable):
-    """Completa las cuentas vacías del producto con el juego por defecto de su tipo (acepta modelo histórico)."""
+_TABLA_CUENTAS_TIPO = set()
+
+
+def _tabla_cuentas_tipo(alias):
+    if alias not in _TABLA_CUENTAS_TIPO:
+        from django.db import connections
+        if 'core_cuentastipoproducto' not in connections[alias].introspection.table_names():
+            return False
+        _TABLA_CUENTAS_TIPO.add(alias)
+    return True
+
+
+def cuentas_de_clase(clase, CuentaContable=None):
+    """{campo: CuentaContable} del tipo de producto: la tabla editable de Contabilidad › Cuentas por tipo de producto
+    (clase de valoración) y, lo que no esté configurado, el juego por defecto del PCGE."""
     from contabilidad import pcge
-    codigos = CUENTAS_PRODUCTO.get(producto.clase, CUENTAS_PRODUCTO['MERCADERIA'])
-    plan = pcge.plan(CuentaContable.objects.db)
+    if CuentaContable is None:
+        from contabilidad.models import CuentaContable
+    alias = CuentaContable.objects.db
+    plan = pcge.plan(alias)
+    salida = {}
+    codigos = CUENTAS_PRODUCTO.get(clase, CUENTAS_PRODUCTO['MERCADERIA'])
     for campo, codigo in zip(CAMPOS_CUENTA, codigos):
-        if codigo and not getattr(producto, f'{campo}_id'):
-            setattr(producto, campo, CuentaContable.objects.filter(codigo=pcge.codigo(codigo, plan)).first())
+        salida[campo] = CuentaContable.objects.filter(codigo=pcge.codigo(codigo, plan)).first() if codigo else None
+    # las migraciones antiguas llaman a asignar_cuentas antes de que exista la tabla (una consulta fallida dejaría
+    # la transacción de PostgreSQL inservible): se mira primero si la tabla existe
+    fila = (CuentasTipoProducto.objects.using(alias).filter(clase=clase).first()
+            if _tabla_cuentas_tipo(alias) else None)
+    if fila is not None:
+        for campo in CAMPOS_CUENTA:
+            if getattr(fila, f'{campo}_id'):
+                salida[campo] = CuentaContable.objects.filter(pk=getattr(fila, f'{campo}_id')).first()
+    return salida
+
+
+def asignar_cuentas(producto, CuentaContable):
+    """Completa las cuentas vacías del producto con las de su tipo (acepta modelo histórico)."""
+    for campo, cuenta in cuentas_de_clase(producto.clase, CuentaContable).items():
+        if cuenta is not None and not getattr(producto, f'{campo}_id'):
+            setattr(producto, campo, cuenta)
 
 
 class Producto(models.Model):
@@ -669,9 +706,17 @@ class StockAlmacen(models.Model):
     cantidad = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
     ubicacion = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='stocks',
                                   verbose_name='Ubicación habitual')
+    # límites del producto en este almacén (vista Almacén de SAP); vacío = los generales de la ficha del producto
+    stock_minimo = models.DecimalField('Mínimo', max_digits=14, decimal_places=2, null=True, blank=True)
+    punto_reorden = models.DecimalField('Punto de reorden', max_digits=14, decimal_places=2, null=True, blank=True)
+    stock_maximo = models.DecimalField('Máximo', max_digits=14, decimal_places=2, null=True, blank=True)
 
     class Meta:
         unique_together = [('producto', 'almacen')]
+
+    @property
+    def bajo_minimo(self):
+        return self.stock_minimo is not None and self.cantidad < self.stock_minimo
 
     @staticmethod
     def ubicaciones(almacen_id, productos_ids):
@@ -961,6 +1006,36 @@ class FiltroGuardado(models.Model):
     class Meta:
         ordering = ['reporte', 'nombre']
         unique_together = [('usuario', 'reporte', 'nombre')]
+
+
+class CuentasTipoProducto(models.Model):
+    """Cuentas por tipo de producto (clase de valoración, como OBYC de SAP): el producto las hereda al crearse y solo
+    se cambian en su ficha por excepción. Lo vacío toma el juego por defecto del PCGE."""
+    clase = models.CharField('Tipo de producto', max_length=20, choices=CLASES_PRODUCTO, unique=True)
+    cuenta_existencias = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                           blank=True, related_name='+', verbose_name='Existencias (20-28)')
+    cuenta_compra = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True, blank=True,
+                                      related_name='+', verbose_name='Compra (60)')
+    cuenta_variacion = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                         blank=True, related_name='+', verbose_name='Variación / consumo a producción (61)')
+    cuenta_venta = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='+', verbose_name='Venta (70)')
+    cuenta_costo = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='+', verbose_name='Costo de ventas (69)')
+    cuenta_produccion = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
+                                          blank=True, related_name='+', verbose_name='Producción almacenada (71)')
+    cuenta_diferencia_precio = models.ForeignKey(
+        'contabilidad.CuentaContable', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+        verbose_name='Diferencia de precio de compra',
+        help_text='Vacío = la diferencia se reparte entre el inventario y el costo de ventas')
+
+    class Meta:
+        ordering = ['clase']
+        verbose_name = 'cuentas por tipo de producto'
+        verbose_name_plural = 'cuentas por tipo de producto'
+
+    def __str__(self):
+        return self.get_clase_display()
 
 
 class DocumentoCliente(models.Model):

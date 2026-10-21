@@ -155,7 +155,8 @@ class Compra(ComprobanteBase):
     def clasificacion_de(items):
         """Clasificación sugerida por el tipo de producto que más pesa en los ítems (OC → factura)."""
         por_clase = {'MERCADERIA': 'MERCADERIA', 'PRODUCTO_TERMINADO': 'MERCADERIA', 'MATERIA_PRIMA': 'MATERIA_PRIMA',
-                     'SEMIELABORADO': 'MATERIA_PRIMA', 'SUMINISTRO': 'SUMINISTRO', 'ACTIVO': 'ACTIVO_FIJO',
+                     'SEMIELABORADO': 'MATERIA_PRIMA', 'SUMINISTRO': 'SUMINISTRO', 'ENVASE': 'ENVASE',
+                     'ACTIVO': 'ACTIVO_FIJO',
                      'SERVICIO': 'SERVICIO'}
         pesos = {}
         for i in items:

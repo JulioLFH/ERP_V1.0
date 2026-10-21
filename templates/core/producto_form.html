@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load erp_tags %}
 {% block title %}{{ titulo }}{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -23,6 +23,8 @@
             <i class="bi {{ icono }}"></i> {{ titulo_p }}{% for f in campos %}{% if f.errors %} <span class="badge text-bg-danger">!</span>{% endif %}{% endfor %}</button>
         </li>
         {% endfor %}
+        {% if almacenes_producto is not None and object.pk %}<li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pest-almacenes" type="button" role="tab"><i class="bi bi-buildings"></i> Almacenes</button></li>{% endif %}
+        {% if costos_producto %}<li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pest-costos" type="button" role="tab"><i class="bi bi-calculator"></i> Costos</button></li>{% endif %}
       </ul>
     </div>
     <div class="card-body tab-content">
@@ -55,6 +57,39 @@
         {% endif %}
       </div>
       {% endfor %}
+      {% if almacenes_producto is not None and object.pk %}<div class="tab-pane fade" id="pest-almacenes" role="tabpanel">
+        <p class="small text-muted">Stock por almacén, lo comprometido (requerimientos aprobados e insumos de órdenes abiertas) y lo bloqueado (cuarentena, conteo, lotes vencidos). Mínimo, punto de reorden y máximo por almacén: si se llenan, la sugerencia de compra repone cada almacén con los suyos; vacíos = los generales de la pestaña Planificación.</p>
+        <div class="table-responsive"><table class="table table-sm align-middle small">
+          <thead><tr><th>Almacén</th><th>Ubicación</th><th class="num">Stock</th><th class="num">Comprometido</th><th class="num">Bloqueado</th><th class="num">Disponible</th><th style="width:95px">Mínimo</th><th style="width:95px">Reorden</th><th style="width:95px">Máximo</th></tr></thead>
+          <tbody>{% for f in almacenes_producto %}<tr class="{% if f.s.bajo_minimo %}table-warning{% endif %}">
+            <td>{{ f.a.codigo }} {{ f.a.nombre }}{% if f.a.uso %} <span class="badge text-bg-light border">{{ f.a.get_uso_display }}</span>{% endif %}
+              {% for sl in f.lotes %}<div class="text-muted">Lote {{ sl.lote.codigo }}{% if sl.lote.vencimiento %} · vence {{ sl.lote.vencimiento|date:'d/m/Y' }}{% endif %}: {{ sl.cantidad|floatformat:2 }}</div>{% endfor %}</td>
+            <td>{{ f.s.ubicacion.codigo|default:'—' }}</td>
+            <td class="num">{{ f.cantidad|floatformat:2 }}</td><td class="num">{{ f.comprometido|floatformat:2 }}</td><td class="num">{{ f.bloqueado|floatformat:2 }}</td><td class="num fw-semibold">{{ f.disponible|floatformat:2 }}</td>
+            {% if f.editable %}<td><input name="alm_{{ f.a.pk }}_min" value="{{ f.s.stock_minimo|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal"></td>
+            <td><input name="alm_{{ f.a.pk }}_reorden" value="{{ f.s.punto_reorden|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal"></td>
+            <td><input name="alm_{{ f.a.pk }}_max" value="{{ f.s.stock_maximo|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal"></td>
+            {% else %}<td colspan="3" class="text-muted">—</td>{% endif %}
+          </tr>{% endfor %}</tbody>
+        </table></div>
+      </div>{% endif %}
+      {% if costos_producto %}{% with c=costos_producto %}<div class="tab-pane fade" id="pest-costos" role="tabpanel">
+        <div class="row g-3 small">
+          <div class="col-md-6"><table class="table table-sm mb-0">
+            <tr><th class="fw-normal text-muted">Método de valoración</th><td>{{ c.metodo }}</td></tr>
+            <tr><th class="fw-normal text-muted">Costo promedio</th><td class="fw-semibold">S/ {{ c.promedio|costo }}</td></tr>
+            <tr><th class="fw-normal text-muted">Stock valorizado</th><td>S/ {{ c.valor|floatformat:2 }} ({{ object.stock|floatformat:2 }} {{ object.unidad }})</td></tr>
+            <tr><th class="fw-normal text-muted">Último costo de compra</th><td>{% if c.compra %}S/ {{ c.compra.0|costo }} · {{ c.compra.2.nombre }} · {{ c.compra.1|date:'d/m/Y' }} <a href="{% url 'compras:historial_precios' %}?producto={{ object.pk }}">historial</a>{% else %}Sin compras registradas{% endif %}</td></tr>
+          </table></div>
+          <div class="col-md-6"><table class="table table-sm mb-0">
+            <tr><th class="fw-normal text-muted">Costo estándar</th><td>{% if c.estandar %}S/ {{ c.estandar.unitario|costo }} · {{ c.estandar.periodo|slice:'4:' }}/{{ c.estandar.periodo|slice:':4' }} · {{ c.estandar.get_estado_display }}{% else %}Sin costo estándar{% endif %}</td></tr>
+            {% if c.estandar %}<tr><th class="fw-normal text-muted">Composición</th><td>Materiales {{ c.estandar.materiales|costo }} · Mano de obra {{ c.estandar.mano_obra|costo }} · Máquina {{ c.estandar.maquina|costo }} · CIF {{ c.estandar.cif|costo }}</td></tr>
+            <tr><th class="fw-normal text-muted">Promedio vs estándar</th><td class="{% if c.variacion_estandar > 0 %}text-danger{% elif c.variacion_estandar < 0 %}text-success{% endif %}">{{ c.variacion_estandar|costo }}</td></tr>{% endif %}
+            <tr><th class="fw-normal text-muted">Último cierre (costo real)</th><td>{% if c.liquidacion %}{{ c.liquidacion.liquidacion.periodo|slice:'4:' }}/{{ c.liquidacion.liquidacion.periodo|slice:':4' }}: diferencia S/ {{ c.liquidacion.diferencia|floatformat:2 }} (inventario {{ c.liquidacion.a_inventario|floatformat:2 }}, costo de ventas {{ c.liquidacion.a_costo|floatformat:2 }}){% else %}Sin liquidación{% endif %}</td></tr>
+          </table></div>
+        </div>
+        <div class="mt-2 small"><a href="{% url 'inv_kardex' %}?producto={{ object.pk }}">Kardex valorizado</a></div>
+      </div>{% endwith %}{% endif %}
     </div>
   </div>
   <div class="mt-3 d-flex gap-2">

@@ -506,7 +506,16 @@ def asiento_inventario(periodo, cta):
     VARIACION = {'24': '6121', '25': '6132', '26': '6141', '20': '6111', '23': '7131', '21': '7111'}
     PRODUCCION = {'23': '7131', '21': '7111'}
 
-    def contra_manufactura(ex, entrada):
+    from core.models import CuentasTipoProducto
+    por_clase = {f.clase: f for f in CuentasTipoProducto.objects.select_related(
+        'cuenta_variacion', 'cuenta_produccion', 'cuenta_diferencia_precio')}
+
+    def contra_manufactura(ex, entrada, p=None):
+        # primero la cuenta configurada para el tipo de producto (Contabilidad › Cuentas por tipo de producto)
+        fila = por_clase.get(p.clase) if p is not None else None
+        propia = (fila.cuenta_produccion if entrada else fila.cuenta_variacion) if fila else None
+        if propia is not None:
+            return propia
         codigo = (PRODUCCION.get(ex.codigo[:2], '7111') if entrada else VARIACION.get(ex.codigo[:2], '6111'))
         return por_codigo.get(codigo)
 
@@ -519,8 +528,8 @@ def asiento_inventario(periodo, cta):
         valor = r2(k.cantidad * k.costo_unitario) * (1 if k.tipo == 'ENTRADA' else -1)
         if k.origen == 'OPERACION':
             tipo = tipos.get(k.concepto)
-            if tipo and tipo.clase == 'MANUFACTURA' and contra_manufactura(ex, k.tipo == 'ENTRADA'):
-                contra = contra_manufactura(ex, k.tipo == 'ENTRADA')
+            if tipo and tipo.clase == 'MANUFACTURA' and contra_manufactura(ex, k.tipo == 'ENTRADA', p):
+                contra = contra_manufactura(ex, k.tipo == 'ENTRADA', p)
                 glosa = 'Producción almacenada' if k.tipo == 'ENTRADA' else 'Consumo de insumos en producción'
                 grupos[(ex, contra, glosa, linea)] += valor
                 continue
@@ -569,6 +578,11 @@ def asiento_inventario(periodo, cta):
         contra = (vinculados.destino_debe if aj.importacion_id and vinculados and vinculados.destino_debe_id
                   else por_recibir(p))
         glosa = f'Gastos de {aj.importacion}' if aj.importacion_id else 'Diferencia de precio de compra'
+        fila = por_clase.get(p.clase) if p is not None and not aj.importacion_id else None
+        if fila is not None and fila.cuenta_diferencia_precio_id:  # el tipo de producto tiene su propia cuenta
+            b.neto(fila.cuenta_diferencia_precio, contra, (aj.a_inventario or D0) + (aj.a_costo or D0),
+                   documento=doc, glosa=glosa)
+            continue
         if aj.a_inventario:
             b.neto(existencias(p), contra, aj.a_inventario, documento=doc, glosa=glosa)
         if aj.a_costo:
@@ -579,7 +593,7 @@ def asiento_inventario(periodo, cta):
     for lp in LiquidacionProducto.objects.filter(fecha__range=[desde, hasta]).select_related('liquidacion'):
         p = productos.get(lp.producto_id)
         ex = existencias(p)
-        contra = contra_manufactura(ex, True) or por_codigo.get('7111')
+        contra = contra_manufactura(ex, True, p) or por_codigo.get('7111')
         linea = p.centro_beneficio if p and p.centro_beneficio_id else None
         glosa = f'Liquidación de costo real {lp.liquidacion.periodo[4:]}/{lp.liquidacion.periodo[:4]}'
         if contra and lp.a_inventario:

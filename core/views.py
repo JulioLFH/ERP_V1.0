@@ -22,7 +22,7 @@ from ventas.models import Venta
 
 from . import tipo_cambio
 from .forms import EmpresaForm, FacturacionConfigForm, ProductoForm, SerieForm, TerceroForm, TipoCambioForm
-from .models import Empresa, FacturacionConfig, Producto, Serie, Tercero, TipoCambio
+from .models import Almacen, Empresa, FacturacionConfig, Producto, Serie, Tercero, TipoCambio, r2
 
 D0 = Decimal('0')
 
@@ -562,7 +562,86 @@ class ProductoEditar(FormGenerico, UpdateView):
         ctx['variantes'] = self.object.variantes.order_by('codigo') if self.object.es_plantilla else []
         ctx['registros_info'] = self.object.registros_info.select_related('proveedor').order_by(
             '-preferido', '-activo', '-compras')
+        p = self.object
+        if p.es_inventariable:
+            ctx['almacenes_producto'] = _almacenes_producto(p)
+            from .modulos import puede_ver_costos
+            if puede_ver_costos(self.request.user):
+                ctx['costos_producto'] = _costos_producto(p)
         return ctx
+
+    def form_valid(self, form):
+        respuesta = super().form_valid(form)
+        _guardar_limites(self.object, self.request.POST)  # mínimo, reorden y máximo por almacén
+        return respuesta
+
+
+def _dec_o_nada(texto):
+    from core.utils import leer_numero
+    texto = (texto or '').strip()
+    if not texto:
+        return None
+    try:
+        valor = leer_numero(texto)
+    except Exception:
+        return None
+    return valor if valor >= 0 else None
+
+
+def _guardar_limites(producto, datos):
+    from .models import StockAlmacen
+    for a in Almacen.objects.filter(activo=True, uso=''):
+        claves = (f'alm_{a.pk}_min', f'alm_{a.pk}_reorden', f'alm_{a.pk}_max')
+        if not any(k in datos for k in claves):
+            continue
+        valores = [_dec_o_nada(datos.get(k)) for k in claves]
+        s = StockAlmacen.objects.filter(producto=producto, almacen=a).first()
+        if s is None and not any(v is not None for v in valores):
+            continue
+        s = s or StockAlmacen(producto=producto, almacen=a)
+        s.stock_minimo, s.punto_reorden, s.stock_maximo = valores
+        s.save()
+
+
+def _almacenes_producto(p):
+    """Pestaña Almacenes (INV-15): stock, comprometido y disponible por almacén, ubicación, límites y lotes."""
+    from inventario.reportes_masivos import bloqueado, comprometido
+
+    from .models import StockLote
+    stocks = {s.almacen_id: s for s in p.stocks.select_related('ubicacion')}
+    reservado, retenido = comprometido(), bloqueado()
+    lotes = {}
+    for sl in StockLote.objects.filter(lote__producto=p, cantidad__gt=0).select_related('lote'):
+        lotes.setdefault(sl.almacen_id, []).append(sl)
+    filas = []
+    for a in Almacen.objects.filter(activo=True).order_by('-es_principal', 'codigo'):
+        s = stocks.get(a.pk)
+        cantidad = s.cantidad if s else D0
+        comp = reservado.get((p.pk, a.pk), D0)
+        bloq = retenido.get((p.pk, a.pk), D0)
+        if not s and a.uso:
+            continue
+        filas.append({'a': a, 's': s, 'cantidad': cantidad, 'comprometido': comp, 'bloqueado': bloq,
+                      'disponible': cantidad - comp - bloq, 'lotes': lotes.get(a.pk, []),
+                      'editable': not a.uso})
+    return filas
+
+
+def _costos_producto(p):
+    """Pestaña Costos (INV-14): método, costo promedio, estándar vigente, último costo de compra y la última
+    liquidación del costo real."""
+    from compras.historial_precios import ultimo_precio
+    from produccion.models import CostoEstandar, LiquidacionProducto
+    estandar = (CostoEstandar.objects.filter(producto=p, estado='LIBERADO').order_by('-periodo').first()
+                or CostoEstandar.objects.filter(producto=p).order_by('-periodo').first())
+    compra = ultimo_precio(p)
+    liquidacion = (LiquidacionProducto.objects.filter(producto=p).select_related('liquidacion')
+                   .order_by('-liquidacion__periodo').first())
+    valor = r2(p.stock * p.costo_promedio)
+    return {'metodo': 'Promedio ponderado móvil (un costo por empresa para todos los almacenes)',
+            'promedio': p.costo_promedio, 'valor': valor, 'estandar': estandar,
+            'variacion_estandar': (p.costo_promedio - estandar.unitario) if estandar and estandar.unitario else None,
+            'compra': compra, 'liquidacion': liquidacion}
 
 
 @login_required
