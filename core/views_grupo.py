@@ -26,7 +26,10 @@ def empresas(request):
             messages.error(request, 'Su usuario corporativo no crea empresas.')
         else:
             try:
-                r = grupo.crear_empresa(request.POST.get('razon_social'), request.POST.get('ruc'), principal)
+                r = grupo.crear_empresa(request.POST.get('razon_social'), request.POST.get('ruc'), principal,
+                                        direccion=request.POST.get('direccion', ''),
+                                        ubigeo=request.POST.get('ubigeo', ''),
+                                        modelo=request.POST.get('modelo', ''))
                 messages.success(request, f'Creando {r.razon_social}: tarda un par de minutos. Esta página se '
                                           f'actualiza sola.')
             except grupo.ErrorGrupo as exc:
@@ -93,10 +96,11 @@ def _resumen(alias):
             pendientes.append('facturación electrónica')
         if e and not (e.direccion or '').strip():
             pendientes.append('dirección')
+        from .estudio import resumen_contable
         return {'ruc': e.ruc if e else '', 'usuarios': get_user_model().objects.filter(is_active=True).count(),
                 'ventas_mes': ventas.aggregate(t=Sum('total_pen'))['t'] or 0,
                 'ultima_venta': Venta.objects.aggregate(f=Max('fecha_emision'))['f'], 'pendientes': pendientes,
-                'error': ''}
+                'contable': resumen_contable(e.ruc if e else ''), 'error': ''}
     except Exception as exc:  # base no disponible o en creación
         return {'error': type(exc).__name__}
     finally:
@@ -108,6 +112,8 @@ def panel(request):
     """Panel del administrador del grupo: todas las empresas, su estado y lo que les falta configurar."""
     _exigir_corporativo(request)
     principal = grupo.corporativo(request)
+    if request.method == 'POST' and request.POST.get('accion') in ('centralizar', 'cerrar', 'ple'):
+        return _proceso_masivo(request)
     if request.method == 'POST' and request.POST.get('accion') == 'nuevo_corporativo':
         if not principal.is_superuser:
             messages.error(request, 'Solo un administrador de la empresa principal crea usuarios corporativos.')
@@ -154,10 +160,42 @@ def panel(request):
                   'ruc': e.ruc} for e in registradas.values() if e.alias not in reg.empresas()]
     from . import estado_servicio as es
     from django.conf import settings
+    from django.utils import timezone
+
+    from .cronograma_sunat import periodo_anterior
+    activas = [t for t in tarjetas if t.get('listo')]
     return render(request, 'core/grupo_panel.html', {
         'tarjetas': tarjetas, 'principal': principal, 'puede_crear': grupo.puede_crear(request),
         'aliases': list(reg.empresas()), 'version': settings.ERP_VERSION, 'disp_30': es.disponibilidad(30),
+        'activas': activas, 'periodo_masivo': periodo_anterior(timezone.localdate()),
         'creando': any(t['registro'] and t['registro'].estado == 'CREANDO' for t in tarjetas)})
+
+
+def _proceso_masivo(request):
+    """Centralizar, cerrar el periodo o descargar los PLE de varias empresas a la vez (las que el usuario puede
+    abrir). Cerrar exige ser administrador en la empresa principal."""
+    from django.http import HttpResponse
+
+    from . import estudio
+    principal = grupo.corporativo(request)
+    accion = request.POST.get('accion')
+    periodo = (request.POST.get('periodo') or '').replace('-', '')[:6]
+    permitidas = dict(grupo.empresas_de(request))
+    elegidas = [a for a in request.POST.getlist('empresas') if a in permitidas]
+    if not (len(periodo) == 6 and periodo.isdigit()) or not elegidas:
+        messages.error(request, 'Elija el periodo y al menos una empresa.')
+        return redirect('grupo_panel')
+    if accion == 'cerrar' and not principal.is_superuser:
+        messages.error(request, 'Solo un administrador de la empresa principal cierra periodos de varias empresas.')
+        return redirect('grupo_panel')
+    if accion == 'ple':
+        datos, _ = estudio.ple_zip(elegidas, periodo)
+        resp = HttpResponse(datos, content_type='application/zip')
+        resp['Content-Disposition'] = f'attachment; filename="PLE_{periodo}_{len(elegidas)}_empresas.zip"'
+        return resp
+    for alias, ok, texto in estudio.ejecutar(elegidas, accion, periodo):
+        (messages.success if ok else messages.error)(request, f'{permitidas.get(alias, alias)}: {texto}.')
+    return redirect('grupo_panel')
 
 
 @login_required

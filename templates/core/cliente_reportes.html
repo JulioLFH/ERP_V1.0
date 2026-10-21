@@ -1,0 +1,26 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Mis reportes{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2"><i class="bi bi-bar-chart"></i> Mis reportes</h1>
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3">
+  <div><label class="form-label small mb-0">Desde</label><input type="month" name="desde" value="{{ desde }}" class="form-control form-control-sm"></div>
+  <div><label class="form-label small mb-0">Hasta</label><input type="month" name="hasta" value="{{ hasta }}" class="form-control form-control-sm"></div>
+  <button class="btn btn-sm btn-outline-primary">Ver</button>
+</form>
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="kpi"><div class="label">Ventas (sin IGV)</div><div class="value">S/ {{ totales.ventas|money }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Compras (sin IGV)</div><div class="value">S/ {{ totales.compras|money }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Por cobrar hoy</div><div class="value">S/ {{ por_cobrar|money }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Por pagar hoy</div><div class="value">S/ {{ por_pagar|money }}</div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="card-header">Ventas, compras e IGV por mes</div><div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Mes</th><th class="num">Ventas</th><th class="num">IGV ventas</th><th class="num">Compras</th><th class="num">IGV compras</th><th class="num">IGV del mes*</th></tr></thead>
+    <tbody>{% for f in filas %}<tr><td>{{ f.periodo }}</td><td class="num">{{ f.ventas|money }}</td><td class="num">{{ f.igv_ventas|money }}</td><td class="num">{{ f.compras|money }}</td><td class="num">{{ f.igv_compras|money }}</td><td class="num fw-semibold">{{ f.igv_neto|money }}</td></tr>{% empty %}<tr><td colspan="6" class="text-muted text-center py-3">Sin ventas ni compras en el rango.</td></tr>{% endfor %}</tbody>
+    {% if filas %}<tfoot><tr class="fw-semibold"><td>Total</td><td class="num">{{ totales.ventas|money }}</td><td class="num">{{ totales.igv_ventas|money }}</td><td class="num">{{ totales.compras|money }}</td><td class="num">{{ totales.igv_compras|money }}</td><td class="num">{{ totales.igv_neto|money }}</td></tr></tfoot>{% endif %}
+  </table></div><div class="card-footer small text-muted">* IGV de ventas menos IGV de compras registrado: es una referencia; el monto a pagar lo determina su contador (saldo a favor, percepciones, retenciones).</div></div></div>
+  <div class="col-lg-5"><div class="card"><div class="card-header">Estado de resultados</div><div class="table-responsive"><table class="table table-sm mb-0">
+    <tbody>{% for nombre, valor, estilo in resultados %}<tr class="{% if estilo %}fw-semibold table-light{% endif %}"><td>{{ nombre }}</td><td class="num">{{ valor|money }}</td></tr>{% empty %}<tr><td class="text-muted text-center py-3">Su contador aún no generó la contabilidad del periodo.</td></tr>{% endfor %}</tbody>
+  </table></div></div></div>
+</div>
+{% endblock %}

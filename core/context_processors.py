@@ -19,6 +19,8 @@ def empresa(request):
     es_corporativo = corporativo(request) is not None
     if es_corporativo:  # solo las empresas a las que puede pasar sin volver a ingresar
         otras = [(a, n) for a, n in empresas_de(request) if a != actual()]
+    elif 'cliente' in mods and not request.user.is_superuser:  # el cliente del estudio solo ve su empresa
+        otras = []
     else:
         otras = [(a, razon_social(a)) for a in empresas() if a != actual()] if es_multiempresa() else []
     return {

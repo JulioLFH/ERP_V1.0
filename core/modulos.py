@@ -295,7 +295,8 @@ MODULOS = [
                           ('Gastos por centro de costo', 'contabilidad:centros_reporte', 'bi-diagram-3'),
                           ('Presupuestos y ejecución', 'contabilidad:presupuestos', 'bi-clipboard-data'),
                           ('Conciliación NIIF - tributaria', 'contabilidad:conciliacion_normas', 'bi-intersect'),
-                          ('Estados consolidados del grupo', 'contabilidad:consolidacion', 'bi-buildings')]),
+                          ('Estados consolidados del grupo', 'contabilidad:consolidacion', 'bi-buildings'),
+                          ('Documentos del cliente (estudio)', 'cliente_documentos', 'bi-inbox')]),
             ('Sistema anterior', [('Conciliación de la migración', 'contabilidad:conciliacion_migracion',
                                    'bi-check2-square'),
                                   ('Asientos del sistema anterior', 'hist_asientos', 'bi-clock-history'),
@@ -306,6 +307,13 @@ MODULOS = [
                                ('Centros de costo', 'contabilidad:centros', 'bi-bullseye'),
                                ('Cuentas por operación', 'contabilidad:configuracion', 'bi-gear')]),
         ],
+    },
+    {
+        'clave': 'cliente', 'nombre': 'Mi empresa', 'icono': 'bi-person-workspace', 'color': '#1098ad',
+        'inicio': 'cliente_documentos',
+        'descripcion': 'Cliente del estudio contable: sube sus documentos y consulta sus reportes',
+        'menu': [('Subir documentos', 'cliente_subir'), ('Mis documentos', 'cliente_documentos'),
+                 ('Mis reportes', 'cliente_reportes')],
     },
     {
         'clave': 'contactos', 'nombre': 'Contactos', 'icono': 'bi-people', 'color': '#f08c00',
@@ -368,6 +376,8 @@ DERIVADOS = {'contactos': {'ventas', 'compras', 'finanzas', 'logistica', 'contab
 # Rutas sin espacio de nombres (app core) -> módulos que pueden abrirlas (el primero es el principal)
 RUTAS_CORE = {
     'dashboard': ['tablero'],
+    'cliente_subir': ['cliente'], 'cliente_reportes': ['cliente'],
+    'cliente_documentos': ['cliente', 'contabilidad'], 'cliente_archivo': ['cliente', 'contabilidad'],
     'empresa': ['ajustes'], 'consulta_ruc': ['ajustes', 'contactos', 'ventas', 'compras'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
     'auditoria': ['ajustes'], 'manuales': ['ajustes'], 'manual_pdf': ['ajustes'],
     'incidencias': ['ajustes'], 'incidencia': ['ajustes'],

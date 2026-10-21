@@ -958,6 +958,32 @@ class FiltroGuardado(models.Model):
         unique_together = [('usuario', 'reporte', 'nombre')]
 
 
+class DocumentoCliente(models.Model):
+    """Documento que el cliente del estudio contable sube para su contabilidad (comprobantes, estados de cuenta…);
+    el contador lo marca como procesado u observado."""
+    TIPOS = [('COMPRA', 'Comprobantes de compra'), ('VENTA', 'Comprobantes de venta'),
+             ('BANCO', 'Estado de cuenta bancario'), ('PLANILLA', 'Documentos de personal'), ('OTRO', 'Otro')]
+    ESTADOS = [('RECIBIDO', 'Recibido'), ('PROCESADO', 'Procesado'), ('OBSERVADO', 'Observado')]
+    tipo = models.CharField(max_length=10, choices=TIPOS, default='COMPRA')
+    periodo = models.CharField('Periodo (AAAAMM)', max_length=6)
+    descripcion = models.CharField('Descripción', max_length=200, blank=True)
+    archivo = models.ForeignKey('ArchivoSustento', on_delete=models.PROTECT, related_name='+')
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='RECIBIDO')
+    comentario = models.CharField('Comentario del contador', max_length=300, blank=True)
+    subido_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    revisado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado', '-id']
+        verbose_name = 'documento del cliente'
+        verbose_name_plural = 'documentos del cliente'
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} {self.periodo[4:]}/{self.periodo[:4]}'
+
+
 class PerfilAcceso(models.Model):
     """Perfil reutilizable (rol): módulos, acciones, pantallas, datos sensibles y límite de aprobación que se
     aplican de una vez a varios usuarios (ej. «Asistente de compras», «Jefe de almacén»)."""
@@ -1025,6 +1051,9 @@ class EmpresaGrupo(models.Model):
     estado = models.CharField(max_length=10, choices=ESTADOS, default='CREANDO')
     mensaje = models.TextField(blank=True)
     creado_por = models.CharField(max_length=150, blank=True)
+    # opciones de creación: dirección y ubigeo (del padrón RUC) y empresa modelo de la que se copian series y
+    # parámetros {'direccion', 'ubigeo', 'modelo'}
+    datos = models.JSONField(default=dict, blank=True)
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -129,8 +129,9 @@ def siguiente_alias():
     return f'empresa{n}'
 
 
-def crear_empresa(razon_social, ruc, principal, sincrono=False):
-    """Registra la empresa y la crea (base, tablas, ficha y administrador). Devuelve el registro EmpresaGrupo."""
+def crear_empresa(razon_social, ruc, principal, sincrono=False, direccion='', ubigeo='', modelo=''):
+    """Registra la empresa y la crea (base, tablas, ficha y administrador). Con «modelo» (alias de otra empresa del
+    grupo) copia sus series y parámetros. Devuelve el registro EmpresaGrupo."""
     from .forms import error_ruc
     from .models import EmpresaGrupo
     razon_social, ruc = (razon_social or '').strip().upper(), (ruc or '').strip()
@@ -152,8 +153,12 @@ def crear_empresa(razon_social, ruc, principal, sincrono=False):
     base = reg.nombre_base(alias)
     if not re.fullmatch(r'[a-z][a-z0-9_]{0,62}', base):
         raise ErrorGrupo(f'Nombre de base no válido: {base}')
+    from . import ubigeo as ubigeos
+    datos = {'direccion': (direccion or '').strip()[:250],
+             'ubigeo': ubigeo if ubigeos.existe(ubigeo or '') else '',
+             'modelo': modelo if modelo in reg.empresas() else ''}
     registro = EmpresaGrupo.objects.using('default').create(alias=alias, base=base, razon_social=razon_social,
-                                                            ruc=ruc, creado_por=principal.username,
+                                                            ruc=ruc, creado_por=principal.username, datos=datos,
                                                             mensaje='Creando la base de datos…')
     if sincrono:
         _crear(registro.pk, principal.pk)
@@ -179,7 +184,12 @@ def _crear(registro_id, principal_id):
         try:
             e = Empresa.objects.using(alias).first() or Empresa(ruc=registro.ruc)
             e.ruc, e.razon_social = registro.ruc, registro.razon_social
+            datos = registro.datos or {}
+            e.direccion = datos.get('direccion') or e.direccion
+            e.ubigeo = datos.get('ubigeo') or e.ubigeo
             e.save(using=alias)
+            if datos.get('modelo'):
+                copiar_configuracion(datos['modelo'], alias)
             principal = get_user_model().objects.using('default').get(pk=principal_id)
             _usuario_en(alias, principal)
         finally:
@@ -195,6 +205,33 @@ def _crear(registro_id, principal_id):
     finally:
         if threading.current_thread() is not threading.main_thread():
             connections.close_all()
+
+
+# parámetros de Ajustes › Empresa que se copian de la empresa modelo (no los datos propios: RUC, nombre, credenciales)
+PARAMETROS_MODELO = (
+    'igv_tasa', 'permitir_stock_negativo', 'fuente_tipo_cambio', 'bloquear_deuda_vencida', 'dias_gracia',
+    'exigir_orden_compra', 'oc_directa_con_contrato', 'presupuesto_solped', 'tope_diferencias_inventario',
+    'tolerancia_cantidad', 'tolerancia_precio', 'tolerancia_total', 'tolerancia_cantidad_pct', 'tolerancia_precio_pct',
+    'tolerancia_total_pct', 'alerta_precio_pct', 'exigir_doble_factor', 'clave_largo_minimo', 'clave_mayuscula',
+    'clave_numero', 'clave_simbolo', 'clave_vence_dias', 'clave_historial', 'intentos_bloqueo', 'minutos_inactividad',
+    'aviso_equipo_nuevo', 'dias_escalamiento', 'segregacion_estricta')
+
+
+def copiar_configuracion(origen, destino):
+    """Copia de la empresa modelo sus series (con el correlativo en cero) y sus parámetros de Ajustes › Empresa."""
+    from .models import Empresa, Serie
+    modelo = Empresa.objects.using(origen).first()
+    nueva = Empresa.objects.using(destino).first()
+    if modelo is None or nueva is None:
+        return
+    for campo in PARAMETROS_MODELO:
+        if hasattr(modelo, campo):
+            setattr(nueva, campo, getattr(modelo, campo))
+    nueva.save(using=destino)
+    existentes = set(Serie.objects.using(destino).values_list('tipo', 'serie'))
+    Serie.objects.using(destino).bulk_create([
+        Serie(tipo=s.tipo, serie=s.serie, correlativo=0, activo=s.activo)
+        for s in Serie.objects.using(origen).all() if (s.tipo, s.serie) not in existentes])
 
 
 def reintentar(registro, principal, sincrono=False):

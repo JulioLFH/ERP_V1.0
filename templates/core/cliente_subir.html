@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Subir documentos{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2"><i class="bi bi-cloud-upload"></i> Subir documentos para su contador</h1>
+<p class="small text-muted">Facturas y boletas de compras o ventas (PDF o XML), estados de cuenta del banco, documentos de su personal u otros. Puede elegir varios archivos a la vez (hasta 30, de 5 MB cada uno).</p>
+<div class="card" style="max-width:720px"><div class="card-body">
+  <form method="post" enctype="multipart/form-data" class="row g-3">{% csrf_token %}
+    <div class="col-md-6"><label class="form-label small">Tipo de documento</label>
+      <select name="tipo" class="form-select form-select-sm">{% for v, t in tipos %}<option value="{{ v }}">{{ t }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="form-label small">Periodo (mes al que corresponden)</label>
+      <input type="month" name="periodo" value="{{ periodo }}" class="form-control form-control-sm" required></div>
+    <div class="col-12"><label class="form-label small">Descripción (opcional)</label>
+      <input name="descripcion" maxlength="200" class="form-control form-control-sm" placeholder="Ej. compras de la tienda de Miraflores"></div>
+    <div class="col-12"><label class="form-label small">Archivos</label>
+      <input type="file" name="archivos" multiple required class="form-control form-control-sm" accept=".pdf,.xml,.zip,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.doc,.docx"></div>
+    <div class="col-12"><button class="btn btn-primary btn-sm"><i class="bi bi-send"></i> Enviar a mi contador</button></div>
+  </form>
+</div></div>
+{% endblock %}

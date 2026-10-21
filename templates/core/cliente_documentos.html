@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}{% if contador %}Documentos del cliente{% else %}Mis documentos{% endif %}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title"><i class="bi bi-inbox"></i> {% if contador %}Documentos del cliente{% else %}Mis documentos{% endif %}{% if por_revisar %} <span class="badge text-bg-warning fs-6 align-middle">{{ por_revisar }} por revisar</span>{% endif %}</h1>
+  <a href="{% url 'cliente_subir' %}" class="btn btn-sm btn-primary"><i class="bi bi-cloud-upload"></i> Subir documentos</a>
+</div>
+<form method="get" class="d-flex flex-wrap gap-2 mb-3">
+  <select name="estado" class="form-select form-select-sm" style="width:auto"><option value="">Todos los estados</option>{% for v, t in estados %}<option value="{{ v }}" {% if f.estado == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+  <select name="tipo" class="form-select form-select-sm" style="width:auto"><option value="">Todos los tipos</option>{% for v, t in tipos %}<option value="{{ v }}" {% if f.tipo == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+  <input type="month" name="periodo" value="{{ f.periodo }}" class="form-control form-control-sm" style="width:auto">
+  <button class="btn btn-sm btn-outline-primary">Filtrar</button>
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+  <thead><tr><th>Subido</th><th>Periodo</th><th>Tipo</th><th>Descripción</th><th>Archivo</th><th>Estado</th>{% if contador %}<th style="min-width:320px">Revisión</th>{% endif %}</tr></thead>
+  <tbody>{% for d in page_obj %}<tr>
+    <td>{{ d.creado|date:'d/m/Y H:i' }}<div class="small text-muted">{{ d.subido_por.get_full_name|default:d.subido_por.username }}</div></td>
+    <td>{{ d.periodo|slice:'4:' }}/{{ d.periodo|slice:':4' }}</td><td>{{ d.get_tipo_display }}</td><td>{{ d.descripcion }}</td>
+    <td><a href="{% url 'cliente_archivo' d.pk %}"><i class="bi bi-download"></i> {{ d.archivo.nombre|truncatechars:40 }}</a></td>
+    <td><span class="badge {% if d.estado == 'PROCESADO' %}text-bg-success{% elif d.estado == 'OBSERVADO' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ d.get_estado_display }}</span>{% if d.comentario %}<div class="small text-muted">{{ d.comentario }}</div>{% endif %}</td>
+    {% if contador %}<td><form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="id" value="{{ d.pk }}">
+      <input name="comentario" class="form-control form-control-sm" placeholder="Comentario (opcional)" maxlength="300">
+      <button name="estado" value="PROCESADO" class="btn btn-sm btn-outline-success" title="Procesado"><i class="bi bi-check-lg"></i></button>
+      <button name="estado" value="OBSERVADO" class="btn btn-sm btn-outline-danger" title="Observado"><i class="bi bi-exclamation-lg"></i></button></form></td>{% endif %}
+  </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin documentos.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% include 'core/_paginacion.html' %}
+{% endblock %}

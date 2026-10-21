@@ -2,6 +2,7 @@
 // escribir un RUC válido (o al pulsar el botón) llena razón social, dirección y ubigeo y muestra la ficha de SUNAT.
 // Uso: consultaRuc({url, ruc: 'id_ruc', nombre: 'id_razon_social', direccion: 'id_direccion',
 //                   token: 'id_token_tipo_cambio' (opcional), tipoDoc: 'id_tipo_doc' (opcional: solo con RUC),
+//                   ubigeo: id de un campo simple de ubigeo (opcional, si el formulario no tiene los selectores),
 //                   excluir: pk del registro que se edita (opcional, para avisar si el RUC ya está registrado)})
 window.consultaRuc = function (op) {
   const campo = (id) => (id ? document.getElementById(id) : null);
@@ -100,6 +101,10 @@ window.consultaRuc = function (op) {
         if (!d.ok) { mostrar(d.error, 'text-danger'); ultimo = ''; return null; }
         campo(op.nombre).value = d.razon_social;
         if (d.direccion && campo(op.direccion)) campo(op.direccion).value = d.direccion;
+        if (campo(op.ubigeo)) {  // formulario sin selectores de departamento / provincia / distrito: campo simple
+          campo(op.ubigeo).value = d.ubigeo || '';
+          return [d, Boolean(d.ubigeo)];
+        }
         return ponerUbigeo(d.ubigeo).then((ubigeo) => [d, ubigeo]);
       })
       .then((r) => {
