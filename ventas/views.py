@@ -64,10 +64,47 @@ class VentasViews(ComprobanteViews):
         return {**super()._form_ctx(titulo, doc), 'precio_url': reverse('ventas:precio')}
 
     def validar_stock(self, form, formset):
-        return super().validar_stock(form, formset) + self.validar_credito(form, formset)
+        return (super().validar_stock(form, formset) + self.validar_credito(form, formset)
+                + self.validar_permisos(form, formset))
+
+    @staticmethod
+    def _pedido_aprobado(datos):
+        cot = datos.get('cotizacion')
+        return cot is not None and cot.estado in ('APROBADO', 'ATENDIDO')
+
+    def validar_permisos(self, form, formset):
+        """Acciones del perfil (VEN-11): vender bajo la tarifa (salvo desde un pedido aprobado), notas de crédito
+        por devolución y cambiar el vendedor."""
+        from decimal import Decimal
+        from core.auditoria import usuario_actual
+        from core.permisos import puede
+        from .aprobacion_pedido import lineas_bajo_tarifa
+        usuario, doc, datos = usuario_actual(), form.instance, form.cleaned_data
+        if usuario is None or not usuario.is_authenticated:
+            return []
+        errores = []
+        tipo = datos.get('tipo_comprobante')
+        if tipo in ('07',) and datos.get('motivo_nota') in ('06', '07') and not puede(usuario, 'ventas.devoluciones'):
+            errores.append('Su usuario no emite notas de crédito por devolución (06 / 07): pida a quien tenga '
+                           '«Emitir notas de crédito por devolución» en su perfil.')
+        if tipo not in ('07', '08') and not self._pedido_aprobado(datos) and not puede(usuario, 'ventas.bajo_tarifa'):
+            items = [(c.get('producto'), Decimal(c.get('cantidad') or 0), Decimal(c.get('precio_unitario') or 0),
+                      Decimal(c.get('descuento_pct') or 0))
+                     for c in (getattr(f, 'cleaned_data', None) or {} for f in formset.forms) if c and not c.get('DELETE')]
+            bajo = lineas_bajo_tarifa(items, datos.get('tercero'), datos.get('lista_precios'), datos.get('fecha_emision'))
+            if bajo:
+                errores.append('Precio bajo la tarifa o con más descuento que la lista: ' + '; '.join(bajo[:5]) +
+                               '. Pida la aprobación del pedido o a quien tenga «Vender bajo el precio de la lista».')
+        cot = datos.get('cotizacion')
+        anterior = (type(doc).objects.filter(pk=doc.pk).values_list('vendedor', flat=True).first() if doc.pk
+                    else (cot.vendedor if cot is not None else None))
+        if anterior and (datos.get('vendedor') or '') != anterior and not puede(usuario, 'ventas.vendedor'):
+            errores.append(f'Su usuario no cambia el vendedor del documento ({anterior}).')
+        return errores
 
     def validar_credito(self, form, formset):
-        """Ventas al crédito: bloqueo por deuda vencida y por límite de crédito del cliente."""
+        """Ventas al crédito: bloqueo por deuda vencida y por límite de crédito del cliente (salvo que venga de un
+        pedido aprobado: el exceso de crédito ya se aprobó en el pedido)."""
         from datetime import timedelta
         from decimal import Decimal
         from django.utils import timezone
@@ -75,6 +112,8 @@ class VentasViews(ComprobanteViews):
         doc, datos = form.instance, form.cleaned_data
         cliente = datos.get('tercero')
         if not cliente or datos.get('forma_pago') != 'CREDITO' or datos.get('tipo_comprobante') in ('07', '08'):
+            return []
+        if self._pedido_aprobado(datos) and datos['cotizacion'].tercero_id == cliente.pk:
             return []
         empresa = Empresa.actual()
         deuda = [v for v in Venta.objects.con_saldos().cobrables().filter(tercero=cliente, estado='REGISTRADO').exclude(
@@ -170,10 +209,42 @@ class VentasViews(ComprobanteViews):
                 messages.error(request, f'Facturación electrónica: {exc}')
         return redirect('ventas:detalle', pk)
 
+    def reactivar(self, request, pk):
+        """Vuelve a «Registrado» una venta anulada que nunca llegó a SUNAT (se anuló por error); se descuenta otra
+        vez del almacén."""
+        from core.forms import periodo_cerrado
+        from inventario.cierre import error_cierre
+        doc = get_object_or_404(Venta, pk=pk)
+        if request.method != 'POST':
+            return redirect('ventas:detalle', pk)
+        bloqueo = ('El comprobante no está anulado.' if doc.estado != 'ANULADO' else
+                   'Ya se informó a SUNAT: emita un comprobante nuevo.' if doc.estado_sunat not in ('NO_ENVIADO', 'ERROR')
+                   else 'Es historial importado del sistema anterior.' if doc.es_historico else
+                   f'El periodo contable {doc.periodo} está cerrado.' if periodo_cerrado(doc.periodo) else
+                   error_cierre(doc.fecha_emision) if doc.descontar_stock and error_cierre(doc.fecha_emision) else '')
+        if not bloqueo and doc.descontar_stock and doc.tipo_comprobante in ('01', '03', '12', '00'):
+            from core.utils import faltantes_stock
+            faltan = faltantes_stock([(i.producto, i.cantidad) for i in doc.items.select_related('producto')],
+                                     doc.almacen, fecha=doc.fecha_emision)
+            bloqueo = ('No hay stock para volver a descontar: ' + ' '.join(faltan)) if faltan else ''
+        if bloqueo:
+            messages.error(request, bloqueo)
+            return redirect('ventas:detalle', pk)
+        with transaction.atomic():
+            doc.estado = 'REGISTRADO'
+            doc.motivo_anulacion = f'Reactivada por {request.user.get_username()}; antes: {doc.motivo_anulacion}'[:250]
+            doc.anulado_por, doc.anulado_en = None, None
+            doc.save()
+            if doc.descontar_stock and doc.tipo_comprobante in ('01', '03', '12', '00', '07'):
+                doc.aplicar_stock()
+        messages.success(request, f'{doc} reactivado: vuelve a «Registrado».')
+        return redirect('ventas:detalle', pk)
+
     def urls(self):
         from django.urls import path
         return super().urls() + [
             path('<int:pk>/sunat/', login_required(self.enviar_sunat), name='enviar_sunat'),
+            path('<int:pk>/reactivar/', login_required(self.reactivar), name='reactivar'),
         ]
 
     def linea_ple(self, periodo, n, d):
@@ -236,22 +307,36 @@ def cot_editar(request, pk):
 
     def volver_a_pendiente(doc):
         # un pedido aprobado que se modifica (cantidades, precios, cliente) vuelve a aprobarse
+        if doc.estado == 'APROBADO' or doc.niveles:
+            Cotizacion.objects.filter(pk=doc.pk).update(estado='PENDIENTE', niveles=[], nivel_aprobado=0)
         if doc.estado == 'APROBADO':
-            Cotizacion.objects.filter(pk=doc.pk).update(estado='PENDIENTE')
             messages.warning(request, f'{doc.numero} se modificó: volvió a «Pendiente» y debe aprobarse otra vez.')
+
+    vendedor = cot.vendedor  # el form.is_valid() ya vuelca los datos nuevos en la instancia
+
+    def validar_vendedor(form, formset):
+        from core.permisos import puede
+        if vendedor and (form.cleaned_data.get('vendedor') or '') != vendedor and \
+                not puede(request.user, 'ventas.vendedor'):
+            return [f'Su usuario no cambia el vendedor del documento ({vendedor}).']
+        return []
 
     if cot.estado == 'APROBADO' and request.method == 'GET':
         messages.info(request, 'Este documento está aprobado: al guardar los cambios volverá a «Pendiente» de '
                                'aprobación.')
     return guardar_documento(request, CotizacionForm, item_formset(Cotizacion, CotizacionItem, extra=0), cot,
                              'core/comprobante_form.html', _cot_ctx(f'Editar {cot.numero}', cot),
-                             al_guardar=volver_a_pendiente)
+                             al_guardar=volver_a_pendiente, validar=validar_vendedor)
 
 
 @login_required
 def cot_detalle(request, pk):
+    from core.aprobaciones import pendiente
+    from .aprobacion_pedido import motivos
     cot = get_object_or_404(Cotizacion, pk=pk)
     return render(request, 'core/documento_detalle.html', {
+        'pedido_motivos': motivos(cot)[1] if cot.estado == 'PENDIENTE' else [],
+        'pedido_pendiente': pendiente(cot.niveles, cot.nivel_aprobado),
         'doc': cot, 'items': cot.items.all(), 'app': 'ventas',
         'titulo_doc': 'COTIZACIÓN / PROFORMA' if cot.tipo == 'COT' else 'ORDEN DE PEDIDO',
         'etiqueta_tercero': 'Cliente', 'relacionados': cot.ventas.all(),
@@ -262,11 +347,19 @@ def cot_detalle(request, pk):
 
 @login_required
 def cot_estado(request, pk):
+    from .aprobacion_pedido import ErrorAprobacionPedido, aprobar
     cot = get_object_or_404(Cotizacion, pk=pk)
     estado = request.POST.get('estado')
-    if request.method == 'POST' and estado in dict(Cotizacion._meta.get_field('estado').choices):
+    if request.method == 'POST' and estado == 'APROBADO' and cot.estado == 'PENDIENTE':
+        try:
+            messages.success(request, aprobar(cot, request.user))
+        except ErrorAprobacionPedido as exc:
+            messages.error(request, str(exc))
+    elif request.method == 'POST' and estado in dict(Cotizacion._meta.get_field('estado').choices):
         cot.estado = estado
-        cot.save(update_fields=['estado'])
+        if estado == 'PENDIENTE':
+            cot.niveles, cot.nivel_aprobado = [], 0
+        cot.save(update_fields=['estado', 'niveles', 'nivel_aprobado'])
         messages.success(request, f'{cot.numero}: {cot.get_estado_display()}.')
     return redirect('ventas:cot_detalle', pk)
 

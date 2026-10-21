@@ -10,7 +10,12 @@ ACCIONES = {
     'ventas': [('emitir', 'Emitir comprobantes y cotizaciones', False),
                ('notas', 'Emitir notas de crédito y débito', True),
                ('anular', 'Anular comprobantes', True),
-               ('precios', 'Mantener listas de precios y descuentos', True)],
+               ('precios', 'Mantener listas de precios y descuentos', True),
+               ('bajo_tarifa', 'Vender bajo el precio de la lista o con más descuento', True),
+               ('aprobar_pedidos', 'Aprobar pedidos de venta (incluye bajo la tarifa y exceso de crédito)', True),
+               ('devoluciones', 'Emitir notas de crédito por devolución', True),
+               ('reactivar', 'Reactivar una venta anulada que no se envió a SUNAT', True),
+               ('vendedor', 'Cambiar el vendedor de un documento', True)],
     'compras': [('registrar', 'Registrar facturas de compra', False),
                 ('oc', 'Crear y editar órdenes de compra', False),
                 ('aprobar_oc', 'Aprobar órdenes de compra', True),
@@ -67,7 +72,7 @@ EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar'
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
     'ventas:nuevo': lambda r: 'ventas.notas' if _tipo(r) in ('07', '08') else 'ventas.emitir',
-    'ventas:editar': 'ventas.emitir', 'ventas:anular': 'ventas.anular', 'ventas:eliminar': 'ventas.anular',
+    'ventas:editar': 'ventas.emitir', 'ventas:anular': 'ventas.anular', 'ventas:reactivar': 'ventas.reactivar', 'ventas:eliminar': 'ventas.anular',
     'ventas:importar': 'ventas.emitir', 'ventas:notas': 'ventas.notas', 'ventas:trasladar': 'ventas.emitir',
     'ventas:lista_precios_nueva': 'ventas.precios', 'ventas:lista_precios_editar': 'ventas.precios',
     'ventas:pos': {'POST': 'ventas.emitir'}, 'ventas:crm_nueva': 'ventas.emitir',

@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.60.0 — 21/10/2026 · Permisos y aprobaciones de ventas
+- **Pedidos de venta en las reglas de aprobación (VEN-11)**: nuevo documento «Pedidos de venta» en Ajustes › Reglas de aprobación, con los tipos «Pedidos bajo la tarifa o con descuento» y «Pedidos que exceden el crédito del cliente» (niveles, monto, suplencias y escalamiento como en compras). El pedido muestra por qué requiere aprobación y a quién le toca; sin reglas, lo aprueba quien tenga «Aprobar pedidos de venta». Un pedido a precio de lista y dentro del crédito se aprueba como antes.
+- **Venta desde el pedido aprobado**: no vuelve a pedir la aprobación de la tarifa ni bloquea por el límite de crédito; si el pedido se modifica, vuelve a «Pendiente» y se aprueba otra vez.
+- **Nuevas acciones del perfil**: vender bajo el precio de la lista o con más descuento, aprobar pedidos, emitir notas de crédito por devolución (motivos 06 y 07), reactivar una venta anulada que no llegó a SUNAT (vuelve a «Registrado» y se descuenta otra vez del almacén) y cambiar el vendedor de un documento. Los perfiles existentes las reciben según lo que ya podían hacer (precios, notas, anular).
+
 ## v1.59.0 — 21/10/2026 · Carga masiva de usuarios y perfiles, productos completos y operaciones por almacén
 - **Carga masiva de perfiles de acceso (CM-01)**: una fila por perfil y pantalla con su nivel (Completo, Sin exportar, Solo lectura u Oculta), más módulos, acciones (módulo.acción), si ve costos, sueldos y saldos y el tope de aprobación. La pantalla se indica por el nombre del menú o su ruta. Al actualizar un perfil se vuelve a aplicar a sus usuarios.
 - **Carga masiva de usuarios (CM-01)**: usuario, nombre, correo, perfil, trabajador de planillas (DNI), almacenes, series, tope y contraseña inicial (validada con la política; sin contraseña, el usuario entra con «¿Olvidó su contraseña?»). Solo para administradores; se valida todo antes de grabar.

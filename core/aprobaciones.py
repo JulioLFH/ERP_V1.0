@@ -14,11 +14,12 @@ from django.utils import timezone
 
 DOCUMENTOS = [('OC', 'Órdenes de compra'), ('SOLPED', 'Solicitudes de pedido'),
               ('REQUERIMIENTO', 'Requerimientos de materiales'), ('RENDICION', 'Rendiciones de gastos'),
-              ('VACACION', 'Vacaciones y permisos'), ('MOVIMIENTO', 'Movimientos de personal')]
+              ('VACACION', 'Vacaciones y permisos'), ('MOVIMIENTO', 'Movimientos de personal'),
+              ('PEDIDO', 'Pedidos de venta (tarifa, descuentos y crédito)')]
 # permiso que aprueba cada documento cuando no hay reglas (o en un nivel sin usuario)
 PERMISOS = {'OC': 'compras.aprobar_oc', 'SOLPED': 'requerimientos.liberar_solped',
             'REQUERIMIENTO': 'requerimientos.aprobar', 'RENDICION': 'rendiciones.aprobar',
-            'VACACION': 'planillas.calcular', 'MOVIMIENTO': 'planillas.cerrar'}
+            'VACACION': 'planillas.calcular', 'MOVIMIENTO': 'planillas.cerrar', 'PEDIDO': 'ventas.aprobar_pedidos'}
 
 
 class ErrorAprobacion(Exception):

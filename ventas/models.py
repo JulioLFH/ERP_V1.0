@@ -43,6 +43,10 @@ class Cotizacion(DocumentoBase):
     tipo = models.CharField(max_length=3, choices=TIPOS, default='COT')
     validez_dias = models.PositiveIntegerField('Validez (días)', default=15)
     vendedor = models.CharField(max_length=80, blank=True)
+    # aprobación por niveles (motor único, documento PEDIDO): bajo la tarifa, exceso de crédito, etc.
+    niveles = models.JSONField(default=list, blank=True, editable=False)
+    nivel_aprobado = models.PositiveSmallIntegerField(default=0, editable=False)
+    motivo_aprobacion = models.CharField('Por qué requiere aprobación', max_length=300, blank=True, editable=False)
 
     class Meta(DocumentoBase.Meta):
         verbose_name = 'cotización / pedido'

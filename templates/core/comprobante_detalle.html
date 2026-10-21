@@ -75,7 +75,8 @@
 </div></div></div>
 {% endif %}
 {% if doc.estado == 'ANULADO' %}
-<div class="alert alert-danger py-2"><i class="bi bi-x-octagon"></i> <b>Anulado</b>{% if doc.anulado_en %} el {{ doc.anulado_en|date:'d/m/Y H:i' }}{% endif %}{% if doc.anulado_por %} por <b>{{ doc.anulado_por.get_full_name|default:doc.anulado_por.username }}</b>{% endif %}{% if doc.motivo_anulacion %}. Motivo: {{ doc.motivo_anulacion }}{% endif %}</div>
+<div class="alert alert-danger py-2"><i class="bi bi-x-octagon"></i> <b>Anulado</b>{% if doc.anulado_en %} el {{ doc.anulado_en|date:'d/m/Y H:i' }}{% endif %}{% if doc.anulado_por %} por <b>{{ doc.anulado_por.get_full_name|default:doc.anulado_por.username }}</b>{% endif %}{% if doc.motivo_anulacion %}. Motivo: {{ doc.motivo_anulacion }}{% endif %}
+  {% if app == 'ventas' and puede.ventas_reactivar and doc.estado_sunat in 'NO_ENVIADO ERROR' and not doc.es_historico %}<form method="post" action="{% url 'ventas:reactivar' doc.pk %}" class="d-inline ms-2" data-confirm="¿Reactivar {{ doc }}? Vuelve a «Registrado» y se descuenta otra vez del almacén.">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-counterclockwise"></i> Reactivar (no llegó a SUNAT)</button></form>{% endif %}</div>
 {% endif %}
 {% if app == 'compras' and doc.pago_bloqueado %}
 <div class="alert alert-danger py-2 d-flex flex-wrap gap-2 justify-content-between align-items-center"><div><i class="bi bi-lock"></i> <b>Pago bloqueado.</b> {{ doc.motivo_bloqueo_pago }} Finanzas no la paga hasta que Compras libere el pago.</div>

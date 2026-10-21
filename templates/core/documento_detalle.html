@@ -22,6 +22,7 @@
     {% endif %}
   </div>
 </div>
+{% if pedido_motivos and doc.estado == 'PENDIENTE' %}<div class="alert alert-warning py-2 small d-print-none"><i class="bi bi-shield-exclamation"></i> <b>Requiere aprobación{% if pedido_pendiente %} — nivel {{ pedido_pendiente.nivel }}: {{ pedido_pendiente.nombre }}{% endif %}.</b> {{ pedido_motivos|join:' · ' }}</div>{% endif %}
 
 <div class="card doc-print">
   <div class="row align-items-center mb-4">

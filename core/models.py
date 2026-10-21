@@ -908,12 +908,15 @@ class ReglaAprobacion(models.Model):
     """Motor único de aprobación (core/aprobaciones.py): quién aprueba cada nivel de un documento."""
     DOCUMENTOS = [('OC', 'Órdenes de compra'), ('SOLPED', 'Solicitudes de pedido'),
                   ('REQUERIMIENTO', 'Requerimientos de materiales'), ('RENDICION', 'Rendiciones de gastos'),
-                  ('VACACION', 'Vacaciones y permisos'), ('MOVIMIENTO', 'Movimientos de personal')]
+                  ('VACACION', 'Vacaciones y permisos'), ('MOVIMIENTO', 'Movimientos de personal'),
+                  ('PEDIDO', 'Pedidos de venta (tarifa, descuentos y crédito)')]
     TIPOS = [('JEFE', 'Jefe del solicitante'), ('RESPONSABLE_CC', 'Responsable del centro de costo'),
              ('USUARIO', 'Usuario específico'), ('PUESTO', 'Ocupante de un puesto'),
              ('JERARQUIA', 'Nivel N de la jerarquía (jefe del jefe…)')]
     APLICA = [('', 'Todos'), ('URGENTE', 'Solo urgentes'), ('ACTIVO', 'Activo fijo'), ('SERVICIO', 'Servicios'),
-              ('MATERIAL', 'Materiales'), ('MERCADERIA', 'Mercadería'), ('GASTO', 'Gastos')]
+              ('MATERIAL', 'Materiales'), ('MERCADERIA', 'Mercadería'), ('GASTO', 'Gastos'),
+              ('BAJO_TARIFA', 'Pedidos bajo la tarifa o con descuento'), ('EXCESO_CREDITO', 'Pedidos que exceden el '
+                                                                                         'crédito del cliente')]
     documento = models.CharField(max_length=14, choices=DOCUMENTOS)
     nivel = models.PositiveSmallIntegerField(default=1, help_text='1 aprueba primero, luego 2, 3…')
     tipo = models.CharField('Quién aprueba', max_length=14, choices=TIPOS, default='JEFE')
@@ -930,7 +933,7 @@ class ReglaAprobacion(models.Model):
                                      related_name='+',
                                      help_text='Aplica a los documentos de este centro (o sus subcentros). Vacío = '
                                                'todos')
-    aplica_a = models.CharField('Tipo de documento', max_length=10, choices=APLICA, blank=True)
+    aplica_a = models.CharField('Tipo de documento', max_length=16, choices=APLICA, blank=True)
     activo = models.BooleanField(default=True)
 
     class Meta:
