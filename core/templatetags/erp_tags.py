@@ -14,6 +14,15 @@ def money(valor):
 
 
 @register.filter
+def sumar(valor, otro):
+    """Suma exacta de importes (el filtro add de Django convierte a entero: 940.59 + 0 daba 940)."""
+    try:
+        return Decimal(valor or 0) + Decimal(otro or 0)
+    except (InvalidOperation, TypeError, ValueError):
+        return valor
+
+
+@register.filter
 def attr(obj, nombre):
     """Resuelve 'a.b', métodos y get_X_display para la lista genérica."""
     valor = obj

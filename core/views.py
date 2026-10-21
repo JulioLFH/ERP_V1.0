@@ -560,6 +560,8 @@ class ProductoEditar(FormGenerico, UpdateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['variantes'] = self.object.variantes.order_by('codigo') if self.object.es_plantilla else []
+        ctx['registros_info'] = self.object.registros_info.select_related('proveedor').order_by(
+            '-preferido', '-activo', '-compras')
         return ctx
 
 

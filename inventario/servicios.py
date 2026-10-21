@@ -3,7 +3,7 @@ from collections import defaultdict
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
 
 from core.models import Almacen, Kardex, Producto, Serie, r2
@@ -453,7 +453,10 @@ def operaciones_de(doc):
     campo = {'ordencompra': 'orden_compra', 'compra': 'compra', 'venta': 'venta'}.get(modelo)
     if not campo:
         return Operacion.objects.none()
-    return Operacion.objects.filter(**{campo: doc}).select_related('tipo')
+    filtro = Q(**{campo: doc})
+    if modelo == 'compra' and doc.orden_compra_id:  # la mercadería pudo recibirse contra la orden de compra
+        filtro |= Q(orden_compra_id=doc.orden_compra_id, tipo__clase='INGRESO', estado='CONFIRMADO')
+    return Operacion.objects.filter(filtro).select_related('tipo')
 
 
 def tiene_recepciones(compra=None, orden=None):

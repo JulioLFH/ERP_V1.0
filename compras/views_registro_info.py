@@ -29,6 +29,12 @@ class RegistroInfoForm(BootstrapMixin, forms.ModelForm):
 
 @login_required
 def lista(request):
+    if request.method == 'POST' and request.POST.get('accion') == 'cargar':
+        from .registro_info import cargar_desde_compras
+        creados, actualizados = cargar_desde_compras()
+        messages.success(request, f'Registro info cargado desde las compras registradas: {creados} nuevo(s) y '
+                                  f'{actualizados} actualizado(s) (último precio, fecha y número de compras).')
+        return redirect('compras:registros_info')
     qs = RegistroInfo.objects.select_related('producto', 'proveedor')
     q = request.GET.get('q', '').strip()
     if q:

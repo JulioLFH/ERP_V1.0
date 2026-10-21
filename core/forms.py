@@ -88,8 +88,15 @@ class BootstrapMixin:
         return super().__getitem__(nombre)
 
     def _filtrar_almacenes(self):
+        from django.contrib.auth import get_user_model
+
         from .auditoria import usuario_actual
         from .permisos import almacenes_permitidos
+        # los usuarios del portal de proveedores nunca aparecen en listas internas (aprobadores, responsables, jefes)
+        for field in self.fields.values():
+            qs = getattr(field, 'queryset', None)
+            if qs is not None and qs.model is get_user_model():
+                field.queryset = qs.filter(acceso_proveedor__isnull=True)
         permitidos = almacenes_permitidos(usuario_actual())
         if not permitidos:
             return

@@ -39,9 +39,11 @@ def stock(request):
         productos = productos.exclude(stock=0)
     # columnas: los almacenes con mercadería; con «Incluir almacenes sin stock» (o todos los productos), todos los
     # activos aunque estén en cero
+    from .permisos import almacenes_permitidos
+    permitidos = almacenes_permitidos(request.user)  # usuario limitado a ciertos almacenes: solo ve esos
     con_stock = set(StockAlmacen.objects.exclude(cantidad=0).values_list('almacen_id', flat=True))
     vacios = todos or request.GET.get('vacios') == '1'
-    activos = list(Almacen.objects.filter(activo=True))
+    activos = [a for a in Almacen.objects.filter(activo=True) if permitidos is None or a.pk in permitidos]
     almacenes = [a for a in activos if vacios or a.pk in con_stock]
     q = request.GET.get('q', '').strip()
     if q:
@@ -52,13 +54,20 @@ def stock(request):
         por_alm = {s.almacen_id: s.cantidad for s in p.stocks.all()}
         if solo_bajo and not p.bajo_minimo:
             continue
-        filas.append({'p': p, 'cantidades': [por_alm.get(a.pk, D0) for a in almacenes]})
-    total_valor = sum((f['p'].valorizado for f in filas), D0)
+        if permitidos is None:
+            total = p.stock
+        else:
+            total = sum((c for a, c in por_alm.items() if a in permitidos), D0)
+            if not total and not todos:
+                continue
+        filas.append({'p': p, 'cantidades': [por_alm.get(a.pk, D0) for a in almacenes], 'total': total,
+                      'valor': p.valorizado if permitidos is None else r2(total * (p.costo_promedio or D0))})
+    total_valor = sum((f['valor'] for f in filas), D0)
     if request.GET.get('formato') == 'excel':
         enc = ['Código', 'Producto', 'U.M.'] + [a.nombre for a in almacenes] + ['Stock total', 'Stock mínimo'] + (
             ['Costo promedio', 'Valorizado'] if costos else [])
-        datos = [[f['p'].codigo, f['p'].nombre, f['p'].unidad] + f['cantidades'] + [f['p'].stock, f['p'].stock_minimo]
-                 + ([f['p'].costo_promedio, f['p'].valorizado] if costos else []) for f in filas]
+        datos = [[f['p'].codigo, f['p'].nombre, f['p'].unidad] + f['cantidades'] + [f['total'], f['p'].stock_minimo]
+                 + ([f['p'].costo_promedio, f['valor']] if costos else []) for f in filas]
         return excel_response('Stock_por_almacen', 'Stock por almacén', enc, datos)
     from django.core.paginator import Paginator
     return render(request, 'inventario/stock.html', {
@@ -71,8 +80,10 @@ def stock(request):
 
 @login_required
 def kardex(request):
+    from .permisos import almacenes_permitidos
+    permitidos = almacenes_permitidos(request.user)  # usuario limitado a ciertos almacenes: solo sus movimientos
     productos = Producto.objects.filter(tipo='BIEN')
-    almacenes = Almacen.objects.all()
+    almacenes = Almacen.objects.all() if permitidos is None else Almacen.objects.filter(pk__in=permitidos)
     producto = productos.filter(pk=request.GET.get('producto')).first() if request.GET.get('producto') else None
     almacen = almacenes.filter(pk=request.GET.get('almacen')).first() if request.GET.get('almacen') else None
     from inventario.cierre import ultimo_cierre
@@ -82,6 +93,8 @@ def kardex(request):
         qs = producto.kardex.all()
         if almacen:
             qs = qs.filter(almacen=almacen)
+        elif permitidos is not None:
+            qs = qs.filter(almacen_id__in=permitidos)
         desde, hasta = rango_por_defecto(request, qs)
         movs = list(qs.order_by('fecha', 'id'))
         saldo = sum((_signo(k) for k in movs if k.fecha.isoformat() < desde), D0)
@@ -276,8 +289,9 @@ def reposicion(request):
                                                           'centros': CentroCosto.objects.filter(activo=True)})
 
 
-def valor_inventario(corte, almacen=None):
-    """([filas], total) del inventario valorizado al corte. La contabilidad ajusta la 20111 a este total."""
+def valor_inventario(corte, almacen=None, permitidos=None):
+    """([filas], total) del inventario valorizado al corte. La contabilidad ajusta la 20111 a este total.
+    permitidos: ids de almacenes del usuario (None = todos)."""
     filas, total = [], D0
     movimientos = defaultdict(list)
     qs = Kardex.objects.filter(fecha__lte=corte, producto__tipo='BIEN').order_by('fecha', 'id')
@@ -286,7 +300,8 @@ def valor_inventario(corte, almacen=None):
     for p in Producto.objects.filter(pk__in=movimientos).order_by('codigo'):
         movs = movimientos[p.pk]
         # se suma por fecha (no se usa Kardex.saldo: registros con fecha anterior lo desordenan)
-        cantidad = sum((_signo(k) for k in movs if not almacen or k.almacen_id == almacen.pk), D0)
+        cantidad = sum((_signo(k) for k in movs if (not almacen or k.almacen_id == almacen.pk)
+                        and (permitidos is None or k.almacen_id in permitidos)), D0)
         if cantidad == 0:
             continue
         costo = movs[-1].costo_promedio or p.costo_promedio
@@ -306,9 +321,11 @@ def valorizacion(request):
         corte = _fin_de_mes(date.fromisoformat(f'{mes}-01'))
     except ValueError:
         corte, mes = _fin_de_mes(timezone.localdate()), timezone.localdate().strftime('%Y-%m')
-    almacenes = Almacen.objects.all()
+    from .permisos import almacenes_permitidos
+    permitidos = almacenes_permitidos(request.user)  # usuario limitado: solo sus almacenes
+    almacenes = Almacen.objects.all() if permitidos is None else Almacen.objects.filter(pk__in=permitidos)
     almacen = almacenes.filter(pk=request.GET.get('almacen')).first() if request.GET.get('almacen') else None
-    filas, total = valor_inventario(corte, almacen)
+    filas, total = valor_inventario(corte, almacen, permitidos)
     if request.GET.get('formato') == 'excel':
         enc = ['Código', 'Producto', 'U.M.', 'Cantidad', 'Costo promedio', 'Valor S/']
         datos = [[f['p'].codigo, f['p'].nombre, f['p'].unidad, f['cantidad'], f['costo'], f['valor']] for f in filas]

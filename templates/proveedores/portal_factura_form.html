@@ -42,7 +42,18 @@
 (function () {
   const tasa = {% if oc.tipo_operacion == 'GRAVADA' %}{{ igv_tasa|stringformat:'s' }}{% else %}0{% endif %};
   const tolT = {{ tol_t|stringformat:'s' }};
-  const num = (v) => parseFloat(String(v || '0').replace(',', '')) || 0;
+  // como core.utils.leer_numero: 1,109.90 / 287,50 (coma decimal) / 1.109,90
+  const num = (v) => {
+    let t = String(v || '0').replace(/\s/g, '');
+    if (t.includes(',') && t.includes('.')) {
+      const dec = t.lastIndexOf(',') > t.lastIndexOf('.') ? ',' : '.';
+      t = t.split(dec === ',' ? '.' : ',').join('').replace(dec, '.');
+    } else if (t.includes(',')) {
+      const p = t.split(',');
+      t = p.length === 2 && p[1].length !== 3 ? `${p[0]}.${p[1]}` : p.join('');
+    }
+    return parseFloat(t) || 0;
+  };
   const fmt = (n) => n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const filas = [...document.querySelectorAll('#lineas tr')];
   const totalInput = document.getElementById('id_total');

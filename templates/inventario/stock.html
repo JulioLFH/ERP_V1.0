@@ -4,8 +4,8 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title">Stock por almacén</h1>
   <div class="d-flex gap-2">
-    <a href="{% url 'inv_ajuste' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-sliders"></i> Ajuste</a>
-    {% if 'logistica' in mods %}<a href="{% url 'logistica:nueva' %}?tipo=09" class="btn btn-sm btn-outline-primary"><i class="bi bi-truck"></i> Traslado (guía)</a>{% endif %}
+    {% if puede.inventario_ajustar and not solo_lectura %}<a href="{% url 'inv_ajuste' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-sliders"></i> Ajuste</a>{% endif %}
+    {% if puede.logistica_emitir and not solo_lectura %}<a href="{% url 'logistica:nueva' %}?tipo=09" class="btn btn-sm btn-outline-primary"><i class="bi bi-truck"></i> Traslado (guía)</a>{% endif %}
   </div>
 </div>
 <div class="row g-3 mb-3">
@@ -31,8 +31,8 @@
       <tr {% if f.p.bajo_minimo %}class="table-warning"{% endif %}>
         <td>{{ f.p.codigo }}</td><td>{{ f.p.nombre }}{% if f.p.bajo_minimo %} <span class="badge text-bg-danger">bajo mínimo</span>{% endif %}</td><td>{{ f.p.unidad }}</td>
         {% for c in f.cantidades %}<td class="num">{{ c|money }}</td>{% endfor %}
-        <td class="num fw-semibold">{{ f.p.stock|money }}</td><td class="num">{{ f.p.stock_minimo|money }}</td>
-        {% if ver_costos %}<td class="num">{{ f.p.costo_promedio|money }}</td><td class="num">{{ f.p.valorizado|money }}</td>{% endif %}
+        <td class="num fw-semibold">{{ f.total|money }}</td><td class="num">{{ f.p.stock_minimo|money }}</td>
+        {% if ver_costos %}<td class="num">{{ f.p.costo_promedio|money }}</td><td class="num">{{ f.valor|money }}</td>{% endif %}
         <td class="text-nowrap"><a href="{% url 'inv_kardex' %}?producto={{ f.p.pk }}" class="btn btn-sm btn-outline-primary py-0" title="Kardex"><i class="bi bi-list-columns"></i></a>
           <a href="{% url 'producto_editar' f.p.pk %}" class="btn btn-sm btn-outline-secondary py-0" title="Editar / stock mínimo"><i class="bi bi-pencil"></i></a></td>
       </tr>

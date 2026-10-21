@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from core.forms import BootstrapMixin
 from core.models import Tercero
+from core.utils import leer_numero
 
 from .models import AccesoProveedor
 
@@ -77,8 +78,8 @@ def leer_lineas(data, lineas):
     for linea in lineas:
         pk = linea['item'].pk
         try:
-            cantidad = Decimal(str(data.get(f'cant_{pk}') or '0').replace(',', ''))
-            precio = Decimal(str(data.get(f'precio_{pk}') or '0').replace(',', ''))
+            cantidad = leer_numero(data.get(f'cant_{pk}'))
+            precio = leer_numero(data.get(f'precio_{pk}'))
         except Exception:
             errores.append(f'{linea["item"].descripcion}: cantidad o precio inválido.')
             continue

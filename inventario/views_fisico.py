@@ -205,7 +205,10 @@ def reporte(request, clave):
         return redirect('inventario:reportes_masivos')
     g = request.GET
     hoy = timezone.localdate()
-    almacenes = [int(a) for a in g.getlist('almacen') if a.isdigit()]
+    from core.permisos import almacenes_permitidos, almacenes_visibles
+    elegidos = [int(a) for a in g.getlist('almacen') if a.isdigit()]
+    almacenes = almacenes_visibles(request.user, elegidos)  # usuario limitado: solo sus almacenes (y en el Excel)
+    permitidos = almacenes_permitidos(request.user)
     q, familia, ubicacion = g.get('q', '').strip(), g.get('familia', '').strip(), g.get('ubicacion', '').strip()
     por_lote = bool(g.get('lote'))
     fecha = _fecha(g.get('fecha'), hoy)
@@ -271,8 +274,9 @@ def reporte(request, clave):
         'clave': clave, 'titulo': titulo, 'sap': sap, 'icono': icono, 'descripcion': descripcion,
         'encabezados': encabezados, 'filas': filas[:LIMITE_PANTALLA],
         'n_filas': n_total if n_total is not None else len(filas), 'total': total,
-        'cuadre': cuadre, 'limite': LIMITE_PANTALLA, 'ver': ver, 'almacenes': Almacen.objects.filter(activo=True),
-        'elegidos': almacenes, 'familias': rm.familias(), 'f': {'q': q, 'familia': familia, 'ubicacion': ubicacion,
+        'cuadre': cuadre, 'limite': LIMITE_PANTALLA, 'ver': ver,
+        'almacenes': Almacen.objects.filter(activo=True, **({} if permitidos is None else {'pk__in': permitidos})),
+        'elegidos': elegidos, 'familias': rm.familias(), 'f': {'q': q, 'familia': familia, 'ubicacion': ubicacion,
                                                                 'lote': por_lote, 'fecha': fecha, 'desde': desde,
                                                                 'hasta': hasta, 'dias': dias,
                                                                 'sin_movimiento': sin_mov},

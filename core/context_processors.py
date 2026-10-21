@@ -3,7 +3,7 @@ from django.conf import settings
 from .models import Empresa
 from .modulos import MODULOS, POR_CLAVE, menu_de, modulos_del_usuario, puede_ver_costos
 from .permisos import Permisos
-from .politicas import ocultas, ver_saldos, ver_sueldos
+from .politicas import nivel_pantalla, ocultas, ver_saldos, ver_sueldos
 
 
 def empresa(request):
@@ -35,6 +35,9 @@ def empresa(request):
         'ver_costos': puede_ver_costos(request.user),
         'ver_sueldos': ver_sueldos(request.user), 'ver_saldos': ver_saldos(request.user),
         'puede': Permisos(request.user),  # {% if puede.ventas_anular %}
+        # pantalla en «solo lectura» para el usuario: se ocultan los botones que registran o modifican (el servidor
+        # igual rechaza cualquier POST)
+        'solo_lectura': nivel_pantalla(request.user, request.path) == 'LECTURA',
         'url_carga': _url_carga(request, mods),
     }
 

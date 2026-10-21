@@ -100,6 +100,23 @@ def fmt_fecha(f):
     return f.strftime('%d/%m/%Y') if f else ''
 
 
+def leer_numero(texto):
+    """Decimal escrito a mano: 1,109.90 / 1109.90 / 287,50 (coma decimal) / 1.109,90. Con punto y coma, el último
+    es el decimal; con solo comas, es decimal si hay una sola y no le siguen exactamente 3 dígitos (1,110 = mil
+    ciento diez). Lanza decimal.InvalidOperation si no es un número."""
+    t = str(texto or '').strip().replace(' ', '').replace(' ', '')
+    if not t:
+        return Decimal('0')
+    if ',' in t and '.' in t:
+        decimal_sep = ',' if t.rfind(',') > t.rfind('.') else '.'
+        miles = '.' if decimal_sep == ',' else ','
+        t = t.replace(miles, '').replace(decimal_sep, '.')
+    elif ',' in t:
+        partes = t.split(',')
+        t = f'{partes[0]}.{partes[1]}' if len(partes) == 2 and len(partes[1]) != 3 else t.replace(',', '')
+    return Decimal(t)
+
+
 def lineas_formset(formset):
     """[(producto, cantidad)] de las filas válidas y no eliminadas de un formset de ítems."""
     lineas = []

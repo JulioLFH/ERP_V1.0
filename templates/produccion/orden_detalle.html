@@ -66,9 +66,9 @@
         <thead><tr><th>Insumo</th><th>U.M.</th><th class="num">Planificado</th>{% if o.estado != 'TERMINADA' and o.estado != 'ANULADA' %}<th class="num">Stock</th>{% endif %}<th class="num" style="width:16%">Consumido</th>{% if ver_costos and o.estado == 'TERMINADA' %}<th class="num">Costo unit.</th><th class="num">Valor S/</th>{% endif %}</tr></thead>
         <tbody>{% for f in filas %}{% with c=f.consumo %}<tr>
           <td>{{ c.producto.codigo }} {{ c.producto.nombre }}</td><td>{{ c.producto.unidad }}</td>
-          <td class="num">{{ c.cantidad_plan|floatformat:4 }}</td>
+          <td class="num">{{ c.cantidad_plan|money }}</td>
           {% if o.estado != 'TERMINADA' and o.estado != 'ANULADA' %}<td class="num {% if f.faltante > 0 %}text-danger fw-semibold{% endif %}">{{ f.stock|money }}</td>{% endif %}
-          <td class="num">{% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}<input name="consumo_{{ c.pk }}" value="{{ c.cantidad_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ c.cantidad_real|floatformat:4 }}{% endif %}</td>
+          <td class="num">{% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}<input name="consumo_{{ c.pk }}" value="{{ c.cantidad_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ c.cantidad_real|money }}{% endif %}</td>
           {% if ver_costos and o.estado == 'TERMINADA' %}<td class="num">{{ c.costo_unitario|floatformat:4 }}</td><td class="num">{{ c.valor|money }}</td>{% endif %}
         </tr>{% endwith %}{% endfor %}</tbody>
       </table></div>
@@ -78,8 +78,8 @@
         <thead><tr><th>Puesto · operación</th><th class="num">H. máquina plan</th><th class="num" style="width:14%">H. máquina reales</th>{% if ver_costos %}<th class="num">Máquina S/ h</th><th class="num">CIF S/ h</th>{% endif %}</tr></thead>
         <tbody>{% for h in horas %}<tr class="table-light">
           <td><b>{{ h.centro }}</b>{% if h.descripcion %} · {{ h.descripcion }}{% endif %}<div class="small text-muted">Cuadrilla: {{ h.maquinistas }} maquinista(s){% if h.ayudantes %}, {{ h.ayudantes }} ayudante(s){% endif %}</div></td>
-          <td class="num">{{ h.horas_plan }}</td>
-          <td class="num">{% if abierta %}<input name="hora_{{ h.pk }}" value="{{ h.horas_real|stringformat:'s' }}" class="form-control form-control-sm text-end js-hmaq" data-hora="{{ h.pk }}" inputmode="decimal">{% else %}{{ h.horas_real }}{% endif %}</td>
+          <td class="num">{{ h.horas_plan|floatformat:2 }}</td>
+          <td class="num">{% if abierta %}<input name="hora_{{ h.pk }}" value="{{ h.horas_real|stringformat:'s' }}" class="form-control form-control-sm text-end js-hmaq" data-hora="{{ h.pk }}" inputmode="decimal">{% else %}{{ h.horas_real|floatformat:2 }}{% endif %}</td>
           {% if ver_costos %}<td class="num">{{ h.centro.costo_hora_maquina|money }}</td><td class="num">{{ h.centro.costo_hora_cif|money }}</td>{% endif %}
         </tr>
         <tr><td colspan="5" class="pt-0">
@@ -90,7 +90,7 @@
             <td><select name="hh_{{ h.pk }}_{{ forloop.counter0 }}_trab" class="form-select form-select-sm"><option value="">— Sin asignar (tarifa referencial del puesto) —</option>{% for t in trabajadores %}<option value="{{ t.pk }}" {% if fila.trabajador == t.pk %}selected{% endif %}>{{ t.nombre_completo }}{% if t.cargo %} · {{ t.cargo }}{% endif %}</option>{% endfor %}</select></td>
             <td><input name="hh_{{ h.pk }}_{{ forloop.counter0 }}_horas" value="{{ fila.horas|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end{% if fila.horas is not None and not fila.trabajador %} js-hh-{{ h.pk }}{% endif %}" inputmode="decimal"></td>
           </tr>{% endfor %}
-          {% else %}{% for p in h.personal.all %}<tr><td>{{ p.get_rol_display }}</td><td>{{ p.trabajador.nombre_completo|default:'Sin asignar (tarifa referencial)' }}</td><td class="num">{{ p.horas }}</td>{% if ver_costos %}<td class="num">{{ p.costo_hora|floatformat:4 }}</td><td class="num">{{ p.costo|money }}</td>{% endif %}</tr>{% empty %}<tr><td colspan="5" class="text-muted">Sin horas hombre registradas.</td></tr>{% endfor %}{% endif %}
+          {% else %}{% for p in h.personal.all %}<tr><td>{{ p.get_rol_display }}</td><td>{{ p.trabajador.nombre_completo|default:'Sin asignar (tarifa referencial)' }}</td><td class="num">{{ p.horas|floatformat:2 }}</td>{% if ver_costos %}<td class="num">{{ p.costo_hora|money }}</td><td class="num">{{ p.costo|money }}</td>{% endif %}</tr>{% empty %}<tr><td colspan="5" class="text-muted">Sin horas hombre registradas.</td></tr>{% endfor %}{% endif %}
           </tbody></table>
           {% if abierta %}<button type="button" class="btn btn-sm btn-outline-secondary js-agregar-hh" data-hora="{{ h.pk }}"><i class="bi bi-person-plus"></i> Agregar persona</button>{% endif %}
         </td></tr>{% empty %}<tr><td colspan="5" class="text-muted small">La receta no registra horas: el costo será solo de materiales.</td></tr>{% endfor %}</tbody>
@@ -103,8 +103,8 @@
         <thead><tr><th>Producto</th><th>Tipo</th><th class="num">Previsto</th><th class="num" style="width:16%">Producido</th>{% if ver_costos and o.estado == 'TERMINADA' %}<th class="num">Costo unit.</th><th class="num">Costo asignado</th>{% endif %}</tr></thead>
         <tbody>{% for s in salidas %}<tr>
           <td>{{ s.producto.codigo }} {{ s.producto.nombre }}</td><td class="small">{% if s.tipo == 'COPRODUCTO' %}Coproducto · {{ s.participacion }} %{% else %}Subproducto · S/ {{ s.valor_unitario|floatformat:4 }}{% endif %}</td>
-          <td class="num">{{ s.cantidad_plan|floatformat:4 }}</td>
-          <td class="num">{% if abierta %}<input name="salida_{{ s.pk }}" value="{{ s.cantidad_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ s.cantidad_real|floatformat:4 }}{% endif %}</td>
+          <td class="num">{{ s.cantidad_plan|money }}</td>
+          <td class="num">{% if abierta %}<input name="salida_{{ s.pk }}" value="{{ s.cantidad_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ s.cantidad_real|money }}{% endif %}</td>
           {% if ver_costos and o.estado == 'TERMINADA' %}<td class="num">{{ s.costo_unitario|floatformat:4 }}</td><td class="num">{{ s.costo|money }}</td>{% endif %}
         </tr>{% endfor %}</tbody>
       </table></div>

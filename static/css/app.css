@@ -140,3 +140,11 @@ body { background: var(--erp-bg); font-size: .875rem; font-family: var(--bs-font
   color: #fff; border-radius: 999px; padding: .35rem .9rem; font-size: .8rem; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
 @keyframes cargando-mover { from { background-position: 200% 0; } to { background-position: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .cargando-barra { animation: none; } }
+
+/* Pantalla en «solo lectura» para el usuario: no se muestran los formularios ni los botones que registran o
+   modifican (el servidor igual rechaza cualquier envío). Los filtros (GET) y las descargas permitidas siguen. */
+.solo-lectura main form[method="post"], .solo-lectura main form[method="POST"],
+.solo-lectura main a.btn[href*="/nuevo"], .solo-lectura main a.btn[href*="/nueva"],
+.solo-lectura main a.btn[href*="/editar"], .solo-lectura main a.btn[href*="/ajuste"],
+.solo-lectura main a.btn[href*="/anular"], .solo-lectura main a.btn[href*="/eliminar"],
+.solo-lectura main .accion-escritura { display: none !important; }

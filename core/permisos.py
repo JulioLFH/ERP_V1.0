@@ -84,6 +84,7 @@ RUTAS = {
     'compras:contrato_nuevo': 'compras.aprobar_oc', 'compras:contrato_editar': 'compras.aprobar_oc',
     'compras:distribuir': {'POST': 'compras.registrar'},
     'compras:registro_info_nuevo': {'POST': 'compras.oc'}, 'compras:registro_info': {'POST': 'compras.oc'},
+    'compras:registros_info': {'POST': 'compras.oc'},
     'compras:anular': 'compras.anular', 'compras:eliminar': 'compras.anular',
     'compras:oc_nuevo': 'compras.oc', 'compras:oc_editar': 'compras.oc', 'compras:oc_enviar': 'compras.oc',
     'compras:oc_estado': lambda r: {'APROBADO': _aprobar_oc(), 'ANULADO': 'compras.anular'}.get(
@@ -219,6 +220,8 @@ def puede(user, accion):
         return False
     if user.is_superuser:
         return True
+    if hasattr(user, 'acceso_proveedor'):  # usuario del portal de proveedores: ninguna acción del ERP
+        return False
     from .modulos import modulos_del_usuario
     if accion.split('.')[0] not in modulos_del_usuario(user):
         return False
@@ -247,6 +250,16 @@ def almacenes_permitidos(user):
         return None
     ids = {a.pk for a in perfil.almacenes.all()}
     return ids or None
+
+
+def almacenes_visibles(user, elegidos=None):
+    """Almacenes que el usuario consulta en reportes: los elegidos que tiene permitidos o, si no eligió (o eligió
+    solo ajenos), todos los suyos. None = sin restricción y sin elección (todos los almacenes)."""
+    permitidos = almacenes_permitidos(user)
+    elegidos = [int(a) for a in (elegidos or [])]
+    if permitidos is None:
+        return elegidos or None
+    return [a for a in elegidos if a in permitidos] or sorted(permitidos)
 
 
 def series_permitidas(user, tipo=None):

@@ -17,7 +17,7 @@
 <div class="card"><div class="table-responsive"><table class="table mb-0">
   <thead><tr><th>Descripción</th><th class="num">Cantidad</th><th class="num">V. unit.</th><th class="num">Subtotal</th></tr></thead>
   <tbody>{% for i in items %}<tr><td>{{ i.descripcion }}</td><td class="num">{{ i.cantidad|money }}</td><td class="num">{{ i.precio_unitario|floatformat:4 }}</td><td class="num">{{ i.subtotal|money }}</td></tr>{% endfor %}</tbody>
-  <tfoot><tr><td colspan="3" class="text-end">Valor venta</td><td class="num">{{ f.base_imponible|add:f.no_gravado|money }}</td></tr>
+  <tfoot><tr><td colspan="3" class="text-end">Valor venta</td><td class="num">{{ f.base_imponible|sumar:f.no_gravado|money }}</td></tr>
     <tr><td colspan="3" class="text-end">IGV</td><td class="num">{{ f.igv|money }}</td></tr>
     <tr class="fw-bold"><td colspan="3" class="text-end">TOTAL {{ f.simbolo }}</td><td class="num">{{ f.total|money }}</td></tr></tfoot>
 </table></div></div>

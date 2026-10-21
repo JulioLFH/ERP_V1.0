@@ -48,7 +48,20 @@ def _responsable_centro(centro):
     return None
 
 
+def es_del_portal(usuario):
+    """Usuario del portal de proveedores: nunca aprueba ni libera nada del ERP."""
+    return usuario is not None and hasattr(usuario, 'acceso_proveedor')
+
+
 def _usuario_de_regla(regla, solicitante, centro):
+    usuario = _usuario_de_regla_sin_validar(regla, solicitante, centro)
+    if es_del_portal(usuario):
+        raise ErrorAprobacion(f'{usuario} es un usuario del portal de proveedores: no puede aprobar. Cambie la regla '
+                              f'de aprobación (Ajustes › Reglas de aprobación).')
+    return usuario
+
+
+def _usuario_de_regla_sin_validar(regla, solicitante, centro):
     if regla.tipo in ('JEFE', 'JERARQUIA') and solicitante is None:
         raise ErrorAprobacion('No se sabe qué usuario registró el documento: la regla «jefe del solicitante» no se '
                               'puede aplicar. Use una regla por usuario, puesto o responsable del centro de costo.')
@@ -166,14 +179,14 @@ def aprobadores(nivel):
         jefe = _jefe_de(titular)
         if jefe is not None:
             usuarios.append(jefe)
-    return usuarios
+    return [u for u in usuarios if not es_del_portal(u)]
 
 
 def puede_aprobar(user, documento, niveles, nivel_aprobado, solicitante_id=None):
     """Nadie aprueba lo suyo (si hay otro usuario). Nivel con usuario: el titular, su suplente, su jefe si escaló o el
     administrador. Sin niveles o nivel sin usuario: el permiso del documento."""
     from .permisos import puede
-    if not user.is_authenticated:
+    if not user.is_authenticated or es_del_portal(user):
         return False
     if solicitante_id and user.pk == solicitante_id and get_user_model().objects.filter(is_active=True).exclude(
             pk=user.pk).exists():

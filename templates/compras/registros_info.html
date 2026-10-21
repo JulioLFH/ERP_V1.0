@@ -5,7 +5,8 @@
   <h1 class="page-title"><i class="bi bi-person-lines-fill"></i> Proveedores por producto (registro info)</h1>
   <div class="d-flex gap-2">
     <a href="?q={{ q }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
-    {% if puede.compras_oc %}<a href="{% url 'compras:registro_info_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo</a>{% endif %}
+    {% if puede.compras_oc %}<form method="post" class="d-inline">{% csrf_token %}<button name="accion" value="cargar" class="btn btn-sm btn-outline-primary" title="Arma o actualiza los proveedores de cada producto con todas las compras ya registradas (se puede repetir)" data-confirm="¿Cargar los proveedores por producto desde todas las compras registradas? Recalcula el último precio, la fecha y el número de compras."><i class="bi bi-arrow-repeat"></i> Cargar desde las compras registradas</button></form>
+    <a href="{% url 'compras:registro_info_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo</a>{% endif %}
   </div>
 </div>
 <p class="small text-muted">Qué proveedores venden cada producto, a qué precio y en cuántos días. El preferido lo usan el MRP, la sugerencia de compra y las solicitudes de pedido. El último precio y la fecha se actualizan solos con cada compra registrada.</p>
