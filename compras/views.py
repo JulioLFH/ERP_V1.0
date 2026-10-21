@@ -253,7 +253,8 @@ def oc_detalle(request, pk):
         'solicitudes_oc': SolicitudPedido.objects.filter(lineas__items_oc__documento=oc).distinct().select_related(
             'centro_costo'),
         **_aprobacion_ctx(request.user, oc),
-        'servicios_oc': exige_conformidad(oc),
+        'servicios_oc': exige_conformidad(oc) or oc.items.exclude(producto__tipo='BIEN').exists(),
+        'hes_liberada': oc.conformidades.filter(estado='LIBERADA').exists(),
         'doc': oc, 'items': oc.items.all(), 'app': 'compras', 'titulo_doc': 'ORDEN DE COMPRA',
         'etiqueta_tercero': 'Proveedor', 'relacionados': oc.compras.all(),
         'url_editar': 'compras:oc_editar', 'url_estado': 'compras:oc_estado', 'url_lista': 'compras:oc_lista',

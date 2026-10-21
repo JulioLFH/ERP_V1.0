@@ -282,6 +282,17 @@ class ServicioConConformidadTest(Base):
         self.client.post(reverse('compras:conformidad', args=[oc.pk]), {
             'fecha': HOY.isoformat(), 'descripcion': 'Limpieza de octubre conforme', 'porcentaje': '100'})
         self.assertTrue(oc.conformidades.exists())
+        # la HES en borrador no basta: se libera (con sus adjuntos) antes de facturar (v1.63)
+        self.assertIn('orden_compra', CompraForm(data=datos).errors)
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from . import hes
+        h = oc.conformidades.get()
+        hes.adjuntar(h, 'INFORME', SimpleUploadedFile('informe.pdf', b'%PDF-1.4 firmado'), self.admin)
+        hes.adjuntar(h, 'TRABAJO', SimpleUploadedFile('foto.png', b'\x89PNG\r\n\x1a\n...'), self.admin)
+        hes.enviar(h, self.admin)
+        from django.contrib.auth.models import User
+        hes.resolver(h, User.objects.create_superuser('liberador_hes', 'l@l.pe', 'Clave-segura-9'), 'liberar')
         self.assertNotIn('orden_compra', CompraForm(data=datos).errors)
         self.assertContains(self.client.get(reverse('compras:oc_detalle', args=[oc.pk])), sp.numero)
 

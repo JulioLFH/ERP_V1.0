@@ -15,11 +15,13 @@ from django.utils import timezone
 DOCUMENTOS = [('OC', 'Órdenes de compra'), ('SOLPED', 'Solicitudes de pedido'),
               ('REQUERIMIENTO', 'Requerimientos de materiales'), ('RENDICION', 'Rendiciones de gastos'),
               ('VACACION', 'Vacaciones y permisos'), ('MOVIMIENTO', 'Movimientos de personal'),
-              ('PEDIDO', 'Pedidos de venta (tarifa, descuentos y crédito)')]
+              ('PEDIDO', 'Pedidos de venta (tarifa, descuentos y crédito)'),
+              ('HES', 'Conformidades de servicio (HES)')]
 # permiso que aprueba cada documento cuando no hay reglas (o en un nivel sin usuario)
 PERMISOS = {'OC': 'compras.aprobar_oc', 'SOLPED': 'requerimientos.liberar_solped',
             'REQUERIMIENTO': 'requerimientos.aprobar', 'RENDICION': 'rendiciones.aprobar',
-            'VACACION': 'planillas.calcular', 'MOVIMIENTO': 'planillas.cerrar', 'PEDIDO': 'ventas.aprobar_pedidos'}
+            'VACACION': 'planillas.calcular', 'MOVIMIENTO': 'planillas.cerrar', 'PEDIDO': 'ventas.aprobar_pedidos',
+            'HES': 'compras.liberar_hes'}
 
 
 class ErrorAprobacion(Exception):
@@ -214,12 +216,14 @@ def historial(documento, objeto):
 
 def pendientes_de(user):
     """{documento: n} de lo que el usuario puede aprobar hoy (bandeja de aprobaciones)."""
-    from compras.models import OrdenCompra, SolicitudPedido
+    from compras.models import ConformidadServicio, OrdenCompra, SolicitudPedido
     from inventario.models import RequerimientoInterno
     res = {}
     for doc, qs, campo in (('OC', OrdenCompra.objects.filter(estado='PENDIENTE').exclude(niveles=[]), 'creado_por_id'),
                            ('SOLPED', SolicitudPedido.objects.filter(estado='ENVIADA'), 'solicitante_id'),
-                           ('REQUERIMIENTO', RequerimientoInterno.objects.filter(estado='ENVIADO'), 'solicitante_id')):
+                           ('REQUERIMIENTO', RequerimientoInterno.objects.filter(estado='ENVIADO'), 'solicitante_id'),
+                           ('HES', ConformidadServicio.objects.filter(estado='POR_LIBERAR').exclude(niveles=[]),
+                            'conforme_por_id')):
         n = sum(1 for o in qs if o.niveles and puede_aprobar(user, doc, o.niveles, o.nivel_aprobado,
                                                               getattr(o, campo, None)))
         if n:

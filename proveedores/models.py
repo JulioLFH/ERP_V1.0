@@ -110,6 +110,16 @@ class FacturaProveedor(models.Model):
 class FacturaProveedorItem(models.Model):
     factura = models.ForeignKey(FacturaProveedor, on_delete=models.CASCADE, related_name='items')
     oc_item = models.ForeignKey('compras.OrdenCompraItem', on_delete=models.SET_NULL, null=True, related_name='+')
+    # de dónde sale la línea (verificación contra la entrega, como la MIRO): la OC, su recepción y guía, o la HES
+    orden_compra = models.ForeignKey('compras.OrdenCompra', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='+', verbose_name='Orden de compra')
+    recepcion = models.ForeignKey('inventario.Operacion', on_delete=models.PROTECT, null=True, blank=True,
+                                  related_name='+', verbose_name='Recepción')
+    recepcion_item = models.ForeignKey('inventario.OperacionItem', on_delete=models.PROTECT, null=True, blank=True,
+                                       related_name='+')
+    conformidad = models.ForeignKey('compras.ConformidadServicio', on_delete=models.PROTECT, null=True, blank=True,
+                                    related_name='lineas_factura', verbose_name='Conformidad de servicio (HES)')
+    guia = models.CharField('Guía', max_length=60, blank=True)
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT, null=True, blank=True)
     descripcion = models.CharField(max_length=250)
     cantidad = models.DecimalField(max_digits=14, decimal_places=2)

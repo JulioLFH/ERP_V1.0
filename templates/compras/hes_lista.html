@@ -1,0 +1,23 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Conformidades de servicio{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-patch-check"></i> Conformidades de servicio (HES)</h1>
+  <a href="?{{ request.GET.urlencode }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+</div>
+<ul class="nav nav-tabs mb-3">{% for v, n in vistas %}<li class="nav-item"><a class="nav-link {% if v == vista %}active{% endif %}" href="?vista={{ v }}">{{ n }}{% if v == 'liberar' and por_liberar %} <span class="badge text-bg-warning">{{ por_liberar }}</span>{% endif %}</a></li>{% endfor %}</ul>
+{% if vista != 'liberar' %}<form class="row g-2 mb-2"><input type="hidden" name="vista" value="{{ vista }}">
+  <div class="col-md-3"><select name="estado" class="form-select form-select-sm"><option value="">Todos los estados</option>{% for v, n in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div class="col-auto form-check mt-1 ms-2"><input type="checkbox" class="form-check-input" name="sin_facturar" value="1" id="sin_facturar" {% if request.GET.sin_facturar %}checked{% endif %}><label class="form-check-label small" for="sin_facturar">Liberadas sin facturar (provisión)</label></div>
+  <div class="col-auto"><button class="btn btn-sm btn-outline-secondary">Filtrar</button></div>
+</form>{% endif %}
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>N°</th><th>Fecha</th><th>OC</th><th>Proveedor</th><th>Centro</th><th>Servicio</th><th class="num">Cantidad</th><th class="num">Valor</th><th>Registró</th><th>Estado</th></tr></thead>
+  <tbody>{% for h in page_obj %}<tr><td><a href="{% url 'compras:hes' h.pk %}">{{ h.numero }}</a></td><td>{{ h.fecha|date:'d/m/Y' }}</td><td>{{ h.orden_compra.numero }}</td>
+    <td class="small">{{ h.orden_compra.tercero.nombre }}</td><td class="small">{{ h.orden_compra.centro_costo.codigo|default:'—' }}</td><td class="small">{{ h.descripcion|truncatechars:60 }}</td>
+    <td class="num">{{ h.cantidad|cant }}</td><td class="num">{{ h.orden_compra.moneda }} {{ h.valor|money }}</td><td class="small">{{ h.conforme_por.get_full_name|default:h.conforme_por.username }}</td>
+    <td><span class="badge {% if h.estado == 'LIBERADA' %}text-bg-success{% elif h.estado == 'POR_LIBERAR' %}text-bg-warning{% elif h.estado == 'OBSERVADA' %}text-bg-info{% elif h.estado == 'RECHAZADA' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ h.get_estado_display }}</span></td></tr>
+  {% empty %}<tr><td colspan="10" class="text-muted text-center py-3">Sin conformidades en esta vista.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% include 'core/_paginacion.html' %}
+{% endblock %}

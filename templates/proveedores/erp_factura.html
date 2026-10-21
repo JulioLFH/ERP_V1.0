@@ -43,7 +43,7 @@
   <i class="bi bi-shield-check"></i> SUNAT: <b>{{ f.get_estado_sunat_display }}</b>{% if f.sunat_detalle %} — {{ f.sunat_detalle }}{% endif %}{% if f.sunat_consultado_en %} ({{ f.sunat_consultado_en|date:'d/m/Y H:i' }}){% endif %}</div>
 <div class="card"><div class="table-responsive"><table class="table mb-0">
   <thead><tr><th>Descripción</th><th class="num">Recibido / pedido</th><th class="num">Facturado</th><th class="num">Dif.</th><th class="num">Precio orden</th><th class="num">Precio factura</th><th class="num">Dif.</th><th class="num">Subtotal</th></tr></thead>
-  <tbody>{% for i in items %}<tr><td>{{ i.descripcion }}</td><td class="num">{{ i.cantidad_esperada|money }}</td><td class="num">{{ i.cantidad|money }}</td>
+  <tbody>{% for i in items %}<tr><td>{{ i.descripcion }}{% include 'proveedores/_origen_linea.html' with erp=True %}</td><td class="num">{{ i.cantidad_esperada|money }}</td><td class="num">{{ i.cantidad|money }}</td>
     <td class="num {% if i.dif_cant %}text-warning fw-semibold{% endif %}">{{ i.dif_cant|money }}</td><td class="num">{{ i.precio_orden|floatformat:4 }}</td><td class="num">{{ i.precio_unitario|floatformat:4 }}</td>
     <td class="num {% if i.dif_precio %}text-warning fw-semibold{% endif %}">{{ i.dif_precio|floatformat:4 }}</td><td class="num">{{ i.subtotal|money }}</td></tr>{% endfor %}</tbody>
   <tfoot><tr><td colspan="7" class="text-end">Valor venta</td><td class="num">{{ f.base_imponible|sumar:f.no_gravado|money }}</td></tr>

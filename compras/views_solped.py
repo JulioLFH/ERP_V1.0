@@ -17,7 +17,7 @@ from core.models import Producto, Tercero
 from core.permisos import puede
 
 from . import solped as srv
-from .models import ConformidadServicio, ContratoMarco, LineaSolicitud, OrdenCompra, SolicitudPedido
+from .models import ContratoMarco, LineaSolicitud, SolicitudPedido
 
 
 class SolicitudForm(BootstrapMixin, forms.ModelForm):
@@ -342,34 +342,3 @@ def reportes(request):
         return excel_response(f'Solicitudes_de_pedido_{desde}_{hasta}', 'Solicitudes de pedido',
                               ['Reporte', 'Concepto', 'Cantidad', 'Monto S/'], filas)
     return render(request, 'compras/solped_reportes.html', {'d': datos, 'desde': desde, 'hasta': hasta})
-
-
-# ---------------------------------------------------------------- conformidad de servicios
-class ConformidadForm(BootstrapMixin, forms.ModelForm):
-    class Meta:
-        model = ConformidadServicio
-        fields = ['fecha', 'descripcion', 'porcentaje']
-
-    def clean_porcentaje(self):
-        v = self.cleaned_data['porcentaje']
-        if not 0 < v <= 100:
-            raise forms.ValidationError('Entre 0 y 100 %.')
-        return v
-
-
-@login_required
-def conformidad(request, oc_pk):
-    oc = get_object_or_404(OrdenCompra, pk=oc_pk)
-    form = ConformidadForm(request.POST or None, initial={'descripcion': '; '.join(
-        i.descripcion for i in oc.items.all())[:250]})
-    if request.method == 'POST' and form.is_valid():
-        if oc.estado not in ('APROBADO', 'ATENDIDO'):
-            messages.error(request, 'Solo se conforman servicios de órdenes aprobadas.')
-        else:
-            c = form.save(commit=False)
-            c.orden_compra, c.conforme_por = oc, request.user
-            c.numero = srv._numero('HES', 'HES')
-            c.save()
-            messages.success(request, f'{c} registrada: ya se puede registrar la factura del servicio.')
-        return redirect('compras:oc_detalle', oc.pk)
-    return render(request, 'compras/conformidad_form.html', {'form': form, 'oc': oc})

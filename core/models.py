@@ -932,7 +932,8 @@ class ReglaAprobacion(models.Model):
     DOCUMENTOS = [('OC', 'Órdenes de compra'), ('SOLPED', 'Solicitudes de pedido'),
                   ('REQUERIMIENTO', 'Requerimientos de materiales'), ('RENDICION', 'Rendiciones de gastos'),
                   ('VACACION', 'Vacaciones y permisos'), ('MOVIMIENTO', 'Movimientos de personal'),
-                  ('PEDIDO', 'Pedidos de venta (tarifa, descuentos y crédito)')]
+                  ('PEDIDO', 'Pedidos de venta (tarifa, descuentos y crédito)'),
+                  ('HES', 'Conformidades de servicio (HES)')]
     TIPOS = [('JEFE', 'Jefe del solicitante'), ('RESPONSABLE_CC', 'Responsable del centro de costo'),
              ('USUARIO', 'Usuario específico'), ('PUESTO', 'Ocupante de un puesto'),
              ('JERARQUIA', 'Nivel N de la jerarquía (jefe del jefe…)')]

@@ -2,12 +2,16 @@
 {% block title %}Conformidad de servicio{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="page-title"><i class="bi bi-patch-check"></i> Conformidad de servicio · {{ oc.numero }}</h1>
+  <h1 class="page-title"><i class="bi bi-patch-check"></i> Conformidad de servicio (HES) · {{ oc.numero }}</h1>
   <a href="{% url 'compras:oc_detalle' oc.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Orden de compra</a>
 </div>
-<p class="small text-muted">Hoja de entrada de servicio: el área confirma que {{ oc.tercero.nombre }} prestó el servicio. Las órdenes que vienen de solicitudes de servicios exigen la conformidad antes de registrar la factura.</p>
-<form method="post" class="card"><div class="card-body row g-3">{% csrf_token %}
-  {% for field in form %}<div class="{% if field.name == 'descripcion' %}col-12{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
-  <div class="col-12"><button class="btn btn-primary"><i class="bi bi-check2"></i> Registrar conformidad</button></div>
+<p class="small text-muted">Hoja de entrada de servicio: el área confirma lo que {{ oc.tercero.nombre }} prestó. Adjunte el <b>informe del proveedor firmado</b> y el <b>documento de trabajo con imágenes</b> (fotos del antes y después, parte, acta): sin los dos no se envía a liberación. Solo la HES liberada se factura y se paga.</p>
+<form method="post" enctype="multipart/form-data" class="card"><div class="card-body row g-3">{% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="col-12"><div class="alert alert-danger py-2 mb-0">{{ e }}</div></div>{% endfor %}
+  {% for field in form %}<div class="{% if field.name == 'descripcion' or field.name == 'observaciones' or field.name == 'oc_item' %}col-12{% elif field.name == 'informe' or field.name == 'trabajo' %}col-md-6{% else %}col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+  <div class="col-12 d-flex gap-2">
+    <button class="btn btn-outline-primary"><i class="bi bi-save"></i> Guardar borrador</button>
+    <button class="btn btn-primary" name="enviar" value="1"><i class="bi bi-send-check"></i> Guardar y enviar a liberación</button>
+  </div>
 </div></form>
 {% endblock %}

@@ -1,0 +1,69 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ h }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3 d-print-none">
+  <div class="d-flex gap-2">
+    <a href="{% url 'compras:hes_lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Conformidades</a>
+    <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir acta</button>
+  </div>
+  <span class="badge fs-6 {% if h.estado == 'LIBERADA' %}text-bg-success{% elif h.estado == 'POR_LIBERAR' %}text-bg-warning{% elif h.estado == 'OBSERVADA' %}text-bg-info{% elif h.estado == 'RECHAZADA' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ h.get_estado_display }}</span>
+</div>
+{% if h.motivo %}<div class="alert alert-warning py-2 small d-print-none"><b>{% if h.estado == 'OBSERVADA' %}Observada{% elif h.estado == 'RECHAZADA' %}Rechazada{% else %}Motivo{% endif %}:</b> {{ h.motivo }}</div>{% endif %}
+{% if puede_liberar %}
+<div class="card mb-3 border-warning d-print-none"><div class="card-body">
+  <form method="post" class="row g-2 align-items-end">{% csrf_token %}
+    <div class="col-md-6"><label class="form-label small mb-1">Comentario (obligatorio para observar o rechazar)</label><input name="motivo" class="form-control form-control-sm" maxlength="300"></div>
+    <div class="col-md-6 d-flex gap-2">
+      <button name="accion" value="liberar" class="btn btn-sm btn-success"><i class="bi bi-check2-circle"></i> Liberar{% if pendiente and h.niveles|length > 1 %} nivel {{ pendiente.nivel }}{% endif %}</button>
+      <button name="accion" value="observar" class="btn btn-sm btn-outline-info"><i class="bi bi-arrow-return-left"></i> Observar</button>
+      <button name="accion" value="rechazar" class="btn btn-sm btn-outline-danger" data-confirm="¿Rechazar {{ h.numero }}?"><i class="bi bi-x-octagon"></i> Rechazar</button>
+    </div>
+  </form>
+</div></div>
+{% endif %}
+<div class="card doc-print mb-3"><div class="card-body">
+  <div class="row align-items-center mb-3">
+    <div class="col-7"><h4 class="mb-0">{{ empresa.razon_social }}</h4><div class="small text-muted">RUC {{ empresa.ruc }}</div></div>
+    <div class="col-5"><div class="doc-box"><div class="fw-bold">ACTA DE CONFORMIDAD DE SERVICIO</div><div class="fs-5">{{ h.numero }}</div></div></div>
+  </div>
+  <table class="table table-sm table-borderless">
+    <tr><td class="text-muted" style="width:20%">Proveedor</td><td>{{ h.orden_compra.tercero.nombre }} (RUC {{ h.orden_compra.tercero.numero_doc }})</td><td class="text-muted">Fecha</td><td>{{ h.fecha|date:'d/m/Y' }}</td></tr>
+    <tr><td class="text-muted">Orden de compra</td><td><a href="{% url 'compras:oc_detalle' h.orden_compra_id %}">{{ h.orden_compra.numero }}</a></td><td class="text-muted">Centro de costo</td><td>{{ h.orden_compra.centro_costo|default:'—' }}</td></tr>
+    <tr><td class="text-muted">Línea</td><td colspan="3">{{ h.oc_item.descripcion|default:'—' }}</td></tr>
+    <tr><td class="text-muted">Servicio recibido</td><td colspan="3">{{ h.descripcion }}</td></tr>
+    <tr><td class="text-muted">Periodo · lugar</td><td>{{ h.periodo_desde|date:'d/m/Y'|default:'—' }} al {{ h.periodo_hasta|date:'d/m/Y'|default:'—' }}</td><td class="text-muted">Lugar</td><td>{{ h.lugar|default:'—' }}</td></tr>
+    <tr><td class="text-muted">Cantidad conforme</td><td>{{ h.cantidad|cant }} ({{ h.porcentaje|floatformat:-2 }} % de la línea)</td><td class="text-muted">Valor sin IGV</td><td>{{ h.orden_compra.moneda }} {{ h.valor|money }}</td></tr>
+    <tr><td class="text-muted">Responsable del proveedor</td><td>{{ h.responsable_proveedor|default:'—' }}</td><td class="text-muted">Facturado</td><td>{{ facturado|cant }}{% for l in facturas %} · {{ l.factura.numero_completo }} ({{ l.factura.get_estado_display|lower }}){% endfor %}</td></tr>
+    {% if h.observaciones %}<tr><td class="text-muted">Observaciones</td><td colspan="3">{{ h.observaciones|linebreaksbr }}</td></tr>{% endif %}
+  </table>
+  <div class="row mt-5 text-center small">
+    <div class="col-4"><div class="border-top pt-1 mx-3">Registró: {{ h.conforme_por.get_full_name|default:h.conforme_por.username }}</div></div>
+    <div class="col-4"><div class="border-top pt-1 mx-3">Proveedor: {{ h.responsable_proveedor|default:h.orden_compra.tercero.nombre }}</div></div>
+    <div class="col-4"><div class="border-top pt-1 mx-3">Liberó: {% if h.liberado_por %}{{ h.liberado_por.get_full_name|default:h.liberado_por.username }} · {{ h.liberado_en|date:'d/m/Y H:i' }}{% else %}—{% endif %}</div></div>
+  </div>
+</div></div>
+<div class="row g-3 d-print-none">
+  <div class="col-lg-7"><div class="card"><div class="card-header"><i class="bi bi-paperclip"></i> Adjuntos {% if not h.tiene_adjuntos %}<span class="badge text-bg-warning">faltan los obligatorios</span>{% endif %}</div>
+    <div class="card-body">
+      <div class="row g-2">{% for a in adjuntos %}<div class="col-6 col-md-4"><a href="{% url 'compras:hes_adjunto' a.pk %}" target="_blank" class="d-block border rounded p-1 text-center small text-decoration-none">
+        {% if a.es_imagen %}<img src="{% url 'compras:hes_adjunto' a.pk %}" alt="{{ a.nombre }}" class="img-fluid mb-1" style="max-height:120px">{% else %}<i class="bi bi-file-earmark-pdf fs-2 text-danger"></i>{% endif %}
+        <div class="text-truncate">{{ a.nombre }}</div><div class="text-muted">{{ a.get_tipo_display|truncatechars:30 }} · {{ a.creado|date:'d/m/Y H:i' }}</div></a></div>
+      {% empty %}<div class="col-12 text-muted small">Sin adjuntos.</div>{% endfor %}</div>
+      {% if h.estado == 'BORRADOR' or h.estado == 'OBSERVADA' %}{% if puede.compras_hes %}
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end mt-2">{% csrf_token %}<input type="hidden" name="accion" value="adjuntar">
+        <div class="col-md-5"><select name="tipo" class="form-select form-select-sm">{% for v, n in tipos_adjunto %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
+        <div class="col-md-5"><input type="file" name="archivos" multiple accept=".pdf,image/*" class="form-control form-control-sm" required></div>
+        <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100">Subir</button></div>
+      </form>
+      <form method="post" class="mt-3">{% csrf_token %}<button name="accion" value="enviar" class="btn btn-sm btn-primary" {% if not h.tiene_adjuntos %}disabled{% endif %}><i class="bi bi-send-check"></i> Enviar a liberación</button></form>
+      {% endif %}{% endif %}
+    </div></div></div>
+  <div class="col-lg-5"><div class="card"><div class="card-header"><i class="bi bi-diagram-3"></i> Liberación</div><ul class="list-group list-group-flush small">
+    {% for n in h.niveles %}<li class="list-group-item d-flex justify-content-between"><span>Nivel {{ n.nivel }}: {{ n.nombre }}</span><span>{% if n.nivel <= h.nivel_aprobado %}<span class="text-success"><i class="bi bi-check2-circle"></i> Liberado</span>{% elif pendiente and n.nivel == pendiente.nivel %}<span class="text-warning">Pendiente</span>{% else %}—{% endif %}</span></li>
+    {% empty %}{% if h.estado == 'POR_LIBERAR' %}<li class="list-group-item">Sin reglas: la libera quien tenga «Liberar conformidades de servicio».</li>{% endif %}{% endfor %}
+    {% for x in historial %}<li class="list-group-item text-muted">{{ x.fecha|date:'d/m/Y H:i' }} · {{ x.usuario.get_full_name|default:x.usuario.username|default:'Sistema' }} · {{ x.accion|lower }}{% if x.nivel %} (nivel {{ x.nivel }}){% endif %}{% if x.comentario %}: {{ x.comentario }}{% endif %}</li>{% endfor %}
+  </ul>
+  {% if h.estado != 'ANULADA' and puede.compras_hes %}<div class="card-body border-top"><form method="post" class="d-flex gap-2">{% csrf_token %}<input name="motivo" class="form-control form-control-sm" placeholder="Motivo de la anulación"><button name="accion" value="anular" class="btn btn-sm btn-outline-danger text-nowrap" data-confirm="¿Anular {{ h.numero }}?">Anular</button></form></div>{% endif %}
+  </div></div>
+</div>
+{% endblock %}

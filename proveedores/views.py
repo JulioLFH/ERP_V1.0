@@ -1,4 +1,5 @@
 """Portal de proveedores: el proveedor ve sus órdenes de compra, las acepta y registra sus facturas."""
+from decimal import Decimal
 from functools import wraps
 
 from django.contrib import messages
@@ -43,6 +44,7 @@ def inicio(request):
     facturas = FacturaProveedor.objects.filter(tercero=request.tercero).select_related('orden_compra')[:100]
     return render(request, 'proveedores/portal_inicio.html', {
         'ordenes': ordenes, 'facturas': facturas,
+        'hay_por_facturar': any(o.por_facturar and o.estado_proveedor != 'RECHAZADA' for o in ordenes),
         'por_aceptar': [o for o in ordenes if o.estado_proveedor == 'ENVIADA']})
 
 
@@ -56,6 +58,7 @@ def oc_detalle(request, pk):
         'oc': oc, 'lineas': lineas, 'recibido': recibido, 'ingresada': ingresada,
         'puede_facturar': ingresada and any(l['esperado'] > 0 for l in lineas) and oc.estado_proveedor != 'RECHAZADA',
         'facturas': oc.facturas_portal.all(),
+        'hes': oc.conformidades.exclude(estado__in=('BORRADOR', 'ANULADA')),
         'recepciones': [r for r in _recepciones(oc)]})
 
 
@@ -109,9 +112,9 @@ def factura_nueva(request, pk):
         messages.error(request, 'La orden fue rechazada: no se puede facturar.')
         return redirect('portal:oc_detalle', pk)
     if not servicios.tiene_ingreso(oc):
-        messages.warning(request, f'La mercadería de la orden {oc.numero} aún no ingresa a nuestro almacén. '
-                                  'Podrá cargar la factura cuando se registre la recepción (recibirá un correo de '
-                                  'conformidad).')
+        messages.warning(request, f'La orden {oc.numero} aún no tiene mercadería ingresada a nuestro almacén ni '
+                                  'servicios con conformidad liberada. Podrá cargar la factura cuando se registre la '
+                                  'recepción (recibirá un correo de conformidad) o se libere la HES.')
         return redirect('portal:oc_detalle', pk)
     lineas = [l for l in servicios.lineas_por_facturar(oc) if l['esperado'] > 0]
     if not lineas:
@@ -148,6 +151,57 @@ def factura_nueva(request, pk):
         'igv_tasa': e.igv_tasa,
         'xml_lineas': [{'descripcion': l['descripcion'], 'cantidad': str(l['cantidad']), 'precio': str(l['precio'])}
                        for l in (form.datos_xml or {}).get('lineas', [])]})
+
+
+@portal_requerido
+def facturar(request):
+    """Factura desde las entregas: el proveedor marca las líneas de sus recepciones y conformidades de servicio
+    liberadas pendientes de facturar (de una o varias órdenes, misma moneda y tipo de operación)."""
+    from core.utils import leer_numero
+    ocs = servicios.ordenes_facturables(request.tercero)
+    if request.GET.get('oc'):
+        ocs = ocs.filter(pk=request.GET['oc'])
+    fuentes = servicios.fuentes_proveedor(request.tercero, ocs)
+    if not fuentes:
+        messages.info(request, 'No tiene recepciones ni conformidades de servicio pendientes de facturar.')
+        return redirect('portal:inicio')
+    form = FacturaCabeceraForm(request.POST or None, request.FILES or None)
+    errores = []
+    if request.method == 'POST':
+        enviadas = {}
+        for f in fuentes:
+            if request.POST.get(f'sel_{f["clave"]}'):
+                try:
+                    enviadas[f['clave']] = (leer_numero(request.POST.get(f'cant_{f["clave"]}')).quantize(Decimal('0.01')),
+                                            leer_numero(request.POST.get(f'precio_{f["clave"]}')).quantize(
+                                                Decimal('0.0001')))
+                except Exception:
+                    errores.append(f'{f["descripcion"]}: cantidad o precio inválido.')
+        if form.is_valid() and not errores:
+            pdf = form.cleaned_data['archivo_pdf']
+            xml = form.cleaned_data.get('archivo_xml')
+            archivos = {'pdf': pdf.read(), 'pdf_nombre': pdf.name, 'xml_nombre': xml.name if xml else ''}
+            try:
+                factura = servicios.registrar_factura_entregas(request.tercero, request.user, form.cleaned_data,
+                                                               enviadas, archivos, form.datos_xml)
+                messages.success(request, f'Factura {factura.numero_completo} enviada para revisión.')
+                return redirect('portal:factura', factura.pk)
+            except servicios.ErrorPortal as exc:
+                errores = exc.args[0]
+    grupos = {}
+    for f in fuentes:  # valores escritos por el proveedor al volver a mostrar el formulario
+        f['marcada'] = bool(request.POST.get(f'sel_{f["clave"]}')) if request.method == 'POST' else bool(
+            request.GET.get('oc'))
+        f['cant_txt'] = request.POST.get(f'cant_{f["clave"]}', f['esperado'])
+        f['precio_txt'] = request.POST.get(f'precio_{f["clave"]}', f['precio'])
+        grupos.setdefault(f['oc'], []).append(f)
+    from compras import tolerancias
+    from core.models import Empresa
+    tol_t, tol_t_pct = tolerancias._valores(request.tercero, 'total')
+    return render(request, 'proveedores/portal_facturar.html', {
+        'grupos': grupos, 'form': form, 'errores': errores, 'igv_tasa': Empresa.actual().igv_tasa,
+        'tol_p': tolerancias.texto(request.tercero, 'precio'), 'tol_t_texto': tolerancias.texto(request.tercero, 'total'),
+        'tol_t': tol_t or 0, 'tol_t_pct': tol_t_pct or 0})
 
 
 def _descargar(f, tipo):

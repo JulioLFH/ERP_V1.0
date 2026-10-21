@@ -1,0 +1,93 @@
+{% extends 'proveedores/portal_base.html' %}{% load erp_tags %}
+{% block title %}Facturar entregas{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Cargar factura desde recepciones y conformidades</h1>
+  <a href="{% url 'portal:inicio' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+<p class="small text-muted">Marque lo que factura: cada línea es una recepción de nuestro almacén (con su guía) o una conformidad de servicio (HES) liberada. Puede juntar varias órdenes de compra en una factura si tienen la misma moneda y el mismo tipo de operación. No puede facturar más de lo recibido en cada recepción o conformado en cada HES.</p>
+{% if errores %}<div class="alert alert-danger"><b>La factura no cuadra o tiene errores:</b><ul class="mb-0">{% for e in errores %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+{% if form.errors %}<div class="alert alert-danger py-2">Revise los campos marcados.</div>{% endif %}
+{% if errores or form.errors %}<div class="alert alert-warning py-2 small"><i class="bi bi-paperclip"></i> Por seguridad del navegador, vuelva a seleccionar los archivos PDF y XML antes de enviar.</div>{% endif %}
+<form method="post" enctype="multipart/form-data" novalidate>{% csrf_token %}
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-list-check"></i> 1. Entregas a facturar</div>
+    <div class="table-responsive"><table class="table items-table mb-0 align-middle">
+    <thead><tr><th style="width:32px"></th><th>Entrega</th><th>Descripción</th><th class="num">Por facturar</th><th class="num">Precio orden</th><th class="num" style="width:13%">Cantidad</th><th class="num" style="width:15%">Valor unit. (sin IGV)</th><th class="num">Subtotal</th></tr></thead>
+    <tbody id="lineas">{% for oc, fuentes in grupos.items %}
+      <tr class="table-light"><td colspan="8" class="small"><b>Orden {{ oc.numero }}</b> · {{ oc.get_moneda_display|default:oc.moneda }} · {% if oc.tipo_operacion == 'GRAVADA' %}gravada{% else %}no gravada{% endif %}</td></tr>
+      {% for f in fuentes %}<tr class="js-fila" data-moneda="{{ oc.moneda }}" data-gravada="{% if oc.tipo_operacion == 'GRAVADA' %}1{% else %}0{% endif %}">
+        <td><input type="checkbox" class="form-check-input js-sel" name="sel_{{ f.clave }}" value="1" {% if f.marcada %}checked{% endif %}></td>
+        <td class="small">{% if f.recepcion %}<i class="bi bi-box-arrow-in-down"></i> {{ f.recepcion.numero }}{% if f.guia %}<div class="text-muted">Guía {{ f.guia }}</div>{% endif %}{% else %}<i class="bi bi-patch-check"></i> {{ f.hes.numero }}{% endif %}<div class="text-muted">{{ f.fecha|date:'d/m/Y' }}</div></td>
+        <td>{{ f.descripcion }}</td><td class="num">{{ f.esperado|money }}</td><td class="num">{{ f.precio|floatformat:4 }}</td>
+        <td><input name="cant_{{ f.clave }}" value="{{ f.cant_txt }}" class="form-control form-control-sm text-end js-c" inputmode="decimal"></td>
+        <td><input name="precio_{{ f.clave }}" value="{{ f.precio_txt }}" class="form-control form-control-sm text-end js-p" inputmode="decimal"></td>
+        <td class="num js-s">0.00</td></tr>{% endfor %}
+    {% endfor %}</tbody>
+    <tfoot>
+      <tr><td colspan="7" class="text-end">Valor de venta</td><td class="num" id="t-base">0.00</td></tr>
+      <tr><td colspan="7" class="text-end">IGV</td><td class="num" id="t-igv">0.00</td></tr>
+      <tr class="fw-bold"><td colspan="7" class="text-end">TOTAL CALCULADO</td><td class="num" id="t-total">0.00</td></tr>
+      <tr><td colspan="8" class="text-end"><span id="cuadre" class="badge text-bg-secondary">Marque las entregas e ingrese el monto total</span></td></tr>
+    </tfoot>
+  </table></div></div>
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-paperclip"></i> 2. Archivos de la factura</div><div class="card-body"><div class="row g-3">
+    {% for field in form|campos:"archivo_pdf,archivo_xml" %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div></div></div>
+  <div class="card mb-3"><div class="card-header"><i class="bi bi-receipt"></i> 3. Datos de la factura</div><div class="card-body"><div class="row g-3">
+    {% for field in form|campos:"serie,numero,fecha_emision,total,observaciones" %}<div class="{% if field.name == 'observaciones' %}col-md-12{% else %}col-6 col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div></div></div>
+  <p class="small text-muted">Monto total {{ tol_t_texto }} respecto a lo calculado. Un precio unitario que difiera de la orden en más de {{ tol_p }} se recibe igual, pero queda para revisión de Compras y su pago se retiene. Si carga el XML, sus datos mandan sobre lo escrito. Se valida también en SUNAT.</p>
+  <button class="btn btn-primary"><i class="bi bi-send"></i> Enviar factura</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const tasa = {{ igv_tasa|stringformat:'s' }};
+  const tolImporte = {{ tol_t|stringformat:'s' }}, tolPct = {{ tol_t_pct|stringformat:'s' }};
+  const tolT = (base) => (tolPct ? (tolImporte ? Math.min(tolImporte, Math.abs(base) * tolPct / 100) : Math.abs(base) * tolPct / 100) : tolImporte);
+  const num = (v) => {
+    let t = String(v || '0').replace(/\s/g, '');
+    if (t.includes(',') && t.includes('.')) {
+      const dec = t.lastIndexOf(',') > t.lastIndexOf('.') ? ',' : '.';
+      t = t.split(dec === ',' ? '.' : ',').join('').replace(dec, '.');
+    } else if (t.includes(',')) {
+      const p = t.split(',');
+      t = p.length === 2 && p[1].length !== 3 ? `${p[0]}.${p[1]}` : p.join('');
+    }
+    return parseFloat(t) || 0;
+  };
+  const fmt = (n) => n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const filas = [...document.querySelectorAll('.js-fila')];
+  const totalInput = document.getElementById('id_total');
+  function calcular() {
+    let base = 0, igv = 0;
+    const monedas = new Set(), gravadas = new Set();
+    filas.forEach((tr) => {
+      const marcada = tr.querySelector('.js-sel').checked;
+      const s = marcada ? Math.round(num(tr.querySelector('.js-c').value) * num(tr.querySelector('.js-p').value) * 100) / 100 : 0;
+      tr.querySelector('.js-s').textContent = marcada ? fmt(s) : '—';
+      tr.classList.toggle('text-muted', !marcada);
+      if (marcada) { monedas.add(tr.dataset.moneda); gravadas.add(tr.dataset.gravada); base += s; if (tr.dataset.gravada === '1') igv += s; }
+    });
+    igv = Math.round(igv * tasa) / 100;
+    const total = base + igv;
+    document.getElementById('t-base').textContent = fmt(base);
+    document.getElementById('t-igv').textContent = fmt(igv);
+    document.getElementById('t-total').textContent = fmt(total);
+    const badge = document.getElementById('cuadre');
+    if (monedas.size > 1 || gravadas.size > 1) { badge.className = 'badge text-bg-danger'; badge.textContent = 'Mezcla monedas o tipos de operación: facture por separado'; return; }
+    const declarado = totalInput && totalInput.value ? num(totalInput.value) : null;
+    if (!base || declarado === null) { badge.className = 'badge text-bg-secondary'; badge.textContent = 'Marque las entregas e ingrese el monto total'; return; }
+    const dif = Math.round((declarado - total) * 100) / 100;
+    const ok = Math.abs(dif) <= tolT(total) + 1e-9;
+    badge.className = 'badge ' + (ok ? 'text-bg-success' : 'text-bg-danger');
+    badge.textContent = ok ? 'La factura cuadra' : `No cuadra: diferencia ${fmt(dif)}`;
+  }
+  document.querySelectorAll('.js-c, .js-p, .js-sel').forEach((i) => i.addEventListener('input', calcular));
+  document.querySelectorAll('.js-sel').forEach((i) => i.addEventListener('change', calcular));
+  if (totalInput) totalInput.addEventListener('input', calcular);
+  calcular();
+})();
+</script>
+{% endblock %}

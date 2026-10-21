@@ -567,14 +567,35 @@ class LineaSolicitud(models.Model):
 
 
 class ConformidadServicio(models.Model):
-    """Hoja de entrada de servicio: el área conforma lo que el proveedor prestó antes de registrar su factura."""
+    """Hoja de entrada de servicio (HES, ML81N de SAP): reemplaza a la recepción de almacén para los servicios. El
+    área registra lo prestado con el informe firmado del proveedor y el documento de trabajo con imágenes, la envía a
+    liberación por niveles (motor de aprobación, documento HES) y solo la HES liberada se factura y se paga."""
+    ESTADOS = [('BORRADOR', 'Borrador'), ('POR_LIBERAR', 'Por liberar'), ('OBSERVADA', 'Observada'),
+               ('LIBERADA', 'Liberada'), ('RECHAZADA', 'Rechazada'), ('ANULADA', 'Anulada')]
+    ABIERTAS = ('BORRADOR', 'POR_LIBERAR', 'OBSERVADA')
     numero = models.CharField('N°', max_length=20, editable=False)
     orden_compra = models.ForeignKey(OrdenCompra, on_delete=models.PROTECT, related_name='conformidades')
+    oc_item = models.ForeignKey(OrdenCompraItem, on_delete=models.PROTECT, null=True, blank=True, related_name='hes',
+                                verbose_name='Línea de la orden')
     fecha = models.DateField(default=timezone.localdate)
     descripcion = models.CharField('Servicio recibido', max_length=250)
     porcentaje = models.DecimalField('Avance conforme %', max_digits=5, decimal_places=2, default=Decimal('100'),
-                                     help_text='100 = servicio completo')
+                                     help_text='Porcentaje de la línea que se conforma (100 = completo)')
+    cantidad = models.DecimalField('Cantidad conforme', max_digits=14, decimal_places=2, default=Decimal('0'),
+                                   help_text='En la unidad de la línea (servicio, hora, día, mes). Sale del %')
+    periodo_desde = models.DateField('Servicio desde', null=True, blank=True)
+    periodo_hasta = models.DateField('Servicio hasta', null=True, blank=True)
+    lugar = models.CharField('Lugar', max_length=150, blank=True)
+    responsable_proveedor = models.CharField('Responsable del proveedor', max_length=120, blank=True)
+    observaciones = models.TextField(blank=True)
+    estado = models.CharField(max_length=12, choices=ESTADOS, default='BORRADOR')
+    niveles = models.JSONField(default=list, blank=True, editable=False)
+    nivel_aprobado = models.PositiveSmallIntegerField(default=0, editable=False)
+    motivo = models.CharField('Motivo (observación o rechazo)', max_length=300, blank=True, editable=False)
     conforme_por = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+', editable=False)
+    liberado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                     editable=False)
+    liberado_en = models.DateTimeField(null=True, blank=True, editable=False)
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -584,3 +605,48 @@ class ConformidadServicio(models.Model):
 
     def __str__(self):
         return f'Conformidad {self.numero}'
+
+    @property
+    def precio(self):
+        return self.oc_item.precio_neto if self.oc_item_id else Decimal('0')
+
+    @property
+    def valor(self):
+        """Valor sin IGV de lo conformado (en la moneda de la orden)."""
+        from core.models import r2
+        if self.oc_item_id:
+            return r2(self.cantidad * self.precio)
+        return r2(self.orden_compra.base_imponible * self.porcentaje / 100) if self.orden_compra_id else Decimal('0')
+
+    @property
+    def valor_pen(self):
+        from core.models import r2
+        oc = self.orden_compra
+        return r2(self.valor * (oc.tipo_cambio or 1)) if oc.moneda == 'USD' else self.valor
+
+    @property
+    def tiene_adjuntos(self):
+        tipos = set(self.adjuntos.values_list('tipo', flat=True))
+        return {'INFORME', 'TRABAJO'} <= tipos
+
+
+class AdjuntoHES(models.Model):
+    """Adjunto de la HES: informe firmado del proveedor o documento de trabajo con imágenes. No se borra
+    (trazabilidad)."""
+    TIPOS = [('INFORME', 'Informe del proveedor firmado'),
+             ('TRABAJO', 'Documento de trabajo con imágenes (fotos, parte, acta)')]
+    hes = models.ForeignKey(ConformidadServicio, on_delete=models.PROTECT, related_name='adjuntos')
+    tipo = models.CharField(max_length=8, choices=TIPOS)
+    nombre = models.CharField(max_length=150)
+    tipo_contenido = models.CharField(max_length=80)
+    contenido = models.BinaryField(editable=False)  # en la base: el disco del servidor no persiste
+    tamano = models.PositiveIntegerField(default=0)
+    subido_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['tipo', 'id']
+
+    @property
+    def es_imagen(self):
+        return self.tipo_contenido.startswith('image/')

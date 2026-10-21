@@ -261,7 +261,7 @@ class Fase2Test(TestCase):
         OrdenCompra.objects.filter(pk=oc.pk).update(estado_proveedor='ACEPTADA')
         self.client.force_login(self.acceso())
         r = self.client.get(reverse('portal:oc_detalle', args=[oc.pk]))
-        self.assertContains(r, 'aún no ingresa a nuestro almacén')
+        self.assertContains(r, 'aún no tiene mercadería ingresada a nuestro almacén')
         self.assertNotContains(r, 'Cargar factura')
         self.assertContains(self.client.get(reverse('portal:inicio')), 'Pendiente de ingreso')
         r = self.client.get(reverse('portal:factura_nueva', args=[oc.pk]))

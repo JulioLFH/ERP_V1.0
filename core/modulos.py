@@ -49,6 +49,7 @@ MODULOS = [
                                        ('Reglas de aprobación (OC y solicitudes)', 'aprobaciones_reglas?documento=OC',
                                         'bi-diagram-3')]),
             ('Compras', [('Órdenes de compra', 'compras:oc_lista', 'bi-clipboard-check'),
+                         ('Conformidades de servicio (HES)', 'compras:hes_lista', 'bi-patch-check'),
                          ('Registro de compras', 'compras:lista', 'bi-bag'),
                          ('Notas de crédito / débito', 'compras:notas', 'bi-file-earmark-diff'),
                          ('Registrar compra', 'compras:nuevo', 'bi-plus-circle'),

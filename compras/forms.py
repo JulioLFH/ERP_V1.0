@@ -58,9 +58,10 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
                                            f'facturan órdenes aprobadas. Apruébela primero.')
         if oc and not self.instance.pk and data.get('tipo_comprobante') not in ('07', '08'):
             from .solped import exige_conformidad
-            if exige_conformidad(oc) and not oc.conformidades.exists():
+            if exige_conformidad(oc) and not oc.conformidades.filter(estado='LIBERADA').exists():
                 self.add_error('orden_compra', f'La orden {oc.numero} es de servicios de una solicitud de pedido: '
-                                               f'registre primero la conformidad del servicio (en la orden de compra).')
+                                               f'registre la conformidad del servicio (en la orden de compra) y que '
+                                               f'se libere antes de registrar la factura.')
         if data.get('orden_compra') and not data.get('centro_costo'):
             data['centro_costo'] = data['orden_compra'].centro_costo
         # gasto directo (62 a 65 y 68): el centro de costo es obligatorio
