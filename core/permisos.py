@@ -33,6 +33,8 @@ ACCIONES = {
     'logistica': [('emitir', 'Emitir guías de remisión', False),
                   ('anular', 'Anular guías', True),
                   ('garita', 'Registrar ingresos y salidas en garita', False),
+                  ('flota', 'Registrar equipos, documentos, lecturas, combustible y viajes de la flota', False),
+                  ('aprobar_lecturas', 'Aprobar partes de odómetro / horómetro', True),
                   ('ver_montos', 'Ver montos de la mercadería en garita (OC, guías)', True)],
     'finanzas': [('registrar', 'Registrar cobros, pagos y movimientos', False),
                  ('transferir', 'Transferencias entre cuentas', False),
@@ -161,6 +163,8 @@ RUTAS = {
     'manufactura:certificado_nuevo': 'manufactura.calidad', 'manufactura:certificado': {'POST': 'manufactura.liberar_lotes'},
     'manufactura:equipo_nuevo': {'POST': 'manufactura.mantenimiento'},
     'manufactura:equipo': {'POST': 'manufactura.mantenimiento'},
+    'flota:equipo_nuevo': lambda r: _flota(r), 'flota:equipo': lambda r: _flota(r),
+    'flota:documentos': lambda r: _flota(r),
     'manufactura:ordenes_mant': {'POST': 'manufactura.mantenimiento'},
     'manufactura:orden_mant_nueva': 'manufactura.mantenimiento',
     'manufactura:orden_mant': {'POST': 'manufactura.mantenimiento'},
@@ -191,6 +195,7 @@ RUTAS = {
     'solicitudes:enviar': 'requerimientos.solped',
     'compras:solped_bandeja': {'POST': 'compras.convertir_solped'},
     'compras:solped_reglas': {'POST': 'compras.aprobar_oc'}, 'compras:conformidad': {'POST': 'compras.hes'},
+    'compras:portal_tablero': 'compras.portal',
     'compras:hes': lambda r: (None if r.method != 'POST' else 'compras.hes'
                               if r.POST.get('accion') in ('adjuntar', 'enviar', 'anular') else None),
     'activos:nuevo': 'activos.registrar', 'activos:editar': 'activos.registrar', 'activos:baja': 'activos.baja',
@@ -219,6 +224,11 @@ def _aprobar_oc():
 
 def _tipo(request):
     return request.POST.get('tipo_comprobante') or request.GET.get('tipo') or ''
+
+
+def _flota(request):
+    from flota.views import accion_flota
+    return accion_flota(request)
 
 
 def perfil_de(user):

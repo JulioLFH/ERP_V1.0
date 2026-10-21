@@ -3,7 +3,7 @@ from django import forms
 from core.forms import BootstrapMixin, remoto
 from core.models import Almacen, Producto, Tercero
 
-from .models import (ActividadABC, CambioIngenieria, CentroTrabajo, CertificadoAnalisis, Equipo, InspeccionCalidad,
+from .models import (ActividadABC, CambioIngenieria, CertificadoAnalisis, Equipo, InspeccionCalidad,
                      ListaMateriales, OrdenMantenimiento, ParametroCalidad, PlanMantenimiento, PlantillaCertificado,
                      RecursoActividad, RepuestoOrden)
 
@@ -52,16 +52,6 @@ class CertificadoForm(BootstrapMixin, forms.ModelForm):
         self.fields['inspeccion'].required = True
         self.fields['cliente'].queryset = Tercero.objects.filter(tipo__in=['CLIENTE', 'AMBOS'])
         remoto(self.fields['cliente'], 'clientes')
-
-
-class EquipoForm(BootstrapMixin, forms.ModelForm):
-    class Meta:
-        model = Equipo
-        fields = ['codigo', 'nombre', 'centro', 'activo_fijo', 'marca_modelo', 'ubicacion', 'activo']
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['centro'].queryset = CentroTrabajo.objects.filter(activo=True)
 
 
 class PlanForm(BootstrapMixin, forms.ModelForm):

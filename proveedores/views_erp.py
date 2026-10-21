@@ -19,6 +19,10 @@ def facturas(request):
     estado = request.GET.get('estado', 'ENVIADA')
     if estado:
         qs = qs.filter(estado=estado)
+    if request.GET.get('filtro') == 'fuera':
+        qs = qs.exclude(fuera_tolerancia='')
+    elif request.GET.get('filtro') == 'sunat':
+        qs = qs.filter(estado_sunat='OBSERVADO').exclude(estado='RECHAZADA')
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(serie__icontains=q) | Q(numero__icontains=q) | Q(tercero__nombre__icontains=q) |
@@ -26,6 +30,13 @@ def facturas(request):
     return render(request, 'proveedores/erp_facturas.html', {
         'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'estado': estado, 'q': q,
         'estados': FacturaProveedor.ESTADOS})
+
+
+@login_required
+def tablero(request):
+    from .tablero import resumen
+    filas, ultimo = resumen()
+    return render(request, 'proveedores/erp_tablero.html', {'filas': filas, 'ultimo': ultimo})
 
 
 @login_required

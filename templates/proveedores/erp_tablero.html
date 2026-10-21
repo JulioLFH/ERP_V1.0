@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Portal de proveedores{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-shop"></i> Portal de proveedores</h1>
+  <div class="small text-muted">{% if ultimo %}Último ingreso de un proveedor: {{ ultimo|date:'d/m/Y H:i' }}{% else %}Ningún proveedor ha ingresado aún{% endif %}</div>
+</div>
+<div class="row g-3">
+  {% for clave, etiqueta, n, url, nivel in filas %}
+  <div class="col-6 col-md-4 col-xl-3"><a href="{{ url }}" class="text-decoration-none"><div class="kpi h-100 {% if n and nivel == 'danger' %}border-danger{% elif n and nivel == 'warning' %}border-warning{% endif %}">
+    <div class="label">{{ etiqueta }}</div>
+    <div class="fs-3 fw-semibold {% if n and nivel == 'danger' %}text-danger{% elif n and nivel == 'warning' %}text-warning{% endif %}">{{ n }}</div>
+  </div></a></div>
+  {% endfor %}
+</div>
+{% endblock %}

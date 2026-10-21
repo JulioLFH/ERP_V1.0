@@ -1,5 +1,7 @@
 from django.urls import path
 
+from flota import views as flota_views
+
 from . import views, views_avanzado as va, views_planta as vp, views_reportes as vr
 
 app_name = 'manufactura'
@@ -25,9 +27,9 @@ urlpatterns = [
     path('calidad/certificados/', vp.certificados, name='certificados'),
     path('calidad/certificados/nuevo/', vp.certificado_nuevo, name='certificado_nuevo'),
     path('calidad/certificados/<int:pk>/', vp.certificado, name='certificado'),
-    path('mantenimiento/equipos/', vp.equipos, name='equipos'),
-    path('mantenimiento/equipos/nuevo/', vp.equipo, name='equipo_nuevo'),
-    path('mantenimiento/equipos/<int:pk>/', vp.equipo, name='equipo'),
+    path('mantenimiento/equipos/', flota_views.equipos, name='equipos'),
+    path('mantenimiento/equipos/nuevo/', flota_views.equipo, name='equipo_nuevo'),
+    path('mantenimiento/equipos/<int:pk>/', flota_views.equipo, name='equipo'),
     path('mantenimiento/', vp.ordenes_mantenimiento, name='ordenes_mant'),
     path('mantenimiento/nueva/', vp.orden_mant_nueva, name='orden_mant_nueva'),
     path('mantenimiento/<int:pk>/', vp.orden_mant, name='orden_mant'),

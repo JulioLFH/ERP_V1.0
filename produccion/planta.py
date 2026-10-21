@@ -179,7 +179,7 @@ def cerrar(orden, usuario, fecha=None):
     fecha = fecha or timezone.localdate()
     repuestos = list(orden.repuestos.select_related('producto', 'almacen'))
     if repuestos:
-        centro = orden.equipo.centro.centro_costo if orden.equipo.centro_id else None
+        centro = orden.equipo.centro_costo_efectivo
         por_almacen = {}
         for r in repuestos:
             por_almacen.setdefault(r.almacen_id, []).append(r)

@@ -35,6 +35,9 @@ class Vehiculo(models.Model):
     certificado = models.CharField('TUCE / Certificado MTC', max_length=30, blank=True,
                                    help_text='Tarjeta Única de Circulación (si aplica)')
     activo = models.BooleanField(default=True)
+    # el vehículo es un equipo del maestro único (FLO-01): documentos, lecturas, combustible, mantenimiento y costos
+    equipo = models.OneToOneField('produccion.Equipo', on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='vehiculo', editable=False)
 
     class Meta:
         ordering = ['placa']
@@ -42,6 +45,11 @@ class Vehiculo(models.Model):
 
     def __str__(self):
         return f'{self.placa} {self.marca}'.strip()
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        from flota.servicios import equipo_de_vehiculo
+        equipo_de_vehiculo(self)  # su equipo del maestro de flota, con la placa al día
 
 
 class Conductor(models.Model):
@@ -51,6 +59,11 @@ class Conductor(models.Model):
     nombres = models.CharField(max_length=100)
     apellidos = models.CharField(max_length=100)
     licencia = models.CharField('N° licencia de conducir', max_length=20)
+    licencia_categoria = models.CharField('Categoría de la licencia', max_length=10, blank=True,
+                                          help_text='Ej. A-IIb, A-IIIc')
+    licencia_vencimiento = models.DateField('Vence la licencia', null=True, blank=True)
+    trabajador = models.ForeignKey('planillas.Trabajador', on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', help_text='Si es trabajador de la planilla')
     activo = models.BooleanField(default=True)
 
     class Meta:

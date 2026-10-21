@@ -1,0 +1,55 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{% if eq.pk %}{{ eq }}{% else %}Nuevo equipo{% endif %}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{% if eq.pk %}{{ eq.get_tipo_display }} {{ eq }}{% else %}Nuevo equipo{% endif %}
+    {% if eq.pk %}<span class="badge fs-6 align-middle {% if eq.estado == 'OPERATIVO' %}text-bg-success{% elif eq.estado == 'MANTENIMIENTO' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ eq.get_estado_display }}</span>{% endif %}</h1>
+  <a href="{% url ns|add:':equipos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Equipos</a>
+</div>
+{% if eq.pk %}<div class="row g-3 mb-3">
+  {% if eq.medidor %}<div class="col-6 col-md-3"><div class="kpi"><div class="label">Lectura actual</div><div class="fw-semibold">{{ eq.lectura_actual|floatformat:-1 }} {{ eq.unidad_medidor }}</div><div class="small text-muted">{{ eq.lectura_fecha|date:'d/m/Y'|default:'sin lecturas' }}</div></div></div>{% endif %}
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Centro de costo</div><div class="fw-semibold">{{ eq.centro_costo_efectivo|default:'—' }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Responsable</div><div class="fw-semibold">{{ eq.responsable|default:'—' }}</div></div></div>
+  {% if vehiculo %}<div class="col-6 col-md-3"><div class="kpi"><div class="label">En guías como</div><div class="fw-semibold"><a href="{% url 'logistica:vehiculo_editar' vehiculo.pk %}">Vehículo {{ vehiculo.placa }}</a></div></div></div>{% endif %}
+</div>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-5"><div class="card"><div class="card-header">Datos del equipo</div><div class="card-body">
+    <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="equipo">
+      {% for field in form %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}
+      {% if puede_flota %}<div class="col-12"><button class="btn btn-sm btn-success"><i class="bi bi-save"></i> Guardar</button></div>{% endif %}
+    </form>
+  </div></div></div>
+  {% if eq.pk %}
+  <div class="col-lg-7">
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-calendar-x"></i> Documentos (SOAT, revisión técnica, MTC, póliza…)</div>
+      <table class="table table-sm mb-0 align-middle"><thead><tr><th>Documento</th><th>N°</th><th>Emisor</th><th>Vence</th><th class="num">Costo</th><th></th></tr></thead><tbody>
+      {% for d in documentos %}<tr {% if d.renovado %}class="text-muted"{% elif d.vencido %}class="table-danger"{% elif d.dias <= 30 %}class="table-warning"{% endif %}>
+        <td>{{ d.get_tipo_display }}{% if d.bloquea and not d.renovado %} <i class="bi bi-lock small" title="Bloquea las guías si vence"></i>{% endif %}</td><td class="small">{{ d.numero }}</td><td class="small">{{ d.emisor }}</td>
+        <td>{{ d.vencimiento|date:'d/m/Y' }}{% if d.renovado %} <span class="small">(renovado)</span>{% elif d.vencido %} <span class="badge text-bg-danger">vencido</span>{% elif d.dias <= 30 %} <span class="small">({{ d.dias }} d)</span>{% endif %}</td>
+        <td class="num">{{ d.costo|money }}</td><td>{% if d.archivo_nombre %}<a href="{% url 'flota:documento_archivo' d.pk %}" target="_blank"><i class="bi bi-paperclip"></i></a>{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="6" class="text-muted text-center py-3">Sin documentos.</td></tr>{% endfor %}
+      </tbody></table>
+      {% if puede_flota %}<div class="card-body border-top"><form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="documento">
+        {% for field in doc_form %}<div class="{% if field.name == 'bloquea' %}col-md-3{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+        <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Registrar documento</button> <span class="small text-muted">Uno nuevo del mismo tipo reemplaza (renueva) al anterior.</span></div></form></div>{% endif %}
+    </div>
+    <div class="card mb-3"><div class="card-header">Planes preventivos</div>
+      <table class="table table-sm mb-0 align-middle"><thead><tr><th>Tarea</th><th class="num">Cada (días)</th><th>Última</th><th>Próxima</th><th></th></tr></thead><tbody>
+      {% for p in planes %}<tr><td>{{ p.tarea }}</td><td class="num">{{ p.frecuencia_dias }}</td><td>{{ p.ultima_fecha|date:'d/m/Y'|default:'—' }}</td><td>{{ p.proxima|date:'d/m/Y' }}</td>
+        <td>{% if puede_flota %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="quitar_plan"><button name="plan" value="{{ p.pk }}" class="btn btn-sm btn-link text-danger p-0" data-confirm="¿Quitar este plan?"><i class="bi bi-x-circle"></i></button></form>{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="5" class="text-muted text-center py-3">Sin planes preventivos.</td></tr>{% endfor %}
+      </tbody></table>
+      {% if puede_flota %}<div class="card-body border-top"><form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="plan">
+        {% for field in plan_form %}<div class="col-md-4">{% include 'core/_campo.html' %}</div>{% endfor %}
+        <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar plan</button></div></form></div>{% endif %}
+    </div>
+    <div class="card"><div class="card-header d-flex justify-content-between">Historial de órdenes <a href="{% url 'manufactura:orden_mant_nueva' %}?equipo={{ eq.pk }}" class="btn btn-sm btn-outline-primary py-0">Nueva orden</a></div>
+      <table class="table table-sm mb-0"><thead><tr><th>OT</th><th>Fecha</th><th>Tipo</th><th>Estado</th><th class="num">Parada (h)</th></tr></thead><tbody>
+      {% for o in ordenes %}<tr><td><a href="{% url 'manufactura:orden_mant' o.pk %}">{{ o.numero }}</a></td><td>{{ o.fecha_programada|date:'d/m/Y' }}</td><td>{{ o.get_tipo_display }}</td><td>{{ o.get_estado_display }}</td><td class="num">{{ o.horas_parada|money }}</td></tr>
+      {% empty %}<tr><td colspan="5" class="text-muted text-center py-3">Sin órdenes.</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

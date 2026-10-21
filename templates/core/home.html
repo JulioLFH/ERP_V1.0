@@ -16,6 +16,14 @@
     {% empty %}
       <div class="alert alert-warning">Su usuario no tiene módulos asignados. Pida al administrador que le dé acceso en Ajustes &gt; Usuarios.</div>
     {% endfor %}
+    {% if portal %}
+      <a href="{% url 'compras:portal_tablero' %}" class="app-tile position-relative" title="{% for f in portal.filas %}{{ f.1 }}: {{ f.2 }}&#10;{% endfor %}{% if portal.ultimo %}Último ingreso de un proveedor: {{ portal.ultimo|date:'d/m/Y H:i' }}{% endif %}">
+        <span class="app-icon" style="background: #e8590c"><i class="bi bi-shop"></i></span>
+        {% if portal.pendientes %}<span class="position-absolute top-0 end-0 badge rounded-pill text-bg-danger">{{ portal.pendientes }}</span>{% endif %}
+        <span class="app-nombre">Portal de proveedores</span>
+        <span class="app-desc">{% for f in portal.filas|slice:":3" %}{{ f.2 }} {{ f.1|lower }}{% if not forloop.last %} · {% endif %}{% empty %}Sin pendientes{% endfor %}</span>
+      </a>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

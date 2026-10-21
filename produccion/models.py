@@ -687,14 +687,41 @@ class CertificadoAnalisis(models.Model):
 
 # ================================================================ mantenimiento
 class Equipo(models.Model):
+    """Maestro único de equipos y flota (FLO-01): máquinas de planta, vehículos, montacargas y herramientas. Lo usan
+    las guías (el vehículo de Logística es un equipo de tipo vehículo), el mantenimiento, las paradas y los activos."""
+    TIPOS = [('MAQUINA', 'Máquina / equipo de planta'), ('VEHICULO', 'Vehículo'), ('MONTACARGAS', 'Montacargas'),
+             ('MAQ_PESADA', 'Maquinaria pesada'), ('HERRAMIENTA', 'Herramienta'), ('OTRO', 'Otro')]
+    ESTADOS = [('OPERATIVO', 'Operativo'), ('MANTENIMIENTO', 'En mantenimiento'), ('INOPERATIVO', 'Inoperativo'),
+               ('BAJA', 'De baja')]
+    COMBUSTIBLES = [('', '—'), ('DIESEL', 'Diésel'), ('GASOLINA', 'Gasolina'), ('GLP', 'GLP'), ('GNV', 'GNV'),
+                    ('ELECTRICO', 'Eléctrico')]
+    MEDIDORES = [('', 'Sin medidor'), ('KM', 'Odómetro (km)'), ('HORAS', 'Horómetro (horas)')]
     codigo = models.CharField('Código', max_length=20, unique=True)
     nombre = models.CharField(max_length=120)
+    tipo = models.CharField(max_length=12, choices=TIPOS, default='MAQUINA')
     centro = models.ForeignKey(CentroTrabajo, on_delete=models.SET_NULL, null=True, blank=True, related_name='equipos',
                                verbose_name='Puesto de trabajo')
     activo_fijo = models.ForeignKey('activos.ActivoFijo', on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='+', verbose_name='Activo fijo')
-    marca_modelo = models.CharField('Marca / modelo / serie', max_length=120, blank=True)
+    marca_modelo = models.CharField('Marca / modelo', max_length=120, blank=True)
+    placa = models.CharField(max_length=10, blank=True)
+    serie = models.CharField('Chasis / N° de serie', max_length=40, blank=True)
+    anio = models.PositiveSmallIntegerField('Año', null=True, blank=True)
+    combustible = models.CharField(max_length=10, choices=COMBUSTIBLES, blank=True)
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', verbose_name='Centro de costo',
+                                     help_text='Vacío = el del puesto de trabajo')
+    responsable = models.ForeignKey('planillas.Trabajador', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+', verbose_name='Responsable / conductor')
     ubicacion = models.CharField('Ubicación', max_length=80, blank=True)
+    estado = models.CharField(max_length=13, choices=ESTADOS, default='OPERATIVO')
+    medidor = models.CharField(max_length=5, choices=MEDIDORES, blank=True)
+    lectura_actual = models.DecimalField('Lectura actual', max_digits=12, decimal_places=1, default=D0,
+                                         editable=False)
+    lectura_fecha = models.DateField(null=True, blank=True, editable=False)
+    rendimiento_esperado = models.DecimalField('Rendimiento esperado (km u horas por galón)', max_digits=8,
+                                               decimal_places=2, null=True, blank=True)
+    aplica_prestamo = models.BooleanField('Se presta a clientes (comodato)', default=False)
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -703,6 +730,16 @@ class Equipo(models.Model):
 
     def __str__(self):
         return f'{self.codigo} {self.nombre}'
+
+    @property
+    def centro_costo_efectivo(self):
+        if self.centro_costo_id:
+            return self.centro_costo
+        return self.centro.centro_costo if self.centro_id else None
+
+    @property
+    def unidad_medidor(self):
+        return {'KM': 'km', 'HORAS': 'h'}.get(self.medidor, '')
 
 
 class PlanMantenimiento(models.Model):
@@ -728,6 +765,10 @@ class PlanMantenimiento(models.Model):
         if not self.ultima_fecha:
             return timezone.localdate()
         return self.ultima_fecha + timedelta(days=self.frecuencia_dias)
+
+    def vence(self, hasta):
+        """¿Toca hasta esa fecha?"""
+        return self.proxima <= hasta
 
 
 class OrdenMantenimiento(models.Model):

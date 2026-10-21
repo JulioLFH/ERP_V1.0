@@ -60,7 +60,8 @@ MODULOS = [
                                 ('Contratos marco', 'compras:contratos', 'bi-file-earmark-text'),
                                 ('Proveedores por producto (registro info)', 'compras:registros_info',
                                  'bi-person-lines-fill')]),
-            ('Portal de proveedores', [('Facturas por revisar', 'compras:portal_facturas', 'bi-inbox'),
+            ('Portal de proveedores', [('Tablero del portal', 'compras:portal_tablero', 'bi-speedometer2'),
+                                       ('Facturas por revisar', 'compras:portal_facturas', 'bi-inbox'),
                                        ('Accesos de proveedores', 'compras:portal_accesos', 'bi-person-lock')]),
             ('Cuentas por pagar', 'compras:pendientes'),
             ('Sugerencia de compra', 'inv_reposicion'),
@@ -136,7 +137,8 @@ MODULOS = [
                           'bi-patch-check')]),
             ('Mantenimiento', [('Órdenes de mantenimiento', 'manufactura:ordenes_mant', 'bi-wrench-adjustable'),
                                ('Nueva orden de mantenimiento', 'manufactura:orden_mant_nueva', 'bi-plus-circle'),
-                               ('Equipos y planes preventivos', 'manufactura:equipos', 'bi-gear')]),
+                               ('Equipos y planes preventivos', 'manufactura:equipos', 'bi-gear'),
+                               ('Documentos de equipos por vencer', 'flota:documentos', 'bi-calendar-x')]),
             ('Ingeniería', [('Listas de materiales (recetas)', 'manufactura:listas', 'bi-diagram-3'),
                             ('Cambios de ingeniería', 'manufactura:cambios', 'bi-arrow-left-right'),
                             ('Hojas de ruta', 'manufactura:hojas', 'bi-signpost-split'),
@@ -254,6 +256,8 @@ MODULOS = [
                                    ('Nueva guía transportista', 'logistica:nueva?tipo=31', 'bi-plus-circle')]),
             ('Garita', [('Registro de garita', 'logistica:garita_lista', 'bi-sign-stop'),
                         ('Ingreso de vehículo', 'logistica:garita_nuevo', 'bi-plus-circle')]),
+            ('Flota', [('Equipos y vehículos', 'flota:equipos', 'bi-truck-flatbed'),
+                       ('Documentos por vencer (SOAT, revisión, licencias)', 'flota:documentos', 'bi-calendar-x')]),
             ('Configuración', [('Vehículos', 'logistica:vehiculos', 'bi-car-front'),
                                ('Conductores', 'logistica:conductores', 'bi-person-badge')]),
         ],
@@ -466,7 +470,8 @@ def modulos_del_usuario(user):
 
 
 # espacios de nombres que no son un módulo pero se usan desde varios (el primero es el principal)
-NAMESPACES_COMPARTIDOS = {'solicitudes': ['requerimientos', 'compras', 'manufactura']}
+NAMESPACES_COMPARTIDOS = {'solicitudes': ['requerimientos', 'compras', 'manufactura'],
+                          'flota': ['logistica', 'manufactura']}  # maestro único de equipos y flota
 
 
 def modulos_de_ruta(match):

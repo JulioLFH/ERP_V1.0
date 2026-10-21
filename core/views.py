@@ -97,7 +97,13 @@ def dashboard(request):
 def home(request):
     """Pantalla de aplicaciones (como el inicio de Odoo)."""
     request.session.pop('modulo', None)
-    return render(request, 'core/home.html')
+    portal = None
+    from .permisos import puede
+    if puede(request.user, 'compras.portal'):  # ícono del portal de proveedores con sus contadores (PORT-08)
+        from proveedores.tablero import pendientes, resumen
+        filas, ultimo = resumen()
+        portal = {'filas': [f for f in filas if f[2]], 'pendientes': pendientes(filas), 'ultimo': ultimo}
+    return render(request, 'core/home.html', {'portal': portal})
 
 
 @login_required

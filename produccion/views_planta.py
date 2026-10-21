@@ -6,15 +6,13 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 
 from core.models import Producto
 
 from . import planta
-from .forms_planta import (CertificadoForm, CierreMantenimientoForm, EquipoForm, InspeccionForm,
-                           OrdenMantenimientoForm, ParametrosFormSet, PlanForm, PlantillaCertificadoForm, RepuestoForm)
-from .models import (CertificadoAnalisis, Equipo, InspeccionCalidad, OrdenMantenimiento, PlanMantenimiento,
-                     PlantillaCertificado)
+from .forms_planta import (CertificadoForm, CierreMantenimientoForm, InspeccionForm, OrdenMantenimientoForm,
+                           ParametrosFormSet, PlantillaCertificadoForm, RepuestoForm)
+from .models import CertificadoAnalisis, InspeccionCalidad, OrdenMantenimiento, PlantillaCertificado
 
 
 def _dec(valor):
@@ -158,44 +156,6 @@ def planes_calidad(request):
 
 
 # ---------------------------------------------------------------- mantenimiento
-@login_required
-def equipos(request):
-    qs = Equipo.objects.select_related('centro').annotate(
-        n_ordenes=Count('ordenes'), parada=Sum('ordenes__horas_parada', filter=Q(ordenes__estado='CERRADA')))
-    if request.GET.get('q'):
-        qs = qs.filter(Q(codigo__icontains=request.GET['q']) | Q(nombre__icontains=request.GET['q']))
-    hoy = timezone.localdate()
-    vencidos = [p for p in PlanMantenimiento.objects.filter(activo=True, equipo__activo=True).select_related('equipo')
-                if p.proxima <= hoy]
-    return render(request, 'produccion/equipos.html', {'equipos': qs, 'vencidos': vencidos})
-
-
-@login_required
-def equipo(request, pk=None):
-    eq = get_object_or_404(Equipo, pk=pk) if pk else Equipo()
-    form = EquipoForm(request.POST if request.POST.get('accion') == 'equipo' else None, instance=eq)
-    plan_form = PlanForm(request.POST if request.POST.get('accion') == 'plan' else None)
-    if request.method == 'POST':
-        accion = request.POST.get('accion')
-        if accion == 'equipo' and form.is_valid():
-            eq = form.save()
-            messages.success(request, f'Equipo {eq} guardado.')
-            return redirect('manufactura:equipo', eq.pk)
-        if accion == 'plan' and eq.pk and plan_form.is_valid():
-            plan = plan_form.save(commit=False)
-            plan.equipo = eq
-            plan.save()
-            messages.success(request, 'Plan preventivo agregado.')
-            return redirect('manufactura:equipo', eq.pk)
-        if accion == 'quitar_plan' and eq.pk:
-            eq.planes.filter(pk=request.POST.get('plan')).update(activo=False)
-            return redirect('manufactura:equipo', eq.pk)
-    return render(request, 'produccion/equipo.html', {
-        'eq': eq, 'form': form, 'plan_form': plan_form,
-        'planes': eq.planes.filter(activo=True) if eq.pk else [],
-        'ordenes': eq.ordenes.all()[:30] if eq.pk else []})
-
-
 @login_required
 def ordenes_mantenimiento(request):
     if request.method == 'POST' and request.POST.get('accion') == 'programar':

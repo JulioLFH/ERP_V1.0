@@ -1,0 +1,28 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Equipos y flota{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Equipos y flota</h1>
+  <div class="d-flex gap-2">
+    {% if n_docs %}<a href="{% url 'flota:documentos' %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-calendar-x"></i> {{ n_docs }} documento(s) por vencer</a>{% endif %}
+    {% if puede_flota %}<a href="{% url ns|add:':equipo_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo equipo</a>{% endif %}
+  </div>
+</div>
+<p class="small text-muted">Maestro único de máquinas, vehículos, montacargas y herramientas: lo usan las guías de remisión (los vehículos), el mantenimiento, las paradas y los activos fijos.</p>
+{% if vencidos %}<div class="alert alert-warning py-2 small"><i class="bi bi-alarm"></i> <b>{{ vencidos|length }}</b> plan(es) preventivo(s) vencidos: {% for p in vencidos|slice:":5" %}{{ p }}{% if not forloop.last %}; {% endif %}{% endfor %}{% if vencidos|length > 5 %}…{% endif %} — prográmelos desde <a href="{% url 'manufactura:ordenes_mant' %}">Órdenes de mantenimiento</a>.</div>{% endif %}
+<form class="row g-2 mb-2">
+  <div class="col-md-4"><input name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Código, nombre o placa"></div>
+  <div class="col-md-3"><select name="tipo" class="form-select form-select-sm"><option value="">Todos los tipos</option>{% for v, n in tipos %}<option value="{{ v }}" {% if request.GET.tipo == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><select name="estado" class="form-select form-select-sm"><option value="">Todos los estados</option>{% for v, n in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div class="col-auto"><button class="btn btn-sm btn-outline-secondary">Filtrar</button></div>
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Placa / serie</th><th>Responsable</th><th class="num">Lectura</th><th class="num">OT</th><th class="num">Parada (h)</th><th>Estado</th></tr></thead>
+  <tbody>{% for e in equipos %}<tr><td><a href="{% url ns|add:':equipo' e.pk %}">{{ e.codigo }}</a>{% if e.doc_alerta %} <i class="bi bi-calendar-x text-danger" title="Documentos por vencer o vencidos"></i>{% endif %}</td>
+    <td>{{ e.nombre }}<div class="small text-muted">{{ e.marca_modelo }}</div></td><td class="small">{{ e.get_tipo_display }}</td><td class="small">{{ e.placa|default:e.serie|default:'—' }}</td>
+    <td class="small">{{ e.responsable|default:'—' }}</td><td class="num">{% if e.medidor %}{{ e.lectura_actual|floatformat:-1 }} {{ e.unidad_medidor }}{% else %}—{% endif %}</td>
+    <td class="num">{{ e.n_ordenes }}</td><td class="num">{{ e.parada|default:0|money }}</td>
+    <td>{% if not e.activo %}<span class="text-muted">Inactivo</span>{% else %}<span class="badge {% if e.estado == 'OPERATIVO' %}text-bg-success{% elif e.estado == 'MANTENIMIENTO' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ e.get_estado_display }}</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="9" class="text-muted text-center py-3">Sin equipos.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

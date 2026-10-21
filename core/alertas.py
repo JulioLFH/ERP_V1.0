@@ -133,6 +133,16 @@ def calcular(user):
             alertas.append(_alerta('warning', 'bi-basket', 'Insumos insuficientes para producir',
                                    f'{len(faltan)} insumo(s) no alcanzan para las órdenes de producción abiertas.',
                                    reverse('manufactura:requerimiento'), len(faltan)))
+    if 'logistica' in mods or 'manufactura' in mods:  # SOAT, revisión técnica, MTC, licencias (FLO-04)
+        from flota.servicios import por_vencer as docs_por_vencer
+        docs, licencias = docs_por_vencer()
+        if docs or licencias:
+            vencidos = sum(1 for d in docs if d.vencido) + sum(1 for c in licencias if c.licencia_vencimiento < hoy)
+            alertas.append(_alerta('danger' if vencidos else 'warning', 'bi-calendar-x',
+                                   'Documentos de flota por vencer',
+                                   f'{len(docs) + len(licencias)} documento(s) de vehículos, equipos o conductores '
+                                   f'vencen en 30 días' + (f' ({vencidos} ya vencidos).' if vencidos else '.'),
+                                   reverse('flota:documentos'), len(docs) + len(licencias)))
     if 'rendiciones' in mods:
         alertas += _alertas_rendiciones(user)
     if 'planillas' in mods:  # contratos y documentos del legajo (EMO, antecedentes) que vencen en 30 días

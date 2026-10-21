@@ -1,0 +1,33 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Documentos de flota{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-calendar-x"></i> Documentos de flota {% if request.GET.todos %}vigentes{% else %}por vencer{% endif %}</h1>
+  <div class="d-flex gap-2">
+    <a href="?dias=30" class="btn btn-sm btn-outline-secondary {% if not request.GET.todos and dias == 30 %}active{% endif %}">30 días</a>
+    <a href="?dias=60" class="btn btn-sm btn-outline-secondary {% if dias == 60 %}active{% endif %}">60 días</a>
+    <a href="?todos=1" class="btn btn-sm btn-outline-secondary {% if request.GET.todos %}active{% endif %}">Todos</a>
+  </div>
+</div>
+<p class="small text-muted">SOAT, revisión técnica, certificado MTC y licencia de conducir vencidos <b>bloquean</b> el uso del vehículo o del conductor en una guía de remisión. Los documentos de cada vehículo o equipo se registran en su ficha; los de los conductores, aquí abajo.</p>
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>Vehículo / equipo / conductor</th><th>Documento</th><th>N°</th><th>Emisor</th><th>Vence</th><th></th></tr></thead>
+  <tbody>{% for d in docs %}<tr {% if d.vencido %}class="table-danger"{% elif d.dias <= 30 %}class="table-warning"{% endif %}>
+    <td>{% if d.equipo %}<a href="{% url 'flota:equipo' d.equipo_id %}">{{ d.equipo }}</a>{% if d.equipo.placa %} · {{ d.equipo.placa }}{% endif %}{% else %}<i class="bi bi-person-badge"></i> {{ d.conductor.nombres }} {{ d.conductor.apellidos }}{% endif %}</td>
+    <td>{{ d.get_tipo_display }}{% if d.bloquea %} <i class="bi bi-lock small" title="Bloquea las guías si vence"></i>{% endif %}</td><td class="small">{{ d.numero }}</td><td class="small">{{ d.emisor }}</td>
+    <td>{{ d.vencimiento|date:'d/m/Y' }} {% if d.vencido %}<span class="badge text-bg-danger">vencido</span>{% else %}<span class="small">({{ d.dias }} d)</span>{% endif %}</td>
+    <td>{% if d.archivo_nombre %}<a href="{% url 'flota:documento_archivo' d.pk %}" target="_blank"><i class="bi bi-paperclip"></i></a>{% endif %}</td></tr>
+  {% endfor %}
+  {% for c in licencias %}<tr class="table-warning"><td><i class="bi bi-person-badge"></i> <a href="{% url 'logistica:conductor_editar' c.pk %}">{{ c.nombres }} {{ c.apellidos }}</a></td><td>Licencia de conducir <i class="bi bi-lock small"></i></td><td class="small">{{ c.licencia }}</td><td class="small">{{ c.licencia_categoria }}</td><td>{{ c.licencia_vencimiento|date:'d/m/Y' }}</td><td></td></tr>{% endfor %}
+  {% if not docs and not licencias %}<tr><td colspan="6" class="text-muted text-center py-3">Nada por vencer.</td></tr>{% endif %}</tbody>
+</table></div></div>
+{% if puede_flota %}
+<div class="card"><div class="card-header">Registrar documento de un conductor (licencia, otro)</div><div class="card-body">
+  <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">{% csrf_token %}
+    <div class="col-md-4"><label class="form-label small mb-1">Conductor</label><select name="conductor" class="form-select form-select-sm" required>{% for c in conductores %}<option value="{{ c.pk }}">{{ c.apellidos }}, {{ c.nombres }}</option>{% endfor %}</select></div>
+    {% for field in form %}<div class="col-md-4">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Registrar</button></div>
+  </form>
+</div></div>
+{% endif %}
+{% endblock %}

@@ -279,7 +279,8 @@ class ConductorLista(ListaGenerica):
     model = Conductor
     titulo = 'Conductores'
     columnas = [('Doc.', 'get_tipo_doc_display'), ('Número', 'numero_doc'), ('Apellidos', 'apellidos'),
-                ('Nombres', 'nombres'), ('Licencia', 'licencia'), ('Activo', 'activo')]
+                ('Nombres', 'nombres'), ('Licencia', 'licencia'), ('Categoría', 'licencia_categoria'),
+                ('Vence', 'licencia_vencimiento'), ('Activo', 'activo')]
     url_nuevo, url_editar = 'logistica:conductor_nuevo', 'logistica:conductor_editar'
     buscar_en = ['numero_doc', 'apellidos', 'nombres', 'licencia']
 

@@ -154,6 +154,8 @@ def oc_lista(request):
         qs = qs.filter(Q(numero__icontains=q) | Q(tercero__nombre__icontains=q))
     if request.GET.get('estado'):
         qs = qs.filter(estado=request.GET['estado'])
+    if request.GET.get('proveedor'):  # respuesta del proveedor (tablero del portal)
+        qs = qs.filter(estado_proveedor=request.GET['proveedor']).exclude(estado='ANULADO')
     return render(request, 'core/documento_lista.html', {
         'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'q': q,
         'titulo': 'Órdenes de compra', 'etiqueta_tercero': 'Proveedor', 'app': 'compras',
