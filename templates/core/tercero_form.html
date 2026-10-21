@@ -1,0 +1,9 @@
+{% extends 'core/form.html' %}
+{% load static %}
+{% block scripts %}
+<script src="{% static 'js/consulta_ruc.js' %}?v={{ erp_version }}"></script>
+<script>
+  consultaRuc({url: '{% url "consulta_ruc" %}', ruc: 'id_numero_doc', nombre: 'id_nombre', direccion: 'id_direccion',
+               tipoDoc: 'id_tipo_doc', excluir: '{{ object.pk|default:"" }}'});
+</script>
+{% endblock %}

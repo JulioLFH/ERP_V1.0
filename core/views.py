@@ -13,6 +13,7 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, ListView, UpdateView
 
 from compras.models import Compra
@@ -107,7 +108,29 @@ def empresa_config(request):
         form.save()
         messages.success(request, 'Datos de la empresa actualizados.')
         return redirect('empresa')
-    return render(request, 'core/form.html', {'form': form, 'titulo': 'Datos de la empresa'})
+    return render(request, 'core/empresa.html', {'form': form, 'titulo': 'Datos de la empresa'})
+
+
+@login_required
+@require_POST
+def consulta_ruc(request):
+    """Datos del padrón RUC de SUNAT para completar la ficha de la empresa o de un cliente / proveedor (POST: el
+    token no va en la URL). Si el RUC ya es un cliente / proveedor registrado, lo indica."""
+    from django.urls import reverse
+
+    from .padron_ruc import ErrorPadron, consultar
+    try:
+        datos = consultar(request.POST.get('ruc'), request.POST.get('token'))
+    except ErrorPadron as exc:
+        return JsonResponse({'ok': False, 'error': str(exc)})
+    if request.POST.get('contexto') != 'empresa':
+        otro = Tercero.objects.filter(numero_doc=datos['ruc'])
+        if (request.POST.get('excluir') or '').isdigit():
+            otro = otro.exclude(pk=int(request.POST['excluir']))
+        otro = otro.first()
+        if otro:
+            datos['registrado'] = {'nombre': otro.nombre, 'url': reverse('tercero_editar', args=[otro.pk])}
+    return JsonResponse({'ok': True, **datos})
 
 
 @login_required
@@ -479,6 +502,7 @@ class TerceroLista(ListaGenerica):
 
 class TerceroNuevo(FormGenerico, CreateView):
     model, form_class, titulo = Tercero, TerceroForm, 'Nuevo cliente / proveedor'
+    template_name = 'core/tercero_form.html'
     success_url = reverse_lazy('terceros')
 
     def get_initial(self):
@@ -487,6 +511,7 @@ class TerceroNuevo(FormGenerico, CreateView):
 
 class TerceroEditar(FormGenerico, UpdateView):
     model, form_class, titulo = Tercero, TerceroForm, 'Editar cliente / proveedor'
+    template_name = 'core/tercero_form.html'
     success_url = reverse_lazy('terceros')
 
 

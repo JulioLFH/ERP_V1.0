@@ -43,6 +43,7 @@ urlpatterns = [
     path('aprobaciones/', views_aprobaciones.bandeja, name='aprobaciones_bandeja'),
     path('aprobaciones/suplencias/', views_aprobaciones.delegaciones, name='aprobaciones_delegaciones'),
     path('empresa/', views.empresa_config, name='empresa'),
+    path('consulta-ruc/', views.consulta_ruc, name='consulta_ruc'),
     path('facturacion-electronica/', views.facturacion_config, name='facturacion'),
     path('tipo-cambio/', views.tipos_cambio, name='tipos_cambio'),
     path('tipo-cambio/api/', views.tipo_cambio_api, name='tipo_cambio_api'),

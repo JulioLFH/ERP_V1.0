@@ -161,6 +161,19 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
                    'sunat_client_secret': forms.PasswordInput(render_value=True),
                    'sire_client_secret': forms.PasswordInput(render_value=True)}
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # van en los comprobantes electrónicos y en los correos a clientes y proveedores
+        self.fields['direccion'].required = True
+        self.fields['email'].required = True
+        self.fields['ruc'].help_text = 'Al escribirlo se traen de SUNAT la razón social, la dirección y el ubigeo'
+
+    def clean_ruc(self):
+        ruc = (self.cleaned_data.get('ruc') or '').strip()
+        if error_ruc(ruc):
+            raise forms.ValidationError(error_ruc(ruc))
+        return ruc
+
     def clean(self):
         datos = super().clean()
         if datos.get('fuente_tipo_cambio') == 'SBS' and not datos.get('token_tipo_cambio'):
