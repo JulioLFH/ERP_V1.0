@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Novedades por versión{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title"><i class="bi bi-stars"></i> Novedades por versión</h1>
+  <form method="get" class="d-flex gap-2 align-items-center small"><label for="desde">Desde la versión</label>
+    <select id="desde" name="desde" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+      {% for v in opciones %}<option value="{{ v }}" {% if desde == v %}selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select></form>
+</div>
+<p class="small text-muted">Qué se agregó o cambió en {{ erp_nombre }} en cada versión (la instalada es la v{{ erp_version }}).{% if es_admin %} Los manuales de cada módulo están en <a href="{% url 'manuales' %}">Ajustes › Manuales de usuario</a>.{% endif %}</p>
+{% for v in versiones %}
+<div class="card mb-3"><div class="card-header d-flex flex-wrap gap-2 justify-content-between"><span><b>v{{ v.version }}</b> · {{ v.titulo }}</span><span class="small text-muted">{{ v.fecha }}</span></div>
+  <div class="card-body small"><ul class="mb-0">{% for i in v.items %}<li class="mb-1">{{ i|safe }}</li>{% endfor %}</ul></div></div>
+{% empty %}<div class="alert alert-info">No hay novedades registradas.</div>{% endfor %}
+{% endblock %}

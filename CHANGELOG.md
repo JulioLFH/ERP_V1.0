@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.56.0 — 21/10/2026 · Novedades por versión (manuales)
+- **Novedades por versión (n.º 57)**: nueva página para todos los usuarios (menú de usuario › Novedades, y Ajustes › Ayuda) con lo que cambió en cada versión, armada sola desde este historial; se puede ver desde la v1.0, 1.24, 1.41 o 1.50.
+- **Manual 10. Novedades por versión** (PDF, en Ajustes › Manuales de usuario): todas las novedades desde la v1.24, incluidas las de v1.41 en adelante que faltaban en los manuales por módulo (permisos por pantalla, perfiles, organigrama, reglas de aprobación, suplencias, solicitud de pedido, inventario físico, reportes masivos, SIRE, SUNAT directo, usuario corporativo, panel del estudio). Los manuales se listan en su orden (1 al 10).
+
 ## v1.55.0 — 21/10/2026 · Correcciones del piloto (etapa 3): estudio contable
 - **Panel del estudio (n.º 53)**: cada empresa del Panel del grupo muestra el periodo que se declara (abierto o cerrado, centralizado o no), el SIRE de ventas y de compras (sin traer, lista, aceptada), el **vencimiento SUNAT según el último dígito del RUC** (cronograma oficial de obligaciones mensuales 2026) con los días que faltan, y los comprobantes observados por SUNAT.
 - **Procesos masivos**: elegir el periodo y las empresas y **centralizar**, **centralizar y cerrar** (solo el administrador de la principal) o **descargar en un ZIP los PLE de ventas (14.1) y compras (8.1)** de todas. Cada empresa informa su resultado. El panel indica cuántas empresas están activas (base de la facturación de Ceiba ERP).

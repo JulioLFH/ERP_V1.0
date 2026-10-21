@@ -65,6 +65,7 @@ urlpatterns = [
     path('carga-masiva/', views.carga_masiva, name='carga_masiva'),
     path('respaldo/', views.respaldo, name='respaldo'),
     path('manuales/', manuales.manuales, name='manuales'),
+    path('novedades/', manuales.novedades, name='novedades'),
     path('manuales/<str:archivo>', manuales.manual_pdf, name='manual_pdf'),
     path('auditoria/', views.auditoria, name='auditoria'),
     path('modificaciones/', views.modificaciones, name='modificaciones'),
