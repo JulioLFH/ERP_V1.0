@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.66.1 — 21/10/2026 · Render como ERP de inicio
+- **Instalación en Render limpia**: el blueprint ya no carga la demostración (SEED_DEMO = 0) y, sin la clave del administrador en el entorno, la primera visita abre el asistente de instalación (empresa principal y administrador), igual que la carpeta «ERP Inicio».
+
 ## v1.66.0 — 21/10/2026 · Combustible, costo por equipo, conductores, viajes, comodato y carga masiva de flota
 - **Combustible (FLO-05)**: vales o cargas por equipo con galones, precio, grifo, conductor, tarjeta, lectura y centro de costo (el del equipo si no se indica). **Rendimiento** km u horas por galón entre cargas a tanque lleno, con **alerta** cuando se aparta ±15 % del esperado del equipo. La lectura del vale actualiza el odómetro. El asiento sigue saliendo de la factura del grifo en Compras; el vale reparte el costo por equipo.
 - **Costo por equipo (FLO-06)**: mantenimiento (OT cerradas con mano de obra, servicios y repuestos), combustible, documentos (seguros, revisiones), otros gastos (peajes, lavado, llantas…) y depreciación del activo fijo vinculado; **costo por km u hora** con las lecturas del periodo y comparativo entre equipos (Excel). La ficha del equipo muestra su costo del año.

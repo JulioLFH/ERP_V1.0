@@ -29,8 +29,10 @@ services:
         value: admin@example.com
       - key: DJANGO_SUPERUSER_PASSWORD
         sync: false
+      # instalación limpia (ERP de inicio): sin demo y sin DJANGO_SUPERUSER_PASSWORD, la primera visita abre el
+      # asistente /instalacion/ que registra la empresa y su administrador
       - key: SEED_DEMO
-        value: "1"
+        value: "0"
       # Opcional: ruta secreta del panel de Django (sin ella no existe /admin/) e IP permitidas (coma)
       - key: ADMIN_URL
         sync: false
