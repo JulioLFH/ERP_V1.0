@@ -160,7 +160,9 @@ def planes_calidad(request):
 def ordenes_mantenimiento(request):
     if request.method == 'POST' and request.POST.get('accion') == 'programar':
         creadas = planta.programar_preventivos(int(request.POST.get('dias') or 7), request.user)
-        messages.success(request, f'{len(creadas)} orden(es) preventiva(s) programada(s).')
+        solicitudes = [o.solicitud for o in creadas if getattr(o, 'solicitud', None)]
+        messages.success(request, f'{len(creadas)} orden(es) preventiva(s) programada(s)' + (
+            f'; {len(solicitudes)} solicitud(es) de pedido de repuestos sin stock.' if solicitudes else '.'))
         return redirect('manufactura:ordenes_mant')
     qs = OrdenMantenimiento.objects.select_related('equipo')
     estado = request.GET.get('estado', 'ABIERTAS')

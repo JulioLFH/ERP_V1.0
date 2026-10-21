@@ -1,5 +1,7 @@
 """Pantallas de flota y equipos. La lista y la ficha del equipo se abren desde Logística (flota:…) y desde
 Manufactura › Mantenimiento (manufactura:equipos / manufactura:equipo): es el mismo maestro."""
+from decimal import InvalidOperation
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q, Sum
@@ -10,9 +12,19 @@ from django.utils import timezone
 from core.modulos import modulos_del_usuario
 from core.permisos import puede
 
+from core.utils import leer_numero
+
 from . import servicios as srv
-from .forms import DocumentoForm, EquipoForm
-from .models import DocumentoFlota
+from .forms import ComponenteForm, DocumentoForm, EquipoForm
+from .models import DocumentoFlota, LecturaEquipo
+
+
+def _fecha(texto):
+    from datetime import date
+    try:
+        return date.fromisoformat(texto or '')
+    except ValueError:
+        return timezone.localdate()
 
 
 def puede_flota(user):
@@ -64,7 +76,8 @@ def equipo(request, pk=None):
     ns = _ns(request)
     accion = request.POST.get('accion')
     form = EquipoForm(request.POST if accion == 'equipo' else None, instance=eq)
-    plan_form = PlanForm(request.POST if accion == 'plan' else None)
+    plan_form = PlanForm(request.POST if accion == 'plan' else None, equipo=eq)
+    comp_form = ComponenteForm(request.POST if accion == 'componente' else None, equipo=eq, prefix='comp')
     doc_form = DocumentoForm(request.POST if accion == 'documento' else None,
                              request.FILES if accion == 'documento' else None, prefix='doc')
     if request.method == 'POST':
@@ -85,6 +98,26 @@ def equipo(request, pk=None):
         if accion == 'quitar_plan' and eq.pk:
             eq.planes.filter(pk=request.POST.get('plan')).update(activo=False)
             return redirect(f'{ns}:equipo', eq.pk)
+        if accion == 'componente' and eq.pk and comp_form.is_valid():
+            c = comp_form.save(commit=False)
+            c.equipo = eq
+            c.save()
+            messages.success(request, f'Componente {c} agregado.')
+            return redirect(f'{ns}:equipo', eq.pk)
+        if accion == 'quitar_componente' and eq.pk:
+            eq.componentes.filter(pk=request.POST.get('componente')).update(activo=False)
+            return redirect(f'{ns}:equipo', eq.pk)
+        if accion == 'lectura' and eq.pk:
+            from .lecturas import ErrorLectura, registrar
+            try:
+                registrar(eq, leer_numero(request.POST.get('valor')), _fecha(request.POST.get('fecha')),
+                          request.user, 'PARTE', observacion=request.POST.get('observacion', ''))
+                messages.success(request, 'Lectura registrada: queda por aprobar.')
+            except ErrorLectura as exc:
+                messages.error(request, str(exc))
+            except InvalidOperation:
+                messages.error(request, 'Lectura inválida.')
+            return redirect(f'{ns}:equipo', eq.pk)
         if accion == 'documento' and eq.pk and doc_form.is_valid():
             doc = doc_form.save(commit=False)
             doc.equipo = eq
@@ -94,12 +127,17 @@ def equipo(request, pk=None):
                 return redirect(f'{ns}:equipo', eq.pk)
             except srv.ErrorFlota as exc:
                 messages.error(request, str(exc))
-    contexto = {'eq': eq, 'form': form, 'plan_form': plan_form, 'doc_form': doc_form, 'ns': ns,
-                'puede_flota': puede_flota(request.user), 'hoy': timezone.localdate()}
+    contexto = {'eq': eq, 'form': form, 'plan_form': plan_form, 'doc_form': doc_form, 'comp_form': comp_form,
+                'ns': ns, 'puede_flota': puede_flota(request.user), 'hoy': timezone.localdate()}
     if eq.pk:
-        contexto.update(planes=eq.planes.filter(activo=True), ordenes=eq.ordenes.all()[:30],
+        from .lecturas import uso_diario
+        componentes = list(eq.componentes.filter(activo=True).select_related('padre', 'repuesto'))
+        componentes.sort(key=lambda c: c.ruta)
+        contexto.update(planes=eq.planes.filter(activo=True).select_related('componente'), ordenes=eq.ordenes.all()[:30],
                         documentos=eq.documentos.order_by('renovado', 'vencimiento'),
-                        vehiculo=getattr(eq, 'vehiculo', None))
+                        vehiculo=getattr(eq, 'vehiculo', None), componentes=componentes,
+                        lecturas=eq.lecturas.select_related('registrado_por')[:12],
+                        uso_diario=uso_diario(eq) if eq.medidor else None)
     return render(request, 'flota/equipo.html', contexto)
 
 
@@ -137,3 +175,67 @@ def documento_archivo(request, pk):
     resp = HttpResponse(bytes(d.archivo), content_type=d.archivo_tipo or 'application/octet-stream')
     resp['Content-Disposition'] = f'inline; filename="{d.archivo_nombre or "documento"}"'
     return resp
+
+
+# ---------------------------------------------------------------- lecturas (FLO-02)
+@login_required
+def parte(request):
+    """Parte diario de odómetros y horómetros: una fila por equipo con medidor; todo el lote queda por aprobar."""
+    from produccion.models import Equipo
+
+    from .lecturas import ErrorLectura, registrar_parte, uso_diario
+    fecha = _fecha(request.POST.get('fecha') or request.GET.get('fecha'))
+    equipos = Equipo.objects.filter(activo=True).exclude(medidor='').exclude(estado='BAJA')
+    if request.GET.get('tipo'):
+        equipos = equipos.filter(tipo=request.GET['tipo'])
+    equipos = list(equipos)
+    if request.method == 'POST' and puede_flota(request.user):
+        filas, errores = [], []
+        for e in equipos:
+            texto = (request.POST.get(f'valor_{e.pk}') or '').strip()
+            if texto:
+                try:
+                    filas.append((e, leer_numero(texto)))
+                except InvalidOperation:
+                    errores.append(f'{e}: lectura inválida.')
+        try:
+            if errores:
+                raise ErrorLectura(' '.join(errores))
+            numero, lecturas = registrar_parte(filas, fecha, request.user)
+            messages.success(request, f'Parte {numero}: {len(lecturas)} lectura(s) registradas, por aprobar.')
+            return redirect('flota:lecturas')
+        except ErrorLectura as exc:
+            messages.error(request, str(exc))
+    for e in equipos:
+        e.valor_txt = request.POST.get(f'valor_{e.pk}', '')
+        e.uso = uso_diario(e)
+    return render(request, 'flota/parte.html', {'equipos': equipos, 'fecha': fecha, 'tipos': Equipo.TIPOS,
+                                                'puede_flota': puede_flota(request.user)})
+
+
+@login_required
+def lecturas(request):
+    """Lecturas por aprobar (y el historial): el supervisor aprueba o rechaza el parte."""
+    from .lecturas import resolver
+    puede_aprobar = puede(request.user, 'logistica.aprobar_lecturas')
+    if request.method == 'POST':
+        if not puede_aprobar:
+            messages.error(request, 'Su usuario no aprueba lecturas.')
+        else:
+            ids = request.POST.getlist('lectura')
+            accion = request.POST.get('accion')
+            n = resolver(list(LecturaEquipo.objects.filter(pk__in=ids, estado='PENDIENTE').select_related('equipo')),
+                         request.user, accion == 'aprobar', request.POST.get('motivo', ''))
+            messages.success(request, f'Lecturas {"aprobadas" if accion == "aprobar" else "rechazadas"} '
+                                      f'({n} equipo(s)).')
+        return redirect('flota:lecturas')
+    estado = request.GET.get('estado', 'PENDIENTE')
+    qs = LecturaEquipo.objects.select_related('equipo', 'registrado_por', 'aprobado_por')
+    if estado:
+        qs = qs.filter(estado=estado)
+    if request.GET.get('equipo'):
+        qs = qs.filter(equipo_id=request.GET['equipo'])
+    from django.core.paginator import Paginator
+    return render(request, 'flota/lecturas.html', {
+        'page_obj': Paginator(qs, 100).get_page(request.GET.get('page')), 'estado': estado,
+        'estados': LecturaEquipo.ESTADOS, 'puede_aprobar': puede_aprobar})

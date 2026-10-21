@@ -143,19 +143,44 @@ def crear_orden(orden, usuario):
     return orden
 
 
+@transaction.atomic
 def programar_preventivos(dias, usuario):
-    """Crea las órdenes preventivas de los planes que vencen en los próximos días (sin otra orden abierta)."""
-    hasta = timezone.localdate() + timedelta(days=dias)
+    """Crea las órdenes preventivas de los planes que vencen en los próximos días por tiempo o por uso (lectura
+    actual o proyectada del odómetro / horómetro), sin otra orden abierta. Si el plan es de un componente con
+    repuesto, la orden lo trae y, si falta stock, se genera la solicitud de pedido del repuesto."""
+    hoy = timezone.localdate()
+    hasta = hoy + timedelta(days=dias)
     creadas = []
-    for plan in PlanMantenimiento.objects.filter(activo=True, equipo__activo=True).select_related('equipo'):
-        if plan.proxima > hasta:
+    for plan in PlanMantenimiento.objects.filter(activo=True, equipo__activo=True).select_related(
+            'equipo', 'componente__repuesto'):
+        if not plan.vence(hasta):
             continue
         if plan.ordenes.filter(estado__in=('PROGRAMADA', 'EN_EJECUCION')).exists():
             continue
-        creadas.append(crear_orden(OrdenMantenimiento(
-            equipo=plan.equipo, tipo='PREVENTIVO', plan=plan, fecha_programada=max(plan.proxima, timezone.localdate()),
-            descripcion=plan.tarea), usuario))
+        descripcion = plan.tarea + (f' ({plan.componente.ruta})' if plan.componente_id else '')
+        if plan.frecuencia_uso and plan.equipo.medidor:
+            descripcion += (f' · cada {plan.frecuencia_uso:,.0f} {plan.equipo.unidad_medidor}, toca a los '
+                            f'{plan.proxima_lectura:,.0f} (actual {plan.equipo.lectura_actual:,.0f})')
+        ot = crear_orden(OrdenMantenimiento(
+            equipo=plan.equipo, tipo='PREVENTIVO', plan=plan, fecha_programada=max(plan.proxima or hoy, hoy),
+            descripcion=descripcion), usuario)
+        if plan.componente_id and plan.componente.repuesto_id:
+            ot.repuestos.create(producto=plan.componente.repuesto, cantidad=plan.componente.cantidad_repuesto,
+                                almacen=Almacen.principal())
+            ot.solicitud = _solicitar_repuestos(ot, usuario)
+        creadas.append(ot)
     return creadas
+
+
+def _solicitar_repuestos(ot, usuario):
+    """Solicitud de pedido de los repuestos de la orden que no tienen stock (None si alcanza o no hay centro)."""
+    from compras.solped import crear, iniciales_mantenimiento
+    cabecera, lineas = iniciales_mantenimiento(ot)
+    lineas = [l for l in lineas if l['producto'] is not None]
+    if not lineas or cabecera['centro_costo'] is None:
+        return None
+    return crear({**cabecera, 'tipo': 'MATERIAL', 'orden_mantenimiento': ot}, lineas, usuario,
+                 origen='MANTENIMIENTO')
 
 
 def iniciar(orden):
@@ -202,6 +227,11 @@ def cerrar(orden, usuario, fecha=None):
     orden.fecha_inicio = orden.fecha_inicio or fecha
     orden.save()
     if orden.plan_id:
-        orden.plan.ultima_fecha = fecha
-        orden.plan.save(update_fields=['ultima_fecha'])
+        lectura = orden.equipo.lectura_actual if orden.equipo.medidor else None
+        orden.plan.ultima_fecha, orden.plan.ultima_lectura = fecha, lectura
+        orden.plan.save(update_fields=['ultima_fecha', 'ultima_lectura'])
+        if orden.plan.componente_id:  # el componente registra su último cambio
+            c = orden.plan.componente
+            c.fecha_ultimo_cambio, c.lectura_ultimo_cambio = fecha, lectura
+            c.save(update_fields=['fecha_ultimo_cambio', 'lectura_ultimo_cambio'])
     return orden

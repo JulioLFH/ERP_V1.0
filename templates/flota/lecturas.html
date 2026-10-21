@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Lecturas de equipos{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-check2-square"></i> Lecturas de odómetro y horómetro</h1>
+  <a href="{% url 'flota:parte' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Parte diario</a>
+</div>
+<ul class="nav nav-tabs mb-3">{% for v, n in estados %}<li class="nav-item"><a class="nav-link {% if v == estado %}active{% endif %}" href="?estado={{ v }}">{{ n }}</a></li>{% endfor %}<li class="nav-item"><a class="nav-link {% if not estado %}active{% endif %}" href="?estado=">Todas</a></li></ul>
+<form method="post">{% csrf_token %}
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr>{% if estado == 'PENDIENTE' and puede_aprobar %}<th style="width:32px"><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.js-l').forEach(c => c.checked = this.checked)"></th>{% endif %}<th>Fecha</th><th>Equipo</th><th class="num">Lectura</th><th>Origen</th><th>Parte</th><th>Registró</th><th>Estado</th><th>Observación</th></tr></thead>
+  <tbody>{% for l in page_obj %}<tr>{% if estado == 'PENDIENTE' and puede_aprobar %}<td><input type="checkbox" class="form-check-input js-l" name="lectura" value="{{ l.pk }}" checked></td>{% endif %}
+    <td>{{ l.fecha|date:'d/m/Y' }}</td><td><a href="{% url 'flota:equipo' l.equipo_id %}">{{ l.equipo }}</a></td><td class="num">{{ l.valor|floatformat:-1 }} {{ l.equipo.unidad_medidor }}</td>
+    <td class="small">{{ l.get_origen_display }}</td><td class="small">{{ l.parte }}</td><td class="small">{{ l.registrado_por.get_full_name|default:l.registrado_por.username|default:'—' }}</td>
+    <td class="small">{{ l.get_estado_display }}{% if l.aprobado_por %} · {{ l.aprobado_por.username }}{% endif %}</td><td class="small">{{ l.observacion }}</td></tr>
+  {% empty %}<tr><td colspan="9" class="text-muted text-center py-3">Sin lecturas.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if estado == 'PENDIENTE' and puede_aprobar and page_obj %}
+<div class="row g-2 align-items-end"><div class="col-md-5"><input name="motivo" class="form-control form-control-sm" placeholder="Motivo (si rechaza)"></div>
+  <div class="col-auto d-flex gap-2"><button name="accion" value="aprobar" class="btn btn-sm btn-success"><i class="bi bi-check2-all"></i> Aprobar marcadas</button><button name="accion" value="rechazar" class="btn btn-sm btn-outline-danger">Rechazar marcadas</button></div></div>
+{% endif %}
+</form>
+{% include 'core/_paginacion.html' %}
+{% endblock %}

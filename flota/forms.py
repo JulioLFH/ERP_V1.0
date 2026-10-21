@@ -1,8 +1,8 @@
 from django import forms
 
-from core.forms import BootstrapMixin
+from core.forms import BootstrapMixin, remoto
 
-from .models import DocumentoFlota
+from .models import ComponenteEquipo, DocumentoFlota
 
 
 class EquipoForm(BootstrapMixin, forms.ModelForm):
@@ -46,3 +46,20 @@ class DocumentoForm(BootstrapMixin, forms.ModelForm):
         else:
             self.fields['tipo'].choices = [c for c in DocumentoFlota.TIPOS if c[0] != 'LICENCIA']
             del self.fields['categoria']
+
+
+class ComponenteForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = ComponenteEquipo
+        fields = ['nivel', 'padre', 'codigo', 'nombre', 'repuesto', 'cantidad_repuesto', 'fecha_ultimo_cambio',
+                  'lectura_ultimo_cambio']
+
+    def __init__(self, *args, equipo=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from core.models import Producto
+        self.fields['padre'].queryset = (equipo.componentes.filter(activo=True) if equipo is not None and equipo.pk
+                                         else ComponenteEquipo.objects.none())
+        self.fields['repuesto'].queryset = Producto.objects.filter(tipo='BIEN', activo=True)
+        remoto(self.fields['repuesto'], 'productos_bienes')
+        if equipo is None or not equipo.medidor:
+            del self.fields['lectura_ultimo_cambio']

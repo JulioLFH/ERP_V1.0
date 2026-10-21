@@ -1,0 +1,22 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Parte diario de lecturas{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-speedometer"></i> Parte diario de odómetros y horómetros</h1>
+  <a href="{% url 'flota:lecturas' %}" class="btn btn-sm btn-outline-secondary">Lecturas por aprobar</a>
+</div>
+<p class="small text-muted">Escriba la lectura de cada equipo (solo los que se usaron). No se acepta una lectura menor a la anterior; el parte queda por aprobar y, al aprobarse, actualiza la lectura del equipo y la proyección de sus mantenimientos por uso.</p>
+<form class="row g-2 mb-2"><div class="col-md-3"><select name="tipo" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todos los tipos</option>{% for v, n in tipos %}<option value="{{ v }}" {% if request.GET.tipo == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div></form>
+<form method="post">{% csrf_token %}
+  <div class="row g-2 align-items-end mb-2"><div class="col-md-3"><label class="form-label small mb-1">Fecha del parte</label><input type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}" class="form-control form-control-sm"></div></div>
+  <div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>Equipo</th><th>Tipo</th><th class="num">Última lectura</th><th class="num">Uso diario</th><th style="width:180px">Lectura de hoy</th></tr></thead>
+    <tbody>{% for e in equipos %}<tr><td>{{ e }}{% if e.placa %} <span class="small text-muted">{{ e.placa }}</span>{% endif %}</td><td class="small">{{ e.get_tipo_display }}</td>
+      <td class="num">{{ e.lectura_actual|floatformat:-1 }} {{ e.unidad_medidor }}<div class="small text-muted">{{ e.lectura_fecha|date:'d/m/Y'|default:'' }}</div></td>
+      <td class="num">{% if e.uso %}{{ e.uso|floatformat:1 }} {{ e.unidad_medidor }}/día{% else %}—{% endif %}</td>
+      <td><input name="valor_{{ e.pk }}" value="{{ e.valor_txt }}" class="form-control form-control-sm text-end" inputmode="decimal" placeholder="{{ e.unidad_medidor }}"></td></tr>
+    {% empty %}<tr><td colspan="5" class="text-muted text-center py-3">No hay equipos con odómetro u horómetro (indíquelo en la ficha del equipo).</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+  {% if puede_flota and equipos %}<button class="btn btn-primary"><i class="bi bi-send"></i> Registrar parte</button>{% endif %}
+</form>
+{% endblock %}

@@ -57,7 +57,22 @@ class CertificadoForm(BootstrapMixin, forms.ModelForm):
 class PlanForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = PlanMantenimiento
-        fields = ['tarea', 'frecuencia_dias', 'ultima_fecha']
+        fields = ['tarea', 'componente', 'frecuencia_dias', 'frecuencia_uso', 'tolerancia_pct', 'ultima_fecha',
+                  'ultima_lectura']
+
+    def __init__(self, *args, equipo=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['componente'].queryset = (equipo.componentes.filter(activo=True) if equipo is not None and
+                                              equipo.pk else self.fields['componente'].queryset.none())
+        if equipo is None or not equipo.medidor:
+            for campo in ('frecuencia_uso', 'tolerancia_pct', 'ultima_lectura'):
+                del self.fields[campo]
+
+    def clean(self):
+        datos = super().clean()
+        if not datos.get('frecuencia_dias') and not datos.get('frecuencia_uso'):
+            raise forms.ValidationError('Indique cada cuántos días o cada cuántos km u horas.')
+        return datos
 
 
 class OrdenMantenimientoForm(BootstrapMixin, forms.ModelForm):

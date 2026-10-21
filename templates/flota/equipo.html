@@ -33,9 +33,35 @@
         {% for field in doc_form %}<div class="{% if field.name == 'bloquea' %}col-md-3{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
         <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Registrar documento</button> <span class="small text-muted">Uno nuevo del mismo tipo reemplaza (renueva) al anterior.</span></div></form></div>{% endif %}
     </div>
-    <div class="card mb-3"><div class="card-header">Planes preventivos</div>
-      <table class="table table-sm mb-0 align-middle"><thead><tr><th>Tarea</th><th class="num">Cada (días)</th><th>Última</th><th>Próxima</th><th></th></tr></thead><tbody>
-      {% for p in planes %}<tr><td>{{ p.tarea }}</td><td class="num">{{ p.frecuencia_dias }}</td><td>{{ p.ultima_fecha|date:'d/m/Y'|default:'—' }}</td><td>{{ p.proxima|date:'d/m/Y' }}</td>
+    {% if eq.medidor %}
+    <div class="card mb-3"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-speedometer"></i> Lecturas ({{ eq.get_medidor_display }})</span><span class="small text-muted">{% if uso_diario %}Uso: {{ uso_diario|floatformat:1 }} {{ eq.unidad_medidor }}/día{% else %}Uso diario: falta historial{% endif %}</span></div>
+      <table class="table table-sm mb-0"><thead><tr><th>Fecha</th><th class="num">Lectura</th><th>Origen</th><th>Estado</th><th>Registró</th></tr></thead><tbody>
+      {% for l in lecturas %}<tr {% if l.estado == 'RECHAZADA' %}class="text-muted"{% endif %}><td>{{ l.fecha|date:'d/m/Y' }}</td><td class="num">{{ l.valor|floatformat:-1 }}</td><td class="small">{{ l.get_origen_display }}</td><td class="small">{{ l.get_estado_display }}</td><td class="small">{{ l.registrado_por.username|default:'—' }}</td></tr>
+      {% empty %}<tr><td colspan="5" class="text-muted text-center py-3">Sin lecturas.</td></tr>{% endfor %}</tbody></table>
+      {% if puede_flota %}<div class="card-body border-top"><form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="lectura">
+        <div class="col-md-3"><label class="form-label small mb-1">Fecha</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+        <div class="col-md-3"><label class="form-label small mb-1">Lectura ({{ eq.unidad_medidor }})</label><input name="valor" class="form-control form-control-sm text-end" inputmode="decimal" required></div>
+        <div class="col-md-4"><label class="form-label small mb-1">Observación</label><input name="observacion" class="form-control form-control-sm"></div>
+        <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100">Registrar</button></div></form></div>{% endif %}
+    </div>
+    {% endif %}
+    <div class="card mb-3"><div class="card-header"><i class="bi bi-diagram-3"></i> Componentes (sistema › subsistema › componente › pieza)</div>
+      <table class="table table-sm mb-0 align-middle"><thead><tr><th>Componente</th><th>Repuesto</th><th>Último cambio</th><th></th></tr></thead><tbody>
+      {% for c in componentes %}<tr><td><span style="padding-left: {{ c.profundidad }}rem">{% if c.codigo %}<span class="text-muted small">{{ c.codigo }}</span> {% endif %}{{ c.nombre }}</span> <span class="badge text-bg-light border">{{ c.get_nivel_display }}</span></td>
+        <td class="small">{% if c.repuesto %}{{ c.repuesto.codigo }} {{ c.repuesto.nombre }} × {{ c.cantidad_repuesto|floatformat:-2 }}{% else %}—{% endif %}</td>
+        <td class="small">{{ c.fecha_ultimo_cambio|date:'d/m/Y'|default:'—' }}{% if c.lectura_ultimo_cambio is not None %} · {{ c.lectura_ultimo_cambio|floatformat:-1 }} {{ eq.unidad_medidor }}{% endif %}</td>
+        <td>{% if puede_flota %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="quitar_componente"><button name="componente" value="{{ c.pk }}" class="btn btn-sm btn-link text-danger p-0" data-confirm="¿Quitar este componente?"><i class="bi bi-x-circle"></i></button></form>{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="4" class="text-muted text-center py-3">Sin componentes.</td></tr>{% endfor %}</tbody></table>
+      {% if puede_flota %}<div class="card-body border-top"><form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="componente">
+        {% for field in comp_form %}<div class="col-md-3">{% include 'core/_campo.html' %}</div>{% endfor %}
+        <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar componente</button></div></form></div>{% endif %}
+    </div>
+    <div class="card mb-3"><div class="card-header">Planes preventivos (por días, por uso o lo que ocurra primero)</div>
+      <table class="table table-sm mb-0 align-middle"><thead><tr><th>Tarea</th><th>Frecuencia</th><th>Última</th><th>Próxima</th><th></th></tr></thead><tbody>
+      {% for p in planes %}<tr><td>{{ p.tarea }}{% if p.componente %}<div class="small text-muted">{{ p.componente.ruta }}</div>{% endif %}</td>
+        <td class="small">{% if p.frecuencia_dias %}cada {{ p.frecuencia_dias }} días{% endif %}{% if p.frecuencia_dias and p.frecuencia_uso %} o {% endif %}{% if p.frecuencia_uso %}cada {{ p.frecuencia_uso|floatformat:-1 }} {{ eq.unidad_medidor }} (±{{ p.tolerancia_pct|floatformat:-2 }} %){% endif %}</td>
+        <td class="small">{{ p.ultima_fecha|date:'d/m/Y'|default:'—' }}{% if p.ultima_lectura is not None %} · {{ p.ultima_lectura|floatformat:-1 }} {{ eq.unidad_medidor }}{% endif %}</td>
+        <td class="small">{{ p.proxima|date:'d/m/Y'|default:'—' }}{% if p.proxima_lectura is not None %} · a los {{ p.proxima_lectura|floatformat:-1 }} {{ eq.unidad_medidor }} (faltan {{ p.falta_uso|floatformat:-1 }}){% endif %}</td>
         <td>{% if puede_flota %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="quitar_plan"><button name="plan" value="{{ p.pk }}" class="btn btn-sm btn-link text-danger p-0" data-confirm="¿Quitar este plan?"><i class="bi bi-x-circle"></i></button></form>{% endif %}</td></tr>
       {% empty %}<tr><td colspan="5" class="text-muted text-center py-3">Sin planes preventivos.</td></tr>{% endfor %}
       </tbody></table>

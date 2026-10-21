@@ -743,11 +743,21 @@ class Equipo(models.Model):
 
 
 class PlanMantenimiento(models.Model):
-    """Tarea preventiva periódica del equipo."""
+    """Tarea preventiva del equipo por tiempo (cada N días), por uso (cada N km u horas del odómetro / horómetro) o lo
+    que ocurra primero (SAP: estrategia por rendimiento IP42), opcionalmente de un componente con su repuesto."""
     equipo = models.ForeignKey(Equipo, on_delete=models.CASCADE, related_name='planes')
+    componente = models.ForeignKey('flota.ComponenteEquipo', on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='planes')
     tarea = models.CharField(max_length=150, help_text='Ej. Cambio de aceite y filtros')
-    frecuencia_dias = models.PositiveIntegerField('Cada (días)', default=30)
+    frecuencia_dias = models.PositiveIntegerField('Cada (días)', null=True, blank=True, default=30,
+                                                  help_text='Vacío = solo por uso')
+    frecuencia_uso = models.DecimalField('Cada (km u horas)', max_digits=10, decimal_places=1, null=True, blank=True,
+                                         help_text='Según el medidor del equipo. Vacío = solo por días')
+    tolerancia_pct = models.DecimalField('Tolerancia %', max_digits=5, decimal_places=2, default=Decimal('10'),
+                                         help_text='Se programa cuando falta este % de la frecuencia de uso')
     ultima_fecha = models.DateField('Última ejecución', null=True, blank=True)
+    ultima_lectura = models.DecimalField('Lectura de la última ejecución', max_digits=12, decimal_places=1,
+                                         null=True, blank=True)
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -760,15 +770,39 @@ class PlanMantenimiento(models.Model):
 
     @property
     def proxima(self):
-        """Fecha en que toca: última ejecución + frecuencia (sin ejecuciones registradas, toca hoy)."""
+        """Fecha en que toca: por días (última ejecución + frecuencia; sin ejecuciones, hoy) o, solo por uso, la fecha
+        en que se proyecta llegar a la lectura del próximo mantenimiento. None si no se puede proyectar."""
         from datetime import timedelta
-        if not self.ultima_fecha:
-            return timezone.localdate()
-        return self.ultima_fecha + timedelta(days=self.frecuencia_dias)
+        fechas = []
+        if self.frecuencia_dias:
+            fechas.append(self.ultima_fecha + timedelta(days=self.frecuencia_dias) if self.ultima_fecha
+                          else timezone.localdate())
+        if self.frecuencia_uso and self.equipo.medidor:
+            from flota.lecturas import fecha_proyectada
+            fecha = fecha_proyectada(self.equipo, self.proxima_lectura)
+            if fecha:
+                fechas.append(fecha)
+        return min(fechas) if fechas else None
+
+    @property
+    def proxima_lectura(self):
+        if not self.frecuencia_uso:
+            return None
+        return (self.ultima_lectura or Decimal('0')) + self.frecuencia_uso
+
+    @property
+    def falta_uso(self):
+        """km u horas que faltan para el próximo mantenimiento (negativo = pasado)."""
+        if self.proxima_lectura is None or not self.equipo.medidor:
+            return None
+        return self.proxima_lectura - self.equipo.lectura_actual
 
     def vence(self, hasta):
-        """¿Toca hasta esa fecha?"""
-        return self.proxima <= hasta
+        """¿Toca hasta esa fecha? Por días, por la lectura actual (dentro de la tolerancia) o por la proyectada."""
+        if self.frecuencia_uso and self.equipo.medidor and self.falta_uso is not None and \
+                self.falta_uso <= self.frecuencia_uso * self.tolerancia_pct / 100:
+            return True
+        return self.proxima is not None and self.proxima <= hasta
 
 
 class OrdenMantenimiento(models.Model):
