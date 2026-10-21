@@ -104,10 +104,11 @@ def tiene_ingreso(oc):
 
 
 # ---------------------------------------------------------------- registro por el proveedor
-def errores_lineas(lineas, enviadas):
-    """enviadas: {oc_item_id: (cantidad, precio)}. Valida las tolerancias de Ajustes > Empresa."""
-    empresa = Empresa.actual()
-    tol_c, tol_p = empresa.tolerancia_cantidad, empresa.tolerancia_precio
+def errores_lineas(lineas, enviadas, proveedor=None, fuera=None):
+    """enviadas: {oc_item_id: (cantidad, precio)}. Valida las tolerancias (de la empresa o del proveedor, en importe y
+    en %). Una cantidad fuera de tolerancia es error; un precio fuera de tolerancia, si se pasa la lista «fuera», se
+    anota ahí (la factura se recibe para revisión y su pago queda bloqueado) y si no, es error."""
+    from compras import tolerancias
     errores, alguna = [], False
     for linea in lineas:
         item = linea['item']
@@ -121,13 +122,14 @@ def errores_lineas(lineas, enviadas):
         if linea['recibido'] and linea['esperado'] <= 0:
             errores.append(f'{item.descripcion}: no tiene cantidades ingresadas al almacén pendientes de facturar.')
             continue
-        if abs(cantidad - linea['esperado']) > tol_c:
+        if abs(cantidad - linea['esperado']) > tolerancias.permitida(proveedor, 'cantidad', linea['esperado']):
             base = 'ingresada al almacén' if linea['recibido'] else 'pendiente de la orden'
             errores.append(f'{item.descripcion}: la cantidad {cantidad:,.2f} difiere de la {base} '
-                           f'({linea["esperado"]:,.2f}) en más de ±{tol_c:,.2f}.')
-        if abs(precio - linea['precio']) > tol_p:
-            errores.append(f'{item.descripcion}: el precio {precio:,.4f} difiere del de la orden '
-                           f'({linea["precio"]:,.4f}) en más de ±{tol_p:,.4f}.')
+                           f'({linea["esperado"]:,.2f}) en más de {tolerancias.texto(proveedor, "cantidad")}.')
+        if abs(precio - linea['precio']) > tolerancias.permitida(proveedor, 'precio', linea['precio']):
+            texto = (f'{item.descripcion}: el precio {precio:,.4f} difiere del de la orden ({linea["precio"]:,.4f}) '
+                     f'en más de {tolerancias.texto(proveedor, "precio")}.')
+            (fuera if fuera is not None else errores).append(texto)
     if not alguna:
         errores.append('Indique la cantidad facturada de al menos un producto.')
     return errores
@@ -174,15 +176,17 @@ def totales(oc, enviadas, tasa_igv):
 
 def errores_cuadre(oc, enviadas, total_declarado, datos_xml=None):
     """La factura debe cuadrar: cantidades (contra la orden / lo recibido y contra el XML) y monto total."""
+    from compras import tolerancias
     empresa = Empresa.actual()
     errores = []
     valor, igv, calculado = totales(oc, enviadas, empresa.igv_tasa)
+    tol_total = tolerancias.permitida(oc.tercero, 'total', calculado)
     if total_declarado is None:
         errores.append('Indique el monto total de la factura.')
-    elif abs(total_declarado - calculado) > empresa.tolerancia_total:
+    elif abs(total_declarado - calculado) > tol_total:
         errores.append(f'El monto total de la factura ({oc.simbolo} {total_declarado:,.2f}) no cuadra con las '
                        f'cantidades y precios registrados ({oc.simbolo} {calculado:,.2f}; tolerancia '
-                       f'±{empresa.tolerancia_total:,.2f}).')
+                       f'{tolerancias.texto(oc.tercero, "total")}).')
     if datos_xml:
         if datos_xml['ruc_emisor'] and datos_xml['ruc_emisor'] != oc.tercero.numero_doc:
             errores.append(f'El XML fue emitido por el RUC {datos_xml["ruc_emisor"]}, no por {oc.tercero.nombre} '
@@ -197,10 +201,10 @@ def errores_cuadre(oc, enviadas, total_declarado, datos_xml=None):
         if datos_xml['lineas']:
             en_xml = sum((l['cantidad'] for l in datos_xml['lineas']), D0)
             registrada = sum((c for c, _ in enviadas.values()), D0)
-            if abs(en_xml - registrada) > empresa.tolerancia_cantidad:
+            if abs(en_xml - registrada) > tolerancias.permitida(oc.tercero, 'cantidad', registrada):
                 errores.append(f'La cantidad total del XML ({en_xml:,.2f}) no cuadra con la registrada '
                                f'({registrada:,.2f}).')
-        if abs(datos_xml['valor_venta'] - valor) > empresa.tolerancia_total:
+        if abs(datos_xml['valor_venta'] - valor) > tolerancias.permitida(oc.tercero, 'total', valor):
             errores.append(f'El valor de venta del XML ({datos_xml["valor_venta"]:,.2f}) no cuadra con el '
                            f'registrado ({valor:,.2f}).')
     return errores
@@ -220,7 +224,8 @@ def registrar_factura(oc, usuario, cabecera, enviadas, archivos=None, datos_xml=
         raise ErrorPortal([f'La mercadería de la orden {oc.numero} aún no ingresa al almacén: podrá cargar la '
                            f'factura cuando se registre la recepción.'])
     lineas = lineas_por_facturar(oc)
-    errores = errores_lineas(lineas, enviadas)
+    fuera = []  # precios fuera de tolerancia: se recibe para revisión de Compras y el pago queda bloqueado
+    errores = errores_lineas(lineas, enviadas, oc.tercero, fuera)
     total_declarado = cabecera.get('total')
     if 'total' in cabecera or datos_xml:
         errores += errores_cuadre(oc, enviadas, total_declarado, datos_xml)
@@ -236,7 +241,8 @@ def registrar_factura(oc, usuario, cabecera, enviadas, archivos=None, datos_xml=
             fecha_emision=cabecera['fecha_emision'], moneda=oc.moneda, total_declarado=total_declarado,
             pdf=archivos.get('pdf'), pdf_nombre=archivos.get('pdf_nombre', '')[:150],
             xml=datos_xml['xml'] if datos_xml else '', xml_nombre=archivos.get('xml_nombre', '')[:150],
-            observaciones=cabecera.get('observaciones', ''), enviada_por=usuario)
+            observaciones=cabecera.get('observaciones', ''), enviada_por=usuario,
+            fuera_tolerancia=' '.join(fuera)[:500])
         for linea in lineas:
             item = linea['item']
             cantidad, precio = enviadas.get(item.pk, (D0, D0))
@@ -286,11 +292,15 @@ def registrar_compra(factura, usuario):
                                       cantidad=i.cantidad, precio_unitario=i.precio_unitario)
         c.calcular_totales()
         if factura.total_declarado:  # el total de la factura del proveedor (ya validado contra la tolerancia)
+            from compras.tolerancias import permitida
             try:
-                c.cuadrar_con(factura.total_declarado, Empresa.actual().tolerancia_total)
+                c.cuadrar_con(factura.total_declarado, permitida(factura.tercero, 'total', c.total))
             except ValueError:
                 c.ajuste_redondeo = D0
                 c.calcular_totales()
+        if factura.fuera_tolerancia:  # Compras la aprobó, pero Finanzas no la paga hasta que se libere
+            c.pago_bloqueado = True
+            c.motivo_bloqueo_pago = f'Precio fuera de la tolerancia: {factura.fuera_tolerancia}'[:300]
         c.save()
         from compras.registro_info import aprender
         aprender(c)

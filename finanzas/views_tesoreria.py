@@ -360,7 +360,7 @@ def pago_masivo_nuevo(request):
         filtro = {'moneda': cuenta.moneda, 'fecha_vencimiento__lte': hasta}
         if request.GET.get('proveedor'):
             filtro['tercero_id'] = request.GET['proveedor']
-        docs = _pendientes(Compra, **filtro)[:400]
+        docs = _pendientes(Compra, pago_bloqueado=False, **filtro)[:400]  # las bloqueadas por Compras no se pagan
     if request.method == 'POST' and cuenta:
         try:
             pago = op.crear_pago_masivo(cuenta, _fecha(request.POST.get('fecha')),

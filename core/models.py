@@ -104,6 +104,18 @@ class Empresa(models.Model):
     tolerancia_total = models.DecimalField(
         'Tolerancia del monto total (±)', max_digits=10, decimal_places=2, default=Decimal('1'),
         help_text='Diferencia permitida entre el total de la factura del proveedor y el calculado con sus líneas')
+    tolerancia_cantidad_pct = models.DecimalField(
+        'Tolerancia de cantidad (±%)', max_digits=5, decimal_places=2, default=Decimal('0'),
+        help_text='0 = solo el importe. Con ambos vale el más estricto')
+    tolerancia_precio_pct = models.DecimalField(
+        'Tolerancia de precio unitario (±%)', max_digits=5, decimal_places=2, default=Decimal('0'),
+        help_text='0 = solo el importe. Con ambos vale el más estricto. Cada proveedor puede tener las suyas')
+    tolerancia_total_pct = models.DecimalField(
+        'Tolerancia del monto total (±%)', max_digits=5, decimal_places=2, default=Decimal('0'),
+        help_text='0 = solo el importe. Con ambos vale el más estricto')
+    alerta_precio_pct = models.DecimalField(
+        'Alerta de precio en la orden de compra (%)', max_digits=5, decimal_places=2, default=Decimal('10'),
+        help_text='La OC avisa si un precio supera el último pagado por el producto en más de este %. 0 = sin aviso')
     sunat_client_id = models.CharField(
         'SUNAT API: client_id', max_length=100, blank=True,
         help_text='Credenciales de "Consulta de validez de comprobantes" (SUNAT Operaciones en Línea > '
@@ -211,6 +223,15 @@ class Tercero(models.Model):
                                        help_text='Cuenta en el mismo banco desde el que se paga')
     cci = models.CharField('CCI', max_length=20, blank=True, help_text='Código de cuenta interbancario (20 dígitos)')
     cuenta_detracciones = models.CharField('Cuenta de detracciones (BN)', max_length=20, blank=True)
+    # tolerancias propias del proveedor para sus facturas (vacío = las de Ajustes › Empresa)
+    tolerancia_precio = models.DecimalField('Tolerancia de precio (±)', max_digits=10, decimal_places=4, null=True,
+                                            blank=True, help_text='Solo proveedores. Vacío = la de la empresa')
+    tolerancia_precio_pct = models.DecimalField('Tolerancia de precio (±%)', max_digits=5, decimal_places=2,
+                                                null=True, blank=True, help_text='Vacío = la de la empresa')
+    tolerancia_total = models.DecimalField('Tolerancia del total (±)', max_digits=10, decimal_places=2, null=True,
+                                           blank=True, help_text='Solo proveedores. Vacío = la de la empresa')
+    tolerancia_total_pct = models.DecimalField('Tolerancia del total (±%)', max_digits=5, decimal_places=2,
+                                               null=True, blank=True, help_text='Vacío = la de la empresa')
     activo = models.BooleanField(default=True)
 
     class Meta:

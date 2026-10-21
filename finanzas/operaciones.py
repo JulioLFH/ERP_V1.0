@@ -349,6 +349,10 @@ def crear_pago_masivo(cuenta, fecha, lineas, usuario, glosa=''):
     """lineas: [(compra, monto)] en la moneda de la cuenta; genera el lote (el archivo sale de él)."""
     if not lineas:
         raise ErrorTesoreria('Elija al menos un comprobante.')
+    bloqueadas = [c for c, _ in lineas if c.pago_bloqueado]
+    if bloqueadas:
+        raise ErrorTesoreria('Pago bloqueado por Compras (precio fuera de la tolerancia): '
+                             + ', '.join(str(c) for c in bloqueadas) + '.')
     pago = PagoMasivo.objects.create(cuenta=cuenta, fecha=fecha, glosa=glosa, creado_por=usuario)
     for compra, monto in lineas:
         _validar_documento(compra, monto, cuenta.moneda)

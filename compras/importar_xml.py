@@ -109,7 +109,8 @@ def registrar(xml, productos, opciones, usuario=None, nombre_archivo='factura.xm
         CompraItem.objects.create(documento=c, producto=productos.get(i), descripcion=l['descripcion'][:250] or '-',
                                   cantidad=l['cantidad'] or 1, precio_unitario=l['precio'], afectacion=afectacion)
     try:  # se registra el total del XML; el redondeo del proveedor (dentro de la tolerancia) va a su cuenta
-        c.cuadrar_con(xml['total'], max(Empresa.actual().tolerancia_total, TOLERANCIA))
+        from .tolerancias import permitida
+        c.cuadrar_con(xml['total'], max(permitida(proveedor, 'total', xml['total']), TOLERANCIA))
     except ValueError:
         c.calcular_totales()
         raise ErrorImportacion(f'El total calculado ({c.total:,.2f}) no cuadra con el del XML ({xml["total"]:,.2f}): '

@@ -90,6 +90,7 @@ RUTAS = {
     'compras:oc_estado': lambda r: {'APROBADO': _aprobar_oc(), 'ANULADO': 'compras.anular'}.get(
         r.POST.get('estado'), 'compras.oc'),
     'compras:portal_factura_aprobar': 'compras.portal', 'compras:portal_factura_rechazar': 'compras.portal',
+    'compras:liberar_pago': 'compras.portal',
     'compras:portal_acceso_nuevo': 'compras.portal', 'compras:portal_acceso_editar': 'compras.portal',
     'inventario:nueva': 'inventario.operar', 'inventario:editar': 'inventario.operar',
     'inventario:confirmar': 'inventario.operar', 'inventario:pendientes': 'inventario.operar',

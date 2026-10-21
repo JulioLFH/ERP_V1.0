@@ -290,6 +290,10 @@ def cobrar_pagar(request, modo):
                 if monto > d.saldo:
                     errores.append(f'{d}: el monto supera el saldo ({d.saldo})')
                     continue
+                if getattr(d, 'pago_bloqueado', False):
+                    errores.append(f'{d}: pago bloqueado por Compras ({d.motivo_bloqueo_pago}). Se paga cuando '
+                                   f'Compras lo libere.')
+                    continue
                 creados.append(Movimiento.objects.create(
                     cuenta=data['cuenta'], fecha=data['fecha'], tipo=cfg['tipo'],
                     concepto='DETRACCION' if data['es_detraccion'] else cfg['concepto'],

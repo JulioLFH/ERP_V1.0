@@ -8,6 +8,7 @@
   <a href="{% url 'portal:inicio' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
 </div>
 {% if f.estado == 'RECHAZADA' %}<div class="alert alert-danger"><b>Rechazada:</b> {{ f.motivo_rechazo }}. Puede registrar la factura corregida desde la orden.</div>{% endif %}
+{% if f.fuera_tolerancia and f.estado == 'ENVIADA' %}<div class="alert alert-warning small"><b>En revisión de precios:</b> {{ f.fuera_tolerancia }} El área de compras la revisará; el pago se programa cuando la apruebe.</div>{% endif %}
 {% if f.estado == 'APROBADA' and f.compra %}<div class="alert alert-success">Factura registrada. Vence el <b>{{ f.compra.fecha_vencimiento|date:'d/m/Y' }}</b>.</div>{% endif %}
 <div class="alert alert-light border small">SUNAT: <b>{{ f.get_estado_sunat_display }}</b>{% if f.sunat_detalle %} — {{ f.sunat_detalle }}{% endif %}</div>
 <div class="d-flex gap-2 mb-3">

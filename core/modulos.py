@@ -67,6 +67,7 @@ MODULOS = [
             ('Productos', 'productos'),
             ('Reportes', [('Registro de compras 8.1 / PLE', 'compras:registro', 'bi-journal-text'),
                           ('Reportes de compras', 'compras:reportes', 'bi-bar-chart'),
+                          ('Historial de precios de compra', 'compras:historial_precios', 'bi-graph-up'),
                           ('Solicitudes de pedido: estado y tiempos', 'compras:solped_reportes', 'bi-hourglass-split'),
                           ('SIRE: propuesta de SUNAT (RCE)', 'sire_propuestas?libro=RCE', 'bi-cloud-download'),
                           ('Cruce con propuesta SIRE', 'compras:sire', 'bi-arrow-left-right'),

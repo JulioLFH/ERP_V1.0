@@ -16,8 +16,21 @@ class RegistroInfoForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = RegistroInfo
         fields = ['producto', 'proveedor', 'codigo_proveedor', 'moneda', 'precio', 'vigente_hasta', 'plazo_entrega',
-                  'cantidad_minima', 'preferido', 'activo', 'observaciones']
+                  'cantidad_minima', 'preferido', 'fijo_desde', 'fijo_hasta', 'homologado', 'bloqueado',
+                  'motivo_bloqueo', 'activo', 'observaciones']
         widgets = {'vigente_hasta': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d')}
+
+    def clean(self):
+        d = super().clean()
+        if d.get('fijo_hasta') and not d.get('fijo_desde'):
+            self.add_error('fijo_desde', 'Indique desde cuándo es el proveedor fijo.')
+        if d.get('fijo_desde') and d.get('fijo_hasta') and d['fijo_hasta'] < d['fijo_desde']:
+            self.add_error('fijo_hasta', 'La fecha final es anterior a la inicial.')
+        if d.get('bloqueado') and not (d.get('motivo_bloqueo') or '').strip():
+            self.add_error('motivo_bloqueo', 'Indique por qué se bloquea al proveedor para este producto.')
+        if d.get('bloqueado') and (d.get('preferido') or d.get('fijo_desde')):
+            self.add_error('bloqueado', 'Un proveedor bloqueado no puede ser el preferido ni el fijo.')
+        return d
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -52,6 +65,44 @@ def lista(request):
              r.cantidad_minima, 'Sí' if r.preferido else ''] for r in qs])
     return render(request, 'compras/registros_info.html', {
         'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'q': q})
+
+
+class HistorialForm(BootstrapMixin, forms.Form):
+    producto = forms.ModelChoiceField(Producto.objects.filter(es_plantilla=False), required=False)
+    proveedor = forms.ModelChoiceField(Tercero.objects.filter(tipo__in=['PROVEEDOR', 'AMBOS']), required=False,
+                                       help_text='Vacío = todos')
+    desde = forms.DateField(required=False)
+    hasta = forms.DateField(required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        remoto(self.fields['producto'], 'productos')
+        remoto(self.fields['proveedor'], 'proveedores')
+
+
+@login_required
+def historial_precios(request):
+    """Evolución del precio de compra de un producto por proveedor (n.º 44)."""
+    from core.models import Empresa
+
+    from . import historial_precios as hp
+    form = HistorialForm(request.GET or None)
+    producto, filas = None, []
+    if form.is_valid() and form.cleaned_data['producto']:
+        d = form.cleaned_data
+        producto = d['producto']
+        filas = hp.historial(producto, d['proveedor'], d['desde'], d['hasta'])
+        if request.GET.get('formato') == 'excel':
+            from core.utils import excel_response
+            return excel_response(f'Precios_{producto.codigo}', f'HISTORIAL DE PRECIOS DE COMPRA {producto.codigo} '
+                                  f'{producto.nombre}', ['Fecha', 'RUC', 'Proveedor', 'Documento', 'Cantidad', 'Moneda',
+                                                         'Precio', 'Precio S/', 'Variación %'],
+                                  [[f['fecha'], f['proveedor'].numero_doc, f['proveedor'].nombre, f['documento'],
+                                    f['cantidad'], f['moneda'], f['precio'], f['precio_pen'], f['variacion']]
+                                   for f in filas])
+    return render(request, 'compras/historial_precios.html', {
+        'form': form, 'producto': producto, 'filas': filas, 'resumen': hp.resumen(filas),
+        'grafico': hp.grafico(filas), 'alerta_pct': Empresa.actual().alerta_precio_pct})
 
 
 @login_required

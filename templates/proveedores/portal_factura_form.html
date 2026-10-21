@@ -32,7 +32,7 @@
       <tr><td colspan="6" class="text-end"><span id="cuadre" class="badge text-bg-secondary">Ingrese el monto total</span></td></tr>
     </tfoot>
   </table></div></div>
-  <p class="small text-muted">La factura debe cuadrar: cantidad ±{{ tol_c }} respecto a lo recibido, precio unitario ±{{ tol_p }} respecto a la orden y monto total ±{{ tol_t }} respecto a lo calculado. Se valida también en SUNAT.</p>
+  <p class="small text-muted">La factura debe cuadrar: cantidad {{ tol_c }} respecto a lo recibido y monto total {{ tol_t_texto }} respecto a lo calculado. Un precio unitario que difiera de la orden en más de {{ tol_p }} se recibe igual, pero queda para revisión de Compras y su pago se retiene hasta aprobarlo. Se valida también en SUNAT.</p>
   <button class="btn btn-primary"><i class="bi bi-send"></i> Enviar factura</button>
 </form>
 {{ xml_lineas|json_script:"xml-lineas" }}
@@ -41,7 +41,9 @@
 <script>
 (function () {
   const tasa = {% if oc.tipo_operacion == 'GRAVADA' %}{{ igv_tasa|stringformat:'s' }}{% else %}0{% endif %};
-  const tolT = {{ tol_t|stringformat:'s' }};
+  const tolImporte = {{ tol_t|stringformat:'s' }}, tolPct = {{ tol_t_pct|stringformat:'s' }};
+  // como compras.tolerancias.permitida: el importe y, si hay %, el más estricto de ambos
+  const tolT = (base) => (tolPct ? (tolImporte ? Math.min(tolImporte, Math.abs(base) * tolPct / 100) : Math.abs(base) * tolPct / 100) : tolImporte);
   // como core.utils.leer_numero: 1,109.90 / 287,50 (coma decimal) / 1.109,90
   const num = (v) => {
     let t = String(v || '0').replace(/\s/g, '');
@@ -76,7 +78,7 @@
     document.getElementById('t-declarado').textContent = declarado === null ? '—' : fmt(declarado);
     if (declarado === null) { badge.className = 'badge text-bg-secondary'; badge.textContent = 'Ingrese el monto total'; return; }
     const dif = Math.round((declarado - total) * 100) / 100;
-    const ok = Math.abs(dif) <= tolT;
+    const ok = Math.abs(dif) <= tolT(total) + 1e-9;
     badge.className = 'badge ' + (ok ? 'text-bg-success' : 'text-bg-danger');
     badge.textContent = ok ? 'La factura cuadra' : `No cuadra: diferencia ${fmt(dif)}`;
   }

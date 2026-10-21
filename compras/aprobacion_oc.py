@@ -56,6 +56,11 @@ def aprobar(oc, user, comentario=''):
     errores = validar_orden(oc)
     if errores:
         raise ErrorAprobacionOC('No se aprueba: no cumple el contrato marco. ' + ' '.join(errores))
+    from .registro_info import problemas_orden
+    bloqueos, _ = problemas_orden(oc)
+    if bloqueos:
+        raise ErrorAprobacionOC('No se aprueba: ' + ' '.join(bloqueos) + ' Elija otro proveedor o levante el bloqueo '
+                                'en Compras › Proveedores por producto.')
     error = error_aprobacion(user, oc)
     if error:
         raise ErrorAprobacionOC(error)

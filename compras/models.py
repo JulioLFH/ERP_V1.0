@@ -123,6 +123,10 @@ class Compra(ComprobanteBase):
         editable=False, help_text='Total de la factura del proveedor (XML / SUNAT) menos el calculado con sus líneas, '
                                   'dentro de la tolerancia: se registra el total del proveedor y la diferencia va a '
                                   'su propia cuenta')
+    pago_bloqueado = models.BooleanField('Pago bloqueado', default=False, editable=False,
+                                         help_text='Precio facturado fuera de la tolerancia: Finanzas no la paga hasta '
+                                                   'que Compras libere el pago')
+    motivo_bloqueo_pago = models.CharField('Motivo del bloqueo de pago', max_length=300, blank=True, editable=False)
 
     class Meta(ComprobanteBase.Meta):
         verbose_name = 'compra'
@@ -303,6 +307,17 @@ class RegistroInfo(models.Model):
     cantidad_minima = models.DecimalField('Lote mínimo de compra', max_digits=14, decimal_places=2, default=0)
     vigente_hasta = models.DateField('Precio vigente hasta', null=True, blank=True)
     preferido = models.BooleanField('Proveedor preferido', default=False)
+    # libro de fuentes: proveedor fijo en un periodo, homologado o bloqueado para este producto
+    fijo_desde = models.DateField('Proveedor fijo desde', null=True, blank=True,
+                                  help_text='En este periodo el MRP y las solicitudes de pedido usan este proveedor')
+    fijo_hasta = models.DateField('Proveedor fijo hasta', null=True, blank=True)
+    homologado = models.BooleanField('Homologado', default=False,
+                                     help_text='Aprobado por calidad para este producto. Si el producto tiene '
+                                               'homologados, la OC avisa cuando se compra a uno que no lo está')
+    bloqueado = models.BooleanField('Bloqueado para este producto', default=False,
+                                    help_text='No se le compra este producto (calidad, homologación vencida…): no se '
+                                              'aprueba una OC con él y el MRP no lo propone')
+    motivo_bloqueo = models.CharField('Motivo del bloqueo', max_length=200, blank=True)
     activo = models.BooleanField(default=True)
     ultimo_precio = models.DecimalField('Último precio comprado', max_digits=14, decimal_places=4, null=True,
                                         blank=True, editable=False)

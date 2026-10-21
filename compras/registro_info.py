@@ -5,12 +5,37 @@ from django.db.models import F
 from .models import RegistroInfo
 
 
-def fuente(producto):
-    """El registro info a usar: el preferido; si no hay, el más comprado. None si el producto no tiene."""
+def fuente(producto, fecha=None):
+    """El registro info a usar (libro de fuentes): el proveedor fijo vigente en la fecha; si no hay, el preferido; si
+    no, el más comprado. Nunca uno bloqueado para el producto. None si el producto no tiene."""
+    from django.db.models import Q
+    from django.utils import timezone
     if producto is None or not producto.pk:
         return None
-    return (RegistroInfo.objects.filter(producto=producto, activo=True).select_related('proveedor')
-            .order_by('-preferido', '-compras', 'pk').first())
+    fecha = fecha or timezone.localdate()
+    qs = RegistroInfo.objects.filter(producto=producto, activo=True, bloqueado=False).select_related('proveedor')
+    fijo = qs.filter(fijo_desde__isnull=False, fijo_desde__lte=fecha).filter(
+        Q(fijo_hasta__isnull=True) | Q(fijo_hasta__gte=fecha)).order_by('-fijo_desde').first()
+    return fijo or qs.order_by('-preferido', '-compras', 'pk').first()
+
+
+def problemas_orden(oc):
+    """(bloqueos, avisos) del libro de fuentes para la OC: proveedor bloqueado para un producto (no se aprueba) y
+    proveedor no homologado cuando el producto tiene homologados (aviso)."""
+    bloqueos, avisos = [], []
+    productos = [i.producto for i in oc.items.filter(producto__isnull=False).select_related('producto')]
+    registros = {r.producto_id: r for r in RegistroInfo.objects.filter(producto__in=productos, proveedor=oc.tercero)}
+    con_homologados = set(RegistroInfo.objects.filter(producto__in=productos, homologado=True, activo=True)
+                          .values_list('producto_id', flat=True))
+    for p in dict.fromkeys(productos):
+        r = registros.get(p.pk)
+        if r is not None and r.bloqueado:
+            bloqueos.append(f'{p.codigo} {p.nombre}: {oc.tercero.nombre} está bloqueado para este producto'
+                            f'{f" ({r.motivo_bloqueo})" if r.motivo_bloqueo else ""}.')
+        elif p.pk in con_homologados and not (r and r.homologado):
+            avisos.append(f'{p.codigo} {p.nombre}: {oc.tercero.nombre} no está homologado para este producto '
+                          f'(hay proveedores homologados).')
+    return bloqueos, avisos
 
 
 def proveedor_y_plazo(producto):
@@ -58,7 +83,8 @@ def cargar_desde_compras():
     sin_preferido = set(RegistroInfo.objects.values_list('producto_id', flat=True)) - set(
         RegistroInfo.objects.filter(preferido=True).values_list('producto_id', flat=True))
     for producto_id in sin_preferido:
-        mejor = RegistroInfo.objects.filter(producto_id=producto_id, activo=True).order_by('-compras', 'pk').first()
+        mejor = RegistroInfo.objects.filter(producto_id=producto_id, activo=True, bloqueado=False).order_by(
+            '-compras', 'pk').first()
         if mejor:
             RegistroInfo.objects.filter(pk=mejor.pk).update(preferido=True)
     return creados, actualizados

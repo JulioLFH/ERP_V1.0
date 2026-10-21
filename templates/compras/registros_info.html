@@ -9,7 +9,7 @@
     <a href="{% url 'compras:registro_info_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo</a>{% endif %}
   </div>
 </div>
-<p class="small text-muted">Qué proveedores venden cada producto, a qué precio y en cuántos días. El preferido lo usan el MRP, la sugerencia de compra y las solicitudes de pedido. El último precio y la fecha se actualizan solos con cada compra registrada.</p>
+<p class="small text-muted">Qué proveedores venden cada producto, a qué precio y en cuántos días (libro de fuentes). El MRP, la sugerencia de compra y las solicitudes de pedido usan el proveedor <b>fijo</b> vigente; si no hay, el <b>preferido</b>. Un proveedor <b>bloqueado</b> para el producto no se propone y su orden de compra no se aprueba; si el producto tiene <b>homologados</b>, la orden avisa cuando se compra a otro. El último precio y la fecha se actualizan solos con cada compra registrada.</p>
 <form class="d-flex flex-wrap gap-2 mb-3" method="get">
   <input name="q" value="{{ q }}" class="form-control form-control-sm" style="width:auto" placeholder="Producto o proveedor">
   <label class="small d-flex align-items-center gap-1"><input type="checkbox" name="inactivos" value="1" {% if request.GET.inactivos %}checked{% endif %}> Incluir inactivos</label>
@@ -19,7 +19,7 @@
   <thead><tr><th>Producto</th><th>Proveedor</th><th class="num">Precio</th><th class="num">Último precio</th><th>Última compra</th><th class="text-center">Compras</th><th class="text-center">Plazo</th><th class="num">Lote mín.</th><th></th></tr></thead>
   <tbody>{% for r in page_obj %}<tr class="{% if not r.activo %}text-muted{% endif %}">
     <td>{{ r.producto.codigo }} {{ r.producto.nombre }}</td>
-    <td>{{ r.proveedor.nombre }}{% if r.preferido %} <span class="badge text-bg-success">preferido</span>{% endif %}{% if r.codigo_proveedor %}<div class="small text-muted">Cód. {{ r.codigo_proveedor }}</div>{% endif %}</td>
+    <td>{{ r.proveedor.nombre }}{% if r.preferido %} <span class="badge text-bg-success">preferido</span>{% endif %}{% if r.fijo_desde %} <span class="badge text-bg-primary" title="Proveedor fijo">fijo {{ r.fijo_desde|date:'d/m/Y' }}{% if r.fijo_hasta %}–{{ r.fijo_hasta|date:'d/m/Y' }}{% endif %}</span>{% endif %}{% if r.homologado %} <span class="badge text-bg-info">homologado</span>{% endif %}{% if r.bloqueado %} <span class="badge text-bg-danger" title="{{ r.motivo_bloqueo }}">bloqueado</span>{% endif %}{% if r.codigo_proveedor %}<div class="small text-muted">Cód. {{ r.codigo_proveedor }}</div>{% endif %}</td>
     <td class="num">{% if r.precio is not None %}{{ r.moneda }} {{ r.precio|money }}{% if r.vigente_hasta %}<div class="small text-muted">hasta {{ r.vigente_hasta|date:'d/m/Y' }}</div>{% endif %}{% else %}—{% endif %}</td>
     <td class="num">{% if r.ultimo_precio is not None %}{{ r.moneda }} {{ r.ultimo_precio|money }}{% else %}—{% endif %}</td>
     <td>{{ r.ultima_compra|date:'d/m/Y'|default:'—' }}</td>

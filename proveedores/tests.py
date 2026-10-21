@@ -198,7 +198,10 @@ class Fase2Test(TestCase):
         self.assertContains(r, 'difiere de la ingresada al almacén')  # 10 vs 8 recibidas, tolerancia ±1
         r = self.client.post(url, {**base, 'total': '18885', 'archivo_pdf': self._pdf(),
                                    f'cant_{item.pk}': '8', f'precio_{item.pk}': '2001.50'})
-        self.assertContains(r, 'difiere del de la orden')  # precio fuera de ±1
+        # v1.54: el precio fuera de ±1 ya no rechaza la factura (va a revisión con pago bloqueado); aquí la rechaza
+        # el total, que no cuadra con 8 × 2001.50 + IGV
+        self.assertContains(r, 'no cuadra')
+        self.assertFalse(FacturaProveedor.objects.exists())
         r = self.client.post(url, {**base, 'total': '20000', 'archivo_pdf': self._pdf(),
                                    f'cant_{item.pk}': '9', f'precio_{item.pk}': '2000.80'})
         self.assertContains(r, 'no cuadra')  # el monto total no cuadra con cantidades x precios
@@ -333,3 +336,48 @@ class Fase2Test(TestCase):
         for nombre in ('compras:portal_facturas', 'compras:portal_accesos', 'compras:portal_acceso_nuevo', 'correo'):
             self.assertEqual(self.client.get(reverse(nombre)).status_code, 200, nombre)
         self.assertEqual(self.client.get(reverse('compras:oc_detalle', args=[oc.pk])).status_code, 200)
+
+    def test_precio_fuera_de_tolerancia_bloquea_el_pago_hasta_liberarlo(self):
+        from compras import tolerancias
+        from finanzas.models import Cuenta
+        # tolerancia con % (vale la más estricta) y la propia del proveedor
+        e = Empresa.actual()
+        e.tolerancia_precio, e.tolerancia_precio_pct = D('5'), D('0.1')
+        e.save()
+        self.assertEqual(tolerancias.permitida(self.prov, 'precio', D('2000')), D('2.0000'))  # 0.1% de 2000 < 5
+        self.prov.tolerancia_precio, self.prov.tolerancia_precio_pct = D('0.50'), None
+        self.prov.save()
+        self.assertEqual(tolerancias.permitida(self.prov, 'precio', D('2000')), D('0.5000'))  # min(0.50, 2.00)
+        oc = self.crear_oc(cantidad=2)
+        self.recibir(oc, 2)
+        item = oc.items.get()
+        # 2010 vs 2000: fuera de la tolerancia del proveedor, pero se recibe para revisión (no es error)
+        f = servicios.registrar_factura(oc, None, {'serie': 'F003', 'numero': '20', 'fecha_emision': HOY,
+                                                   'total': D('4743.60')}, {item.pk: (D('2'), D('2010'))})
+        self.assertIn('difiere del de la orden', f.fuera_tolerancia)
+        self.assertContains(self.client.get(reverse('compras:portal_facturas')), 'precio fuera de tolerancia')
+        self.client.post(reverse('compras:portal_factura_aprobar', args=[f.pk]))
+        c = Compra.objects.get(serie='F003', numero='20')
+        self.assertTrue(c.pago_bloqueado)
+        self.assertEqual(c.total, D('4743.60'))  # el importe del proveedor
+        r = self.client.get(reverse('compras:detalle', args=[c.pk]))
+        self.assertContains(r, 'Pago bloqueado')
+        self.assertContains(r, 'Liberar pago')
+        # Finanzas no la puede pagar: ni individual ni masivo
+        banco = Cuenta.objects.filter(tipo='BANCO', moneda='PEN', es_detracciones=False).first()
+        r = self.client.post(reverse('finanzas:pago') + f'?tercero={self.prov.pk}', {
+            'cuenta': banco.pk, 'fecha': HOY.isoformat(), 'medio_pago': 'TRANSFERENCIA', f'monto_{c.pk}': '100'},
+            follow=True)
+        self.assertContains(r, 'pago bloqueado por Compras')
+        self.assertFalse(c.movimientos.exists())
+        r = self.client.get(reverse('finanzas:pago_masivo_nuevo'), {'cuenta': banco.pk,
+                                                                    'hasta': (HOY + timedelta(400)).isoformat()})
+        self.assertNotIn(c.pk, [d.pk for d in r.context['docs']])
+        # Compras libera el pago con su motivo
+        r = self.client.post(reverse('compras:liberar_pago', args=[c.pk]), {'comentario': 'corto'}, follow=True)
+        self.assertContains(r, 'mínimo 10 caracteres')
+        self.client.post(reverse('compras:liberar_pago', args=[c.pk]),
+                         {'comentario': 'Precio acordado por correo del 20/10'})
+        c.refresh_from_db()
+        self.assertFalse(c.pago_bloqueado)
+        self.assertIn('Precio acordado por correo', c.motivo_bloqueo_pago)

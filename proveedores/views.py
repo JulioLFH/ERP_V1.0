@@ -137,11 +137,15 @@ def factura_nueva(request, pk):
     for l in lineas:  # valores escritos por el proveedor al volver a mostrar el formulario
         l['cant_txt'] = request.POST.get(f'cant_{l["item"].pk}', l['esperado'])
         l['precio_txt'] = request.POST.get(f'precio_{l["item"].pk}', l['precio'])
+    from compras import tolerancias
     from core.models import Empresa
     e = Empresa.actual()
+    tol_t, tol_t_pct = tolerancias._valores(oc.tercero, 'total')
     return render(request, 'proveedores/portal_factura_form.html', {
-        'oc': oc, 'lineas': lineas, 'form': form, 'errores': errores, 'tol_c': e.tolerancia_cantidad,
-        'tol_p': e.tolerancia_precio, 'tol_t': e.tolerancia_total, 'igv_tasa': e.igv_tasa,
+        'oc': oc, 'lineas': lineas, 'form': form, 'errores': errores,
+        'tol_c': tolerancias.texto(oc.tercero, 'cantidad'), 'tol_p': tolerancias.texto(oc.tercero, 'precio'),
+        'tol_t_texto': tolerancias.texto(oc.tercero, 'total'), 'tol_t': tol_t or 0, 'tol_t_pct': tol_t_pct or 0,
+        'igv_tasa': e.igv_tasa,
         'xml_lineas': [{'descripcion': l['descripcion'], 'cantidad': str(l['cantidad']), 'precio': str(l['precio'])}
                        for l in (form.datos_xml or {}).get('lineas', [])]})
 

@@ -63,6 +63,9 @@ class FacturaProveedor(models.Model):
                                      related_name='+')
     revisado_en = models.DateTimeField(null=True, blank=True)
     motivo_rechazo = models.CharField('Motivo del rechazo', max_length=300, blank=True)
+    fuera_tolerancia = models.CharField('Precios fuera de la tolerancia', max_length=500, blank=True, editable=False,
+                                        help_text='Se recibe para revisión de Compras; al aprobarla, el pago queda '
+                                                  'bloqueado hasta que Compras lo libere')
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:

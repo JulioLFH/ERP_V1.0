@@ -1,0 +1,39 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Historial de precios de compra{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title"><i class="bi bi-graph-up"></i> Historial de precios de compra</h1>
+  {% if filas %}<a href="?{{ request.GET.urlencode }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>{% endif %}
+</div>
+<p class="small text-muted">Precio unitario sin IGV de cada factura de compra registrada, por proveedor, con su variación frente a la compra anterior. En dólares se muestra también en soles al tipo de cambio de la factura.{% if alerta_pct %} Las órdenes de compra avisan si un precio supera el último pagado en más de {{ alerta_pct|floatformat:2 }}% (Ajustes › Empresa).{% endif %}</p>
+<form method="get" class="card mb-3"><div class="card-body row g-2 align-items-end">
+  <div class="col-md-5">{% with field=form.producto %}{% include 'core/_campo.html' %}{% endwith %}</div>
+  <div class="col-md-3">{% with field=form.proveedor %}{% include 'core/_campo.html' %}{% endwith %}</div>
+  <div class="col-md-2">{% with field=form.desde %}{% include 'core/_campo.html' %}{% endwith %}</div>
+  <div class="col-md-2">{% with field=form.hasta %}{% include 'core/_campo.html' %}{% endwith %}</div>
+  <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-search"></i> Ver historial</button></div>
+</div></form>
+{% if producto %}
+  {% if not filas %}<div class="alert alert-secondary">Sin compras registradas de {{ producto.codigo }} {{ producto.nombre }} con esos filtros.</div>{% else %}
+  {% if grafico %}<div class="card mb-3"><div class="card-body">
+    <div class="small fw-semibold mb-1">Precio en S/ por compra ({{ grafico.desde|date:'d/m/Y' }} – {{ grafico.hasta|date:'d/m/Y' }})</div>
+    <svg viewBox="0 0 {{ grafico.ancho }} {{ grafico.alto }}" style="width:100%;max-height:260px" role="img" aria-label="Evolución del precio de compra">
+      {% for m in grafico.marcas %}<line x1="{{ grafico.izq }}" x2="{{ grafico.ancho }}" y1="{{ m.y }}" y2="{{ m.y }}" stroke="#e9ecef"/><text x="{{ grafico.izq|add:'-6' }}" y="{{ m.y }}" text-anchor="end" dominant-baseline="middle" font-size="10" fill="#6c757d">{{ m.valor|money }}</text>{% endfor %}
+      {% for s in grafico.series %}{% cycle '#e8590c' '#1971c2' '#2f9e44' '#ae3ec9' '#f08c00' '#0c8599' as color silent %}
+        <polyline points="{{ s.linea }}" fill="none" stroke="{{ color }}" stroke-width="2"/>
+        {% for px, py, fecha, precio, doc in s.puntos %}<circle cx="{{ px }}" cy="{{ py }}" r="3.5" fill="{{ color }}"><title>{{ s.nombre }} · {{ fecha|date:'d/m/Y' }} · {{ doc }} · S/ {{ precio|floatformat:4 }}</title></circle>{% endfor %}
+      {% endfor %}
+    </svg>
+    <div class="d-flex flex-wrap gap-3 small">{% for s in grafico.series %}{% cycle '#e8590c' '#1971c2' '#2f9e44' '#ae3ec9' '#f08c00' '#0c8599' as color2 silent %}<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ color2 }}"></span> {{ s.nombre }}</span>{% endfor %}</div>
+  </div></div>{% endif %}
+  <div class="card mb-3"><div class="card-header">Por proveedor</div><div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Proveedor</th><th class="text-center">Compras</th><th class="num">Primer precio</th><th class="num">Último</th><th class="num">Mínimo</th><th class="num">Máximo</th><th class="num">Promedio ponderado</th><th class="num">Cambio</th><th>Última compra</th></tr></thead>
+    <tbody>{% for r in resumen %}<tr><td>{{ r.proveedor.nombre }}</td><td class="text-center">{{ r.compras }}</td><td class="num">{{ r.primero|floatformat:4 }}</td><td class="num fw-semibold">{{ r.ultimo|floatformat:4 }}</td><td class="num">{{ r.minimo|floatformat:4 }}</td><td class="num">{{ r.maximo|floatformat:4 }}</td><td class="num">{{ r.promedio|floatformat:4 }}</td><td class="num {% if r.cambio > 0 %}text-danger{% elif r.cambio < 0 %}text-success{% endif %}">{% if r.cambio is not None %}{{ r.cambio|floatformat:2 }}%{% endif %}</td><td>{{ r.ultima_fecha|date:'d/m/Y' }}</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+  <div class="card"><div class="card-header">Detalle ({{ filas|length }} compra{{ filas|length|pluralize }})</div><div class="table-responsive"><table class="table table-sm table-hover mb-0">
+    <thead><tr><th>Fecha</th><th>Proveedor</th><th>Documento</th><th class="num">Cantidad</th><th>Moneda</th><th class="num">Precio</th><th class="num">Precio S/</th><th class="num">Variación</th></tr></thead>
+    <tbody>{% for f in filas reversed %}<tr><td>{{ f.fecha|date:'d/m/Y' }}</td><td>{{ f.proveedor.nombre }}</td><td><a href="{% url 'compras:detalle' f.compra_id %}">{{ f.documento }}</a></td><td class="num">{{ f.cantidad|money }}</td><td>{{ f.moneda }}</td><td class="num">{{ f.precio|floatformat:4 }}</td><td class="num">{{ f.precio_pen|floatformat:4 }}</td><td class="num {% if f.variacion > 0 %}text-danger{% elif f.variacion < 0 %}text-success{% endif %}">{% if f.variacion is not None %}{{ f.variacion|floatformat:2 }}%{% else %}—{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+  {% endif %}
+{% else %}<div class="alert alert-light border">Elija un producto para ver la evolución de su precio de compra.</div>{% endif %}
+{% endblock %}

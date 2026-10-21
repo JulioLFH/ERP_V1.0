@@ -77,6 +77,10 @@
 {% if doc.estado == 'ANULADO' %}
 <div class="alert alert-danger py-2"><i class="bi bi-x-octagon"></i> <b>Anulado</b>{% if doc.anulado_en %} el {{ doc.anulado_en|date:'d/m/Y H:i' }}{% endif %}{% if doc.anulado_por %} por <b>{{ doc.anulado_por.get_full_name|default:doc.anulado_por.username }}</b>{% endif %}{% if doc.motivo_anulacion %}. Motivo: {{ doc.motivo_anulacion }}{% endif %}</div>
 {% endif %}
+{% if app == 'compras' and doc.pago_bloqueado %}
+<div class="alert alert-danger py-2 d-flex flex-wrap gap-2 justify-content-between align-items-center"><div><i class="bi bi-lock"></i> <b>Pago bloqueado.</b> {{ doc.motivo_bloqueo_pago }} Finanzas no la paga hasta que Compras libere el pago.</div>
+  {% if puede.compras_portal %}<form method="post" action="{% url 'compras:liberar_pago' doc.pk %}" class="d-flex gap-2">{% csrf_token %}<input name="comentario" class="form-control form-control-sm" style="min-width:260px" placeholder="Motivo de la liberación (ej. precio acordado por correo)" required minlength="10"><button class="btn btn-sm btn-outline-danger text-nowrap"><i class="bi bi-unlock"></i> Liberar pago</button></form>{% endif %}</div>
+{% elif app == 'compras' and 'Liberado por' in doc.motivo_bloqueo_pago %}<div class="alert alert-secondary py-2 small"><i class="bi bi-unlock"></i> {{ doc.motivo_bloqueo_pago }}</div>{% endif %}
 
 <div class="row g-3">
   <div class="col-lg-8">

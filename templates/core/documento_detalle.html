@@ -64,6 +64,9 @@
   {% if doc.estado == 'APROBADO' or doc.estado == 'ATENDIDO' %}<a href="{% url 'compras:conformidad' doc.pk %}" class="btn btn-sm btn-outline-success ms-2"><i class="bi bi-patch-check"></i> Registrar conformidad</a>{% endif %}</div>{% endif %}
 {% if doc.contrato %}<div class="alert {% if errores_contrato %}alert-warning{% else %}alert-info{% endif %} mt-3 small d-print-none" style="max-width:900px;margin:auto"><i class="bi bi-file-earmark-text"></i> Pedido contra el <a href="{% url 'compras:contrato' doc.contrato_id %}">contrato marco {{ doc.contrato.numero }}</a>.
   {% for e in errores_contrato %}<div>• {{ e }}</div>{% empty %} Cumple sus precios y topes.{% endfor %}</div>{% endif %}
+{% if bloqueos_fuente %}<div class="alert alert-danger mt-3 small d-print-none" style="max-width:900px;margin:auto"><i class="bi bi-slash-circle"></i> <b>No se puede aprobar:</b>{% for e in bloqueos_fuente %}<div>• {{ e }}</div>{% endfor %}</div>{% endif %}
+{% if alertas_precio or avisos_fuente %}<div class="alert alert-warning mt-3 small d-print-none" style="max-width:900px;margin:auto"><i class="bi bi-exclamation-triangle"></i> <b>Revise antes de aprobar:</b>{% for e in alertas_precio %}<div>• {{ e }}</div>{% endfor %}{% for e in avisos_fuente %}<div>• {{ e }}</div>{% endfor %}
+  <div class="mt-1"><a href="{% url 'compras:historial_precios' %}">Historial de precios de compra</a></div></div>{% endif %}
 <div class="card mt-3 d-print-none" style="max-width:900px;margin:auto"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-person-check"></i> Proveedor</span>
   <span class="badge {% if doc.estado_proveedor == 'ACEPTADA' %}text-bg-success{% elif doc.estado_proveedor == 'RECHAZADA' %}text-bg-danger{% elif doc.estado_proveedor == 'ENVIADA' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ doc.get_estado_proveedor_display }}</span></div>
   <div class="card-body small">

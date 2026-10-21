@@ -25,6 +25,7 @@
   </form>
 </div></div></div>
 {% elif f.estado == 'RECHAZADA' %}<div class="alert alert-danger py-2">Rechazada el {{ f.revisado_en|date:'d/m/Y H:i' }}: {{ f.motivo_rechazo }}</div>{% endif %}
+{% if f.fuera_tolerancia %}<div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle"></i> <b>Precio fuera de la tolerancia.</b> {{ f.fuera_tolerancia }}{% if f.estado == 'ENVIADA' %} Si la aprueba, la compra queda con el <b>pago bloqueado</b> hasta que Compras lo libere (o recházela para que el proveedor la corrija).{% elif f.compra_id %} El pago de la compra quedó bloqueado hasta que Compras lo libere.{% endif %}</div>{% endif %}
 <div class="row g-3 mb-3">
   <div class="col-md-6"><div class="card h-100"><div class="card-body small">
     <div class="fw-semibold mb-2"><i class="bi bi-paperclip"></i> Archivos del proveedor</div>

@@ -9,6 +9,7 @@ app_name = 'compras'
 
 urlpatterns = views.compras_views.urls() + [
     path('<int:pk>/distribuir/', views.distribuir, name='distribuir'),
+    path('<int:pk>/liberar-pago/', views.liberar_pago, name='liberar_pago'),
     path('solicitudes/bandeja/', views_solped.bandeja, name='solped_bandeja'),
     path('solicitudes/reglas/', views_solped.reglas, name='solped_reglas'),
     path('solicitudes/reportes/', views_solped.reportes, name='solped_reportes'),
@@ -17,6 +18,7 @@ urlpatterns = views.compras_views.urls() + [
     path('licitaciones/nueva/', views_abastecimiento.licitacion_nueva, name='licitacion_nueva'),
     path('licitaciones/<int:pk>/', views_abastecimiento.licitacion, name='licitacion'),
     path('proveedores-por-producto/', views_registro_info.lista, name='registros_info'),
+    path('historial-de-precios/', views_registro_info.historial_precios, name='historial_precios'),
     path('proveedores-por-producto/nuevo/', views_registro_info.editar, name='registro_info_nuevo'),
     path('proveedores-por-producto/<int:pk>/', views_registro_info.editar, name='registro_info'),
     path('contratos/', views_abastecimiento.contratos, name='contratos'),

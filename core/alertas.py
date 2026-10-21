@@ -88,6 +88,13 @@ def calcular(user):
                 alertas.append(_alerta('info', 'bi-inbox', 'Facturas de proveedores por revisar',
                                        f'{n} factura(s) cargadas en el portal esperan su revisión.',
                                        reverse('compras:portal_facturas'), n))
+            from compras.models import Compra
+            n = Compra.objects.filter(pago_bloqueado=True, estado='REGISTRADO').count()
+            if n:
+                alertas.append(_alerta('danger', 'bi-lock', 'Facturas con pago bloqueado',
+                                       f'{n} factura(s) con precio fuera de la tolerancia: Finanzas no las paga '
+                                       f'hasta que Compras libere el pago.',
+                                       reverse('compras:lista') + '?pago_bloqueado=1', n))
     if 'inventario' in mods or 'compras' in mods:
         from .models import Producto
         from django.db.models import Q

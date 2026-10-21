@@ -217,13 +217,34 @@ def oc_editar(request, pk):
 
 
 @login_required
+def liberar_pago(request, pk):
+    """Compras libera el pago de una factura con precio fuera de la tolerancia (con su motivo)."""
+    from .tolerancias import liberar_pago as liberar
+    compra = get_object_or_404(Compra, pk=pk)
+    if request.method == 'POST':
+        try:
+            liberar(compra, request.user, request.POST.get('comentario', ''))
+            messages.success(request, f'Pago de {compra} liberado: Finanzas ya puede pagarla.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return redirect('compras:detalle', pk)
+
+
+@login_required
 def oc_detalle(request, pk):
     from inventario.servicios import acciones_para, operaciones_de
 
     from .abastecimiento import validar_orden
     oc = get_object_or_404(OrdenCompra, pk=pk)
     from django.urls import reverse
+
+    from .historial_precios import alertas_orden
+    from .registro_info import problemas_orden
+    bloqueos_fuente, avisos_fuente = problemas_orden(oc)
+    pendiente = oc.estado == 'PENDIENTE'
     return render(request, 'core/documento_detalle.html', {
+        'alertas_precio': alertas_orden(oc) if pendiente else [], 'avisos_fuente': avisos_fuente if pendiente else [],
+        'bloqueos_fuente': bloqueos_fuente if pendiente else [],
         'acciones_inv': acciones_para(oc), 'operaciones_inv': operaciones_de(oc), 'es_oc': True,
         'enlace_aceptacion': request.build_absolute_uri(
             reverse('portal:oc_aceptacion', args=[oc.token_aceptacion()])),

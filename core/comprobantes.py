@@ -113,6 +113,8 @@ class ComprobanteViews:
         for campo in ('tipo_comprobante', 'estado', 'moneda'):
             if request.GET.get(campo):
                 qs = qs.filter(**{campo: request.GET[campo]})
+        if request.GET.get('pago_bloqueado') and hasattr(self.modelo, 'pago_bloqueado'):  # alerta de Compras
+            qs = qs.filter(pago_bloqueado=True)
         q = request.GET.get('q', '').strip()
         if q:
             qs = qs.filter(Q(tercero__nombre__icontains=q) | Q(tercero__numero_doc__icontains=q) |
