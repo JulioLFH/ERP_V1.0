@@ -569,16 +569,15 @@ def resultados_por_linea(request):
     # en cada línea el costo de ventas es el costo de lo vendido (69). Lo comprado, consumido y producido en el
     # periodo (60/61, destinos de producción 9x y producción almacenada 71/72) no se identifica con una línea hasta
     # que se vende: esa diferencia pasa a «Sin línea», así el margen por línea es confiable y el total no cambia
+    no_absorbido = 'Producción en proceso y costos de producción no absorbidos'
     acumulados = [n for n, _, e in oficial[oficial.index(next(x for x in oficial if x[0] == 'Costo de ventas')) + 1:]
                   if e in ('subtotal', 'total')]
-    for pk, s in por_linea.items():
+    for pk in por_linea:
         if pk is None:
             continue
-        costo_vendido = -reportes._neto(s, ('69',))
-        delta = calculo[pk].get('Costo de ventas', D0) - costo_vendido
+        delta = calculo[pk].pop(no_absorbido, D0)  # en la línea queda solo su costo de lo vendido (69)
         if delta:
-            calculo[pk]['Costo de ventas'] = costo_vendido
-            calculo[None]['Costo de ventas'] = calculo[None].get('Costo de ventas', D0) + delta
+            calculo[None][no_absorbido] = calculo[None].get(no_absorbido, D0) + delta
             for n in acumulados:
                 calculo[pk][n] = calculo[pk].get(n, D0) - delta
                 calculo[None][n] = calculo[None].get(n, D0) + delta

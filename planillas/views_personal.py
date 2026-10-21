@@ -213,6 +213,45 @@ def legajo(request, pk):
 
 
 @login_required
+def contratos(request):
+    """Contratos y legajo de todos los trabajadores: vigentes, por vencer (30 días) y vencidos, y los documentos del
+    legajo por vencer o faltantes (DNI, contrato firmado, EMO). Cada fila abre el legajo del trabajador."""
+    from datetime import timedelta
+    hoy = timezone.localdate()
+    filtro = request.GET.get('filtro', 'por_vencer')
+    vigentes = (Trabajador.objects.filter(fecha_ingreso__isnull=False).exclude(fecha_cese__lt=hoy)
+                .order_by('apellido_paterno', 'nombres'))
+    ultimo = {}
+    for c in Contrato.objects.filter(trabajador__in=vigentes).order_by('trabajador_id', '-inicio', '-id'):
+        ultimo.setdefault(c.trabajador_id, c)
+    filas = []
+    for t in vigentes:
+        c = ultimo.get(t.pk)
+        dias = c.dias_para_vencer if c else None
+        estado = ('sin contrato' if c is None else 'indeterminado' if c.fin is None else
+                  'vencido' if dias < 0 else 'por vencer' if dias <= 30 else 'vigente')
+        if filtro == 'por_vencer' and estado not in ('por vencer', 'vencido', 'sin contrato'):
+            continue
+        filas.append({'t': t, 'c': c, 'dias': dias, 'estado': estado})
+    docs = (DocumentoLegajo.objects.filter(trabajador__in=vigentes, vence__isnull=False,
+                                           vence__lte=hoy + timedelta(days=30))
+            .select_related('trabajador').order_by('vence'))
+    con_tipo = {(d['trabajador_id'], d['tipo']) for d in DocumentoLegajo.objects.filter(trabajador__in=vigentes)
+                .values('trabajador_id', 'tipo')}
+    faltan = [{'t': t, 'tipos': [n for k, n in DocumentoLegajo.TIPOS if k in ('DNI', 'CONTRATO', 'EMO')
+                                 and (t.pk, k) not in con_tipo]} for t in vigentes]
+    faltan = [f for f in faltan if f['tipos']]
+    if request.GET.get('formato') == 'excel':
+        return excel_response('Contratos', f'CONTRATOS · {Empresa.actual().razon_social}', [
+            'Trabajador', 'Documento', 'Modalidad', 'Inicio', 'Vence', 'Días', 'Estado'], [
+            [f['t'].nombre_completo, f['t'].numero_doc, f['c'].get_tipo_display() if f['c'] else '',
+             f['c'].inicio if f['c'] else None, f['c'].fin if f['c'] else None, f['dias'], f['estado']]
+            for f in filas])
+    return render(request, 'planillas/contratos.html', {'filas': filas, 'filtro': filtro, 'docs': docs,
+                                                        'faltan': faltan, 'hoy': hoy})
+
+
+@login_required
 def t_registro(request):
     """Datos para el T-Registro de SUNAT (altas y bajas): datos personales, laborales, de seguridad social y
     del contrato de los trabajadores vigentes o con movimientos en el rango."""

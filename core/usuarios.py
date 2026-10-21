@@ -97,7 +97,7 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
             self.fields[nombre].widget.attrs.pop('class', None)
         from .models import Tercero
         self.fields['trabajador'].queryset = Tercero.objects.filter(activo=True, tipo_doc__in=['1', '4', '7'])
-        jefes = User.objects.filter(is_active=True).order_by('username')
+        jefes = User.objects.filter(is_active=True, acceso_proveedor__isnull=True).order_by('username')
         self.fields['jefe'].queryset = jefes.exclude(pk=self.instance.pk) if self.instance.pk else jefes
         from planillas.models import Trabajador
         libres = Trabajador.objects.filter(fecha_ingreso__isnull=False).exclude(fecha_cese__lt=timezone.localdate())
@@ -217,7 +217,9 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
 
 @login_required
 def lista(request):
-    usuarios = User.objects.prefetch_related('groups').order_by('-is_active', 'username')
+    # los usuarios del portal de proveedores se administran en Compras › Accesos de proveedores, no aquí
+    usuarios = User.objects.filter(acceso_proveedor__isnull=True).prefetch_related('groups').order_by(
+        '-is_active', 'username')
     filas = []
     for u in usuarios:
         nombres = {g.name for g in u.groups.all()}
@@ -360,7 +362,7 @@ def nuevo(request):
 
 @login_required
 def editar(request, pk):
-    usuario = get_object_or_404(User, pk=pk)
+    usuario = get_object_or_404(User, pk=pk, acceso_proveedor__isnull=True)  # los del portal: en Compras
     if request.method == 'POST' and request.POST.get('accion') == 'quitar_2fa':
         # el usuario perdió el teléfono y sus códigos de respaldo: solo un administrador, con motivo
         from .auditoria import registrar

@@ -22,7 +22,7 @@
     <thead><tr><th>Factura</th><th>Emisión</th><th>Orden</th><th class="num">Total</th><th>Estado</th><th>SUNAT</th></tr></thead>
     <tbody>{% for f in facturas %}
       <tr onclick="location.href='{% url 'portal:factura' f.pk %}'" style="cursor:pointer"><td class="fw-semibold">{{ f.numero_completo }}</td><td>{{ f.fecha_emision|date:'d/m/Y' }}</td><td>{{ f.orden_compra.numero }}</td>
-        <td class="num">{{ f.simbolo }} {{ f.total|money }}</td>
+        <td class="num">{{ f.simbolo }} {{ f.total_comprobante|money }}</td>
         <td><span class="badge {% if f.estado == 'APROBADA' %}text-bg-success{% elif f.estado == 'RECHAZADA' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ f.get_estado_display }}</span></td>
         <td class="small">{{ f.get_estado_sunat_display }}</td></tr>
     {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Aún no registra facturas.</td></tr>{% endfor %}</tbody>

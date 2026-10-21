@@ -113,6 +113,11 @@ class Empresa(models.Model):
     tolerancia_total_pct = models.DecimalField(
         'Tolerancia del monto total (±%)', max_digits=5, decimal_places=2, default=Decimal('0'),
         help_text='0 = solo el importe. Con ambos vale el más estricto')
+    DECIMALES_COSTO = [('AUTO', 'Automático: 2, o 4 si el costo es menor a 1'), ('2', '2 decimales'),
+                       ('4', '4 decimales')]
+    decimales_costo = models.CharField(
+        'Decimales del costo unitario en pantalla', max_length=4, choices=DECIMALES_COSTO, default='AUTO',
+        help_text='Solo cómo se muestra: el costo se guarda con 4 a 6 decimales. Cantidades e importes van con 2')
     alerta_precio_pct = models.DecimalField(
         'Alerta de precio en la orden de compra (%)', max_digits=5, decimal_places=2, default=Decimal('10'),
         help_text='La OC avisa si un precio supera el último pagado por el producto en más de este %. 0 = sin aviso')

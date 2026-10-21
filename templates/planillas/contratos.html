@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Contratos y legajo{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title"><i class="bi bi-file-earmark-person"></i> Contratos y legajo</h1>
+  <div class="d-flex gap-2">
+    <a href="?filtro={{ filtro }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    <a href="{% url 'planillas:t_registro' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-excel"></i> Datos para el T-Registro</a>
+  </div>
+</div>
+<p class="small text-muted">Contrato vigente de cada trabajador con su modalidad y vencimiento (se avisa 30 días antes en la campana), y los documentos del legajo por vencer o que faltan. Para registrar un contrato, su renovación o un documento, abra el legajo del trabajador.</p>
+<ul class="nav nav-pills small mb-3">
+  <li class="nav-item"><a class="nav-link {% if filtro == 'por_vencer' %}active{% endif %}" href="?filtro=por_vencer">Por vencer, vencidos y sin contrato</a></li>
+  <li class="nav-item"><a class="nav-link {% if filtro == 'todos' %}active{% endif %}" href="?filtro=todos">Todos los trabajadores</a></li>
+</ul>
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+  <thead><tr><th>Trabajador</th><th>Modalidad</th><th>Inicio</th><th>Vence</th><th class="text-center">Días</th><th>Estado</th><th></th></tr></thead>
+  <tbody>{% for f in filas %}<tr>
+    <td>{{ f.t.nombre_completo }}<div class="small text-muted">{{ f.t.numero_doc }}</div></td>
+    <td>{{ f.c.get_tipo_display|default:'—' }}</td><td>{{ f.c.inicio|date:'d/m/Y'|default:'—' }}</td><td>{{ f.c.fin|date:'d/m/Y'|default:'—' }}</td>
+    <td class="text-center">{% if f.dias is not None %}{{ f.dias }}{% endif %}</td>
+    <td><span class="badge {% if f.estado == 'vencido' or f.estado == 'sin contrato' %}text-bg-danger{% elif f.estado == 'por vencer' %}text-bg-warning{% else %}text-bg-success{% endif %}">{{ f.estado }}</span></td>
+    <td class="text-end"><a href="{% url 'planillas:legajo' f.t.pk %}" class="btn btn-sm btn-outline-primary py-0">Legajo</a></td>
+  </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-3">Ningún contrato vence en los próximos 30 días.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Documentos del legajo por vencer (30 días)</div><ul class="list-group list-group-flush small">
+    {% for d in docs %}<li class="list-group-item d-flex justify-content-between"><span>{{ d.trabajador.nombre_completo }} · {{ d.get_tipo_display }}</span><span class="{% if d.vence < hoy %}text-danger{% endif %}">{{ d.vence|date:'d/m/Y' }} <a href="{% url 'planillas:legajo' d.trabajador_id %}">abrir</a></span></li>{% empty %}<li class="list-group-item text-muted">Ninguno.</li>{% endfor %}
+  </ul></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Legajo incompleto (DNI, contrato firmado o EMO)</div><ul class="list-group list-group-flush small">
+    {% for f in faltan %}<li class="list-group-item d-flex justify-content-between"><span>{{ f.t.nombre_completo }}</span><span class="text-muted">falta: {{ f.tipos|join:', ' }} <a href="{% url 'planillas:legajo' f.t.pk %}">abrir</a></span></li>{% empty %}<li class="list-group-item text-muted">Todos tienen DNI, contrato y EMO.</li>{% endfor %}
+  </ul></div></div>
+</div>
+{% endblock %}

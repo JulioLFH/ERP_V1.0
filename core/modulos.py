@@ -191,6 +191,7 @@ MODULOS = [
                               ('Solicitudes de vacaciones y permisos', 'planillas:solicitudes_personal',
                                'bi-calendar-check')]),
             ('Personal', [('Trabajadores', 'planillas:trabajadores', 'bi-people'),
+                          ('Contratos y legajo (vencimientos)', 'planillas:contratos', 'bi-file-earmark-person'),
                           ('Vacaciones y récord vacacional', 'planillas:vacaciones', 'bi-sun'),
                           ('Asistencia y marcaciones', 'planillas:asistencia', 'bi-fingerprint'),
                           ('Turnos de trabajo', 'planillas:turnos', 'bi-clock')]),

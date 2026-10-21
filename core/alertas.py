@@ -142,11 +142,20 @@ def calcular(user):
             alertas.append(_alerta('warning', 'bi-file-earmark-person', 'Contratos por vencer',
                                    f'{len(contratos)} contrato(s) vencen en 30 días o ya vencieron sin renovación: '
                                    + ', '.join(c.trabajador.nombre_completo for c in contratos[:4]),
-                                   reverse('planillas:trabajadores'), len(contratos)))
+                                   reverse('planillas:contratos'), len(contratos)))
         if documentos:
             alertas.append(_alerta('info', 'bi-folder2-open', 'Documentos del legajo por vencer',
                                    f'{len(documentos)} documento(s) (EMO, antecedentes…) vencen en 30 días.',
-                                   reverse('planillas:trabajadores'), len(documentos)))
+                                   reverse('planillas:contratos'), len(documentos)))
+        # trabajadores activos sin centro de costo: la planilla no se cierra hasta asignarlo (PLA-07)
+        from planillas.models import Trabajador
+        n = (Trabajador.objects.filter(fecha_ingreso__isnull=False, centro_costo__isnull=True)
+             .exclude(fecha_cese__lt=hoy).count())
+        if n:
+            alertas.append(_alerta('danger', 'bi-diagram-3', 'Trabajadores sin centro de costo',
+                                   f'{n} trabajador(es) activos sin centro de costo: la planilla no se cierra hasta '
+                                   f'asignarlo (use la asignación masiva).',
+                                   reverse('planillas:trabajadores') + '?estado=sin_centro', n))
     mes_anterior = (hoy.replace(day=1) - timedelta(days=1)).strftime('%Y%m')
     if 'activos' in mods and puede(user, 'activos.depreciar'):
         from activos.models import ActivoFijo

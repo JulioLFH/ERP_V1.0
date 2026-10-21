@@ -3,6 +3,18 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.57.0 — 21/10/2026 · Checklist v1.56: correcciones de lo existente
+- **Costo de ventas por función = cuenta 69 (CON-05)**: el estado de resultados por función y los resultados por línea muestran como costo de ventas solo el costo de lo vendido; lo consumido y gastado en producción que aún no pasó al inventario (60/61 + destinos de producción − 71/72) va en su propia línea «Producción en proceso y costos de producción no absorbidos» (en el reporte por línea, en «Sin línea»). El resultado del ejercicio no cambia.
+- **Decimales (PLAT-06)**: cantidades según la unidad (sin decimales en unidades, cajas y docenas cuando son enteras; 2 en kilos, litros, etc.), importes con 2 y costos unitarios con 2, o 4 cuando el costo es menor a 1 (configurable en Ajustes › Empresa: automático, 2 o 4). Aplica en la orden de producción, las operaciones de almacén y los reportes masivos (Stock a una fecha ya no muestra 15 decimales).
+- **Usuario corporativo (PLAT-07/08)**: una sesión de la empresa principal abierta antes de la v1.49 se reconoce como corporativa sin volver a ingresar, así «Ir a…» cambia de empresa sin cerrar la sesión y aparece el Panel del grupo (panel del estudio).
+- **Usuarios del portal (SEG-03)**: ya no aparecen en Ajustes › Usuarios (se administran en Compras › Accesos de proveedores) ni como jefe.
+- **Contratos y legajo (PLA-13)**: nueva pantalla Planillas › Personal › Contratos y legajo: contrato vigente de cada trabajador (por vencer, vencido, sin contrato), documentos del legajo por vencer y legajos incompletos (DNI, contrato firmado, EMO), con Excel; la alerta de la campana lleva ahí.
+- **Saldos negativos (MAN-08)**: el kardex del producto avisa si quedó en negativo y desde cuándo, con acceso directo al reporte «Saldos negativos en el kardex».
+- **Trabajadores sin centro de costo (PLA-07)**: alerta en la campana con enlace al filtro y a la asignación masiva.
+- **Almacén (LOG-03)**: dirección y distrito marcados como obligatorios (lo son en un almacén físico).
+- **Portal (PORT-07)**: «Mis facturas» y la factura muestran el total del comprobante declarado por el proveedor (el de SUNAT) y, aparte, la diferencia de redondeo.
+- **Manual 9**: nuevo capítulo de actualización (perfiles de acceso, reglas de aprobación, suplencias, seguridad, empresas del grupo, panel y cliente del estudio, consulta RUC).
+
 ## v1.56.0 — 21/10/2026 · Novedades por versión (manuales)
 - **Novedades por versión (n.º 57)**: nueva página para todos los usuarios (menú de usuario › Novedades, y Ajustes › Ayuda) con lo que cambió en cada versión, armada sola desde este historial; se puede ver desde la v1.0, 1.24, 1.41 o 1.50.
 - **Manual 10. Novedades por versión** (PDF, en Ajustes › Manuales de usuario): todas las novedades desde la v1.24, incluidas las de v1.41 en adelante que faltaban en los manuales por módulo (permisos por pantalla, perfiles, organigrama, reglas de aprobación, suplencias, solicitud de pedido, inventario físico, reportes masivos, SIRE, SUNAT directo, usuario corporativo, panel del estudio). Los manuales se listan en su orden (1 al 10).

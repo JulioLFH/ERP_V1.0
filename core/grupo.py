@@ -53,7 +53,15 @@ def corporativo(request):
     """El usuario de la principal detrás de la sesión (o None), siempre verificado contra la base principal."""
     datos = request.session.get(SESION)
     if not datos:
-        return None
+        # sesión de la empresa principal abierta antes de marcarla (p. ej. iniciada antes de la v1.49): si el usuario
+        # es corporativo se reconoce ahora, sin pedirle que vuelva a ingresar
+        user = getattr(request, 'user', None)
+        if (user is not None and user.is_authenticated and request.session.get('empresa', 'default') == 'default'
+                and reg.actual() == 'default' and acceso_de(user)[0]):
+            marcar(request, user, 'default')
+            datos = request.session.get(SESION)
+        if not datos:
+            return None
     if not hasattr(request, '_corporativo'):
         u = get_user_model().objects.using('default').filter(pk=datos.get('id'), is_active=True).first()
         request._corporativo = u if u and acceso_de(u)[0] else None

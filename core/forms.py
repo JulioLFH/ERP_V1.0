@@ -352,6 +352,15 @@ class AlmacenForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
         model = Almacen
         fields = '__all__'
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # se muestran como obligatorios (asterisco); el uso de tránsito, cuarentena o terceros los libera en clean()
+        self.fields['direccion'].help_text = ('Dirección y distrito obligatorios en un almacén físico: son el punto de '
+                                              'partida de las guías (no en tránsito, cuarentena ni terceros)')
+        for campo in ('direccion', 'ubigeo'):
+            self.fields[campo].widget.attrs['data-obligatorio-fisico'] = '1'
+            self.fields[campo].label = f'{self.fields[campo].label} *'
+
     def clean(self):
         datos = super().clean()
         # un almacén físico es punto de partida de las guías de remisión: dirección y ubigeo obligatorios

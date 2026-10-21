@@ -20,7 +20,7 @@
   <tbody>{% for i in items %}<tr><td>{{ i.descripcion }}</td><td class="num">{{ i.cantidad|money }}</td><td class="num">{{ i.precio_unitario|floatformat:4 }}</td><td class="num">{{ i.subtotal|money }}</td></tr>{% endfor %}</tbody>
   <tfoot><tr><td colspan="3" class="text-end">Valor venta</td><td class="num">{{ f.base_imponible|sumar:f.no_gravado|money }}</td></tr>
     <tr><td colspan="3" class="text-end">IGV</td><td class="num">{{ f.igv|money }}</td></tr>
-    <tr class="fw-bold"><td colspan="3" class="text-end">TOTAL {{ f.simbolo }}</td><td class="num">{{ f.total|money }}</td></tr></tfoot>
+    <tr class="fw-bold"><td colspan="3" class="text-end">TOTAL DEL COMPROBANTE {{ f.simbolo }}</td><td class="num">{{ f.total_comprobante|money }}</td></tr>{% if f.diferencia_redondeo %}<tr class="small text-muted"><td colspan="3" class="text-end">Calculado con las líneas {{ f.total|money }} · diferencia de redondeo</td><td class="num">{{ f.diferencia_redondeo|money }}</td></tr>{% endif %}</tfoot>
 </table></div></div>
 {% if f.observaciones %}<p class="small text-muted mt-2">Comentario: {{ f.observaciones }}</p>{% endif %}
 {% endblock %}

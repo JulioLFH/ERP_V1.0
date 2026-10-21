@@ -270,9 +270,16 @@ def reporte(request, clave):
                 datos += [[], ['CUADRE CON CONTABILIDAD'], ['Cuenta', 'Nombre', 'Kardex S/', 'Contabilidad S/',
                                                            'Diferencia S/']] + cuadre
             return excel_response(nombre, f'{titulo} ({sap})', encabezados, datos)
+    from core.formato import celda, decimales_costo
+    modo = decimales_costo()
+    col_um = encabezados.index('U.M.') if 'U.M.' in encabezados else None
+
+    def en_pantalla(fila):  # números con el formato del sistema (los Excel y CSV llevan los valores completos)
+        unidad = fila[col_um] if col_um is not None and col_um < len(fila) else ''
+        return [celda(v, encabezados[i] if i < len(encabezados) else '', unidad, modo) for i, v in enumerate(fila)]
     return render(request, 'inventario/reporte_masivo.html', {
         'clave': clave, 'titulo': titulo, 'sap': sap, 'icono': icono, 'descripcion': descripcion,
-        'encabezados': encabezados, 'filas': filas[:LIMITE_PANTALLA],
+        'encabezados': encabezados, 'filas': [en_pantalla(f) for f in filas[:LIMITE_PANTALLA]],
         'n_filas': n_total if n_total is not None else len(filas), 'total': total,
         'cuadre': cuadre, 'limite': LIMITE_PANTALLA, 'ver': ver,
         'almacenes': Almacen.objects.filter(activo=True, **({} if permitidos is None else {'pk__in': permitidos})),

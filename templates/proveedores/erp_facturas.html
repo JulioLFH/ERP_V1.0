@@ -19,7 +19,7 @@
     <tbody>{% for f in page_obj %}
       <tr onclick="location.href='{% url 'compras:portal_factura' f.pk %}'" style="cursor:pointer">
         <td>{{ f.creado|date:'d/m/Y H:i' }}</td><td>{{ f.tercero.nombre|truncatechars:35 }}</td><td class="fw-semibold">{{ f.numero_completo }}</td>
-        <td>{{ f.fecha_emision|date:'d/m/Y' }}</td><td>{{ f.orden_compra.numero }}</td><td class="num">{{ f.simbolo }} {{ f.total|money }}</td>
+        <td>{{ f.fecha_emision|date:'d/m/Y' }}</td><td>{{ f.orden_compra.numero }}</td><td class="num">{{ f.simbolo }} {{ f.total_comprobante|money }}</td>
         <td><span class="badge {% if f.estado_sunat == 'VALIDO' %}text-bg-success{% elif f.estado_sunat == 'OBSERVADO' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ f.get_estado_sunat_display }}</span></td>
         <td><span class="badge {% if f.estado == 'APROBADA' %}text-bg-success{% elif f.estado == 'RECHAZADA' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ f.get_estado_display }}</span>{% if f.fuera_tolerancia %} <span class="badge text-bg-danger" title="{{ f.fuera_tolerancia }}">precio fuera de tolerancia</span>{% endif %}</td></tr>
     {% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Sin facturas.</td></tr>{% endfor %}</tbody>

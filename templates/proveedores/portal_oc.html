@@ -34,6 +34,6 @@
 {% endif %}
 {% if facturas %}
 <div class="card"><div class="card-header">Facturas registradas</div><ul class="list-group list-group-flush small">{% for f in facturas %}
-  <li class="list-group-item d-flex justify-content-between"><a href="{% url 'portal:factura' f.pk %}">{{ f.numero_completo }}</a><span>{{ f.simbolo }} {{ f.total|money }} · {{ f.get_estado_display }}</span></li>{% endfor %}</ul></div>
+  <li class="list-group-item d-flex justify-content-between"><a href="{% url 'portal:factura' f.pk %}">{{ f.numero_completo }}</a><span>{{ f.simbolo }} {{ f.total_comprobante|money }} · {{ f.get_estado_display }}</span></li>{% endfor %}</ul></div>
 {% endif %}
 {% endblock %}

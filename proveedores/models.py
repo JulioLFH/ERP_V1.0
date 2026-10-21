@@ -77,6 +77,15 @@ class FacturaProveedor(models.Model):
         return f'Factura {self.serie}-{self.numero}'
 
     @property
+    def total_comprobante(self):
+        """El total del comprobante (el declarado por el proveedor, el de SUNAT); si no lo declaró, el calculado."""
+        return self.total_declarado if self.total_declarado is not None else self.total
+
+    @property
+    def diferencia_redondeo(self):
+        return (self.total_declarado - self.total) if self.total_declarado is not None else D0
+
+    @property
     def numero_completo(self):
         return f'{self.serie}-{self.numero}'
 

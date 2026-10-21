@@ -128,7 +128,15 @@ def kardex(request):
             titulo = (f'Kardex {"valorizado " if costos else ""}{producto.codigo} {producto.nombre} '
                       f'del {desde} al {hasta}')
             return excel_response(f'Kardex_{producto.codigo}', titulo, enc, datos)
-        ctx.update(filas=filas, desde=desde, hasta=hasta, inicial=inicial, entradas=ent, salidas=sal, final=saldo)
+        # primer día en que el saldo (del almacén elegido o de todos) quedó en negativo, para avisar (MAN-08)
+        corrido, negativo = D0, None
+        for k in movs:
+            corrido += _signo(k)
+            if corrido < 0:
+                negativo = k.fecha
+                break
+        ctx.update(filas=filas, desde=desde, hasta=hasta, inicial=inicial, entradas=ent, salidas=sal, final=saldo,
+                   negativo=negativo)
     return render(request, 'inventario/kardex.html', ctx)
 
 

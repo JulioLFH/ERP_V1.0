@@ -66,10 +66,10 @@
         <thead><tr><th>Insumo</th><th>U.M.</th><th class="num">Planificado</th>{% if o.estado != 'TERMINADA' and o.estado != 'ANULADA' %}<th class="num">Stock</th>{% endif %}<th class="num" style="width:16%">Consumido</th>{% if ver_costos and o.estado == 'TERMINADA' %}<th class="num">Costo unit.</th><th class="num">Valor S/</th>{% endif %}</tr></thead>
         <tbody>{% for f in filas %}{% with c=f.consumo %}<tr>
           <td>{{ c.producto.codigo }} {{ c.producto.nombre }}</td><td>{{ c.producto.unidad }}</td>
-          <td class="num">{{ c.cantidad_plan|money }}</td>
+          <td class="num">{{ c.cantidad_plan|cant:c.producto.unidad }}</td>
           {% if o.estado != 'TERMINADA' and o.estado != 'ANULADA' %}<td class="num {% if f.faltante > 0 %}text-danger fw-semibold{% endif %}">{{ f.stock|money }}</td>{% endif %}
-          <td class="num">{% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}<input name="consumo_{{ c.pk }}" value="{{ c.cantidad_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ c.cantidad_real|money }}{% endif %}</td>
-          {% if ver_costos and o.estado == 'TERMINADA' %}<td class="num">{{ c.costo_unitario|floatformat:4 }}</td><td class="num">{{ c.valor|money }}</td>{% endif %}
+          <td class="num">{% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}<input name="consumo_{{ c.pk }}" value="{{ c.cantidad_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ c.cantidad_real|cant:c.producto.unidad }}{% endif %}</td>
+          {% if ver_costos and o.estado == 'TERMINADA' %}<td class="num">{{ c.costo_unitario|costo }}</td><td class="num">{{ c.valor|money }}</td>{% endif %}
         </tr>{% endwith %}{% endfor %}</tbody>
       </table></div>
     </div>
@@ -102,10 +102,10 @@
       <div class="table-responsive"><table class="table table-sm mb-0">
         <thead><tr><th>Producto</th><th>Tipo</th><th class="num">Previsto</th><th class="num" style="width:16%">Producido</th>{% if ver_costos and o.estado == 'TERMINADA' %}<th class="num">Costo unit.</th><th class="num">Costo asignado</th>{% endif %}</tr></thead>
         <tbody>{% for s in salidas %}<tr>
-          <td>{{ s.producto.codigo }} {{ s.producto.nombre }}</td><td class="small">{% if s.tipo == 'COPRODUCTO' %}Coproducto · {{ s.participacion }} %{% else %}Subproducto · S/ {{ s.valor_unitario|floatformat:4 }}{% endif %}</td>
-          <td class="num">{{ s.cantidad_plan|money }}</td>
-          <td class="num">{% if abierta %}<input name="salida_{{ s.pk }}" value="{{ s.cantidad_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ s.cantidad_real|money }}{% endif %}</td>
-          {% if ver_costos and o.estado == 'TERMINADA' %}<td class="num">{{ s.costo_unitario|floatformat:4 }}</td><td class="num">{{ s.costo|money }}</td>{% endif %}
+          <td>{{ s.producto.codigo }} {{ s.producto.nombre }}</td><td class="small">{% if s.tipo == 'COPRODUCTO' %}Coproducto · {{ s.participacion }} %{% else %}Subproducto · S/ {{ s.valor_unitario|costo }}{% endif %}</td>
+          <td class="num">{{ s.cantidad_plan|cant:s.producto.unidad }}</td>
+          <td class="num">{% if abierta %}<input name="salida_{{ s.pk }}" value="{{ s.cantidad_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ s.cantidad_real|cant:s.producto.unidad }}{% endif %}</td>
+          {% if ver_costos and o.estado == 'TERMINADA' %}<td class="num">{{ s.costo_unitario|costo }}</td><td class="num">{{ s.costo|money }}</td>{% endif %}
         </tr>{% endfor %}</tbody>
       </table></div>
     </div>
@@ -151,7 +151,7 @@
           <td class="num {% if v.variacion > 0 %}text-danger{% elif v.variacion < 0 %}text-success{% endif %}">{{ v.variacion|money }}</td>
           <td class="num">{% if v.pct is not None %}{{ v.pct }}%{% endif %}</td></tr>{% endfor %}</tbody>
       </table></div>
-      <div class="card-body py-2 small text-muted">Costo real unitario <b>S/ {{ o.costo_unitario|floatformat:4 }}</b> · estándar S/ {{ o.costo_estandar_unit|floatformat:4 }}{% if o.estandar %} (liberado {{ o.estandar.periodo|slice:'4:' }}/{{ o.estandar.periodo|slice:':4' }}){% elif o.estandar_detalle.provisional %} (provisional: no había estándar liberado){% endif %}. Variación positiva = desfavorable (costó más de lo previsto).</div>
+      <div class="card-body py-2 small text-muted">Costo real unitario <b>S/ {{ o.costo_unitario|costo }}</b> · estándar S/ {{ o.costo_estandar_unit|costo }}{% if o.estandar %} (liberado {{ o.estandar.periodo|slice:'4:' }}/{{ o.estandar.periodo|slice:':4' }}){% elif o.estandar_detalle.provisional %} (provisional: no había estándar liberado){% endif %}. Variación positiva = desfavorable (costó más de lo previsto).</div>
     </div>
     {% if por_tipo %}
     <div class="card mb-3"><div class="card-header"><i class="bi bi-list-columns"></i> Variaciones por tipo</div>
@@ -167,11 +167,11 @@
   </div>
   <div class="col-lg-4">
     {% if ver_costos and o.costo_estandar_unit %}<div class="card mb-3"><div class="card-body">
-      <div class="text-muted small">Costo estándar unitario</div><div class="fs-5 fw-semibold">S/ {{ o.costo_estandar_unit|floatformat:4 }}</div>
-      {% if o.estado == 'TERMINADA' %}<div class="text-muted small mt-2">Costo real unitario</div><div class="fs-5 fw-semibold">S/ {{ o.costo_unitario|floatformat:4 }}</div>
+      <div class="text-muted small">Costo estándar unitario</div><div class="fs-5 fw-semibold">S/ {{ o.costo_estandar_unit|costo }}</div>
+      {% if o.estado == 'TERMINADA' %}<div class="text-muted small mt-2">Costo real unitario</div><div class="fs-5 fw-semibold">S/ {{ o.costo_unitario|costo }}</div>
       <div class="small text-muted">Materiales {{ o.costo_materiales|money }} · MO {{ o.costo_mano_obra|money }} · Máquina {{ o.costo_maquina|money }} · CIF {{ o.costo_cif|money }}{% if o.costo_subproductos %} · − subproductos {{ o.costo_subproductos|money }}{% endif %} ÷ {{ o.cantidad_producida|money }} {{ o.producto.unidad }}</div>
       {% if o.merma_anormal %}<div class="small text-warning mt-1"><i class="bi bi-exclamation-triangle"></i> Merma anormal S/ {{ o.merma_anormal|money }}: consumo sobre la receta, llevado a gasto (NIC 2)</div>{% endif %}
-      {% if o.ajuste_liquidacion %}<div class="text-muted small mt-2">Costo real final (liquidado)</div><div class="fs-5 fw-semibold">S/ {{ o.costo_real_unitario|floatformat:4 }}</div>
+      {% if o.ajuste_liquidacion %}<div class="text-muted small mt-2">Costo real final (liquidado)</div><div class="fs-5 fw-semibold">S/ {{ o.costo_real_unitario|costo }}</div>
       <div class="small text-muted">Liquidación del periodo {{ o.ajuste_liquidacion|money }} · total {{ o.costo_real_final|money }}</div>{% endif %}{% endif %}
     </div></div>{% endif %}
     {% if avance or o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}

@@ -11,6 +11,7 @@ urlpatterns = [
     path('movimientos/<int:pk>/', vp.movimiento, name='movimiento'),
     path('trabajadores/<int:pk>/legajo/', vp.legajo, name='legajo'),
     path('t-registro/', vp.t_registro, name='t_registro'),
+    path('contratos/', vp.contratos, name='contratos'),
     path('solicitudes/', vp.solicitudes_personal, name='solicitudes_personal'),
     path('asistencia/', views_asistencia.asistencia_mes, name='asistencia'),
     path('turnos/', views_asistencia.turnos, name='turnos'),

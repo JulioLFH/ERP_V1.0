@@ -14,6 +14,20 @@ def money(valor):
 
 
 @register.filter
+def cant(valor, unidad=''):
+    """Cantidad según la unidad: sin decimales en unidades contables si es entera; si no, 2 (core/formato.py)."""
+    from core.formato import cantidad
+    return cantidad(valor, unidad)
+
+
+@register.filter
+def costo(valor):
+    """Costo unitario con los decimales de Ajustes › Empresa (2, 4 o automático)."""
+    from core.formato import costo as fmt
+    return fmt(valor)
+
+
+@register.filter
 def sumar(valor, otro):
     """Suma exacta de importes (el filtro add de Django convierte a entero: 940.59 + 0 daba 940)."""
     try:

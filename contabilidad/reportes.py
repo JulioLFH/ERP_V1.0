@@ -97,12 +97,17 @@ def estado_resultados(desde, hasta, sumas=None):
     adm, vtas, fin = _neto(s, f['administracion']), _neto(s, f['ventas']), _neto(s, f['financieros'])
     gastos_nat = _neto(s, ('62', '63', '64', '65', '66', '67', '68'))
     sin_destino = gastos_nat - (adm + vtas + fin + gasto_produccion)
-    costo = _neto(s, ('69',)) + _neto(s, ('60', '61')) + gasto_produccion - produccion
+    # costo de ventas = solo la 69 (costo de lo vendido); lo consumido y lo gastado en producción que aún no pasó al
+    # inventario (60/61 + destinos de producción − 71/72) va en su propia línea: producción en proceso o costos no
+    # absorbidos (CON-05). Así el resultado sigue siendo igual al de la naturaleza
+    costo_vendido = _neto(s, ('69',))
+    no_absorbido = _neto(s, ('60', '61')) + gasto_produccion - produccion
     if sin_destino < 0:
         # destinos de producción mayores que los gastos 62-68: también recibieron compras (60/61), que ya están en
         # el costo (pasa con los asientos del sistema anterior)
-        costo += sin_destino
+        no_absorbido += sin_destino
         sin_destino = D0
+    costo = costo_vendido + no_absorbido
     bruta = ventas - costo
     otros_ing = -_neto(s, ('73', '75', '76', '78'))
     operativa = bruta - adm - vtas - sin_destino + otros_ing
@@ -112,7 +117,11 @@ def estado_resultados(desde, hasta, sumas=None):
     neta = antes - renta
     lineas = [
         ('Ventas netas', ventas, 'total'),
-        ('Costo de ventas', -costo, ''),
+        ('Costo de ventas', -costo_vendido, ''),
+    ]
+    if no_absorbido:
+        lineas.append(('Producción en proceso y costos de producción no absorbidos', -no_absorbido, 'alerta'))
+    lineas += [
         ('UTILIDAD BRUTA', bruta, 'subtotal'),
         ('Gastos de administración', -adm, ''),
         ('Gastos de ventas', -vtas, ''),
@@ -175,15 +184,16 @@ def _cuentas_de_linea(vista, s):
     f = pcge.funciones()
     adm, vtas, fin = f['administracion'], f['ventas'], f['financieros']
     sin_destino = de(('62', '63', '64', '65', '66', '67', '68')) + de(('9',), signo=-1)
-    costo = de(('69', '60', '61', '71', '72')) + de(('9',), excluir=adm + vtas + fin)
+    no_absorbido = de(('60', '61', '71', '72')) + de(('9',), excluir=adm + vtas + fin)
     gastos_nat = _neto(s, ('62', '63', '64', '65', '66', '67', '68'))
     destinos = _neto(s, ('9',), excluir=adm + vtas + fin) + _neto(s, adm) + _neto(s, vtas) + _neto(s, fin)
-    detalle = {'Ventas netas': de(('70', '74')), 'Costo de ventas': costo,
+    detalle = {'Ventas netas': de(('70', '74')), 'Costo de ventas': de(('69',)),
+               'Producción en proceso y costos de producción no absorbidos': no_absorbido,
                'Gastos de administración': de(adm), 'Gastos de ventas': de(vtas),
                'Otros ingresos de gestión': de(('73', '75', '76', '78')), 'Ingresos financieros': de(('77',)),
                'Gastos financieros': de(fin), 'Impuesto a la renta': de(('88',))}
-    if gastos_nat - destinos < 0:  # destinos mayores que los gastos: la diferencia va dentro del costo
-        detalle['Costo de ventas'] = costo + sin_destino
+    if gastos_nat - destinos < 0:  # destinos mayores que los gastos: la diferencia va con lo no absorbido
+        detalle['Producción en proceso y costos de producción no absorbidos'] = no_absorbido + sin_destino
     else:
         detalle['Gastos sin destino asignado'] = sin_destino
     return detalle
@@ -393,7 +403,8 @@ def sumas_presupuesto(desde, hasta):
     return sumas
 
 
-ORDEN_RESULTADOS = ['Ventas netas', 'Costo de ventas', 'UTILIDAD BRUTA', 'Gastos de administración',
+ORDEN_RESULTADOS = ['Ventas netas', 'Costo de ventas', 'Producción en proceso y costos de producción no absorbidos',
+                    'UTILIDAD BRUTA', 'Gastos de administración',
                     'Gastos de ventas', 'Otros gastos por función', 'Gastos sin destino asignado',
                     'Otros ingresos de gestión', 'UTILIDAD OPERATIVA', 'Ingresos financieros', 'Gastos financieros',
                     'RESULTADO ANTES DE IMPUESTO A LA RENTA', 'Impuesto a la renta', 'RESULTADO DEL EJERCICIO']
