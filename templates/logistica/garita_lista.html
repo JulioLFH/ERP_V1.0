@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Garita{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Registro de garita <span class="badge text-bg-primary">{{ en_planta }} en planta</span></h1>
+  {% if puede.logistica_garita %}<a href="{% url 'logistica:garita_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Ingreso de vehículo</a>{% endif %}
+</div>
+<form class="row g-2 mb-2">
+  <div class="col-md-3"><input name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Placa, conductor, documento, proveedor"></div>
+  <div class="col-md-3"><select name="tipo" class="form-select form-select-sm"><option value="">Todos los movimientos</option>{% for v, n in tipos %}<option value="{{ v }}" {% if request.GET.tipo == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><input type="date" name="fecha" value="{{ request.GET.fecha }}" class="form-control form-control-sm"></div>
+  <div class="col-auto form-check mt-1 ms-2"><input type="checkbox" class="form-check-input" name="en_planta" value="1" id="en_planta" {% if request.GET.en_planta %}checked{% endif %}><label class="form-check-label small" for="en_planta">Solo en planta</label></div>
+  <div class="col-auto"><button class="btn btn-sm btn-outline-secondary">Filtrar</button></div>
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>N°</th><th>Movimiento</th><th>Ingreso</th><th>Salida</th><th>Placa</th><th>Conductor</th><th>Proveedor / cliente</th><th>Documento</th><th>OC / guía</th><th>Almacén</th></tr></thead>
+  <tbody>{% for r in page_obj %}<tr><td><a href="{% url 'logistica:garita' r.pk %}">{{ r.numero }}</a></td><td class="small">{{ r.get_tipo_display }}</td>
+    <td class="small">{{ r.ingreso|date:'d/m/Y H:i' }}</td><td class="small">{% if r.salida %}{{ r.salida|date:'d/m/Y H:i' }}{% else %}<span class="badge text-bg-primary">En planta</span>{% endif %}</td>
+    <td class="fw-semibold">{{ r.placa }}</td><td class="small">{{ r.conductor }}</td><td class="small">{{ r.tercero.nombre|default:'—' }}</td><td class="small">{{ r.documento }}</td>
+    <td class="small">{% if r.orden_compra %}{{ r.orden_compra.numero }}{% elif r.guia %}{{ r.guia.serie }}-{{ r.guia.numero }}{% else %}—{% endif %}</td>
+    <td class="small">{% if r.operacion %}{{ r.operacion.numero }}{% else %}<span class="text-muted">sin enlazar</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="10" class="text-muted text-center py-3">Sin registros.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% include 'core/_paginacion.html' %}
+{% endblock %}

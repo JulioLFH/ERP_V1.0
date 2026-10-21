@@ -1,0 +1,38 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ r }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{{ r }} <span class="badge {% if r.en_planta %}text-bg-primary{% else %}text-bg-secondary{% endif %}">{% if r.en_planta %}En planta{% else %}Salió{% endif %}</span></h1>
+  <div class="d-flex gap-2 d-print-none">
+    <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</button>
+    {% if r.en_planta and puede.logistica_garita %}<form method="post">{% csrf_token %}<button name="accion" value="salida" class="btn btn-sm btn-success"><i class="bi bi-box-arrow-right"></i> Registrar salida</button></form>{% endif %}
+  </div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="kpi"><div class="label">{{ r.get_tipo_display }}</div><div class="fw-semibold">Placa {{ r.placa }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Conductor</div><div class="fw-semibold">{{ r.conductor }}</div><div class="small">{{ r.conductor_doc }}{% if r.transportista %} · {{ r.transportista }}{% endif %}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Ingreso · salida</div><div class="fw-semibold">{{ r.ingreso|date:'d/m/Y H:i' }}</div><div class="small">{% if r.salida %}{{ r.salida|date:'d/m/Y H:i' }}{% else %}aún en planta{% endif %}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Bultos · peso</div><div class="fw-semibold">{{ r.bultos }} · {{ r.peso|money }} kg</div></div></div>
+</div>
+<div class="card mb-3"><div class="card-body"><table class="table table-sm table-borderless mb-0">
+  <tr><td class="text-muted" style="width:22%">Proveedor / cliente</td><td>{{ r.tercero.nombre|default:'—' }}</td></tr>
+  <tr><td class="text-muted">Documento que presenta</td><td>{{ r.documento }}</td></tr>
+  {% if r.orden_compra %}<tr><td class="text-muted">Orden de compra</td><td><a href="{% url 'compras:oc_detalle' r.orden_compra_id %}">{{ r.orden_compra.numero }}</a></td></tr>{% endif %}
+  {% if r.guia %}<tr><td class="text-muted">Guía de remisión</td><td><a href="{% url 'logistica:detalle' r.guia_id %}">{{ r.guia.serie }}-{{ r.guia.numero }}</a></td></tr>{% endif %}
+  <tr><td class="text-muted">Recepción / despacho</td><td>{% if r.operacion %}<a href="{% url 'inventario:detalle' r.operacion_id %}">{{ r.operacion }}</a> ({{ r.operacion.get_estado_display }}){% else %}<span class="text-muted">sin enlazar</span>{% endif %}</td></tr>
+  {% if r.almacen %}<tr><td class="text-muted">Almacén</td><td>{{ r.almacen }}</td></tr>{% endif %}
+  {% if puede.logistica_ver_montos and r.monto %}<tr><td class="text-muted">Valor de la mercadería</td><td>{{ r.monto.0 }} {{ r.monto.1|money }}</td></tr>{% endif %}
+  {% if r.observaciones %}<tr><td class="text-muted">Observaciones</td><td>{{ r.observaciones|linebreaksbr }}</td></tr>{% endif %}
+  <tr><td class="text-muted">Registró</td><td class="small">{{ r.registrado_por.get_full_name|default:r.registrado_por.username|default:'—' }}{% if r.salida_por %} · salida: {{ r.salida_por.get_full_name|default:r.salida_por.username }}{% endif %}</td></tr>
+</table></div></div>
+{% if puede.logistica_garita and candidatas %}
+<div class="card mb-3 d-print-none"><div class="card-body">
+  <form method="post" class="d-flex gap-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="enlazar">
+    <div class="flex-grow-1"><label class="form-label small">Enlazar a la recepción o despacho del almacén</label>
+      <select name="operacion" class="form-select form-select-sm">{% for op in candidatas %}<option value="{{ op.pk }}" {% if op.pk == r.operacion_id %}selected{% endif %}>{{ op }} · {{ op.fecha|date:'d/m/Y' }} · {{ op.get_estado_display }}</option>{% endfor %}</select></div>
+    <button class="btn btn-sm btn-outline-primary"><i class="bi bi-link-45deg"></i> Enlazar</button>
+  </form>
+</div></div>
+{% endif %}
+<a href="{% url 'logistica:garita_lista' %}" class="btn btn-sm btn-link d-print-none"><i class="bi bi-arrow-left"></i> Registro de garita</a>
+{% endblock %}

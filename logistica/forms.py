@@ -5,7 +5,7 @@ from core.forms import remoto, BootstrapMixin
 from core.models import Empresa, Producto, Serie, Tercero
 from ventas.models import Venta
 
-from .models import Conductor, GuiaItem, GuiaRemision, Vehiculo
+from .models import Conductor, GuiaItem, GuiaRemision, RegistroGarita, Vehiculo
 
 CAMPOS_COMUNES = ['fecha_emision', 'fecha_traslado', 'destinatario', 'partida_ubigeo', 'partida_direccion',
                   'llegada_ubigeo', 'llegada_direccion', 'vehiculo', 'conductor', 'peso_bruto', 'unidad_peso',
@@ -169,3 +169,40 @@ class ConductorForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Conductor
         fields = '__all__'
+
+class GaritaForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = RegistroGarita
+        fields = ['tipo', 'ingreso', 'placa', 'conductor', 'conductor_doc', 'transportista', 'tercero', 'documento',
+                  'orden_compra', 'guia', 'almacen', 'bultos', 'peso', 'observaciones']
+        widgets = {'ingreso': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
+                   'observaciones': forms.Textarea(attrs={'rows': 2})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from compras.models import OrdenCompra
+        self.fields['ingreso'].input_formats = ['%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M', '%d/%m/%Y %H:%M']
+        self.fields['tercero'].queryset = Tercero.objects.filter(activo=True)
+        remoto(self.fields['tercero'], 'terceros')
+        self.fields['orden_compra'].queryset = (OrdenCompra.objects.filter(estado__in=('APROBADO', 'ATENDIDO'))
+                                                .select_related('tercero').order_by('-fecha', '-id'))
+        self.fields['orden_compra'].label_from_instance = lambda o: f'{o.numero} · {o.tercero.nombre}'
+        self.fields['guia'].queryset = (GuiaRemision.objects.filter(estado='EMITIDA')
+                                        .select_related('destinatario').order_by('-fecha_emision', '-id'))
+        self.fields['guia'].label_from_instance = lambda g: f'{g.serie}-{g.numero} · {g.destinatario.nombre}'
+
+    def clean_placa(self):
+        return self.cleaned_data['placa'].replace(' ', '').replace('-', '').upper()
+
+    def clean(self):
+        datos = super().clean()
+        if datos.get('tipo') == 'RECEPCION' and not datos.get('orden_compra') and not datos.get('tercero'):
+            self.add_error('orden_compra', 'Indique la orden de compra (o al menos el proveedor) de la mercadería '
+                                           'que ingresa.')
+        if datos.get('tipo') == 'DESPACHO' and not datos.get('guia'):
+            self.add_error('guia', 'Indique la guía de remisión con la que sale la mercadería.')
+        oc = datos.get('orden_compra')
+        if oc is not None and not datos.get('tercero'):
+            datos['tercero'] = oc.tercero
+            self.instance.tercero = oc.tercero
+        return datos

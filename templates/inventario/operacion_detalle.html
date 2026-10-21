@@ -52,6 +52,7 @@
       {% if op.venta %}<div class="col-md-4"><div class="text-muted">Comprobante de venta</div>{% if 'ventas' in mods %}<a href="{% url 'ventas:detalle' op.venta_id %}">{{ op.venta }} · {{ op.venta.tercero.nombre }}</a>{% else %}{{ op.venta }}{% endif %}</div>{% endif %}
       {% if op.envio %}<div class="col-md-4"><div class="text-muted">Traslado a tránsito</div><a href="{% url 'inventario:detalle' op.envio_id %}">{{ op.envio }}</a></div>{% endif %}
       {% if op.referencia %}<div class="col-md-4"><div class="text-muted">Referencia</div>{{ op.referencia }}</div>{% endif %}
+      {% for g in op.garita.all %}<div class="col-md-4"><div class="text-muted">Garita</div><a href="{% url 'logistica:garita' g.pk %}">{{ g.numero }}</a> · {{ g.placa }} · {{ g.ingreso|date:'d/m/Y H:i' }}</div>{% endfor %}
     </div>{% if op.glosa %}<p class="small text-muted mt-3 mb-0">{{ op.glosa }}</p>{% endif %}</div></div>
     <div class="card"><div class="table-responsive"><table class="table mb-0">
       <thead><tr><th>#</th><th>Código</th><th>Producto</th>{% if op.tipo.clase == 'MANUFACTURA' %}<th>Rol</th>{% endif %}<th>U.M.</th><th class="num">Cantidad</th>{% if ver_costos %}<th class="num">Costo unit.</th><th class="num">Valor S/</th>{% endif %}</tr></thead>

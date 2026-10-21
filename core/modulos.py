@@ -251,6 +251,8 @@ MODULOS = [
                                    ('Guías transportista', 'logistica:lista?tipo=31', 'bi-truck-front'),
                                    ('Nueva guía remitente', 'logistica:nueva?tipo=09', 'bi-plus-circle'),
                                    ('Nueva guía transportista', 'logistica:nueva?tipo=31', 'bi-plus-circle')]),
+            ('Garita', [('Registro de garita', 'logistica:garita_lista', 'bi-sign-stop'),
+                        ('Ingreso de vehículo', 'logistica:garita_nuevo', 'bi-plus-circle')]),
             ('Configuración', [('Vehículos', 'logistica:vehiculos', 'bi-car-front'),
                                ('Conductores', 'logistica:conductores', 'bi-person-badge')]),
         ],

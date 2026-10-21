@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.62.0 — 21/10/2026 · Control de garita
+- **Registro de garita (LOG-04)**, nuevo en Logística › Garita: ingreso del vehículo con placa, conductor y su DNI o licencia, empresa de transporte, documento que presenta, bultos, peso y hora; contra la orden de compra (ingreso de mercadería) o la guía de remisión (despacho). Registra la salida con su hora y quién la marcó; filtra lo que está en planta.
+- **Enlace con el almacén**: el registro se enlaza a la recepción de la OC o al despacho de la guía, y la operación de almacén muestra su registro de garita.
+- **Montos solo con permiso**: el valor de la mercadería (OC, venta de la guía u operación) solo lo ve quien tiene «Ver montos de la mercadería en garita». El vigilante usa la acción «Registrar ingresos y salidas en garita».
+
 ## v1.61.0 — 21/10/2026 · Certificado de análisis y liberación de lotes
 - **Plantilla de certificado por producto (CAL-01)**, en Manufactura › Calidad › Planes de calidad por producto: título, norma o ficha de referencia, declaración, cargo que firma y qué características del plan salen en el certificado.
 - **Lotes en cuarentena**: con «Lotes nuevos en cuarentena», cada lote del producto que ingresa (producción, compra) queda bloqueado: la venta no lo toma ni por FEFO ni indicándolo, con un mensaje claro. Traslados y consumos internos sí lo mueven. El estado se ve en Inventario › Lotes.

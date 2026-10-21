@@ -187,3 +187,58 @@ class GuiaItem(models.Model):
 
     class Meta:
         ordering = ['id']  # en el orden en que se registraron (PostgreSQL no lo garantiza sin esto)
+
+class RegistroGarita(models.Model):
+    """Control de garita: ingreso y salida de vehículos con mercadería, contra la orden de compra (recepción) o la
+    guía (despacho), enlazado a la operación de almacén. Los montos solo los ve quien tiene «Ver montos en garita»."""
+    TIPOS = [('RECEPCION', 'Ingreso de mercadería (proveedor)'), ('DESPACHO', 'Salida de mercadería (despacho)'),
+             ('OTRO', 'Otro (visita, servicio, retiro)')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    tipo = models.CharField(max_length=10, choices=TIPOS, default='RECEPCION')
+    ingreso = models.DateTimeField('Ingreso', default=timezone.now)
+    salida = models.DateTimeField('Salida', null=True, blank=True)
+    placa = models.CharField(max_length=10)
+    conductor = models.CharField('Conductor', max_length=120)
+    conductor_doc = models.CharField('DNI / licencia', max_length=20)
+    transportista = models.CharField('Empresa de transporte', max_length=120, blank=True)
+    tercero = models.ForeignKey(Tercero, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                verbose_name='Proveedor / cliente')
+    documento = models.CharField('Documento que presenta', max_length=60,
+                                 help_text='Guía del proveedor, guía propia, orden de recojo… Ej. 09 EG01-123')
+    orden_compra = models.ForeignKey('compras.OrdenCompra', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='garita', verbose_name='Orden de compra')
+    guia = models.ForeignKey(GuiaRemision, on_delete=models.PROTECT, null=True, blank=True, related_name='garita',
+                             verbose_name='Guía de remisión (despacho)')
+    operacion = models.ForeignKey('inventario.Operacion', on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='garita', verbose_name='Recepción / despacho de almacén')
+    almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    bultos = models.PositiveIntegerField('Bultos', default=0)
+    peso = models.DecimalField('Peso (kg)', max_digits=12, decimal_places=2, default=D0)
+    observaciones = models.TextField(blank=True)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+                                       related_name='+', editable=False)
+    salida_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', editable=False)
+
+    class Meta:
+        ordering = ['-ingreso', '-id']
+        verbose_name = 'registro de garita'
+        verbose_name_plural = 'registros de garita'
+
+    def __str__(self):
+        return f'Garita {self.numero}'
+
+    @property
+    def en_planta(self):
+        return self.salida is None
+
+    @property
+    def monto(self):
+        """Valor de la mercadería (OC, venta de la guía o la operación de almacén); None si no se conoce."""
+        if self.orden_compra_id:
+            return self.orden_compra.moneda, self.orden_compra.total
+        if self.guia_id and self.guia.venta_id:
+            return self.guia.venta.moneda, self.guia.venta.total
+        if self.operacion_id:
+            return 'PEN', self.operacion.valor_total
+        return None
