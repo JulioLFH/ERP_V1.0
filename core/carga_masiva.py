@@ -1348,7 +1348,8 @@ def validar(archivo, tipo, actualizar=False):
     filas = leer_archivo(archivo, tipo)
     _CONTEXTO['codigos'] = {_txt(f['datos'].get('codigo')).upper() for f in filas}
     _CONTEXTO['perfiles_archivo'] = set()
-    _CONTEXTO.pop('listas_precios', None)  # caché de la validación anterior
+    for clave in ('listas_precios', 'componentes', 'lecturas'):  # caché de la validación anterior
+        _CONTEXTO.pop(clave, None)
     for fila in filas:
         try:
             r = validador(fila['datos'], actualizar)
@@ -1383,6 +1384,8 @@ def cargar(tipo, filas, usuario, adjunto=None):
         vincular(obj, archivo, usuario, 'Carga masiva desde Excel')
 
     with transaction.atomic():
+        if tipo in _flota.TIPOS:
+            return _flota.cargar(tipo, filas, usuario)
         if tipo == 'productos':
             nuevos = actualizados = 0
             for f in filas:
@@ -1735,3 +1738,10 @@ def plantilla(tipo):
     for col, ancho in zip('ABCD', (18, 30, 12, 80)):
         ayuda.column_dimensions[col].width = ancho
     return wb
+
+
+# flota (FLO-08): sus tipos se definen en flota/carga.py (que usa las utilidades de este módulo)
+from flota import carga as _flota  # noqa: E402
+
+DEFINICIONES.update(_flota.DEFINICIONES)
+VALIDADORES.update(_flota.VALIDADORES)

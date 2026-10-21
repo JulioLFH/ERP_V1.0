@@ -12,4 +12,9 @@ urlpatterns = [
     path('documentos/<int:pk>/archivo/', views.documento_archivo, name='documento_archivo'),
     path('lecturas/parte/', views.parte, name='parte'),
     path('lecturas/', views.lecturas, name='lecturas'),
+    path('combustible/', views.combustible, name='combustible'),
+    path('viajes/', views.viajes, name='viajes'),
+    path('prestamos/', views.prestamos, name='prestamos'),
+    path('prestamos/<int:pk>/', views.prestamo, name='prestamo'),
+    path('costos/', views.costos, name='costos'),
 ]

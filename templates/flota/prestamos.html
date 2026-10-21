@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Préstamos de equipos{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-box-arrow-up-right"></i> Equipos prestados y en comodato</h1>
+  <div class="d-flex gap-2"><a href="?estado=PRESTADO" class="btn btn-sm btn-outline-secondary">Prestados</a><a href="?estado=DEVUELTO" class="btn btn-sm btn-outline-secondary">Devueltos</a></div>
+</div>
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>Acta</th><th>Equipo</th><th>Cliente</th><th>Ubicación</th><th>Entrega</th><th>Devolución prevista</th><th>Estado</th></tr></thead>
+  <tbody>{% for p in prestamos %}<tr {% if p.vencido %}class="table-warning"{% endif %}><td><a href="{% url 'flota:prestamo' p.pk %}">{{ p.numero }}</a></td><td>{{ p.equipo }}</td><td class="small">{{ p.cliente.nombre }}</td><td class="small">{{ p.ubicacion }}</td>
+    <td>{{ p.entrega|date:'d/m/Y' }}</td><td>{{ p.devolucion_prevista|date:'d/m/Y'|default:'—' }}{% if p.vencido %} <span class="badge text-bg-warning">vencido</span>{% endif %}</td><td class="small">{{ p.get_estado_display }}{% if p.devolucion %} {{ p.devolucion|date:'d/m/Y' }}{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="text-muted text-center py-3">Sin préstamos.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if puede_flota %}
+<div class="card"><div class="card-header">Entregar un equipo (solo los marcados «Se presta a clientes»)</div><div class="card-body">
+  <form method="post" class="row g-2 align-items-end">{% csrf_token %}
+    {% for field in form %}<div class="{% if field.name == 'condiciones' %}col-12{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12"><button class="btn btn-sm btn-primary">Registrar acta de entrega</button></div></form>
+</div></div>
+{% endif %}
+{% endblock %}

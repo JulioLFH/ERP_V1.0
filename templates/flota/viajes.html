@@ -1,0 +1,24 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Viajes{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2"><i class="bi bi-signpost-2"></i> Viajes del transporte propio</h1>
+<p class="small text-muted">Cada guía de remisión con vehículo propio (transporte privado) abre su viaje con el km de salida del vehículo; al cerrarlo con el km de llegada, la lectura entra al odómetro. También se registran viajes sin guía.</p>
+<ul class="nav nav-tabs mb-3">{% for v, n in estados %}<li class="nav-item"><a class="nav-link {% if v == estado %}active{% endif %}" href="?estado={{ v }}">{{ n }}</a></li>{% endfor %}<li class="nav-item"><a class="nav-link {% if not estado %}active{% endif %}" href="?estado=">Todos</a></li></ul>
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>Salida</th><th>Vehículo</th><th>Conductor</th><th>Guía</th><th>Destino</th><th class="num">Km salida</th><th class="num">Km llegada</th><th class="num">Recorrido</th><th></th></tr></thead>
+  <tbody>{% for v in page_obj %}<tr><td>{{ v.salida|date:'d/m/Y' }}</td><td><a href="{% url 'flota:equipo' v.equipo_id %}">{{ v.equipo.codigo }}</a> <span class="small text-muted">{{ v.equipo.placa }}</span></td>
+    <td class="small">{{ v.conductor|default:'—' }}</td><td class="small">{% if v.guia %}<a href="{% url 'logistica:detalle' v.guia_id %}">{{ v.guia.serie }}-{{ v.guia.numero }}</a>{% else %}—{% endif %}</td>
+    <td class="small">{{ v.destino|truncatechars:40 }}</td><td class="num">{{ v.km_salida|floatformat:-1|default:'—' }}</td><td class="num">{{ v.km_llegada|floatformat:-1|default:'—' }}</td><td class="num">{{ v.recorrido|floatformat:-1|default:'—' }}</td>
+    <td>{% if v.estado == 'EN_RUTA' and puede_flota %}<form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="accion" value="cerrar"><input type="hidden" name="viaje" value="{{ v.pk }}">
+      <input type="date" name="llegada" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:140px"><input name="km_llegada" placeholder="Km llegada" class="form-control form-control-sm text-end" style="width:110px" required><button class="btn btn-sm btn-outline-success">Cerrar</button></form>{% else %}<span class="small">{{ v.get_estado_display }}</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="9" class="text-muted text-center py-3">Sin viajes.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% include 'core/_paginacion.html' %}
+{% if puede_flota %}
+<div class="card"><div class="card-header">Registrar viaje sin guía</div><div class="card-body">
+  <form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="nuevo">
+    {% for field in form %}<div class="col-md-3">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12"><button class="btn btn-sm btn-outline-primary">Registrar</button></div></form>
+</div></div>
+{% endif %}
+{% endblock %}

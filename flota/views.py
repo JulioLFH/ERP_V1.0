@@ -1,6 +1,6 @@
 """Pantallas de flota y equipos. La lista y la ficha del equipo se abren desde Logística (flota:…) y desde
 Manufactura › Mantenimiento (manufactura:equipos / manufactura:equipo): es el mismo maestro."""
-from decimal import InvalidOperation
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -11,12 +11,15 @@ from django.utils import timezone
 
 from core.modulos import modulos_del_usuario
 from core.permisos import puede
-
 from core.utils import leer_numero
 
+from . import operacion as op
 from . import servicios as srv
-from .forms import ComponenteForm, DocumentoForm, EquipoForm
-from .models import DocumentoFlota, LecturaEquipo
+from .forms import (AsignacionForm, CargaForm, ComponenteForm, DocumentoForm, EquipoForm, GastoForm, PrestamoForm,
+                    ViajeForm)
+from .models import CargaCombustible, DocumentoFlota, LecturaEquipo, PrestamoEquipo, Viaje
+
+D0 = Decimal('0')
 
 
 def _fecha(texto):
@@ -80,6 +83,8 @@ def equipo(request, pk=None):
     comp_form = ComponenteForm(request.POST if accion == 'componente' else None, equipo=eq, prefix='comp')
     doc_form = DocumentoForm(request.POST if accion == 'documento' else None,
                              request.FILES if accion == 'documento' else None, prefix='doc')
+    asig_form = AsignacionForm(request.POST if accion == 'asignar' else None, prefix='asig')
+    gasto_form = GastoForm(request.POST if accion == 'gasto' else None, prefix='gasto')
     if request.method == 'POST':
         if not puede_flota(request.user):
             messages.error(request, 'Su usuario no registra equipos.')
@@ -127,7 +132,22 @@ def equipo(request, pk=None):
                 return redirect(f'{ns}:equipo', eq.pk)
             except srv.ErrorFlota as exc:
                 messages.error(request, str(exc))
+        if accion == 'asignar' and eq.pk and asig_form.is_valid():
+            try:
+                op.asignar_conductor(eq, asig_form.cleaned_data['conductor'], asig_form.cleaned_data['desde'],
+                                     request.user, asig_form.cleaned_data['observacion'])
+                messages.success(request, 'Conductor asignado.')
+                return redirect(f'{ns}:equipo', eq.pk)
+            except op.ErrorOperacion as exc:
+                messages.error(request, str(exc))
+        if accion == 'gasto' and eq.pk and gasto_form.is_valid():
+            g = gasto_form.save(commit=False)
+            g.equipo, g.registrado_por = eq, request.user
+            g.save()
+            messages.success(request, 'Gasto registrado.')
+            return redirect(f'{ns}:equipo', eq.pk)
     contexto = {'eq': eq, 'form': form, 'plan_form': plan_form, 'doc_form': doc_form, 'comp_form': comp_form,
+                'asig_form': asig_form, 'gasto_form': gasto_form,
                 'ns': ns, 'puede_flota': puede_flota(request.user), 'hoy': timezone.localdate()}
     if eq.pk:
         from .lecturas import uso_diario
@@ -137,7 +157,11 @@ def equipo(request, pk=None):
                         documentos=eq.documentos.order_by('renovado', 'vencimiento'),
                         vehiculo=getattr(eq, 'vehiculo', None), componentes=componentes,
                         lecturas=eq.lecturas.select_related('registrado_por')[:12],
-                        uso_diario=uso_diario(eq) if eq.medidor else None)
+                        uso_diario=uso_diario(eq) if eq.medidor else None,
+                        asignaciones=eq.asignaciones.select_related('conductor')[:10],
+                        cargas=eq.cargas.select_related('grifo')[:8], viajes=eq.viajes.select_related('guia')[:8],
+                        prestamos=eq.prestamos.select_related('cliente')[:8], gastos=eq.gastos.all()[:8],
+                        costo=op.costos([eq], *op.rango_por_defecto())[0])
     return render(request, 'flota/equipo.html', contexto)
 
 
@@ -239,3 +263,121 @@ def lecturas(request):
     return render(request, 'flota/lecturas.html', {
         'page_obj': Paginator(qs, 100).get_page(request.GET.get('page')), 'estado': estado,
         'estados': LecturaEquipo.ESTADOS, 'puede_aprobar': puede_aprobar})
+
+
+# ---------------------------------------------------------------- combustible (FLO-05)
+@login_required
+def combustible(request):
+    from django.core.paginator import Paginator
+    form = CargaForm(request.POST or None, initial={'equipo': request.GET.get('equipo')})
+    if request.method == 'POST' and puede_flota(request.user) and form.is_valid():
+        try:
+            carga = op.registrar_carga(form.save(commit=False), request.user)
+            texto = f'Vale registrado: S/ {carga.importe:,.2f}.'
+            if carga.rendimiento:
+                texto += (f' Rendimiento {carga.rendimiento:,.2f} {carga.equipo.unidad_medidor}/gal'
+                          + (' — fuera del esperado.' if carga.desvio else '.'))
+            (messages.warning if carga.desvio else messages.success)(request, texto)
+            return redirect('flota:combustible')
+        except op.ErrorOperacion as exc:
+            messages.error(request, str(exc))
+    qs = CargaCombustible.objects.select_related('equipo', 'grifo', 'conductor', 'centro_costo')
+    if request.GET.get('equipo'):
+        qs = qs.filter(equipo_id=request.GET['equipo'])
+    if request.GET.get('desvio'):
+        qs = qs.filter(desvio=True)
+    totales = qs.aggregate(g=Sum('galones'), i=Sum('importe'))
+    return render(request, 'flota/combustible.html', {
+        'form': form, 'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'totales': totales,
+        'puede_flota': puede_flota(request.user)})
+
+
+# ---------------------------------------------------------------- viajes y préstamos (FLO-07)
+@login_required
+def viajes(request):
+    from django.core.paginator import Paginator
+    form = ViajeForm(request.POST if request.POST.get('accion') == 'nuevo' else None)
+    if request.method == 'POST' and puede_flota(request.user):
+        accion = request.POST.get('accion')
+        if accion == 'nuevo' and form.is_valid():
+            v = form.save(commit=False)
+            v.registrado_por = request.user
+            if v.km_salida is None and v.equipo.medidor:
+                v.km_salida = v.equipo.lectura_actual
+            v.save()
+            messages.success(request, 'Viaje registrado.')
+            return redirect('flota:viajes')
+        if accion == 'cerrar':
+            v = get_object_or_404(Viaje, pk=request.POST.get('viaje'))
+            try:
+                op.cerrar_viaje(v, leer_numero(request.POST.get('km_llegada')) if request.POST.get('km_llegada')
+                                else None, _fecha(request.POST.get('llegada')), request.user)
+                messages.success(request, f'Viaje cerrado: {v.recorrido or 0:,.1f} km.')
+            except (op.ErrorOperacion, InvalidOperation) as exc:
+                messages.error(request, str(exc) or 'Km inválido.')
+            return redirect('flota:viajes')
+    estado = request.GET.get('estado', 'EN_RUTA')
+    qs = Viaje.objects.select_related('equipo', 'conductor', 'guia')
+    if estado:
+        qs = qs.filter(estado=estado)
+    return render(request, 'flota/viajes.html', {
+        'form': form, 'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'estado': estado,
+        'estados': Viaje.ESTADOS, 'puede_flota': puede_flota(request.user), 'hoy': timezone.localdate()})
+
+
+@login_required
+def prestamos(request):
+    form = PrestamoForm(request.POST or None)
+    if request.method == 'POST' and puede_flota(request.user) and form.is_valid():
+        try:
+            p = op.prestar(form.save(commit=False), request.user)
+            messages.success(request, f'{p} registrada.')
+            return redirect('flota:prestamo', p.pk)
+        except op.ErrorOperacion as exc:
+            messages.error(request, str(exc))
+    qs = PrestamoEquipo.objects.select_related('equipo', 'cliente')
+    if request.GET.get('estado', 'PRESTADO'):
+        qs = qs.filter(estado=request.GET.get('estado', 'PRESTADO'))
+    return render(request, 'flota/prestamos.html', {'form': form, 'prestamos': qs,
+                                                    'puede_flota': puede_flota(request.user)})
+
+
+@login_required
+def prestamo(request, pk):
+    p = get_object_or_404(PrestamoEquipo.objects.select_related('equipo', 'cliente'), pk=pk)
+    if request.method == 'POST' and puede_flota(request.user):
+        try:
+            op.devolver(p, _fecha(request.POST.get('fecha')), request.POST.get('estado_devolucion', ''))
+            messages.success(request, f'{p}: equipo devuelto.')
+        except op.ErrorOperacion as exc:
+            messages.error(request, str(exc))
+        return redirect('flota:prestamo', pk)
+    return render(request, 'flota/prestamo.html', {'p': p, 'puede_flota': puede_flota(request.user),
+                                                   'hoy': timezone.localdate()})
+
+
+# ---------------------------------------------------------------- costos (FLO-06)
+@login_required
+def costos(request):
+    from produccion.models import Equipo
+    desde, hasta = op.rango_por_defecto()
+    desde, hasta = _fecha(request.GET.get('desde') or desde.isoformat()), _fecha(request.GET.get('hasta')
+                                                                                  or hasta.isoformat())
+    equipos = Equipo.objects.filter(activo=True)
+    if request.GET.get('tipo'):
+        equipos = equipos.filter(tipo=request.GET['tipo'])
+    filas = [f for f in op.costos(equipos, desde, hasta) if f['total'] or request.GET.get('todos')]
+    filas.sort(key=lambda f: (f['por_uso'] is None, -(f['por_uso'] or 0), -f['total']))
+    if request.GET.get('formato') == 'excel':
+        from core.utils import excel_response
+        return excel_response(f'Costos_flota_{desde:%Y%m%d}_{hasta:%Y%m%d}', f'Costo por equipo {desde:%d/%m/%Y} al '
+                              f'{hasta:%d/%m/%Y}',
+                              ['Código', 'Equipo', 'Tipo', 'Mantenimiento', 'Combustible', 'Documentos', 'Otros gastos',
+                               'Depreciación', 'Total', 'Uso (km u h)', 'Costo por km u hora'],
+                              [[f['equipo'].codigo, f['equipo'].nombre, f['equipo'].get_tipo_display(),
+                                f['mantenimiento'], f['combustible'], f['documentos'], f['gastos'], f['depreciacion'],
+                                f['total'], f['uso'], f['por_uso']] for f in filas])
+    totales = {k: sum((f[k] for f in filas), D0) for k in ('mantenimiento', 'combustible', 'documentos', 'gastos',
+                                                            'depreciacion', 'total')}
+    return render(request, 'flota/costos.html', {'filas': filas, 'desde': desde, 'hasta': hasta,
+                                                 'totales': totales, 'tipos': Equipo.TIPOS})

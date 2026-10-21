@@ -166,6 +166,8 @@ RUTAS = {
     'flota:equipo_nuevo': lambda r: _flota(r), 'flota:equipo': lambda r: _flota(r),
     'flota:documentos': lambda r: _flota(r), 'flota:parte': lambda r: _flota(r),
     'flota:lecturas': {'POST': 'logistica.aprobar_lecturas'},
+    'flota:combustible': lambda r: _flota(r), 'flota:viajes': lambda r: _flota(r),
+    'flota:prestamos': lambda r: _flota(r), 'flota:prestamo': lambda r: _flota(r),
     'manufactura:ordenes_mant': {'POST': 'manufactura.mantenimiento'},
     'manufactura:orden_mant_nueva': 'manufactura.mantenimiento',
     'manufactura:orden_mant': {'POST': 'manufactura.mantenimiento'},

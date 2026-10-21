@@ -143,6 +143,19 @@ def calcular(user):
                                    f'{len(docs) + len(licencias)} documento(s) de vehículos, equipos o conductores '
                                    f'vencen en 30 días' + (f' ({vencidos} ya vencidos).' if vencidos else '.'),
                                    reverse('flota:documentos'), len(docs) + len(licencias)))
+        from flota.models import CargaCombustible
+        from flota.operacion import prestamos_vencidos, ultimos_dias
+        vencidos = prestamos_vencidos()
+        if vencidos:
+            alertas.append(_alerta('warning', 'bi-box-arrow-up-right', 'Equipos prestados sin devolver',
+                                   f'{len(vencidos)} equipo(s) en comodato pasaron su fecha de devolución: '
+                                   + ', '.join(f'{p.equipo.codigo} ({p.cliente.nombre})' for p in vencidos[:3]),
+                                   reverse('flota:prestamos'), len(vencidos)))
+        n = CargaCombustible.objects.filter(desvio=True, fecha__gte=ultimos_dias(30)).count()
+        if n:
+            alertas.append(_alerta('warning', 'bi-fuel-pump', 'Rendimiento de combustible fuera de lo esperado',
+                                   f'{n} carga(s) de los últimos 30 días con rendimiento fuera de ±15 % del esperado.',
+                                   reverse('flota:combustible') + '?desvio=1', n))
     if 'rendiciones' in mods:
         alertas += _alertas_rendiciones(user)
     if 'planillas' in mods:  # contratos y documentos del legajo (EMO, antecedentes) que vencen en 30 días

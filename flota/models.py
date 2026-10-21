@@ -127,3 +127,137 @@ class ComponenteEquipo(models.Model):
     @property
     def profundidad(self):
         return [n for n, _ in self.NIVELES].index(self.nivel)
+
+
+class CargaCombustible(models.Model):
+    """Vale o carga de combustible (FLO-05): galones, precio, lectura y grifo; el rendimiento (km u horas por galón)
+    se calcula contra la carga anterior a tanque lleno y se marca el desvío frente al rendimiento esperado. El costo
+    va al centro de costo del equipo (el asiento sale de la factura del grifo registrada en Compras)."""
+    equipo = models.ForeignKey('produccion.Equipo', on_delete=models.PROTECT, related_name='cargas')
+    fecha = models.DateField(default=timezone.localdate)
+    vale = models.CharField('N° de vale', max_length=30, blank=True)
+    grifo = models.ForeignKey('core.Tercero', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                              verbose_name='Grifo / proveedor')
+    conductor = models.ForeignKey('logistica.Conductor', on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='+')
+    tarjeta = models.CharField('Tarjeta de combustible', max_length=30, blank=True)
+    galones = models.DecimalField(max_digits=10, decimal_places=3)
+    precio_galon = models.DecimalField('Precio por galón S/', max_digits=10, decimal_places=4)
+    importe = models.DecimalField('Importe S/', max_digits=12, decimal_places=2, default=D0, editable=False)
+    lectura = models.DecimalField('Odómetro / horómetro', max_digits=12, decimal_places=1, null=True, blank=True)
+    tanque_lleno = models.BooleanField('Tanque lleno', default=True,
+                                       help_text='El rendimiento se calcula entre cargas a tanque lleno')
+    rendimiento = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, editable=False)
+    desvio = models.BooleanField('Desvío de rendimiento', default=False, editable=False)
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', verbose_name='Centro de costo',
+                                     help_text='Vacío = el del equipo')
+    observacion = models.CharField(max_length=200, blank=True)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+                                       related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'carga de combustible'
+        verbose_name_plural = 'cargas de combustible'
+
+    def __str__(self):
+        return f'Vale {self.vale or self.pk} · {self.equipo.codigo}'
+
+
+class GastoEquipo(models.Model):
+    """Otros gastos del equipo para su costo total (peajes, lavado, estacionamiento, multas, seguros…)."""
+    TIPOS = [('PEAJE', 'Peaje'), ('LAVADO', 'Lavado'), ('ESTACIONAMIENTO', 'Estacionamiento'), ('MULTA', 'Multa'),
+             ('SEGURO', 'Seguro'), ('LLANTAS', 'Llantas'), ('OTRO', 'Otro')]
+    equipo = models.ForeignKey('produccion.Equipo', on_delete=models.PROTECT, related_name='gastos')
+    fecha = models.DateField(default=timezone.localdate)
+    tipo = models.CharField(max_length=15, choices=TIPOS, default='PEAJE')
+    descripcion = models.CharField('Descripción', max_length=150, blank=True)
+    documento = models.CharField('Comprobante', max_length=40, blank=True)
+    importe = models.DecimalField('Importe S/', max_digits=12, decimal_places=2)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+                                       related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'gasto de equipo'
+        verbose_name_plural = 'gastos de equipos'
+
+
+class AsignacionConductor(models.Model):
+    """Historial de conductores asignados al vehículo o equipo (FLO-07)."""
+    equipo = models.ForeignKey('produccion.Equipo', on_delete=models.CASCADE, related_name='asignaciones')
+    conductor = models.ForeignKey('logistica.Conductor', on_delete=models.PROTECT, related_name='asignaciones')
+    desde = models.DateField(default=timezone.localdate)
+    hasta = models.DateField(null=True, blank=True)
+    observacion = models.CharField(max_length=200, blank=True)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+                                       related_name='+', editable=False)
+
+    class Meta:
+        ordering = ['-desde', '-id']
+        verbose_name = 'asignación de conductor'
+        verbose_name_plural = 'asignaciones de conductores'
+
+
+class Viaje(models.Model):
+    """Viaje del vehículo propio (FLO-07): sale con la guía de remisión (transporte privado) con el km de salida y
+    se cierra con el km de llegada, que entra como lectura del odómetro."""
+    ESTADOS = [('EN_RUTA', 'En ruta'), ('CERRADO', 'Cerrado'), ('ANULADO', 'Anulado')]
+    equipo = models.ForeignKey('produccion.Equipo', on_delete=models.PROTECT, related_name='viajes')
+    conductor = models.ForeignKey('logistica.Conductor', on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='viajes')
+    guia = models.OneToOneField('logistica.GuiaRemision', on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='viaje')
+    salida = models.DateField(default=timezone.localdate)
+    km_salida = models.DecimalField('Km de salida', max_digits=12, decimal_places=1, null=True, blank=True)
+    llegada = models.DateField(null=True, blank=True)
+    km_llegada = models.DecimalField('Km de llegada', max_digits=12, decimal_places=1, null=True, blank=True)
+    origen = models.CharField(max_length=150, blank=True)
+    destino = models.CharField(max_length=150, blank=True)
+    estado = models.CharField(max_length=8, choices=ESTADOS, default='EN_RUTA')
+    observacion = models.CharField(max_length=200, blank=True)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+                                       related_name='+', editable=False)
+
+    class Meta:
+        ordering = ['-salida', '-id']
+        verbose_name = 'viaje'
+
+    @property
+    def recorrido(self):
+        if self.km_llegada is not None and self.km_salida is not None:
+            return self.km_llegada - self.km_salida
+        return None
+
+
+class PrestamoEquipo(models.Model):
+    """Equipo prestado o en comodato a un cliente (FLO-07), con acta de entrega y de devolución."""
+    ESTADOS = [('PRESTADO', 'Prestado'), ('DEVUELTO', 'Devuelto')]
+    numero = models.CharField('Acta N°', max_length=20, editable=False)
+    equipo = models.ForeignKey('produccion.Equipo', on_delete=models.PROTECT, related_name='prestamos')
+    cliente = models.ForeignKey('core.Tercero', on_delete=models.PROTECT, related_name='+')
+    entrega = models.DateField('Fecha de entrega', default=timezone.localdate)
+    devolucion_prevista = models.DateField('Devolución prevista', null=True, blank=True)
+    devolucion = models.DateField('Fecha de devolución', null=True, blank=True)
+    ubicacion = models.CharField('Ubicación en el cliente', max_length=150, blank=True)
+    condiciones = models.TextField('Estado y condiciones de entrega', blank=True)
+    estado_devolucion = models.TextField('Estado en la devolución', blank=True)
+    estado = models.CharField(max_length=8, choices=ESTADOS, default='PRESTADO')
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+                                       related_name='+', editable=False)
+
+    class Meta:
+        ordering = ['-entrega', '-id']
+        verbose_name = 'préstamo de equipo'
+        verbose_name_plural = 'préstamos de equipos'
+
+    def __str__(self):
+        return f'Acta {self.numero}'
+
+    @property
+    def vencido(self):
+        return self.estado == 'PRESTADO' and self.devolucion_prevista and \
+            self.devolucion_prevista < timezone.localdate()

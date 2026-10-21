@@ -30,6 +30,8 @@ def _ctx(titulo, tipo, doc=None):
 
 def _al_guardar(guia):
     guia.aplicar_stock()
+    from flota.operacion import viaje_de_guia
+    viaje_de_guia(guia)  # vehículo propio: abre el viaje con el km de salida (FLO-07)
     cfg = FacturacionConfig.actual()
     if cfg.activa and cfg.envio_automatico:
         def enviar():

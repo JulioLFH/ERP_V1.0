@@ -78,4 +78,35 @@
   </div>
   {% endif %}
 </div>
+{% if eq.pk %}
+<div class="row g-3 mt-1">
+  <div class="col-lg-4"><div class="card h-100"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-cash-stack"></i> Costo del año</span><a href="{% url 'flota:costos' %}" class="small">Comparar</a></div>
+    <table class="table table-sm mb-0"><tbody>
+      <tr><td>Mantenimiento</td><td class="num">{{ costo.mantenimiento|money }}</td></tr><tr><td>Combustible</td><td class="num">{{ costo.combustible|money }}</td></tr>
+      <tr><td>Documentos</td><td class="num">{{ costo.documentos|money }}</td></tr><tr><td>Otros gastos</td><td class="num">{{ costo.gastos|money }}</td></tr>
+      <tr><td>Depreciación</td><td class="num">{{ costo.depreciacion|money }}</td></tr>
+      <tr class="fw-semibold"><td>Total S/</td><td class="num">{{ costo.total|money }}</td></tr>
+      {% if costo.por_uso %}<tr class="fw-semibold"><td>Por {{ eq.unidad_medidor }} ({{ costo.uso|floatformat:-1 }} {{ eq.unidad_medidor }})</td><td class="num">{{ costo.por_uso|money }}</td></tr>{% endif %}
+    </tbody></table></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-header"><i class="bi bi-person-badge"></i> Conductores asignados</div>
+    <ul class="list-group list-group-flush small">{% for a in asignaciones %}<li class="list-group-item d-flex justify-content-between"><span>{{ a.conductor.nombres }} {{ a.conductor.apellidos }}</span><span class="text-muted">{{ a.desde|date:'d/m/Y' }} – {% if a.hasta %}{{ a.hasta|date:'d/m/Y' }}{% else %}<b>vigente</b>{% endif %}</span></li>{% empty %}<li class="list-group-item text-muted">Sin asignaciones.</li>{% endfor %}</ul>
+    {% if puede_flota %}<div class="card-body border-top"><form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="asignar">
+      {% for field in asig_form %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-outline-primary">Asignar</button></div></form></div>{% endif %}
+  </div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-fuel-pump"></i> Combustible</span><a href="{% url 'flota:combustible' %}?equipo={{ eq.pk }}" class="small">Registrar / ver todo</a></div>
+    <table class="table table-sm mb-0"><thead><tr><th>Fecha</th><th class="num">Gal</th><th class="num">S/</th><th class="num">Rend.</th></tr></thead><tbody>
+    {% for c in cargas %}<tr {% if c.desvio %}class="table-warning"{% endif %}><td>{{ c.fecha|date:'d/m/Y' }}</td><td class="num">{{ c.galones|floatformat:2 }}</td><td class="num">{{ c.importe|money }}</td><td class="num">{{ c.rendimiento|floatformat:2|default:'—' }}</td></tr>{% empty %}<tr><td colspan="4" class="text-muted text-center">Sin cargas.</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-signpost-2"></i> Viajes</span><a href="{% url 'flota:viajes' %}?estado=" class="small">Ver todos</a></div>
+    <table class="table table-sm mb-0"><tbody>{% for v in viajes %}<tr><td>{{ v.salida|date:'d/m/Y' }}</td><td class="small">{% if v.guia %}{{ v.guia.serie }}-{{ v.guia.numero }}{% endif %} {{ v.destino|truncatechars:25 }}</td><td class="num">{{ v.recorrido|floatformat:-1|default:v.get_estado_display }}</td></tr>{% empty %}<tr><td class="text-muted text-center">Sin viajes.</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-box-arrow-up-right"></i> Préstamos</span>{% if eq.aplica_prestamo %}<a href="{% url 'flota:prestamos' %}" class="small">Prestar</a>{% endif %}</div>
+    <ul class="list-group list-group-flush small">{% for p in prestamos %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'flota:prestamo' p.pk %}">{{ p.numero }} · {{ p.cliente.nombre|truncatechars:28 }}</a><span>{{ p.get_estado_display }}</span></li>{% empty %}<li class="list-group-item text-muted">{% if eq.aplica_prestamo %}Sin préstamos.{% else %}No se presta a clientes.{% endif %}</li>{% endfor %}</ul></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-header"><i class="bi bi-receipt"></i> Otros gastos (peajes, lavado…)</div>
+    <table class="table table-sm mb-0"><tbody>{% for g in gastos %}<tr><td>{{ g.fecha|date:'d/m/Y' }}</td><td class="small">{{ g.get_tipo_display }} {{ g.descripcion }}</td><td class="num">{{ g.importe|money }}</td></tr>{% empty %}<tr><td class="text-muted text-center">Sin gastos.</td></tr>{% endfor %}</tbody></table>
+    {% if puede_flota %}<div class="card-body border-top"><form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="gasto">
+      {% for field in gasto_form %}<div class="col-6">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-outline-primary">Registrar gasto</button></div></form></div>{% endif %}
+  </div></div>
+</div>
+{% endif %}
 {% endblock %}

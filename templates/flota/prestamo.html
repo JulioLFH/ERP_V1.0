@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}{{ p }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3 d-print-none">
+  <a href="{% url 'flota:prestamos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Préstamos</a>
+  <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir acta</button>
+</div>
+<div class="card doc-print mb-3"><div class="card-body">
+  <div class="row align-items-center mb-3">
+    <div class="col-7"><h4 class="mb-0">{{ empresa.razon_social }}</h4><div class="small text-muted">RUC {{ empresa.ruc }}</div></div>
+    <div class="col-5"><div class="doc-box"><div class="fw-bold">ACTA DE {% if p.estado == 'DEVUELTO' %}ENTREGA Y DEVOLUCIÓN{% else %}ENTREGA{% endif %} DE EQUIPO</div><div class="fs-5">{{ p.numero }}</div></div></div>
+  </div>
+  <table class="table table-sm table-borderless">
+    <tr><td class="text-muted" style="width:22%">Cliente</td><td>{{ p.cliente.nombre }} ({{ p.cliente.numero_doc }})</td></tr>
+    <tr><td class="text-muted">Equipo</td><td>{{ p.equipo }} · {{ p.equipo.marca_modelo }}{% if p.equipo.serie %} · serie {{ p.equipo.serie }}{% endif %}{% if p.equipo.placa %} · placa {{ p.equipo.placa }}{% endif %}</td></tr>
+    <tr><td class="text-muted">Ubicación</td><td>{{ p.ubicacion|default:'—' }}</td></tr>
+    <tr><td class="text-muted">Entrega</td><td>{{ p.entrega|date:'d/m/Y' }}{% if p.devolucion_prevista %} · devolución prevista {{ p.devolucion_prevista|date:'d/m/Y' }}{% endif %}</td></tr>
+    <tr><td class="text-muted">Estado en la entrega</td><td>{{ p.condiciones|linebreaksbr|default:'—' }}</td></tr>
+    {% if p.devolucion %}<tr><td class="text-muted">Devolución</td><td>{{ p.devolucion|date:'d/m/Y' }}</td></tr><tr><td class="text-muted">Estado en la devolución</td><td>{{ p.estado_devolucion|linebreaksbr|default:'—' }}</td></tr>{% endif %}
+  </table>
+  <div class="row mt-5 text-center small">
+    <div class="col-6"><div class="border-top pt-1 mx-4">Entrega: {{ empresa.razon_social }}</div></div>
+    <div class="col-6"><div class="border-top pt-1 mx-4">Recibe: {{ p.cliente.nombre }}</div></div>
+  </div>
+</div></div>
+{% if p.estado == 'PRESTADO' and puede_flota %}
+<div class="card d-print-none"><div class="card-header">Registrar devolución</div><div class="card-body">
+  <form method="post" class="row g-2 align-items-end">{% csrf_token %}
+    <div class="col-md-3"><label class="form-label small mb-1">Fecha</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+    <div class="col-md-7"><label class="form-label small mb-1">Estado del equipo al devolverlo</label><input name="estado_devolucion" class="form-control form-control-sm"></div>
+    <div class="col-md-2"><button class="btn btn-sm btn-success w-100">Devuelto</button></div></form>
+</div></div>
+{% endif %}
+{% endblock %}
