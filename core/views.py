@@ -131,7 +131,11 @@ def facturacion_config(request):
         form.save()
         messages.success(request, 'Configuración de facturación electrónica guardada.')
         return redirect('facturacion')
-    return render(request, 'core/facturacion.html', {'form': form, 'cfg': cfg})
+    lista = None
+    if cfg.proveedor == 'SUNAT':
+        from .sunat_directo import lista_produccion
+        lista = lista_produccion(cfg)
+    return render(request, 'core/facturacion.html', {'form': form, 'cfg': cfg, 'lista': lista})
 
 
 @login_required

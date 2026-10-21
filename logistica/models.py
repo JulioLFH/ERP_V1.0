@@ -115,6 +115,8 @@ class GuiaRemision(ElectronicoMixin):
     stock_aplicado = models.BooleanField(default=False, editable=False)
 
     observaciones = models.TextField(blank=True)
+    sunat_ticket = models.CharField('Ticket SUNAT', max_length=60, blank=True, editable=False,
+                                    help_text='Envío directo: SUNAT recibe la guía con un ticket y responde después')
     estado = models.CharField(max_length=8, choices=ESTADOS, default='EMITIDA')
     motivo_anulacion = models.CharField('Motivo de anulación', max_length=250, blank=True)
     anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,

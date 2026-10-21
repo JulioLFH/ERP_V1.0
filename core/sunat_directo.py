@@ -45,7 +45,8 @@ NS = {
 RAIZ = {'01': 'Invoice', '03': 'Invoice', '07': 'CreditNote', '08': 'DebitNote'}
 # afectación -> (código catálogo 07, id del tributo, nombre, código internacional)
 TRIBUTO = {'GRAVADA': ('10', '1000', 'IGV', 'VAT'), 'EXONERADA': ('20', '9997', 'EXO', 'VAT'),
-           'INAFECTA': ('30', '9998', 'INA', 'FRE'), 'EXPORTACION': ('40', '9995', 'EXP', 'FRE')}
+           'INAFECTA': ('30', '9998', 'INA', 'FRE'), 'EXPORTACION': ('40', '9995', 'EXP', 'FRE'),
+           'GRATUITA': ('31', '9996', 'GRA', 'FRE')}  # gratuita: inafecto, retiro por bonificación
 
 
 class ErrorSunatDirecto(Exception):
@@ -188,15 +189,33 @@ def _subtotal_tributo(padre, moneda, base, impuesto, afectacion, tasa=None, line
     _e(esquema, 'cbc:TaxTypeCode', intl)
 
 
+def cuenta_detracciones():
+    """N° de la cuenta de detracciones de la empresa en el Banco de la Nación (Finanzas › Cuentas)."""
+    from finanzas.models import Cuenta
+    cuenta = Cuenta.objects.filter(es_detracciones=True, activo=True).exclude(numero='').first()
+    return cuenta.numero.strip() if cuenta else ''
+
+
+def codigo_detraccion(venta):
+    """Código del catálogo 54 de SUNAT (el campo guarda el código interno de Nubefact)."""
+    from .sunat import DETRACCION_TIPOS
+    return dict(DETRACCION_TIPOS).get(venta.detraccion_codigo or '35', '037')[:3]
+
+
 def validar(venta):
     """Lo que el envío directo aún no cubre (se envían por Nubefact o se registran sin esos conceptos)."""
     from .sunat import validar_comprobante
     errores = validar_comprobante(venta)
-    if venta.tipo_operacion == 'GRATUITA':
-        errores.append('Las operaciones gratuitas aún no se envían directo a SUNAT.')
+    if venta.tipo_operacion == 'GRATUITA' and venta.tipo_comprobante not in ('01', '03'):
+        errores.append('Las operaciones gratuitas van en factura o boleta, no en notas.')
     if venta.detraccion_monto:
-        errores.append('Las facturas con detracción aún no se envían directo a SUNAT (falta la cuenta del Banco de '
-                       'la Nación en el XML).')
+        if venta.tipo_comprobante != '01':
+            errores.append('La detracción solo va en facturas (no en boletas ni notas).')
+        if not cuenta_detracciones():
+            errores.append('Registre la cuenta de detracciones del Banco de la Nación en Finanzas › Cuentas (marque '
+                           '«Cuenta de detracciones» y su número): va en el XML de la factura.')
+    if venta.retencion_monto and venta.tipo_comprobante != '01':
+        errores.append('La retención del IGV solo va en facturas.')
     if venta.icbper:
         errores.append('El impuesto a las bolsas plásticas (ICBPER) aún no se envía directo a SUNAT.')
     if venta.percepcion_monto:
@@ -218,14 +237,24 @@ def xml_comprobante(venta):
     _e(raiz, 'cbc:IssueDate', venta.fecha_emision.isoformat())
     creado = timezone.localtime(venta.creado) if venta.creado else timezone.localtime()
     _e(raiz, 'cbc:IssueTime', creado.strftime('%H:%M:%S'))
+    detraccion = tipo == '01' and venta.detraccion_monto > 0
+    gratuita = venta.tipo_operacion == 'GRATUITA'
     if nombre == 'Invoice':
         if venta.fecha_vencimiento and venta.fecha_vencimiento > venta.fecha_emision:
             _e(raiz, 'cbc:DueDate', venta.fecha_vencimiento.isoformat())
-        _e(raiz, 'cbc:InvoiceTypeCode', tipo, listID='0200' if venta.tipo_operacion == 'EXPORTACION' else '0101',
+        # catálogo 51: 0101 venta interna, 0200 exportación, 1001 operación sujeta a detracción
+        operacion = '0200' if venta.tipo_operacion == 'EXPORTACION' else ('1001' if detraccion else '0101')
+        _e(raiz, 'cbc:InvoiceTypeCode', tipo, listID=operacion,
            listAgencyName='PE:SUNAT', listName='Tipo de Documento',
            listURI='urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo01', name='Tipo de Operacion',
            listSchemeURI='urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo51')
     _e(raiz, 'cbc:Note', monto_en_letras(venta.total, moneda), languageLocaleID='1000')
+    if gratuita:  # leyendas del catálogo 52
+        _e(raiz, 'cbc:Note', 'TRANSFERENCIA GRATUITA DE UN BIEN Y/O SERVICIO PRESTADO GRATUITAMENTE',
+           languageLocaleID='1002')
+    if detraccion:
+        _e(raiz, 'cbc:Note', 'Operación sujeta al Sistema de Pago de Obligaciones Tributarias',
+           languageLocaleID='2006')
     _e(raiz, 'cbc:DocumentCurrencyCode', moneda, listID='ISO 4217 Alpha', listName='Currency',
        listAgencyName='United Nations Economic Commission for Europe')
     lineas = list(venta.items.select_related('producto'))
@@ -243,10 +272,23 @@ def xml_comprobante(venta):
     _firma_cac(raiz, empresa)
     _emisor(raiz, empresa)
     _cliente(raiz, venta.tercero)
+    pen = moneda == 'PEN'
+    if detraccion:  # cuenta del Banco de la Nación, código del bien o servicio, porcentaje y monto en soles
+        medio = _e(raiz, 'cac:PaymentMeans')
+        _e(medio, 'cbc:ID', 'Detraccion')
+        _e(medio, 'cbc:PaymentMeansCode', '001', listName='Medio de pago', listAgencyName='PE:SUNAT',
+           listURI='urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo59')
+        _e(_e(medio, 'cac:PayeeFinancialAccount'), 'cbc:ID', cuenta_detracciones())
+        t = _e(raiz, 'cac:PaymentTerms')
+        _e(t, 'cbc:ID', 'Detraccion')
+        _e(t, 'cbc:PaymentMeansID', codigo_detraccion(venta), schemeName='Codigo de detraccion',
+           schemeAgencyName='PE:SUNAT', schemeURI='urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo54')
+        _e(t, 'cbc:PaymentPercent', _m(venta.detraccion_pct))
+        _e(t, 'cbc:Amount', _m(venta.detraccion_monto if pen else venta.detr_pen), currencyID='PEN')
     if tipo == '01':  # forma de pago (obligatoria en facturas)
         if venta.forma_pago == 'CREDITO':
-            cuotas = list(venta.cronograma_cuotas) or [(1, venta.fecha_vencimiento or venta.fecha_emision,
-                                                         venta.total)]
+            neto = venta.total - venta.detraccion_monto - venta.retencion_monto
+            cuotas = list(venta.cronograma_cuotas) or [(1, venta.fecha_vencimiento or venta.fecha_emision, neto)]
             pendiente = sum((Decimal(c[2]) for c in cuotas), Decimal('0'))
             t = _e(raiz, 'cac:PaymentTerms')
             _e(t, 'cbc:ID', 'FormaPago')
@@ -262,16 +304,25 @@ def xml_comprobante(venta):
             t = _e(raiz, 'cac:PaymentTerms')
             _e(t, 'cbc:ID', 'FormaPago')
             _e(t, 'cbc:PaymentMeansID', 'Contado')
+    if tipo == '01' and venta.retencion_monto > 0:  # retención del IGV (catálogo 53, código 62), en soles
+        ac = _e(raiz, 'cac:AllowanceCharge')
+        _e(ac, 'cbc:ChargeIndicator', 'false')
+        _e(ac, 'cbc:AllowanceChargeReasonCode', '62', listAgencyName='PE:SUNAT', listName='Cargo/descuento',
+           listURI='urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo53')
+        _e(ac, 'cbc:MultiplierFactorNumeric', f'{venta.retencion_pct / 100:.5f}')
+        _e(ac, 'cbc:Amount', _m(venta.retencion_monto if pen else venta.ret_pen), currencyID='PEN')
+        _e(ac, 'cbc:BaseAmount', _m(venta.total if pen else venta.total_pen), currencyID='PEN')
     # tributos del documento por afectación
     tasa = empresa.igv_tasa
+    lineas_gratuitas = sum((i.subtotal for i in lineas), Decimal('0')) if gratuita else Decimal('0')
     bases = {'GRAVADA': venta.base_imponible, 'EXONERADA': venta.exonerado, 'INAFECTA': venta.inafecto,
-             'EXPORTACION': venta.exportacion}
+             'EXPORTACION': venta.exportacion, 'GRATUITA': lineas_gratuitas}
     tt = _e(raiz, 'cac:TaxTotal')
     _e(tt, 'cbc:TaxAmount', _m(venta.igv), currencyID=moneda)
     usados = [a for a, b in bases.items() if b] or ['GRAVADA']
     for a in usados:
         _subtotal_tributo(tt, moneda, bases[a], venta.igv if a == 'GRAVADA' else 0, a)
-    valor_venta = sum((b for b in bases.values()), Decimal('0'))
+    valor_venta = sum((b for a, b in bases.items() if a != 'GRATUITA'), Decimal('0'))
     total_tag = 'cac:RequestedMonetaryTotal' if nombre == 'DebitNote' else 'cac:LegalMonetaryTotal'
     tot = _e(raiz, total_tag)
     _e(tot, 'cbc:LineExtensionAmount', _m(valor_venta), currencyID=moneda)
@@ -293,9 +344,10 @@ def xml_comprobante(venta):
         precio = _e(_e(linea, 'cac:PricingReference'), 'cac:AlternativeConditionPrice')
         con_igv = (i.subtotal + igv) / i.cantidad if i.cantidad else Decimal('0')
         _e(precio, 'cbc:PriceAmount', f'{con_igv:.4f}', currencyID=moneda)
-        _e(precio, 'cbc:PriceTypeCode', '01', listName='Tipo de Precio', listAgencyName='PE:SUNAT',
-           listURI='urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo16')
-        if i.descuento > 0:
+        # catálogo 16: 01 precio unitario con IGV, 02 valor referencial de una operación gratuita
+        _e(precio, 'cbc:PriceTypeCode', '02' if gratuita else '01', listName='Tipo de Precio',
+           listAgencyName='PE:SUNAT', listURI='urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo16')
+        if i.descuento > 0 and not gratuita:
             ac = _e(linea, 'cac:AllowanceCharge')
             _e(ac, 'cbc:ChargeIndicator', 'false')
             _e(ac, 'cbc:AllowanceChargeReasonCode', '00')
@@ -309,7 +361,8 @@ def xml_comprobante(venta):
         _e(item, 'cbc:Description', (i.descripcion or '-')[:500])
         if i.producto and i.producto.codigo:
             _e(_e(item, 'cac:SellersItemIdentification'), 'cbc:ID', i.producto.codigo[:30])
-        _e(_e(linea, 'cac:Price'), 'cbc:PriceAmount', f'{i.precio_unitario:.4f}', currencyID=moneda)
+        _e(_e(linea, 'cac:Price'), 'cbc:PriceAmount', '0.0000' if gratuita else f'{i.precio_unitario:.4f}',
+           currencyID=moneda)
     return raiz
 
 
@@ -648,6 +701,43 @@ def consultar_ticket(envio, esperar=True):
         envio.estado, envio.respuesta = 'ENVIADO', f'SUNAT: {contenido or "sin respuesta"} (código {codigo}).'
     envio.save(update_fields=['estado', 'respuesta'])
     return envio
+
+
+def lista_produccion(cfg=None):
+    """Lo que hace falta para emitir directo en producción: [(estado, texto)], estado = 'ok', 'falta' o 'opcional'."""
+    from .forms import error_ruc
+    from .models import Serie
+    cfg = cfg or FacturacionConfig.actual()
+    e = Empresa.actual()
+    hoy = timezone.localdate()
+    salida = []
+
+    def item(ok, texto, opcional=False):
+        salida.append(('ok' if ok else ('opcional' if opcional else 'falta'), texto))
+
+    item(e.ruc and not error_ruc(e.ruc), f'RUC de la empresa válido ({e.ruc or "vacío"}) — Ajustes › Empresa.')
+    item(bool((e.direccion or '').strip()) and len(e.ubigeo or '') == 6,
+         'Dirección y ubigeo del domicilio fiscal — Ajustes › Empresa.')
+    vigente = bool(cfg.certificado) and not cfg.certificado_prueba and bool(cfg.certificado_vence) \
+        and cfg.certificado_vence > hoy
+    texto = 'Certificado digital de la empresa (no el de prueba) y vigente'
+    if vigente and (cfg.certificado_vence - hoy).days <= 30:
+        texto += f' — vence el {cfg.certificado_vence:%d/%m/%Y}: renuévelo'
+    item(vigente, texto + '.')
+    item(bool(cfg.sol_usuario and cfg.sol_clave), 'Usuario SOL secundario y su clave (perfil de emisión '
+                                                  'electrónica).')
+    series = set(Serie.objects.filter(activo=True).values_list('tipo', 'serie'))
+    for tipo, letra, nombre in (('01', 'F', 'facturas'), ('03', 'B', 'boletas')):
+        item(any(t == tipo and s.startswith(letra) for t, s in series),
+             f'Serie de {nombre} que empiece con {letra} — Ajustes › Correlativos.')
+    item(any(t == '09' and s.startswith('T') for t, s in series),
+         'Serie de guías remitente que empiece con T (solo si emite guías).', opcional=True)
+    item(bool(cfg.gre_client_id and cfg.gre_client_secret),
+         'Credenciales de la API de guías (client_id y client_secret, solo si emite guías).', opcional=True)
+    item(bool(cuenta_detracciones()), 'Cuenta de detracciones del Banco de la Nación en Finanzas › Cuentas (solo si '
+                                      'factura servicios con detracción).', opcional=True)
+    item(bool(e.registro_mtc), 'Registro MTC de la empresa (solo si emite guías transportista).', opcional=True)
+    return salida
 
 
 def probar_conexion():

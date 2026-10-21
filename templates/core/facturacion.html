@@ -23,6 +23,9 @@
         </div>
         <div class="col-md-7 solo-sunat">{% with field=form.certificado_archivo %}{% include 'core/_campo.html' %}{% endwith %}</div>
         <div class="col-md-5 solo-sunat">{% with field=form.certificado_clave_nueva %}{% include 'core/_campo.html' %}{% endwith %}</div>
+        <div class="col-12 solo-sunat solo-produccion"><div class="small fw-semibold mt-1">Guías de remisión (API de SUNAT)</div></div>
+        <div class="col-md-6 solo-sunat solo-produccion">{% with field=form.gre_client_id %}{% include 'core/_campo.html' %}{% endwith %}</div>
+        <div class="col-md-6 solo-sunat solo-produccion">{% with field=form.gre_client_secret_nuevo %}{% include 'core/_campo.html' %}{% endwith %}{% if cfg.gre_client_secret %}<div class="form-text text-success">Hay un client_secret guardado.</div>{% endif %}</div>
         {% with field=form.envio_automatico %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endwith %}
       </div>
       <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>
@@ -36,7 +39,14 @@
       </form>{% endif %}
     </div>
   </div></div></div>
-  <div class="col-lg-6"><div class="card"><div class="card-header">¿Cómo funciona?</div><div class="card-body small">
+  <div class="col-lg-6">
+  {% if lista %}<div class="card mb-3"><div class="card-header">Para emitir en producción</div><div class="card-body small">
+    <ul class="list-unstyled mb-0">
+      {% for estado, texto in lista %}<li class="mb-1">{% if estado == 'ok' %}<i class="bi bi-check-circle-fill text-success"></i>{% elif estado == 'falta' %}<i class="bi bi-x-circle-fill text-danger"></i>{% else %}<i class="bi bi-dash-circle text-secondary"></i>{% endif %} {{ texto }}</li>{% endfor %}
+    </ul>
+    <div class="text-muted mt-2">Además: estar afiliado en SUNAT como emisor electrónico del contribuyente (SEE del contribuyente) y haber registrado el certificado en SUNAT Operaciones en Línea.</div>
+  </div></div>{% endif %}
+  <div class="card"><div class="card-header">¿Cómo funciona?</div><div class="card-body small">
     <p class="mb-2"><b>SUNAT directo</b> (sin intermediario):</p>
     <ol class="mb-3">
       <li>{{ erp_nombre }} arma el XML del comprobante (UBL 2.1), lo <b>firma con el certificado digital de la empresa</b> y lo envía al servicio de SUNAT.</li>
@@ -46,12 +56,15 @@
     <ul class="mb-3">
       <li><b>Pruebas:</b> entorno <b>beta</b> de SUNAT, sin clave SOL (usa RUC + MODDATOS) y con un certificado de prueba generado aquí. Lo enviado no tiene validez tributaria.</li>
       <li><b>Producción:</b> necesita el <b>certificado digital</b> de la empresa (.pfx), un <b>usuario SOL secundario</b> con perfil de envío de comprobantes y estar afiliado como emisor electrónico (SEE del contribuyente) en SUNAT.</li>
-      <li>Aún no van directo: <b>guías de remisión</b> (otra API de SUNAT), detracciones, percepciones, ICBPER y operaciones gratuitas. Para esos casos use Nubefact.</li>
+      <li>Van directo: facturas, boletas, notas, bajas y resúmenes; <b>detracciones</b> (con la cuenta del Banco de la Nación), retención del IGV y operaciones gratuitas.</li>
+      <li><b>Guías de remisión</b> (remitente T y transportista V): van por la API REST de SUNAT con el usuario SOL secundario y las credenciales de API (client_id y client_secret) generadas en SUNAT Operaciones en Línea con el servicio «GRE Emisión de Comprobantes». SUNAT <b>no tiene entorno de pruebas</b> para guías: en beta el sistema solo genera y firma el XML para revisarlo.</li>
+      <li>Aún no van directo: percepciones e ICBPER (bolsas plásticas). Para esos casos use Nubefact.</li>
     </ul>
     <p class="mb-2"><b>Nubefact</b> (OSE/PSE): copie la <b>RUTA</b> y el <b>TOKEN</b> de su panel (API integración). Hay cuenta DEMO gratuita.</p>
     <p class="mb-3">Series en <a href="{% url 'series' %}">Correlativos</a>: 4 caracteres; facturas y sus notas con <b>F</b>, boletas y sus notas con <b>B</b>, guías remitente con <b>T</b> y transportista con <b>V</b>.</p>
     <div class="alert alert-warning py-2 mb-0">Sin esta configuración {{ erp_nombre }} registra e imprime comprobantes, pero <b>no los envía a SUNAT</b>: no tienen validez como comprobantes electrónicos.</div>
-  </div></div></div>
+  </div></div>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}

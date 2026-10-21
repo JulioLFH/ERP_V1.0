@@ -134,13 +134,11 @@ class RechazoTest(Base):
                 sunat.enviar_comprobante(otra)
         otra.refresh_from_db()
         self.assertEqual(otra.estado_sunat, 'ERROR')
-        con_detraccion = self.venta(numero='00000003', detraccion_pct=D('12'))
-        con_detraccion.calcular_totales()
-        con_detraccion.save()
+        con_bolsas = self.venta(numero='00000003', icbper=D('0.50'))  # ICBPER aún no va directo
         with self.assertRaises(sunat.ErrorValidacion):
-            sunat.enviar_comprobante(con_detraccion)
-        con_detraccion.refresh_from_db()
-        self.assertEqual(con_detraccion.estado_sunat, 'NO_ENVIADO')
+            sunat.enviar_comprobante(con_bolsas)
+        con_bolsas.refresh_from_db()
+        self.assertEqual(con_bolsas.estado_sunat, 'NO_ENVIADO')
 
 
 class BajaConTicketTest(Base):

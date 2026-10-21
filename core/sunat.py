@@ -118,8 +118,13 @@ def _directo():
 def probar_conexion():
     """Consulta un comprobante inexistente: si responde algo distinto a error de RUTA/TOKEN, la conexión es válida."""
     if _directo():
-        from . import sunat_directo
-        return sunat_directo.probar_conexion()
+        from . import sunat_directo, sunat_gre
+        ok, mensaje = sunat_directo.probar_conexion()
+        cfg = FacturacionConfig.actual()
+        if ok and cfg.entorno == 'PRODUCCION' and cfg.gre_client_id:
+            ok_gre, mensaje_gre = sunat_gre.probar_credenciales()
+            return ok and ok_gre, f'{mensaje} {mensaje_gre}'
+        return ok, mensaje
     try:
         _post({'operacion': 'consultar_comprobante', 'tipo_de_comprobante': 1, 'serie': 'F001', 'numero': 99999999})
     except ErrorFacturacion as exc:
@@ -475,11 +480,16 @@ def payload_guia(guia):
 
 def enviar_guia(guia):
     """Paso 1 'generar_guia'; inmediatamente intenta el paso 2 'consultar_guia'."""
-    if _directo():  # la guía electrónica de SUNAT usa otra API (REST con clave SOL), aún no conectada
-        exc = ErrorValidacion('Las guías de remisión electrónicas aún no se envían directo a SUNAT: use Nubefact o '
-                              'emítalas en SUNAT Operaciones en Línea.')
-        _registrar_error(guia, exc)
-        raise exc
+    if _directo():  # API REST de guías de SUNAT (core/sunat_gre.py)
+        from . import sunat_gre
+        try:
+            if not FacturacionConfig.actual().activa:
+                raise ErrorValidacion('Falta el certificado digital (o las credenciales SOL) en Ajustes › '
+                                      'Facturación electrónica.')
+            return sunat_gre.enviar(guia)
+        except ErrorFacturacion as exc:
+            _registrar_error(guia, exc)
+            raise
     try:
         _guardar_respuesta(guia, _post(payload_guia(guia)))
     except ErrorFacturacion as exc:
@@ -494,7 +504,10 @@ def enviar_guia(guia):
 
 def consultar_guia(guia):
     if _directo():
-        raise ErrorValidacion('Las guías de remisión electrónicas aún no se envían directo a SUNAT.')
+        from . import sunat_gre
+        if not guia.sunat_ticket:  # nunca llegó a SUNAT (o es una guía generada en beta): se envía
+            return enviar_guia(guia)
+        return sunat_gre.consultar(guia)
     data = _post({'operacion': 'consultar_guia', 'tipo_de_comprobante': TIPO_GUIA_NUBEFACT[guia.tipo],
                   'serie': guia.serie, 'numero': str(_sin_ceros(guia.numero))})
     return _guardar_respuesta(guia, data)

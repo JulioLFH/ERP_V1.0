@@ -355,10 +355,13 @@ class FacturacionConfigForm(BootstrapMixin, forms.ModelForm):
                                           help_text='El certificado de la empresa para firmar los comprobantes')
     certificado_clave_nueva = forms.CharField(label='Clave del certificado', required=False,
                                               widget=forms.PasswordInput)
+    gre_client_secret_nuevo = forms.CharField(label='Guías: client_secret', required=False,
+                                              widget=forms.PasswordInput, help_text='Se guarda cifrado. Vacío = no '
+                                                                                    'cambia')
 
     class Meta:
         model = FacturacionConfig
-        fields = ['proveedor', 'ruta', 'token', 'entorno', 'sol_usuario', 'envio_automatico']
+        fields = ['proveedor', 'ruta', 'token', 'entorno', 'sol_usuario', 'gre_client_id', 'envio_automatico']
         widgets = {'token': forms.PasswordInput(render_value=True)}
 
     def __init__(self, *args, **kwargs):
@@ -394,6 +397,10 @@ class FacturacionConfigForm(BootstrapMixin, forms.ModelForm):
         if self.cleaned_data.get('sol_clave_nueva'):
             from .cifrado import cifrar
             cfg.sol_clave = cifrar(self.cleaned_data['sol_clave_nueva'])
+        if self.cleaned_data.get('gre_client_secret_nuevo'):
+            from .cifrado import cifrar
+            cfg.gre_client_secret = cifrar(self.cleaned_data['gre_client_secret_nuevo'].strip())
+        cfg.gre_client_id = (cfg.gre_client_id or '').strip()
         cfg.save()
         if getattr(self, '_pfx', None):
             from .sunat_directo import guardar_certificado

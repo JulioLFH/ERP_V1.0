@@ -691,6 +691,12 @@ class FacturacionConfig(models.Model):
     certificado_nombre = models.CharField(max_length=200, blank=True, editable=False)
     certificado_vence = models.DateField(null=True, blank=True, editable=False)
     certificado_prueba = models.BooleanField(default=False, editable=False)
+    # ---- guías de remisión directo: API REST de SUNAT con el mismo usuario SOL secundario
+    gre_client_id = models.CharField(
+        'Guías: client_id', max_length=100, blank=True,
+        help_text='Credenciales de API SUNAT generadas en SUNAT Operaciones en Línea con el usuario SOL secundario, '
+                  'con el servicio «GRE Emisión de Comprobantes»')
+    gre_client_secret = models.CharField(max_length=300, blank=True, editable=False)  # cifrado
 
     class Meta:
         verbose_name = 'configuración de facturación electrónica'
