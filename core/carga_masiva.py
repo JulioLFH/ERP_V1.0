@@ -80,6 +80,21 @@ TIPOS_DOC = _opciones(Tercero.TIPOS_DOC, {'CE': '4', 'PASAPORTE': '7'})
 PLANIFICACIONES = _opciones(Producto.PLANIFICACIONES, {'REORDEN': 'REORDEN', 'PUNTO DE REORDEN': 'REORDEN',
                                                        'SIN PLANIFICAR': 'NINGUNA', 'NINGUNA': 'NINGUNA'})
 ESTRATEGIAS = _opciones(Producto.ESTRATEGIAS, {'PARA STOCK': 'MTS', 'CONTRA PEDIDO': 'MTO'})
+CONTROLES = {'LOTE': 'LOTE', 'LOTES': 'LOTE', 'POR LOTE': 'LOTE', 'SERIE': 'SERIE', 'SERIES': 'SERIE',
+             'POR SERIE': 'SERIE', 'NINGUNO': '', 'SIN LOTE NI SERIE': ''}
+AFECTACIONES = {'GRAVADA': 'GRAVADA', 'GRAVADO': 'GRAVADA', 'EXONERADA': 'EXONERADA', 'EXONERADO': 'EXONERADA',
+                'INAFECTA': 'INAFECTA', 'INAFECTO': 'INAFECTA', 'SEGUN EL COMPROBANTE': ''}
+
+
+def _si_no(v, campo):
+    t = normalizar(v)
+    if t not in ('SI', 'S', 'YES', 'TRUE', '1', 'X', 'NO', 'N', 'FALSE', '0'):
+        raise ErrorFila(f'{campo}: use Sí o No.')
+    return t in ('SI', 'S', 'YES', 'TRUE', '1', 'X')
+
+
+def _lista(v):
+    return [x.strip() for x in re.split(r'[,;]', _txt(v)) if x.strip()]
 
 
 # ---------------------------------------------------------------- definiciones
@@ -107,6 +122,56 @@ DEFINICIONES = OrderedDict([
             ('familia', 'Familia', False, 'Salsas', 'Agrupa productos en los reportes de producción'),
             ('peso_neto', 'Peso neto por unidad (kg)', False, '0.5', 'Convierte a kg y TM en los reportes. En kg no '
                                                                     'hace falta'),
+            ('peso', 'Peso bruto por unidad (kg)', False, '50.2', 'Para el peso de las guías de remisión'),
+            ('unidad_compra', 'Unidad de compra', False, 'BX', 'Vacío = la misma unidad'),
+            ('factor_compra', 'Unidades por unidad de compra', False, '12', 'Ej. caja de 12: 12. Vacío = 1'),
+            ('control', 'Control', False, 'Lote', 'Lote, Serie o vacío (sin lote ni serie)'),
+            ('puede_comprarse', 'Se compra', False, 'Sí', 'Sí o No. Vacío = Sí'),
+            ('puede_venderse', 'Se vende', False, 'Sí', 'Sí o No. Vacío = Sí'),
+            ('afectacion_igv', 'Afectación del IGV', False, 'Gravada',
+             'Gravada, Exonerada o Inafecta (vale para venta y compra). Vacío = según el comprobante'),
+            ('linea', 'Línea de negocio (código)', False, 'GAL', 'Código del centro de beneficio'),
+            ('cuenta_existencias', 'Cuenta de existencias (excepción)', False, '',
+             'Solo si se aparta de la del tipo de producto'),
+            ('cuenta_compra', 'Cuenta de compra (excepción)', False, '', ''),
+            ('cuenta_venta', 'Cuenta de venta (excepción)', False, '', ''),
+            ('cuenta_costo', 'Cuenta de costo de ventas (excepción)', False, '', ''),
+        ]}),
+    ('usuarios', {
+        'titulo': 'Usuarios', 'icono': 'bi-person-gear', 'modulos': ['ajustes'], 'solo_admin': True,
+        'descripcion': 'Usuarios del sistema con su perfil de acceso (cargue primero los perfiles), almacenes, series '
+                       'y tope de aprobación. Con «Actualizar existentes» se cambian los que ya existen (la contraseña '
+                       'no se toca). Sin contraseña inicial el usuario entra con «¿Olvidó su contraseña?» (correo).',
+        'columnas': [
+            ('usuario', 'Usuario', True, 'jperez', 'Sin espacios'),
+            ('nombre', 'Nombres y apellidos', False, 'Juan Pérez Ruiz', ''),
+            ('correo', 'Correo', False, 'jperez@empresa.pe', 'Para recuperar la contraseña y los avisos'),
+            ('perfil', 'Perfil de acceso', True, 'Asistente de compras', 'Nombre exacto del perfil (Ajustes › Perfiles)'),
+            ('trabajador', 'Trabajador (DNI)', False, '45678912', 'Lo vincula con su ficha de planillas'),
+            ('almacenes', 'Almacenes (códigos)', False, 'ALM01, PT01', 'Separados por coma. Vacío = todos'),
+            ('series', 'Series', False, 'F001, B001', 'Separadas por coma. Vacío = todas'),
+            ('limite', 'Tope de aprobación S/', False, '5000', 'Vacío = el del perfil'),
+            ('clave_inicial', 'Contraseña inicial', False, '', 'Cumple la política de contraseñas; se pide cambiarla '
+                                                               'al ingresar si la empresa tiene vencimiento'),
+            ('activo', 'Activo', False, 'Sí', 'Sí o No. Vacío = Sí'),
+        ]}),
+    ('perfiles', {
+        'titulo': 'Perfiles de acceso', 'icono': 'bi-shield-check', 'modulos': ['ajustes'], 'solo_admin': True,
+        'descripcion': 'Una fila por perfil y pantalla con su nivel (Completo, Sin exportar, Solo lectura u Oculta). '
+                       'Módulos, acciones y datos sensibles se toman de la primera fila del perfil que los tenga. Si '
+                       'el perfil ya existe se actualiza (con «Actualizar existentes») y se vuelve a aplicar a sus '
+                       'usuarios.',
+        'columnas': [
+            ('perfil', 'Perfil', True, 'Asistente de compras', ''),
+            ('descripcion', 'Descripción', False, 'Registra OC y facturas', ''),
+            ('modulos', 'Módulos', False, 'compras, inventario', 'Claves o nombres separados por coma'),
+            ('acciones', 'Acciones', False, 'compras.registrar, compras.oc', 'módulo.acción separados por coma'),
+            ('pantalla', 'Pantalla', False, 'Órdenes de compra', 'Nombre del menú (Módulo › Opción) o la ruta'),
+            ('nivel', 'Nivel', False, 'Solo lectura', 'Completo, Sin exportar, Solo lectura u Oculta'),
+            ('ver_costos', 'Ve costos', False, 'No', 'Sí o No'),
+            ('ver_sueldos', 'Ve sueldos', False, 'No', 'Sí o No. Vacío = Sí'),
+            ('ver_saldos', 'Ve saldos de caja', False, 'Sí', 'Sí o No. Vacío = Sí'),
+            ('limite', 'Tope de aprobación S/', False, '0', '0 = sin límite'),
         ]}),
     ('terceros', {
         'titulo': 'Clientes y proveedores', 'icono': 'bi-people', 'modulos': ['contactos', 'compras', 'ventas'],
@@ -301,6 +366,10 @@ DEFINICIONES = OrderedDict([
             ('ubigeo', 'Ubigeo', False, '150103', '6 dígitos (INEI)'),
             ('codigo_sunat', 'Cód. establecimiento SUNAT', False, '0001', '4 dígitos. Vacío = 0000'),
             ('uso', 'Uso', False, 'Almacén normal', 'Almacén normal, Mercadería en tránsito, Cuarentena / por destruir'),
+            ('operaciones', 'Operaciones permitidas', False, 'Recibe compras, Traslados, Consumo interno',
+             'Recibe compras, Entrega ventas, Traslados, Ajustes, Producción, Consumo interno, Mantenimiento, '
+             'Devoluciones, Destrucción (separadas por coma). Vacío = todas'),
+            ('responsables', 'Responsables (usuarios)', False, 'jperez, mlopez', 'Usuarios separados por coma'),
         ]}),
     ('categorias_gasto', {
         'titulo': 'Categorías de gasto (rendiciones)', 'icono': 'bi-receipt-cutoff', 'modulos': ['rendiciones'],
@@ -410,8 +479,54 @@ def _fila_producto(d, actualizar):
         datos['tipo_planificacion'] = _elegir(d.get('tipo_planificacion'), PLANIFICACIONES, 'Tipo de planificación')
     if _txt(d.get('estrategia')):
         datos['estrategia'] = _elegir(d.get('estrategia'), ESTRATEGIAS, 'Estrategia')
-    return {'accion': 'Actualizar' if existente else 'Nuevo', 'codigo': codigo, 'datos': datos,
-            'resumen': f'{codigo or "(automático)"} · {nombre} · {dict(Producto.CLASES)[clase]}'}
+    # columnas de la ficha completa (CM-02)
+    peso = _dec(d.get('peso'), 'Peso bruto', minimo=D0)
+    if peso is not None:
+        datos['peso'] = str(peso)
+    if _txt(d.get('unidad_compra')):
+        datos['unidad_compra'] = _elegir(d.get('unidad_compra'), UNIDADES, 'Unidad de compra')
+    factor = _dec(d.get('factor_compra'), 'Unidades por unidad de compra')
+    if factor is not None:
+        if factor <= 0:
+            raise ErrorFila('Unidades por unidad de compra: debe ser mayor a cero.')
+        datos['factor_compra'] = str(factor)
+    if _txt(d.get('control')):
+        datos['control'] = _elegir(d.get('control'), CONTROLES, 'Control', requerido=False)
+    for campo, titulo in (('puede_comprarse', 'Se compra'), ('puede_venderse', 'Se vende')):
+        if _txt(d.get(campo)):
+            datos[campo] = _si_no(d.get(campo), titulo)
+    if _txt(d.get('afectacion_igv')):
+        datos['afectacion_igv'] = _elegir(d.get('afectacion_igv'), AFECTACIONES, 'Afectación del IGV')
+    if _txt(d.get('linea')):
+        from contabilidad.models import CentroBeneficio
+        cb = CentroBeneficio.objects.filter(codigo__iexact=_txt(d.get('linea'))).first()
+        if cb is None:
+            raise ErrorFila(f'Línea de negocio {_txt(d.get("linea"))} no existe (cárguela en Centros de beneficio).')
+        datos['centro_beneficio_id'] = cb.pk
+    from .models import PREFIJOS_CAMPO
+    for campo, titulo in (('cuenta_existencias', 'Cuenta de existencias'), ('cuenta_compra', 'Cuenta de compra'),
+                          ('cuenta_venta', 'Cuenta de venta'), ('cuenta_costo', 'Cuenta de costo')):
+        codigo_cta = _txt(d.get(campo))
+        if not codigo_cta:
+            continue
+        if not codigo_cta.startswith(PREFIJOS_CAMPO[campo]):
+            raise ErrorFila(f'{titulo} {codigo_cta}: debe empezar con {", ".join(PREFIJOS_CAMPO[campo])}.')
+        from contabilidad.models import CuentaContable
+        cta = CuentaContable.objects.filter(codigo=codigo_cta, imputable=True).first()
+        if cta is None:
+            raise ErrorFila(f'{titulo} {codigo_cta}: no existe o no es imputable.')
+        datos[f'{campo}_id'] = cta.pk
+    avisos = []  # campos clave vacíos: no impiden la carga, se avisan
+    from .models import tipo_de_clase
+    if tipo_de_clase(clase) == 'BIEN' and datos.get('puede_comprarse', True):
+        if not datos.get('precio_compra') or Decimal(datos['precio_compra']) == 0:
+            avisos.append('sin precio de compra')
+        if not datos.get('peso') or Decimal(datos['peso']) == 0:
+            avisos.append('sin peso')
+    resumen = f'{codigo or "(automático)"} · {nombre} · {dict(Producto.CLASES)[clase]}'
+    if avisos:
+        resumen += f' · ⚠ {", ".join(avisos)}'
+    return {'accion': 'Actualizar' if existente else 'Nuevo', 'codigo': codigo, 'datos': datos, 'resumen': resumen}
 
 
 def _fila_tercero(d, actualizar):
@@ -972,10 +1087,137 @@ def _fila_almacen(d, actualizar):
     existe = Almacen.objects.filter(codigo=codigo).exists()
     if existe and not actualizar:
         raise ErrorFila(f'{codigo} ya existe (marque "Actualizar existentes").')
+    from .models import OPERACIONES_ALMACEN
+    opciones = _opciones(OPERACIONES_ALMACEN, {'COMPRAS': 'COMPRAS', 'VENTAS': 'VENTAS', 'AJUSTES': 'AJUSTES',
+                                               'PRODUCCION': 'PRODUCCION', 'CONSUMO INTERNO': 'CONSUMO',
+                                               'CONSUMO': 'CONSUMO', 'MANTENIMIENTO': 'MANTENIMIENTO',
+                                               'TRASLADO A PRODUCCION': 'PRODUCCION', 'DEVOLUCIONES': 'DEVOLUCIONES',
+                                               'DESTRUCCION': 'DESTRUCCION', 'TRASLADOS': 'TRASLADOS'})
+    operaciones = sorted({_elegir(o, opciones, 'Operaciones permitidas') for o in _lista(d.get('operaciones'))})
+    from django.contrib.auth import get_user_model
+    responsables = []
+    for u in _lista(d.get('responsables')):
+        usuario = get_user_model().objects.filter(username__iexact=u, acceso_proveedor__isnull=True).first()
+        if usuario is None:
+            raise ErrorFila(f'Responsable {u}: el usuario no existe.')
+        responsables.append(usuario.pk)
     return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': codigo,
             'datos': {'nombre': nombre[:100], 'direccion': _txt(d.get('direccion'))[:250], 'ubigeo': ubigeo,
-                      'codigo_sunat': sunat.zfill(4), 'uso': uso},
-            'resumen': f'{codigo} · {nombre}' + (f' · {ubigeo}' if ubigeo else '')}
+                      'codigo_sunat': sunat.zfill(4), 'uso': uso, 'operaciones': operaciones,
+                      'responsables': responsables},
+            'resumen': f'{codigo} · {nombre}' + (f' · {ubigeo}' if ubigeo else '') +
+                       (f' · {len(operaciones)} operación(es)' if operaciones else '')}
+
+
+def _fila_usuario(d, actualizar):
+    from django.contrib.auth import get_user_model
+
+    from .models import PerfilAcceso, Serie
+    usuario = _txt(d.get('usuario'))
+    if not usuario or not re.fullmatch(r'[\w.@+-]{1,150}', usuario):
+        raise ErrorFila('Usuario: obligatorio, sin espacios (letras, números y . @ + - _).')
+    existe = get_user_model().objects.filter(username__iexact=usuario).first()
+    if existe and not actualizar:
+        raise ErrorFila(f'El usuario {usuario} ya existe (marque "Actualizar existentes").')
+    if existe and hasattr(existe, 'acceso_proveedor'):
+        raise ErrorFila(f'{usuario} es un usuario del portal de proveedores.')
+    nombre_perfil = _txt(d.get('perfil'))
+    perfil = PerfilAcceso.objects.filter(nombre__iexact=nombre_perfil).first()
+    if perfil is None and normalizar(nombre_perfil) not in _CONTEXTO.get('perfiles_archivo', set()):
+        raise ErrorFila(f'Perfil «{nombre_perfil}» no existe: cárguelo primero (tipo «Perfiles de acceso»).')
+    correo = _txt(d.get('correo'))
+    if correo and '@' not in correo:
+        raise ErrorFila(f'Correo inválido: {correo}.')
+    almacenes = []
+    for cod in _lista(d.get('almacenes')):
+        a = Almacen.objects.filter(codigo__iexact=cod).first()
+        if a is None:
+            raise ErrorFila(f'Almacén {cod} no existe.')
+        almacenes.append(a.pk)
+    series = []
+    for s in _lista(d.get('series')):
+        filas = list(Serie.objects.filter(serie__iexact=s).values_list('pk', flat=True))
+        if not filas:
+            raise ErrorFila(f'Serie {s} no existe (Ajustes › Correlativos).')
+        series += filas
+    trabajador = None
+    if _txt(d.get('trabajador')):
+        from planillas.models import Trabajador
+        t = Trabajador.objects.filter(numero_doc=_txt(d.get('trabajador'))).first()
+        if t is None:
+            raise ErrorFila(f'Trabajador {_txt(d.get("trabajador"))} no existe en planillas.')
+        trabajador = t.pk
+    clave = _txt(d.get('clave_inicial'))
+    if clave:
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+        try:
+            validate_password(clave)
+        except ValidationError as exc:
+            raise ErrorFila('Contraseña inicial: ' + ' '.join(exc.messages))
+    limite = _dec(d.get('limite'), 'Tope de aprobación', minimo=D0)
+    activo = _si_no(d.get('activo'), 'Activo') if _txt(d.get('activo')) else True
+    return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': usuario.lower(),
+            'datos': {'usuario': usuario, 'nombre': _txt(d.get('nombre'))[:150], 'correo': correo[:254],
+                      'perfil': nombre_perfil, 'almacenes': almacenes, 'series': series, 'trabajador': trabajador,
+                      'clave': clave, 'limite': str(limite) if limite is not None else None, 'activo': activo},
+            'resumen': f'{usuario} · {nombre_perfil}' + (' · con contraseña inicial' if clave else '')}
+
+
+NIVELES_PANTALLA = {'COMPLETO': '', 'COMPLETA': '', 'SIN EXPORTAR': 'SIN_EXPORTAR', 'SOLO LECTURA': 'LECTURA',
+                    'LECTURA': 'LECTURA', 'OCULTA': 'OCULTA', 'OCULTO': 'OCULTA'}
+
+
+def _pantalla(texto):
+    """Clave de la pantalla del menú por su ruta, su nombre («Módulo › Opción» u «Opción») o su URL."""
+    from .politicas import catalogo
+    t = normalizar(texto)
+    for p in catalogo():
+        if t in (normalizar(p['clave']), normalizar(p['etiqueta']), normalizar(p['url']),
+                 normalizar(f"{p['modulo_nombre']} › {p['etiqueta']}"),
+                 normalizar(p['etiqueta'].split('›')[-1])):
+            return p['clave']
+    return None
+
+
+def _fila_perfil(d, actualizar):
+    from .models import PerfilAcceso
+    from .modulos import POR_CLAVE
+    from .permisos import TODAS
+    nombre = _txt(d.get('perfil'))
+    if not nombre:
+        raise ErrorFila('Perfil: obligatorio.')
+    existe = PerfilAcceso.objects.filter(nombre__iexact=nombre).exists()
+    if existe and not actualizar:
+        raise ErrorFila(f'El perfil {nombre} ya existe (marque "Actualizar existentes").')
+    modulos = []
+    por_nombre = {normalizar(m['nombre']): c for c, m in POR_CLAVE.items()}
+    for m in _lista(d.get('modulos')):
+        clave = m.lower() if m.lower() in POR_CLAVE else por_nombre.get(normalizar(m))
+        if clave is None:
+            raise ErrorFila(f'Módulo «{m}» no existe.')
+        modulos.append(clave)
+    acciones = []
+    for a in _lista(d.get('acciones')):
+        if a not in TODAS:
+            raise ErrorFila(f'Acción «{a}» no existe (formato módulo.acción, ej. compras.oc).')
+        acciones.append(a)
+    pantalla, nivel = None, ''
+    if _txt(d.get('pantalla')):
+        pantalla = _pantalla(d.get('pantalla'))
+        if pantalla is None:
+            raise ErrorFila(f'Pantalla «{_txt(d.get("pantalla"))}» no se encuentra en el menú.')
+        nivel = _elegir(d.get('nivel'), NIVELES_PANTALLA, 'Nivel', requerido=False, defecto='')
+    flags = {}
+    for campo, titulo in (('ver_costos', 'Ve costos'), ('ver_sueldos', 'Ve sueldos'), ('ver_saldos', 'Ve saldos')):
+        if _txt(d.get(campo)):
+            flags[campo] = _si_no(d.get(campo), titulo)
+    limite = _dec(d.get('limite'), 'Tope de aprobación', minimo=D0)
+    return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': f'{normalizar(nombre)}|{pantalla or ""}',
+            'datos': {'perfil': nombre, 'descripcion': _txt(d.get('descripcion'))[:200], 'modulos': modulos,
+                      'acciones': acciones, 'pantalla': pantalla, 'nivel': nivel, 'flags': flags,
+                      'limite': str(limite) if limite is not None else None},
+            'resumen': f'{nombre}' + (f' · {pantalla}: {nivel or "completo"}' if pantalla else '')}
 
 
 def _fila_plan_demanda(d, actualizar):
@@ -1036,7 +1278,7 @@ VALIDADORES = {'cuentas': _fila_cuenta, 'plan_demanda': _fila_plan_demanda,
                'centros_beneficio': _fila_beneficio, 'centros_costo': _fila_centro_costo, 'puestos': _fila_puesto,
                'recetas': _fila_receta, 'hojas_ruta': _fila_hoja, 'versiones': _fila_version,
                'listas_precios': _fila_lista_precio, 'activos': _fila_activo,
-               'motivos_parada': _fila_motivo_parada}
+               'motivos_parada': _fila_motivo_parada, 'usuarios': _fila_usuario, 'perfiles': _fila_perfil}
 MAXIMO_FILAS = {'listas_precios': 30000}
 
 
@@ -1105,6 +1347,7 @@ def validar(archivo, tipo, actualizar=False):
     resultado, errores, vistos = [], 0, {}
     filas = leer_archivo(archivo, tipo)
     _CONTEXTO['codigos'] = {_txt(f['datos'].get('codigo')).upper() for f in filas}
+    _CONTEXTO['perfiles_archivo'] = set()
     _CONTEXTO.pop('listas_precios', None)  # caché de la validación anterior
     for fila in filas:
         try:
@@ -1150,7 +1393,8 @@ def cargar(tipo, filas, usuario, adjunto=None):
                     actualizados += 1
                 for campo, valor in f['datos'].items():
                     setattr(p, campo, Decimal(valor) if campo in ('precio_venta', 'precio_compra', 'stock_minimo',
-                                                                   'punto_reorden', 'stock_maximo', 'peso_neto')
+                                                                   'punto_reorden', 'stock_maximo', 'peso_neto',
+                                                                   'peso', 'factor_compra')
                             else valor)
                 p.save()
             return f'{nuevos} productos nuevos y {actualizados} actualizados.'
@@ -1221,8 +1465,16 @@ def cargar(tipo, filas, usuario, adjunto=None):
             return f'{len(filas)} cuentas contables cargadas.'
         if tipo == 'almacenes':
             for f in filas:
-                Almacen.objects.update_or_create(codigo=f['codigo'], defaults=f['datos'])
+                d = dict(f['datos'])
+                responsables = d.pop('responsables', [])
+                a, _ = Almacen.objects.update_or_create(codigo=f['codigo'], defaults=d)
+                if responsables:
+                    a.responsables.set(responsables)
             return f'{len(filas)} almacenes cargados.'
+        if tipo == 'perfiles':
+            return _cargar_perfiles(filas)
+        if tipo == 'usuarios':
+            return _cargar_usuarios(filas)
         if tipo == 'motivos_parada':
             from produccion.models import CentroTrabajo, MotivoParada
             for f in filas:
@@ -1273,6 +1525,87 @@ def cargar(tipo, filas, usuario, adjunto=None):
                 CategoriaGasto.objects.update_or_create(codigo=f['codigo'], defaults=d)
             return f'{len(filas)} categorías de gasto cargadas.'
     raise ValueError(tipo)
+
+
+def _cargar_perfiles(filas):
+    from .models import PerfilAcceso, PerfilUsuario
+    from .politicas import aplicar_perfil
+    grupos = OrderedDict()
+    for f in filas:
+        grupos.setdefault(normalizar(f['datos']['perfil']), []).append(f['datos'])
+    for _, lineas in grupos.items():
+        primera = lineas[0]
+        perfil = PerfilAcceso.objects.filter(nombre__iexact=primera['perfil']).first() or PerfilAcceso(
+            nombre=primera['perfil'])
+        modulos = next((l['modulos'] for l in lineas if l['modulos']), None)
+        acciones = next((l['acciones'] for l in lineas if l['acciones']), None)
+        descripcion = next((l['descripcion'] for l in lineas if l['descripcion']), None)
+        limite = next((l['limite'] for l in lineas if l['limite'] is not None), None)
+        if modulos is not None:
+            perfil.modulos = modulos
+        if acciones is not None:
+            perfil.acciones = acciones
+        if descripcion:
+            perfil.descripcion = descripcion
+        if limite is not None:
+            perfil.limite_aprobacion = Decimal(limite)
+        for campo in ('ver_costos', 'ver_sueldos', 'ver_saldos'):
+            valor = next((l['flags'][campo] for l in lineas if campo in l['flags']), None)
+            if valor is not None:
+                setattr(perfil, campo, valor)
+        pantallas = dict(perfil.pantallas or {})
+        for l in lineas:
+            if l['pantalla']:
+                if l['nivel']:
+                    pantallas[l['pantalla']] = l['nivel']
+                else:
+                    pantallas.pop(l['pantalla'], None)  # «Completo»: sin restricción
+        perfil.pantallas = pantallas
+        perfil.save()
+        for pu in PerfilUsuario.objects.filter(perfil_acceso=perfil).select_related('usuario'):
+            aplicar_perfil(pu, perfil)  # los usuarios del perfil quedan al día
+    return f'{len(grupos)} perfil(es) de acceso cargados ({len(filas)} filas de pantallas).'
+
+
+def _cargar_usuarios(filas):
+    from datetime import datetime
+
+    from django.contrib.auth import get_user_model
+
+    from .models import PerfilAcceso, PerfilUsuario
+    from .politicas import aplicar_perfil
+    User = get_user_model()
+    nuevos = 0
+    for f in filas:
+        d = f['datos']
+        u = User.objects.filter(username__iexact=d['usuario']).first()
+        es_nuevo = u is None
+        if es_nuevo:
+            u, nuevos = User(username=d['usuario']), nuevos + 1
+            if d['clave']:
+                u.set_password(d['clave'])
+            else:
+                u.set_unusable_password()  # entra con «¿Olvidó su contraseña?»
+        partes = (d['nombre'] or '').split(' ', 1)
+        if d['nombre']:
+            u.first_name, u.last_name = partes[0][:150], (partes[1] if len(partes) > 1 else '')[:150]
+        if d['correo']:
+            u.email = d['correo']
+        u.is_active = d['activo']
+        u.save()
+        perfil = PerfilUsuario.objects.filter(usuario=u).first() or PerfilUsuario.objects.create(usuario=u)
+        if d['clave'] and es_nuevo:  # contraseña inicial: vencida, se pide cambiarla al ingresar (si hay vencimiento)
+            perfil.clave_cambiada_en = timezone.make_aware(datetime(2000, 1, 1))
+        aplicar_perfil(perfil, PerfilAcceso.objects.get(nombre__iexact=d['perfil']))
+        perfil.almacenes.set(d['almacenes'])
+        perfil.series.set(d['series'])
+        if d['limite'] is not None:
+            perfil.limite_aprobacion = Decimal(d['limite'])
+        perfil.save()
+        if d['trabajador']:
+            from planillas.models import Trabajador
+            Trabajador.objects.filter(pk=d['trabajador']).update(usuario=u)
+    return f'{len(filas)} usuario(s) cargados ({nuevos} nuevos).'
 
 
 def _cargar_maestro(tipo, filas):

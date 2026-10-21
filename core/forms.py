@@ -363,12 +363,26 @@ class SerieForm(BootstrapMixin, forms.ModelForm):
 
 
 class AlmacenForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
+    operaciones = forms.MultipleChoiceField(
+        label='Operaciones permitidas', required=False, widget=forms.CheckboxSelectMultiple,
+        help_text='Ninguna marcada = todas. Se valida en cada movimiento (recepciones, ventas, traslados, consumos…)')
+
     class Meta:
         model = Almacen
         fields = '__all__'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        from django.contrib.auth import get_user_model
+
+        from .models import OPERACIONES_ALMACEN
+        self.fields['operaciones'].choices = OPERACIONES_ALMACEN
+        self.fields['operaciones'].initial = list(self.instance.operaciones or [])
+        self.fields['responsables'].queryset = get_user_model().objects.filter(
+            is_active=True, acceso_proveedor__isnull=True).order_by('username')
+        self.fields['responsables'].widget.attrs.pop('class', None)
+        self.fields['responsables'].widget = forms.CheckboxSelectMultiple(
+            choices=self.fields['responsables'].choices)
         # se muestran como obligatorios (asterisco); el uso de tránsito, cuarentena o terceros los libera en clean()
         self.fields['direccion'].help_text = ('Dirección y distrito obligatorios en un almacén físico: son el punto de '
                                               'partida de las guías (no en tránsito, cuarentena ni terceros)')
@@ -383,6 +397,7 @@ class AlmacenForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
             for campo in ('direccion', 'ubigeo'):
                 if not (datos.get(campo) or '').strip():
                     self.add_error(campo, 'Obligatorio: es el punto de partida de las guías de remisión.')
+        datos['operaciones'] = list(datos.get('operaciones') or [])
         return datos
 
 

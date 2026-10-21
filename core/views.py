@@ -309,7 +309,8 @@ def carga_masiva(request):
     mods = modulos_del_usuario(request.user)
     permitidos = OrderedDict((k, d) for k, d in cm.DEFINICIONES.items()
                              if (set(d['modulos']) & mods or 'ajustes' in mods)
-                             and (not d.get('costos') or puede_ver_costos(request.user)))
+                             and (not d.get('costos') or puede_ver_costos(request.user))
+                             and (not d.get('solo_admin') or request.user.is_superuser))  # usuarios y perfiles
     if not permitidos:
         messages.error(request, 'No tiene permiso para cargas masivas.')
         return redirect('home')

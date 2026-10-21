@@ -3,6 +3,12 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.59.0 — 21/10/2026 · Carga masiva de usuarios y perfiles, productos completos y operaciones por almacén
+- **Carga masiva de perfiles de acceso (CM-01)**: una fila por perfil y pantalla con su nivel (Completo, Sin exportar, Solo lectura u Oculta), más módulos, acciones (módulo.acción), si ve costos, sueldos y saldos y el tope de aprobación. La pantalla se indica por el nombre del menú o su ruta. Al actualizar un perfil se vuelve a aplicar a sus usuarios.
+- **Carga masiva de usuarios (CM-01)**: usuario, nombre, correo, perfil, trabajador de planillas (DNI), almacenes, series, tope y contraseña inicial (validada con la política; sin contraseña, el usuario entra con «¿Olvidó su contraseña?»). Solo para administradores; se valida todo antes de grabar.
+- **Productos con la ficha completa (CM-02)**: la plantilla suma peso bruto, unidad de compra y factor, control por lote o serie, se compra / se vende, afectación del IGV, línea de negocio y cuentas por excepción (validadas por clase: no se acepta «101 Caja» como existencias). Avisa los productos de compra sin precio o sin peso.
+- **Operaciones permitidas por almacén (CM-03)**: cada almacén indica qué permite (recibe compras, entrega ventas, traslados, ajustes, producción, consumo interno, mantenimiento, devoluciones, destrucción) y sus usuarios responsables, en la ficha y en la carga masiva. Se valida en cada movimiento de stock con un mensaje claro; las reversiones y anulaciones siempre pasan.
+
 ## v1.58.0 — 21/10/2026 · Productos: cuentas por tipo, costos y almacenes
 - **Cuentas por tipo de producto (INV-11)**, nueva pantalla en Contabilidad › Configuración (la clase de valoración de SAP): por cada tipo, cuenta de existencias, compra (60), variación / consumo a producción (61), venta (70), costo de ventas (69), producción almacenada (71) y diferencia de precio. El producto las hereda al crearse y solo se cambian por excepción; con «Aplicar» se actualizan los productos del tipo que seguían la cuenta anterior (las excepciones no se tocan). La centralización usa la variación, la producción y la diferencia de precio del tipo cuando están configuradas.
 - **Listas de cuentas filtradas (INV-12)** en la pestaña Contabilidad del producto: existencias solo 20 a 28, compra 60, venta 70, costo 69 (y las de suministros y activos); avisa cuando el producto se aparta de la cuenta de su tipo.

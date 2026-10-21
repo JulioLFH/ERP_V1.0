@@ -530,6 +530,7 @@ class Producto(models.Model):
         from inventario.cierre import validar_fecha
         validar_fecha(fecha or timezone.localdate())  # kardex cerrado: no se mueve el almacén en esa fecha
         almacen = almacen or Almacen.principal()
+        almacen.validar_operacion(origen, concepto, referencia)  # operaciones permitidas del almacén
         from inventario.fisico import validar_movimiento
         validar_movimiento(self, almacen)  # producto en un inventario físico con bloqueo
         with transaction.atomic():
@@ -628,6 +629,26 @@ def _codigo_sunat(origen, concepto, cantidad):
     return '99'
 
 
+# operaciones que un almacén puede permitir (CM-03, como en Odoo): vacío = todas
+OPERACIONES_ALMACEN = [('COMPRAS', 'Recibe compras'), ('VENTAS', 'Entrega ventas'), ('TRASLADOS', 'Traslados'),
+                       ('AJUSTES', 'Ajustes y saldos iniciales'), ('PRODUCCION', 'Producción (consumo y producto)'),
+                       ('CONSUMO', 'Consumo interno y requerimientos'), ('MANTENIMIENTO', 'Salida a mantenimiento'),
+                       ('DEVOLUCIONES', 'Devoluciones'), ('DESTRUCCION', 'Destrucción')]
+CATEGORIA_OPERACION = {'REC_COMPRA': 'COMPRAS', 'SAL_VENTA': 'VENTAS', 'TRAS_ALM': 'TRASLADOS',
+                       'TRAS_TRANS': 'TRASLADOS', 'REC_TRANS': 'TRASLADOS', 'TRAS_DESTR': 'DESTRUCCION',
+                       'SAL_DESTR': 'DESTRUCCION', 'AJ_ING': 'AJUSTES', 'AJ_SAL': 'AJUSTES', 'SALDO_INI': 'AJUSTES',
+                       'MANUF': 'PRODUCCION', 'CONS_INT': 'CONSUMO', 'CONS_REQ': 'CONSUMO',
+                       'CONS_MANT': 'MANTENIMIENTO', 'DEV_CLI': 'DEVOLUCIONES', 'DEV_PROV': 'DEVOLUCIONES'}
+CATEGORIA_ORIGEN = {'COMPRA': 'COMPRAS', 'VENTA': 'VENTAS', 'GUIA': 'TRASLADOS', 'AJUSTE': 'AJUSTES',
+                    'SALDO_INICIAL': 'AJUSTES', 'INVENTARIO': 'AJUSTES'}
+
+
+def categoria_movimiento(origen, concepto):
+    if origen == 'OPERACION':
+        return CATEGORIA_OPERACION.get(concepto)
+    return CATEGORIA_ORIGEN.get(origen)
+
+
 class Almacen(models.Model):
     codigo = models.CharField('Código', max_length=10, unique=True)
     nombre = models.CharField(max_length=100)
@@ -645,6 +666,10 @@ class Almacen(models.Model):
     modelo_control = models.CharField('Modelo de control de inventario', max_length=8, choices=CONTROLES,
                                       blank=True, help_text='Cómo se audita el stock de este almacén (indicadores '
                                                             'de inventario físico)')
+    operaciones = models.JSONField('Operaciones permitidas', default=list, blank=True,
+                                   help_text='Vacío = todas. Se valida en cada movimiento de este almacén')
+    responsables = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name='almacenes_a_cargo',
+                                          help_text='Usuarios responsables del almacén')
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -654,6 +679,18 @@ class Almacen(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    def validar_operacion(self, origen, concepto, referencia=''):
+        """El almacén permite el movimiento (operaciones permitidas). Las reversiones y anulaciones siempre pasan."""
+        if not self.operaciones or str(referencia).startswith(('Reversión', 'Anulación')):
+            return
+        categoria = categoria_movimiento(origen, concepto)
+        if categoria and categoria not in self.operaciones:
+            from inventario.cierre import KardexCerrado
+            nombre = dict(OPERACIONES_ALMACEN).get(categoria, categoria).lower()
+            raise KardexCerrado(f'El almacén {self} no permite esta operación ({nombre}). Operaciones permitidas: '
+                                + ', '.join(dict(OPERACIONES_ALMACEN)[c].lower() for c in self.operaciones
+                                            if c in dict(OPERACIONES_ALMACEN)) + '.')
 
     @classmethod
     def especial(cls, uso):
