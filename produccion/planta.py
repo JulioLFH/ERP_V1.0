@@ -7,7 +7,8 @@ from django.utils import timezone
 
 from core.models import Almacen, Serie
 
-from .models import InspeccionCalidad, OrdenMantenimiento, ParametroCalidad, PlanMantenimiento, ResultadoCalidad
+from .models import (InspeccionCalidad, OrdenMantenimiento, ParametroCalidad, PlanMantenimiento,
+                     ResultadoCalidad)
 
 
 class ErrorPlanta(Exception):
@@ -52,6 +53,59 @@ def registrar_resultados(insp, valores, resultado, observaciones, usuario):
     insp.resultado, insp.observaciones, insp.inspector = resultado, observaciones, usuario
     insp.save()
     return insp
+
+
+@transaction.atomic
+def crear_certificado(cert, usuario):
+    """Certificado de análisis del lote (por aprobar) con los resultados de su inspección: las características del
+    plan de calidad marcadas «en el certificado»."""
+    if cert.inspeccion_id:
+        insp = cert.inspeccion
+        if insp.producto_id != cert.lote.producto_id:
+            raise ErrorPlanta('La inspección es de otro producto.')
+        if insp.resultado not in ('APROBADO', 'OBSERVADO', 'RECHAZADO'):
+            raise ErrorPlanta(f'La inspección {insp.numero} aún no tiene resultado.')
+        excluidas = set(ParametroCalidad.objects.filter(producto=insp.producto, en_certificado=False)
+                        .values_list('nombre', flat=True))
+        cert.resultados = [{'caracteristica': r.caracteristica, 'unidad': r.unidad,
+                            'especificacion': r.especificacion or ' – '.join(
+                                str(v.normalize()) for v in (r.minimo, r.maximo) if v is not None),
+                            'resultado': r.texto or ('' if r.valor is None else str(r.valor.normalize())),
+                            'conforme': r.conforme} for r in insp.resultados.all() if r.caracteristica not in excluidas]
+    if cert.lote.certificados.filter(estado__in=('BORRADOR', 'APROBADO')).exists():
+        raise ErrorPlanta(f'El lote {cert.lote.codigo} ya tiene un certificado vigente: anúlelo para emitir otro.')
+    cert.numero = _numero('COA', 'CA')
+    cert.emitido_por = usuario
+    cert.save()
+    return cert
+
+
+@transaction.atomic
+def resolver_certificado(cert, usuario, accion, comentario=''):
+    """Aprobar libera el lote para la venta; rechazar lo deja rechazado; anular devuelve el lote a cuarentena si su
+    producto exige liberación."""
+    lote = cert.lote
+    if accion in ('aprobar', 'rechazar'):
+        if cert.estado != 'BORRADOR':
+            raise ErrorPlanta('El certificado ya fue resuelto.')
+        if accion == 'aprobar' and any(r.get('conforme') is False for r in cert.resultados) and \
+                len((comentario or cert.observaciones or '').strip()) < 10:
+            raise ErrorPlanta('Hay resultados fuera de especificación: explique por qué se libera el lote.')
+        cert.estado = 'APROBADO' if accion == 'aprobar' else 'RECHAZADO'
+        lote.estado_calidad = 'LIBERADO' if accion == 'aprobar' else 'RECHAZADO'
+    elif accion == 'anular':
+        if cert.estado == 'ANULADO':
+            raise ErrorPlanta('El certificado ya está anulado.')
+        cert.estado = 'ANULADO'
+        lote.estado_calidad = 'CUARENTENA' if lote.producto._requiere_liberacion() else 'LIBRE'
+    else:
+        raise ErrorPlanta('Acción no válida.')
+    if comentario:
+        cert.observaciones = (f'{cert.observaciones}\n' if cert.observaciones else '') + comentario
+    cert.aprobado_por, cert.aprobado_en = usuario, timezone.now()
+    cert.save()
+    lote.save(update_fields=['estado_calidad'])
+    return cert
 
 
 @transaction.atomic

@@ -550,7 +550,8 @@ class Producto(models.Model):
             sa.save(update_fields=['cantidad'])
             signo = 1 if cantidad > 0 else -1
             saldo = saldo_inicial
-            for lote, parte in self._repartir_lotes(abs(cantidad), signo, almacen, lotes, lotes_de):
+            venta = signo < 0 and categoria_movimiento(origen, concepto) == 'VENTAS'
+            for lote, parte in self._repartir_lotes(abs(cantidad), signo, almacen, lotes, lotes_de, venta):
                 if lote is not None:
                     sl, _ = StockLote.objects.select_for_update().get_or_create(lote=lote, almacen=almacen)
                     sl.cantidad += signo * parte
@@ -565,15 +566,29 @@ class Producto(models.Model):
                     centro_costo=centro_costo, cuenta_contra=cuenta_contra,
                 )
 
-    def _repartir_lotes(self, cantidad, signo, almacen, lotes, lotes_de):
-        """[(Lote o None, cantidad)] del movimiento. Sin control de lotes: una sola parte sin lote."""
+    def _requiere_liberacion(self):
+        from django.apps import apps
+        return apps.get_model('produccion', 'PlantillaCertificado').objects.filter(
+            producto=self, requiere_liberacion=True).exists()
+
+    def _repartir_lotes(self, cantidad, signo, almacen, lotes, lotes_de, venta=False):
+        """[(Lote o None, cantidad)] del movimiento. Sin control de lotes: una sola parte sin lote. En una venta no
+        sale un lote en cuarentena o rechazado por Calidad."""
         if not self.control:
             return [(None, cantidad)]
+        from inventario.cierre import KardexCerrado
         partes, restante = [], cantidad
         if lotes:
             for codigo, cant, vence in lotes:
                 lote, creado = Lote.objects.get_or_create(producto=self, codigo=str(codigo).strip().upper()[:60],
                                                           defaults={'vencimiento': vence})
+                if creado and signo > 0 and self._requiere_liberacion():
+                    lote.estado_calidad = 'CUARENTENA'  # entra bloqueado hasta que Calidad apruebe su certificado
+                    lote.save(update_fields=['estado_calidad'])
+                if venta and lote.bloqueado:
+                    raise KardexCerrado(f'El lote {lote.codigo} de {self.nombre} está '
+                                        f'{lote.get_estado_calidad_display().lower()}: no se vende hasta que Calidad '
+                                        f'apruebe su certificado de análisis.')
                 if vence and not lote.vencimiento:
                     lote.vencimiento = vence
                     lote.save(update_fields=['vencimiento'])
@@ -599,13 +614,21 @@ class Producto(models.Model):
             disponibles = (StockLote.objects.filter(lote__producto=self, almacen=almacen, cantidad__gt=0)
                            .select_related('lote').order_by(models.F('lote__vencimiento').asc(nulls_last=True),
                                                             'lote__creado', 'lote__codigo'))
+            bloqueados = []
             for sl in disponibles:
                 if restante <= 0:
                     break
+                if venta and sl.lote.bloqueado:
+                    bloqueados.append(sl.lote.codigo)
+                    continue
                 parte = min(sl.cantidad - usados.get(sl.lote_id, D0), restante)
                 if parte > 0:
                     partes.append((sl.lote, parte))
                     restante -= parte
+            if restante > 0 and bloqueados:
+                raise KardexCerrado(f'No hay stock liberado de {self.nombre} en {almacen}: el lote '
+                                    f'{", ".join(bloqueados)} está en cuarentena o rechazado; Calidad debe aprobar su '
+                                    f'certificado de análisis antes de venderlo.')
         elif restante > 0:
             lote, _ = Lote.objects.get_or_create(producto=self, codigo='S/L')  # ingreso sin lote indicado
             partes.append((lote, restante))
@@ -1425,11 +1448,20 @@ class Lote(models.Model):
     codigo = models.CharField('Lote / N° de serie', max_length=60)
     vencimiento = models.DateField('Vence', null=True, blank=True)
     fabricacion = models.DateField('Fabricación', null=True, blank=True)
+    # liberación por Calidad (certificado de análisis): en cuarentena o rechazado no se vende
+    ESTADOS_CALIDAD = [('LIBRE', 'Sin control de calidad'), ('CUARENTENA', 'En cuarentena'),
+                       ('LIBERADO', 'Liberado por Calidad'), ('RECHAZADO', 'Rechazado por Calidad')]
+    BLOQUEADOS = ('CUARENTENA', 'RECHAZADO')
+    estado_calidad = models.CharField('Calidad', max_length=10, choices=ESTADOS_CALIDAD, default='LIBRE')
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['producto__nombre', 'vencimiento', 'codigo']
         unique_together = [('producto', 'codigo')]
+
+    @property
+    def bloqueado(self):
+        return self.estado_calidad in self.BLOQUEADOS
 
     def __str__(self):
         return f'{self.codigo}' + (f' (vence {self.vencimiento:%d/%m/%Y})' if self.vencimiento else '')

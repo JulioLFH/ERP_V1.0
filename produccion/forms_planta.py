@@ -3,8 +3,9 @@ from django import forms
 from core.forms import BootstrapMixin, remoto
 from core.models import Almacen, Producto, Tercero
 
-from .models import (ActividadABC, CambioIngenieria, CentroTrabajo, Equipo, InspeccionCalidad, ListaMateriales,
-                     OrdenMantenimiento, ParametroCalidad, PlanMantenimiento, RecursoActividad, RepuestoOrden)
+from .models import (ActividadABC, CambioIngenieria, CentroTrabajo, CertificadoAnalisis, Equipo, InspeccionCalidad,
+                     ListaMateriales, OrdenMantenimiento, ParametroCalidad, PlanMantenimiento, PlantillaCertificado,
+                     RecursoActividad, RepuestoOrden)
 
 
 class InspeccionForm(BootstrapMixin, forms.ModelForm):
@@ -20,8 +21,37 @@ class InspeccionForm(BootstrapMixin, forms.ModelForm):
 
 
 ParametrosFormSet = forms.inlineformset_factory(
-    Producto, ParametroCalidad, fields=['nombre', 'unidad', 'minimo', 'maximo', 'especificacion', 'orden'], extra=3,
-    can_delete=True)
+    Producto, ParametroCalidad, fields=['nombre', 'unidad', 'minimo', 'maximo', 'especificacion', 'orden',
+                                        'en_certificado'], extra=3, can_delete=True)
+
+
+class PlantillaCertificadoForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = PlantillaCertificado
+        fields = ['titulo', 'norma', 'texto', 'responsable', 'requiere_liberacion']
+        widgets = {'texto': forms.Textarea(attrs={'rows': 3})}
+
+
+class CertificadoForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = CertificadoAnalisis
+        fields = ['lote', 'inspeccion', 'fecha', 'cliente', 'observaciones']
+        widgets = {'observaciones': forms.Textarea(attrs={'rows': 2})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from core.models import Lote
+        self.fields['lote'].queryset = (Lote.objects.filter(producto__plantilla_certificado__isnull=False)
+                                        .select_related('producto').order_by('-creado'))
+        self.fields['lote'].label_from_instance = lambda l: f'{l.producto.codigo} {l.producto.nombre} — {l}'
+        self.fields['inspeccion'].queryset = (InspeccionCalidad.objects.exclude(resultado='PENDIENTE')
+                                              .filter(producto__plantilla_certificado__isnull=False)
+                                              .select_related('producto').order_by('-fecha', '-id'))
+        self.fields['inspeccion'].label_from_instance = (
+            lambda i: f'{i.numero} · {i.producto.nombre} · lote {i.lote or "-"} · {i.get_resultado_display()}')
+        self.fields['inspeccion'].required = True
+        self.fields['cliente'].queryset = Tercero.objects.filter(tipo__in=['CLIENTE', 'AMBOS'])
+        remoto(self.fields['cliente'], 'clientes')
 
 
 class EquipoForm(BootstrapMixin, forms.ModelForm):

@@ -11,9 +11,10 @@ from django.utils import timezone
 from core.models import Producto
 
 from . import planta
-from .forms_planta import (CierreMantenimientoForm, EquipoForm, InspeccionForm, OrdenMantenimientoForm,
-                           ParametrosFormSet, PlanForm, RepuestoForm)
-from .models import Equipo, InspeccionCalidad, OrdenMantenimiento, PlanMantenimiento
+from .forms_planta import (CertificadoForm, CierreMantenimientoForm, EquipoForm, InspeccionForm,
+                           OrdenMantenimientoForm, ParametrosFormSet, PlanForm, PlantillaCertificadoForm, RepuestoForm)
+from .models import (CertificadoAnalisis, Equipo, InspeccionCalidad, OrdenMantenimiento, PlanMantenimiento,
+                     PlantillaCertificado)
 
 
 def _dec(valor):
@@ -85,11 +86,67 @@ def inspeccion(request, pk):
 def plan_calidad(request, pk):
     producto = get_object_or_404(Producto, pk=pk)
     formset = ParametrosFormSet(request.POST or None, instance=producto, prefix='par')
-    if request.method == 'POST' and formset.is_valid():
+    plantilla = PlantillaCertificado.objects.filter(producto=producto).first()
+    con_certificado = request.POST.get('con_certificado') == '1' if request.method == 'POST' else plantilla is not None
+    form_cert = PlantillaCertificadoForm(request.POST or None, instance=plantilla or PlantillaCertificado(producto=producto),
+                                         prefix='coa')
+    if request.method == 'POST' and formset.is_valid() and (not con_certificado or form_cert.is_valid()):
         formset.save()
+        if con_certificado:
+            form_cert.save()
+        elif plantilla is not None:
+            plantilla.delete()
         messages.success(request, f'Plan de calidad de {producto.nombre} guardado.')
         return redirect('manufactura:plan_calidad', pk)
-    return render(request, 'produccion/plan_calidad.html', {'producto': producto, 'formset': formset})
+    return render(request, 'produccion/plan_calidad.html', {'producto': producto, 'formset': formset,
+                                                            'form_cert': form_cert, 'con_certificado': con_certificado})
+
+
+# ---------------------------------------------------------------- certificados de análisis (liberación de lotes)
+@login_required
+def certificados(request):
+    from core.models import Lote
+    qs = CertificadoAnalisis.objects.select_related('lote__producto', 'inspeccion', 'cliente')
+    if request.GET.get('estado'):
+        qs = qs.filter(estado=request.GET['estado'])
+    if request.GET.get('q'):
+        q = request.GET['q']
+        qs = qs.filter(Q(numero__icontains=q) | Q(lote__codigo__icontains=q) | Q(lote__producto__nombre__icontains=q))
+    cuarentena = (Lote.objects.filter(estado_calidad__in=Lote.BLOQUEADOS).select_related('producto')
+                  .annotate(existencia=Sum('stocks__cantidad')).order_by('estado_calidad', 'creado'))
+    return render(request, 'produccion/certificados.html', {
+        'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'estados': CertificadoAnalisis.ESTADOS,
+        'cuarentena': cuarentena})
+
+
+@login_required
+def certificado_nuevo(request):
+    inicial = {k: request.GET[k] for k in ('lote', 'inspeccion') if request.GET.get(k)}
+    form = CertificadoForm(request.POST or None, initial=inicial)
+    if request.method == 'POST' and form.is_valid():
+        try:
+            cert = planta.crear_certificado(form.save(commit=False), request.user)
+            messages.success(request, f'{cert} emitido: queda por aprobar (liberación del lote).')
+            return redirect('manufactura:certificado', cert.pk)
+        except planta.ErrorPlanta as exc:
+            form.add_error(None, str(exc))
+    return render(request, 'core/form.html', {'form': form, 'titulo': 'Nuevo certificado de análisis'})
+
+
+@login_required
+def certificado(request, pk):
+    cert = get_object_or_404(CertificadoAnalisis.objects.select_related('lote__producto', 'inspeccion', 'cliente'),
+                             pk=pk)
+    if request.method == 'POST':
+        try:
+            planta.resolver_certificado(cert, request.user, request.POST.get('accion'),
+                                        request.POST.get('comentario', '').strip())
+            messages.success(request, f'{cert}: {cert.get_estado_display()}.')
+        except planta.ErrorPlanta as exc:
+            messages.error(request, str(exc))
+        return redirect('manufactura:certificado', pk)
+    return render(request, 'produccion/certificado.html', {
+        'c': cert, 'plantilla': PlantillaCertificado.objects.filter(producto=cert.lote.producto).first()})
 
 
 @login_required

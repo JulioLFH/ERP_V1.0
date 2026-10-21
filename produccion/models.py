@@ -563,6 +563,8 @@ class ParametroCalidad(models.Model):
     especificacion = models.CharField('Especificación (texto)', max_length=120, blank=True,
                                       help_text='Para características que no se miden con un número')
     orden = models.PositiveSmallIntegerField(default=0)
+    en_certificado = models.BooleanField('En el certificado', default=True,
+                                         help_text='Se imprime en el certificado de análisis del lote')
 
     class Meta:
         ordering = ['producto', 'orden', 'id']
@@ -627,6 +629,60 @@ class ResultadoCalidad(models.Model):
             self.conforme = ((self.minimo is None or self.valor >= self.minimo) and
                              (self.maximo is None or self.valor <= self.maximo))
         return self.conforme
+
+
+class PlantillaCertificado(models.Model):
+    """Formato del certificado de análisis (COA) del producto: las características salen de su plan de calidad.
+    Con «cuarentena», cada lote nuevo del producto entra bloqueado y no se vende hasta que Calidad apruebe su
+    certificado (liberación del lote)."""
+    producto = models.OneToOneField(Producto, on_delete=models.CASCADE, related_name='plantilla_certificado')
+    titulo = models.CharField('Título', max_length=120, default='CERTIFICADO DE ANÁLISIS')
+    norma = models.CharField('Norma / especificación de referencia', max_length=150, blank=True,
+                             help_text='Ej. NTP 209.038, ficha técnica FT-012 rev. 3')
+    texto = models.TextField('Declaración', blank=True,
+                             help_text='Texto del certificado. Ej. «El lote cumple con las especificaciones…»')
+    responsable = models.CharField('Firma (cargo)', max_length=100, default='Jefe de Aseguramiento de la Calidad')
+    requiere_liberacion = models.BooleanField(
+        'Lotes nuevos en cuarentena', default=True,
+        help_text='El lote no se vende hasta que Calidad apruebe su certificado')
+
+    class Meta:
+        verbose_name = 'plantilla de certificado de análisis'
+        verbose_name_plural = 'plantillas de certificado de análisis'
+
+    def __str__(self):
+        return f'{self.titulo} — {self.producto}'
+
+
+class CertificadoAnalisis(models.Model):
+    """Certificado de análisis (COA) de un lote, con los resultados de su inspección. Al aprobarlo, Calidad libera
+    el lote para la venta; al rechazarlo, el lote queda rechazado."""
+    ESTADOS = [('BORRADOR', 'Por aprobar'), ('APROBADO', 'Aprobado: lote liberado'),
+               ('RECHAZADO', 'Rechazado: lote rechazado'), ('ANULADO', 'Anulado')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    fecha = models.DateField(default=timezone.localdate)
+    lote = models.ForeignKey('core.Lote', on_delete=models.PROTECT, related_name='certificados')
+    inspeccion = models.ForeignKey(InspeccionCalidad, on_delete=models.PROTECT, null=True, blank=True,
+                                   related_name='certificados', verbose_name='Inspección')
+    cliente = models.ForeignKey('core.Tercero', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                help_text='Opcional: certificado emitido para un cliente')
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='BORRADOR')
+    resultados = models.JSONField(default=list, editable=False)
+    observaciones = models.TextField(blank=True)
+    emitido_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+',
+                                    editable=False)
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False)
+    aprobado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'certificado de análisis'
+        verbose_name_plural = 'certificados de análisis'
+
+    def __str__(self):
+        return f'Certificado {self.numero}'
 
 
 # ================================================================ mantenimiento

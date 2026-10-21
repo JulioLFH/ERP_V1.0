@@ -23,7 +23,7 @@
     <tbody>{% for l in lotes %}<tr onclick="location.href='{% url 'inv_lote' l.pk %}'" style="cursor:pointer" class="{% if l.vencido %}table-danger{% elif l.vencimiento and l.vencimiento <= aviso %}table-warning{% endif %}">
       <td>{{ l.producto.codigo }} {{ l.producto.nombre }}</td>
       <td class="fw-semibold">{{ l.codigo }}</td>
-      <td>{% if l.vencimiento %}{{ l.vencimiento|date:'d/m/Y' }} <span class="small text-muted">{% if l.vencido %}(vencido){% else %}({{ l.dias_para_vencer }} días){% endif %}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+      <td>{% if l.vencimiento %}{{ l.vencimiento|date:'d/m/Y' }} <span class="small text-muted">{% if l.vencido %}(vencido){% else %}({{ l.dias_para_vencer }} días){% endif %}</span>{% else %}<span class="text-muted">—</span>{% endif %}{% if l.bloqueado %} <span class="badge text-bg-warning" title="No se vende hasta que Calidad apruebe su certificado">{{ l.get_estado_calidad_display }}</span>{% elif l.estado_calidad == 'LIBERADO' %} <span class="badge text-bg-success">Liberado</span>{% endif %}</td>
       <td class="num">{{ l.existencia|default:0|money }}</td>
       <td class="small">{{ l.en_almacenes|join:' · ' }}</td>
     </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">Sin lotes. Active el control por lote o serie en el producto (pestaña General) e indique el lote al ingresar la mercadería por Inventario.</td></tr>{% endfor %}</tbody>

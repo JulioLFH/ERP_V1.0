@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.61.0 — 21/10/2026 · Certificado de análisis y liberación de lotes
+- **Plantilla de certificado por producto (CAL-01)**, en Manufactura › Calidad › Planes de calidad por producto: título, norma o ficha de referencia, declaración, cargo que firma y qué características del plan salen en el certificado.
+- **Lotes en cuarentena**: con «Lotes nuevos en cuarentena», cada lote del producto que ingresa (producción, compra) queda bloqueado: la venta no lo toma ni por FEFO ni indicándolo, con un mensaje claro. Traslados y consumos internos sí lo mueven. El estado se ve en Inventario › Lotes.
+- **Certificado de análisis por lote con aprobación**: nueva pantalla Manufactura › Calidad › Certificados de análisis y liberación de lotes, con la lista de lotes bloqueados, el certificado desde la inspección del lote (resultados, especificación y conformidad) y su impresión. Aprobarlo libera el lote para la venta; rechazarlo lo deja rechazado; anularlo lo devuelve a cuarentena. Requiere la nueva acción «Aprobar certificados de análisis y liberar lotes».
+
 ## v1.60.0 — 21/10/2026 · Permisos y aprobaciones de ventas
 - **Pedidos de venta en las reglas de aprobación (VEN-11)**: nuevo documento «Pedidos de venta» en Ajustes › Reglas de aprobación, con los tipos «Pedidos bajo la tarifa o con descuento» y «Pedidos que exceden el crédito del cliente» (niveles, monto, suplencias y escalamiento como en compras). El pedido muestra por qué requiere aprobación y a quién le toca; sin reglas, lo aprueba quien tenga «Aprobar pedidos de venta». Un pedido a precio de lista y dentro del crédito se aprueba como antes.
 - **Venta desde el pedido aprobado**: no vuelve a pedir la aprobación de la tarifa ni bloquea por el límite de crédito; si el pedido se modifica, vuelve a «Pendiente» y se aprueba otra vez.

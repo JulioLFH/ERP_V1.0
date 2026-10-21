@@ -1,0 +1,31 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Certificados de análisis{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Certificados de análisis y liberación de lotes</h1>
+  {% if puede.manufactura_calidad %}<a href="{% url 'manufactura:certificado_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo certificado</a>{% endif %}
+</div>
+<p class="small text-muted">Los productos con plantilla de certificado y «Lotes nuevos en cuarentena» (Planes de calidad por producto) ingresan cada lote bloqueado: no sale en una venta hasta que Calidad apruebe su certificado. Aprobar libera el lote; rechazar lo deja rechazado.</p>
+{% if cuarentena %}
+<div class="card mb-3 border-warning"><div class="card-header"><i class="bi bi-shield-lock"></i> Lotes bloqueados para la venta ({{ cuarentena|length }})</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>Producto</th><th>Lote</th><th>Vence</th><th class="num">Existencia</th><th>Estado</th><th></th></tr></thead>
+    <tbody>{% for l in cuarentena %}<tr><td class="small">{{ l.producto.codigo }} {{ l.producto.nombre }}</td><td>{{ l.codigo }}</td><td>{{ l.vencimiento|date:'d/m/Y'|default:'—' }}</td>
+      <td class="num">{{ l.existencia|default_if_none:0|cant }}</td><td><span class="badge {% if l.estado_calidad == 'RECHAZADO' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ l.get_estado_calidad_display }}</span></td>
+      <td class="text-end">{% if l.estado_calidad == 'CUARENTENA' and puede.manufactura_calidad %}<a href="{% url 'manufactura:inspeccion_nueva' %}?producto={{ l.producto_id }}&lote={{ l.codigo|urlencode }}&tipo=TERMINADO" class="btn btn-sm btn-outline-secondary">Inspeccionar</a> <a href="{% url 'manufactura:certificado_nuevo' %}?lote={{ l.pk }}" class="btn btn-sm btn-outline-primary">Certificado</a>{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+{% endif %}
+<form class="row g-2 mb-2">
+  <div class="col-md-4"><input name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="N°, lote o producto"></div>
+  <div class="col-md-3"><select name="estado" class="form-select form-select-sm"><option value="">Todos los estados</option>{% for v, n in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div class="col-auto"><button class="btn btn-sm btn-outline-secondary">Filtrar</button></div>
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>N°</th><th>Fecha</th><th>Producto</th><th>Lote</th><th>Inspección</th><th>Cliente</th><th>Estado</th></tr></thead>
+  <tbody>{% for c in page_obj %}<tr><td><a href="{% url 'manufactura:certificado' c.pk %}">{{ c.numero }}</a></td><td>{{ c.fecha|date:'d/m/Y' }}</td>
+    <td class="small">{{ c.lote.producto.nombre }}</td><td>{{ c.lote.codigo }}</td><td class="small">{{ c.inspeccion.numero|default:'—' }}</td><td class="small">{{ c.cliente.nombre|default:'—' }}</td>
+    <td><span class="badge {% if c.estado == 'APROBADO' %}text-bg-success{% elif c.estado == 'BORRADOR' %}text-bg-warning{% elif c.estado == 'RECHAZADO' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ c.get_estado_display }}</span></td></tr>
+  {% empty %}<tr><td colspan="7" class="text-muted text-center py-3">Sin certificados.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% include 'core/_paginacion.html' %}
+{% endblock %}
