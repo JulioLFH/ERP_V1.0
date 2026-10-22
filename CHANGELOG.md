@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.70.0 — 22/10/2026 · Compras sin cuenta ni centro de costo en rojo
+- **Registro de compras**: la compra que no tiene **cuenta contable ni centro de costo** (ni reparto por centros de costo) sale con la **fila en rojo**, porque toda compra debe llevar al menos uno de los dos. Nueva casilla «Solo sin cuenta ni centro de costo» para listar solo esas y corregirlas. No se marcan las anuladas ni las históricas migradas de otro sistema.
+
 ## v1.69.1 — 22/10/2026 · Corrección de la bandeja de compras
 - **Bandeja de compras (COM-11)**: ya no da «Ocurrió un error inesperado» cuando una línea liberada no tiene proveedor sugerido ni el producto tiene proveedor habitual; la columna muestra «—» y la línea se agrupa en «Sin proveedor sugerido».
 - La misma corrección en las pantallas que muestran el usuario que registró o aprobó algo cuando ese usuario no existe (registro automático del sistema): historial de la HES, de la orden de compra, del requerimiento y de la rendición (y su impresión y trazabilidad), incidencias, lecturas de flota, garita y certificado de análisis.

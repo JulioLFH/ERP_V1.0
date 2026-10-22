@@ -39,6 +39,19 @@ class ComprasViews(ComprobanteViews):
                   'precio_unitario': i.precio_unitario, 'descuento_pct': i.descuento_pct} for i in oc.items.all()]
         return initial, items
 
+    def anotar_lista(self, qs, request):
+        """Compra sin cuenta contable ni centro de costo (tampoco reparto por centros): la fila sale en rojo y se
+        puede filtrar. Las anuladas y las históricas migradas (no editables) no cuentan."""
+        from django.db.models import BooleanField, Case, Exists, OuterRef, Value, When
+        from .models import DistribucionCompra
+        qs = qs.annotate(sin_imputacion=Case(
+            When(Q(cuenta_contable__isnull=True, centro_costo__isnull=True) & ~Q(estado='ANULADO') & Q(es_historico=False)
+                 & ~Exists(DistribucionCompra.objects.filter(compra=OuterRef('pk'))), then=Value(True)),
+            default=Value(False), output_field=BooleanField()))
+        if request.GET.get('sin_imputacion'):
+            qs = qs.filter(sin_imputacion=True)
+        return qs
+
     def validar_stock(self, form, formset):
         return super().validar_stock(form, formset) + self.validar_servicios(form, formset)
 

@@ -96,6 +96,10 @@ class ComprobanteViews:
     def mueve_stock(self, doc):
         return True
 
+    def anotar_lista(self, qs, request):
+        """Hook: anotaciones y filtros propios de la lista (ej. compras sin imputación)."""
+        return qs
+
     @staticmethod
     def faltantes_al_revertir(doc):
         """Anular/eliminar una entrada (compra, NC de venta) saca stock: debe haber existencias."""
@@ -115,6 +119,7 @@ class ComprobanteViews:
                 qs = qs.filter(**{campo: request.GET[campo]})
         if request.GET.get('pago_bloqueado') and hasattr(self.modelo, 'pago_bloqueado'):  # alerta de Compras
             qs = qs.filter(pago_bloqueado=True)
+        qs = self.anotar_lista(qs, request)
         q = request.GET.get('q', '').strip()
         if q:
             qs = qs.filter(Q(tercero__nombre__icontains=q) | Q(tercero__numero_doc__icontains=q) |
