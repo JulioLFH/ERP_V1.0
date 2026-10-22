@@ -54,9 +54,13 @@ def registro(desde, hasta):
         inicial = {'cantidad': cant, 'costo': costo, 'total': r2(cant * costo)}
         filas = []
         tot = {'ent_cant': D0, 'ent_total': D0, 'sal_cant': D0, 'sal_total': D0}
+        valor_anterior = inicial['total']
         for k in movimientos.get(pid, []):
             tipo, serie, numero = documento(k.referencia)
-            total = r2(k.cantidad * k.costo_unitario)
+            # ajuste de valor sin cantidad (tabla 12 = 99, ej. gastos de importación): su total es lo que cambió el
+            # saldo valorizado (IMP-06)
+            total = r2(k.cantidad * k.costo_unitario) if k.cantidad else r2(k.saldo * k.costo_promedio) - valor_anterior
+            valor_anterior = r2(k.saldo * k.costo_promedio)
             entrada = k.tipo == 'ENTRADA'
             fila = {'k': k, 'tipo_doc': tipo, 'serie': serie, 'numero': numero, 'operacion': k.codigo_sunat or '99',
                     'ent_cant': k.cantidad if entrada else D0, 'sal_cant': D0 if entrada else k.cantidad,

@@ -117,6 +117,10 @@ class ComprasViews(ComprobanteViews):
             messages.success(request, 'Mercadería ingresada al almacén.')
         return redirect('compras:detalle', pk)
 
+    def _registro_qs(self, periodo):
+        # el comprobante de no domiciliado (91) no va en el Registro de Compras 8.1 (es del 8.2)
+        return super()._registro_qs(periodo).exclude(tipo_comprobante='91')
+
     def linea_ple(self, periodo, n, d):
         """Registro de Compras 8.1 (estructura PLE SUNAT)."""
         ref = d.doc_referencia
@@ -126,9 +130,11 @@ class ComprasViews(ComprobanteViews):
             f'{periodo}00', f'C{n:06d}', f'M{n:06d}', fmt_fecha(d.fecha_emision), fmt_fecha(d.fecha_vencimiento),
             d.tipo_comprobante, d.serie, '', d.numero, '', d.tercero.tipo_doc, d.tercero.numero_doc,
             d.tercero.nombre[:100],
-            ple_num(0 if anulado else s * d.base_imponible), ple_num(0 if anulado else s * d.igv),
+            # DUA (50): la base del IGV de importación es el valor en aduana más los tributos (ad valorem)
+            ple_num(0 if anulado else s * (d.base_imponible + (d.valor_aduana + d.no_gravado if d.es_dua else 0))),
+            ple_num(0 if anulado else s * d.igv),
             '0.00', '0.00', '0.00', '0.00',
-            ple_num(0 if anulado else s * d.no_gravado), '0.00', ple_num(d.icbper), '0.00',
+            ple_num(0 if anulado or d.es_dua else s * d.no_gravado), '0.00', ple_num(d.icbper), '0.00',
             ple_num(0 if anulado else s * d.total), d.moneda, f'{d.tipo_cambio:.3f}',
             fmt_fecha(ref.fecha_emision) if ref else '', ref.tipo_comprobante if ref else '',
             ref.serie if ref else '', '', ref.numero if ref else '',

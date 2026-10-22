@@ -97,8 +97,10 @@ def kardex(request):
             qs = qs.filter(almacen_id__in=permitidos)
         desde, hasta = rango_por_defecto(request, qs)
         movs = list(qs.order_by('fecha', 'id'))
-        saldo = sum((_signo(k) for k in movs if k.fecha.isoformat() < desde), D0)
+        previos = [k for k in movs if k.fecha.isoformat() < desde]
+        saldo = sum((_signo(k) for k in previos), D0)
         inicial = saldo
+        valor_anterior = r2(saldo * (previos[-1].costo_promedio if previos else producto.costo_promedio or D0))
         filas, ent, sal = [], D0, D0
         for k in movs:
             f = k.fecha.isoformat()
@@ -108,11 +110,15 @@ def kardex(request):
                 break
             saldo += _signo(k)
             costo_prom = k.costo_promedio or producto.costo_promedio
-            valor = r2(k.cantidad * k.costo_unitario)
+            saldo_valor = r2(saldo * costo_prom)
+            # ajuste de valor sin cantidad (gastos de importación, diferencia de precio, tabla 12 = 99): su valor es
+            # lo que cambió el saldo valorizado (IMP-06)
+            valor = r2(k.cantidad * k.costo_unitario) if k.cantidad else saldo_valor - valor_anterior
             ent += k.cantidad if k.tipo == 'ENTRADA' else D0
             sal += k.cantidad if k.tipo == 'SALIDA' else D0
             filas.append({'k': k, 'saldo': saldo, 'costo_prom': costo_prom, 'valor': valor,
-                          'saldo_valor': r2(saldo * costo_prom)})
+                          'saldo_valor': saldo_valor})
+            valor_anterior = saldo_valor
         if request.GET.get('formato') == 'excel':
             from .modulos import puede_ver_costos
             costos = puede_ver_costos(request.user)

@@ -648,7 +648,29 @@ def _costos_producto(p):
     return {'metodo': 'Promedio ponderado móvil (un costo por empresa para todos los almacenes)',
             'promedio': p.costo_promedio, 'valor': valor, 'estandar': estandar,
             'variacion_estandar': (p.costo_promedio - estandar.unitario) if estandar and estandar.unitario else None,
-            'compra': compra, 'liquidacion': liquidacion}
+            'compra': compra, 'puesto': _costo_puesto(p), 'liquidacion': liquidacion}
+
+
+def _costo_puesto(p):
+    """Último costo puesto en almacén (IMP-07): la última compra con gastos vinculados de importación, en unidad de
+    almacén = precio de la factura + gastos prorrateados por unidad. None si nunca se importó."""
+    from compras.historial_precios import historial
+    from compras.models import AjustePrecioCompra
+    ajuste = (AjustePrecioCompra.objects.filter(producto=p, importacion__isnull=False)
+              .select_related('compra', 'importacion').order_by('-fecha', '-id').first())
+    if ajuste is None:
+        return None
+    gastos = sum((a.diferencia for a in AjustePrecioCompra.objects.filter(
+        producto=p, compra=ajuste.compra, importacion__isnull=False)), D0)
+    fila = next((f for f in reversed(historial(p)) if f['compra_id'] == ajuste.compra_id), None)
+    cantidad = ajuste.cantidad or D0
+    if fila is None or not cantidad:
+        return None
+    factor = p.factor_compra if p.factor_compra and p.factor_compra > 0 else Decimal('1')
+    precio = (fila['precio_pen'] / factor).quantize(Decimal('0.0001'))
+    return {'precio': precio, 'gasto': (gastos / cantidad).quantize(Decimal('0.0001')),
+            'costo': (precio + gastos / cantidad).quantize(Decimal('0.0001')), 'importacion': ajuste.importacion,
+            'fecha': ajuste.compra.fecha_emision}
 
 
 @login_required

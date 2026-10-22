@@ -39,6 +39,16 @@ def _compras():
     return _comprobantes(Compra)
 
 
+def _facturas_comerciales():
+    """Facturas comerciales para importaciones (01, 00 y 91 de no domiciliado), con su tipo (IMP-01)."""
+    from compras.models import Compra
+    qs = (Compra.objects.filter(estado='REGISTRADO', tipo_comprobante__in=['01', '00', '91'])
+          .order_by('-fecha_emision', '-id')
+          .values_list('pk', 'tipo_comprobante', 'serie', 'numero', 'tercero__nombre', 'fecha_emision'))
+    nombres = {'01': 'Factura', '00': 'Otros', '91': 'No domiciliado'}
+    return [[pk, f'{nombres[t]} {s}-{n} · {nom[:40]} · {f:%d/%m/%Y}'] for pk, t, s, n, nom, f in qs]
+
+
 FUENTES = {
     'productos': lambda: _productos(),
     'productos_venta': lambda: _productos(puede_venderse=True),
@@ -49,6 +59,7 @@ FUENTES = {
     'cuentas': _cuentas,
     'ventas': _ventas,
     'compras': _compras,
+    'facturas_comerciales': _facturas_comerciales,
 }
 
 
@@ -61,6 +72,7 @@ MODULOS = {  # quién puede pedir cada lista (además del administrador)
     'cuentas': {'contabilidad', 'compras', 'finanzas', 'planillas', 'activos', 'inventario', 'requerimientos',
                 'rendiciones'},
     'ventas': {'ventas', 'logistica', 'finanzas'}, 'compras': {'compras', 'finanzas'},
+    'facturas_comerciales': {'compras'},
 }
 
 
@@ -104,5 +116,7 @@ def opciones(request, fuente):
         raise Http404
     resp = JsonResponse(FUENTES[fuente](), safe=False, json_dumps_params={'ensure_ascii': False,
                                                                          'separators': (',', ':')})
-    resp['Cache-Control'] = 'private, max-age=120'
+    # las listas de comprobantes cambian al registrar uno: sin caché (una factura recién registrada debe aparecer)
+    resp['Cache-Control'] = ('no-store' if fuente in ('compras', 'ventas', 'facturas_comerciales')
+                             else 'private, max-age=120')
     return resp

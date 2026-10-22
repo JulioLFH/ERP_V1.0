@@ -13,7 +13,8 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         fields = ['tipo_comprobante', 'serie', 'numero', 'tercero', 'fecha_emision', 'fecha_vencimiento', 'periodo',
                   'clasificacion', 'forma_pago', 'moneda', 'tipo_cambio', 'tipo_operacion', 'detraccion_pct',
                   'retencion_pct', 'percepcion_pct', 'icbper', 'orden_compra', 'doc_referencia',
-                  'ingresar_almacen', 'almacen', 'centro_costo', 'cuenta_contable', 'glosa']
+                  'ingresar_almacen', 'almacen', 'centro_costo', 'cuenta_contable', 'valor_aduana', 'igv_importacion',
+                  'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2})}
         labels = {'tercero': 'Proveedor'}
 
@@ -28,11 +29,28 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
             estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
         remoto(self.fields['doc_referencia'], 'compras', perezoso=True)
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['valor_aduana'].required = False  # solo la DUA (tipo 50)
+
+    def clean_valor_aduana(self):
+        return self.cleaned_data.get('valor_aduana') or 0
 
     def clean(self):
         data = super().clean()
         if data.get('tipo_comprobante') in ('07', '08') and not data.get('doc_referencia'):
             self.add_error('doc_referencia', 'Indique el comprobante que modifica la nota.')
+        tercero = data.get('tercero')
+        if data.get('tipo_comprobante') == '01' and tercero is not None and tercero.tipo_doc != '6':
+            self.add_error('tipo_comprobante', f'Una factura (01) solo la emite un proveedor con RUC; {tercero.nombre} '
+                                               f'no lo tiene. Para un proveedor del exterior use «Comprobante de no '
+                                               f'domiciliado» (91).')
+        if data.get('tipo_comprobante') == '50':  # la DUA no mueve el almacén: lo hace la factura comercial
+            data['ingresar_almacen'] = False
+            self.instance.ingresar_almacen = False
+            if not data.get('valor_aduana'):
+                self.add_error('valor_aduana', 'Indique el valor en aduana (CIF) de la DUA: es la base del IGV.')
+        elif data.get('valor_aduana') or data.get('igv_importacion') is not None:
+            data['valor_aduana'], data['igv_importacion'] = 0, None
+            self.instance.valor_aduana, self.instance.igv_importacion = 0, None
         validar_periodo_abierto(self, 'fecha_emision', data.get('periodo'))
         from core.models import Empresa
         if not self.instance.pk and Empresa.actual().exigir_orden_compra and data.get('clasificacion') in Compra.DE_ALMACEN \

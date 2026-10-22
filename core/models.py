@@ -25,6 +25,8 @@ TIPO_COMPROBANTE = [
     ('02', 'Recibo por Honorarios'),
     ('12', 'Ticket'),
     ('14', 'Recibo Servicios Públicos'),
+    ('50', 'DUA / DAM (importación)'),
+    ('91', 'Comprobante de no domiciliado'),
     ('00', 'Otros'),
 ]
 MONEDAS = [('PEN', 'Soles (S/)'), ('USD', 'Dólares (US$)')]
@@ -237,6 +239,13 @@ class Tercero(models.Model):
                                            blank=True, help_text='Solo proveedores. Vacío = la de la empresa')
     tolerancia_total_pct = models.DecimalField('Tolerancia del total (±%)', max_digits=5, decimal_places=2,
                                                null=True, blank=True, help_text='Vacío = la de la empresa')
+    # proveedor del exterior (importaciones): no tiene RUC; su comprobante se registra como 91 (no domiciliado)
+    INCOTERMS = [('', '—'), ('EXW', 'EXW'), ('FCA', 'FCA'), ('FAS', 'FAS'), ('FOB', 'FOB'), ('CFR', 'CFR'),
+                 ('CIF', 'CIF'), ('CPT', 'CPT'), ('CIP', 'CIP'), ('DAP', 'DAP'), ('DPU', 'DPU'), ('DDP', 'DDP')]
+    pais = models.CharField('País', max_length=60, blank=True, help_text='Vacío = Perú')
+    incoterm = models.CharField('Incoterm habitual', max_length=3, choices=INCOTERMS, blank=True)
+    moneda = models.CharField('Moneda habitual', max_length=3, choices=[('', '—'), ('PEN', 'Soles'),
+                                                                       ('USD', 'Dólares')], blank=True)
     activo = models.BooleanField(default=True)
 
     class Meta:

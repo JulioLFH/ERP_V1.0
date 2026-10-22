@@ -127,6 +127,12 @@ class Compra(ComprobanteBase):
                                          help_text='Precio facturado fuera de la tolerancia: Finanzas no la paga hasta '
                                                    'que Compras libere el pago')
     motivo_bloqueo_pago = models.CharField('Motivo del bloqueo de pago', max_length=300, blank=True, editable=False)
+    # DUA / DAM (tipo 50, IMP-02): las líneas son los tributos que van al costo (ad valorem, derechos); el IGV + IPM
+    # de la DUA es crédito fiscal y se calcula sobre el valor en aduana (CIF) más el ad valorem
+    valor_aduana = models.DecimalField('Valor en aduana (CIF)', max_digits=14, decimal_places=2, default=Decimal('0'),
+                                       help_text='Solo DUA: base del IGV de importación junto con el ad valorem')
+    igv_importacion = models.DecimalField('IGV + IPM de la DUA', max_digits=14, decimal_places=2, null=True,
+                                          blank=True, help_text='Solo DUA. Vacío = 18 % de (CIF + ad valorem)')
 
     class Meta(ComprobanteBase.Meta):
         verbose_name = 'compra'
@@ -174,8 +180,20 @@ class Compra(ComprobanteBase):
     def _cantidad_stock(self, item):
         return item.producto.a_stock(item.cantidad)
 
+    @property
+    def es_dua(self):
+        return self.tipo_comprobante == '50'
+
     def calcular_totales(self):
         super().calcular_totales()
+        if self.es_dua:  # IGV + IPM sobre (CIF + ad valorem); las líneas (tributos) van al costo sin IGV propio
+            from core.models import Empresa, r2
+            base_igv = (self.valor_aduana or Decimal('0')) + self.base_imponible + self.no_gravado
+            self.igv = (r2(self.igv_importacion) if self.igv_importacion is not None
+                        else r2(base_igv * Empresa.actual().igv_tasa / 100))
+            self.total = self.base_imponible + self.no_gravado + self.igv + self.icbper
+            self.detraccion_monto = self.retencion_monto = Decimal('0')
+            self.percepcion_monto = r2(self.total * self.percepcion_pct / 100) if self.percepcion_pct else Decimal('0')
         if self.ajuste_redondeo:  # redondeo del proveedor: el total es el de su factura
             self.total += self.ajuste_redondeo
         # Recibo por honorarios: retención de 4ta categoría del 8% si supera S/ 1,500
@@ -209,17 +227,26 @@ class AjustePrecioCompra(models.Model):
 
 
 class Importacion(models.Model):
-    """Expediente de importación: la factura comercial (FOB) más los gastos vinculados (flete, seguro, ad valorem,
-    agente de aduanas, almacenaje…) que se prorratean al costo de cada producto al liquidar."""
-    METODOS = [('VALOR', 'Por valor FOB'), ('CANTIDAD', 'Por cantidad'), ('PESO', 'Por peso')]
+    """Expediente de importación: la orden de compra, una o varias facturas comerciales (FOB) y la DUA, más los
+    gastos vinculados (flete, seguro, ad valorem, agente de aduanas, almacenaje…) que se prorratean al costo de cada
+    producto al liquidar. Mientras no llegan las facturas de los gastos, los estimados por concepto valoran el
+    ingreso; al llegar las reales, la nueva liquidación ajusta la diferencia."""
+    METODOS = [('VALOR', 'Por valor FOB'), ('CANTIDAD', 'Por cantidad'), ('PESO', 'Por peso'),
+               ('MANUAL', 'Manual (% por producto)')]
     ESTADOS = [('ABIERTA', 'Abierta'), ('LIQUIDADA', 'Liquidada')]
     numero = models.CharField('N°', max_length=20, editable=False)
     descripcion = models.CharField('Descripción', max_length=150)
     dua = models.CharField('N° DUA / DAM', max_length=40, blank=True)
     fecha_llegada = models.DateField('Llegada / levante', null=True, blank=True)
-    compra = models.ForeignKey(Compra, on_delete=models.PROTECT, related_name='importaciones',
-                               verbose_name='Factura comercial (proveedor del exterior)')
+    orden_compra = models.ForeignKey(OrdenCompra, on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='importaciones', verbose_name='Orden de compra')
+    compra = models.ForeignKey(Compra, on_delete=models.PROTECT, null=True, blank=True, related_name='importaciones',
+                               verbose_name='Factura comercial (proveedor del exterior)',
+                               help_text='Vacía mientras solo hay OC: los gastos estimados se cargan desde ya')
+    facturas = models.ManyToManyField(Compra, blank=True, related_name='importaciones_extra',
+                                      verbose_name='Otras facturas comerciales del embarque')
     metodo = models.CharField('Prorrateo', max_length=8, choices=METODOS, default='VALOR')
+    reparto_manual = models.JSONField('Reparto manual (% por producto)', default=dict, blank=True, editable=False)
     estado = models.CharField(max_length=10, choices=ESTADOS, default='ABIERTA')
     fecha_liquidacion = models.DateField(null=True, blank=True)
     creado = models.DateTimeField(auto_now_add=True)
@@ -233,8 +260,44 @@ class Importacion(models.Model):
         return f'Importación {self.numero}'
 
     @property
+    def facturas_comerciales(self):
+        return ([self.compra] if self.compra_id else []) + [f for f in self.facturas.all() if f.pk != self.compra_id]
+
+    @property
     def total_gastos(self):
         return self.gastos.aggregate(s=models.Sum('monto'))['s'] or 0
+
+    @property
+    def total_estimados(self):
+        return self.estimados.aggregate(s=models.Sum('monto'))['s'] or 0
+
+    @property
+    def fob(self):
+        """(valor FOB en la moneda de las facturas, moneda, valor en S/) sin IGV (IMP-05)."""
+        from core.models import r2
+        facturas = self.facturas_comerciales
+        if not facturas:
+            oc = self.orden_compra
+            if oc is None:
+                return Decimal('0'), 'PEN', Decimal('0')
+            valor = oc.total - oc.igv
+            return valor, oc.moneda, r2(valor * (oc.tipo_cambio or 1)) if oc.moneda == 'USD' else valor
+        moneda = facturas[0].moneda
+        valor = sum((f.total - f.igv for f in facturas), Decimal('0'))
+        pen = sum((f.total_pen - f.igv_pen for f in facturas), Decimal('0'))
+        return valor, moneda, pen
+
+    @property
+    def en_transito(self):
+        """La mercadería no ingresa al almacén hasta el levante (cuenta 28, existencias por recibir)."""
+        from inventario.models import Operacion
+        ids = [f.pk for f in self.facturas_comerciales]
+        ordenes = set(Compra.objects.filter(pk__in=ids, orden_compra__isnull=False)
+                      .values_list('orden_compra_id', flat=True)) | ({self.orden_compra_id} if self.orden_compra_id
+                                                                     else set())
+        return not (Compra.objects.filter(pk__in=ids, stock_aplicado=True).exists()
+                    or Operacion.objects.filter(estado='CONFIRMADO', tipo__clase='INGRESO').filter(
+                        models.Q(compra_id__in=ids) | models.Q(orden_compra_id__in=ordenes)).exists())
 
 
 class ContratoMarco(models.Model):
@@ -430,6 +493,9 @@ class GastoImportacion(models.Model):
                  ('TRANSPORTE', 'Transporte local'), ('OTRO', 'Otros gastos vinculados')]
     importacion = models.ForeignKey(Importacion, on_delete=models.CASCADE, related_name='gastos')
     concepto = models.CharField(max_length=12, choices=CONCEPTOS)
+    metodo = models.CharField('Prorrateo de este gasto', max_length=8, choices=[('', 'El de la importación')] +
+                              Importacion.METODOS[:3], blank=True,
+                              help_text='Ej. flete por peso y ad valorem por valor FOB')
     compra = models.ForeignKey(Compra, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
                                verbose_name='Factura del gasto')
     movimiento = models.ForeignKey('finanzas.Movimiento', on_delete=models.PROTECT, null=True, blank=True,
@@ -440,6 +506,20 @@ class GastoImportacion(models.Model):
 
     class Meta:
         ordering = ['id']
+
+
+class GastoEstimado(models.Model):
+    """Costo de importación planificado por concepto (SAP: condiciones de costos de entrega en la OC). Valora el
+    ingreso mientras no llega la factura real de ese concepto (IMP-04)."""
+    importacion = models.ForeignKey(Importacion, on_delete=models.CASCADE, related_name='estimados')
+    concepto = models.CharField(max_length=12, choices=GastoImportacion.CONCEPTOS)
+    metodo = models.CharField('Prorrateo', max_length=8, choices=[('', 'El de la importación')] +
+                              Importacion.METODOS[:3], blank=True)
+    monto = models.DecimalField('Monto estimado S/ (sin IGV)', max_digits=14, decimal_places=2)
+
+    class Meta:
+        ordering = ['id']
+        unique_together = [('importacion', 'concepto')]
 
 
 # ================================================================ solicitud de pedido (SolPed, ME51N de SAP)

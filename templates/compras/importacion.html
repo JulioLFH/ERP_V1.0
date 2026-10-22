@@ -2,49 +2,73 @@
 {% block title %}{{ imp }}{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-  <h1 class="page-title">{{ imp }} <span class="badge text-bg-light">{{ imp.get_estado_display }}</span></h1>
-  {% if puede.compras_registrar and filas %}<form method="post">{% csrf_token %}<button name="accion" value="liquidar" class="btn btn-sm btn-success" data-confirm="¿Liquidar? Los gastos se suman al costo de los productos."><i class="bi bi-calculator"></i> {% if imp.estado == 'LIQUIDADA' %}Volver a liquidar (gastos nuevos){% else %}Liquidar al costo{% endif %}</button></form>{% endif %}
+  <h1 class="page-title">{{ imp }} <span class="badge text-bg-light">{{ imp.get_estado_display }}</span>
+    {% if facturas and imp.en_transito %}<span class="badge text-bg-warning">En tránsito</span>{% endif %}</h1>
+  {% if puede.compras_registrar and filas and facturas and not imp.en_transito %}<form method="post">{% csrf_token %}<button name="accion" value="liquidar" class="btn btn-sm btn-success" data-confirm="¿Liquidar? Los gastos (reales o estimados) se suman al costo de los productos."><i class="bi bi-calculator"></i> {% if imp.estado == 'LIQUIDADA' %}Volver a liquidar (solo la diferencia){% else %}Liquidar al costo{% endif %}</button></form>{% endif %}
 </div>
 <div class="row g-3 mb-3">
-  <div class="col-md-4"><div class="kpi"><div class="label">{{ imp.descripcion }}</div><div class="fw-semibold"><a href="{% url 'compras:detalle' imp.compra_id %}">{{ imp.compra }}</a></div><div class="small text-muted">{{ imp.compra.tercero.nombre }}</div></div></div>
-  <div class="col-md-2"><div class="kpi"><div class="label">DUA / llegada</div><div class="fw-semibold">{{ imp.dua|default:'—' }}</div><div class="small text-muted">{{ imp.fecha_llegada|date:'d/m/Y' }}</div></div></div>
-  <div class="col-md-3"><div class="kpi"><div class="label">Valor FOB S/</div><div class="value">{{ imp.compra.base_pen|money }}</div></div></div>
-  <div class="col-md-3"><div class="kpi"><div class="label">Gastos vinculados S/</div><div class="value">{{ imp.total_gastos|money }}</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="label">{{ imp.descripcion }}</div>
+    {% for f in facturas %}<div class="fw-semibold"><a href="{% url 'compras:detalle' f.pk %}">{{ f }}</a> <span class="small text-muted">{{ f.tercero.nombre }}</span></div>{% empty %}<div class="text-muted small">Sin factura comercial aún</div>{% endfor %}
+    {% if imp.orden_compra %}<div class="small">OC <a href="{% url 'compras:oc_detalle' imp.orden_compra_id %}">{{ imp.orden_compra.numero }}</a></div>{% endif %}</div></div>
+  <div class="col-md-2"><div class="kpi"><div class="label">DUA / levante</div><div class="fw-semibold">{{ imp.dua|default:'—' }}</div><div class="small text-muted">{{ imp.fecha_llegada|date:'d/m/Y' }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Valor FOB</div><div class="value">S/ {{ fob_pen|money }}</div>{% if moneda == 'USD' %}<div class="small text-muted">US$ {{ fob|money }}{% if tc %} × {{ tc }}{% endif %}</div>{% endif %}</div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Gastos vinculados S/</div><div class="value">{{ imp.total_gastos|money }}</div>{% if estimados %}<div class="small text-muted">Estimados: {{ imp.total_estimados|money }}</div>{% endif %}</div></div>
 </div>
+{% if facturas and imp.en_transito %}<div class="alert alert-warning py-2 small"><i class="bi bi-truck"></i> La mercadería está <b>en tránsito</b> (existencias por recibir, cuenta 28): regístrese su ingreso al almacén al levante, desde la factura comercial («Ingresar a almacén») o con la recepción de la OC. Recién entonces se liquida.</div>{% endif %}
+{% for clave, texto, productos in avisos %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> {{ texto }}{% for p in productos %} · <a href="{% url 'producto_editar' p.pk %}" target="_blank">corregir {{ p.codigo }}</a>{% endfor %}</div>{% endfor %}
 <div class="row g-3">
   <div class="col-lg-6">
-    <div class="card mb-3"><div class="card-header">Gastos de la importación</div>
-      <table class="table table-sm mb-0 align-middle"><thead><tr><th>Concepto</th><th>Sustento</th><th class="num">Monto S/</th><th></th></tr></thead><tbody>
+    <div class="card mb-3"><div class="card-header">Gastos de la importación (facturas y pagos reales)</div>
+      <table class="table table-sm mb-0 align-middle"><thead><tr><th>Concepto</th><th>Sustento</th><th>Reparto</th><th class="num">Monto S/</th><th></th></tr></thead><tbody>
       {% for g in gastos %}<tr><td>{{ g.get_concepto_display }}<div class="small text-muted">{{ g.descripcion }}</div></td>
         <td class="small">{% if g.compra %}<a href="{% url 'compras:detalle' g.compra_id %}">{{ g.compra }}</a>{% else %}<a href="{% url 'finanzas:voucher' g.movimiento_id %}" target="_blank">{{ g.movimiento.voucher }}</a>{% endif %}</td>
-        <td class="num">{{ g.monto|money }}</td>
+        <td class="small">{{ g.get_metodo_display|default:'—' }}</td><td class="num">{{ g.monto|money }}</td>
         <td>{% if not ajustes and puede.compras_registrar %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="quitar"><button name="gasto" value="{{ g.pk }}" class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x-circle"></i></button></form>{% endif %}</td></tr>
-      {% empty %}<tr><td colspan="4" class="text-muted text-center py-3">Sin gastos.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="5" class="text-muted text-center py-3">Sin gastos reales.</td></tr>{% endfor %}
       </tbody></table>
       {% if puede.compras_registrar %}<div class="card-body border-top">
         <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="gasto">
-          <div class="col-md-6"><select name="concepto" class="form-select form-select-sm">{% for v, n in conceptos %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
-          <div class="col-md-6"><input type="number" step="0.01" name="monto" class="form-control form-control-sm" placeholder="Monto S/ sin IGV (vacío = del sustento)"></div>
-          <div class="col-12"><select name="compra" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'compras' %}" data-perezoso="1"><option value="">Factura del gasto (flete, agente, almacén…)</option></select></div>
-          <div class="col-12"><select name="movimiento" class="form-select form-select-sm"><option value="">… o pago sin factura (tributos de la DUA, etc.)</option>{% for m in pagos %}<option value="{{ m.pk }}">{{ m.voucher }} · {{ m.fecha|date:'d/m/Y' }} · {{ m.cuenta.simbolo }} {{ m.monto|money }} · {{ m.glosa|truncatechars:40 }}</option>{% endfor %}</select></div>
+          <div class="col-md-4"><select name="concepto" class="form-select form-select-sm">{% for v, n in conceptos %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
+          <div class="col-md-4"><select name="metodo" class="form-select form-select-sm"><option value="">Reparto: el de la importación</option>{% for v, n in metodos_gasto %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
+          <div class="col-md-4"><input type="number" step="0.01" name="monto" class="form-control form-control-sm" placeholder="Monto S/ sin IGV (vacío = del sustento)"></div>
+          <div class="col-12"><select name="compra" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'compras' %}" data-perezoso="1"><option value="">Factura del gasto o DUA (tipo 50: aporta su ad valorem)</option></select></div>
+          <div class="col-12"><select name="movimiento" class="form-select form-select-sm"><option value="">… o pago de Finanzas sin factura ({{ pagos|length }} en el último año: tributos pagados al banco, etc.)</option>{% for m in pagos %}<option value="{{ m.pk }}">{{ m.voucher }} · {{ m.fecha|date:'d/m/Y' }} · {{ m.cuenta.simbolo }} {{ m.monto|money }} · {{ m.glosa|truncatechars:40 }}</option>{% endfor %}</select></div>
           <div class="col-md-8"><input name="descripcion" class="form-control form-control-sm" placeholder="Descripción (opcional)"></div>
           <div class="col-md-4"><button class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-plus-lg"></i> Agregar</button></div>
         </form>
-        <div class="small text-muted mt-2">El IGV de la DUA y de las facturas es crédito fiscal: no se suma al costo. El gasto se contabiliza en la 6091 (costos vinculados) y la liquidación lo lleva al inventario.</div>
+        <div class="small text-muted mt-2">La DUA se registra en Compras como tipo 50 (DUA / DAM) con su valor en aduana: el ad valorem va al costo y el IGV + IPM es crédito fiscal. Cada gasto puede repartirse con su propio método (ej. flete por peso y ad valorem por valor FOB).</div>
       </div>{% endif %}
     </div>
+    <div class="card mb-3"><div class="card-header">Gastos estimados (valoran el ingreso hasta que llega la factura real)</div>
+      <table class="table table-sm mb-0 small"><thead><tr><th>Concepto</th><th>Reparto</th><th class="num">Estimado S/</th><th>Se usa</th></tr></thead><tbody>
+      {% for e in estimados %}<tr><td>{{ e.get_concepto_display }}</td><td>{{ e.get_metodo_display|default:'—' }}</td><td class="num">{{ e.monto|money }}</td><td>{% if e.concepto in reales %}<span class="text-muted">No: ya hay factura real</span>{% else %}Sí{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="4" class="text-muted text-center py-2">Sin estimados.</td></tr>{% endfor %}</tbody></table>
+      {% if puede.compras_registrar %}<div class="card-body border-top"><form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="estimado">
+        <div class="col-md-4"><select name="concepto" class="form-select form-select-sm">{% for v, n in conceptos %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
+        <div class="col-md-4"><select name="metodo" class="form-select form-select-sm"><option value="">Reparto: el de la importación</option>{% for v, n in metodos_gasto %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
+        <div class="col-md-2"><input type="number" step="0.01" min="0" name="monto" class="form-control form-control-sm" placeholder="S/ (0 = quitar)"></div>
+        <div class="col-md-2"><button class="btn btn-sm btn-outline-secondary w-100">Guardar</button></div></form></div>{% endif %}
+    </div>
+    {% if puede.compras_registrar %}<div class="card mb-3"><div class="card-body"><form method="post" class="d-flex gap-2">{% csrf_token %}<input type="hidden" name="accion" value="factura">
+      <select name="compra" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'facturas_comerciales' %}" data-perezoso="1"><option value="">{% if facturas %}Agregar otra factura comercial del embarque{% else %}Registrar la factura comercial (01, 00 o 91 no domiciliado){% endif %}</option></select>
+      <button class="btn btn-sm btn-outline-primary text-nowrap">Agregar</button></form></div></div>{% endif %}
   </div>
   <div class="col-lg-6">
     <div class="card"><div class="card-header d-flex justify-content-between align-items-center">Prorrateo
       {% if not ajustes and puede.compras_registrar %}<form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="accion" value="metodo"><select name="metodo" class="form-select form-select-sm" onchange="this.form.submit()">{% for v, n in metodos %}<option value="{{ v }}" {% if v == imp.metodo %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></form>{% else %}<span class="small">{{ imp.get_metodo_display }}</span>{% endif %}</div>
       {% if error %}<div class="alert alert-warning m-2 py-2 small">{{ error }}</div>{% endif %}
       <div class="table-responsive"><table class="table table-sm mb-0 align-middle small">
-        <thead><tr><th>Producto</th><th class="num">Cantidad</th><th class="num">FOB S/</th><th class="num">Gasto asignado</th><th class="num">+ por unidad</th></tr></thead>
+        <thead><tr><th>Producto</th><th class="num">Cantidad</th><th class="num">FOB S/</th><th class="num">Peso kg</th><th class="num">Gasto asignado</th><th class="num">+ por unidad</th></tr></thead>
         <tbody>
-        {% for f in filas %}<tr><td>{{ f.producto.codigo }} {{ f.producto.nombre|truncatechars:30 }}</td><td class="num">{{ f.cantidad|money }}</td><td class="num">{{ f.fob|money }}</td><td class="num fw-semibold">{{ f.gasto|money }}</td><td class="num">{{ f.unitario_gasto }}</td></tr>
-        {% empty %}<tr><td colspan="5" class="text-muted text-center py-3">Agregue gastos para ver el prorrateo.</td></tr>{% endfor %}
+        {% for f in filas %}<tr><td>{{ f.producto.codigo }} {{ f.producto.nombre|truncatechars:30 }}</td><td class="num">{{ f.cantidad|cant:f.producto.unidad }} {{ f.producto.unidad }}</td><td class="num">{{ f.fob|money }}</td><td class="num">{{ f.peso|money }}</td>
+          <td class="num fw-semibold">{{ f.gasto|money }}{% if f.estimado %}<div class="text-muted fw-normal">estimado {{ f.estimado|money }}</div>{% endif %}</td><td class="num">{{ f.unitario_gasto }}</td></tr>
+        {% empty %}{% for f in lineas %}<tr class="text-muted"><td>{{ f.producto.codigo }} {{ f.producto.nombre|truncatechars:30 }}</td><td class="num">{{ f.cantidad|cant:f.producto.unidad }} {{ f.producto.unidad }}</td><td class="num">{{ f.fob|money }}</td><td class="num">{{ f.peso|money }}</td><td class="num">—</td><td></td></tr>
+          {% empty %}<tr><td colspan="6" class="text-muted text-center py-3">Registre la factura comercial o la OC.</td></tr>{% endfor %}{% endfor %}
         </tbody>
       </table></div>
+      {% if imp.metodo == 'MANUAL' and not ajustes and puede.compras_registrar %}<div class="card-body border-top"><form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="manual">
+        {% for f in lineas %}<div class="col-md-6"><label class="form-label small mb-1">{{ f.producto.codigo }} {{ f.producto.nombre|truncatechars:25 }} (%)</label><input name="pct_{{ f.producto.pk }}" value="{{ f.pct }}" class="form-control form-control-sm text-end" inputmode="decimal"></div>{% endfor %}
+        <div class="col-12"><button class="btn btn-sm btn-outline-primary">Guardar reparto manual</button> <span class="small text-muted">Debe sumar 100 %.</span></div></form></div>{% endif %}
     </div>
     {% if ajustes %}<div class="card mt-3"><div class="card-header">Aplicado al costo</div>
       <table class="table table-sm mb-0 small"><thead><tr><th>Fecha</th><th>Producto</th><th class="num">Al inventario</th><th class="num">Al costo de ventas</th></tr></thead><tbody>
