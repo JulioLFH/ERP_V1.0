@@ -138,7 +138,7 @@
 
 <div class="card mb-3"><div class="card-header">Historial de la rendición</div>
   <ul class="list-group list-group-flush small">
-  {% for h in historial %}<li class="list-group-item"><span class="text-muted">{{ h.fecha|date:'d/m/Y H:i' }}</span> · <b>{{ h.a_display }}</b>{% if h.de_estado %} <span class="text-muted">(antes {{ h.de_display|lower }})</span>{% endif %} · {{ h.usuario.get_full_name|default:h.usuario.username|default:'Sistema' }}{% if h.comentario %} — {{ h.comentario }}{% endif %}</li>{% endfor %}
+  {% for h in historial %}<li class="list-group-item"><span class="text-muted">{{ h.fecha|date:'d/m/Y H:i' }}</span> · <b>{{ h.a_display }}</b>{% if h.de_estado %} <span class="text-muted">(antes {{ h.de_display|lower }})</span>{% endif %} · {% if h.usuario %}{{ h.usuario.get_full_name|default:h.usuario.username }}{% else %}Sistema{% endif %}{% if h.comentario %} — {{ h.comentario }}{% endif %}</li>{% endfor %}
   </ul>
 </div>
 {% include 'core/_bitacora.html' with objeto=r %}

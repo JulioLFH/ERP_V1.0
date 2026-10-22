@@ -42,7 +42,7 @@
   {% if plantilla.texto %}<p>{{ plantilla.texto|linebreaksbr }}</p>{% endif %}
   {% if c.observaciones %}<p class="small"><b>Observaciones:</b> {{ c.observaciones|linebreaksbr }}</p>{% endif %}
   <div class="row mt-5 text-center small">
-    <div class="col-6"><div class="border-top pt-1 mx-4">Emitido por: {{ c.emitido_por.get_full_name|default:c.emitido_por.username|default:'—' }}</div></div>
+    <div class="col-6"><div class="border-top pt-1 mx-4">Emitido por: {% if c.emitido_por %}{{ c.emitido_por.get_full_name|default:c.emitido_por.username }}{% else %}—{% endif %}</div></div>
     <div class="col-6"><div class="border-top pt-1 mx-4">{{ plantilla.responsable|default:'Aseguramiento de la Calidad' }}{% if c.aprobado_por %}<br>{{ c.aprobado_por.get_full_name|default:c.aprobado_por.username }} · {{ c.aprobado_en|date:'d/m/Y H:i' }}{% endif %}</div></div>
   </div>
 </div></div>

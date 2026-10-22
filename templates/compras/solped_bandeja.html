@@ -26,7 +26,7 @@
     <td class="num fw-semibold">{{ l.pendiente|money }}</td><td class="num">{{ l.precio|floatformat:4 }}</td><td class="num">{{ l.importe|money }}</td>
     <td class="small">{{ l.solicitud.centro_costo }}</td>
     <td class="{% if l.solicitud.fecha_requerida and l.solicitud.fecha_requerida < hoy %}text-danger{% endif %}">{{ l.solicitud.fecha_requerida|date:'d/m/Y'|default:'—' }}</td>
-    <td class="small">{{ l.proveedor_sugerido.nombre|default:l.producto.proveedor.nombre|default:'—' }}</td>
+    <td class="small">{% if l.proveedor_sugerido %}{{ l.proveedor_sugerido.nombre }}{% elif l.producto.proveedor %}{{ l.producto.proveedor.nombre }}{% else %}—{% endif %}</td>
     <td class="small">{% if l.comprador %}{{ l.comprador.get_full_name|default:l.comprador.username }}{% if l.grupo %} <span class="text-muted">({{ l.grupo.codigo }})</span>{% endif %} <a href="{% url 'compras:asignaciones_linea' l.pk %}" title="Historial de asignación"><i class="bi bi-clock-history"></i></a>{% else %}<span class="text-muted">Sin comprador</span>{% endif %}
       <div>{% if l.dias > l.plazo %}<span class="badge text-bg-danger">Vencida: {{ l.dias }} de {{ l.plazo }} días hábiles</span>{% else %}<span class="text-muted">{{ l.dias }} de {{ l.plazo }} días hábiles</span>{% endif %}</div></td>
   </tr>{% endfor %}</tbody>

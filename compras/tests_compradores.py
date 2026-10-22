@@ -60,6 +60,19 @@ class CompradoresTest(Base):
         self.assertEqual(self.client.get(reverse('compras:desempeno') + '?formato=excel').status_code, 200)
         self.assertContains(self.client.get(reverse('compras:grupos')), 'Repuestos')
 
+    def test_bandeja_linea_sin_proveedor(self):
+        """COM-11: una línea liberada sin proveedor sugerido ni proveedor del producto no rompe la bandeja."""
+        self.repuesto.proveedor = None
+        self.repuesto.save()
+        sp = self.solicitud('4', '25')
+        srv.liberar(sp, self.jefe)
+        self.assertIsNone(sp.lineas.get().proveedor_sugerido)
+        self.client.force_login(self.admin)
+        for agrupar in ('proveedor', 'producto', 'fecha', 'comprador'):
+            r = self.client.get(reverse('compras:solped_bandeja') + f'?comprador=todas&agrupar={agrupar}')
+            self.assertContains(r, 'Rodamiento 6205')
+        self.assertContains(r, 'Sin comprador')
+
     def test_dias_habiles(self):
         lunes = HOY - timedelta(days=HOY.weekday())
         self.assertEqual(compradores.dias_habiles(lunes, lunes + timedelta(days=7)), 5)

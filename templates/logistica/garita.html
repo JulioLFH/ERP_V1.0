@@ -23,7 +23,7 @@
   {% if r.almacen %}<tr><td class="text-muted">Almacén</td><td>{{ r.almacen }}</td></tr>{% endif %}
   {% if puede.logistica_ver_montos and r.monto %}<tr><td class="text-muted">Valor de la mercadería</td><td>{{ r.monto.0 }} {{ r.monto.1|money }}</td></tr>{% endif %}
   {% if r.observaciones %}<tr><td class="text-muted">Observaciones</td><td>{{ r.observaciones|linebreaksbr }}</td></tr>{% endif %}
-  <tr><td class="text-muted">Registró</td><td class="small">{{ r.registrado_por.get_full_name|default:r.registrado_por.username|default:'—' }}{% if r.salida_por %} · salida: {{ r.salida_por.get_full_name|default:r.salida_por.username }}{% endif %}</td></tr>
+  <tr><td class="text-muted">Registró</td><td class="small">{% if r.registrado_por %}{{ r.registrado_por.get_full_name|default:r.registrado_por.username }}{% else %}—{% endif %}{% if r.salida_por %} · salida: {{ r.salida_por.get_full_name|default:r.salida_por.username }}{% endif %}</td></tr>
 </table></div></div>
 {% if puede.logistica_garita and candidatas %}
 <div class="card mb-3 d-print-none"><div class="card-body">

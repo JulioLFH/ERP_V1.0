@@ -18,7 +18,7 @@
     <div class="card mb-3"><table class="table table-sm small mb-0">
       <tr><th>Página</th><td class="text-break">{% if inc.url %}<a href="{{ inc.url }}">{{ inc.url }}</a>{% endif %}</td></tr>
       <tr><th>Módulo</th><td>{{ inc.modulo|default:'—' }}</td></tr>
-      <tr><th>Usuario</th><td>{{ inc.usuario.get_full_name|default:inc.usuario.username|default:'—' }}</td></tr>
+      <tr><th>Usuario</th><td>{% if inc.usuario %}{{ inc.usuario.get_full_name|default:inc.usuario.username }}{% else %}—{% endif %}</td></tr>
       <tr><th>Primera vez</th><td>{{ inc.creado|date:'d/m/Y H:i' }}</td></tr>
       <tr><th>Última vez</th><td>{{ inc.ultima_vez|date:'d/m/Y H:i' }}{% if inc.veces > 1 %} ({{ inc.veces }} veces){% endif %}</td></tr>
       <tr><th>Navegador</th><td class="text-muted">{{ inc.navegador|truncatechars:80 }}</td></tr>

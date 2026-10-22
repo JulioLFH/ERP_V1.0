@@ -11,7 +11,7 @@
   <thead><tr>{% if estado == 'PENDIENTE' and puede_aprobar %}<th style="width:32px"><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.js-l').forEach(c => c.checked = this.checked)"></th>{% endif %}<th>Fecha</th><th>Equipo</th><th class="num">Lectura</th><th>Origen</th><th>Parte</th><th>Registró</th><th>Estado</th><th>Observación</th></tr></thead>
   <tbody>{% for l in page_obj %}<tr>{% if estado == 'PENDIENTE' and puede_aprobar %}<td><input type="checkbox" class="form-check-input js-l" name="lectura" value="{{ l.pk }}" checked></td>{% endif %}
     <td>{{ l.fecha|date:'d/m/Y' }}</td><td><a href="{% url 'flota:equipo' l.equipo_id %}">{{ l.equipo }}</a></td><td class="num">{{ l.valor|floatformat:-1 }} {{ l.equipo.unidad_medidor }}</td>
-    <td class="small">{{ l.get_origen_display }}</td><td class="small">{{ l.parte }}</td><td class="small">{{ l.registrado_por.get_full_name|default:l.registrado_por.username|default:'—' }}</td>
+    <td class="small">{{ l.get_origen_display }}</td><td class="small">{{ l.parte }}</td><td class="small">{% if l.registrado_por %}{{ l.registrado_por.get_full_name|default:l.registrado_por.username }}{% else %}—{% endif %}</td>
     <td class="small">{{ l.get_estado_display }}{% if l.aprobado_por %} · {{ l.aprobado_por.username }}{% endif %}</td><td class="small">{{ l.observacion }}</td></tr>
   {% empty %}<tr><td colspan="9" class="text-muted text-center py-3">Sin lecturas.</td></tr>{% endfor %}</tbody>
 </table></div></div>
