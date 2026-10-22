@@ -39,6 +39,52 @@ class ComprasViews(ComprobanteViews):
                   'precio_unitario': i.precio_unitario, 'descuento_pct': i.descuento_pct} for i in oc.items.all()]
         return initial, items
 
+    def validar_stock(self, form, formset):
+        return super().validar_stock(form, formset) + self.validar_servicios(form, formset)
+
+    def validar_servicios(self, form, formset):
+        """Factura de una OC con servicios: solo contra HES liberadas y hasta su valor (PORT-09). Lo ya facturado de
+        esos servicios (otras compras de la OC) se descuenta."""
+        from decimal import Decimal
+        from .tolerancias import permitida
+        datos = form.cleaned_data
+        oc = datos.get('orden_compra')
+        if oc is None or datos.get('tipo_comprobante') in ('07', '08'):
+            return []
+
+        def es_servicio(producto):
+            return producto is None or not producto.es_inventariable
+        if not any(es_servicio(i.producto) for i in oc.items.select_related('producto')):
+            return []
+
+        def neto(cantidad, precio, descuento):
+            return r2(Decimal(cantidad or 0) * Decimal(precio or 0) * (1 - Decimal(descuento or 0) / 100))
+        facturar = sum((neto(c.get('cantidad'), c.get('precio_unitario'), c.get('descuento_pct'))
+                        for c in (getattr(f, 'cleaned_data', None) or {} for f in formset.forms)
+                        if c and not c.get('DELETE') and (c.get('descripcion') or c.get('producto'))
+                        and es_servicio(c.get('producto'))), Decimal('0'))
+        if not facturar:
+            return []
+        liberadas = list(oc.conformidades.filter(estado='LIBERADA'))
+        if not liberadas:
+            return [f'La orden {oc.numero} es de servicios: registre la conformidad del servicio (HES) y que se '
+                    f'libere antes de registrar la factura.']
+        liberado = sum((h.valor for h in liberadas), Decimal('0'))
+        ya = sum((neto(i.cantidad, i.precio_unitario, i.descuento_pct) for i in CompraItem.objects.filter(
+            documento__orden_compra=oc, documento__estado='REGISTRADO').exclude(
+            documento__tipo_comprobante__in=['07', '08']).exclude(documento_id=form.instance.pk)
+            .select_related('producto') if es_servicio(i.producto)), Decimal('0'))
+        if ya + facturar > liberado + permitida(oc.tercero, 'total', liberado):
+            return [f'La factura supera lo conformado en las HES liberadas de {oc.numero}: liberado '
+                    f'{oc.simbolo} {liberado:,.2f}, ya facturado {ya:,.2f}, esta factura {facturar:,.2f} (sin IGV).']
+        return []
+
+    def _ctx(self, **extra):
+        doc = extra.get('doc')
+        if doc is not None and getattr(doc, 'pk', None) and 'items' in extra:  # detalle: ¿hay bienes de almacén?
+            extra['tiene_bienes'] = any(i.producto_id and i.producto.es_inventariable for i in doc.items.all())
+        return super()._ctx(**extra)
+
     def es_salida(self, tipo, mueve_stock):
         return tipo == '07' and mueve_stock  # devolución al proveedor
 

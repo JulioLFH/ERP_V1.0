@@ -1,4 +1,7 @@
-{% if field.field.widget.input_type == 'checkbox' %}
+{% if field.field.widget.input_type == 'checkbox' and field.field.widget.allow_multiple_selected %}
+<label class="form-label small mb-1">{{ field.label }}{% if field.field.required %} <span class="text-danger">*</span>{% endif %}</label>
+<div class="border rounded px-2 py-1">{% for opcion in field %}<div class="form-check">{{ opcion.tag }} <label class="form-check-label small" for="{{ opcion.id_for_label }}">{{ opcion.choice_label }}</label></div>{% empty %}<span class="small text-muted">Sin opciones.</span>{% endfor %}</div>
+{% elif field.field.widget.input_type == 'checkbox' %}
 <div class="form-check mt-4">
   {{ field }} <label class="form-check-label small" for="{{ field.id_for_label }}">{{ field.label }}</label>
 </div>

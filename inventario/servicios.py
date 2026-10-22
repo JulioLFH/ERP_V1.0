@@ -390,9 +390,9 @@ def anular(op, usuario, motivo):
             # cada movimiento vuelve a los lotes en que se hizo
             kw = dict(fecha=op.fecha, origen='OPERACION', concepto=tipo.codigo, lotes_de=f'{tipo.nombre} {op.numero}',
                       centro_costo=op.centro_costo, cuenta_contra=op.cuenta_gasto)
-            if tipo.clase == 'INGRESO':
-                i.producto.mover_stock(-i.cantidad, ref, almacen=op.almacen_destino, codigo_sunat=tipo.codigo_sunat,
-                                       **kw)
+            if tipo.clase == 'INGRESO':  # sale al costo con que entró, no al promedio (INV-16)
+                i.producto.mover_stock(-i.cantidad, ref, costo=i.costo_unitario or None, almacen=op.almacen_destino,
+                                       codigo_sunat=tipo.codigo_sunat, **kw)
             elif tipo.clase == 'SALIDA':
                 i.producto.mover_stock(i.cantidad, ref, costo=i.costo_unitario, almacen=op.almacen_origen,
                                        codigo_sunat=tipo.codigo_sunat, **kw)

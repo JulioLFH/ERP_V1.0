@@ -3,6 +3,12 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.67.0 — 21/10/2026 · Correcciones del checklist v1.66.1: costo de las reversiones, servicios sin HES, casillas y páginas de error
+- **Reversión al costo de la entrada (INV-16)**: anular o editar un comprobante o una recepción ya ingresados saca la mercadería al costo con que entró (y una venta revertida vuelve al costo con que salió), no al costo promedio del momento; el promedio se recalcula y el valor del inventario queda como antes. **Editar sin cambiar lo que mueve el almacén** (tipo, serie, número, glosa…) ya no revierte ni vuelve a ingresar: el kardex se queda igual y solo pasa a nombrar al documento corregido.
+- **Factura de servicios solo contra HES liberadas (PORT-09)**: el registro de compras de una OC con servicios exige al menos una conformidad liberada y no acepta más que el valor liberado (descontando lo ya facturado de esa OC, con la tolerancia del total del proveedor). Una compra sin bienes de almacén muestra «Almacén: No aplica (servicio o gasto)».
+- **Casillas (ALM-05)**: las «Operaciones permitidas» y los responsables del almacén (y todas las listas de casillas del sistema) se ven como casillas con su visto, con el título arriba.
+- **Páginas de error propias (SEG-04)**: una dirección inexistente o un error muestran la página de Ceiba, sin la lista de rutas ni datos técnicos, también en las instalaciones locales con DEBUG (el desarrollador las ve solo con DEBUG_TECNICO=1). En Render DEBUG ya estaba apagado.
+
 ## v1.66.1 — 21/10/2026 · Render como ERP de inicio
 - **Instalación en Render limpia**: el blueprint ya no carga la demostración (SEED_DEMO = 0) y, sin la clave del administrador en el entorno, la primera visita abre el asistente de instalación (empresa principal y administrador), igual que la carpeta «ERP Inicio».
 

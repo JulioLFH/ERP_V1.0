@@ -523,7 +523,10 @@ class Producto(models.Model):
 
         Productos con lote o serie: `lotes` = [(código, cantidad, vencimiento)] indica los lotes; `lotes_de` = la
         referencia de un movimiento que se revierte (vuelven a los mismos lotes). Sin ninguno, las salidas toman
-        primero lo que vence primero (FEFO)."""
+        primero lo que vence primero (FEFO).
+
+        Una salida con `costo` (reversión de una entrada) sale a ese costo y no al promedio: el promedio se recalcula
+        para que el valor del inventario quede como antes de la entrada (INV-16)."""
         cantidad = Decimal(cantidad)
         if not self.es_inventariable or cantidad == 0:
             return
@@ -536,11 +539,12 @@ class Producto(models.Model):
         with transaction.atomic():
             # se relee y bloquea el producto: dos líneas del mismo producto no deben pisarse
             actual = Producto.objects.select_for_update().get(pk=self.pk)
-            if cantidad > 0 and costo is not None:
+            if costo is not None:
                 nuevo_stock = actual.stock + cantidad
                 if nuevo_stock > 0:
                     total = actual.stock * actual.costo_promedio + cantidad * Decimal(costo)
-                    actual.costo_promedio = (total / nuevo_stock).quantize(Decimal('0.0001'))
+                    if total >= 0:
+                        actual.costo_promedio = (total / nuevo_stock).quantize(Decimal('0.0001'))
             saldo_inicial = actual.stock
             actual.stock += cantidad
             actual.save(update_fields=['stock', 'costo_promedio'])
@@ -1859,14 +1863,26 @@ class ComprobanteBase(TotalesMixin):
         self.stock_aplicado = True
         self.save(update_fields=['stock_aplicado', 'almacen'])
 
+    def _costos_del_movimiento(self, tipo):
+        """{producto_id: costo unitario} con que el documento movió el kardex (promedio ponderado de sus líneas)."""
+        totales = {}
+        for producto, cantidad, costo in (Kardex.objects.filter(referencia=str(self), tipo=tipo)
+                                          .values_list('producto_id', 'cantidad', 'costo_unitario')):
+            c, v = totales.get(producto, (D0, D0))
+            totales[producto] = (c + cantidad, v + cantidad * (costo or D0))
+        return {p: (v / c).quantize(Decimal('0.0001')) for p, (c, v) in totales.items() if c}
+
     def revertir_stock(self):
         if not self.stock_aplicado:
             return
         signo = -self._signo_stock()
+        costos = self._costos_del_movimiento('ENTRADA' if signo < 0 else 'SALIDA')
         for item in self.items.select_related('producto'):
             if item.producto and item.producto.es_inventariable:
-                # con la fecha del documento: el costo del periodo queda neto y coincide con la contabilidad
+                # con la fecha del documento: el costo del periodo queda neto y coincide con la contabilidad; y al
+                # costo con que se movió (no al promedio del momento), así el valor del inventario no cambia (INV-16)
                 item.producto.mover_stock(signo * self._cantidad_stock(item), f'Reversión {self}',
+                                          costo=costos.get(item.producto_id),
                                           fecha=self.fecha_emision,
                                           almacen=self.almacen, origen=self._meta.model_name.upper(),
                                           lotes_de=str(self))

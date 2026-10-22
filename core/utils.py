@@ -198,10 +198,17 @@ def procesar_documento(data, form_class, formset_class, instance, al_guardar=Non
     if not (form.is_valid() and formset.is_valid()):
         return None, form, formset
     with transaction.atomic():
+        referencia_anterior = None
         if instance.pk and getattr(instance, 'stock_aplicado', False):
-            # revertir con los datos guardados (almacén e ítems anteriores); al_guardar vuelve a aplicar
-            type(instance).objects.get(pk=instance.pk).revertir_stock()
-            instance.stock_aplicado = False
+            anterior = type(instance).objects.get(pk=instance.pk)
+            if _firma_stock(anterior, _lineas_guardadas(anterior)) == _firma_stock(form.instance,
+                                                                                   _lineas_form(formset)):
+                # nada que mueva el almacén cambió (tipo, serie, glosa…): el kardex no se toca (INV-16)
+                referencia_anterior = str(anterior)
+            else:
+                # revertir con los datos guardados (almacén e ítems anteriores); al_guardar vuelve a aplicar
+                anterior.revertir_stock()
+                instance.stock_aplicado = False
         if getattr(instance, 'moneda', None) == 'USD' and instance.tipo_cambio in (None, 0, 1):
             from .tipo_cambio import venta_del_dia
             fecha = getattr(instance, 'fecha_emision', None) or getattr(instance, 'fecha', None)
@@ -211,9 +218,48 @@ def procesar_documento(data, form_class, formset_class, instance, al_guardar=Non
         formset.save()
         doc.calcular_totales()
         doc.save()
+        if referencia_anterior and referencia_anterior != str(doc):
+            # cambió el tipo o el número: el kardex sigue apuntando al documento (anulaciones y lotes lo buscan)
+            from .models import Kardex
+            Kardex.objects.filter(referencia=referencia_anterior).update(referencia=str(doc))
+            Kardex.objects.filter(referencia=f'Reversión {referencia_anterior}').update(
+                referencia=f'Reversión {doc}')
         if al_guardar:
             al_guardar(doc)
     return doc, form, formset
+
+
+def _firma_stock(doc, lineas):
+    """Lo que define el movimiento de almacén de un comprobante: si no cambia, editar no toca el kardex."""
+    almacen = getattr(doc, 'almacen_id', None)
+    if almacen is None and hasattr(doc, 'almacen_id'):  # vacío = el principal (así lo aplica aplicar_stock)
+        from .models import Almacen
+        almacen = Almacen.principal().pk
+    return (almacen, getattr(doc, 'fecha_emision', None),
+            Decimal(doc.tipo_cambio or 0).quantize(Decimal('0.0001')), getattr(doc, 'moneda', None),
+            getattr(doc, 'tipo_operacion', None), getattr(doc, 'tipo_comprobante', '') in ('07', '08'),
+            getattr(doc, 'ingresar_almacen', None), getattr(doc, 'descontar_stock', None),
+            getattr(doc, 'doc_referencia_id', None), sorted(lineas))
+
+
+def _norma(valor, decimales='0.0001'):
+    return Decimal(valor or 0).quantize(Decimal(decimales))
+
+
+def _lineas_guardadas(doc):
+    return [(i.producto_id, _norma(i.cantidad), _norma(i.precio_unitario), _norma(getattr(i, 'descuento_pct', 0)),
+             getattr(i, 'afectacion', '') or '') for i in doc.items.all() if i.producto_id]
+
+
+def _lineas_form(formset):
+    lineas = []
+    for f in formset.forms:
+        c = getattr(f, 'cleaned_data', None) or {}
+        if not c or c.get('DELETE') or not c.get('producto'):
+            continue
+        lineas.append((c['producto'].pk, _norma(c.get('cantidad')), _norma(c.get('precio_unitario')),
+                       _norma(c.get('descuento_pct')), c.get('afectacion', '') or ''))
+    return lineas
 
 
 def guardar_documento(request, form_class, formset_class, instance, template, contexto, al_guardar=None,

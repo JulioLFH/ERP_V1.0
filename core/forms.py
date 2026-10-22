@@ -64,8 +64,8 @@ class BootstrapMixin:
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             w = field.widget
-            if isinstance(w, forms.CheckboxInput):
-                w.attrs.setdefault('class', 'form-check-input')
+            if isinstance(w, (forms.CheckboxInput, forms.CheckboxSelectMultiple, forms.RadioSelect)):
+                w.attrs.setdefault('class', 'form-check-input')  # casillas: nunca form-control (ALM-05)
             elif isinstance(w, (forms.Select, forms.SelectMultiple)):
                 w.attrs.setdefault('class', 'form-select form-select-sm')
             else:
@@ -382,7 +382,7 @@ class AlmacenForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
             is_active=True, acceso_proveedor__isnull=True).order_by('username')
         self.fields['responsables'].widget.attrs.pop('class', None)
         self.fields['responsables'].widget = forms.CheckboxSelectMultiple(
-            choices=self.fields['responsables'].choices)
+            attrs={'class': 'form-check-input'}, choices=self.fields['responsables'].choices)
         # se muestran como obligatorios (asterisco); el uso de tránsito, cuarentena o terceros los libera en clean()
         self.fields['direccion'].help_text = ('Dirección y distrito obligatorios en un almacén físico: son el punto de '
                                               'partida de las guías (no en tránsito, cuarentena ni terceros)')

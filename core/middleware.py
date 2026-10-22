@@ -26,6 +26,25 @@ class SeguridadMiddleware:
             response['Content-Security-Policy'] = settings.CONTENT_SECURITY_POLICY
         return response
 
+class PaginasErrorMiddleware:
+    """Con DEBUG activo (instalaciones locales) Django responde un 404 o 500 con su página técnica: todas las rutas
+    del sistema, el código y la configuración. Se reemplaza por la página de Ceiba, salvo que el desarrollador la
+    pida con DEBUG_TECNICO=1 (SEG-04). Sin DEBUG, Django ya usa 404.html y 500.html."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if (settings.DEBUG and not settings.DEBUG_TECNICO and response.status_code in (404, 500)
+                and response.get('Content-Type', '').startswith('text/html')
+                and not getattr(response, 'streaming', False) and b'DEBUG = True' in response.content):
+            from django.http import HttpResponse
+            from django.template.loader import render_to_string
+            return HttpResponse(render_to_string(f'{response.status_code}.html'), status=response.status_code)
+        return response
+
+
 # Lo único que puede abrir un usuario del portal de proveedores fuera del portal
 RUTAS_PROVEEDOR = {'logout', 'login', 'cambiar_clave', 'cambiar_clave_ok', 'seguridad', 'login_2fa'}
 
