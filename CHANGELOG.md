@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.70.1 — 22/10/2026 · Productos en las facturas de compra migradas
+- **Migración del sistema anterior (Odoo)**: las facturas de compra armadas desde los asientos ya no quedan con una línea por cuenta y sin producto. Cada línea toma el producto del **[código] de la etiqueta de Odoo** («P00558: [I000177] LECHE FRESCA») y su **cantidad y precio unitario** de la orden de compra en soles o, si la OC es en dólares o no está, del costo de su recepción en el kardex anterior. Con esto el **Historial de precios de compra** y la alerta de alza de precio de la OC ya consideran las compras migradas.
+- Los productos de Odoo que solo se compraban (peajes, otros gastos, alimentación, honorarios…) y no estaban en el maestro se crean **solo para compra** (servicio si van a gasto, suministro en la 60, activo en la 33/34).
+- Nuevo paso `productos_compras` de `importar_anteriores` que rehace las líneas de las facturas ya migradas sin tocar sus totales ni su cabecera. Un bien sin precio unitario conocido queda sin producto para no falsear el historial de precios.
+
 ## v1.70.0 — 22/10/2026 · Compras sin cuenta ni centro de costo en rojo
 - **Registro de compras**: la compra que no tiene **cuenta contable ni centro de costo** (ni reparto por centros de costo) sale con la **fila en rojo**, porque toda compra debe llevar al menos uno de los dos. Nueva casilla «Solo sin cuenta ni centro de costo» para listar solo esas y corregirlas. No se marcan las anuladas ni las históricas migradas de otro sistema.
 

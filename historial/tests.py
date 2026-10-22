@@ -123,8 +123,8 @@ class HistorialTest(TestCase):
             # factura de proveedor: base en 60, IGV en 4011 y total en 42 (el periodo sale de la fecha, no del
             # trimestre de PeriodoMes)
             ['Facturas de proveedores', '000002', '15/08/2025', self.prov.numero_doc, 'MOLINOS', '(01) Factura',
-             'F001-00000077', '', 'HARINA', '', '60210100', 'Compra materias primas', 100, 0, 'SIN_CC', 'Ana',
-             '2025-07-01'],
+             'F001-00000077', '', 'HARINA', 'P00001: [HX01] Harina', '60210100', 'Compra materias primas', 100, 0,
+             'SIN_CC', 'Ana', '2025-07-01'],
             ['Facturas de proveedores', '000002', '15/08/2025', self.prov.numero_doc, 'MOLINOS', '(01) Factura',
              'F001-00000077', '', 'IGV', '', '40111002', 'IGV - Compras', 18, 0, 'SIN_CC', 'Ana', '2025-07-01'],
             ['Facturas de proveedores', '000002', '15/08/2025', self.prov.numero_doc, 'MOLINOS', '(01) Factura',
@@ -149,6 +149,23 @@ class HistorialTest(TestCase):
     def test_nombre_clave(self):
         self.assertEqual(nombre_clave('Molinos del Sur Sociedad Anónima Cerrada'), nombre_clave('MOLINOS DEL SUR S.A.C.'))
         self.assertEqual(nombre_clave('PERULAB S.A.C., perulab leche'), 'PERULAB SAC')
+
+    def test_lineas_compra_crea_productos_de_solo_compra(self):
+        """Un código de Odoo que no está en el maestro (peajes, otros gastos) se crea solo para compra; si va a gasto
+        es servicio y la línea lo lleva por una unidad. Un bien sin precio conocido queda sin producto."""
+        from .management.commands.importar_anteriores import Command
+        cmd = Command()
+        cmd.productos = {'HX01': self.prod.pk}
+        asiento = lambda cuenta, glosa, debe: AsientoAnterior(cuenta=cuenta, cuenta_nombre='X', glosa=glosa,
+                                                              debe=D(debe), haber=D('0'))
+        items = cmd._lineas_compra([asiento('95311204', 'PEAJE · [PJE/EST] PEAJE Y ESTACIONAMIENTO', '12.50'),
+                                    asiento('95311204', 'PEAJE · [PJE/EST] PEAJE Y ESTACIONAMIENTO', '7.50'),
+                                    asiento('60210100', 'P09999: [HX01] Harina', '30'),
+                                    asiento('40111002', 'IGV', '9')], 1, True)
+        peaje = Producto.objects.get(codigo='PJE/EST')
+        self.assertEqual((peaje.nombre, peaje.tipo, peaje.puede_venderse), ('PEAJE Y ESTACIONAMIENTO', 'SERVICIO', False))
+        self.assertEqual([(i.get('producto_id'), i['cantidad'], i['subtotal']) for i in items],
+                         [(peaje.pk, D('1'), D('20.00')), (None, D('1'), D('30'))])
 
     def test_importacion_completa_e_idempotente(self):
         stock_antes = list(StockAlmacen.objects.values_list('pk', 'cantidad'))
@@ -195,6 +212,19 @@ class HistorialTest(TestCase):
         self.assertEqual((compra.es_historico, compra.base_imponible, compra.igv, compra.total, compra.periodo,
                           compra.clasificacion, compra.saldo, compra.stock_aplicado),
                          (True, D('100'), D('18'), D('118'), '202508', 'MERCADERIA', D('100'), False))
+        # la línea lleva el producto del [código] de la etiqueta de Odoo y la cantidad al precio de su OC (S/ 2)
+        linea = compra.items.get()
+        self.assertEqual((linea.producto, linea.cantidad, linea.precio_unitario, linea.subtotal),
+                         (self.prod, D('50.00'), D('2.0000'), D('100.00')))
+        r = self.client.get(reverse('compras:historial_precios'), {'producto': self.prod.pk})
+        self.assertContains(r, 'F001-77')
+        # facturas importadas antes (una línea por cuenta, sin producto): el paso productos_compras las rehace
+        compra.items.all().delete()
+        compra.items.create(descripcion='60210100 Compra materias primas · HARINA', cantidad=1,
+                            precio_unitario=D('100'), subtotal=D('100'))
+        call_command('importar_anteriores', self.c, '--solo', 'productos_compras', '--reporte',
+                     os.path.join(self.c, 'r.xlsx'), stdout=StringIO())
+        self.assertEqual(compra.items.get().producto, self.prod)
         self.assertEqual(AsientoAnterior.objects.get(cuenta='70211100').centro_costo, '[951003] CANAL MODERNO')
         self.assertEqual(PosicionPresupuestaria.objects.count(), 2)
         # no toca el stock de Ceiba

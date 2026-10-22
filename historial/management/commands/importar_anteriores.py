@@ -32,7 +32,8 @@ from django.utils import timezone
 D0 = Decimal('0')
 IGV = Decimal('0.18')
 MARCA = '[Sistema anterior]'
-PASOS = ['posiciones', 'oc', 'pedidos', 'fabricacion', 'kardex', 'contable', 'compras', 'por_pagar', 'bancos']
+PASOS = ['posiciones', 'oc', 'pedidos', 'fabricacion', 'kardex', 'contable', 'compras', 'productos_compras',
+         'por_pagar', 'bancos']
 CUENTAS_POR_PAGAR = r'^(4212|424)'  # facturas emitidas y honorarios (las 4211 son provisiones sin comprobante)
 CUENTAS_PUENTE = {'1041002', '1041003', '1041004', '10300010', '1051001'}  # transitorias: no son cuentas de dinero
 BANCOS = [('BBVA', 'BBVA'), ('BCP', 'BCP'), ('INTERBANK', 'INTERBANK'), ('SCOTIABANK', 'SCOTIABANK'),
@@ -47,6 +48,7 @@ ARCHIVOS = {
     'kardex': ['Data_Kardex_API_2025.xlsx', 'Data_Kardex_API_2026.xlsx'],
     'contable': ['Data_Contable_2026.xlsx'],
     'compras': [],  # se arma desde los asientos ya importados (paso contable)
+    'productos_compras': [],
     'por_pagar': [],
     'bancos': [],
 }
@@ -605,10 +607,7 @@ class Command(BaseCommand):
                 base_imponible=base_imponible, no_gravado=no_gravado, inafecto=no_gravado, igv=igv, total=total,
                 retencion_monto=retencion, total_pen=total, base_pen=base_imponible, nograv_pen=no_gravado,
                 igv_pen=igv, ret_pen=retencion, ingresar_almacen=False, es_historico=True, glosa=glosa))
-            detalle.append([dict(descripcion=f'{cuenta} {f["nombre"]} · {f["glosa"]}'[:250], cantidad=1,
-                                 precio_unitario=f['monto'], subtotal=f['monto'],
-                                 afectacion='' if gravada else 'INAFECTA')
-                            for cuenta, f in por_cuenta.items() if f['monto']])
+            detalle.append(self._lineas_compra(lineas, signo, gravada))
         for i in range(0, len(cabeceras), 1000):
             bloque = cabeceras[i:i + 1000]
             Compra.objects.bulk_create(bloque)
@@ -620,8 +619,138 @@ class Command(BaseCommand):
                                     for c, its in zip(bloque, detalle[i:i + 1000]) for it in its])
         total = sum((c.total for c in cabeceras), D0)
         self.resumen['Facturas de compra'] = (f'{len(cabeceras)} armadas desde los asientos (S/ {total:,.2f}); '
-                                              f'{omitidos} ya estaban; {creados} proveedores creados')
+                                              f'{omitidos} ya estaban; {creados} proveedores creados; '
+                                              f'{getattr(self, "productos_creados", 0)} productos de solo compra creados')
         self.log(f'Facturas de compra: {self.resumen["Facturas de compra"]}')
+
+    def _precios_compra(self):
+        """{(orden de compra, producto_id): precio unitario en S/}: el de la orden de compra en soles o, si no, el
+        costo de sus recepciones en el kardex del sistema anterior (siempre en soles; sirve para las OC en dólares)."""
+        if getattr(self, '_precios', None) is not None:
+            return self._precios
+        from compras.models import OrdenCompraItem
+        from historial.models import MovimientoAnterior
+        precios = {}
+        for ref, prod, precio in (OrdenCompraItem.objects
+                                  .filter(documento__glosa__startswith=MARCA, documento__moneda='PEN',
+                                          producto__isnull=False, precio_unitario__gt=0)
+                                  .values_list('documento__numero', 'producto_id', 'precio_unitario')):
+            precios.setdefault((ref, prod), precio)
+        recibido = defaultdict(lambda: [D0, D0])
+        for ref, prod, ingreso, costo in (MovimientoAnterior.objects
+                                          .filter(transaccion='Recepcion Compras', ingreso__gt=0, costo__gt=0,
+                                                  producto__isnull=False).exclude(orden_compra='')
+                                          .values_list('orden_compra', 'producto_id', 'ingreso', 'costo')
+                                          .iterator(chunk_size=20000)):
+            r = recibido[(ref, prod)]
+            r[0] += ingreso
+            r[1] += costo  # el costo del kardex anterior es el valor total del movimiento
+        for clave, (ingreso, costo) in recibido.items():
+            precios.setdefault(clave, (costo / ingreso).quantize(Decimal('0.0001')))
+        from core.models import Producto
+        self._precios = precios
+        self._servicios = set(Producto.objects.exclude(tipo='BIEN').values_list('pk', flat=True))
+        return precios
+
+    def _lineas_compra(self, lineas, signo, gravada):
+        """Líneas de la factura desde sus asientos: una por cuenta, producto y orden de compra. El producto sale del
+        [código] de la etiqueta de Odoo («P00558: [I000177] LECHE FRESCA») y la cantidad del precio unitario de su
+        orden de compra o de su recepción. Sin precio conocido, un servicio va como una unidad por el importe y un
+        bien queda sin producto (su precio unitario no se conoce y falsearía el historial de precios)."""
+        precios = self._precios_compra()
+        grupos = OrderedDict()
+        for a in lineas:
+            if a.cuenta.startswith(('40', '42')):  # IGV, retenciones y la cuenta por pagar
+                continue
+            partes = a.glosa.split(' · ')
+            etiqueta = next((p for p in partes if '[' in p), partes[0])
+            codigo = re.search(r'\[([^\]]+)\]', etiqueta)
+            codigo = codigo.group(1).strip().upper() if codigo else ''
+            oc = re.match(r'\s*(P\d{3,})\s*:', etiqueta)
+            g = grupos.setdefault((a.cuenta, codigo, oc.group(1) if oc else ''),
+                                  {'monto': D0, 'nombre': a.cuenta_nombre, 'etiqueta': etiqueta})
+            g['monto'] += (a.debe - a.haber) * signo
+        items = []
+        for (cuenta, codigo, oc), g in grupos.items():
+            monto = g['monto']
+            if not monto:
+                continue
+            item = dict(descripcion=f'{cuenta} {g["nombre"]} · {g["etiqueta"]}'[:250], cantidad=Decimal('1'),
+                        precio_unitario=monto, subtotal=monto, afectacion='' if gravada else 'INAFECTA')
+            producto = self._producto_de_compra(codigo, g['etiqueta'], cuenta) if codigo else None
+            precio = precios.get((oc, producto)) if producto and oc else None
+            if producto and monto > 0 and precio:
+                cantidad = (monto / precio).quantize(Decimal('0.01'))
+                if cantidad > 0:
+                    item.update(producto_id=producto, cantidad=cantidad, precio_unitario=precio)
+            elif producto and producto in self._servicios:
+                item['producto_id'] = producto
+            items.append(item)
+        return items
+
+    def _producto_de_compra(self, codigo, etiqueta, cuenta):
+        """producto_id del código; si no está en el maestro (productos de Odoo solo de compra: peajes, otros gastos,
+        honorarios…) se crea solo para compra: servicio si va a gasto, suministro en la 60 y activo en la 33/34."""
+        if codigo in self.productos:
+            return self.productos[codigo]
+        from core.models import Producto
+        nombre = re.sub(r'^.*?\[[^\]]+\]\s*', '', etiqueta).strip() or codigo
+        clase = 'SUMINISTRO' if cuenta.startswith('60') else 'ACTIVO' if cuenta.startswith(('33', '34')) else 'SERVICIO'
+        p = Producto(codigo=codigo[:30], nombre=nombre[:200], clase=clase, puede_venderse=False,
+                     unidad='ZZ' if clase == 'SERVICIO' else 'NIU',
+                     descripcion='Creado desde las facturas de compra del sistema anterior')
+        p.save()
+        self.productos[codigo] = p.pk
+        if p.tipo != 'BIEN':
+            self._servicios.add(p.pk)
+        self.productos_creados = getattr(self, 'productos_creados', 0) + 1
+        return p.pk
+
+    # ---------------------------------------------------------------- productos en las facturas ya importadas
+    def paso_productos_compras(self):
+        """Facturas históricas importadas antes de v1.70.1 (una línea por cuenta, sin producto): rehace sus líneas
+        por producto, con cantidad y precio unitario, sin tocar la cabecera. Solo si el total de las líneas no cambia."""
+        from compras.models import Compra, CompraItem
+        from historial.models import AsientoAnterior
+        grupos = defaultdict(list)
+        for a in AsientoAnterior.objects.filter(diario__in=DIARIOS_COMPRA).order_by('fecha', 'id').iterator(
+                chunk_size=10000):
+            m = re.match(r'\((\d+)\)', a.tipo_comprobante)
+            tipo_origen = m.group(1) if m else '00'
+            tipo = tipo_origen if tipo_origen in TIPOS_COMPRA else ('07' if tipo_origen == '97' else '00')
+            serie, _, numero = a.comprobante.rpartition('-') if '-' in a.comprobante else ('', '', a.comprobante)
+            grupos[(a.contacto_doc, tipo, serie.upper()[-4:], (numero.lstrip('0') or '0')[-10:])].append(
+                (a, -1 if tipo_origen in ('07', '97') else 1))
+        compras = (Compra.objects.filter(es_historico=True)  # también las que quedaron con saldo inicial por pagar
+                   .values_list('pk', 'tercero__numero_doc', 'tipo_comprobante', 'serie', 'numero', 'tipo_operacion'))
+        actuales = defaultdict(lambda: D0)
+        pendientes = set(CompraItem.objects.filter(documento__es_historico=True, producto__isnull=True)
+                         .values_list('documento_id', flat=True))
+        for doc_id, sub in CompraItem.objects.filter(documento__es_historico=True).values_list('documento_id',
+                                                                                              'subtotal'):
+            actuales[doc_id] += sub
+        borrar, nuevos, rehechas, distintas = [], [], 0, 0
+        for pk, doc, tipo, serie, numero, operacion in compras.iterator(chunk_size=5000):
+            lineas = grupos.get((doc, tipo, serie, numero))
+            if not lineas or pk not in pendientes:
+                continue
+            items = self._lineas_compra([a for a, _ in lineas], lineas[0][1], operacion == 'GRAVADA')
+            if sum((i['subtotal'] for i in items), D0) != actuales[pk]:
+                distintas += 1
+                continue
+            borrar.append(pk)
+            nuevos += [CompraItem(documento_id=pk, **i) for i in items]
+            rehechas += 1
+        for i in range(0, len(borrar), LOTE):
+            CompraItem.objects.filter(documento_id__in=borrar[i:i + LOTE]).delete()
+        self._bulk(CompraItem, nuevos)
+        enlazadas = sum(1 for i in nuevos if i.producto_id)
+        self.resumen['Productos en facturas de compra'] = (f'{rehechas} facturas rehechas: {enlazadas} de {len(nuevos)} '
+                                                           f'líneas con producto; {distintas} sin cambios porque sus '
+                                                           f'asientos no cuadran con sus líneas; '
+                                                           f'{getattr(self, "productos_creados", 0)} productos de solo '
+                                                           f'compra creados')
+        self.log(f'Productos en facturas de compra: {self.resumen["Productos en facturas de compra"]}')
 
     # ---------------------------------------------------------------- cuentas por pagar (saldos iniciales)
     def paso_por_pagar(self):
