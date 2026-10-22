@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.apps import apps
@@ -380,6 +381,11 @@ class Producto(models.Model):
     afectacion_igv = models.CharField('Afectación del IGV', max_length=10, choices=AFECTACION_LINEA, blank=True,
                                       default='', help_text='Ej. libros (exonerados) o productos agrarios '
                                                             '(inafectos). Vacío = según el comprobante')
+    # ---- detracción (SPOT): las facturas de compra y de venta del producto la toman de aquí
+    detraccion_codigo = models.CharField('Bien/servicio con detracción', max_length=3, blank=True, default='',
+                                         help_text='Catálogo 54 SUNAT. Vacío = no está sujeto a detracción')
+    detraccion_pct = models.DecimalField('% Detracción', max_digits=5, decimal_places=2, default=D0,
+                                         help_text='La factura lo toma si no indica otro y su total supera S/ 700')
     descripcion = models.TextField('Descripción', blank=True)
     activo = models.BooleanField(default=True)
     imagen = models.ForeignKey('ArchivoSustento', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
@@ -1694,6 +1700,11 @@ class ComprobanteBase(TotalesMixin):
     retencion_monto = models.DecimalField('Retención', max_digits=14, decimal_places=2, default=D0)
     percepcion_pct = models.DecimalField('% Percepción', max_digits=5, decimal_places=2, default=D0)
     percepcion_monto = models.DecimalField('Percepción', max_digits=14, decimal_places=2, default=D0)
+    # constancia del depósito de la detracción en el Banco de la Nación (compras: PLE 8.1, campos 32 y 33)
+    detraccion_constancia = models.CharField('N° constancia de detracción', max_length=40, blank=True,
+                                             help_text='Se llena con el N° de operación del depósito de detracción '
+                                                       'registrado en Finanzas')
+    detraccion_fecha = models.DateField('Fecha de la constancia', null=True, blank=True)
     glosa = models.TextField(blank=True)
     estado = models.CharField(max_length=10, choices=ESTADO_COMPROBANTE, default='REGISTRADO')
     almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, null=True, blank=True, verbose_name='Almacén')
@@ -1764,6 +1775,90 @@ class ComprobanteBase(TotalesMixin):
     @property
     def signo(self):
         return -1 if self.es_nota_credito else 1
+
+    UMBRAL_DETRACCION = Decimal('700')  # monto mínimo de la operación sujeta al SPOT (S/)
+
+    def proponer_detraccion(self):
+        """Factura nueva sin % de detracción: toma el de sus productos (el más alto) si el total supera S/ 700.
+        En ventas también el código del bien o servicio. Devuelve True si la aplicó."""
+        if self.detraccion_pct or self.tipo_comprobante != '01' or \
+                self.total * self.tc_efectivo <= self.UMBRAL_DETRACCION:
+            return False
+        sujetos = [i.producto for i in self.items.select_related('producto')
+                   if i.producto_id and i.producto.detraccion_pct]
+        if not sujetos:
+            return False
+        producto = max(sujetos, key=lambda p: p.detraccion_pct)
+        self.detraccion_pct = producto.detraccion_pct
+        if hasattr(self, 'detraccion_codigo') and producto.detraccion_codigo:
+            self.detraccion_codigo = producto.detraccion_codigo
+        self.calcular_totales()
+        return True
+
+    # ---- detracción: depósito y constancia
+    def sincronizar_constancia(self, mov):
+        """N° y fecha de la constancia desde el depósito de detracción (movimiento de Finanzas con concepto
+        Detracción) del comprobante: se llenan si están vacíos; si ese depósito se anula, pasan al siguiente vigente
+        o quedan vacíos. Lo registrado a mano no se reemplaza."""
+        numero = (mov.numero_operacion or '').strip()[:40]
+        if mov.estado == 'VIGENTE':
+            if self.detraccion_constancia or not numero:
+                return
+            datos = {'detraccion_constancia': numero, 'detraccion_fecha': mov.fecha}
+        elif numero and self.detraccion_constancia == numero:
+            otro = (self.movimientos.filter(concepto='DETRACCION').exclude(pk=mov.pk).exclude(numero_operacion='')
+                    .order_by('-fecha', '-pk').first())
+            datos = {'detraccion_constancia': otro.numero_operacion.strip()[:40] if otro else '',
+                     'detraccion_fecha': otro.fecha if otro else None}
+        else:
+            return
+        type(self).objects.filter(pk=self.pk).update(**datos)
+        for campo, valor in datos.items():
+            setattr(self, campo, valor)
+
+    @property
+    def sujeto_a_detraccion(self):
+        return (self.detraccion_monto > 0 and self.tipo_comprobante == '01' and self.estado == 'REGISTRADO'
+                and not self.es_historico)
+
+    def _cobro_sin_detraccion(self):
+        """Fecha en que lo cobrado/pagado fuera de la detracción superó el neto sin ella (el cliente o nosotros
+        pagamos el total sin depositar la detracción), o None."""
+        tope = self.neto - self.detraccion_monto - self.pagado_anterior
+        pagos = [(m.fecha, m.monto_doc) for m in self.movimientos.exclude(concepto='DETRACCION')]
+        pagos += [(a.fecha, a.monto_doc) for a in self.aplicaciones.all()]
+        acumulado = D0
+        for fecha, monto in sorted(pagos, key=lambda p: p[0]):
+            acumulado += monto
+            if acumulado > tope + Decimal('0.01'):
+                return fecha
+        return None
+
+    @property
+    def detraccion_estado(self):
+        """(estado, fecha del cobro/pago total o None) de la detracción del comprobante:
+        DEPOSITADA (tiene constancia), SIN_DEPOSITO (se cobró/pagó el total sin depositar la detracción) o
+        PENDIENTE (aún no se deposita). None si no está sujeto a detracción."""
+        if not self.sujeto_a_detraccion:
+            return None
+        if self.detraccion_constancia:
+            return 'DEPOSITADA', None
+        fecha = self._cobro_sin_detraccion()
+        return ('SIN_DEPOSITO', fecha) if fecha else ('PENDIENTE', None)
+
+    @property
+    def detraccion_plazo(self):
+        """Ventas cobradas por el total: el proveedor deposita la detracción hasta el 5.° día hábil siguiente al
+        cobro (no considera feriados)."""
+        estado = self.detraccion_estado
+        if not estado or estado[0] != 'SIN_DEPOSITO':
+            return None
+        fecha, habiles = estado[1], 0
+        while habiles < 5:
+            fecha += timedelta(days=1)
+            if fecha.weekday() < 5:
+                habiles += 1
+        return fecha
 
     def calcular_totales(self):
         super().calcular_totales()

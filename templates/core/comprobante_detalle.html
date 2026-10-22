@@ -82,6 +82,29 @@
 <div class="alert alert-danger py-2 d-flex flex-wrap gap-2 justify-content-between align-items-center"><div><i class="bi bi-lock"></i> <b>Pago bloqueado.</b> {{ doc.motivo_bloqueo_pago }} Finanzas no la paga hasta que Compras libere el pago.</div>
   {% if puede.compras_portal %}<form method="post" action="{% url 'compras:liberar_pago' doc.pk %}" class="d-flex gap-2">{% csrf_token %}<input name="comentario" class="form-control form-control-sm" style="min-width:260px" placeholder="Motivo de la liberación (ej. precio acordado por correo)" required minlength="10"><button class="btn btn-sm btn-outline-danger text-nowrap"><i class="bi bi-unlock"></i> Liberar pago</button></form>{% endif %}</div>
 {% elif app == 'compras' and 'Liberado por' in doc.motivo_bloqueo_pago %}<div class="alert alert-secondary py-2 small"><i class="bi bi-unlock"></i> {{ doc.motivo_bloqueo_pago }}</div>{% endif %}
+{% if detraccion %}{% with situacion=detraccion.0 %}
+<div class="alert {% if situacion == 'SIN_DEPOSITO' %}alert-danger{% elif situacion == 'PENDIENTE' %}alert-warning{% else %}alert-success{% endif %} py-2 small">
+  <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+    <div><i class="bi bi-bank"></i> <b>Detracción S/ {{ doc.detr_pen|money }}</b> ·
+      {% if situacion == 'DEPOSITADA' %}depositada: constancia N° {{ doc.detraccion_constancia }}{% if doc.detraccion_fecha %} del {{ doc.detraccion_fecha|date:'d/m/Y' }}{% endif %}{% if doc.detraccion_deposito_id %} (depositada por la empresa){% endif %}.
+      {% elif situacion == 'PENDIENTE' %}{% if app == 'ventas' %}pendiente: el cliente debe depositarla en la cuenta de detracciones de la empresa. Al recibirla, regístrela con «Detracción» (cobranza) y el N° de constancia.{% else %}pendiente de depósito en la cuenta del BN del proveedor: regístrelo con «Detracción» y el N° de constancia como N° de operación.{% endif %}
+      {% elif app == 'ventas' %}el cliente pagó el total el {{ detraccion.1|date:'d/m/Y' }} sin depositarla. Como proveedor, la empresa debe depositarla en su cuenta del Banco de la Nación <b class="{% if detraccion_plazo < hoy %}text-decoration-underline{% endif %}">hasta el {{ detraccion_plazo|date:'d/m/Y' }}</b>{% if detraccion_plazo < hoy %} (plazo vencido: regularice con la gradualidad de multas){% endif %} (5 días hábiles desde el cobro).
+      {% else %}se pagó el total al proveedor el {{ detraccion.1|date:'d/m/Y' }} sin depositarla. El proveedor debe depositarla: pídale la constancia y regístrela aquí (va al Registro de Compras 8.1 y sustenta el crédito fiscal).{% endif %}
+    </div>
+    <div class="d-flex gap-2">
+      {% if app == 'ventas' and situacion == 'SIN_DEPOSITO' and 'finanzas' in mods %}<a href="{% url 'ventas:deposito_detraccion' doc.pk %}" class="btn btn-sm btn-danger text-nowrap"><i class="bi bi-bank"></i> Registrar depósito de la detracción</a>{% endif %}
+      <button class="btn btn-sm btn-outline-secondary text-nowrap" data-bs-toggle="collapse" data-bs-target="#form-constancia"><i class="bi bi-pencil"></i> {% if doc.detraccion_constancia %}Corregir{% else %}Registrar{% endif %} constancia</button>
+    </div>
+  </div>
+  <div class="collapse mt-2" id="form-constancia">
+    <form method="post" action="{% url app|add:':constancia_detraccion' doc.pk %}" class="row g-2 align-items-end">{% csrf_token %}
+      <div class="col-md-4"><label class="form-label small mb-1">N° de constancia</label><input name="numero" value="{{ doc.detraccion_constancia }}" maxlength="40" required class="form-control form-control-sm"></div>
+      <div class="col-md-3"><label class="form-label small mb-1">Fecha del depósito</label><input type="date" name="fecha" value="{{ doc.detraccion_fecha|date:'Y-m-d' }}" required class="form-control form-control-sm"></div>
+      <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Guardar</button></div>
+    </form>
+  </div>
+</div>
+{% endwith %}{% endif %}
 
 <div class="row g-3">
   <div class="col-lg-8">
@@ -178,7 +201,8 @@
         <tr><td>IGV</td><td class="num">{{ doc.igv|money }}</td></tr>
         {% if doc.icbper %}<tr><td>ICBPER</td><td class="num">{{ doc.icbper|money }}</td></tr>{% endif %}
         <tr class="fw-bold fs-6"><td>TOTAL {{ doc.simbolo }}</td><td class="num">{{ doc.total|money }}</td></tr>
-        {% if doc.detraccion_monto %}<tr class="text-muted"><td>Detracción {{ doc.detraccion_pct|floatformat:0 }}%</td><td class="num">{{ doc.detraccion_monto|money }}</td></tr>{% endif %}
+        {% if doc.detraccion_monto %}<tr class="text-muted"><td>Detracción {{ doc.detraccion_pct|floatformat:0 }}%</td><td class="num">{{ doc.detraccion_monto|money }}</td></tr>
+        {% if detraccion %}<tr class="text-muted small"><td>Constancia de depósito</td><td class="text-end">{% if doc.detraccion_constancia %}N° {{ doc.detraccion_constancia }}{% if doc.detraccion_fecha %} · {{ doc.detraccion_fecha|date:'d/m/Y' }}{% endif %}{% else %}<span class="text-danger">Pendiente</span>{% endif %}</td></tr>{% endif %}{% endif %}
         {% if doc.retencion_monto %}<tr class="text-muted"><td>Retención</td><td class="num">-{{ doc.retencion_monto|money }}</td></tr>{% endif %}
         {% if doc.percepcion_monto %}<tr class="text-muted"><td>Percepción</td><td class="num">+{{ doc.percepcion_monto|money }}</td></tr>{% endif %}
         {% if not doc.doc_referencia_id %}

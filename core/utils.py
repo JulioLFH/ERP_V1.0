@@ -213,10 +213,13 @@ def procesar_documento(data, form_class, formset_class, instance, al_guardar=Non
             from .tipo_cambio import venta_del_dia
             fecha = getattr(instance, 'fecha_emision', None) or getattr(instance, 'fecha', None)
             instance.tipo_cambio = venta_del_dia(fecha)
+        nuevo = instance.pk is None
         doc = form.save()
         formset.instance = doc
         formset.save()
         doc.calcular_totales()
+        if nuevo and hasattr(doc, 'proponer_detraccion'):
+            doc.proponer_detraccion()  # % de detracción del producto si la factura no trae otro
         doc.save()
         if referencia_anterior and referencia_anterior != str(doc):
             # cambió el tipo o el número: el kardex sigue apuntando al documento (anulaciones y lotes lo buscan)

@@ -240,6 +240,7 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
         ('compras', 'Compras', 'bi-bag', ['puede_comprarse', 'precio_compra', 'proveedor', 'unidad_compra',
                                           'factor_compra']),
         ('ventas', 'Ventas', 'bi-receipt', ['puede_venderse', 'precio_venta', 'afectacion_igv']),
+        ('detraccion', 'Detracción', 'bi-bank', ['detraccion_codigo', 'detraccion_pct']),
         ('contabilidad', 'Contabilidad', 'bi-journal-bookmark',
          ['centro_beneficio', 'cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo']),
         ('planificacion', 'Planificación', 'bi-calendar-check',
@@ -341,6 +342,10 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
             self.fields['codigo'].required = True
         if not self.instance.imagen_id:
             del self.fields['quitar_imagen']
+        from .sunat import DETRACCION_TIPOS
+        self.fields['detraccion_codigo'].widget = forms.Select(
+            choices=[('', 'No sujeto a detracción')] + DETRACCION_TIPOS, attrs={'class': 'form-select form-select-sm'})
+        self.fields['detraccion_pct'].required = False
 
     def pestanas(self):
         return [(clave, titulo, icono, [self[c] for c in campos if c in self.fields])
@@ -353,6 +358,14 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
             self.add_error('precio_venta', 'Indique el precio de venta.')
         if datos.get('stock_maximo') and datos.get('stock_minimo') and datos['stock_maximo'] < datos['stock_minimo']:
             self.add_error('stock_maximo', 'Debe ser mayor o igual al stock mínimo.')
+        pct = datos.get('detraccion_pct') or Decimal('0')
+        datos['detraccion_pct'] = pct
+        if not 0 <= pct <= 100:
+            self.add_error('detraccion_pct', 'Debe estar entre 0 y 100.')
+        elif pct and not datos.get('detraccion_codigo'):
+            self.add_error('detraccion_codigo', 'Indique el bien o servicio sujeto a detracción (catálogo 54).')
+        elif datos.get('detraccion_codigo') and not pct:
+            self.add_error('detraccion_pct', 'Indique el % de detracción del bien o servicio.')
         return datos
 
 

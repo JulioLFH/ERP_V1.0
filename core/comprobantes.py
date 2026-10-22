@@ -199,11 +199,21 @@ class ComprobanteViews:
         return render(request, 'core/comprobante_detalle.html', self._ctx(
             doc=doc, items=doc.items.select_related('producto'), notas=doc.notas.all(),
             movimientos=doc.movimientos.select_related('cuenta'), puede_editar=self.puede_editar(doc),
-            acciones_inv=acciones_para(doc), operaciones_inv=operaciones_de(doc), activos_doc=activos))
+            acciones_inv=acciones_para(doc), operaciones_inv=operaciones_de(doc), activos_doc=activos,
+            detraccion=doc.detraccion_estado, detraccion_plazo=doc.detraccion_plazo, hoy=timezone.localdate()))
 
     def imprimir(self, request, pk):
         doc = get_object_or_404(self.modelo, pk=pk)
-        return render(request, 'core/comprobante_imprimir.html', self._ctx(doc=doc, items=doc.items.all()))
+        detraccion = None
+        if doc.detraccion_monto and hasattr(doc, 'detraccion_codigo'):  # factura de venta sujeta al SPOT
+            from .sunat import DETRACCION_TIPOS
+            from .sunat_directo import cuenta_detracciones
+            detraccion = {'cuenta': cuenta_detracciones(), 'monto_pen': doc.detr_pen,
+                          'bien': dict(DETRACCION_TIPOS).get(doc.detraccion_codigo or '35', '')}
+        cuotas = getattr(doc, 'cronograma_cuotas', None) or []  # ventas al crédito: lo que se informa a SUNAT
+        return render(request, 'core/comprobante_imprimir.html',
+                      self._ctx(doc=doc, items=doc.items.all(), detraccion=detraccion, cuotas=cuotas,
+                                cuotas_total=sum((c[2] for c in cuotas), D0)))
 
     def motivo_bloqueo_anulacion(self, doc):
         if doc.estado == 'ANULADO':
@@ -248,6 +258,72 @@ class ComprobanteViews:
         """Los comprobantes no se eliminan: se anulan con motivo (queda el registro y la auditoría)."""
         messages.error(request, 'Los comprobantes no se eliminan: use "Anular" e indique el motivo.')
         return redirect(self._url('detalle', pk))
+
+    # ------------------------------------------------------------ detracciones
+    def constancia(self, request, pk):
+        """N° y fecha de la constancia de depósito de la detracción (la que entrega el proveedor si se le pagó el
+        total, o la corrección de la que se llenó sola)."""
+        from .detracciones import ConstanciaForm
+        doc = get_object_or_404(self.modelo, pk=pk)
+        form = ConstanciaForm(request.POST or None)
+        if request.method == 'POST' and not doc.detraccion_monto:
+            messages.error(request, 'El comprobante no tiene detracción.')
+        elif request.method == 'POST' and form.is_valid():
+            doc.detraccion_constancia = form.cleaned_data['numero'].strip()
+            doc.detraccion_fecha = form.cleaned_data['fecha']
+            doc.save(update_fields=['detraccion_constancia', 'detraccion_fecha'])
+            messages.success(request, f'Constancia de detracción N° {doc.detraccion_constancia} registrada.')
+        elif request.method == 'POST':
+            messages.error(request, 'Indique el N° de constancia y la fecha del depósito.')
+        return redirect(self._url('detalle', pk))
+
+    def deposito_detraccion(self, request, pk):
+        """Venta cobrada por el total: la empresa deposita la detracción en su cuenta del Banco de la Nación."""
+        from .detracciones import DepositoProveedorForm, depositar_como_proveedor
+        doc = get_object_or_404(self.modelo, pk=pk)
+        estado = doc.detraccion_estado if self.app == 'ventas' else None
+        if not estado or estado[0] != 'SIN_DEPOSITO':
+            messages.error(request, 'Solo se registra cuando el cliente pagó el total de una venta con detracción y '
+                                    'esta aún no tiene constancia.')
+            return redirect(self._url('detalle', pk))
+        form = DepositoProveedorForm(request.POST or None, request.FILES or None,
+                                     initial={'fecha': timezone.localdate()})
+        if request.method == 'POST' and form.is_valid():
+            try:
+                depositar_como_proveedor(doc, form.cleaned_data, request.user)
+            except ValueError as exc:
+                form.add_error(None, str(exc))
+            else:
+                messages.success(request, f'Depósito de la detracción de {doc} registrado (constancia '
+                                          f'{form.cleaned_data["numero"]}).')
+                return redirect(self._url('detalle', pk))
+        return render(request, 'core/form.html', {
+            'form': form, 'titulo': f'Depósito de la detracción de {doc} (S/ {doc.detr_pen:,.2f})',
+            'ayuda': f'El cliente pagó el total sin depositar la detracción. Como proveedor, deposítela en su cuenta '
+                     f'de detracciones del Banco de la Nación hasta el {doc.detraccion_plazo:%d/%m/%Y} (5 días '
+                     f'hábiles desde el cobro). Se registra como transferencia desde su banco.'})
+
+    def detracciones(self, request):
+        """Detracciones de compras o ventas: depositadas, pendientes y cobradas/pagadas por el total sin depósito."""
+        from .detracciones import pendientes
+        periodo = normalizar_periodo(request.GET.get('periodo', ''))
+        estado = request.GET.get('estado', '')
+        filas = pendientes(self.modelo, periodo, estado)
+        nombres = {'DEPOSITADA': 'Depositada', 'PENDIENTE': 'Pendiente de depósito',
+                   'SIN_DEPOSITO': 'Cobrada por el total: la empresa debe depositarla' if self.app == 'ventas'
+                   else 'Pagada por el total: falta la constancia del proveedor'}
+        if request.GET.get('formato') == 'excel':
+            datos = [[d.fecha_emision.strftime('%d/%m/%Y'), d.numero_completo, d.tercero.numero_doc, d.tercero.nombre,
+                      d.moneda, d.total, d.detraccion_pct, d.detr_pen, nombres[s], d.detraccion_constancia,
+                      d.detraccion_fecha.strftime('%d/%m/%Y') if d.detraccion_fecha else '',
+                      plazo.strftime('%d/%m/%Y') if plazo else ''] for d, s, _, plazo in filas]
+            return excel_response(f'Detracciones_{self.app}_{periodo or "todos"}', f'DETRACCIONES {self.titulo.upper()}',
+                                  ['Fecha', 'Número', 'RUC / DNI', self.etiqueta_tercero, 'Moneda', 'Total', '%',
+                                   'Detracción S/', 'Estado', 'N° constancia', 'Fecha constancia', 'Depositar hasta'],
+                                  datos)
+        return render(request, 'core/detracciones.html', self._ctx(
+            filas=[(d, s, nombres[s], fecha, plazo) for d, s, fecha, plazo in filas], periodo=periodo, estado=estado,
+            nombres=nombres, hoy=timezone.localdate()))
 
     def trasladar(self, request, pk):
         """Traslada el comprobante a otro periodo de registro."""
@@ -459,6 +535,9 @@ class ComprobanteViews:
             path('<int:pk>/anular/', lr(self.anular), name='anular'),
             path('<int:pk>/eliminar/', lr(self.eliminar), name='eliminar'),
             path('<int:pk>/trasladar/', lr(self.trasladar), name='trasladar'),
+            path('<int:pk>/constancia-detraccion/', lr(self.constancia), name='constancia_detraccion'),
+            path('<int:pk>/deposito-detraccion/', lr(self.deposito_detraccion), name='deposito_detraccion'),
+            path('detracciones/', lr(self.detracciones), name='detracciones'),
             path('registro/', lr(self.registro), name='registro'),
             path('notas/', lr(self.notas), name='notas'),
             path('pendientes/', lr(self.pendientes), name='pendientes'),

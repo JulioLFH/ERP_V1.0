@@ -258,6 +258,13 @@ class Movimiento(models.Model):
                     self.monto_doc = r2(self.monto * doc.tipo_cambio)
             self.monto_doc_pen = r2(self.monto_doc * doc.tc_efectivo)
         super().save(*args, **kwargs)
+        if self.concepto == 'DETRACCION' and (self.compra_id or self.venta_id):
+            (self.compra or self.venta).sincronizar_constancia(self)  # N° y fecha de la constancia (PLE 8.1)
+        elif self.estado == 'ANULADO' and self.concepto == 'TRANSFERENCIA':
+            # anulado el depósito de la detracción que hizo la empresa por una venta cobrada por el total
+            from ventas.models import Venta
+            Venta.objects.filter(detraccion_deposito=self).update(detraccion_deposito=None, detraccion_constancia='',
+                                                                  detraccion_fecha=None)
 
 
 class Extracto(models.Model):

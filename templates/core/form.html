@@ -9,6 +9,7 @@
   <div class="card-body">
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
+      {% if ayuda %}<div class="alert alert-info py-2 small"><i class="bi bi-info-circle"></i> {{ ayuda }}</div>{% endif %}
       {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
       <div class="row g-3">
         {% for field in form %}

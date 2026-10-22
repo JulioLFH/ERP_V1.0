@@ -77,6 +77,10 @@ class Venta(ComprobanteBase, ElectronicoMixin):
     vendedor = models.CharField(max_length=80, blank=True)
     detraccion_codigo = models.CharField('Bien/servicio con detracción', max_length=3, blank=True, default='35',
                                          help_text='Catálogo 54 SUNAT; solo si la venta tiene detracción')
+    # el cliente pagó el total: la empresa (proveedor) depositó la detracción en su cuenta del BN (transferencia)
+    detraccion_deposito = models.ForeignKey('finanzas.Movimiento', on_delete=models.SET_NULL, null=True, blank=True,
+                                            related_name='+', editable=False,
+                                            verbose_name='Depósito de la detracción hecho por la empresa')
     descontar_stock = models.BooleanField('Mover almacén', default=True)
     centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
                                      verbose_name='Centro de costo',

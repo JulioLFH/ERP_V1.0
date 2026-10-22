@@ -1,0 +1,32 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Detracciones de {{ titulo_modulo|lower }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-bank"></i> Detracciones de {{ titulo_modulo|lower }}</h1>
+  <a href="?periodo={{ periodo }}&estado={{ estado }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+</div>
+<p class="small text-muted" style="max-width:1000px">{% if app == 'ventas' %}Facturas de venta con detracción. Si el cliente pagó el total sin depositarla, la empresa (proveedor) debe depositarla en su cuenta del Banco de la Nación hasta el 5.° día hábil siguiente al cobro (el plazo no considera feriados).{% else %}Facturas de compra con detracción. La constancia (N° y fecha del depósito) va al Registro de Compras 8.1. Si se pagó el total al proveedor sin depositarla, él debe depositarla: pídale la constancia y regístrela en la compra.{% endif %}</p>
+<form class="row g-2 align-items-end mb-3" method="get">
+  <div class="col-auto"><label class="form-label small mb-1">Periodo</label><input name="periodo" value="{{ periodo }}" placeholder="AAAAMM" maxlength="7" class="form-control form-control-sm" style="width:110px"></div>
+  <div class="col-auto"><label class="form-label small mb-1">Estado</label>
+    <select name="estado" class="form-select form-select-sm"><option value="">Todos</option>{% for clave, nombre in nombres.items %}<option value="{{ clave }}" {% if estado == clave %}selected{% endif %}>{{ nombre }}</option>{% endfor %}</select></div>
+  <div class="col-auto"><button class="btn btn-sm btn-primary">Filtrar</button></div>
+</form>
+<div class="card"><div class="table-responsive">
+  <table class="table table-sm table-hover mb-0 align-middle">
+    <thead><tr><th>Fecha</th><th>Comprobante</th><th>{{ etiqueta_tercero }}</th><th class="num">Total</th><th class="num">Detracción S/</th><th>Estado</th><th>Constancia</th>{% if app == 'ventas' %}<th>Depositar hasta</th>{% endif %}</tr></thead>
+    <tbody>{% for d, situacion, nombre, fecha, plazo in filas %}
+      <tr class="{% if situacion == 'SIN_DEPOSITO' %}table-danger{% elif situacion == 'PENDIENTE' %}table-warning{% endif %}">
+        <td>{{ d.fecha_emision|date:'d/m/Y' }}</td>
+        <td><a href="{% url app|add:':detalle' d.pk %}">{{ d.numero_completo }}</a></td>
+        <td>{{ d.tercero.nombre|truncatechars:40 }}<div class="small text-muted">{{ d.tercero.numero_doc }}</div></td>
+        <td class="num">{{ d.simbolo }} {{ d.total|money }}</td>
+        <td class="num">{{ d.detr_pen|money }} <span class="small text-muted">({{ d.detraccion_pct|floatformat:0 }}%)</span></td>
+        <td>{{ nombre }}{% if fecha %}<div class="small text-muted">{% if app == 'ventas' %}Cobrado{% else %}Pagado{% endif %} el {{ fecha|date:'d/m/Y' }}</div>{% endif %}</td>
+        <td>{% if d.detraccion_constancia %}N° {{ d.detraccion_constancia }}{% if d.detraccion_fecha %}<div class="small text-muted">{{ d.detraccion_fecha|date:'d/m/Y' }}</div>{% endif %}{% else %}—{% endif %}</td>
+        {% if app == 'ventas' %}<td>{% if plazo %}<span class="{% if plazo < hoy %}text-danger fw-semibold{% endif %}">{{ plazo|date:'d/m/Y' }}{% if plazo < hoy %} · vencido{% endif %}</span>{% endif %}</td>{% endif %}
+      </tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted">Sin facturas con detracción{% if periodo %} en el periodo {{ periodo }}{% endif %}.</td></tr>{% endfor %}</tbody>
+  </table>
+</div></div>
+{% endblock %}

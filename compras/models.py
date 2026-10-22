@@ -135,7 +135,6 @@ class Compra(ComprobanteBase):
                                        help_text='Solo DUA: base del IGV de importación junto con el ad valorem')
     igv_importacion = models.DecimalField('IGV + IPM de la DUA', max_digits=14, decimal_places=2, null=True,
                                           blank=True, help_text='Solo DUA. Vacío = 18 % de (CIF + ad valorem)')
-
     class Meta(ComprobanteBase.Meta):
         verbose_name = 'compra'
         unique_together = [('tercero', 'tipo_comprobante', 'serie', 'numero')]

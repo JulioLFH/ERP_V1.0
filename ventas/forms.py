@@ -43,6 +43,9 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         self.fields['doc_referencia'].queryset = Venta.objects.filter(
             estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
         remoto(self.fields['doc_referencia'], 'ventas', perezoso=True)
+        if not self.instance.pk:
+            self.fields['detraccion_pct'].help_text = ('0 = el % y el código del producto, si la factura supera '
+                                                       'S/ 700 (Productos › Detracción)')
         for campo in ('cuotas', 'dias_entre_cuotas'):  # opcionales: vacío = 1 cuota / 30 días
             self.fields[campo].required = False
         self.series = Serie.objects.filter(activo=True, tipo__in=['01', '03', '07', '08', '12', '00'])

@@ -151,7 +151,9 @@ class ComprasViews(ComprobanteViews):
             ple_num(0 if anulado else s * d.total), d.moneda, f'{d.tipo_cambio:.3f}',
             fmt_fecha(ref.fecha_emision) if ref else '', ref.tipo_comprobante if ref else '',
             ref.serie if ref else '', '', ref.numero if ref else '',
-            '', '', '1' if d.retencion_monto else '', '', '', '', '', '', '', '', '1' if d.total >= 2000 else '',
+            # constancia de depósito de la detracción (fecha y número)
+            fmt_fecha(d.detraccion_fecha) if d.detraccion_constancia and d.detraccion_fecha else '',
+            d.detraccion_constancia, '1' if d.retencion_monto else '', '', '', '', '', '', '', '', '1' if d.total >= 2000 else '',
             '1',
         ]
         return '|'.join(str(c) for c in campos) + '|'

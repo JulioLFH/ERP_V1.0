@@ -33,7 +33,21 @@
   <div class="row">
     <div class="col-7 small text-muted">
       {% if doc.glosa %}<p>{{ doc.glosa }}</p>{% endif %}
-      {% if doc.detraccion_monto %}<p>Operación sujeta al SPOT ({{ doc.detraccion_pct|floatformat:0 }}%): {{ doc.simbolo }} {{ doc.detraccion_monto|money }}.</p>{% endif %}
+      {% if detraccion %}
+      <div class="border rounded p-2 mb-2 text-body">
+        <div class="fw-bold">Operación sujeta al Sistema de Pago de Obligaciones Tributarias con el Gobierno Central (SPOT)</div>
+        <div>Bien o servicio: {{ detraccion.bien }}</div>
+        <div>Porcentaje: {{ doc.detraccion_pct|floatformat:2 }}% · Monto de la detracción: <b>S/ {{ detraccion.monto_pen|money }}</b>{% if doc.moneda != 'PEN' %} ({{ doc.simbolo }} {{ doc.detraccion_monto|money }} al T.C. {{ doc.tipo_cambio }}){% endif %}</div>
+        <div>Cta. de detracciones Banco de la Nación: <b>{{ detraccion.cuenta|default:'(registre la cuenta en Finanzas › Caja y bancos)' }}</b></div>
+      </div>
+      {% elif doc.detraccion_monto %}<p>Operación sujeta al SPOT ({{ doc.detraccion_pct|floatformat:0 }}%): {{ doc.simbolo }} {{ doc.detraccion_monto|money }}.</p>{% endif %}
+      {% if cuotas %}
+      <div class="text-body mb-2"><div class="fw-bold">Forma de pago: Crédito · Monto neto pendiente de pago: {{ doc.simbolo }} {{ cuotas_total|money }}</div>
+        <table class="table table-sm table-bordered mb-0 mt-1" style="max-width:360px"><thead class="table-light"><tr><th>Cuota</th><th>Vencimiento</th><th class="num">Importe</th></tr></thead>
+          <tbody>{% for n, fecha, importe in cuotas %}<tr><td>{{ n }}</td><td>{{ fecha|date:'d/m/Y' }}</td><td class="num">{{ doc.simbolo }} {{ importe|money }}</td></tr>{% endfor %}</tbody></table>
+        {% if doc.detraccion_monto or doc.retencion_monto %}<div class="small text-muted">Neto de {% if doc.detraccion_monto %}detracción{% endif %}{% if doc.detraccion_monto and doc.retencion_monto %} y {% endif %}{% if doc.retencion_monto %}retención{% endif %}.</div>{% endif %}
+      </div>
+      {% endif %}
       {% if doc.percepcion_monto %}<p>Percepción: {{ doc.simbolo }} {{ doc.percepcion_monto|money }}</p>{% endif %}
     </div>
     <div class="col-5"><table class="table table-sm">
