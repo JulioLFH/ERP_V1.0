@@ -24,7 +24,8 @@ ACCIONES = {
                 ('convertir_solped', 'Convertir solicitudes de pedido en órdenes de compra o licitaciones', False),
                 ('hes', 'Registrar conformidades de servicio (HES) con sus adjuntos', False),
                 ('liberar_hes', 'Liberar conformidades de servicio (sin reglas de aprobación)', True),
-                ('hes_todas', 'Ver todas las conformidades de servicio', True)],
+                ('hes_todas', 'Ver todas las conformidades de servicio', True),
+                ('grupos', 'Configurar grupos de compras y compradores', True)],
     'inventario': [('operar', 'Registrar y confirmar operaciones de almacén', False),
                    ('ajustar', 'Ajustes de inventario', True),
                    ('aprobar_mayor', 'Aprobar diferencias de inventario físico sobre el tope', True),
@@ -199,6 +200,7 @@ RUTAS = {
     'compras:solped_bandeja': {'POST': 'compras.convertir_solped'},
     'compras:solped_reglas': {'POST': 'compras.aprobar_oc'}, 'compras:conformidad': {'POST': 'compras.hes'},
     'compras:portal_tablero': 'compras.portal',
+    'compras:grupo_nuevo': 'compras.grupos', 'compras:grupo': 'compras.grupos',
     'compras:hes': lambda r: (None if r.method != 'POST' else 'compras.hes'
                               if r.POST.get('accion') in ('adjuntar', 'enviar', 'anular') else None),
     'activos:nuevo': 'activos.registrar', 'activos:editar': 'activos.registrar', 'activos:baja': 'activos.baja',

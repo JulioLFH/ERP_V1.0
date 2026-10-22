@@ -247,7 +247,22 @@ def movil(request):
 # ---------------------------------------------------------------- bandeja de Compras y conversión
 @login_required
 def bandeja(request):
+    from django.contrib.auth import get_user_model
+
+    from . import compradores
     lineas = srv.lineas_abiertas()
+    soy_comprador = compradores.es_comprador(request.user)
+    comprador = request.GET.get('comprador', 'mias' if soy_comprador else '')
+    if comprador == 'mias':
+        lineas = [l for l in lineas if l.comprador_id == request.user.pk]
+    elif comprador == 'sin':
+        lineas = [l for l in lineas if not l.comprador_id]
+    elif comprador.isdigit():
+        lineas = [l for l in lineas if l.comprador_id == int(comprador)]
+    hoy_ = timezone.localdate()
+    for l in lineas:  # plazo objetivo de la línea (días hábiles desde que se liberó o asignó)
+        l.dias = compradores.dias_habiles(compradores._fecha_liberada(l), hoy_)
+        l.plazo = compradores.plazo(l)
     proveedor = request.GET.get('proveedor', '')
     producto = request.GET.get('producto', '').strip().lower()
     hasta = request.GET.get('hasta', '')
@@ -271,6 +286,8 @@ def bandeja(request):
             clave = l.producto.nombre if l.producto_id else 'Sin producto (texto libre)'
         elif agrupar == 'fecha':
             clave = f'{l.solicitud.fecha_requerida:%d/%m/%Y}' if l.solicitud.fecha_requerida else 'Sin fecha'
+        elif agrupar == 'comprador':
+            clave = (l.comprador.get_full_name() or l.comprador.username) if l.comprador_id else 'Sin comprador'
         else:
             prov = l.proveedor_sugerido or (l.producto.proveedor if l.producto_id else None)
             clave = prov.nombre if prov else 'Sin proveedor sugerido'
@@ -279,6 +296,15 @@ def bandeja(request):
         ids = [int(x) for x in request.POST.getlist('linea') if x.isdigit()]
         que = request.POST.get('convertir')
         try:
+            if que == 'reasignar':
+                nuevo = get_user_model().objects.filter(pk=request.POST.get('nuevo_comprador') or 0).first()
+                n = compradores.reasignar(ids, nuevo, request.user, request.POST.get('motivo_reasignacion', ''))
+                messages.success(request, f'{n} línea(s) reasignadas a {nuevo}.')
+                return redirect(request.get_full_path())
+            if que == 'asignar':
+                n = compradores.asignar_lineas(srv.lineas_abiertas(), request.user)
+                messages.success(request, f'{n} línea(s) asignadas a su comprador según los grupos de compras.')
+                return redirect(request.get_full_path())
             if que == 'oc':
                 prov = Tercero.objects.filter(pk=request.POST.get('proveedor') or 0).first()
                 ordenes = srv.a_orden_compra(ids, request.user, proveedor=prov)
@@ -299,13 +325,19 @@ def bandeja(request):
                 messages.success(request, f'{lic} creada: registre las ofertas de los proveedores.')
                 return redirect('compras:licitacion', lic.pk)
             raise srv.ErrorSolped('Elija cómo convertir las líneas.')
-        except srv.ErrorSolped as exc:
+        except (srv.ErrorSolped, compradores.ErrorComprador) as exc:
             messages.error(request, str(exc))
             return redirect(request.get_full_path())
     from .abastecimiento import contratos_vigentes
+    from .models import GrupoCompras
+    ids_compradores = set(GrupoCompras.objects.filter(activo=True).values_list('comprador_id', flat=True))
     return render(request, 'compras/solped_bandeja.html', {
         'grupos': grupos, 'total': len(lineas), 'agrupar': agrupar, 'proveedor': proveedor,
-        'agrupaciones': [('proveedor', 'Proveedor sugerido'), ('producto', 'Producto'), ('fecha', 'Fecha requerida')],
+        'comprador': comprador, 'soy_comprador': soy_comprador,
+        'compradores': get_user_model().objects.filter(pk__in=ids_compradores).order_by('username'),
+        'usuarios': get_user_model().objects.filter(is_active=True, acceso_proveedor__isnull=True).order_by('username'),
+        'agrupaciones': [('proveedor', 'Proveedor sugerido'), ('producto', 'Producto'), ('fecha', 'Fecha requerida'),
+                         ('comprador', 'Comprador')],
         'producto': request.GET.get('producto', ''), 'hasta': hasta,
         'proveedores': Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS']).order_by('nombre'),
         'contratos': contratos_vigentes().select_related('proveedor'),

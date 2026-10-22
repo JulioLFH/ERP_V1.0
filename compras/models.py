@@ -32,6 +32,8 @@ class OrdenCompra(DocumentoBase):
     nivel_aprobado = models.PositiveSmallIntegerField(default=0, editable=False)
     observacion_aprobacion = models.CharField('Observación de la aprobación', max_length=300, blank=True,
                                               editable=False)
+    comprador = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                  verbose_name='Comprador', help_text='Vacío = quien la registra')
 
     class Meta(DocumentoBase.Meta):
         verbose_name = 'orden de compra'
@@ -522,6 +524,55 @@ class GastoEstimado(models.Model):
         unique_together = [('importacion', 'concepto')]
 
 
+# ================================================================ grupos de compras y compradores (COM-09)
+class GrupoCompras(models.Model):
+    """Grupo de compras (SAP: EKGRP): el comprador que atiende ciertas familias, tipos de producto y centros de costo,
+    con su plazo objetivo (SLA) de solicitud liberada a orden de compra enviada."""
+    TIPOS = [('MERCADERIA', 'Mercadería'), ('MATERIA_PRIMA', 'Materia prima'), ('SUMINISTRO', 'Suministros y repuestos'),
+             ('ENVASE', 'Envases y embalajes'), ('SERVICIO', 'Servicios'), ('ACTIVO', 'Activos fijos'),
+             ('IMPORTACION', 'Importaciones (proveedor del exterior)')]
+    codigo = models.CharField('Código', max_length=10, unique=True)
+    nombre = models.CharField(max_length=100)
+    comprador = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='grupos_compras')
+    jefe = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                             verbose_name='Jefe de compras', help_text='Recibe la alerta de las líneas vencidas')
+    familias = models.CharField(max_length=300, blank=True,
+                                help_text='Familias de producto que atiende, separadas por coma (ej. Repuestos, Salsas)')
+    tipos = models.JSONField('Tipos que atiende', default=list, blank=True)
+    centros = models.ManyToManyField('contabilidad.CentroCosto', blank=True, related_name='+',
+                                     verbose_name='Centros de costo', help_text='Vacío = todos')
+    plazo_dias = models.PositiveSmallIntegerField('Plazo objetivo (días hábiles)', default=3,
+                                                  help_text='De la solicitud liberada a la OC enviada')
+    plazo_urgente = models.PositiveSmallIntegerField('Plazo para urgentes (días hábiles)', default=1)
+    prioridad = models.PositiveSmallIntegerField(default=10, help_text='Menor = se elige primero si dos coinciden')
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['prioridad', 'codigo']
+        verbose_name = 'grupo de compras'
+        verbose_name_plural = 'grupos de compras'
+
+    def __str__(self):
+        return f'{self.codigo} {self.nombre}'
+
+    @property
+    def lista_familias(self):
+        return [f.strip().lower() for f in self.familias.split(',') if f.strip()]
+
+
+class AsignacionCompra(models.Model):
+    """Historial de asignación de una línea de solicitud a un comprador (automática o reasignada)."""
+    linea = models.ForeignKey('LineaSolicitud', on_delete=models.CASCADE, related_name='asignaciones')
+    grupo = models.ForeignKey(GrupoCompras, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    comprador = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
+    por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    motivo = models.CharField(max_length=200, blank=True)
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+
+
 # ================================================================ solicitud de pedido (SolPed, ME51N de SAP)
 # quién la libera: reglas del motor único de aprobación (core.ReglaAprobacion, documento SOLPED)
 class SolicitudPedido(models.Model):
@@ -607,6 +658,12 @@ class LineaSolicitud(models.Model):
                                            blank=True, related_name='lineas_solped', editable=False)
     cerrada = models.BooleanField('Cerrada', default=False, editable=False,
                                   help_text='No se pedirá lo que falta (cerrada por Compras)')
+    # comprador que la atiende (COM-09): se asigna sola al liberarse según el grupo de compras
+    grupo = models.ForeignKey(GrupoCompras, on_delete=models.SET_NULL, null=True, blank=True, related_name='lineas',
+                              editable=False)
+    comprador = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                  editable=False)
+    asignada_en = models.DateTimeField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ['id']

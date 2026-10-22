@@ -95,6 +95,18 @@ def calcular(user):
                                        f'{n} factura(s) con precio fuera de la tolerancia: Finanzas no las paga '
                                        f'hasta que Compras libere el pago.',
                                        reverse('compras:lista') + '?pago_bloqueado=1', n))
+    if 'compras' in mods:  # líneas por pedir con el plazo objetivo vencido: al comprador y a su jefe (COM-10)
+        from compras.compradores import vencidas
+        propias, del_equipo = vencidas(usuario=user), vencidas(jefe=user)
+        if propias:
+            alertas.append(_alerta('danger', 'bi-alarm', 'Líneas por pedir vencidas',
+                                   f'{len(propias)} línea(s) de solicitudes asignadas a usted pasaron su plazo objetivo.',
+                                   reverse('compras:solped_bandeja') + '?comprador=mias', len(propias)))
+        otras = [l for l in del_equipo if l.comprador_id != user.pk]
+        if otras:
+            alertas.append(_alerta('warning', 'bi-people', 'Líneas vencidas de sus compradores',
+                                   f'{len(otras)} línea(s) de sus grupos de compras pasaron su plazo objetivo.',
+                                   reverse('compras:desempeno'), len(otras)))
     if 'inventario' in mods or 'compras' in mods:
         from .models import Producto
         from django.db.models import Q

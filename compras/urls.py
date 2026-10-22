@@ -2,8 +2,8 @@ from django.urls import path
 
 from proveedores import views_erp as portal
 
-from . import (views, views_abastecimiento, views_hes, views_importacion, views_registro_info, views_sire,
-               views_solped, views_xml)
+from . import (views, views_abastecimiento, views_compradores, views_hes, views_importacion, views_registro_info,
+               views_sire, views_solped, views_xml)
 
 app_name = 'compras'
 
@@ -14,6 +14,11 @@ urlpatterns = views.compras_views.urls() + [
     path('solicitudes/reglas/', views_solped.reglas, name='solped_reglas'),
     path('solicitudes/reportes/', views_solped.reportes, name='solped_reportes'),
     path('ordenes/<int:oc_pk>/conformidad/', views_hes.conformidad, name='conformidad'),
+    path('compradores/grupos/', views_compradores.grupos, name='grupos'),
+    path('compradores/grupos/nuevo/', views_compradores.grupo, name='grupo_nuevo'),
+    path('compradores/grupos/<int:pk>/', views_compradores.grupo, name='grupo'),
+    path('compradores/desempeno/', views_compradores.desempeno, name='desempeno'),
+    path('compradores/linea/<int:pk>/', views_compradores.historial_linea, name='asignaciones_linea'),
     path('conformidades/', views_hes.hes_lista, name='hes_lista'),
     path('conformidades/<int:pk>/', views_hes.hes, name='hes'),
     path('conformidades/adjunto/<int:pk>/', views_hes.hes_adjunto, name='hes_adjunto'),

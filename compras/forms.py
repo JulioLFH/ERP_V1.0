@@ -175,7 +175,7 @@ class OrdenCompraForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = OrdenCompra
         fields = ['tercero', 'contrato', 'fecha', 'fecha_entrega', 'centro_costo', 'moneda', 'tipo_cambio',
-                  'tipo_operacion', 'condicion_pago', 'dias_credito', 'glosa']
+                  'tipo_operacion', 'condicion_pago', 'dias_credito', 'comprador', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2})}
         labels = {'tercero': 'Proveedor'}
 
@@ -183,6 +183,9 @@ class OrdenCompraForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS'])
         remoto(self.fields['tercero'], 'proveedores')
+        from django.contrib.auth import get_user_model
+        self.fields['comprador'].queryset = get_user_model().objects.filter(
+            is_active=True, acceso_proveedor__isnull=True).order_by('username')
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
         self.fields['centro_costo'].required = True
         if not CentroCosto.objects.filter(activo=True).exists():

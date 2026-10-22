@@ -240,6 +240,8 @@ def enviar(sp, usuario, liberar_sin_reglas=False, comentario=''):
         sp.estado, sp.niveles, sp.nivel_aprobado, sp.enviada_en, sp.liberada_en = 'LIBERADA', [], 0, ahora, ahora
         sp.comentario = ''
         sp.save()
+        from .compradores import asignar_solicitud
+        asignar_solicitud(sp, usuario)  # cada línea al comprador de su grupo de compras (COM-09)
         return sp
     sp.niveles = niveles or [{'nivel': 1, 'usuario': None, 'nombre': 'Liberador de solicitudes',
                               'desde': ahora.isoformat()}]
@@ -264,6 +266,9 @@ def liberar(sp, usuario, comentario=''):
         aprobaciones.avanzar(sp.niveles, sp.nivel_aprobado)
     sp.comentario = (comentario or '')[:300]
     sp.save()
+    if sp.estado == 'LIBERADA':
+        from .compradores import asignar_solicitud
+        asignar_solicitud(sp, usuario)  # cada línea al comprador de su grupo de compras (COM-09)
     notificar(sp, 'liberada' if sp.estado == 'LIBERADA' else 'enviada')
     return sp
 
@@ -349,7 +354,7 @@ def lineas_abiertas(qs=None):
     """Líneas de solicitudes liberadas con cantidad por pedir (y que no están en una licitación abierta)."""
     qs = qs if qs is not None else LineaSolicitud.objects.all()
     qs = qs.filter(solicitud__estado__in=SolicitudPedido.ABIERTAS, cerrada=False).select_related(
-        'solicitud__centro_costo', 'producto__proveedor', 'proveedor_sugerido').prefetch_related(
+        'solicitud__centro_costo', 'producto__proveedor', 'proveedor_sugerido', 'comprador', 'grupo').prefetch_related(
         'items_oc__documento', 'items_oc__producto', 'lineas_licitacion__licitacion')
     return [l for l in qs if l.pendiente > 0 and not l.en_licitacion]
 
@@ -392,6 +397,7 @@ def a_orden_compra(ids, usuario, proveedor=None, contrato=None):
             fecha_entrega=min(fechas) if fechas else None, contrato=contrato,
             moneda=contrato.moneda if contrato else 'PEN',
             condicion_pago=(contrato.condicion_pago if contrato else '')[:100],
+            comprador=usuario if usuario is not None and usuario.is_authenticated else None,
             glosa=f'Solicitudes de pedido {", ".join(numeros)}'[:500])
         for l in filas:
             p = l.producto

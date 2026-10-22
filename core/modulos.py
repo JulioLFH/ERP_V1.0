@@ -43,6 +43,9 @@ MODULOS = [
         'inicio': 'compras:lista', 'descripcion': 'Órdenes de compra, facturas y pagos',
         'menu': [
             ('Solicitudes de pedido', [('Bandeja de compras', 'compras:solped_bandeja', 'bi-inbox'),
+                                       ('Mis líneas por pedir', 'compras:solped_bandeja?comprador=mias',
+                                        'bi-person-check'),
+                                       ('Grupos de compras y compradores', 'compras:grupos', 'bi-people'),
                                        ('Todas las solicitudes', 'solicitudes:lista?vista=todas', 'bi-cart'),
                                        ('Nueva solicitud', 'solicitudes:nueva', 'bi-plus-circle'),
                                        ('Por liberar', 'solicitudes:lista?vista=liberar', 'bi-check2-circle'),
@@ -71,6 +74,7 @@ MODULOS = [
                           ('Reportes de compras', 'compras:reportes', 'bi-bar-chart'),
                           ('Historial de precios de compra', 'compras:historial_precios', 'bi-graph-up'),
                           ('Solicitudes de pedido: estado y tiempos', 'compras:solped_reportes', 'bi-hourglass-split'),
+                          ('Desempeño de compradores', 'compras:desempeno', 'bi-speedometer2'),
                           ('SIRE: propuesta de SUNAT (RCE)', 'sire_propuestas?libro=RCE', 'bi-cloud-download'),
                           ('Cruce con propuesta SIRE', 'compras:sire', 'bi-arrow-left-right'),
                           ('Importar desde Excel', 'compras:importar', 'bi-file-earmark-arrow-up')]),

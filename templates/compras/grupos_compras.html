@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Grupos de compras{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-people"></i> Grupos de compras y compradores</h1>
+  {% if puede.compras_grupos %}<a href="{% url 'compras:grupo_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo grupo</a>{% endif %}
+</div>
+<p class="small text-muted">Cada línea de una solicitud liberada se asigna sola al comprador del grupo que atiende su familia de producto, su tipo (materia prima, repuestos, servicios, importaciones, activos) o su centro de costo. El plazo objetivo se mide en días hábiles desde la liberación hasta la orden de compra enviada.</p>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>Código</th><th>Grupo</th><th>Comprador</th><th>Jefe</th><th>Familias</th><th>Tipos</th><th>Centros</th><th class="num">Plazo (urgente)</th><th>Estado</th></tr></thead>
+  <tbody>{% for g in grupos %}<tr><td>{% if puede.compras_grupos %}<a href="{% url 'compras:grupo' g.pk %}">{{ g.codigo }}</a>{% else %}{{ g.codigo }}{% endif %}</td><td>{{ g.nombre }}</td>
+    <td>{{ g.comprador.get_full_name|default:g.comprador.username }}</td><td class="small">{{ g.jefe|default:'—' }}</td><td class="small">{{ g.familias|default:'—' }}</td>
+    <td class="small">{{ g.tipos|join:', '|default:'—' }}</td><td class="small">{% for c in g.centros.all %}{{ c.codigo }}{% if not forloop.last %}, {% endif %}{% empty %}Todos{% endfor %}</td>
+    <td class="num">{{ g.plazo_dias }} ({{ g.plazo_urgente }})</td><td>{% if g.activo %}Activo{% else %}<span class="text-muted">Inactivo</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="9" class="text-muted text-center py-3">Sin grupos de compras: las líneas quedan sin comprador asignado.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

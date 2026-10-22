@@ -1,0 +1,26 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Desempeño de compradores{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-speedometer2"></i> Desempeño de compradores · {{ desde|date:'F Y'|capfirst }}</h1>
+  <div class="d-flex gap-2">
+    <form class="d-flex gap-1"><input type="month" name="mes" value="{{ mes }}" class="form-control form-control-sm"><button class="btn btn-sm btn-outline-secondary">Ver</button></form>
+    <a href="?mes={{ mes }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+  </div>
+</div>
+<p class="small text-muted">Líneas de solicitud asignadas en el mes y órdenes de compra emitidas en el mes, por comprador (de la OC o quien la registró). Ranking por cumplimiento del plazo objetivo. Tiempo: días hábiles de la solicitud liberada a la OC enviada. Ahorro: último precio pagado antes de la OC menos el de la OC, por la cantidad.</p>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
+  <thead><tr><th>#</th><th>Comprador</th><th class="num">Asignadas</th><th class="num">Atendidas</th><th class="num">Pendientes</th><th class="num">Días (prom. / p90)</th><th class="num">En plazo</th>
+    {% for t in tramos %}<th class="num">Vencidas {{ t }}</th>{% endfor %}<th class="num">Llegó a tiempo</th><th class="num">Ahorro S/</th><th class="num">Con competencia</th><th class="num">Urgentes</th><th class="num">Anuladas / fuera de tol.</th><th class="num">Monto S/</th></tr></thead>
+  <tbody>{% for f in filas %}<tr><td>{{ forloop.counter }}</td><td class="fw-semibold">{{ f.comprador.get_full_name|default:f.comprador.username }}</td>
+    <td class="num">{{ f.asignadas }}</td><td class="num">{{ f.atendidas }}</td><td class="num">{{ f.pendientes }}</td>
+    <td class="num">{{ f.tiempo_promedio|default:'—' }} / {{ f.p90|default:'—' }}</td>
+    <td class="num {% if f.sla is not None and f.sla < 90 %}text-danger{% elif f.sla is not None %}text-success{% endif %}">{% if f.sla is not None %}{{ f.sla }} %{% else %}—{% endif %}</td>
+    {% for t, n in f.vencidas.items %}<td class="num {% if n %}text-danger{% endif %}">{{ n }}</td>{% endfor %}
+    <td class="num">{% if f.a_tiempo_pct is not None %}{{ f.a_tiempo_pct }} %{% else %}—{% endif %}</td><td class="num">{{ f.ahorro|money }}</td>
+    <td class="num">{% if f.competencia_pct is not None %}{{ f.competencia_pct }} %{% else %}—{% endif %}</td><td class="num">{% if f.urgentes_pct is not None %}{{ f.urgentes_pct }} %{% else %}—{% endif %}</td>
+    <td class="num">{{ f.anuladas }} / {{ f.observadas }}</td><td class="num fw-semibold">{{ f.monto|money }}</td></tr>
+  {% empty %}<tr><td colspan="18" class="text-muted text-center py-3">Sin líneas asignadas ni órdenes en el mes. Configure los grupos de compras para asignar las solicitudes a cada comprador.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<div class="small text-muted mt-2">Metas sugeridas: plazo cumplido ≥ 90 %, ninguna vencida de más de 15 días, llegada a tiempo ≥ 95 %, compras con competencia ≥ 70 % del monto, urgentes ≤ 10 %.</div>
+{% endblock %}

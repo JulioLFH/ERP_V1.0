@@ -208,6 +208,9 @@ def oc_lista(request):
         qs = qs.filter(estado=request.GET['estado'])
     if request.GET.get('proveedor'):  # respuesta del proveedor (tablero del portal)
         qs = qs.filter(estado_proveedor=request.GET['proveedor']).exclude(estado='ANULADO')
+    comprador = request.GET.get('comprador', '')
+    if comprador == 'yo' or comprador.isdigit():  # órdenes de un comprador (COM-09)
+        qs = qs.filter(comprador_id=request.user.pk if comprador == 'yo' else int(comprador))
     return render(request, 'core/documento_lista.html', {
         'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'q': q,
         'titulo': 'Órdenes de compra', 'etiqueta_tercero': 'Proveedor', 'app': 'compras',
@@ -251,6 +254,7 @@ def oc_nuevo(request):
                       'cantidad': max(f['saldo'], 0) if f['saldo'] is not None else 1,
                       'precio_unitario': f['l'].precio_unitario} for f in filas
                      if f['saldo'] is None or f['saldo'] > 0]
+    initial = {'comprador': request.user.pk, **(initial or {})}  # quien la registra es su comprador (COM-09)
     return guardar_documento(request, OrdenCompraForm, item_formset(OrdenCompra, OrdenCompraItem), OrdenCompra(),
                              'core/comprobante_form.html', _oc_ctx('Nueva orden de compra'), initial=initial,
                              items_iniciales=items)
