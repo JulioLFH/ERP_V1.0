@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.70.2 — 22/10/2026 · SIRE: el Excel trae todas las columnas de SUNAT
+- **Propuestas SIRE (RVIE y RCE)** y **Compras › Cruce SIRE**: el Excel exportado ya no se limita a RUC, nombre, tipo, serie, número y total. Trae **todas las columnas que entrega SUNAT** en la propuesta, con sus nombres y en su orden (CAR, periodo, fechas, bases DG/DGNG/DNG, IGV, ISC, ICBPER, otros tributos, moneda, tipo de cambio, documento modificado, CUI, etc.), precedidas del **resultado del cruce** y seguidas del **comprobante del ERP**, su total y la diferencia.
+- Los importes salen como número; RUC, series, números y códigos se mantienen como texto (no pierden los ceros a la izquierda). Las propuestas ya descargadas también exportan completas: las columnas se leen del archivo de SUNAT guardado.
 ## v1.70.1 — 22/10/2026 · Productos en las facturas de compra migradas
 - **Migración del sistema anterior (Odoo)**: las facturas de compra armadas desde los asientos ya no quedan con una línea por cuenta y sin producto. Cada línea toma el producto del **[código] de la etiqueta de Odoo** («P00558: [I000177] LECHE FRESCA») y su **cantidad y precio unitario** de la orden de compra en soles o, si la OC es en dólares o no está, del costo de su recepción en el kardex anterior. Con esto el **Historial de precios de compra** y la alerta de alza de precio de la OC ya consideran las compras migradas.
 - Los productos de Odoo que solo se compraban (peajes, otros gastos, alimentación, honorarios…) y no estaban en el maestro se crean **solo para compra** (servicio si van a gasto, suministro en la 60, activo en la 33/34).

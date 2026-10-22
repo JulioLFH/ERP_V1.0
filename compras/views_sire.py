@@ -24,36 +24,28 @@ class PropuestaForm(BootstrapMixin, forms.Form):
         return valor
 
 
-def _guardar(request, periodo, registros):
-    """La última propuesta leída queda en la sesión para exportar el cruce sin volver a subir el archivo."""
-    request.session[SESION] = {'periodo': periodo, 'registros': sire.a_json(registros)}
+def _guardar(request, periodo, encabezados, registros):
+    """La última propuesta leída queda en la sesión (con todas sus columnas) para exportar el cruce sin volver a subir
+    el archivo."""
+    request.session[SESION] = {'periodo': periodo, 'encabezados': encabezados, 'registros': sire.a_json(registros)}
 
 
 def _de_sesion(request):
     datos = request.session.get(SESION)
     if not datos:
-        return None, None
-    return datos['periodo'], sire.de_json(datos['registros'])
+        return None, None, None
+    return datos['periodo'], datos.get('encabezados') or [], sire.de_json(datos['registros'])
 
 
 def _rend(x):
-    return x['rendicion'].rendicion.numero if x.get('rendicion') else ''
+    return x['rendicion'].rendicion.numero if x and x.get('rendicion') else ''
 
 
-def _excel(periodo, r):
-    filas = [['Coincide', x['ruc'], x['nombre'], x['tipo'], x['serie'], x['numero'], x['total'], x['compra'].total, 0,
-              _rend(x)] for x in r['coinciden']]
-    filas += [['Diferencia de importe', x['ruc'], x['nombre'], x['tipo'], x['serie'], x['numero'], x['total'],
-               x['compra'].total, x['dif'], _rend(x)] for x in r['diferencias']]
-    filas += [['Solo en SUNAT' + (' (registrada en otro periodo)' if x['otro_periodo'] else
-                                  ' (nadie la rindió)' if x['nadie_rindio'] else ''), x['ruc'],
-               x['nombre'], x['tipo'], x['serie'], x['numero'], x['total'], None, None, _rend(x)]
-              for x in r['solo_sunat']]
-    filas += [['Solo en el ERP', c.tercero.numero_doc, c.tercero.nombre, c.tipo_comprobante, c.serie, c.numero,
-               None, c.total, None, ''] for c in r['solo_erp']]
-    return excel_response(f'Cruce_SIRE_compras_{periodo}', f'CRUCE PROPUESTA SIRE (RCE) {periodo}',
-                          ['Resultado', 'RUC', 'Proveedor', 'Tipo', 'Serie', 'Número', 'Total SUNAT', 'Total ERP',
-                           'Diferencia', 'Rendición de gastos'], filas)
+def _excel(periodo, encabezados, registros, r):
+    encabezados, filas = sire.filas_cruce_completo(encabezados, registros, r, rendiciones=True,
+                                                   extra=(['Rendición de gastos'], lambda x: [_rend(x)]))
+    return excel_response(f'Cruce_SIRE_compras_{periodo}', f'CRUCE PROPUESTA SIRE (RCE) {periodo}', encabezados,
+                          filas)
 
 
 @login_required
@@ -61,22 +53,22 @@ def comparar(request):
     hoy = timezone.localdate()
     anterior = f'{hoy.year - (hoy.month == 1)}-{(hoy.month - 2) % 12 + 1:02d}'
     if request.GET.get('formato') == 'excel':
-        periodo, registros = _de_sesion(request)
+        periodo, encabezados, registros = _de_sesion(request)
         if periodo is None:
             return redirect('compras:sire')
-        return _excel(periodo, sire.comparar(registros, periodo))
+        return _excel(periodo, encabezados, registros, sire.comparar(registros, periodo))
     form = PropuestaForm(request.POST or None, request.FILES or None, initial={'periodo': anterior})
     periodo, registros = None, None
     if request.method == 'POST' and form.is_valid():
         try:
-            registros = sire.leer(form.cleaned_data['archivo'])
+            encabezados, registros = sire.leer_completo(form.cleaned_data['archivo'])
         except sire.ErrorSIRE as exc:
             messages.error(request, str(exc))
         else:
             periodo = form.cleaned_data['periodo']
-            _guardar(request, periodo, registros)
+            _guardar(request, periodo, encabezados, registros)
     elif request.method == 'GET' and request.GET.get('ultimo'):
-        periodo, registros = _de_sesion(request)
+        periodo, _, registros = _de_sesion(request)
     resultado = None
     if periodo:
         resultado = {**sire.comparar(registros, periodo), 'periodo': periodo, 'total': len(registros)}

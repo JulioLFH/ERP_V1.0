@@ -53,10 +53,14 @@ class PropuestaForm(BootstrapMixin, forms.Form):
         return valor
 
 
-def _leer(contenido, nombre):
+def _archivo(contenido, nombre):
     archivo = io.BytesIO(contenido)
     archivo.name = nombre
-    return sire.leer(archivo)
+    return archivo
+
+
+def _leer(contenido, nombre):
+    return sire.leer(_archivo(contenido, nombre))
 
 
 def _actualizar(p):
@@ -124,18 +128,16 @@ def lista(request):
 
 
 def _excel(p, r):
-    etiqueta = 'Cliente' if p.libro == 'RVIE' else 'Proveedor'
-    filas = [['Coincide', x['ruc'], x['nombre'], x['tipo'], x['serie'], x['numero'], x['total'], x['compra'].total, 0]
-             for x in r['coinciden']]
-    filas += [['Diferencia de importe', x['ruc'], x['nombre'], x['tipo'], x['serie'], x['numero'], x['total'],
-               x['compra'].total, x['dif']] for x in r['diferencias']]
-    filas += [['Solo en SUNAT' + (' (registrado en otro periodo)' if x['otro_periodo'] else ''), x['ruc'],
-               x['nombre'], x['tipo'], x['serie'], x['numero'], x['total'], None, None] for x in r['solo_sunat']]
-    filas += [['Solo en el ERP', d.tercero.numero_doc, d.tercero.nombre, d.tipo_comprobante, d.serie, d.numero,
-               None, d.total, None] for d in r['solo_erp']]
+    """El cruce con todas las columnas que entrega SUNAT en la propuesta (se vuelven a leer del archivo guardado)."""
+    encabezados, registros = [], []
+    if p.archivo:
+        try:
+            encabezados, registros = sire.leer_completo(_archivo(bytes(p.archivo), p.nombre_archivo or 'propuesta.zip'))
+        except sire.ErrorSIRE:
+            pass
+    encabezados, filas = sire.filas_cruce_completo(encabezados, registros, r)
     return excel_response(f'Cruce_SIRE_{p.libro}_{p.periodo}', f'CRUCE PROPUESTA SIRE {p.libro} {p.periodo}',
-                          ['Resultado', 'RUC / DNI', etiqueta, 'Tipo', 'Serie', 'Número', 'Total SUNAT', 'Total ERP',
-                           'Diferencia'], filas)
+                          encabezados, filas)
 
 
 @login_required

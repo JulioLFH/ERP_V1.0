@@ -76,8 +76,25 @@ def _filas(archivo):
     return [list(f) for f in csv.reader(io.StringIO(texto), delimiter=sep)]
 
 
+def _crudo(valor):
+    """Valor de una celda de la propuesta tal como vino, guardable en JSON (sesión)."""
+    if isinstance(valor, datetime):
+        return valor.strftime('%d/%m/%Y %H:%M:%S') if valor.time() != datetime.min.time() else f'{valor:%d/%m/%Y}'
+    if isinstance(valor, date):
+        return f'{valor:%d/%m/%Y}'
+    if isinstance(valor, Decimal):
+        return str(valor)
+    return valor
+
+
 def leer(archivo):
     """[{'ruc', 'nombre', 'tipo', 'serie', 'numero', 'fecha', 'base', 'igv', 'total'}] de la propuesta."""
+    return [{k: v for k, v in r.items() if k != 'sunat'} for r in leer_completo(archivo)[1]]
+
+
+def leer_completo(archivo):
+    """(encabezados, registros) de la propuesta con todas sus columnas: cada registro lleva además en 'sunat' los
+    valores de la fila tal como los entrega SUNAT, en el orden de los encabezados."""
     filas = _filas(archivo)
     for i, fila in enumerate(filas[:20]):
         enc = [_norm(c) for c in fila]
@@ -126,8 +143,67 @@ def leer(archivo):
                           'vencimiento': _fecha(valor(fila, 'vencimiento')),
                           'moneda': str(valor(fila, 'moneda') or 'PEN').strip().upper() or 'PEN',
                           'tc': _dec(valor(fila, 'tc')),
-                          'no_gravado': _dec(valor(fila, 'exonerado')) + _dec(valor(fila, 'inafecto'))})
-    return registros
+                          'no_gravado': _dec(valor(fila, 'exonerado')) + _dec(valor(fila, 'inafecto')),
+                          'sunat': [_crudo(v) for v in fila]})
+    encabezados = [str(e if e is not None else '').strip() for e in filas[i]]
+    return encabezados, registros
+
+
+_IMPORTE = re.compile(r'^-?\d+\.\d+$')
+
+
+def _celda(valor):
+    """Importes del TXT ('1180.00', '3.750') como número en el Excel; códigos, RUC, series y números como texto."""
+    if isinstance(valor, str) and _IMPORTE.match(valor.strip()):
+        return Decimal(valor.strip())
+    return valor
+
+
+def _clave_fila(r):
+    return (r['tipo'], r['serie'], r['numero'], r['ruc'])
+
+
+def filas_cruce_completo(encabezados, registros, r, extra=None, rendiciones=False):
+    """(encabezados, filas) del cruce con TODAS las columnas de la propuesta SUNAT: el resultado del cruce, las columnas
+    de SUNAT en su orden y al final el comprobante del ERP, su total y la diferencia. `extra` = (títulos, función(x))
+    para columnas propias de cada pantalla (x es el renglón del cruce o None); `rendiciones` marca las compras que
+    nadie rindió ni registró."""
+    titulos_extra, valor_extra = extra or ([], lambda x: [])
+    if not registros:  # sin el archivo original: las columnas que el ERP leyó de la propuesta
+        encabezados = ['Nro Doc Identidad', 'Apellidos Nombres/ Razón Social', 'Tipo CP/Doc.', 'Serie del CDP',
+                       'Nro CP', 'Fecha de emisión', 'BI Gravado', 'IGV', 'Total CP', 'Moneda']
+        registros = [{**x, 'sunat': [x['ruc'], x['nombre'], x['tipo'], x['serie'], x['numero'], x['fecha'],
+                                     x['base'], x['igv'], x['total'], x.get('moneda')]}
+                     for x in r['coinciden'] + r['diferencias'] + r['solo_sunat']]
+    resultado = {}
+    for x in r['coinciden']:
+        resultado[_clave_fila(x)] = ('Coincide', x, 0)
+    for x in r['diferencias']:
+        resultado[_clave_fila(x)] = ('Diferencia de importe', x, x['dif'])
+    for x in r['solo_sunat']:
+        motivo = (' (registrado en otro periodo)' if x['otro_periodo'] else
+                  ' (nadie la rindió)' if rendiciones and x['nadie_rindio'] else '')
+        resultado[_clave_fila(x)] = ('Solo en SUNAT' + motivo, x, None)
+    ancho = max([len(encabezados)] + [len(g.get('sunat') or []) for g in registros])
+    sunat = list(encabezados) + [f'Columna {n + 1}' for n in range(len(encabezados), ancho)]
+    erp = ['ERP: Doc. tercero', 'ERP: Nombre', 'ERP: Tipo', 'ERP: Serie', 'ERP: Número', 'ERP: Total',
+           'Diferencia (ERP - SUNAT)']
+    filas = []
+    for g in registros:
+        texto, x, dif = resultado.get(_clave_fila(g), ('', None, None))
+        d = x.get('compra') if x else None
+        valores = [_celda(v) for v in g.get('sunat') or []]
+        valores += [None] * (ancho - len(valores))
+        filas.append([texto] + valores + _erp(d) + [dif] + list(valor_extra(x)))
+    for d in r['solo_erp']:
+        filas.append(['Solo en el ERP'] + [None] * ancho + _erp(d) + [None] + list(valor_extra(None)))
+    return ['Resultado del cruce'] + sunat + erp + list(titulos_extra), filas
+
+
+def _erp(d):
+    if d is None:
+        return [None] * 6
+    return [d.tercero.numero_doc, d.tercero.nombre, d.tipo_comprobante, d.serie, d.numero, d.total]
 
 
 FECHAS, IMPORTES = ('fecha', 'vencimiento'), ('base', 'igv', 'total', 'tc', 'no_gravado')

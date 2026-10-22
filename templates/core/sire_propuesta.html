@@ -5,7 +5,7 @@
   <h1 class="page-title"><i class="bi bi-cloud-download"></i> {{ p.get_libro_display }} · {{ p.periodo|slice:'4:' }}/{{ p.periodo|slice:':4' }}</h1>
   <div class="d-flex gap-2">
     {% if p.archivo %}<a href="?descargar=1" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-zip"></i> Archivo de SUNAT</a>{% endif %}
-    {% if r %}<a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Exportar cruce</a>{% endif %}
+    {% if r %}<a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Exportar a Excel (todas las columnas SUNAT)</a>{% endif %}
     <a href="{% url 'sire_propuestas' %}?libro={{ p.libro }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Propuestas</a>
   </div>
 </div>

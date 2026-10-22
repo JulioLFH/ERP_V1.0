@@ -1,4 +1,5 @@
 """Compras desde el XML del proveedor y cruce con la propuesta SIRE (v1.17, punto 20)."""
+import io
 from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
@@ -174,5 +175,15 @@ class SireTest(TestCase):
         self.assertContains(resp, 'Diferencias de importe')
         resp = self.client.get(reverse('compras:sire'), {'formato': 'excel'})
         self.assertIn('spreadsheetml', resp['Content-Type'])
+        # el Excel lleva todas las columnas de SUNAT, en su orden, con el resultado del cruce
+        from openpyxl import load_workbook
+        hoja = load_workbook(io.BytesIO(resp.content)).active
+        filas = [list(f) for f in hoja.iter_rows(min_row=3, values_only=True)]
+        self.assertEqual(filas[0][:19], ['Resultado del cruce'] + cab.split('|'))
+        self.assertIn('Rendición de gastos', filas[0])
+        f101 = next(f for f in filas if f[10] == '00000101')
+        self.assertEqual((f101[0], f101[1], f101[4], f101[17], f101[18]),
+                         ('Coincide', '20100000001', 'X', 118, 'PEN'))
+        self.assertTrue(any(f[0] == 'Solo en el ERP' for f in filas))
         with self.assertRaises(sire.ErrorSIRE):
             sire.leer(SimpleUploadedFile('x.txt', b'a|b\n1|2'))
