@@ -159,13 +159,24 @@ def _celda(valor):
     return valor
 
 
+# columnas técnicas de la propuesta que no van al Excel: CAR, año y rango final del CDP, clasificación de bienes,
+# operadores de proyecto, IMB, CAR original, tipo de nota, estado, incalificable y los campos libres CLU
+_SIN_EXPORTAR = {'car sunat', 'ano', 'nro final (rango)', 'clasif de bss y sss', 'id proyecto operadores', 'porcpart',
+                 'imb', 'car orig/ ind e o i', 'tipo de nota', 'est. comp.', 'est. comp', 'incal'}
+
+
+def _se_exporta(encabezado):
+    e = _norm(encabezado)
+    return e not in _SIN_EXPORTAR and not re.fullmatch(r'clu\d*', e)
+
+
 def _clave_fila(r):
     return (r['tipo'], r['serie'], r['numero'], r['ruc'])
 
 
 def filas_cruce_completo(encabezados, registros, r, extra=None, rendiciones=False):
-    """(encabezados, filas) del cruce con TODAS las columnas de la propuesta SUNAT: el resultado del cruce, las columnas
-    de SUNAT en su orden y al final el comprobante del ERP, su total y la diferencia. `extra` = (títulos, función(x))
+    """(encabezados, filas) del cruce con las columnas de la propuesta SUNAT (sin las técnicas de _SIN_EXPORTAR): el
+    resultado del cruce, las columnas de SUNAT en su orden y al final el comprobante del ERP, su total y la diferencia. `extra` = (títulos, función(x))
     para columnas propias de cada pantalla (x es el renglón del cruce o None); `rendiciones` marca las compras que
     nadie rindió ni registró."""
     titulos_extra, valor_extra = extra or ([], lambda x: [])
@@ -186,7 +197,9 @@ def filas_cruce_completo(encabezados, registros, r, extra=None, rendiciones=Fals
         resultado[_clave_fila(x)] = ('Solo en SUNAT' + motivo, x, None)
     ancho = max([len(encabezados)] + [len(g.get('sunat') or []) for g in registros])
     sunat = list(encabezados) + [f'Columna {n + 1}' for n in range(len(encabezados), ancho)]
-    erp = ['ERP: Doc. tercero', 'ERP: Nombre', 'ERP: Tipo', 'ERP: Serie', 'ERP: Número', 'ERP: Total',
+    van = [j for j, e in enumerate(sunat) if _se_exporta(e)]
+    sunat = [sunat[j] for j in van]
+    erp =['ERP: Doc. tercero', 'ERP: Nombre', 'ERP: Tipo', 'ERP: Serie', 'ERP: Número', 'ERP: Total',
            'Diferencia (ERP - SUNAT)']
     filas = []
     for g in registros:
@@ -194,9 +207,9 @@ def filas_cruce_completo(encabezados, registros, r, extra=None, rendiciones=Fals
         d = x.get('compra') if x else None
         valores = [_celda(v) for v in g.get('sunat') or []]
         valores += [None] * (ancho - len(valores))
-        filas.append([texto] + valores + _erp(d) + [dif] + list(valor_extra(x)))
+        filas.append([texto] + [valores[j] for j in van] + _erp(d) + [dif] + list(valor_extra(x)))
     for d in r['solo_erp']:
-        filas.append(['Solo en el ERP'] + [None] * ancho + _erp(d) + [None] + list(valor_extra(None)))
+        filas.append(['Solo en el ERP'] + [None] * len(van) + _erp(d) + [None] + list(valor_extra(None)))
     return ['Resultado del cruce'] + sunat + erp + list(titulos_extra), filas
 
 

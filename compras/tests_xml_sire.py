@@ -175,15 +175,15 @@ class SireTest(TestCase):
         self.assertContains(resp, 'Diferencias de importe')
         resp = self.client.get(reverse('compras:sire'), {'formato': 'excel'})
         self.assertIn('spreadsheetml', resp['Content-Type'])
-        # el Excel lleva todas las columnas de SUNAT, en su orden, con el resultado del cruce
+        # el Excel lleva las columnas de SUNAT en su orden, sin las técnicas (CAR, año, rango final), con el resultado
         from openpyxl import load_workbook
         hoja = load_workbook(io.BytesIO(resp.content)).active
         filas = [list(f) for f in hoja.iter_rows(min_row=3, values_only=True)]
-        self.assertEqual(filas[0][:19], ['Resultado del cruce'] + cab.split('|'))
+        columnas = [c for c in cab.split('|') if c not in ('CAR SUNAT', 'Año', 'Nro Final (Rango)')]
+        self.assertEqual(filas[0][:len(columnas) + 1], ['Resultado del cruce'] + columnas)
         self.assertIn('Rendición de gastos', filas[0])
-        f101 = next(f for f in filas if f[10] == '00000101')
-        self.assertEqual((f101[0], f101[1], f101[4], f101[17], f101[18]),
-                         ('Coincide', '20100000001', 'X', 118, 'PEN'))
+        f101 = next(f for f in filas if f[8] == '00000101')
+        self.assertEqual((f101[0], f101[1], f101[14], f101[15]), ('Coincide', '20100000001', 118, 'PEN'))
         self.assertTrue(any(f[0] == 'Solo en el ERP' for f in filas))
         with self.assertRaises(sire.ErrorSIRE):
             sire.leer(SimpleUploadedFile('x.txt', b'a|b\n1|2'))

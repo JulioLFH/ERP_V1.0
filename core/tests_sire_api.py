@@ -133,11 +133,11 @@ class TraerComprasPorAPITest(Base):
         self.assertEqual(len(r.context['r']['solo_sunat']), 0)
         resp = self.client.get(reverse('sire_propuesta', args=[p.pk]), {'formato': 'excel'})
         self.assertIn('spreadsheetml', resp['Content-Type'])
-        # todas las columnas de la propuesta de SUNAT, leídas del archivo guardado
+        # las columnas de la propuesta de SUNAT leídas del archivo guardado, sin las técnicas (CAR, año, rango final)
         from openpyxl import load_workbook
         hoja = load_workbook(io.BytesIO(resp.content)).active
         filas = [list(f) for f in hoja.iter_rows(min_row=3, values_only=True)]
-        columnas = CAB_RCE.split('|')
+        columnas = [c for c in CAB_RCE.split('|') if c not in ('CAR SUNAT', 'Año', 'Nro Final (Rango)')]
         self.assertEqual(filas[0][:len(columnas) + 1], ['Resultado del cruce'] + columnas)
         f205 = next(f for f in filas if f[columnas.index('Nro CP o Doc. Nro Inicial (Rango)') + 1] == '205')
         self.assertEqual((f205[0], f205[columnas.index('Periodo') + 1], f205[columnas.index('Total CP') + 1]),

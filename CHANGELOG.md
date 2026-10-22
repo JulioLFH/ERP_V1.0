@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.70.3 — 22/10/2026 · SIRE: el Excel solo con las columnas útiles de la propuesta
+- **Propuestas SIRE** y **Compras › Cruce SIRE**: el Excel ya no trae las 80 columnas de la propuesta. Deja las de SUNAT que se usan para el registro, en su orden: RUC, razón social, periodo, fechas de emisión y vencimiento, tipo, serie y número del CP, documento del proveedor, bases e IGV DG/DGNG/DNG, valor no gravado, ISC, ICBPER, otros tributos, total, moneda, tipo de cambio, documento modificado, DAM/DSI y **detracción**. Ya no van CAR SUNAT, año, número final del rango, clasificación de bienes y servicios, ID de proyecto, % de participación, IMB, CAR original, tipo de nota, estado del comprobante, incal ni los campos libres CLU1-CLU39.
+- Siguen al inicio el resultado del cruce y al final el comprobante del ERP, su total y la diferencia.
 ## v1.70.2 — 22/10/2026 · SIRE: el Excel trae todas las columnas de SUNAT
 - **Propuestas SIRE (RVIE y RCE)** y **Compras › Cruce SIRE**: el Excel exportado ya no se limita a RUC, nombre, tipo, serie, número y total. Trae **todas las columnas que entrega SUNAT** en la propuesta, con sus nombres y en su orden (CAR, periodo, fechas, bases DG/DGNG/DNG, IGV, ISC, ICBPER, otros tributos, moneda, tipo de cambio, documento modificado, CUI, etc.), precedidas del **resultado del cruce** y seguidas del **comprobante del ERP**, su total y la diferencia.
 - Los importes salen como número; RUC, series, números y códigos se mantienen como texto (no pierden los ceros a la izquierda). Las propuestas ya descargadas también exportan completas: las columnas se leen del archivo de SUNAT guardado.
