@@ -8,6 +8,8 @@
     <a href="{% url 'obras:precios' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-tags"></i> Precios</a>
     <a href="{% url 'obras:insumos' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-list-columns"></i> Insumos</a>
     <a href="{% url 'obras:apu_reporte' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-calculator"></i> Análisis (APU)</a>
+    <a href="{% url 'obras:vincular' %}?presupuesto={{ p.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-link-45deg"></i> Vincular recursos</a>
+    {% if p.tipo == 'META' %}<a href="{% url 'obras:control' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-clipboard-data"></i> Control y requerimientos</a>{% endif %}
     <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
     <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i></button>
     <form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="accion" value="copiar">
@@ -23,6 +25,7 @@
 <div class="card mb-3"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
   <thead><tr><th style="width:110px">Ítem</th><th>Descripción</th><th style="width:70px">Und.</th><th class="num" style="width:130px">Metrado</th><th class="num" style="width:110px">Precio</th><th class="num" style="width:130px">Parcial</th>{% if p.editable %}<th class="d-print-none" style="width:40px"></th>{% endif %}</tr></thead>
   <tbody>{% for x in partidas %}
+    {% if subs %}{% ifchanged x.subpresupuesto_id %}<tr class="table-primary fw-bold"><td>{{ x.subpresupuesto.codigo }}</td><td colspan="4">SUBPRESUPUESTO {{ x.subpresupuesto.nombre }}{% if x.subpresupuesto.es_gastos_generales %} <span class="badge text-bg-warning">gastos generales detallados</span>{% endif %}</td><td class="num">{{ x.subpresupuesto.parcial|money }}</td>{% if p.editable %}<td class="d-print-none"></td>{% endif %}</tr>{% endifchanged %}{% endif %}
     <tr class="{% if x.es_titulo %}fw-semibold {% if x.nivel == 0 %}table-light{% endif %}{% endif %}">
       <td class="text-nowrap">{{ x.item }}</td>
       <td style="padding-left:{{ x.nivel|add:1 }}em">{% if x.es_titulo %}{{ x.descripcion }}{% else %}<a href="{% url 'obras:apu' x.pk %}" class="text-reset">{{ x.descripcion }}</a>{% if x.precio_fijo %} <span class="badge text-bg-light border">sin APU</span>{% endif %}{% endif %}</td>
@@ -35,7 +38,7 @@
   {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin partidas. Agregue el primer título abajo o importe el presupuesto.</td></tr>{% endfor %}</tbody>
   <tfoot class="table-light">
     <tr><td colspan="5" class="text-end">COSTO DIRECTO</td><td class="num fw-semibold">{{ p.costo_directo|money }}</td>{% if p.editable %}<td></td>{% endif %}</tr>
-    <tr><td colspan="5" class="text-end">GASTOS GENERALES ({{ p.gastos_generales_pct }}%)</td><td class="num">{{ p.gastos_generales|money }}</td>{% if p.editable %}<td></td>{% endif %}</tr>
+    <tr><td colspan="5" class="text-end">{{ texto_gg }}</td><td class="num">{{ p.gastos_generales|money }}</td>{% if p.editable %}<td></td>{% endif %}</tr>
     <tr><td colspan="5" class="text-end">UTILIDAD ({{ p.utilidad_pct }}%)</td><td class="num">{{ p.utilidad|money }}</td>{% if p.editable %}<td></td>{% endif %}</tr>
     <tr><td colspan="5" class="text-end">SUBTOTAL</td><td class="num">{{ p.subtotal|money }}</td>{% if p.editable %}<td></td>{% endif %}</tr>
     <tr><td colspan="5" class="text-end">IGV ({{ p.igv_pct }}%)</td><td class="num">{{ p.igv|money }}</td>{% if p.editable %}<td></td>{% endif %}</tr>
@@ -49,6 +52,7 @@
 <div class="row g-3 d-print-none">
   <div class="col-lg-8"><div class="card"><div class="card-header py-2 small fw-semibold">Agregar título o partida</div><div class="card-body">
     <form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="agregar">
+      {% if subs %}<div class="col-md-12"><label class="form-label small mb-1">Subpresupuesto</label>{{ form.subpresupuesto }}</div>{% else %}{{ form.subpresupuesto }}{% endif %}
       <div class="col-md-2"><label class="form-label small mb-1">Ítem</label>{{ form.item }}</div>
       <div class="col-md-5"><label class="form-label small mb-1">Descripción</label>{{ form.descripcion }}</div>
       <div class="col-md-1"><label class="form-label small mb-1">Und.</label>{{ form.unidad }}</div>
@@ -62,8 +66,19 @@
   <div class="col-lg-4"><div class="card"><div class="card-header py-2 small fw-semibold">Pie del presupuesto</div><div class="card-body">
     <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="pie">
       {% for field in pie %}<div class="col-6">{% include 'core/_campo.html' %}</div>{% endfor %}
+      {% if gg_detallado %}<div class="col-12 form-text">Los gastos generales salen del subpresupuesto marcado como «gastos generales detallados» (el % no se usa).</div>{% endif %}
       <div class="col-12"><button class="btn btn-sm btn-outline-primary">Guardar y recalcular</button></div>
-    </form></div></div></div>
+    </form></div></div>
+    <div class="card mt-3"><div class="card-header py-2 small fw-semibold">Subpresupuestos</div><div class="card-body">
+      {% for s in subs %}<form method="post" class="d-flex justify-content-between align-items-center small mb-1">{% csrf_token %}<input type="hidden" name="accion" value="eliminar_sub"><input type="hidden" name="sub" value="{{ s.pk }}">
+        <span>{{ s }}{% if s.es_gastos_generales %} <span class="badge text-bg-warning">GG</span>{% endif %} · S/ {{ s.parcial|money }}</span>
+        <button class="btn btn-sm btn-link text-danger p-0" data-confirm="¿Eliminar el subpresupuesto {{ s }}{% if subs|length > 1 %} con sus partidas{% endif %}?" title="Eliminar"><i class="bi bi-trash"></i></button></form>{% endfor %}
+      <form method="post" class="row g-2 mt-1">{% csrf_token %}<input type="hidden" name="accion" value="subpresupuesto">
+        <div class="col-4">{{ form_sub.codigo }}</div><div class="col-8">{{ form_sub.nombre }}</div>
+        <div class="col-12"><div class="form-check">{{ form_sub.es_gastos_generales }} <label class="form-check-label small" for="{{ form_sub.es_gastos_generales.id_for_label }}">Gastos generales detallados (reemplaza al %)</label></div></div>
+        <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar subpresupuesto</button></div>
+        <div class="col-12 form-text">Cada subpresupuesto numera sus partidas desde 01 (como en S10). El primero recibe las partidas que ya existen.</div>
+      </form></div></div></div>
 </div>
 {% endif %}
 {% endblock %}

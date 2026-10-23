@@ -64,14 +64,14 @@ FUENTES = {
 
 
 _PRODUCTOS = {'inventario', 'ventas', 'compras', 'manufactura', 'logistica', 'requerimientos', 'costos'}
-_TERCEROS = {'ventas', 'compras', 'contactos', 'finanzas', 'contabilidad', 'logistica', 'rendiciones', 'manufactura',
-             'requerimientos'}  # proveedor sugerido de las solicitudes de pedido
+_TERCEROS = {'ventas', 'compras', 'contactos', 'tesoreria', 'finanzas', 'contabilidad', 'logistica', 'rendiciones',
+             'manufactura', 'requerimientos'}  # proveedor sugerido de las solicitudes de pedido
 MODULOS = {  # quién puede pedir cada lista (además del administrador)
     'productos': _PRODUCTOS, 'productos_venta': _PRODUCTOS, 'productos_bienes': _PRODUCTOS,
     'terceros': _TERCEROS, 'clientes': _TERCEROS, 'proveedores': _TERCEROS,
-    'cuentas': {'contabilidad', 'compras', 'finanzas', 'planillas', 'activos', 'inventario', 'requerimientos',
-                'rendiciones'},
-    'ventas': {'ventas', 'logistica', 'finanzas'}, 'compras': {'compras', 'finanzas'},
+    'cuentas': {'contabilidad', 'compras', 'tesoreria', 'finanzas', 'planillas', 'activos', 'inventario',
+                'requerimientos', 'rendiciones'},
+    'ventas': {'ventas', 'logistica', 'tesoreria', 'finanzas'}, 'compras': {'compras', 'tesoreria', 'finanzas'},
     'facturas_comerciales': {'compras'},
 }
 

@@ -122,7 +122,7 @@ class FiltroCuentaYSaldoTest(Base):
         from finanzas.models import Cuenta
         mia = Cuenta.objects.create(nombre='Caja tienda Norte', tipo='CAJA', saldo_inicial=D('1234.56'))
         Cuenta.objects.create(nombre='Banco reservado', banco='BCP', tipo='BANCO', saldo_inicial=D('99000'))
-        u = self.usuario('cajero1', ['finanzas'], ['finanzas.registrar'], ver_saldos=False)
+        u = self.usuario('cajero1', ['tesoreria'], ['tesoreria.registrar'], ver_saldos=False)
         PerfilUsuario.objects.get(usuario=u).cuentas.set([mia])
         self.entrar(u)
         r = self.client.get(reverse('finanzas:cuentas'))

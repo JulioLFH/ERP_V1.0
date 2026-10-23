@@ -1,6 +1,6 @@
 # Ceiba ERP — ERP en Django
 
-Módulos (inspirados en AdSoft): **Registro de Compras**, **Registro de Ventas** y **Finanzas (Caja y Bancos)**.
+Módulos (inspirados en AdSoft): **Registro de Compras**, **Registro de Ventas**, **Tesorería (Caja y Bancos)** y **Finanzas**.
 
 ## Funcionalidades
 
@@ -22,7 +22,7 @@ Módulos (inspirados en AdSoft): **Registro de Compras**, **Registro de Ventas**
 - **Registro de Ventas 14.1** en pantalla, Excel y **TXT PLE**.
 - Cuentas por cobrar, reportes por cliente, producto, vendedor, zona y periodo. Importación desde Excel.
 
-### Finanzas (Caja y Bancos)
+### Tesorería (Caja y Bancos)
 - Cuentas de caja y bancos (BCP, BBVA, Scotiabank, Interbank, BN detracciones), soles y dólares.
 - Cobranzas y pagos **individuales o grupales**, incluidos depósitos de detracción.
 - Ingresos/egresos varios: planillas, tributos, servicios, préstamos, gastos bancarios, caja chica, anticipos.
@@ -62,7 +62,7 @@ Módulos (inspirados en AdSoft): **Registro de Compras**, **Registro de Ventas**
 - **Reportes**: Libro Diario (Excel y TXT PLE 5.1), Libro Mayor, plan de cuentas (TXT PLE 5.3), Balance de Comprobación de 8 columnas, Estado de Situación Financiera, Estado de Resultados por función y gastos por centro de costo.
 
 ### Módulos y usuarios (v1.3, estilo Odoo)
-- **Pantalla de aplicaciones**: Tablero, Ventas, Compras, Inventario, Logística, Finanzas, Contabilidad, Contactos y Ajustes.
+- **Pantalla de aplicaciones**: Tablero, Ventas, Compras, Inventario, Logística, Tesorería, Finanzas, Contabilidad, Contactos y Ajustes.
 - Cada aplicación tiene **su propia barra superior** de color, con solo sus menús.
 - **Usuarios y permisos por módulo** (Ajustes > Usuarios y permisos): cada usuario ve y entra únicamente a los módulos asignados. Los botones hacia otros módulos se ocultan, y si alguien intenta abrir una pantalla sin acceso ve un aviso.
 - Pantallas compartidas (Productos, Clientes, Proveedores) se abren dentro del módulo desde el que se llamaron.

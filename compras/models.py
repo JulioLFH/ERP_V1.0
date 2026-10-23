@@ -578,7 +578,8 @@ class SolicitudPedido(models.Model):
     """Necesidad de compra que un área, el MRP, la reposición, un requerimiento o una orden de mantenimiento piden y
     Compras convierte en orden de compra, licitación o pedido contra contrato marco."""
     ORIGENES = [('MANUAL', 'Del área'), ('MRP', 'Planificación (MRP)'), ('REPOSICION', 'Punto de reorden'),
-                ('REQUERIMIENTO', 'Requerimiento sin stock'), ('MANTENIMIENTO', 'Orden de mantenimiento')]
+                ('REQUERIMIENTO', 'Requerimiento sin stock'), ('MANTENIMIENTO', 'Orden de mantenimiento'),
+                ('OBRA', 'Requerimiento de obra (Meta)')]
     TIPOS = [('MATERIAL', 'Materiales'), ('SERVICIO', 'Servicios'), ('ACTIVO', 'Activo fijo')]
     ESTADOS = [('BORRADOR', 'Borrador'), ('ENVIADA', 'Por liberar'), ('OBSERVADA', 'Observada'),
                ('LIBERADA', 'Liberada'), ('PARCIAL', 'Pedida en parte'), ('PEDIDA', 'Pedida'),
@@ -637,7 +638,9 @@ class SolicitudPedido(models.Model):
 
 class LineaSolicitud(models.Model):
     UNIDADES = [('NIU', 'Unidad'), ('KGM', 'Kilogramo'), ('LTR', 'Litro'), ('MTR', 'Metro'), ('BX', 'Caja'),
-                ('GLL', 'Galón'), ('ZZ', 'Servicio'), ('HUR', 'Hora'), ('DAY', 'Día'), ('MON', 'Mes')]
+                ('GLL', 'Galón'), ('ZZ', 'Servicio'), ('HUR', 'Hora'), ('DAY', 'Día'), ('MON', 'Mes'),
+                ('PK', 'Paquete'), ('MIL', 'Millar'), ('RO', 'Rollo'), ('MTQ', 'Metro cúbico'), ('BG', 'Bolsa'),
+                ('MTK', 'Metro cuadrado'), ('FTK', 'Pie cuadrado'), ('TNE', 'Tonelada')]
     solicitud = models.ForeignKey(SolicitudPedido, on_delete=models.CASCADE, related_name='lineas')
     producto = models.ForeignKey('core.Producto', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
                                  help_text='Vacío = servicio o material no codificado (texto libre)')

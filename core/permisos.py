@@ -37,10 +37,13 @@ ACCIONES = {
                   ('flota', 'Registrar equipos, documentos, lecturas, combustible y viajes de la flota', False),
                   ('aprobar_lecturas', 'Aprobar partes de odómetro / horómetro', True),
                   ('ver_montos', 'Ver montos de la mercadería en garita (OC, guías)', True)],
-    'finanzas': [('registrar', 'Registrar cobros, pagos y movimientos', False),
-                 ('transferir', 'Transferencias entre cuentas', False),
-                 ('anular', 'Anular movimientos', True),
-                 ('cuentas', 'Crear cuentas y saldos iniciales', True)],
+    'tesoreria': [('registrar', 'Registrar cobros, pagos, depósitos de detracción y movimientos', False),
+                  ('transferir', 'Transferencias entre cuentas', False),
+                  ('anular', 'Anular movimientos, cheques y entregas a rendir', True),
+                  ('cuentas', 'Crear cuentas de caja y bancos y sus saldos iniciales', True)],
+    'finanzas': [('registrar', 'Aplicar anticipos, registrar letras, canjes y cuotas de préstamos', False),
+                 ('anular', 'Anular aplicaciones, canjes y préstamos', True),
+                 ('cuentas', 'Registrar préstamos y leasing', True)],
     'contabilidad': [('asientos', 'Asientos manuales', False),
                      ('extornar', 'Extornar asientos', True),
                      ('periodos', 'Centralizar y cerrar periodos', True),
@@ -73,7 +76,8 @@ ACCIONES = {
                 ('baja', 'Dar de baja o anular activos', True),
                 ('depreciar', 'Calcular y revertir depreciación', True)],
     'obras': [('presupuestar', 'Crear obras y elaborar presupuestos', False),
-              ('aprobar', 'Aprobar presupuestos de obra', True)],
+              ('aprobar', 'Aprobar presupuestos de obra', True),
+              ('requerir', 'Requerir materiales y servicios de la obra desde la Meta (solicitudes de pedido)', False)],
 }
 TODAS = {f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, _ in lista}
 # acciones sensibles nuevas: nunca se dan por defecto (ni a usuarios sin perfil); el administrador las asigna
@@ -120,19 +124,27 @@ RUTAS = {
     'logistica:nueva': 'logistica.emitir', 'logistica:editar': 'logistica.emitir',
     'logistica:enviar_sunat': 'logistica.emitir', 'logistica:anular': 'logistica.anular',
     'logistica:garita_nuevo': 'logistica.garita', 'logistica:garita': {'POST': 'logistica.garita'},
-    'finanzas:movimiento_nuevo': 'finanzas.registrar', 'finanzas:cobranza': 'finanzas.registrar',
-    'finanzas:pago': 'finanzas.registrar', 'finanzas:importar': 'finanzas.registrar',
-    'finanzas:extractos': {'POST': 'finanzas.registrar'}, 'finanzas:extracto_accion': 'finanzas.registrar',
-    'finanzas:transferencia': 'finanzas.transferir', 'finanzas:movimiento_eliminar': 'finanzas.anular',
-    'finanzas:cuenta_nueva': 'finanzas.cuentas', 'finanzas:cuenta_editar': 'finanzas.cuentas',
-    'finanzas:anticipo_aplicar': {'POST': 'finanzas.registrar'}, 'finanzas:aplicacion_anular': 'finanzas.anular',
+    # tesorería (pantallas de la app finanzas que son del módulo Tesorería: core/modulos.py RUTAS_FINANZAS)
+    'finanzas:movimiento_nuevo': 'tesoreria.registrar', 'finanzas:cobranza': 'tesoreria.registrar',
+    'finanzas:pago': 'tesoreria.registrar', 'finanzas:importar': 'tesoreria.registrar',
+    'finanzas:cobranza_multiple': {'POST': 'tesoreria.registrar'}, 'finanzas:pago_multiple': {'POST': 'tesoreria.registrar'},
+    'finanzas:extractos': {'POST': 'tesoreria.registrar'}, 'finanzas:extracto_accion': 'tesoreria.registrar',
+    'finanzas:transferencia': 'tesoreria.transferir', 'finanzas:movimiento_eliminar': 'tesoreria.anular',
+    'finanzas:cuenta_nueva': 'tesoreria.cuentas', 'finanzas:cuenta_editar': 'tesoreria.cuentas',
+    'finanzas:cheques': {'POST': 'tesoreria.registrar'},
+    'finanzas:cheque_estado': lambda r: 'tesoreria.registrar' if r.POST.get('estado') == 'COBRADO' else 'tesoreria.anular',
+    'finanzas:entrega_nueva': 'tesoreria.registrar', 'finanzas:entrega': {'POST': 'tesoreria.registrar'},
+    'finanzas:pago_masivo_nuevo': {'POST': 'tesoreria.registrar'}, 'finanzas:pago_masivo': {'POST': 'tesoreria.registrar'},
+    'finanzas:detracciones_masivas_nuevo': {'POST': 'tesoreria.registrar'},
+    'finanzas:detraccion_masiva': {'POST': 'tesoreria.registrar'},
+    'finanzas:constancias_clientes': {'POST': 'tesoreria.registrar'},
+    'ventas:deposito_detraccion': {'POST': 'tesoreria.registrar'},
+    'finanzas:saldo_inicial': {'POST': 'tesoreria.cuentas'}, 'finanzas:saldo_inicial_sustento': 'tesoreria.cuentas',
+    # finanzas: anticipos, letras, canjes, préstamos y leasing
+    'finanzas:anticipo_aplicar': {'POST': 'finanzas.registrar'},
+    'finanzas:aplicacion_anular': lambda r: _aplicacion(r),
     'finanzas:canje_nuevo': {'POST': 'finanzas.registrar'},
     'finanzas:canje': {'POST': 'finanzas.anular'}, 'finanzas:letra': {'POST': 'finanzas.registrar'},
-    'finanzas:cheques': {'POST': 'finanzas.registrar'},
-    'finanzas:cheque_estado': lambda r: 'finanzas.registrar' if r.POST.get('estado') == 'COBRADO' else 'finanzas.anular',
-    'finanzas:entrega_nueva': 'finanzas.registrar', 'finanzas:entrega': {'POST': 'finanzas.registrar'},
-    'finanzas:pago_masivo_nuevo': {'POST': 'finanzas.registrar'}, 'finanzas:pago_masivo': {'POST': 'finanzas.registrar'},
-    'finanzas:saldo_inicial': {'POST': 'finanzas.cuentas'}, 'finanzas:saldo_inicial_sustento': 'finanzas.cuentas',
     'finanzas:prestamo_nuevo': {'POST': 'finanzas.cuentas'},
     'finanzas:prestamo': lambda r: (None if r.method != 'POST' else 'finanzas.anular'
                                     if r.POST.get('accion') == 'anular' else 'finanzas.registrar'),
@@ -158,6 +170,9 @@ RUTAS = {
     'contabilidad:presupuesto_editar': 'contabilidad.presupuesto',
     'contabilidad:presupuesto_generar': 'contabilidad.presupuesto',
     'contabilidad:cb_nuevo': 'contabilidad.configurar', 'contabilidad:cb_editar': 'contabilidad.configurar',
+    'contabilidad:reparto': {'POST': 'contabilidad.periodos'},
+    'contabilidad:reparto_regla_nueva': 'contabilidad.configurar', 'contabilidad:reparto_regla': 'contabilidad.configurar',
+    'contabilidad:reparto_cifras': {'POST': 'contabilidad.configurar'},
     'manufactura:orden_nueva': 'manufactura.ordenes', 'manufactura:orden_editar': 'manufactura.ordenes',
     'manufactura:orden_confirmar': 'manufactura.ordenes', 'manufactura:orden_iniciar': 'manufactura.ordenes',
     'manufactura:orden_terminar': 'manufactura.ordenes', 'manufactura:orden_maquila': 'manufactura.ordenes',
@@ -212,6 +227,8 @@ RUTAS = {
     'obras:apu': {'POST': 'obras.presupuestar'}, 'obras:precios': {'POST': 'obras.presupuestar'},
     'obras:recurso_nuevo': 'obras.presupuestar', 'obras:recurso_editar': 'obras.presupuestar',
     'obras:biblioteca': {'POST': 'obras.presupuestar'},
+    'obras:subanalisis': {'POST': 'obras.presupuestar'}, 'obras:vincular': {'POST': 'obras.presupuestar'},
+    'obras:control': {'POST': 'obras.requerir'},
     'activos:nuevo': 'activos.registrar', 'activos:editar': 'activos.registrar', 'activos:baja': 'activos.baja',
     'activos:anular': 'activos.baja', 'activos:depreciacion': {'POST': 'activos.depreciar'},
     'activos:proceso_revertir': 'activos.depreciar', 'activos:categoria_nueva': 'activos.depreciar',
@@ -243,6 +260,14 @@ def _tipo(request):
 def _flota(request):
     from flota.views import accion_flota
     return accion_flota(request)
+
+
+def _aplicacion(request):
+    """Anular la aplicación de una entrega a rendir es de Tesorería; la de un anticipo o un canje, de Finanzas."""
+    from finanzas.models import Aplicacion
+    pk = request.resolver_match.kwargs.get('pk')
+    entrega = Aplicacion.objects.filter(pk=pk, entrega__isnull=False).exists()
+    return 'tesoreria.anular' if entrega else 'finanzas.anular'
 
 
 def perfil_de(user):

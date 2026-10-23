@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title">{{ e.get_tipo_display }} {{ e.numero }} <span class="badge text-bg-light">{{ e.get_estado_display }}</span></h1>
-  {% if e.estado == 'ABIERTA' and puede.finanzas_registrar %}
+  {% if e.estado == 'ABIERTA' and puede.tesoreria_registrar %}
   <form method="post" class="d-flex gap-2 align-items-center">{% csrf_token %}<input type="hidden" name="accion" value="liquidar"><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"><button class="btn btn-sm btn-outline-dark" {% if e.saldo != 0 %}disabled title="El saldo debe ser cero"{% endif %}><i class="bi bi-lock"></i> Liquidar</button></form>
   {% endif %}
 </div>
@@ -33,7 +33,7 @@
   </table></div>
 </div>
 
-{% if e.estado == 'ABIERTA' and puede.finanzas_registrar %}
+{% if e.estado == 'ABIERTA' and puede.tesoreria_registrar %}
 <div class="row g-3 mb-3">
   <div class="col-lg-7"><div class="card h-100"><div class="card-header">Rendir gasto sin factura en compras (ticket, boleta, movilidad…)</div><div class="card-body">
     <form method="post" enctype="multipart/form-data" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="gasto">

@@ -15,10 +15,13 @@ urlpatterns = [
     path('presupuestos/<int:pk>/precios/', views.precios, name='precios'),
     path('presupuestos/<int:pk>/insumos/', views.insumos, name='insumos'),
     path('presupuestos/<int:pk>/analisis/', views.apu_reporte, name='apu_reporte'),
+    path('presupuestos/<int:pk>/control/', views.control_obra, name='control'),
     path('partidas/<int:pk>/analisis/', views.apu, name='apu'),
     path('recursos/', views.RecursoLista.as_view(), name='recursos'),
     path('recursos/nuevo/', views.RecursoNuevo.as_view(), name='recurso_nuevo'),
     path('recursos/<int:pk>/editar/', views.RecursoEditar.as_view(), name='recurso_editar'),
+    path('recursos/<int:pk>/subanalisis/', views.subanalisis, name='subanalisis'),
+    path('recursos/vincular/', views.vincular, name='vincular'),
     path('biblioteca/', views.biblioteca, name='biblioteca'),
     path('plantilla/', views.plantilla, name='plantilla'),
 ]

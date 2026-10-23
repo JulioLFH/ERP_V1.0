@@ -259,7 +259,7 @@ def cuentas_por_pagar(request):
     return respuesta(_pagina(request, [c for c in qs if c.saldo > 0], s_comprobante))
 
 
-@api('finanzas')
+@api('tesoreria')
 def movimientos_tesoreria(request):
     from finanzas.models import Movimiento
     qs = Movimiento.objects.select_related('cuenta', 'tercero', 'venta', 'compra')

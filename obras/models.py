@@ -44,6 +44,8 @@ class Obra(models.Model):
                                                   default=D0)
     retencion_garantia_pct = models.DecimalField('Retención de garantía %', max_digits=5, decimal_places=2,
                                                  default=D0)
+    area_m2 = models.DecimalField('Área de la obra (m²)', max_digits=14, decimal_places=2, default=D0,
+                                  help_text='Base para repartir gastos generales por m² (Contabilidad › Reparto de gastos)')
     centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
                                      related_name='+', editable=False, verbose_name='Centro de costo')
     almacen = models.ForeignKey('core.Almacen', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
@@ -110,6 +112,12 @@ class Recurso(models.Model):
                                related_name='+', help_text='Equipo propio')
     indice_unificado = models.CharField('Índice unificado (INEI)', max_length=2, blank=True)
     precio = models.DecimalField('Precio referencial (sin IGV)', max_digits=14, decimal_places=4, default=D0)
+    # sub-análisis (subpartida del S10): su precio sale de su propio análisis y la relación de insumos lo explota
+    es_subanalisis = models.BooleanField('Sub-análisis', default=False,
+                                         help_text='Ej. concreto f\'c=210: su precio sale de su análisis (cemento, arena, '
+                                                   'piedra, agua) y la relación de insumos muestra esos recursos')
+    rendimiento = models.DecimalField('Rendimiento del sub-análisis', max_digits=14, decimal_places=4, default=D0)
+    jornada = models.DecimalField('Jornada del sub-análisis (h)', max_digits=5, decimal_places=2, default=Decimal('8'))
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -132,6 +140,18 @@ class Recurso(models.Model):
                 codigo = f'{self.tipo}{int(numero):06d}'
             self.codigo = codigo
         super().save(*args, **kwargs)
+
+
+class ComponenteRecurso(models.Model):
+    """Recurso del análisis de un sub-análisis (como RecursoAPU, pero del catálogo: vale para todos los presupuestos)."""
+    padre = models.ForeignKey(Recurso, on_delete=models.CASCADE, related_name='componentes')
+    recurso = models.ForeignKey(Recurso, on_delete=models.PROTECT, related_name='+')
+    cuadrilla = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+    cantidad = models.DecimalField('Aporte (cantidad)', max_digits=16, decimal_places=6, default=D0)
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['orden', 'id']
 
 
 class Presupuesto(models.Model):
@@ -185,9 +205,29 @@ def clave_item(item):
     return '.'.join(p.zfill(4) for p in str(item).strip().split('.') if p != '')
 
 
+class Subpresupuesto(models.Model):
+    """Parte del presupuesto con su propia numeración (S10: 001 Estructuras, 002 Instalaciones…). Uno marcado como
+    gastos generales reemplaza al % del pie por su total (gastos generales detallados)."""
+    presupuesto = models.ForeignKey(Presupuesto, on_delete=models.CASCADE, related_name='subpresupuestos')
+    codigo = models.CharField('Código', max_length=10)
+    nombre = models.CharField(max_length=250)
+    es_gastos_generales = models.BooleanField('Gastos generales detallados', default=False,
+                                              help_text='Su total es el gasto general del presupuesto (en vez del %)')
+    parcial = models.DecimalField(max_digits=18, decimal_places=2, default=D0, editable=False)
+
+    class Meta:
+        ordering = ['codigo', 'id']
+        unique_together = [('presupuesto', 'codigo')]
+
+    def __str__(self):
+        return f'{self.codigo} {self.nombre}'
+
+
 class Partida(models.Model):
     """Partida o título del presupuesto. El precio unitario sale de su análisis (APU); el título suma sus partidas."""
     presupuesto = models.ForeignKey(Presupuesto, on_delete=models.CASCADE, related_name='partidas')
+    subpresupuesto = models.ForeignKey(Subpresupuesto, on_delete=models.CASCADE, null=True, blank=True,
+                                       related_name='partidas')
     item = models.CharField('Ítem', max_length=40)
     orden = models.CharField(max_length=120, editable=False, db_index=True)
     descripcion = models.CharField('Descripción', max_length=400)
@@ -205,8 +245,12 @@ class Partida(models.Model):
                                      related_name='+', editable=False)
 
     class Meta:
-        ordering = ['orden', 'id']
-        unique_together = [('presupuesto', 'item')]
+        ordering = ['subpresupuesto__codigo', 'orden', 'id']
+        constraints = [
+            models.UniqueConstraint(fields=['presupuesto', 'subpresupuesto', 'item'], name='partida_item_unico'),
+            models.UniqueConstraint(fields=['presupuesto', 'item'], condition=models.Q(subpresupuesto__isnull=True),
+                                    name='partida_item_unico_sin_sub'),
+        ]
 
     def __str__(self):
         return f'{self.item} {self.descripcion}'

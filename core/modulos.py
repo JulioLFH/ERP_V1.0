@@ -197,8 +197,11 @@ MODULOS = [
             ('Obras', [('Obras', 'obras:lista', 'bi-cone-striped'),
                        ('Nueva obra', 'obras:obra_nueva', 'bi-plus-circle')]),
             ('Presupuestos', [('Recursos (insumos)', 'obras:recursos', 'bi-boxes'),
+                              ('Vincular recursos con productos', 'obras:vincular', 'bi-link-45deg'),
                               ('Biblioteca de partidas tipo', 'obras:biblioteca', 'bi-collection'),
                               ('Plantilla de importación (Excel)', 'obras:plantilla', 'bi-file-earmark-excel')]),
+            ('Reportes', [('Resultado por obra (con gastos generales asignados)', 'contabilidad:reparto_resultado',
+                           'bi-bar-chart')]),
         ],
     },
     {
@@ -289,26 +292,24 @@ MODULOS = [
         ],
     },
     {
-        'clave': 'finanzas', 'nombre': 'Finanzas', 'icono': 'bi-bank', 'color': '#1971c2',
-        'inicio': 'finanzas:cuentas', 'descripcion': 'Caja, bancos, cobranzas y pagos',
+        'clave': 'tesoreria', 'nombre': 'Tesorería', 'icono': 'bi-bank', 'color': '#1971c2',
+        'inicio': 'finanzas:cuentas', 'descripcion': 'Caja, bancos, cobranzas, pagos, detracciones y conciliación',
         'menu': [
-            ('Tesorería', [('Caja y bancos', 'finanzas:cuentas', 'bi-bank'),
-                           ('Movimientos', 'finanzas:movimientos', 'bi-arrow-left-right'),
-                           ('Cobranzas', 'finanzas:cobranza', 'bi-cash-coin'),
-                           ('Cobranza múltiple (varios clientes)', 'finanzas:cobranza_multiple', 'bi-cash-stack'),
-                           ('Pagos', 'finanzas:pago', 'bi-credit-card'),
-                           ('Pago múltiple (varios proveedores)', 'finanzas:pago_multiple', 'bi-credit-card-2-back'),
-                           ('Pagos masivos a bancos', 'finanzas:pagos_masivos', 'bi-send'),
-                           ('Depósito masivo de detracciones', 'finanzas:detracciones_masivas', 'bi-bank'),
-                           ('Constancias de detracción de clientes (SUNAT)', 'finanzas:constancias_clientes',
-                            'bi-cloud-upload'),
-                           ('Transferencias', 'finanzas:transferencia', 'bi-shuffle'),
-                           ('Entregas a rendir y caja chica', 'finanzas:entregas', 'bi-wallet2')]),
-            ('Documentos', [('Anticipos', 'finanzas:anticipos', 'bi-hourglass-split'),
-                            ('Letras por cobrar y pagar', 'finanzas:letras', 'bi-file-earmark-ruled'),
-                            ('Canje de facturas por letras', 'finanzas:canje_nuevo', 'bi-arrow-repeat'),
-                            ('Cheques', 'finanzas:cheques', 'bi-credit-card-2-front'),
-                            ('Préstamos y leasing', 'finanzas:prestamos', 'bi-piggy-bank')]),
+            ('Caja y bancos', [('Cuentas de caja y bancos', 'finanzas:cuentas', 'bi-bank'),
+                               ('Movimientos', 'finanzas:movimientos', 'bi-arrow-left-right'),
+                               ('Transferencias', 'finanzas:transferencia', 'bi-shuffle'),
+                               ('Cheques', 'finanzas:cheques', 'bi-credit-card-2-front'),
+                               ('Entregas a rendir y caja chica', 'finanzas:entregas', 'bi-wallet2')]),
+            ('Cobranzas y pagos', [('Cobranzas', 'finanzas:cobranza', 'bi-cash-coin'),
+                                   ('Cobranza múltiple (varios clientes)', 'finanzas:cobranza_multiple',
+                                    'bi-cash-stack'),
+                                   ('Pagos', 'finanzas:pago', 'bi-credit-card'),
+                                   ('Pago múltiple (varios proveedores)', 'finanzas:pago_multiple',
+                                    'bi-credit-card-2-back'),
+                                   ('Pagos masivos a bancos', 'finanzas:pagos_masivos', 'bi-send')]),
+            ('Detracciones', [('Depósito masivo de detracciones', 'finanzas:detracciones_masivas', 'bi-bank'),
+                              ('Constancias de detracción de clientes (SUNAT)', 'finanzas:constancias_clientes',
+                               'bi-cloud-upload')]),
             ('Bancos', [('Conciliación automática (extracto)', 'finanzas:extractos', 'bi-magic'),
                         ('Conciliación bancaria', 'finanzas:conciliacion', 'bi-check2-square'),
                         ('Importar estado de cuenta', 'finanzas:importar', 'bi-upload')]),
@@ -318,12 +319,24 @@ MODULOS = [
         ],
     },
     {
+        'clave': 'finanzas', 'nombre': 'Finanzas', 'icono': 'bi-piggy-bank', 'color': '#3b5bdb',
+        'inicio': 'finanzas:anticipos', 'descripcion': 'Anticipos, letras, canjes, préstamos y leasing',
+        'menu': [
+            ('Documentos', [('Anticipos', 'finanzas:anticipos', 'bi-hourglass-split'),
+                            ('Letras por cobrar y pagar', 'finanzas:letras', 'bi-file-earmark-ruled'),
+                            ('Canje de facturas por letras', 'finanzas:canje_nuevo', 'bi-arrow-repeat')]),
+            ('Financiamiento', [('Préstamos y leasing', 'finanzas:prestamos', 'bi-piggy-bank')]),
+            ('Reportes', [('Flujo de caja proyectado', 'finanzas:flujo_proyectado', 'bi-graph-up-arrow')]),
+        ],
+    },
+    {
         'clave': 'contabilidad', 'nombre': 'Contabilidad', 'icono': 'bi-journal-bookmark', 'color': '#5f3dc4',
         'inicio': 'contabilidad:asientos', 'descripcion': 'Asientos, libros y estados financieros',
         'menu': [
             ('Asientos', [('Asientos contables', 'contabilidad:asientos', 'bi-journal-plus'),
                           ('Nuevo asiento manual', 'contabilidad:asiento_nuevo', 'bi-plus-circle'),
                           ('Centralización y periodos', 'contabilidad:periodos', 'bi-arrow-repeat'),
+                          ('Reparto de gastos entre centros (obras)', 'contabilidad:reparto', 'bi-diagram-3'),
                           ('Cierre guiado del mes', 'contabilidad:cierre', 'bi-list-check')]),
             ('Libros', [('Libro diario', 'contabilidad:diario', 'bi-journal-text'),
                         ('Libro mayor', 'contabilidad:mayor', 'bi-journal-bookmark'),
@@ -335,6 +348,8 @@ MODULOS = [
                           ('Estado de flujos de efectivo (NIC 7)', 'contabilidad:flujo_efectivo', 'bi-water'),
                           ('Resultados por línea de negocio', 'contabilidad:resultados_linea', 'bi-bar-chart-steps'),
                           ('Gastos por centro de costo', 'contabilidad:centros_reporte', 'bi-diagram-3'),
+                          ('Resultado por centro y obra (con gastos asignados)', 'contabilidad:reparto_resultado',
+                           'bi-bar-chart'),
                           ('Presupuestos y ejecución', 'contabilidad:presupuestos', 'bi-clipboard-data'),
                           ('Conciliación NIIF - tributaria', 'contabilidad:conciliacion_normas', 'bi-intersect'),
                           ('Estados consolidados del grupo', 'contabilidad:consolidacion', 'bi-buildings'),
@@ -347,6 +362,7 @@ MODULOS = [
             ('Configuración', [('Plan de cuentas', 'contabilidad:plan', 'bi-list-ol'),
                                ('Centros de beneficio (líneas)', 'contabilidad:beneficios', 'bi-briefcase'),
                                ('Centros de costo', 'contabilidad:centros', 'bi-bullseye'),
+                               ('Cifras de reparto (m², trabajadores…)', 'contabilidad:reparto_cifras', 'bi-rulers'),
                                ('Cuentas por operación', 'contabilidad:configuracion', 'bi-gear'),
                                ('Estado de flujos de efectivo (rubros y reglas)', 'contabilidad:flujo_configuracion',
                                 'bi-sliders'),
@@ -414,10 +430,10 @@ POR_CLAVE = {m['clave']: m for m in MODULOS}
 GRUPOS = {m['clave']: m['nombre'] for m in MODULOS if m['clave'] != 'contactos'}
 
 # Contactos no tiene grupo propio: lo usan quienes venden, compran, cobran o despachan
-DERIVADOS = {'contactos': {'ventas', 'compras', 'finanzas', 'logistica', 'contabilidad'},
+DERIVADOS = {'contactos': {'ventas', 'compras', 'tesoreria', 'finanzas', 'logistica', 'contabilidad'},
              # el almacén atiende los requerimientos de las áreas; Compras ve y libera sus solicitudes de pedido
-             'requerimientos': {'inventario', 'compras'},
-             'rendiciones': {'finanzas', 'contabilidad'}}  # tesorería y contabilidad revisan las rendiciones
+             'requerimientos': {'inventario', 'compras', 'obras'},  # la obra pide materiales y servicios
+             'rendiciones': {'tesoreria', 'finanzas', 'contabilidad'}}  # tesorería y contabilidad revisan las rendiciones
 
 # Rutas sin espacio de nombres (app core) -> módulos que pueden abrirlas (el primero es el principal)
 RUTAS_CORE = {
@@ -428,15 +444,15 @@ RUTAS_CORE = {
     'auditoria': ['ajustes'], 'manuales': ['ajustes'], 'manual_pdf': ['ajustes'],
     'incidencias': ['ajustes'], 'incidencia': ['ajustes'],
     'modificaciones': [m['clave'] for m in MODULOS],  # se ve dentro del módulo; la vista exige ser administrador
-    'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'finanzas', 'contactos', 'manufactura', 'logistica',
-                     'contabilidad', 'planillas', 'rendiciones', 'activos'], 'usuarios': ['ajustes'],
+    'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'tesoreria', 'finanzas', 'contactos', 'manufactura',
+                     'logistica', 'contabilidad', 'planillas', 'rendiciones', 'activos'], 'usuarios': ['ajustes'],
     'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'], 'segregacion': ['ajustes'],
     'sire_propuestas': ['compras', 'ventas', 'contabilidad'], 'sire_propuesta': ['compras', 'ventas', 'contabilidad'],
     'perfiles_acceso': ['ajustes'], 'sso_lista': ['ajustes'], 'sso_nuevo': ['ajustes'], 'sso_editar': ['ajustes'], 'perfil_acceso_nuevo': ['ajustes'], 'perfil_acceso_editar': ['ajustes'],
     'aprobaciones_reglas': ['ajustes', 'compras', 'rendiciones', 'planillas'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
-    'tipos_cambio': ['ajustes', 'finanzas'],
+    'tipos_cambio': ['ajustes', 'tesoreria', 'finanzas'],
     'terceros': ['contactos', 'ventas', 'compras'], 'tercero_nuevo': ['contactos', 'ventas', 'compras'],
     'tercero_editar': ['contactos', 'ventas', 'compras'],
     'productos': ['inventario', 'ventas', 'compras', 'manufactura'],
@@ -507,6 +523,25 @@ def modulos_del_usuario(user):
 NAMESPACES_COMPARTIDOS = {'solicitudes': ['requerimientos', 'compras', 'manufactura'],
                           'flota': ['logistica', 'manufactura']}  # maestro único de equipos y flota
 
+# Tesorería y Finanzas comparten la app finanzas (URL /finanzas/…): módulos de cada pantalla (el primero es el
+# principal). Una pantalla nueva de la app que no esté aquí queda en Finanzas.
+RUTAS_FINANZAS = {
+    **{nombre: ['tesoreria'] for nombre in (
+        'cuentas', 'cuenta_nueva', 'cuenta_editar', 'saldo_inicial', 'saldo_inicial_sustento', 'movimientos',
+        'movimiento_nuevo', 'movimiento_eliminar', 'transferencia', 'cheques', 'cheque_estado', 'entregas', 'entrega',
+        'entrega_nueva', 'cobranza', 'cobranza_multiple', 'pago', 'pago_multiple', 'pagos_masivos', 'pago_masivo',
+        'pago_masivo_nuevo', 'detracciones_masivas', 'detracciones_masivas_nuevo', 'detraccion_masiva',
+        'constancias_clientes', 'extractos', 'extracto', 'extracto_accion', 'conciliacion', 'importar', 'flujo')},
+    **{nombre: ['finanzas'] for nombre in (
+        'anticipos', 'anticipo_aplicar', 'letras', 'letra', 'canje', 'canje_nuevo', 'prestamos', 'prestamo',
+        'prestamo_nuevo')},
+    # el voucher se abre desde ambos; las aplicaciones se anulan desde anticipos y desde las entregas a rendir
+    'voucher': ['tesoreria', 'finanzas'], 'aplicacion_anular': ['finanzas', 'tesoreria'],
+    'flujo_proyectado': ['tesoreria', 'finanzas'],  # incluye las cuotas de préstamos y letras por vencer
+}
+# pantallas de un módulo que también abre otro (vista: módulos; el primero es el principal)
+RUTAS_COMPARTIDAS = {'contabilidad:reparto_resultado': ['contabilidad', 'obras']}
+
 
 def modulos_de_ruta(match):
     """Módulos que pueden abrir la vista resuelta; None = libre (cualquier usuario autenticado)."""
@@ -515,8 +550,12 @@ def modulos_de_ruta(match):
     if match.namespace:
         if match.namespace == 'admin':
             return None
+        if match.view_name in RUTAS_COMPARTIDAS:
+            return RUTAS_COMPARTIDAS[match.view_name]
         if match.namespace in NAMESPACES_COMPARTIDOS:
             return NAMESPACES_COMPARTIDOS[match.namespace]
+        if match.namespace == 'finanzas':
+            return RUTAS_FINANZAS.get(match.url_name, ['finanzas'])
         return [match.namespace] if match.namespace in POR_CLAVE else None
     if match.url_name in RUTAS_LIBRES:
         return None

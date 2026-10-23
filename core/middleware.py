@@ -24,6 +24,9 @@ class SeguridadMiddleware:
         response = self.get_response(request)
         if settings.CONTENT_SECURITY_POLICY and 'Content-Security-Policy' not in response:
             response['Content-Security-Policy'] = settings.CONTENT_SECURITY_POLICY
+        if 'attachment' in response.get('Content-Disposition', ''):
+            # descarga de un archivo: la pantalla no cambia, así que el aviso «Cargando…» se oculta con esta marca
+            response.set_cookie('ceiba_descarga', '1', max_age=60, samesite='Lax', secure=request.is_secure())
         return response
 
 class PaginasErrorMiddleware:

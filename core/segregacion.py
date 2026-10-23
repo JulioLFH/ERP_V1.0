@@ -7,8 +7,9 @@ from .permisos import ACCIONES, puede
 # (acción 1, acción 2, riesgo, por qué)
 REGLAS = [
     ('compras.oc', 'compras.aprobar_oc', 'ALTO', 'Crea y aprueba sus propias órdenes de compra'),
-    ('compras.registrar', 'finanzas.registrar', 'ALTO', 'Registra facturas de proveedores y también las paga'),
-    ('finanzas.cuentas', 'finanzas.registrar', 'MEDIO', 'Crea cuentas bancarias y registra pagos en ellas'),
+    ('compras.registrar', 'tesoreria.registrar', 'ALTO', 'Registra facturas de proveedores y también las paga'),
+    ('tesoreria.cuentas', 'tesoreria.registrar', 'MEDIO', 'Crea cuentas bancarias y registra pagos en ellas'),
+    ('finanzas.registrar', 'tesoreria.registrar', 'BAJO', 'Registra letras y préstamos y también los cobra o paga'),
     ('requerimientos.solicitar', 'requerimientos.aprobar', 'MEDIO', 'Pide materiales y aprueba sus pedidos'),
     ('requerimientos.solped', 'requerimientos.liberar_solped', 'MEDIO',
      'Solicita compras y libera solicitudes de pedido'),
@@ -16,7 +17,7 @@ REGLAS = [
      'Convierte solicitudes en órdenes de compra y las aprueba'),
     ('inventario.operar', 'inventario.ajustar', 'MEDIO', 'Opera el almacén y ajusta sus diferencias'),
     ('ventas.emitir', 'ventas.anular', 'MEDIO', 'Emite comprobantes y los anula'),
-    ('ventas.emitir', 'finanzas.registrar', 'BAJO', 'Vende y cobra (aceptable en caja de tienda)'),
+    ('ventas.emitir', 'tesoreria.registrar', 'BAJO', 'Vende y cobra (aceptable en caja de tienda)'),
     ('planillas.calcular', 'planillas.cerrar', 'ALTO', 'Calcula la planilla y la cierra / paga'),
     ('contabilidad.asientos', 'contabilidad.periodos', 'MEDIO', 'Registra asientos manuales y cierra periodos'),
     ('activos.registrar', 'activos.baja', 'MEDIO', 'Registra activos y los da de baja'),

@@ -19,7 +19,7 @@ flowchart TB
     PLA[Planillas<br/>sueldos, AFP, EsSalud] --> FIN
     REN[Rendición de gastos<br/>celular, aprobación] --> FIN
     REN --> COM
-    FIN[Finanzas<br/>cobros, pagos, bancos] --> CON
+    FIN[Tesorería<br/>cobros, pagos, bancos] --> CON
     PLA --> CON
     ACT[Activos fijos<br/>depreciación] --> CON
     MAN --> COS[Costos<br/>estándar, real, ABC]
@@ -31,15 +31,16 @@ flowchart TB
 
 | Origen | Qué genera | Destino |
 |---|---|---|
-| Ventas | Salida de stock (kardex), cuenta por cobrar, asiento de venta | Inventario, Finanzas, Contabilidad |
-| Compras | Ingreso de stock al costo de la factura, cuenta por pagar, asiento de compra | Inventario, Finanzas, Contabilidad |
+| Ventas | Salida de stock (kardex), cuenta por cobrar, asiento de venta | Inventario, Tesorería, Contabilidad |
+| Compras | Ingreso de stock al costo de la factura, cuenta por pagar, asiento de compra | Inventario, Tesorería, Contabilidad |
 | Manufactura | Consumo de insumos, ingreso del producto con su lote, costo de la orden | Inventario, Costos, Contabilidad |
 | Requerimientos | Salida de almacén cargada al centro de costo del área | Inventario, Contabilidad |
 | Logística | Guía electrónica que acompaña la salida | Inventario, SUNAT |
-| Planillas | Pago de sueldos y obligaciones, asiento de planilla | Finanzas, Contabilidad |
-| Rendición de gastos | Facturas al registro de compras, reembolso o devolución del saldo | Compras, Finanzas, Contabilidad |
+| Planillas | Pago de sueldos y obligaciones, asiento de planilla | Tesorería, Contabilidad |
+| Rendición de gastos | Facturas al registro de compras, reembolso o devolución del saldo | Compras, Tesorería, Contabilidad |
 | Activos fijos | Depreciación mensual | Contabilidad |
-| Finanzas | Cobros, pagos, retenciones, conciliación bancaria | Contabilidad |
+| Tesorería | Cobros, pagos, retenciones, detracciones, conciliación bancaria | Contabilidad |
+| Finanzas | Anticipos, letras, canjes, préstamos y leasing (sus cobros y pagos pasan por Tesorería) | Tesorería, Contabilidad |
 | Costos | Liquidación del costo real del periodo y variaciones | Contabilidad |
 
 ## 2. Integraciones externas

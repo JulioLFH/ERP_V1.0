@@ -6,9 +6,13 @@
 > Finanzas y Contabilidad, que ya existen.
 > Estado: **fase 1 implementada en Ceiba v1.74.0** (app `obras`: obras, recursos, presupuestos por versiones con
 > partidas y APU, precios por presupuesto, biblioteca de partidas tipo, explosión de insumos, reportes e importación
-> desde Excel de S10 o la plantilla de Ceiba). Fases 2 a 5: pendientes.
-> Nota de la fase 1: la importación de S10 se probó con archivos armados con su formato habitual (presupuesto en
-> columnas y análisis en bloques); conviene validarla con un Excel real exportado de S10.
+> desde Excel de S10 o la plantilla de Ceiba).
+> **v1.75.0**: subpresupuestos y gastos generales detallados, sub-análisis, importación del reporte del visor del S10
+> (.xls sin títulos) y de su CSV de análisis, recursos por código, vínculo recurso → producto (código alterno),
+> requerimiento de obra desde la Meta (solicitud de pedido con el centro de costo de la obra), control meta vs.
+> pedido / recibido / consumido por insumo y **reparto de gastos generales** configurable (Contabilidad › Reparto de
+> gastos). De la fase 3 queda la **partida** en SolPed, OC y salidas de almacén (hoy el control es por insumo), el avance
+> diario, el parte de equipos y los subcontratos. Fases 2, 4 y 5: pendientes.
 > Las cifras legales son referenciales y **se parametrizan por vigencia**; antes de usarlas en un caso real, contrastarlas
 > con la norma publicada (El Peruano / OECE / MTPE) y con el acta del convenio de construcción civil del año.
 

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Reparto de gastos{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Reparto de gastos entre centros de costo</h1>
+    <div class="text-muted small">Gastos de los centros de apoyo (oficina central, logística, administración…) repartidos a las obras y centros según las reglas de la empresa</div></div>
+  <div class="d-flex flex-wrap gap-2">
+    <form method="get" class="d-flex gap-2"><input type="month" name="mes" value="{{ mes }}" class="form-control form-control-sm" onchange="this.form.submit()"></form>
+    <a href="?mes={{ mes }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
+    <a href="{% url 'contabilidad:reparto_cifras' %}?mes={{ mes }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-rulers"></i> Cifras de reparto</a>
+    <a href="{% url 'contabilidad:reparto_regla_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva regla</a>
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-4"><div class="card mb-3"><div class="card-header py-2 small fw-semibold">Reglas (se ejecutan en este orden)</div>
+    <div class="list-group list-group-flush small">{% for r in reglas %}
+      <a href="{% url 'contabilidad:reparto_regla' r.pk %}" class="list-group-item list-group-item-action {% if not r.activo %}text-muted{% endif %}">
+        <div class="fw-semibold">{{ r }}{% if not r.activo %} (inactiva){% endif %}</div>
+        <div class="text-muted">{{ r.get_base_display }}{% if r.cifra %}: {{ r.cifra.nombre }}{% endif %} · {{ r.get_tipo_destino_display|lower }}{% if r.centro_padre %} {{ r.centro_padre.codigo }}{% endif %}{% if r.desde or r.hasta %} · vigente {{ r.desde|default:'…' }}–{{ r.hasta|default:'…' }}{% endif %}</div></a>
+    {% empty %}<div class="list-group-item text-muted">Sin reglas. Ejemplos: «Administración → obras por m²», «Logística → obras por compras», «Gerencia → 60 % obras y 40 % fábrica».</div>{% endfor %}</div></div>
+    <div class="card"><div class="card-header py-2 small fw-semibold">Periodo {{ periodo|slice:'4:' }}/{{ periodo|slice:':4' }}</div><div class="card-body small">
+      {% if cerrado %}<div class="alert alert-secondary py-1 mb-0">Periodo cerrado: el reparto ya no se ejecuta ni se revierte.</div>
+      {% elif ejecucion %}<p class="mb-2"><span class="badge text-bg-success">Ejecutado</span> el {{ ejecucion.fecha|date:'d/m/Y H:i' }}{% if ejecucion.usuario %} por {{ ejecucion.usuario.username }}{% endif %}. Se recalcula con los gastos al día cada vez que se centraliza el periodo.</p>
+        <form method="post" class="d-flex flex-column gap-2">{% csrf_token %}<input type="hidden" name="periodo" value="{{ periodo }}"><input type="hidden" name="accion" value="revertir">
+          <input name="motivo" class="form-control form-control-sm" placeholder="Motivo (ej. se corrigen los m² de la obra)" required minlength="5">
+          <button class="btn btn-sm btn-outline-danger" data-confirm="¿Revertir el reparto de {{ periodo|slice:'4:' }}/{{ periodo|slice:':4' }}?"><i class="bi bi-arrow-counterclockwise"></i> Revertir</button></form>
+      {% else %}<p class="mb-2">Sin ejecutar. Revise la simulación y ejecútelo: genera un asiento por regla (haber al centro de origen y debe a cada destino, con sus cuentas de destino 9x).</p>
+        <form method="post">{% csrf_token %}<input type="hidden" name="periodo" value="{{ periodo }}"><button name="accion" value="ejecutar" class="btn btn-sm btn-success" {% if not total %}disabled{% endif %} data-confirm="¿Ejecutar el reparto de S/ {{ total|money }}?"><i class="bi bi-play-fill"></i> Ejecutar el reparto</button></form>{% endif %}
+    </div></div></div>
+  <div class="col-lg-8">
+    {% for f in filas %}<div class="card mb-3"><div class="card-header py-2 d-flex justify-content-between small"><span class="fw-semibold">{{ f.regla }}</span><span>{{ f.regla.get_base_display }} · S/ {{ f.total|money }}</span></div>
+      {% if f.aviso %}<div class="card-body py-2 small text-muted">{{ f.aviso }}</div>{% else %}
+      <div class="table-responsive"><table class="table table-sm mb-0 small align-middle">
+        <thead><tr><th>Destino</th><th class="num">Base</th><th class="num">%</th><th class="num">Asignado S/</th></tr></thead>
+        <tbody>{% for d in f.destinos %}<tr><td>{{ d.centro }}</td><td class="num">{{ d.base|floatformat:2 }}</td><td class="num">{{ d.pct }}</td><td class="num">{{ d.monto|money }}</td></tr>{% endfor %}</tbody></table></div>
+      <div class="card-body py-2 small text-muted">De: {% for o in f.origenes %}{{ o.centro.codigo }} · {{ o.cuenta.codigo }} S/ {{ o.monto|money }}{% if not forloop.last %}; {% endif %}{% endfor %}</div>{% endif %}
+    </div>{% empty %}<div class="alert alert-info small">No hay reglas vigentes en el periodo.</div>{% endfor %}
+    {% if ejecucion and ejecucion.detalle %}<div class="small text-muted">La simulación usa los gastos de hoy; lo grabado en la última centralización está en Contabilidad › Asientos (origen «Reparto de gastos»).</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

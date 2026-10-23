@@ -11,12 +11,12 @@ from .models import ArchivoSustento, Sustento
 MAX_BYTES = 5 * 1024 * 1024
 EXTENSIONES = ('.pdf', '.png', '.jpg', '.jpeg', '.webp', '.xlsx', '.xls', '.xml', '.zip', '.docx', '.doc', '.csv')
 # modelo -> módulo que puede ver y adjuntar sus sustentos
-MODULO_DE = {'contabilidad.asiento': 'contabilidad', 'finanzas.movimiento': 'finanzas', 'finanzas.cuenta': 'finanzas',
+MODULO_DE = {'contabilidad.asiento': 'contabilidad', 'finanzas.movimiento': 'tesoreria', 'finanzas.cuenta': 'tesoreria',
              'inventario.operacion': 'inventario', 'ventas.venta': 'ventas', 'compras.compra': 'compras',
              'compras.ordencompra': 'compras', 'logistica.guiaremision': 'logistica',
              'produccion.ordenproduccion': 'manufactura', 'activos.activofijo': 'activos',
-             'finanzas.gastorendicion': 'finanzas', 'finanzas.entregarendir': 'finanzas', 'finanzas.letra': 'finanzas',
-             'finanzas.cheque': 'finanzas', 'finanzas.canjeletras': 'finanzas',
+             'finanzas.gastorendicion': 'tesoreria', 'finanzas.entregarendir': 'tesoreria', 'finanzas.letra': 'finanzas',
+             'finanzas.cheque': 'tesoreria', 'finanzas.canjeletras': 'finanzas',
              'finanzas.lineagasto': 'rendiciones', 'finanzas.rendicion': 'rendiciones',
              'inventario.conteociclico': 'inventario', 'compras.solicitudpedido': 'requerimientos',
              'planillas.documentolegajo': 'planillas', 'planillas.contrato': 'planillas',

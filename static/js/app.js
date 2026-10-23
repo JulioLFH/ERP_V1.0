@@ -354,13 +354,27 @@ document.querySelectorAll('button[data-confirm]').forEach((b) => {
   if (!aviso) return;
   const texto = aviso.querySelector('.cargando-texto');
   let timer = null;
-  const esDescarga = (url) => /[?&](formato|descargar|plantilla|solicitud)=|\/(imprimir|boletas|plame|afp|voucher|archivo)\b|\.(pdf|xlsx|zip|txt|xml)(\?|$)/i.test(url || '');
+  const esDescarga = (url) => /[?&](formato|descargar|plantilla|solicitud)=|\/(imprimir|boletas|plame|afp|voucher|archivo|plantilla|excel|csv|exportar|descargar)\b|\.(pdf|xlsx|xls|csv|zip|txt|xml)(\?|$)/i.test(url || '');
+  // respaldo para cualquier otra descarga: el servidor responde los archivos con la marca «ceiba_descarga» y, mientras
+  // el aviso está visible, se revisa si llegó (una descarga no cambia de página, así que el aviso no se iría solo)
+  let vigia = null;
+  const MARCA = 'ceiba_descarga=';
+  const borrarMarca = () => { document.cookie = MARCA + '; max-age=0; path=/'; };
+  function vigilarDescarga() {
+    clearInterval(vigia);
+    vigia = setInterval(() => {
+      if (document.cookie.split('; ').some((c) => c.startsWith(MARCA + '1'))) { borrarMarca(); ocultar(); }
+    }, 400);
+  }
   function mostrar(mensaje) {
     clearTimeout(timer);
+    borrarMarca();
     timer = setTimeout(() => { texto.textContent = mensaje; aviso.hidden = false; }, 250);
+    vigilarDescarga();
   }
   function ocultar() {
     clearTimeout(timer);
+    clearInterval(vigia);
     aviso.hidden = true;
     document.querySelectorAll('[data-enviando]').forEach((b) => {
       b.disabled = false;

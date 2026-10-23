@@ -818,6 +818,8 @@ def centralizar_periodo(periodo):
             asiento_prestamos(periodo, cta, tc_func)
             asiento_cambio_cierre(periodo, cta, obtener(hasta) if Cuenta.objects.filter(moneda='USD').exists()
                                   else None)
+            from .reparto import regenerar
+            regenerar(periodo)  # el reparto de gastos ejecutado, con los gastos al día (al final: los usa todos)
         except ErrorContable as exc:
             resumen['errores'].append(str(exc))
         PeriodoContable.objects.update_or_create(

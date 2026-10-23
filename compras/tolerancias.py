@@ -55,4 +55,4 @@ def liberar_pago(compra, usuario, comentario):
                                   f'{comentario.strip()} (antes: {compra.motivo_bloqueo_pago})')[:300]
     compra.save(update_fields=['pago_bloqueado', 'motivo_bloqueo_pago'])
     from core.auditoria import registrar
-    registrar('EDITAR', compra, {'pago_bloqueado': 'liberado'}, comentario.strip()[:200])
+    registrar('MODIFICAR', compra, {'pago_bloqueado': 'liberado'}, comentario.strip()[:200])  # acción de la bitácora

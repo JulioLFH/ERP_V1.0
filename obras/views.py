@@ -15,10 +15,12 @@ from django.views.generic import CreateView, UpdateView
 from core.utils import excel_response
 from core.views import FormGenerico, ListaGenerica
 
-from . import calculos
+from . import calculos, control, vinculos
 from . import importar as imp
-from .forms import ImportarForm, ObraForm, PartidaForm, PieForm, PresupuestoForm, RecursoForm
-from .models import Obra, Partida, PartidaBase, PrecioPresupuesto, Presupuesto, Recurso, RecursoAPU, RecursoBase
+from .forms import (ImportarForm, ObraForm, PartidaForm, PieForm, PresupuestoForm, RecursoForm,
+                    SubpresupuestoForm)
+from .models import (ComponenteRecurso, Obra, Partida, PartidaBase, PrecioPresupuesto, Presupuesto, Recurso,
+                     RecursoAPU, RecursoBase, Subpresupuesto)
 
 SESION_IMPORTACION = 'obras_importacion'
 
@@ -93,19 +95,31 @@ def presupuesto(request, pk):
         if respuesta:
             return respuesta
         return redirect('obras:presupuesto', p.pk)
-    partidas = list(p.partidas.all())
+    partidas = list(p.partidas.select_related('subpresupuesto'))
+    subs = list(p.subpresupuestos.all())
+    gg_detallado = any(s.es_gastos_generales for s in subs)
+    texto_gg = 'GASTOS GENERALES (detallados)' if gg_detallado else f'GASTOS GENERALES ({p.gastos_generales_pct}%)'
     if request.GET.get('formato') == 'excel':
-        filas = [[x.item, x.descripcion, x.unidad, None if x.es_titulo else x.metrado,
-                  None if x.es_titulo else x.precio, x.parcial] for x in partidas]
-        filas += [['', 'COSTO DIRECTO', '', '', '', p.costo_directo],
-                  ['', f'GASTOS GENERALES ({p.gastos_generales_pct}%)', '', '', '', p.gastos_generales],
+        filas, actual = [], None
+        for x in partidas:
+            if subs and x.subpresupuesto_id != actual:
+                actual = x.subpresupuesto_id
+                filas.append(['', f'SUBPRESUPUESTO {x.subpresupuesto}', '', '', '', x.subpresupuesto.parcial])
+            filas.append([x.item, x.descripcion, x.unidad, None if x.es_titulo else x.metrado,
+                          None if x.es_titulo else x.precio, x.parcial])
+        filas += [['', 'COSTO DIRECTO', '', '', '', p.costo_directo], ['', texto_gg, '', '', '', p.gastos_generales],
                   ['', f'UTILIDAD ({p.utilidad_pct}%)', '', '', '', p.utilidad], ['', 'SUBTOTAL', '', '', '', p.subtotal],
                   ['', f'IGV ({p.igv_pct}%)', '', '', '', p.igv], ['', 'TOTAL PRESUPUESTO', '', '', '', p.total]]
         return excel_response(f'Presupuesto_{p.obra.codigo}_{p.tipo}_v{p.version}', f'PRESUPUESTO {p} · {p.obra.nombre}',
                               ['Ítem', 'Descripción', 'Und.', 'Metrado', 'Precio', 'Parcial'], filas)
     sin_apu = sum(1 for x in partidas if not x.es_titulo and not x.precio_fijo and not x.recursos.exists())
+    ultimo_sub = subs[-1] if subs else None
     return render(request, 'obras/presupuesto.html', {
-        'p': p, 'partidas': partidas, 'form': PartidaForm(presupuesto=p, initial={'item': _siguiente_item(partidas)}),
+        'p': p, 'partidas': partidas, 'subs': subs, 'texto_gg': texto_gg, 'gg_detallado': gg_detallado,
+        'form': PartidaForm(presupuesto=p, initial={
+            'item': _siguiente_item([x for x in partidas if ultimo_sub is None or x.subpresupuesto_id == ultimo_sub.pk]),
+            'subpresupuesto': ultimo_sub}),
+        'form_sub': SubpresupuestoForm(presupuesto=p, initial={'codigo': f'{len(subs) + 1:03d}'}),
         'pie': PieForm(instance=p), 'tipos': Presupuesto.TIPOS, 'sin_apu': sin_apu,
         'imprimir': request.GET.get('imprimir') == '1'})
 
@@ -140,9 +154,31 @@ def _accion_presupuesto(request, p, accion):
         else:
             for campo, errores in form.errors.items():
                 messages.error(request, f'{form.fields[campo].label if campo in form.fields else ""}: {" ".join(errores)}')
+    elif accion == 'subpresupuesto':
+        form = SubpresupuestoForm(request.POST, presupuesto=p)
+        if form.is_valid():
+            sub = form.save(commit=False)
+            sub.presupuesto = p
+            sub.save()
+            sueltas = p.partidas.filter(subpresupuesto__isnull=True).update(subpresupuesto=sub)  # el primero las recibe
+            calculos.recalcular(p)
+            messages.success(request, f'Subpresupuesto {sub} agregado' + (f' con las {sueltas} partidas existentes.'
+                                                                          if sueltas else '.'))
+        else:
+            for errores in form.errors.values():
+                messages.error(request, ' '.join(errores))
+    elif accion == 'eliminar_sub':
+        sub = get_object_or_404(Subpresupuesto, pk=request.POST.get('sub'), presupuesto=p)
+        n = sub.partidas.count()
+        if p.subpresupuestos.count() == 1:  # el único: sus partidas quedan en el presupuesto
+            sub.partidas.update(subpresupuesto=None)
+            n = 0
+        sub.delete()
+        calculos.recalcular(p)
+        messages.success(request, f'Subpresupuesto {sub} eliminado' + (f' con sus {n} partidas.' if n else '.'))
     elif accion == 'eliminar':
         partida = get_object_or_404(Partida, pk=request.POST.get('eliminar'), presupuesto=p)
-        hijas = p.partidas.filter(orden__startswith=partida.orden + '.')
+        hijas = p.partidas.filter(subpresupuesto=partida.subpresupuesto, orden__startswith=partida.orden + '.')
         n = hijas.count()
         hijas.delete()
         partida.delete()
@@ -340,17 +376,24 @@ def precios(request, pk):
 @login_required
 def insumos(request, pk):
     p = get_object_or_404(Presupuesto.objects.select_related('obra'), pk=pk)
-    e = calculos.explosion(p)
+    subs = list(p.subpresupuestos.all())
+    sub = next((s for s in subs if str(s.pk) == request.GET.get('sub')), None)
+    explotar = request.GET.get('explotar') != '0'
+    e = calculos.explosion(p, subpresupuesto=sub, explotar=explotar)
     if request.GET.get('formato') == 'excel':
         filas = [[dict(Recurso.TIPOS)[t['recurso'].tipo], t['recurso'].codigo, t['recurso'].nombre,
                   t['recurso'].unidad, t['cantidad'], t['precio'] if not t['recurso'].es_porcentaje_mo else '',
                   t['monto'], t['recurso'].indice_unificado] for t in e['filas']]
+        filas.append(['', '', 'TOTAL DE INSUMOS (cantidad × precio)', '', '', '', e['insumos'], ''])
+        if e['diferencia']:
+            filas.append(['', '', 'Diferencia por redondeo de los análisis', '', '', '', e['diferencia'], ''])
         if e['sin_apu']:
             filas.append(['', '', 'Partidas sin análisis (precio directo)', '', '', '', e['sin_apu'], ''])
-        filas.append(['', '', 'COSTO DIRECTO', '', '', '', e['total'], ''])
+        filas.append(['', '', 'TOTAL DE LAS PARTIDAS', '', '', '', e['total'], ''])
         return excel_response(f'Insumos_{p.obra.codigo}_{p.tipo}_v{p.version}', f'RELACIÓN DE INSUMOS {p}',
                               ['Tipo', 'Código', 'Recurso', 'Und.', 'Cantidad', 'Precio', 'Parcial', 'IU'], filas)
-    return render(request, 'obras/insumos.html', {'p': p, 'e': e, 'tipos': dict(Recurso.TIPOS)})
+    return render(request, 'obras/insumos.html', {'p': p, 'e': e, 'tipos': dict(Recurso.TIPOS), 'subs': subs,
+                                                  'sub': sub, 'explotar': explotar})
 
 
 # ---------------------------------------------------------------- importación
@@ -368,21 +411,28 @@ def importar(request, pk):
                                        origen=datos.get('archivo', 'Excel'))
         request.session.pop(SESION_IMPORTACION, None)
         messages.success(request, f'{pres} importado: S/ {pres.total:,.2f} ({pres.partidas.count()} partidas y títulos).')
+        for aviso in pres.avisos_importacion:
+            messages.info(request, aviso)
         if diferencias:
             messages.warning(request, f'{len(diferencias)} partida(s) con precio calculado distinto al del archivo '
                                       f'(primeras: ' + '; '.join(f'{i}: {a:,.2f} → {b:,.2f}' for i, a, b in diferencias[:5])
                              + '). Revise sus análisis.')
+        if request.POST.get('vincular'):
+            c = vinculos.vincular(vinculos.recursos_de(pres))
+            messages.success(request, f'Recursos vinculados: {c["enlazados"]} con productos existentes, {c["creados"]} '
+                                      f'productos creados, {c["categorias"]} categorías de mano de obra y '
+                                      f'{c["equipos"]} equipos.')
         return redirect('obras:presupuesto', pres.pk)
     if request.method == 'POST' and form.is_valid():
         try:
-            datos = imp.leer(form.cleaned_data['archivo'])
+            datos = imp.leer(form.cleaned_data['archivo'], form.cleaned_data.get('analisis'))
         except imp.ErrorImportacion as exc:
             messages.error(request, str(exc))
         else:
             datos.update(obra=o.pk, tipo=form.cleaned_data['tipo'], nombre=form.cleaned_data['nombre'] or o.nombre,
                          archivo=form.cleaned_data['archivo'].name[:30])
             request.session[SESION_IMPORTACION] = datos
-            vista = {'resumen': imp.resumen(datos), 'avisos': datos['avisos'], 'partidas': datos['partidas'][:40],
+            vista = {'resumen': imp.resumen(datos), 'avisos': datos['avisos'], 'partidas': datos['partidas'][:60],
                      'apu': datos['apu'], 'datos': datos}
     return render(request, 'obras/importar.html', {'o': o, 'form': form, 'vista': vista})
 
@@ -400,19 +450,118 @@ class RecursoLista(ListaGenerica):
     model = Recurso
     titulo = 'Recursos (insumos) de obra'
     columnas = [('Código', 'codigo'), ('Recurso', 'nombre'), ('Und.', 'unidad'), ('Tipo', 'get_tipo_display'),
-                ('Precio referencial', 'precio'), ('IU', 'indice_unificado'), ('Activo', 'activo')]
+                ('Precio referencial', 'precio'), ('Sub-análisis', 'es_subanalisis'), ('Producto', 'producto'),
+                ('IU', 'indice_unificado'), ('Activo', 'activo')]
     url_nuevo, url_editar = 'obras:recurso_nuevo', 'obras:recurso_editar'
     buscar_en = ['codigo', 'nombre']
 
 
 class RecursoNuevo(FormGenerico, CreateView):
     model, form_class, titulo = Recurso, RecursoForm, 'Nuevo recurso'
-    success_url = reverse_lazy('obras:recursos')
+
+    def get_success_url(self):
+        if self.object.es_subanalisis:
+            return reverse_lazy('obras:subanalisis', args=[self.object.pk])
+        return reverse_lazy('obras:recursos')
 
 
 class RecursoEditar(FormGenerico, UpdateView):
     model, form_class, titulo = Recurso, RecursoForm, 'Editar recurso'
-    success_url = reverse_lazy('obras:recursos')
+
+    def get_success_url(self):
+        if self.object.es_subanalisis:
+            return reverse_lazy('obras:subanalisis', args=[self.object.pk])
+        return reverse_lazy('obras:recursos')
+
+
+@login_required
+def subanalisis(request, pk):
+    """Análisis de un sub-análisis (ej. concreto: cemento, arena, piedra, agua): vale para todos los presupuestos."""
+    r = get_object_or_404(Recurso, pk=pk)
+    if request.method == 'POST':
+        with transaction.atomic():
+            for campo in ('rendimiento', 'jornada'):
+                valor = _decimal(request.POST.get(campo))
+                if valor is not None:
+                    setattr(r, campo, valor)
+            r.es_subanalisis = True
+            r.save()
+            for c in r.componentes.select_related('recurso'):
+                if request.POST.get(f'quitar_{c.pk}'):
+                    c.delete()
+                    continue
+                c.cuadrilla = _decimal(request.POST.get(f'cuadrilla_{c.pk}')) if c.recurso.tipo in ('MO', 'EQ') else None
+                c.cantidad = _decimal(request.POST.get(f'cantidad_{c.pk}'), c.cantidad)
+                c.save()
+            codigo = (request.POST.get('nuevo_recurso') or '').split(' · ')[0].strip()
+            if codigo:
+                nuevo = Recurso.objects.filter(codigo=codigo).first()
+                if nuevo is None or nuevo.pk == r.pk:
+                    messages.error(request, f'No existe el recurso «{codigo}» (o es el mismo sub-análisis).')
+                else:
+                    ComponenteRecurso.objects.create(
+                        padre=r, recurso=nuevo, cantidad=_decimal(request.POST.get('nuevo_cantidad'), Decimal('0')),
+                        cuadrilla=_decimal(request.POST.get('nuevo_cuadrilla')) if nuevo.tipo in ('MO', 'EQ') else None,
+                        orden=r.componentes.count())
+        # los presupuestos en borrador que lo usan toman el nuevo precio
+        for pres in Presupuesto.objects.filter(estado='BORRADOR', partidas__recursos__recurso=r).distinct():
+            calculos.asegurar_precio(pres, r)
+            calculos.recalcular(pres)
+        messages.success(request, 'Sub-análisis guardado; los presupuestos en borrador que lo usan se recalcularon.')
+        return redirect('obras:subanalisis', pk)
+    comps = list(r.componentes.select_related('recurso'))
+    a = calculos.analisis(r, {}, comps)
+    usado_en = Presupuesto.objects.filter(partidas__recursos__recurso=r).distinct().select_related('obra')[:20]
+    return render(request, 'obras/subanalisis.html', {
+        'r': r, 'a': a, 'usado_en': usado_en,
+        'recursos': Recurso.objects.filter(activo=True).exclude(pk=r.pk).only('codigo', 'nombre', 'unidad')})
+
+
+@login_required
+def vincular(request):
+    """Materiales y subcontratos → productos; mano de obra → categoría; equipos → equipo propio."""
+    pres = Presupuesto.objects.filter(pk=request.GET.get('presupuesto')).select_related('obra').first()
+    recursos = vinculos.recursos_de(pres) if pres else Recurso.objects.filter(activo=True)
+    if request.method == 'POST':
+        c = vinculos.vincular(recursos, crear=bool(request.POST.get('crear')))
+        messages.success(request, f'{c["enlazados"]} recurso(s) enlazados a productos existentes, {c["creados"]} '
+                                  f'productos creados, {c["categorias"]} categorías y {c["equipos"]} equipos.')
+        return redirect(request.get_full_path())
+    filas = vinculos.proponer(recursos.select_related('producto'))
+    return render(request, 'obras/vincular.html', {'filas': filas, 'pres': pres,
+                                                   'vinculados': recursos.filter(producto__isnull=False).count()})
+
+
+@login_required
+def control_obra(request, pk):
+    """Meta vs. pedido, recibido y consumido por insumo; requerir a Compras lo que falta."""
+    p = get_object_or_404(Presupuesto.objects.select_related('obra__centro_costo', 'obra__almacen'), pk=pk)
+    if request.method == 'POST':
+        cantidades = {}
+        for clave, valor in request.POST.items():
+            if clave.startswith('pedir_'):
+                cantidad = _decimal(valor)
+                if cantidad:
+                    cantidades[int(clave[6:])] = cantidad
+        fecha = request.POST.get('fecha_requerida') or None
+        try:
+            creadas = control.requerir(p, cantidades, request.user, fecha_requerida=fecha,
+                                       justificacion=request.POST.get('justificacion', ''))
+        except control.ErrorRequerimiento as exc:
+            messages.error(request, str(exc))
+            return redirect('obras:control', pk)
+        messages.success(request, 'Solicitud(es) de pedido en borrador: ' + ', '.join(
+            f'{s.get_tipo_display()} ({s.lineas.count()} ítems)' for s in creadas) + '. Revísela(s) y envíela(s) a '
+                                                                                   'liberar en Compras.')
+        return redirect('solicitudes:detalle', creadas[0].pk)
+    c = control.control(p)
+    if request.GET.get('formato') == 'excel':
+        filas = [[f['producto'].codigo, f['producto'].nombre, f['unidad'], f['cantidad'], f['monto'], f['pedido'],
+                  f['recibido'], f['consumido'], f['costo_real'], f['avance'], f['desviacion']] for f in c['filas']]
+        return excel_response(f'Control_{p.obra.codigo}_{p.tipo}_v{p.version}', f'META VS. REAL POR INSUMO {p}',
+                              ['Producto', 'Insumo', 'Und.', 'Meta', 'Meta S/', 'Pedido', 'Recibido', 'Consumido',
+                               'Costo real S/', 'Avance %', 'Desviación S/'], filas)
+    return render(request, 'obras/control.html', {'p': p, 'c': c, 'es_meta': p.tipo == 'META'})
 
 
 @login_required

@@ -339,6 +339,9 @@ class ConteoCiclico(models.Model):
     estado = models.CharField(max_length=8, choices=ESTADOS, default='ABIERTO')
     foto_en = models.DateTimeField('Foto del stock', default=timezone.now,
                                    help_text='Momento en que se tomó el stock del sistema')
+    kardex_hasta = models.PositiveBigIntegerField(
+        default=0, editable=False,
+        help_text='Último movimiento del kardex incluido en la foto: los siguientes son «movimientos después»')
     contador = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                  related_name='+', help_text='Quien cuenta (no ve el stock del sistema)')
     bloquear = models.BooleanField('Bloquear movimientos', default=False,

@@ -15,14 +15,14 @@ class SegregacionTest(TestCase):
         self.admin = User.objects.create_superuser('admin1', 'a@t.com', 'x')
         self.comprador = User.objects.create_user('comprador', password='x')
         self.comprador.groups.add(Group.objects.get_or_create(name='Compras')[0],
-                                  Group.objects.get_or_create(name='Finanzas')[0])
+                                  Group.objects.get_or_create(name='Tesorería')[0])
         PerfilUsuario.objects.create(usuario=self.comprador,
                                      acciones=['compras.oc', 'compras.aprobar_oc', 'compras.registrar'])
 
     def test_detecta_permisos_incompatibles(self):
         motivos = {c['motivo'] for c in conflictos(self.comprador)}
         self.assertIn('Crea y aprueba sus propias órdenes de compra', motivos)
-        self.assertNotIn('Registra facturas de proveedores y también las paga', motivos)  # no tiene finanzas.registrar
+        self.assertNotIn('Registra facturas de proveedores y también las paga', motivos)  # no tiene tesoreria.registrar
         filas, admins = reporte()
         self.assertEqual((filas[0]['u'], admins), (self.comprador, [self.admin]))
         self.client.force_login(self.admin)

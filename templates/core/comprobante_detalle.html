@@ -32,7 +32,7 @@
       <a href="{% url 'logistica:nueva' %}?tipo=09&venta={{ doc.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-truck"></i> Generar guía</a>
     {% endif %}
     {% if doc.estado == 'REGISTRADO' %}
-      {% if doc.saldo > 0 and 'finanzas' in mods %}
+      {% if doc.saldo > 0 and 'tesoreria' in mods %}
         <a href="{% if app == 'ventas' %}{% url 'finanzas:cobranza' %}{% else %}{% url 'finanzas:pago' %}{% endif %}?doc={{ doc.pk }}" class="btn btn-sm btn-success"><i class="bi bi-cash-coin"></i> Registrar {% if app == 'ventas' %}cobro{% else %}pago{% endif %}</a>
         {% if doc.detraccion_monto %}<a href="{% if app == 'ventas' %}{% url 'finanzas:cobranza' %}{% else %}{% url 'finanzas:pago' %}{% endif %}?doc={{ doc.pk }}&detraccion=1" class="btn btn-sm btn-outline-success"><i class="bi bi-bank"></i> Detracción</a>{% endif %}
       {% endif %}
@@ -87,13 +87,13 @@
   <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
     <div><i class="bi bi-bank"></i> <b>Detracción S/ {{ doc.detr_pen|money }}</b> ·
       {% if situacion == 'DEPOSITADA' %}depositada: constancia N° {{ doc.detraccion_constancia }}{% if doc.detraccion_fecha %} del {{ doc.detraccion_fecha|date:'d/m/Y' }}{% endif %}{% if doc.detraccion_deposito_id %} (depositada por la empresa){% endif %}.
-      {% elif situacion == 'SIN_CONSTANCIA' %}depositada en Finanzas, pero falta el N° de constancia (va al {% if app == 'compras' %}Registro de Compras 8.1{% else %}control de detracciones{% endif %}): regístrelo con «Registrar constancia».
-      {% elif situacion == 'PENDIENTE' %}{% if app == 'ventas' %}pendiente: el cliente debe depositarla en la cuenta de detracciones de la empresa. Al recibirla, regístrela con «Detracción» (cobranza) y el N° de constancia.{% else %}pendiente de depósito en la cuenta del BN del proveedor: regístrelo con «Detracción» y el N° de constancia como N° de operación, o en Finanzas › Depósito masivo de detracciones.{% endif %}
+      {% elif situacion == 'SIN_CONSTANCIA' %}depositada en Tesorería, pero falta el N° de constancia (va al {% if app == 'compras' %}Registro de Compras 8.1{% else %}control de detracciones{% endif %}): regístrelo con «Registrar constancia».
+      {% elif situacion == 'PENDIENTE' %}{% if app == 'ventas' %}pendiente: el cliente debe depositarla en la cuenta de detracciones de la empresa. Al recibirla, regístrela con «Detracción» (cobranza) y el N° de constancia.{% else %}pendiente de depósito en la cuenta del BN del proveedor: regístrelo con «Detracción» y el N° de constancia como N° de operación, o en Tesorería › Depósito masivo de detracciones.{% endif %}
       {% elif app == 'ventas' %}el cliente pagó el total el {{ detraccion.1|date:'d/m/Y' }} sin depositarla. Como proveedor, la empresa debe depositarla en su cuenta del Banco de la Nación <b class="{% if detraccion_plazo < hoy %}text-decoration-underline{% endif %}">hasta el {{ detraccion_plazo|date:'d/m/Y' }}</b>{% if detraccion_plazo < hoy %} (plazo vencido: regularice con la gradualidad de multas){% endif %} (5 días hábiles desde el cobro).
       {% else %}se pagó el total al proveedor el {{ detraccion.1|date:'d/m/Y' }} sin depositarla. El proveedor debe depositarla: pídale la constancia y regístrela aquí (va al Registro de Compras 8.1 y sustenta el crédito fiscal).{% endif %}
     </div>
     <div class="d-flex gap-2">
-      {% if app == 'ventas' and situacion == 'SIN_DEPOSITO' and 'finanzas' in mods %}<a href="{% url 'ventas:deposito_detraccion' doc.pk %}" class="btn btn-sm btn-danger text-nowrap"><i class="bi bi-bank"></i> Registrar depósito de la detracción</a>{% endif %}
+      {% if app == 'ventas' and situacion == 'SIN_DEPOSITO' and 'tesoreria' in mods %}<a href="{% url 'ventas:deposito_detraccion' doc.pk %}" class="btn btn-sm btn-danger text-nowrap"><i class="bi bi-bank"></i> Registrar depósito de la detracción</a>{% endif %}
       <button class="btn btn-sm btn-outline-secondary text-nowrap" data-bs-toggle="collapse" data-bs-target="#form-constancia"><i class="bi bi-pencil"></i> {% if doc.detraccion_constancia %}Corregir{% else %}Registrar{% endif %} constancia</button>
     </div>
   </div>
@@ -130,7 +130,7 @@
     <div class="card"><div class="card-header">{% if app == 'ventas' %}Cobranzas{% else %}Pagos{% endif %} registrados (Finanzas)</div>
       <div class="table-responsive"><table class="table table-sm mb-0">
         <thead><tr><th>Voucher</th><th>Fecha</th><th>Cuenta</th><th>Concepto</th><th>Medio / N° op.</th><th class="num">Monto</th></tr></thead>
-        <tbody>{% for m in movimientos %}<tr><td>{% if 'finanzas' in mods %}<a href="{% url 'finanzas:voucher' m.pk %}" target="_blank">{{ m.voucher }}</a>{% else %}{{ m.voucher }}{% endif %}</td><td>{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.cuenta }}</td><td>{{ m.get_concepto_display }}</td><td>{{ m.get_medio_pago_display }} {{ m.numero_operacion }}</td><td class="num">{{ m.monto|money }}</td></tr>
+        <tbody>{% for m in movimientos %}<tr><td>{% if 'tesoreria' in mods or 'finanzas' in mods %}<a href="{% url 'finanzas:voucher' m.pk %}" target="_blank">{{ m.voucher }}</a>{% else %}{{ m.voucher }}{% endif %}</td><td>{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.cuenta }}</td><td>{{ m.get_concepto_display }}</td><td>{{ m.get_medio_pago_display }} {{ m.numero_operacion }}</td><td class="num">{{ m.monto|money }}</td></tr>
         {% empty %}<tr><td colspan="6" class="text-muted text-center">Sin movimientos.</td></tr>{% endfor %}</tbody>
       </table></div>
     </div>

@@ -71,7 +71,7 @@ def cerrar(planilla):
 @transaction.atomic
 def reabrir(planilla):
     if planilla.estado == 'PAGADA':
-        raise ErrorPlanilla('La planilla ya se pagó: anule primero el pago en Finanzas › Movimientos.')
+        raise ErrorPlanilla('La planilla ya se pagó: anule primero el pago en Tesorería › Movimientos.')
     if planilla.estado != 'CERRADA':
         raise ErrorPlanilla('Solo se reabre una planilla cerrada.')
     from contabilidad.models import PeriodoContable

@@ -14,7 +14,7 @@
   <div class="col-sm-6 col-xl"><div class="kpi d-flex justify-content-between"><div><div class="label">Compras del mes</div><div class="value">S/ {{ compras_mes|money }}</div></div><i class="bi bi-bag text-primary"></i></div></div>
   <div class="col-sm-6 col-xl"><a href="{% if 'ventas' in mods %}{% url 'ventas:pendientes' %}{% else %}#{% endif %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div><div class="label">Por cobrar</div><div class="value">S/ {{ total_cobrar|money }}</div></div><i class="bi bi-hourglass-split text-warning"></i></div></a></div>
   <div class="col-sm-6 col-xl"><a href="{% if 'compras' in mods %}{% url 'compras:pendientes' %}{% else %}#{% endif %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div><div class="label">Por pagar</div><div class="value">S/ {{ total_pagar|money }}</div></div><i class="bi bi-calendar2-x text-danger"></i></div></a></div>
-  <div class="col-sm-6 col-xl"><a href="{% if 'finanzas' in mods %}{% url 'finanzas:cuentas' %}{% else %}#{% endif %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div>
+  <div class="col-sm-6 col-xl"><a href="{% if 'tesoreria' in mods %}{% url 'finanzas:cuentas' %}{% else %}#{% endif %}" class="text-decoration-none"><div class="kpi d-flex justify-content-between"><div>
     <div class="label">Caja y bancos (consolidado)</div><div class="value">S/ {{ saldo_consolidado|money }}</div>
     <div class="small text-muted">S/ {{ saldo_pen|money }} + US$ {{ saldo_usd|money }}<br>{% if tc %}T.C. {{ tc.venta }} ({{ tc.fecha|date:'d/m' }}){% else %}Sin T.C. registrado{% endif %}</div>
   </div><i class="bi bi-bank text-info"></i></div></a></div>

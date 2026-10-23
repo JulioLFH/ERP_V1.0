@@ -3,31 +3,43 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <div><h1 class="page-title">Importar presupuesto desde Excel</h1><div class="text-muted small"><a href="{% url 'obras:obra' o.pk %}">{{ o }}</a></div></div>
-  <a href="{% url 'obras:plantilla' %}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Plantilla de Ceiba</a>
+  <a href="{% url 'obras:plantilla' %}" download class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Plantilla de Ceiba</a>
 </div>
-<p class="small text-muted" style="max-width:1000px">Exporte desde S10 el <b>presupuesto</b> y los <b>análisis de precios unitarios</b> a Excel (pueden ir en hojas del mismo archivo) y guárdelo como .xlsx. Ceiba reconoce las columnas por su nombre (Ítem, Descripción, Und., Metrado, Precio, Parcial; y en los análisis: Código, Descripción recurso, Unidad, Cuadrilla, Cantidad, Precio, Parcial). También acepta la plantilla de Ceiba. Antes de grabar verá un resumen y podrá compararlo con el total del archivo.</p>
+<div class="small text-muted mb-3" style="max-width:1000px">Ceiba lee:
+  <ul class="mb-1">
+    <li>el Excel del S10 con el <b>presupuesto</b> y los <b>análisis</b> (columnas Ítem, Descripción, Und., Metrado, Precio, Parcial; análisis por bloques «Partida…»);</li>
+    <li>el <b>reporte del visor del S10</b> (Exportar a Excel 97-2000 «solo datos», .xls) aunque no traiga títulos de columnas: reconoce los ítems 01 / 01.01 / 01.01.01 y los subpresupuestos;</li>
+    <li>el <b>CSV de análisis</b> que exporta el S10 (.chr o .csv), en el segundo campo;</li>
+    <li>la <b>plantilla de Ceiba</b> (con hojas de presupuesto, APU y sub-análisis).</li>
+  </ul>
+  Los recursos se buscan por su <b>código</b>: un código que no existe crea el recurso aunque haya otro con el mismo nombre. Antes de grabar verá un resumen para compararlo con el total del archivo.</div>
 <div class="card mb-3" style="max-width:1000px"><div class="card-body">
   <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">{% csrf_token %}
-    {% for field in form %}<div class="col-md-4">{% include 'core/_campo.html' %}</div>{% endfor %}
+    {% for field in form %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}
     <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-search"></i> Revisar archivo</button></div>
   </form>
 </div></div>
 {% if vista %}
-<div class="card mb-3" style="max-width:1000px"><div class="card-header fw-semibold">Vista previa</div><div class="card-body">
+<div class="card mb-3" style="max-width:1100px"><div class="card-header fw-semibold">Vista previa · {{ vista.datos.formato }}</div><div class="card-body">
   <div class="row g-3 mb-2 small">
     <div class="col"><div class="kpi"><div class="label">Títulos</div><div class="value">{{ vista.resumen.titulos }}</div></div></div>
     <div class="col"><div class="kpi"><div class="label">Partidas</div><div class="value">{{ vista.resumen.partidas }}</div></div></div>
     <div class="col"><div class="kpi"><div class="label">Con análisis</div><div class="value">{{ vista.resumen.apu }}</div></div></div>
-    <div class="col"><div class="kpi"><div class="label">Recursos</div><div class="value">{{ vista.resumen.recursos }}</div></div></div>
+    <div class="col"><div class="kpi"><div class="label">Recursos (nuevos / existentes)</div><div class="value">{{ vista.resumen.nuevos }} / {{ vista.resumen.existentes }}</div></div></div>
     <div class="col"><div class="kpi"><div class="label">Costo directo del archivo</div><div class="value">S/ {{ vista.resumen.total_archivo|money }}</div></div></div>
+    {% if vista.resumen.gg_archivo is not None %}<div class="col"><div class="kpi"><div class="label">Gastos generales detallados</div><div class="value">S/ {{ vista.resumen.gg_archivo|money }}</div></div></div>{% endif %}
   </div>
   {% for a in vista.avisos %}<div class="alert alert-warning py-1 small mb-1">{{ a }}</div>{% endfor %}
-  <table class="table table-sm small mt-2 mb-2"><thead><tr><th>Ítem</th><th>Descripción</th><th>Und.</th><th class="num">Metrado</th><th class="num">Precio</th><th class="num">Parcial</th><th>Análisis</th></tr></thead>
-    <tbody>{% for x in vista.partidas %}<tr class="{% if x.titulo %}fw-semibold{% endif %}"><td>{{ x.item }}</td><td>{{ x.descripcion|truncatechars:70 }}</td><td>{{ x.unidad }}</td><td class="num">{% if not x.titulo %}{{ x.metrado }}{% endif %}</td><td class="num">{% if not x.titulo %}{{ x.precio }}{% endif %}</td><td class="num">{{ x.parcial }}</td>
-      <td>{% if not x.titulo %}{% if vista.apu|get_item:x.item %}<span class="text-success">{{ vista.apu|get_item:x.item|get_item:'recursos'|length }} recursos</span>{% else %}<span class="text-warning">sin análisis</span>{% endif %}{% endif %}</td></tr>{% endfor %}</tbody></table>
-  {% if vista.datos.partidas|length > 40 %}<div class="small text-muted mb-2">… y {{ vista.datos.partidas|length|add:"-40" }} filas más.</div>{% endif %}
-  <form method="post">{% csrf_token %}<button name="accion" value="grabar" class="btn btn-success"><i class="bi bi-check2-all"></i> Importar como presupuesto {{ vista.datos.tipo|lower }}</button></form>
-  <div class="form-text">Ceiba recalcula cada precio unitario desde su análisis; si alguno no coincide con el del archivo, se lo avisa al terminar.</div>
+  {% if vista.resumen.mismo_nombre %}<div class="alert alert-info py-1 small mb-1">{{ vista.resumen.mismo_nombre|length }} recurso(s) nuevos tienen el mismo nombre que otro con distinto código; se crean con el código del archivo (no se mezclan los catálogos):
+    {% for c, n, otro in vista.resumen.mismo_nombre|slice:':8' %}{{ c }} {{ n }} (ya existe {{ otro }}){% if not forloop.last %}; {% endif %}{% endfor %}{% if vista.resumen.mismo_nombre|length > 8 %}…{% endif %}</div>{% endif %}
+  <table class="table table-sm small mt-2 mb-2"><thead><tr><th>Sub.</th><th>Ítem</th><th>Descripción</th><th>Und.</th><th class="num">Metrado</th><th class="num">Precio</th><th class="num">Parcial</th><th>Análisis</th></tr></thead>
+    <tbody>{% for x in vista.partidas %}<tr class="{% if x.titulo %}fw-semibold{% endif %}"><td class="text-muted">{{ x.sub }}</td><td>{{ x.item }}</td><td>{{ x.descripcion|truncatechars:70 }}</td><td>{{ x.unidad }}</td><td class="num">{% if not x.titulo %}{{ x.metrado }}{% endif %}</td><td class="num">{% if not x.titulo %}{{ x.precio }}{% endif %}</td><td class="num">{{ x.parcial }}</td>
+      <td>{% if not x.titulo %}{% if vista.apu|get_item:x.clave %}<span class="text-success">{{ vista.apu|get_item:x.clave|get_item:'recursos'|length }} recursos</span>{% else %}<span class="text-warning">sin análisis</span>{% endif %}{% endif %}</td></tr>{% endfor %}</tbody></table>
+  {% if vista.datos.partidas|length > 60 %}<div class="small text-muted mb-2">… y {{ vista.datos.partidas|length|add:"-60" }} filas más.</div>{% endif %}
+  <form method="post" class="d-flex flex-wrap gap-3 align-items-center">{% csrf_token %}
+    <div class="form-check"><input type="checkbox" name="vincular" value="1" id="vincular" class="form-check-input"><label class="form-check-label small" for="vincular">Vincular los materiales y subcontratos con productos de Ceiba (crea los que falten, con el código del S10 como código alterno)</label></div>
+    <button name="accion" value="grabar" class="btn btn-success"><i class="bi bi-check2-all"></i> Importar como presupuesto {{ vista.datos.tipo|lower }}</button></form>
+  <div class="form-text">Ceiba recalcula cada precio unitario desde su análisis; si alguno no coincide con el precio del archivo, se lo avisa al terminar.</div>
 </div></div>
 {% endif %}
 {% endblock %}

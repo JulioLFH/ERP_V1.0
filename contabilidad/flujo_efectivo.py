@@ -17,11 +17,11 @@ métodos coincide (validación V4).
 from collections import defaultdict
 from decimal import Decimal
 
-from django.db.models import F, Q, Sum
+from django.db.models import Q, Sum
 
 from core.models import r2
 
-from .models import Asiento, AsientoLinea, PoliticaFlujo, ReglaFlujoCuenta, RubroFlujo
+from .models import Asiento, AsientoLinea, PoliticaFlujo, ReglaFlujoCuenta, RubroFlujo, norma_excluida
 
 D0 = Decimal('0')
 # apertura del sistema anterior: «saldos iniciales al aperturar el ejercicio», «asiento de apertura»… (no el diario
@@ -407,7 +407,7 @@ def _validaciones(m, r, inicial, final, neto, operacion_directo, operacion_indir
         if abs(r2(libro) - r2(tesoreria)) >= Decimal('0.01'):
             descuadres.append(f'{c}: tesorería {tesoreria:,.2f} · contabilidad {libro:,.2f}')
     v.append({'codigo': 'V2', 'ok': not descuadres, 'bloquea': False,
-              'texto': 'Saldo de cada caja y banco en Finanzas = saldo de su cuenta contable', 'detalle': '; '.join(descuadres[:5])})
+              'texto': 'Saldo de cada caja y banco en Tesorería = saldo de su cuenta contable', 'detalle': '; '.join(descuadres[:5])})
     v.append({'codigo': 'V3', 'ok': not r['sin_clasificar'], 'bloquea': False,
               'texto': 'Todo el efectivo está clasificado en un rubro',
               'detalle': f'{len(r["sin_clasificar"])} asiento(s) sin regla: asigne la regla de su cuenta o el rubro '
@@ -421,9 +421,13 @@ def _validaciones(m, r, inicial, final, neto, operacion_directo, operacion_indir
               'detalle': f'{len(r["transferencias"])} asiento(s) solo con efectivo que no suman cero'
               if r['transferencias'] else ''})
     pendientes = [p for p in automatico.periodos_pendientes() if m.desde <= p <= m.hasta]
-    descuadrados = list(AsientoLinea.objects.filter(asiento__periodo__gte=m.desde, asiento__periodo__lte=m.hasta)
-                        .values('asiento__numero').annotate(d=Sum('debe'), h=Sum('haber')).exclude(d=F('h'))
-                        .values_list('asiento__numero', flat=True)[:5])
+    # cuadre de cada asiento del libro activo con todas sus líneas, como lo muestra el asiento (antes se agrupaba por
+    # número, que mezclaba asientos, y solo con las líneas del libro activo: una línea marcada con otro libro que su
+    # asiento lo mostraba descuadrado aunque el asiento cuadrara); los importes se comparan con decimales exactos
+    descuadrados = [numero for numero, d, h in AsientoLinea.todas.filter(
+        asiento__periodo__gte=m.desde, asiento__periodo__lte=m.hasta).exclude(asiento__norma=norma_excluida())
+        .values('asiento_id', 'asiento__numero').annotate(d=Sum('debe'), h=Sum('haber'))
+        .values_list('asiento__numero', 'd', 'h') if r2(d or D0) != r2(h or D0)][:5]
     v.append({'codigo': 'V6', 'ok': not pendientes and not descuadrados, 'bloquea': True,
               'texto': 'Periodos centralizados y asientos cuadrados',
               'detalle': '; '.join(filter(None, [f'Pendientes: {", ".join(pendientes)}' if pendientes else '',

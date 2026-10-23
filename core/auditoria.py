@@ -34,6 +34,9 @@ AUDITADOS = [
     ('ventas', 'Cotizacion'), ('ventas', 'ListaPrecios'), ('ventas', 'PrecioLista'), ('ventas', 'Oportunidad'),
     ('planillas', 'Turno'), ('planillas', 'ConceptoPlanilla'), ('core', 'Ubicacion'),
     ('contabilidad', 'CuentaDefecto'), ('finanzas', 'Retencion'),
+    # tesorería y finanzas: documentos que se registran a mano
+    ('finanzas', 'Cheque'), ('finanzas', 'PagoMasivo'), ('finanzas', 'DepositoDetraccion'), ('finanzas', 'Letra'),
+    ('finanzas', 'CanjeLetras'), ('finanzas', 'Prestamo'),
     # manufactura: maestros, recetas, planta, calidad y mantenimiento (log de modificaciones de Manufactura)
     ('produccion', 'ComponenteLista'), ('produccion', 'SubproductoLista'), ('produccion', 'OperacionRuta'),
     ('produccion', 'PlanDemanda'), ('produccion', 'AvanceOrden'),

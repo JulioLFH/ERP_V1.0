@@ -223,7 +223,7 @@ class ComprobanteViews:
         if periodo_cerrado(doc.periodo):
             return f'El periodo contable {doc.periodo} está cerrado.'
         if doc.movimientos.exists():
-            return 'Tiene cobros/pagos registrados en Finanzas. Elimínelos antes de anular.'
+            return 'Tiene cobros/pagos registrados en Tesorería. Elimínelos antes de anular.'
         if doc.notas.filter(estado='REGISTRADO').exists():
             return 'Tiene notas de crédito/débito registradas. Anúlelas primero.'
         if doc._meta.model_name == 'compra' and doc.activos.exclude(estado='ANULADO').exists():

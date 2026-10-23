@@ -122,6 +122,36 @@ class FlujoEfectivoTest(TestCase):
         self.assertContains(self.client.get(url + '&detalle=IN-S01'), '-4,720.00')
         self.assertIn('spreadsheetml', self.client.get(url + '&formato=excel')['Content-Type'])
 
+    def test_v6_cuadre_como_lo_muestra_el_asiento(self):
+        """EFE-02: V6 marcaba «Descuadrados: 05-…» un asiento que en pantalla cuadra: sumaba solo las líneas del libro
+        activo (una línea marcada con otro libro que su asiento) y agrupaba por número (mezclaba asientos)."""
+        import importlib
+
+        from django.apps import apps
+        from types import SimpleNamespace
+
+        from .models import PeriodoContable
+
+        def v6():
+            return next(v for v in flujo_efectivo.estado(P, P)['validaciones'] if v['codigo'] == 'V6')
+        PeriodoContable.objects.update_or_create(periodo=P, defaults={'pendiente': False})
+        mixto = Asiento.objects.create(fecha=F, glosa='Planillas de prueba')
+        AsientoLinea.objects.create(asiento=mixto, cuenta=cuenta('6211'), debe=D('28026.08'))
+        AsientoLinea.objects.create(asiento=mixto, cuenta=cuenta('4111'), haber=D('28026.08'), norma='TRIBUTARIO')
+        otro = Asiento.objects.create(fecha=F, glosa='Mismo número', numero=mixto.numero)
+        for monto in ('0.10', '0.20'):
+            AsientoLinea.objects.create(asiento=otro, cuenta=cuenta('6211'), debe=D(monto))
+        AsientoLinea.objects.create(asiento=otro, cuenta=cuenta('4111'), haber=D('0.30'))
+        self.assertTrue(mixto.cuadrado)
+        self.assertTrue(v6()['ok'], v6()['detalle'])
+        # la migración 0028 devuelve a cada línea el libro de su asiento
+        migracion = importlib.import_module('contabilidad.migrations.0028_norma_de_las_lineas')
+        migracion.alinear(apps, SimpleNamespace(connection=SimpleNamespace(alias='default')))
+        self.assertEqual(set(mixto.lineas.values_list('norma', flat=True)), {'AMBOS'})
+        AsientoLinea.objects.create(asiento=otro, cuenta=cuenta('4111'), haber=D('0.01'))  # este sí descuadra
+        self.assertFalse(v6()['ok'])
+        self.assertIn(otro.numero, v6()['detalle'])
+
     def test_politicas(self):
         self.escenario()
         PoliticaFlujo.objects.update(intereses_pagados='OPERACION', detracciones_en_efectivo=False)

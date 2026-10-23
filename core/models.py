@@ -351,11 +351,17 @@ class Producto(models.Model):
     CLASES = CLASES_PRODUCTO
     UNIDADES = [('NIU', 'Unidad'), ('KGM', 'Kilogramo'), ('LTR', 'Litro'), ('MTR', 'Metro'),
                 ('BX', 'Caja'), ('PK', 'Paquete'), ('GLL', 'Galón'), ('MIL', 'Millar'), ('RO', 'Rollo'),
-                ('MTQ', 'Metro cúbico'), ('HUR', 'Hora'), ('ZZ', 'Servicio')]
+                ('MTQ', 'Metro cúbico'), ('HUR', 'Hora'), ('ZZ', 'Servicio'),
+                # construcción (catálogo 03 de SUNAT)
+                ('BG', 'Bolsa'), ('MTK', 'Metro cuadrado'), ('FTK', 'Pie cuadrado'), ('TNE', 'Tonelada'),
+                ('DAY', 'Día')]
 
     # ---- general
     codigo = models.CharField('Código', max_length=30, unique=True, blank=True,
                               help_text='Vacío = automático según el tipo (ej. MP000001)')
+    codigo_alterno = models.CharField('Código alterno', max_length=30, blank=True, db_index=True,
+                                      help_text='Código en otro sistema (ej. el insumo del S10): evita duplicar el '
+                                                'producto al importar')
     nombre = models.CharField(max_length=200)
     clase = models.CharField('Tipo de producto', max_length=20, choices=CLASES, default='MERCADERIA')
     tipo = models.CharField(max_length=10, choices=TIPOS, default='BIEN', editable=False)

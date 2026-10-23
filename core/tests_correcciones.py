@@ -128,7 +128,7 @@ class CorreccionesTest(TestCase):
         self.assertEqual(c.saldo_inicial, D('5000'))
         # regularización: solo administrador, con motivo y sustento
         cajero = User.objects.create_user('cajero2', 'c2@c.com', 'x')
-        cajero.groups.add(Group.objects.get_or_create(name=GRUPOS['finanzas'])[0])
+        cajero.groups.add(Group.objects.get_or_create(name=GRUPOS['tesoreria'])[0])
         self.client.force_login(cajero)
         r = self.client.get(reverse('finanzas:saldo_inicial', args=[c.pk]))
         self.assertContains(r, 'Solo un administrador')

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Sub-análisis {{ r.codigo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">Sub-análisis · {{ r.nombre }}</h1>
+    <div class="text-muted small">{{ r.codigo }} · {{ r.get_tipo_display }} · por {{ r.unidad }} · catálogo de la empresa (vale para todos los presupuestos)</div></div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'obras:recurso_editar' r.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Datos del recurso</a>
+    <a href="{% url 'obras:recursos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Recursos</a>
+  </div>
+</div>
+<form method="post">{% csrf_token %}
+<div class="card mb-3"><div class="card-body"><div class="row g-2 align-items-end">
+  <div class="col-md-3"><label class="form-label small mb-1">Rendimiento ({{ r.unidad }}/día)</label><input name="rendimiento" value="{{ r.rendimiento|stringformat:'s' }}" class="form-control form-control-sm text-end"></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Jornada (h)</label><input name="jornada" value="{{ r.jornada|stringformat:'s' }}" class="form-control form-control-sm text-end"></div>
+  <div class="col-md-7 text-end"><div class="small text-muted">Costo por {{ r.unidad }} con los precios referenciales</div><div class="fs-4 fw-bold">S/ {{ a.precio|money }}</div>
+    <div class="small text-muted">En cada presupuesto se calcula con los precios de ese presupuesto.</div></div>
+</div></div></div>
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Código</th><th>Recurso</th><th>Und.</th><th class="num" style="width:110px">Cuadrilla</th><th class="num" style="width:130px">Cantidad</th><th class="num">Precio ref. S/</th><th class="num">Parcial S/</th><th class="text-center">Quitar</th></tr></thead>
+  <tbody>{% for f in a.lineas %}{% with l=f.linea %}
+    <tr><td class="small">{{ l.recurso.codigo }}</td><td>{{ l.recurso.nombre }}{% if l.recurso.es_subanalisis %} <a href="{% url 'obras:subanalisis' l.recurso.pk %}" class="badge text-bg-light border text-decoration-none">sub-análisis</a>{% endif %}</td><td>{{ l.recurso.unidad }}</td>
+      <td>{% if l.recurso.tipo == 'MO' or l.recurso.tipo == 'EQ' %}<input name="cuadrilla_{{ l.pk }}" value="{{ l.cuadrilla|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end">{% endif %}</td>
+      <td><input name="cantidad_{{ l.pk }}" value="{{ f.aporte|stringformat:'s' }}" class="form-control form-control-sm text-end" {% if l.cuadrilla is not None and r.rendimiento %}readonly{% endif %}></td>
+      <td class="num">{{ f.precio|money }}</td><td class="num">{{ f.parcial|money }}</td>
+      <td class="text-center"><input type="checkbox" name="quitar_{{ l.pk }}" class="form-check-input"></td></tr>
+  {% endwith %}{% empty %}<tr><td colspan="8" class="text-center text-muted py-3">Sin componentes: agregue el cemento, la arena, la piedra, el agua… abajo.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<div class="card mb-3"><div class="card-header py-2 small fw-semibold">Agregar componente</div><div class="card-body"><div class="row g-2 align-items-end">
+  <div class="col-md-6"><label class="form-label small mb-1">Recurso (código · nombre)</label><input name="nuevo_recurso" list="lista-recursos" class="form-control form-control-sm" placeholder="Escriba para buscar…">
+    <datalist id="lista-recursos">{% for x in recursos %}<option value="{{ x.codigo }} · {{ x.nombre }} ({{ x.unidad }})">{% endfor %}</datalist></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Cuadrilla (MO/EQ)</label><input name="nuevo_cuadrilla" class="form-control form-control-sm text-end"></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Cantidad</label><input name="nuevo_cantidad" class="form-control form-control-sm text-end"></div>
+</div></div></div>
+<button class="btn btn-primary mb-3"><i class="bi bi-check-lg"></i> Guardar y recalcular los presupuestos en borrador</button>
+</form>
+{% if usado_en %}<div class="small text-muted">Se usa en: {% for p in usado_en %}<a href="{% url 'obras:presupuesto' p.pk %}">{{ p }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}. Los presupuestos aprobados conservan su total.</div>{% endif %}
+{% endblock %}

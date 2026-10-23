@@ -190,7 +190,7 @@ def _subtotal_tributo(padre, moneda, base, impuesto, afectacion, tasa=None, line
 
 
 def cuenta_detracciones():
-    """N° de la cuenta de detracciones de la empresa en el Banco de la Nación (Finanzas › Cuentas)."""
+    """N° de la cuenta de detracciones de la empresa en el Banco de la Nación (Tesorería › Caja y bancos)."""
     from finanzas.models import Cuenta
     cuenta = Cuenta.objects.filter(es_detracciones=True, activo=True).exclude(numero='').first()
     return cuenta.numero.strip() if cuenta else ''
@@ -212,7 +212,7 @@ def validar(venta):
         if venta.tipo_comprobante != '01':
             errores.append('La detracción solo va en facturas (no en boletas ni notas).')
         if not cuenta_detracciones():
-            errores.append('Registre la cuenta de detracciones del Banco de la Nación en Finanzas › Cuentas (marque '
+            errores.append('Registre la cuenta de detracciones del Banco de la Nación en Tesorería › Caja y bancos (marque '
                            '«Cuenta de detracciones» y su número): va en el XML de la factura.')
     if venta.retencion_monto and venta.tipo_comprobante != '01':
         errores.append('La retención del IGV solo va en facturas.')
@@ -734,7 +734,7 @@ def lista_produccion(cfg=None):
          'Serie de guías remitente que empiece con T (solo si emite guías).', opcional=True)
     item(bool(cfg.gre_client_id and cfg.gre_client_secret),
          'Credenciales de la API de guías (client_id y client_secret, solo si emite guías).', opcional=True)
-    item(bool(cuenta_detracciones()), 'Cuenta de detracciones del Banco de la Nación en Finanzas › Cuentas (solo si '
+    item(bool(cuenta_detracciones()), 'Cuenta de detracciones del Banco de la Nación en Tesorería › Caja y bancos (solo si '
                                       'factura servicios con detracción).', opcional=True)
     item(bool(e.registro_mtc), 'Registro MTC de la empresa (solo si emite guías transportista).', opcional=True)
     return salida

@@ -1,0 +1,23 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Resultado por centro{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Resultado por {% if solo_obras %}obra{% else %}centro de costo{% endif %} con gastos asignados</h1>
+    <div class="text-muted small">Ventas (valorizaciones) − gastos propios − gastos generales asignados por el reparto</div></div>
+  <form method="get" class="d-flex flex-wrap gap-2 align-items-center">
+    <input type="month" name="desde" value="{{ desde }}" class="form-control form-control-sm"><input type="month" name="hasta" value="{{ hasta }}" class="form-control form-control-sm">
+    <div class="form-check small mb-0"><input type="checkbox" name="obras" value="1" id="obras" class="form-check-input" {% if solo_obras %}checked{% endif %}><label for="obras" class="form-check-label">Solo obras</label></div>
+    <button class="btn btn-sm btn-primary">Ver</button>
+    <a href="?desde={{ desde }}&hasta={{ hasta }}{% if solo_obras %}&obras=1{% endif %}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a></form>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>Centro</th><th class="num">Ventas S/</th><th class="num">Gastos propios S/</th><th class="num">Gastos asignados S/</th><th class="num">Resultado S/</th><th class="num">GG del presupuesto S/</th><th class="num">GG real / presupuesto</th></tr></thead>
+  <tbody>{% for f in filas %}<tr><td>{{ f.centro }}{% if f.obra %} <a href="{% url 'obras:obra' f.obra.pk %}" class="small">obra</a>{% endif %}</td>
+    <td class="num">{{ f.ventas|money }}</td><td class="num">{{ f.propios|money }}</td><td class="num {% if f.asignados < 0 %}text-success{% endif %}">{{ f.asignados|money }}</td>
+    <td class="num fw-semibold {% if f.resultado < 0 %}text-danger{% endif %}">{{ f.resultado|money }}</td>
+    <td class="num">{% if f.gg_presupuesto %}{{ f.gg_presupuesto|money }}{% endif %}</td><td class="num">{% if f.gg_avance is not None %}{{ f.gg_avance }} %{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin movimientos con centro de costo en el rango.</td></tr>{% endfor %}</tbody>
+  <tfoot class="table-light fw-semibold"><tr><td>Total</td><td class="num">{{ totales.ventas|money }}</td><td class="num">{{ totales.propios|money }}</td><td class="num">{{ totales.asignados|money }}</td><td class="num">{{ totales.resultado|money }}</td><td></td><td></td></tr></tfoot>
+</table></div></div>
+<p class="small text-muted mt-2">Los centros de apoyo muestran en negativo lo que repartieron (sus gastos asignados se van a las obras). El gasto general del presupuesto es el de la versión aprobada más reciente de la obra (Meta si existe) y se compara con lo asignado en el rango.</p>
+{% endblock %}

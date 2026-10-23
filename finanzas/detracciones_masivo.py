@@ -194,6 +194,6 @@ def leer_constancias(archivo, lote):
 def anular_lote(lote):
     if lote.estado != 'BORRADOR':
         raise ErrorTesoreria('Solo se anula un lote por pagar. Un lote pagado se corrige anulando sus depósitos '
-                             'en Finanzas › Movimientos.')
+                             'en Tesorería › Movimientos.')
     lote.estado = 'ANULADO'
     lote.save(update_fields=['estado'])

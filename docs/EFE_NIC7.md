@@ -240,7 +240,7 @@ saldos** de las cuentas de balance (`saldo(hasta) − saldo(desde − 1 día)`).
 | Código | Regla | Si falla |
 |---|---|---|
 | **V1** | `Saldo inicial cuenta 10 + Aumento (disminución) neto + Efecto del tipo de cambio = Saldo final cuenta 10` (solo cuentas de efectivo de 2.3). | **Bloquea** la emisión del EFE y muestra la diferencia por cuenta. |
-| V2 | Saldo de tesorería (Finanzas › Caja y bancos) = saldo contable de su subcuenta 10, por cuenta y fecha. | Alerta: periodo sin centralizar o asiento manual en 10. |
+| V2 | Saldo de tesorería (Tesorería › Caja y bancos) = saldo contable de su subcuenta 10, por cuenta y fecha. | Alerta: periodo sin centralizar o asiento manual en 10. |
 | V3 | Porciones sin clasificar (R5) = 0. | Alerta con la lista de asientos y enlace para asignar el rubro. |
 | V4 | Flujo de operación directo = flujo de operación indirecto. | Alerta con la diferencia por partida de conciliación. |
 | V5 | Las transferencias internas suman 0 (cada salida tiene su entrada). | Alerta: transferencia sin par o anulada a medias. |
@@ -301,7 +301,7 @@ class PoliticaFlujo(models.Model):
 
 1. **Contabilidad › Configuración › Estado de flujos de efectivo**: rubros (tabla 1.1), reglas por cuenta (tabla 2.2) y
    políticas (tabla 1.2), con la semilla cargada por una migración de datos.
-2. **Finanzas › Movimiento (ingreso/egreso vario)**: selector «Actividad NIC 7 / rubro» que propone el de la regla R3/R4 y
+2. **Tesorería › Movimiento (ingreso/egreso vario)**: selector «Actividad NIC 7 / rubro» que propone el de la regla R3/R4 y
    deja cambiarlo.
 3. **Contabilidad › Estados financieros › Estado de flujos de efectivo**: rango, método (directo / indirecto / ambos),
    comparativo con el periodo anterior, detalle auditable por rubro (asientos y documentos), panel de validaciones V1–V7 y

@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Regla de reparto{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{% if obj %}Regla de reparto · {{ obj.nombre }}{% else %}Nueva regla de reparto{% endif %}</h1>
+  <a href="{% url 'contabilidad:reparto' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Reparto de gastos</a>
+</div>
+<div class="card" style="max-width:1000px"><div class="card-body">
+  <form method="post" class="row g-3">{% csrf_token %}
+    {% for field in form %}<div class="{% if field.name in 'origenes destinos porcentajes_texto' %}col-md-6{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12 form-text">Origen: los centros cuyo gasto se reparte (y, si marca la casilla, los que dependen de ellos), solo las cuentas indicadas. Base: cómo se reparte entre los destinos; las cifras propias (m², trabajadores, HH…) se cargan por mes en «Cifras de reparto»; el área de la obra se toma de su ficha. Destinos: todas las obras (los que dependen de OBRAS), una lista o todos los centros con base. La cuenta del asiento vacía mueve el gasto con su misma cuenta (63 → 63) y sus destinos 9x.</div>
+    <div class="col-12 d-flex gap-2"><button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
+      {% if obj %}<button name="eliminar" value="1" class="btn btn-outline-danger" data-confirm="¿Eliminar la regla {{ obj.nombre }}?" formnovalidate><i class="bi bi-trash"></i> Eliminar</button>{% endif %}</div>
+  </form>
+</div></div>
+{% endblock %}

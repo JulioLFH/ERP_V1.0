@@ -96,7 +96,7 @@ def crear(almacen, tipo, usuario, contador=None, bloquear=False, n=20, semilla='
     doc = ConteoCiclico.objects.create(
         numero=_numero(), almacen=almacen, fecha=hoy, tipo=tipo, creado_por=usuario, contador=contador,
         bloquear=bloquear, semilla=semilla if tipo == 'ALEATORIO' else '', filtro_ubicacion=ubicacion[:20],
-        foto_en=timezone.now(),
+        foto_en=timezone.now(), kardex_hasta=Kardex.objects.order_by('-id').values_list('id', flat=True).first() or 0,
         **({'tolerancia_pct': tolerancia_pct} if tolerancia_pct is not None else {}),
         **({'tolerancia_valor': tolerancia_valor} if tolerancia_valor is not None else {}))
     clases_abc = {}
@@ -128,7 +128,10 @@ def _movimientos_desde_foto(item):
     c = item.conteo
     if c.bloquear:
         return D0
-    qs = Kardex.objects.filter(producto_id=item.producto_id, almacen_id=c.almacen_id, creado__gt=c.foto_en)
+    # por número de movimiento (el reloj de Windows avanza cada ~15 ms: un movimiento en el mismo instante que la
+    # foto quedaba fuera); los documentos anteriores a este campo siguen por la hora
+    qs = Kardex.objects.filter(producto_id=item.producto_id, almacen_id=c.almacen_id)
+    qs = qs.filter(id__gt=c.kardex_hasta) if c.kardex_hasta else qs.filter(creado__gt=c.foto_en)
     if item.lote_id:
         qs = qs.filter(lote_id=item.lote_id)
     neto = D0

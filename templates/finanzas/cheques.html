@@ -35,7 +35,7 @@
   </table></div>
   {% include 'core/_paginacion.html' %}
 </div>
-{% if puede.finanzas_registrar %}
+{% if puede.tesoreria_registrar %}
 <div class="card"><div class="card-header">Registrar cheque recibido en cartera (diferido)</div><div class="card-body">
   <form method="post" class="row g-2">{% csrf_token %}
     {% for field in form %}<div class="col-md-3">{% include 'core/_campo.html' %}</div>{% endfor %}

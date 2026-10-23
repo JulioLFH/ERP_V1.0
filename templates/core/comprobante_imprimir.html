@@ -38,7 +38,7 @@
         <div class="fw-bold">Operación sujeta al Sistema de Pago de Obligaciones Tributarias con el Gobierno Central (SPOT)</div>
         <div>Bien o servicio: {{ detraccion.bien }}</div>
         <div>Porcentaje: {{ doc.detraccion_pct|floatformat:2 }}% · Monto de la detracción: <b>S/ {{ detraccion.monto_pen|money }}</b>{% if doc.moneda != 'PEN' %} ({{ doc.simbolo }} {{ doc.detraccion_monto|money }} al T.C. {{ doc.tipo_cambio }}){% endif %}</div>
-        <div>Cta. de detracciones Banco de la Nación: <b>{{ detraccion.cuenta|default:'(registre la cuenta en Finanzas › Caja y bancos)' }}</b></div>
+        <div>Cta. de detracciones Banco de la Nación: <b>{{ detraccion.cuenta|default:'(registre la cuenta en Tesorería › Caja y bancos)' }}</b></div>
       </div>
       {% elif doc.detraccion_monto %}<p>Operación sujeta al SPOT ({{ doc.detraccion_pct|floatformat:0 }}%): {{ doc.simbolo }} {{ doc.detraccion_monto|money }}.</p>{% endif %}
       {% if cuotas %}

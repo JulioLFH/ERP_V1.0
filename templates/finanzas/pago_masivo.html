@@ -21,7 +21,7 @@
   {% endfor %}
   </tbody>
 </table></div></div>
-{% if pago.estado == 'BORRADOR' and puede.finanzas_registrar %}
+{% if pago.estado == 'BORRADOR' and puede.tesoreria_registrar %}
 <div class="d-flex flex-wrap gap-2 align-items-end">
   <form method="post" class="d-flex gap-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="registrar">
     <div><label class="form-label small">N° de operación del lote (opcional)</label><input name="numero_operacion" class="form-control form-control-sm"></div>

@@ -71,6 +71,7 @@ ORIGENES = [
     ('ANTERIOR', 'Sistema anterior (hasta la fecha de corte)'),
     ('MIGRACION', 'Ajustes de migración (fecha de corte)'),
     ('COSTO', 'Costo de ventas (versión anterior)'),
+    ('REPARTO', 'Reparto de gastos entre centros de costo'),
 ]
 # asientos que el sistema no regenera al centralizar
 ORIGENES_FIJOS = ('MANUAL', 'APERTURA', 'ANTERIOR', 'MIGRACION')
@@ -473,3 +474,97 @@ class PoliticaFlujo(models.Model):
     @classmethod
     def actual(cls):
         return cls.objects.first() or cls.objects.create()
+
+
+# ---------------------------------------------------------------- reparto de gastos entre centros de costo
+class CifraReparto(models.Model):
+    """Base de reparto propia de la empresa (m² declarados, trabajadores, horas hombre, km…): un valor por periodo y
+    centro de costo (como las cifras estadísticas de SAP CO)."""
+    codigo = models.CharField('Código', max_length=20, unique=True)
+    nombre = models.CharField(max_length=100)
+    unidad = models.CharField(max_length=20, blank=True, help_text='m², trabajadores, HH, km…')
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['codigo']
+        verbose_name = 'cifra de reparto'
+        verbose_name_plural = 'cifras de reparto'
+
+    def __str__(self):
+        return f'{self.codigo} {self.nombre}'
+
+
+class ValorCifra(models.Model):
+    """Valor de la cifra para un centro en un periodo; si un mes no lo tiene, vale el último registrado."""
+    cifra = models.ForeignKey(CifraReparto, on_delete=models.CASCADE, related_name='valores')
+    periodo = models.CharField(max_length=6)
+    centro = models.ForeignKey(CentroCosto, on_delete=models.CASCADE, related_name='+')
+    valor = models.DecimalField(max_digits=16, decimal_places=4, default=D0)
+
+    class Meta:
+        ordering = ['cifra', 'periodo', 'centro__codigo']
+        unique_together = [('cifra', 'periodo', 'centro')]
+
+
+class ReglaReparto(models.Model):
+    """Regla de reparto (ciclo de distribución de SAP CO): reparte el gasto de los centros de origen entre los destinos
+    según una base que elige cada empresa. Se ejecutan por orden: un centro que recibe puede repartir después."""
+    BASES = [('CIFRA', 'Cifra de reparto (m², trabajadores, HH…)'), ('OBRA_M2', 'Área de la obra (m²)'),
+             ('COSTO_DIRECTO', 'Costo directo del mes (gastos propios del centro)'),
+             ('COMPRAS', 'Compras del mes con el centro'), ('VENTAS', 'Ventas o valorizaciones del mes con el centro'),
+             ('PLANILLA', 'Remuneraciones del mes (cuenta 62) con el centro'),
+             ('FIJO', 'Porcentaje fijo por destino'), ('IGUALES', 'Partes iguales')]
+    DESTINOS = [('HIJOS', 'Los centros que dependen de un centro (ej. todas las obras)'),
+                ('LISTA', 'Los centros de una lista'), ('CON_BASE', 'Todos los centros con base mayor a cero')]
+    orden = models.PositiveSmallIntegerField(default=10, help_text='Se ejecutan de menor a mayor (cascada)')
+    nombre = models.CharField(max_length=120)
+    origenes = models.ManyToManyField(CentroCosto, related_name='+', verbose_name='Centros de origen')
+    incluir_dependientes = models.BooleanField('Incluir los centros que dependen de los de origen', default=False)
+    cuentas = models.CharField('Cuentas de gasto (prefijos)', max_length=200, blank=True,
+                               help_text='Vacío = todos los gastos (clase 6). Ej.: 62, 63, 65')
+    base = models.CharField(max_length=14, choices=BASES, default='COSTO_DIRECTO')
+    cifra = models.ForeignKey(CifraReparto, on_delete=models.PROTECT, null=True, blank=True, related_name='reglas')
+    tipo_destino = models.CharField('Destinos', max_length=8, choices=DESTINOS, default='HIJOS')
+    centro_padre = models.ForeignKey(CentroCosto, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                     verbose_name='Centros que dependen de')
+    destinos = models.ManyToManyField(CentroCosto, blank=True, related_name='+', verbose_name='Centros de destino')
+    porcentajes = models.JSONField(default=dict, blank=True, help_text='Base «porcentaje fijo»: {centro: %}')
+    cuenta_asignacion = models.ForeignKey(
+        CuentaContable, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+        limit_choices_to={'imputable': True}, verbose_name='Cuenta del asiento',
+        help_text='Vacío = la misma cuenta del gasto; o una cuenta propia de «gastos indirectos asignados»')
+    desde = models.CharField('Vigente desde (AAAAMM)', max_length=6, blank=True)
+    hasta = models.CharField('Vigente hasta (AAAAMM)', max_length=6, blank=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['orden', 'id']
+        verbose_name = 'regla de reparto'
+        verbose_name_plural = 'reglas de reparto'
+
+    def __str__(self):
+        return f'{self.orden}. {self.nombre}'
+
+    def vigente(self, periodo):
+        return self.activo and (not self.desde or self.desde <= periodo) and (not self.hasta or periodo <= self.hasta)
+
+    @property
+    def prefijos(self):
+        return [p.strip() for p in self.cuentas.replace(';', ',').split(',') if p.strip()] or ['6']
+
+
+class EjecucionReparto(models.Model):
+    """El reparto ejecutado de un periodo: la centralización lo vuelve a calcular con los datos al día hasta que se
+    revierte o se cierra el periodo."""
+    periodo = models.CharField(max_length=6, unique=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    fecha = models.DateTimeField(auto_now_add=True)
+    detalle = models.JSONField(default=list, blank=True, editable=False,
+                               help_text='Lo repartido: por regla, de qué centro y cuenta, con qué base y a quién')
+
+    class Meta:
+        ordering = ['-periodo']
+        verbose_name = 'reparto de gastos ejecutado'
+
+    def __str__(self):
+        return f'Reparto de gastos {self.periodo[4:]}/{self.periodo[:4]}'

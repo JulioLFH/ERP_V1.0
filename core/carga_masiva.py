@@ -201,7 +201,7 @@ DEFINICIONES = OrderedDict([
             ('descuento', 'Descuento %', False, '0', ''),
         ]}),
     ('saldos_cxc', {
-        'titulo': 'Saldos iniciales por cobrar', 'icono': 'bi-person-down', 'modulos': ['ventas', 'finanzas'],
+        'titulo': 'Saldos iniciales por cobrar', 'icono': 'bi-person-down', 'modulos': ['ventas', 'tesoreria', 'finanzas'],
         'descripcion': 'Comprobantes de venta pendientes de cobro emitidos antes de usar el sistema. Se cobran '
                        'normalmente; no van al registro de ventas ni a SUNAT y se contabilizan 12 contra 5911 '
                        '(apertura). El cliente debe existir.',
@@ -217,7 +217,7 @@ DEFINICIONES = OrderedDict([
             ('tipo_cambio', 'Tipo de cambio', False, '', 'Solo USD. Vacío = T.C. venta de la fecha de emisión'),
         ]}),
     ('saldos_cxp', {
-        'titulo': 'Saldos iniciales por pagar', 'icono': 'bi-person-up', 'modulos': ['compras', 'finanzas'],
+        'titulo': 'Saldos iniciales por pagar', 'icono': 'bi-person-up', 'modulos': ['compras', 'tesoreria', 'finanzas'],
         'descripcion': 'Comprobantes de compra pendientes de pago recibidos antes de usar el sistema. Se pagan '
                        'normalmente; no van al registro de compras y se contabilizan 5911 (apertura) contra 42. El '
                        'proveedor debe existir.',

@@ -70,6 +70,15 @@ def pasos(periodo):
         paso('Provisiones de beneficios sociales', 'ok' if prov else 'pendiente',
              'Gratificaciones, CTS y vacaciones provisionadas al centralizar.' if prov else
              'Active la provisión mensual de gratificaciones, CTS y vacaciones (botón abajo).', '')
+    from .models import EjecucionReparto, ReglaReparto
+    if not any(r.vigente(periodo) for r in ReglaReparto.objects.filter(activo=True)):
+        paso('Reparto de gastos generales', 'na', 'No hay reglas de reparto vigentes.')
+    else:
+        hecho = EjecucionReparto.objects.filter(periodo=periodo).first()
+        paso('Reparto de gastos generales', 'ok' if hecho else 'pendiente',
+             f'Ejecutado el {hecho.fecha:%d/%m/%Y}: se recalcula al centralizar.' if hecho else
+             'Simule y ejecute el reparto de los gastos de los centros de apoyo a las obras y centros.',
+             f'{reverse("contabilidad:reparto")}?mes={mes}')
     centralizado = bool(p and p.fecha_centralizacion and not p.pendiente)
     paso('Centralización contable', 'ok' if centralizado else 'pendiente',
          f'Centralizado el {p.fecha_centralizacion:%d/%m/%Y %H:%M}.' if centralizado else

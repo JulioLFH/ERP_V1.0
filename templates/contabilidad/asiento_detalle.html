@@ -10,7 +10,7 @@
     <a href="{% url 'contabilidad:asientos' %}?periodo={{ a.periodo }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Asientos</a>
     {% if a.compra and 'compras' in mods %}<a href="{% url 'compras:detalle' a.compra_id %}" class="btn btn-sm btn-outline-secondary">Ver compra</a>{% endif %}
     {% if a.venta and 'ventas' in mods %}<a href="{% url 'ventas:detalle' a.venta_id %}" class="btn btn-sm btn-outline-secondary">Ver venta</a>{% endif %}
-    {% if a.movimiento and 'finanzas' in mods %}<a href="{% url 'finanzas:voucher' a.movimiento_id %}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver voucher</a>{% endif %}
+    {% if a.movimiento and 'tesoreria' in mods or a.movimiento and 'finanzas' in mods %}<a href="{% url 'finanzas:voucher' a.movimiento_id %}" target="_blank" class="btn btn-sm btn-outline-secondary">Ver voucher</a>{% endif %}
     {% if a.origen == 'MANUAL' and not a.extorna_id and not a.extornado %}
       <a href="{% url 'contabilidad:asiento_extornar' a.pk %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-counterclockwise"></i> Extornar</a>
     {% endif %}

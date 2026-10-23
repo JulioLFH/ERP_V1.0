@@ -4,9 +4,9 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title"><i class="bi bi-bank"></i> Detracciones de {{ titulo_modulo|lower }}</h1>
   <div class="d-flex gap-2">
-    {% if app == 'compras' and 'finanzas' in mods %}<a href="{% url 'finanzas:detracciones_masivas_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-bank"></i> Depósito masivo</a>
+    {% if app == 'compras' and 'tesoreria' in mods %}<a href="{% url 'finanzas:detracciones_masivas_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-bank"></i> Depósito masivo</a>
     <a href="{% url 'finanzas:pago_multiple' %}?solo_detraccion=1" class="btn btn-sm btn-outline-primary"><i class="bi bi-credit-card-2-back"></i> Pago múltiple</a>{% endif %}
-    {% if app == 'ventas' and 'finanzas' in mods %}<a href="{% url 'finanzas:constancias_clientes' %}" class="btn btn-sm btn-primary"><i class="bi bi-cloud-upload"></i> Cargar constancias de SUNAT</a>
+    {% if app == 'ventas' and 'tesoreria' in mods %}<a href="{% url 'finanzas:constancias_clientes' %}" class="btn btn-sm btn-primary"><i class="bi bi-cloud-upload"></i> Cargar constancias de SUNAT</a>
     <a href="{% url 'finanzas:cobranza_multiple' %}?solo_detraccion=1" class="btn btn-sm btn-outline-primary"><i class="bi bi-cash-stack"></i> Cobranza múltiple</a>{% endif %}
     <a href="?periodo={{ periodo }}&estado={{ estado }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
   </div>

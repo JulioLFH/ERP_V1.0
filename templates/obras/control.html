@@ -1,0 +1,38 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Control {{ p }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">Control de obra · meta vs. real por insumo</h1>
+    <div class="text-muted small"><a href="{% url 'obras:presupuesto' p.pk %}">{{ p }}</a> · {{ p.obra.nombre }} · centro de costo {{ p.obra.centro_costo.codigo }} · almacén {{ p.obra.almacen.codigo }}</div></div>
+  <div class="d-flex gap-2 d-print-none"><a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
+    <a href="{% url 'obras:vincular' %}?presupuesto={{ p.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-link-45deg"></i> Vincular recursos</a>
+    <a href="{% url 'obras:presupuesto' p.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Presupuesto</a></div>
+</div>
+{% if not es_meta %}<div class="alert alert-warning py-2 small">Este presupuesto no es la Meta: el control y los requerimientos se hacen contra el presupuesto Meta (ejecución).</div>{% endif %}
+<div class="row g-3 mb-3 small">
+  <div class="col"><div class="kpi"><div class="label">Meta (materiales y subcontratos)</div><div class="value">S/ {{ c.totales.monto|money }}</div></div></div>
+  <div class="col"><div class="kpi"><div class="label">Consumido (costo real)</div><div class="value">S/ {{ c.totales.costo_real|money }}</div></div></div>
+  <div class="col"><div class="kpi"><div class="label">Desviación en lo consumido</div><div class="value {% if c.totales.desviacion > 0 %}text-danger{% endif %}">S/ {{ c.totales.desviacion|money }}</div></div></div>
+  <div class="col"><div class="kpi"><div class="label">Costo de la obra en contabilidad (clase 6)</div><div class="value">S/ {{ c.costo_contable|money }}</div></div></div>
+</div>
+{% if c.sin_producto %}<div class="alert alert-info py-2 small">{{ c.sin_producto|length }} material(es) o subcontrato(s) sin producto de Ceiba: <a href="{% url 'obras:vincular' %}?presupuesto={{ p.pk }}">vincúlelos</a> para requerirlos y controlarlos.</div>{% endif %}
+<form method="post">{% csrf_token %}
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>Insumo</th><th>Und.</th><th class="num">Meta</th><th class="num">Meta S/</th><th class="num">Pedido</th><th class="num">Recibido</th><th class="num">Consumido</th><th class="num">Avance</th><th class="num">Costo real S/</th><th class="num">Desviación S/</th>{% if es_meta %}<th class="num d-print-none" style="width:120px">Pedir ahora</th>{% endif %}</tr></thead>
+  <tbody>{% for f in c.filas %}<tr class="{% if f.excede %}table-warning{% endif %}">
+    <td><span class="small text-muted">{{ f.producto.codigo }}</span> {{ f.producto.nombre }}{% if f.tipo == 'SUB' %} <span class="badge text-bg-light border">servicio</span>{% endif %}</td><td>{{ f.unidad }}</td>
+    <td class="num">{{ f.cantidad|floatformat:2 }}</td><td class="num">{{ f.monto|money }}</td><td class="num">{{ f.pedido|floatformat:2 }}{% if f.excede %} <i class="bi bi-exclamation-triangle text-warning" title="Lo pedido supera la Meta"></i>{% endif %}</td>
+    <td class="num">{{ f.recibido|floatformat:2 }}</td><td class="num">{{ f.consumido|floatformat:2 }}</td><td class="num">{{ f.avance }} %</td>
+    <td class="num">{{ f.costo_real|money }}</td><td class="num {% if f.desviacion > 0 %}text-danger{% endif %}">{{ f.desviacion|money }}</td>
+    {% if es_meta %}<td class="d-print-none"><input name="pedir_{{ f.producto.pk }}" placeholder="{{ f.por_pedir|floatformat:2 }}" class="form-control form-control-sm text-end" inputmode="decimal"></td>{% endif %}</tr>
+  {% empty %}<tr><td colspan="11" class="text-center text-muted py-4">Sin materiales vinculados a productos. Vincule los recursos de la Meta para controlarlos.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if es_meta and c.filas %}<div class="card mb-3 d-print-none" style="max-width:900px"><div class="card-header py-2 small fw-semibold">Requerir a Compras</div><div class="card-body"><div class="row g-2 align-items-end">
+  <div class="col-md-3"><label class="form-label small mb-1">Se necesita el</label><input type="date" name="fecha_requerida" class="form-control form-control-sm"></div>
+  <div class="col-md-9"><label class="form-label small mb-1">Justificación (solo si pide más de lo que deja la Meta)</label><input name="justificacion" maxlength="150" class="form-control form-control-sm" placeholder="Ej. mayor metrado aprobado por la supervisión"></div>
+  <div class="col-12"><button class="btn btn-primary btn-sm"><i class="bi bi-cart-plus"></i> Crear solicitud de pedido</button>
+    <span class="form-text ms-2">Escriba la cantidad en «Pedir ahora» (la sugerida es lo que falta pedir). Se crea en borrador con el centro de costo de la obra; luego se envía a liberar en Compras.</span></div>
+</div></div></div>{% endif %}
+</form>
+<p class="small text-muted">Pedido: solicitudes de pedido vigentes con el centro de costo de la obra. Recibido: ingresos al almacén de obra. Consumido: salidas con el centro de costo de la obra, a su costo real. Desviación = costo real − consumido × precio de la Meta.</p>
+{% endblock %}
