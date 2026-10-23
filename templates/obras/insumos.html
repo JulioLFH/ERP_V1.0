@@ -1,0 +1,25 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Insumos {{ p }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Relación de insumos</h1><div class="text-muted small">{{ p }} · {{ p.obra.nombre }} · cantidad total = metrado × aporte de cada análisis</div></div>
+  <div class="d-flex gap-2 d-print-none"><a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
+    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i></button>
+    <a href="{% url 'obras:presupuesto' p.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Presupuesto</a></div>
+</div>
+<div class="card mb-3" style="max-width:1100px"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Código</th><th>Recurso</th><th>Und.</th><th class="num">Cantidad</th><th class="num">Precio S/</th><th class="num">Parcial S/</th><th>IU</th></tr></thead>
+  {% regroup e.filas by recurso.tipo as grupos %}
+  <tbody>{% for g in grupos %}
+    <tr class="table-light fw-semibold"><td colspan="5">{{ tipos|get_item:g.grouper }}</td><td class="num">{{ e.por_tipo|get_item:g.grouper|money }}</td><td></td></tr>
+    {% for t in g.list %}<tr><td class="small">{{ t.recurso.codigo }}</td><td>{{ t.recurso.nombre }}</td><td>{{ t.recurso.unidad }}</td>
+      <td class="num">{% if t.recurso.es_porcentaje_mo %}—{% else %}{{ t.cantidad|floatformat:4 }}{% endif %}</td>
+      <td class="num">{% if not t.recurso.es_porcentaje_mo %}{{ t.precio|money }}{% endif %}</td><td class="num">{{ t.monto|money }}</td><td class="small">{{ t.recurso.indice_unificado }}</td></tr>{% endfor %}
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-3">Sin análisis todavía.</td></tr>{% endfor %}</tbody>
+  <tfoot>
+    {% if e.sin_apu %}<tr><td colspan="5" class="text-end">Partidas con precio sin análisis</td><td class="num">{{ e.sin_apu|money }}</td><td></td></tr>{% endif %}
+    <tr class="fw-bold"><td colspan="5" class="text-end">TOTAL (costo directo)</td><td class="num">{{ e.total|money }}</td><td></td></tr>
+    {% if e.total != p.costo_directo %}<tr class="small text-muted"><td colspan="7">El costo directo del presupuesto es S/ {{ p.costo_directo|money }}: la diferencia es el redondeo de los precios unitarios a 2 decimales en cada partida.</td></tr>{% endif %}
+  </tfoot>
+</table></div></div>
+{% endblock %}

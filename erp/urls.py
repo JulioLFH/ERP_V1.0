@@ -33,6 +33,7 @@ urlpatterns += [
     path('costos/', include('produccion.urls_costos')),
     path('activos/', include('activos.urls')),
     path('flota/', include('flota.urls')),
+    path('obras/', include('obras.urls')),
     path('planillas/', include('planillas.urls')),
     path('historial/', include('historial.urls')),
     path('requerimientos/', include('inventario.urls_requerimientos')),

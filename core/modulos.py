@@ -191,6 +191,17 @@ MODULOS = [
         ],
     },
     {
+        'clave': 'obras', 'nombre': 'Obras', 'icono': 'bi-cone-striped', 'color': '#d97706',
+        'inicio': 'obras:lista', 'descripcion': 'Presupuestos de obra con análisis de precios unitarios',
+        'menu': [
+            ('Obras', [('Obras', 'obras:lista', 'bi-cone-striped'),
+                       ('Nueva obra', 'obras:obra_nueva', 'bi-plus-circle')]),
+            ('Presupuestos', [('Recursos (insumos)', 'obras:recursos', 'bi-boxes'),
+                              ('Biblioteca de partidas tipo', 'obras:biblioteca', 'bi-collection'),
+                              ('Plantilla de importación (Excel)', 'obras:plantilla', 'bi-file-earmark-excel')]),
+        ],
+    },
+    {
         'clave': 'planillas', 'nombre': 'Planillas', 'icono': 'bi-person-badge', 'color': '#9333ea',
         'inicio': 'planillas:lista', 'descripcion': 'Trabajadores, remuneraciones, gratificaciones, CTS y PLAME',
         'menu': [

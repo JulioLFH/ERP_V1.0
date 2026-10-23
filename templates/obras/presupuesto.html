@@ -1,0 +1,69 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ p }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">Presupuesto {{ p.get_tipo_display|lower }} v{{ p.version }} <span class="badge {% if p.estado == 'APROBADO' %}text-bg-success{% else %}text-bg-light border{% endif %} fs-6 align-middle">{{ p.get_estado_display }}</span></h1>
+    <div class="text-muted small"><a href="{% url 'obras:obra' p.obra.pk %}">{{ p.obra }}</a> · {{ p.nombre }} · precios al {{ p.fecha_precios|date:'d/m/Y' }}{% if p.origen %} · {{ p.origen }}{% endif %}</div></div>
+  <div class="d-flex flex-wrap gap-2 d-print-none">
+    <a href="{% url 'obras:precios' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-tags"></i> Precios</a>
+    <a href="{% url 'obras:insumos' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-list-columns"></i> Insumos</a>
+    <a href="{% url 'obras:apu_reporte' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-calculator"></i> Análisis (APU)</a>
+    <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
+    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i></button>
+    <form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="accion" value="copiar">
+      <select name="tipo" class="form-select form-select-sm">{% for v, t in tipos %}<option value="{{ v }}" {% if v == p.tipo %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+      <button class="btn btn-sm btn-outline-secondary text-nowrap" data-confirm="¿Copiar este presupuesto a una nueva versión del tipo elegido?"><i class="bi bi-files"></i> Copiar</button></form>
+    {% if p.editable %}<form method="post">{% csrf_token %}<button name="accion" value="aprobar" class="btn btn-sm btn-success" data-confirm="¿Aprobar {{ p }} por S/ {{ p.total|money }}? Ya no se podrá modificar."><i class="bi bi-check2-circle"></i> Aprobar</button></form>{% endif %}
+  </div>
+</div>
+{% if sin_apu %}<div class="alert alert-warning py-2 small d-print-none">{{ sin_apu }} partida(s) sin análisis de precios unitarios: su precio queda en cero hasta que les agregue recursos.</div>{% endif %}
+
+<form method="post">{% csrf_token %}
+<button type="submit" name="accion" value="metrados" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px">Guardar</button>
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th style="width:110px">Ítem</th><th>Descripción</th><th style="width:70px">Und.</th><th class="num" style="width:130px">Metrado</th><th class="num" style="width:110px">Precio</th><th class="num" style="width:130px">Parcial</th>{% if p.editable %}<th class="d-print-none" style="width:40px"></th>{% endif %}</tr></thead>
+  <tbody>{% for x in partidas %}
+    <tr class="{% if x.es_titulo %}fw-semibold {% if x.nivel == 0 %}table-light{% endif %}{% endif %}">
+      <td class="text-nowrap">{{ x.item }}</td>
+      <td style="padding-left:{{ x.nivel|add:1 }}em">{% if x.es_titulo %}{{ x.descripcion }}{% else %}<a href="{% url 'obras:apu' x.pk %}" class="text-reset">{{ x.descripcion }}</a>{% if x.precio_fijo %} <span class="badge text-bg-light border">sin APU</span>{% endif %}{% endif %}</td>
+      <td>{{ x.unidad }}</td>
+      <td class="num">{% if not x.es_titulo %}{% if p.editable %}<input name="metrado_{{ x.pk }}" value="{{ x.metrado|stringformat:'s' }}" class="form-control form-control-sm text-end d-print-none" style="min-width:110px" inputmode="decimal"><span class="d-none d-print-inline">{{ x.metrado|floatformat:2 }}</span>{% else %}{{ x.metrado|floatformat:2 }}{% endif %}{% endif %}</td>
+      <td class="num">{% if not x.es_titulo %}{{ x.precio|money }}{% endif %}</td>
+      <td class="num">{{ x.parcial|money }}</td>
+      {% if p.editable %}<td class="d-print-none"><button name="eliminar" value="{{ x.pk }}" class="btn btn-sm btn-link text-danger p-0" data-confirm="¿Eliminar {{ x.item }}{% if x.es_titulo %} con todas sus partidas{% endif %}?" title="Eliminar"><i class="bi bi-trash"></i></button></td>{% endif %}
+    </tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin partidas. Agregue el primer título abajo o importe el presupuesto.</td></tr>{% endfor %}</tbody>
+  <tfoot class="table-light">
+    <tr><td colspan="5" class="text-end">COSTO DIRECTO</td><td class="num fw-semibold">{{ p.costo_directo|money }}</td>{% if p.editable %}<td></td>{% endif %}</tr>
+    <tr><td colspan="5" class="text-end">GASTOS GENERALES ({{ p.gastos_generales_pct }}%)</td><td class="num">{{ p.gastos_generales|money }}</td>{% if p.editable %}<td></td>{% endif %}</tr>
+    <tr><td colspan="5" class="text-end">UTILIDAD ({{ p.utilidad_pct }}%)</td><td class="num">{{ p.utilidad|money }}</td>{% if p.editable %}<td></td>{% endif %}</tr>
+    <tr><td colspan="5" class="text-end">SUBTOTAL</td><td class="num">{{ p.subtotal|money }}</td>{% if p.editable %}<td></td>{% endif %}</tr>
+    <tr><td colspan="5" class="text-end">IGV ({{ p.igv_pct }}%)</td><td class="num">{{ p.igv|money }}</td>{% if p.editable %}<td></td>{% endif %}</tr>
+    <tr class="fw-bold"><td colspan="5" class="text-end">TOTAL PRESUPUESTO</td><td class="num">{{ p.total|money }}</td>{% if p.editable %}<td></td>{% endif %}</tr>
+  </tfoot>
+</table></div></div>
+{% if p.editable and partidas %}<div class="mb-3 d-print-none"><button name="accion" value="metrados" class="btn btn-sm btn-outline-primary"><i class="bi bi-save"></i> Guardar metrados</button></div>{% endif %}
+</form>
+
+{% if p.editable %}
+<div class="row g-3 d-print-none">
+  <div class="col-lg-8"><div class="card"><div class="card-header py-2 small fw-semibold">Agregar título o partida</div><div class="card-body">
+    <form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="agregar">
+      <div class="col-md-2"><label class="form-label small mb-1">Ítem</label>{{ form.item }}</div>
+      <div class="col-md-5"><label class="form-label small mb-1">Descripción</label>{{ form.descripcion }}</div>
+      <div class="col-md-1"><label class="form-label small mb-1">Und.</label>{{ form.unidad }}</div>
+      <div class="col-md-2"><label class="form-label small mb-1">Metrado</label>{{ form.metrado }}</div>
+      <div class="col-md-2"><div class="form-check">{{ form.es_titulo }} <label class="form-check-label small" for="{{ form.es_titulo.id_for_label }}">Título</label></div>
+        <div class="form-check">{{ form.precio_fijo }} <label class="form-check-label small" for="{{ form.precio_fijo.id_for_label }}">Sin APU</label></div></div>
+      <div class="col-md-2"><label class="form-label small mb-1">Precio (sin APU)</label>{{ form.precio }}</div>
+      <div class="col-md-3"><button class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Agregar</button></div>
+      <div class="col-12 form-text">Ítems con el formato 01, 01.01, 01.01.01: el nivel lo da el número de puntos. Una partida nueva abre su análisis de precios unitarios.</div>
+    </form></div></div></div>
+  <div class="col-lg-4"><div class="card"><div class="card-header py-2 small fw-semibold">Pie del presupuesto</div><div class="card-body">
+    <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="pie">
+      {% for field in pie %}<div class="col-6">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-outline-primary">Guardar y recalcular</button></div>
+    </form></div></div></div>
+</div>
+{% endif %}
+{% endblock %}

@@ -72,11 +72,13 @@ ACCIONES = {
     'activos': [('registrar', 'Registrar activos', False),
                 ('baja', 'Dar de baja o anular activos', True),
                 ('depreciar', 'Calcular y revertir depreciación', True)],
+    'obras': [('presupuestar', 'Crear obras y elaborar presupuestos', False),
+              ('aprobar', 'Aprobar presupuestos de obra', True)],
 }
 TODAS = {f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, _ in lista}
 # acciones sensibles nuevas: nunca se dan por defecto (ni a usuarios sin perfil); el administrador las asigna
 EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar', 'manufactura.aprobar_cambios',
-              'costos.liquidar', 'requerimientos.liberar_solped', 'inventario.aprobar_mayor'}
+              'costos.liquidar', 'requerimientos.liberar_solped', 'inventario.aprobar_mayor', 'obras.aprobar'}
 
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
@@ -203,6 +205,13 @@ RUTAS = {
     'compras:grupo_nuevo': 'compras.grupos', 'compras:grupo': 'compras.grupos',
     'compras:hes': lambda r: (None if r.method != 'POST' else 'compras.hes'
                               if r.POST.get('accion') in ('adjuntar', 'enviar', 'anular') else None),
+    'obras:obra_nueva': 'obras.presupuestar', 'obras:obra_editar': 'obras.presupuestar',
+    'obras:presupuesto_nuevo': 'obras.presupuestar', 'obras:importar': {'POST': 'obras.presupuestar'},
+    'obras:presupuesto': lambda r: (None if r.method != 'POST' else 'obras.aprobar'
+                                    if r.POST.get('accion') == 'aprobar' else 'obras.presupuestar'),
+    'obras:apu': {'POST': 'obras.presupuestar'}, 'obras:precios': {'POST': 'obras.presupuestar'},
+    'obras:recurso_nuevo': 'obras.presupuestar', 'obras:recurso_editar': 'obras.presupuestar',
+    'obras:biblioteca': {'POST': 'obras.presupuestar'},
     'activos:nuevo': 'activos.registrar', 'activos:editar': 'activos.registrar', 'activos:baja': 'activos.baja',
     'activos:anular': 'activos.baja', 'activos:depreciacion': {'POST': 'activos.depreciar'},
     'activos:proceso_revertir': 'activos.depreciar', 'activos:categoria_nueva': 'activos.depreciar',

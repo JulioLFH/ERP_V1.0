@@ -1,0 +1,75 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}APU {{ partida.item }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">Análisis de precios unitarios · {{ partida.item }}</h1>
+    <div class="text-muted small"><a href="{% url 'obras:presupuesto' p.pk %}">{{ p }}</a> · {{ p.obra.nombre|truncatechars:60 }}</div></div>
+  <div class="d-flex gap-2">
+    {% if anterior %}<a href="{% url 'obras:apu' anterior %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i> Anterior</a>{% endif %}
+    {% if siguiente %}<a href="{% url 'obras:apu' siguiente %}" class="btn btn-sm btn-outline-secondary">Siguiente <i class="bi bi-chevron-right"></i></a>{% endif %}
+    <a href="{% url 'obras:presupuesto' p.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Presupuesto</a>
+  </div>
+</div>
+{% if not p.editable %}<div class="alert alert-info py-2 small">Presupuesto aprobado: solo consulta.</div>{% endif %}
+<form method="post">{% csrf_token %}
+<div class="card mb-3"><div class="card-body"><div class="row g-2 align-items-end">
+  <div class="col-md-5"><label class="form-label small mb-1">Partida</label><input name="descripcion" value="{{ partida.descripcion }}" class="form-control form-control-sm" {% if not p.editable %}disabled{% endif %}></div>
+  <div class="col-md-1"><label class="form-label small mb-1">Und.</label><input name="unidad" value="{{ partida.unidad }}" class="form-control form-control-sm" {% if not p.editable %}disabled{% endif %}></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Metrado</label><input name="metrado" value="{{ partida.metrado|stringformat:'s' }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Rendimiento ({{ partida.unidad }}/día)</label><input name="rendimiento" value="{{ partida.rendimiento|stringformat:'s' }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Jornada (h)</label><input name="jornada" value="{{ partida.jornada|stringformat:'s' }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></div>
+  <div class="col-md-3"><div class="form-check"><input type="checkbox" name="precio_fijo" id="precio-fijo" class="form-check-input" {% if partida.precio_fijo %}checked{% endif %} {% if not p.editable %}disabled{% endif %}><label class="form-check-label small" for="precio-fijo">Precio sin análisis (partida global)</label></div></div>
+  <div class="col-md-2" id="caja-precio-fijo" {% if not partida.precio_fijo %}hidden{% endif %}><label class="form-label small mb-1">Precio sin análisis</label><input name="precio" value="{{ partida.precio|stringformat:'s' }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></div>
+  <div class="col-md-7 text-end"><div class="small text-muted">Costo unitario directo por {{ partida.unidad }}</div><div class="fs-4 fw-bold">S/ {{ partida.precio|money }}</div></div>
+</div></div></div>
+
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Código</th><th>Recurso</th><th>Und.</th><th class="num" style="width:110px">Cuadrilla</th><th class="num" style="width:130px">Cantidad</th><th class="num" style="width:120px">Precio S/</th><th class="num" style="width:110px">Parcial S/</th>{% if p.editable %}<th class="text-center">Quitar</th>{% endif %}</tr></thead>
+  {% regroup a.lineas by linea.recurso.get_tipo_display as grupos %}
+  <tbody>{% for g in grupos %}
+    <tr class="table-light fw-semibold small"><td colspan="{% if p.editable %}8{% else %}7{% endif %}">{{ g.grouper }}</td></tr>
+    {% for f in g.list %}{% with l=f.linea %}
+    <tr><td class="small">{{ l.recurso.codigo }}</td><td>{{ l.recurso.nombre }}</td><td>{{ l.recurso.unidad }}</td>
+      <td>{% if l.recurso.tipo == 'MO' or l.recurso.tipo == 'EQ' %}<input name="cuadrilla_{{ l.pk }}" value="{{ l.cuadrilla|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end" style="min-width:90px" {% if not p.editable %}disabled{% endif %}>{% endif %}</td>
+      <td><input name="cantidad_{{ l.pk }}" value="{{ f.aporte_txt }}" class="form-control form-control-sm text-end" style="min-width:100px" title="{% if l.cuadrilla is not None %}Con cuadrilla: cuadrilla × jornada / rendimiento{% else %}Aporte por {{ partida.unidad }}{% endif %}" {% if not p.editable or l.cuadrilla is not None and partida.rendimiento %}readonly{% endif %}></td>
+      <td>{% if l.recurso.es_porcentaje_mo %}<span class="small text-muted">{{ f.precio|money }} (MO)</span>{% else %}<input name="precio_{{ l.pk }}" value="{{ f.precio|stringformat:'s' }}" class="form-control form-control-sm text-end" style="min-width:100px" title="Precio del recurso en todo el presupuesto" {% if not p.editable %}disabled{% endif %}>{% endif %}</td>
+      <td class="num">{{ f.parcial|money }}</td>
+      {% if p.editable %}<td class="text-center"><input type="checkbox" name="quitar_{{ l.pk }}" class="form-check-input"></td>{% endif %}</tr>
+    {% endwith %}{% endfor %}
+  {% empty %}<tr><td colspan="8" class="text-center text-muted py-3">Sin recursos: agregue mano de obra, materiales y equipos abajo, o copie una partida tipo de la biblioteca.</td></tr>{% endfor %}</tbody>
+  <tfoot>{% for t, v in a.subtotales.items %}{% if v %}<tr class="small"><td colspan="6" class="text-end text-muted">{% for c, n in tipos %}{% if c == t %}{{ n }}{% endif %}{% endfor %}</td><td class="num">{{ v|money }}</td>{% if p.editable %}<td></td>{% endif %}</tr>{% endif %}{% endfor %}</tfoot>
+</table></div></div>
+
+{% if p.editable %}
+<div class="card mb-3"><div class="card-header py-2 small fw-semibold">Agregar recurso</div><div class="card-body"><div class="row g-2 align-items-end">
+  <div class="col-md-5"><label class="form-label small mb-1">Recurso existente (código · nombre)</label><input name="nuevo_recurso" list="lista-recursos" class="form-control form-control-sm" placeholder="Escriba para buscar…">
+    <datalist id="lista-recursos">{% for r in recursos %}<option value="{{ r.codigo }} · {{ r.nombre }} ({{ r.unidad }})">{% endfor %}</datalist></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Cuadrilla (MO/EQ)</label><input name="nuevo_cuadrilla" class="form-control form-control-sm text-end"></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Cantidad (aporte)</label><input name="nuevo_cantidad" class="form-control form-control-sm text-end"></div>
+  <div class="col-md-3"><label class="form-label small mb-1">Precio (vacío = el de la lista)</label><input name="nuevo_precio" class="form-control form-control-sm text-end"></div>
+  <div class="col-12 small text-muted mt-2">O cree uno nuevo:</div>
+  <div class="col-md-5"><input name="nuevo_nombre" class="form-control form-control-sm" placeholder="Nombre del recurso nuevo"></div>
+  <div class="col-md-2"><input name="nuevo_unidad" class="form-control form-control-sm" placeholder="Und. (hh, m3, %mo…)"></div>
+  <div class="col-md-2"><select name="nuevo_tipo" class="form-select form-select-sm">{% for c, n in tipos %}<option value="{{ c }}">{{ n }}</option>{% endfor %}</select></div>
+</div></div></div>
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <button name="accion" value="guardar" class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar y recalcular</button>
+  {% if siguiente %}<button name="siguiente" value="{{ siguiente }}" class="btn btn-outline-primary">Guardar y seguir <i class="bi bi-chevron-right"></i></button>{% endif %}
+  {% if a.lineas %}<button name="accion" value="guardar_base" class="btn btn-outline-secondary"><i class="bi bi-collection"></i> Guardar en la biblioteca</button>{% endif %}
+</div>
+{% endif %}
+</form>
+{% if p.editable and bases %}
+<div class="card"><div class="card-header py-2 small fw-semibold">Usar una partida tipo de la biblioteca ({{ partida.unidad }})</div><div class="card-body">
+  <form method="post" class="d-flex gap-2">{% csrf_token %}<input type="hidden" name="accion" value="usar_base">
+    <select name="base" class="form-select form-select-sm">{% for b in bases %}<option value="{{ b.pk }}">{{ b.codigo }} · {{ b.descripcion|truncatechars:80 }}</option>{% endfor %}</select>
+    <button class="btn btn-sm btn-outline-primary text-nowrap" data-confirm="¿Reemplazar el análisis de esta partida por el de la partida tipo?">Usar</button></form>
+</div></div>
+{% endif %}
+<p class="small text-muted mt-3">Mano de obra y equipos con cuadrilla: cantidad = cuadrilla × jornada / rendimiento. Herramientas manuales en unidad «%mo»: la cantidad es el porcentaje de la mano de obra. El precio de un recurso es uno solo para todo el presupuesto (Precios).</p>
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () { const c = document.getElementById('precio-fijo'), caja = document.getElementById('caja-precio-fijo'); if (c && caja) c.addEventListener('change', () => { caja.hidden = !c.checked; }); })();
+</script>
+{% endblock %}

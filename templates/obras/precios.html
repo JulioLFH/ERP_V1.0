@@ -1,0 +1,18 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Precios {{ p }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Precios de los recursos</h1><div class="text-muted small">{{ p }} · un precio por recurso para todo el presupuesto</div></div>
+  <a href="{% url 'obras:presupuesto' p.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Presupuesto</a>
+</div>
+<form method="post">{% csrf_token %}
+<div class="card mb-3" style="max-width:1000px"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Tipo</th><th>Código</th><th>Recurso</th><th>Und.</th><th class="num" style="width:160px">Precio S/ (sin IGV)</th></tr></thead>
+  <tbody>{% for f in filas %}
+    <tr><td class="small">{{ tipos|get_item:f.recurso.tipo }}</td><td class="small">{{ f.recurso.codigo }}</td><td>{{ f.recurso.nombre }}</td><td>{{ f.recurso.unidad }}</td>
+      <td><input name="precio_{{ f.pk }}" value="{{ f.precio|stringformat:'s' }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></td></tr>
+  {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">Los recursos aparecen al agregarlos a los análisis.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if p.editable and filas %}<button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar y recalcular el presupuesto</button>{% endif %}
+</form>
+{% endblock %}

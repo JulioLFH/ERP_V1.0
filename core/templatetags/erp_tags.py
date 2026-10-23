@@ -52,6 +52,12 @@ def attr(obj, nombre):
 
 
 @register.filter
+def get_item(diccionario, clave):
+    """Valor de un diccionario por su clave en la plantilla."""
+    return diccionario.get(clave, '') if hasattr(diccionario, 'get') else ''
+
+
+@register.filter
 def es_numero(valor):
     return isinstance(valor, (int, float, Decimal)) and not isinstance(valor, bool)
 

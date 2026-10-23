@@ -3,6 +3,17 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.74.0 — 23/10/2026 · Obras, fase 1: presupuestos con análisis de precios unitarios
+- Nuevo módulo **Obras** (diseño: `docs/OBRAS.md`). Cada obra crea su **centro de costo** (bajo «OBRAS», costo de producción) y su **almacén de obra**: todo lo que ya se registra con centro de costo cae en la obra.
+- **Presupuestos por versiones**: oferta, contractual y meta (copiar una versión a otra; un presupuesto aprobado no se modifica). Partidas en árbol por ítem (01, 01.01, 01.01.01): los títulos suman sus partidas; edición rápida de metrados.
+- **Análisis de precios unitarios (APU)** por partida: rendimiento y jornada, mano de obra y equipos con **cuadrilla** (aporte = cuadrilla × jornada / rendimiento), materiales y subcontratos por aporte, **herramientas manuales en %mo**; redondeo como S10. Un **precio por recurso para todo el presupuesto** (pantalla Precios): al cambiarlo se recalculan todas las partidas.
+- **Pie del presupuesto**: costo directo, gastos generales %, utilidad %, subtotal, IGV y total.
+- **Relación de insumos** (explosión: cantidad total y monto por recurso, por tipo), **reporte de APU** de todas las partidas y **presupuesto** en pantalla, Excel e impresión.
+- **Importación desde Excel**: el que exporta **S10** (hoja de presupuesto + análisis en bloques; columnas reconocidas por su nombre) o la **plantilla de Ceiba**, con vista previa, recursos existentes por código y aviso de los precios que no coinciden con el archivo.
+- **Recursos (insumos)** con tipo, categoría de mano de obra, vínculo a producto o equipo e índice unificado; **biblioteca de partidas tipo** (guardar un análisis y usarlo en otra partida).
+- Permisos: «Crear obras y elaborar presupuestos» y «Aprobar presupuestos de obra» (este último lo asigna el administrador).
+- **Corrección (detracciones, v1.72.0)**: crear un **lote de depósito masivo de detracciones** fallaba en PostgreSQL por el largo del tipo de correlativo; corregido.
+- Requiere `migrate`.
 ## v1.73.0 — 22/10/2026 · Estado de flujos de efectivo (NIC 7), método directo e indirecto
 - **Contabilidad › Reportes › Estado de flujos de efectivo (NIC 7)**, con lo percibido: **método directo** por actividades de operación, inversión y financiamiento, **conciliación por el método indirecto** (utilidad neta + depreciación, amortización, estimaciones y provisiones, partidas de inversión y financiamiento, diferencia de cambio del efectivo ± variación del capital de trabajo), efecto del tipo de cambio, saldo inicial y final del efectivo, y la parte restringida (detracciones). Rango de meses, libro NIIF o tributario, Excel y PDF. Cada rubro abre los asientos que lo forman.
 - Se calcula con los **asientos que mueven el efectivo (clase 10)**: cada línea de contrapartida toma su rubro por prioridad: rubro manual del movimiento → documento (el pago de una compra de **activo fijo o intangible** es inversión) → **regla por cuenta** (prefijo PCGE más largo) → concepto del movimiento. La cuota de un préstamo sale separada en amortización, intereses, comisión e IGV.

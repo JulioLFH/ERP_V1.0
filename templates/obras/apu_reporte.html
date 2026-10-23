@@ -1,0 +1,23 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Análisis de precios unitarios {{ p }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Análisis de precios unitarios</h1><div class="text-muted small">{{ p }} · {{ p.obra.nombre }} · precios al {{ p.fecha_precios|date:'d/m/Y' }}</div></div>
+  <div class="d-flex gap-2 d-print-none"><a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
+    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i></button>
+    <a href="{% url 'obras:presupuesto' p.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Presupuesto</a></div>
+</div>
+{% for x, a in bloques %}
+<div class="card mb-3" style="break-inside:avoid"><div class="card-body p-2">
+  <div class="d-flex justify-content-between small fw-semibold"><span>Partida {{ x.item }} {{ x.descripcion }}</span><span>Costo unitario directo por {{ x.unidad }}: S/ {{ x.precio|money }}</span></div>
+  <div class="small text-muted mb-1">Rendimiento {{ x.unidad }}/día {{ x.rendimiento|floatformat:4 }} · jornada {{ x.jornada|floatformat:2 }} h</div>
+  <table class="table table-sm mb-0 small">
+    <thead><tr><th>Código</th><th>Descripción recurso</th><th>Und.</th><th class="num">Cuadrilla</th><th class="num">Cantidad</th><th class="num">Precio S/</th><th class="num">Parcial S/</th></tr></thead>
+    {% regroup a.lineas by linea.recurso.tipo as grupos %}
+    <tbody>{% for g in grupos %}<tr><td></td><td colspan="5" class="fw-semibold">{{ tipos|get_item:g.grouper }}</td><td class="num fw-semibold">{{ a.subtotales|get_item:g.grouper|money }}</td></tr>
+      {% for f in g.list %}<tr><td>{{ f.linea.recurso.codigo }}</td><td>{{ f.linea.recurso.nombre }}</td><td>{{ f.linea.recurso.unidad }}</td><td class="num">{{ f.linea.cuadrilla|default_if_none:''|floatformat:4 }}</td><td class="num">{{ f.aporte|floatformat:4 }}</td><td class="num">{{ f.precio|money }}</td><td class="num">{{ f.parcial|money }}</td></tr>{% endfor %}
+    {% endfor %}</tbody>
+  </table>
+</div></div>
+{% empty %}<div class="alert alert-info">Ninguna partida tiene análisis todavía.</div>{% endfor %}
+{% endblock %}

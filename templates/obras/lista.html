@@ -1,0 +1,22 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Obras{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-cone-striped"></i> Obras</h1>
+  <a href="{% url 'obras:obra_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva obra</a>
+</div>
+<form class="row g-2 mb-3" method="get">
+  <div class="col-md-4"><input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Código, nombre o cliente"></div>
+  <div class="col-auto"><select name="estado" class="form-select form-select-sm"><option value="">Todos los estados</option>{% for v, t in estados %}<option value="{{ v }}" {% if estado == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+  <div class="col-auto"><button class="btn btn-sm btn-outline-secondary">Buscar</button></div>
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <thead><tr><th>Código</th><th>Obra</th><th>Cliente</th><th>Tipo</th><th>Estado</th><th class="num">Monto contratado</th><th>Presupuestos</th></tr></thead>
+  <tbody>{% for o in obras %}
+    <tr><td><a href="{% url 'obras:obra' o.pk %}">{{ o.codigo }}</a></td><td>{{ o.nombre|truncatechars:60 }}</td><td class="small">{{ o.cliente.nombre|default:'—'|truncatechars:35 }}</td>
+      <td class="small">{{ o.get_tipo_display }}</td><td><span class="badge text-bg-light border">{{ o.get_estado_display }}</span></td>
+      <td class="num">{{ o.moneda }} {{ o.monto_contratado|money }}</td>
+      <td class="small">{% for p in o.presupuestos.all %}<a href="{% url 'obras:presupuesto' p.pk %}" class="me-2">{{ p.get_tipo_display }} v{{ p.version }}</a>{% empty %}—{% endfor %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin obras. Cree la primera con «Nueva obra».</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

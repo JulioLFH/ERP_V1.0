@@ -682,7 +682,7 @@ class DepositoDetraccion(models.Model):
         if not self.lote:
             from core.models import Serie
             anio = self.fecha.year % 100
-            _, numero = Serie.siguiente(f'DET{anio:02d}', f'D{anio:02d}')
+            _, numero = Serie.siguiente('DTM', f'D{anio:02d}')  # Serie.tipo admite 3 caracteres; el año va en la serie
             self.lote = f'{anio:02d}{int(numero) % 10000:04d}'
         super().save(*args, **kwargs)
 

@@ -1,0 +1,42 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ o }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">{{ o.nombre }}</h1>
+    <div class="text-muted small">{{ o.codigo }} · {{ o.get_tipo_display }} · {{ o.get_sistema_display }} · <span class="badge text-bg-light border">{{ o.get_estado_display }}</span></div></div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'obras:obra_editar' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
+    <a href="{% url 'obras:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Obras</a>
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-4"><div class="card"><div class="card-body small">
+    <table class="table table-sm mb-0">
+      <tr><td class="text-muted">Cliente</td><td>{{ o.cliente.nombre|default:'—' }}</td></tr>
+      <tr><td class="text-muted">Contrato</td><td>{{ o.contrato|default:'—' }}{% if o.fecha_contrato %} · {{ o.fecha_contrato|date:'d/m/Y' }}{% endif %}</td></tr>
+      <tr><td class="text-muted">Monto contratado</td><td>{{ o.moneda }} {{ o.monto_contratado|money }}</td></tr>
+      <tr><td class="text-muted">Inicio · plazo</td><td>{{ o.fecha_inicio|date:'d/m/Y'|default:'—' }} · {{ o.plazo_dias }} días</td></tr>
+      <tr><td class="text-muted">Ubicación</td><td>{{ o.direccion|default:'—' }}</td></tr>
+      <tr><td class="text-muted">Residente</td><td>{% if o.residente %}{{ o.residente.get_full_name|default:o.residente.username }}{% else %}—{% endif %}</td></tr>
+      <tr><td class="text-muted">Supervisor</td><td>{{ o.supervisor|default:'—' }}</td></tr>
+      <tr><td class="text-muted">GG · utilidad</td><td>{{ o.gastos_generales_pct }}% · {{ o.utilidad_pct }}%</td></tr>
+      <tr><td class="text-muted">Centro de costo</td><td>{{ o.centro_costo }}</td></tr>
+      <tr><td class="text-muted">Almacén de obra</td><td>{{ o.almacen }}</td></tr>
+    </table>
+  </div></div></div>
+  <div class="col-lg-8"><div class="card">
+    <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center"><span class="fw-semibold">Presupuestos</span>
+      <div class="d-flex gap-2"><a href="{% url 'obras:presupuesto_nuevo' o.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo presupuesto</a>
+        <a href="{% url 'obras:importar' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-arrow-up"></i> Importar de Excel (S10)</a></div></div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>Presupuesto</th><th>Nombre</th><th>Estado</th><th class="num">Costo directo</th><th class="num">Total con IGV</th><th>Origen</th></tr></thead>
+      <tbody>{% for p in presupuestos %}
+        <tr><td><a href="{% url 'obras:presupuesto' p.pk %}">{{ p.get_tipo_display }} v{{ p.version }}</a></td><td class="small">{{ p.nombre|truncatechars:45 }}</td>
+          <td><span class="badge {% if p.estado == 'APROBADO' %}text-bg-success{% else %}text-bg-light border{% endif %}">{{ p.get_estado_display }}</span></td>
+          <td class="num">{{ p.costo_directo|money }}</td><td class="num fw-semibold">{{ p.total|money }}</td><td class="small text-muted">{{ p.origen }}</td></tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin presupuestos. Créelo o impórtelo desde el Excel de S10.</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <div class="card-body small text-muted">Versiones: <b>Oferta</b> (lo que se presenta), <b>Contractual</b> (lo que se valoriza) y <b>Meta</b> (contra lo que se controla el costo). Un presupuesto aprobado no se modifica: se copia a una nueva versión.</div>
+  </div></div>
+</div>
+{% endblock %}
