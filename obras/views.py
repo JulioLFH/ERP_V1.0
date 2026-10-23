@@ -57,6 +57,13 @@ class ObraNueva(FormGenerico, CreateView):
 class ObraEditar(FormGenerico, UpdateView):
     model, form_class, titulo = Obra, ObraForm, 'Editar obra'
 
+    def form_valid(self, form):
+        respuesta = super().form_valid(form)
+        if 'tipo' in form.changed_data and self.object.tipo == 'INMOBILIARIA':
+            from .inmobiliario import al_volverse_inmobiliaria
+            al_volverse_inmobiliaria(self.object)  # sus costos ya contabilizados se activan al centralizar
+        return respuesta
+
     def get_success_url(self):
         return reverse_lazy('obras:obra', args=[self.object.pk])
 
@@ -64,8 +71,10 @@ class ObraEditar(FormGenerico, UpdateView):
 @login_required
 def obra(request, pk):
     o = get_object_or_404(Obra.objects.select_related('cliente', 'centro_costo', 'almacen', 'residente'), pk=pk)
+    from .models import Licitacion
     return render(request, 'obras/obra.html', {'o': o, 'presupuestos': o.presupuestos.all(),
-                                               'tipos': Presupuesto.TIPOS})
+                                               'tipos': Presupuesto.TIPOS,
+                                               'licitacion': Licitacion.objects.filter(obra=o).first()})
 
 
 @login_required

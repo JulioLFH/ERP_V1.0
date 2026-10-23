@@ -277,3 +277,36 @@ Se implementan como permisos del sistema actual (`core.permisos`) con el módulo
 | 7 | Tareo de una semana de 10 obreros | Planilla semanal con jornal, BUC, movilidad, descuentos y aportes; costo repartido a las partidas por horas. |
 | 8 | Carta fianza que vence en 15 días | Alerta en el tablero y por correo. |
 | 9 | Obra con EV < PV y AC > EV | SPI < 1 y CPI < 1 en rojo; EAC = BAC / CPI. |
+| 10 | Licitación ganada con oferta de S/ 141 600 | Obra Adjudicada, monto contratado = oferta, presupuesto contractual copiado, centro de costo de Propuestas a Obras, oportunidad Ganada. |
+| 11 | Departamento de S/ 327 000 (terreno 50 %), separación de S/ 5 000 | Boleta de anticipo: construcción 2 293.58 + IGV 412.84 + terreno inafecto 2 293.58; en la entrega, ingreso 300 000 y costo por área techada. |
+
+---
+
+## 12. Comercial: licitaciones (CRM de constructoras) — v1.77.0
+
+Cada propuesta es una **obra en «Propuesta / licitación»** con su `Licitacion` (1 a 1) y su **oportunidad del CRM** (Ventas):
+
+- Se crea desde **Obras › Comercial › Nueva licitación**, desde el CRM («Convertir en obra / licitación» en la oportunidad) o desde una obra en licitación («Registrar la licitación»).
+- Mientras se licita, el centro de costo de la obra cuelga de **PROPUESTAS** (gasto de ventas): lo que cuesta preparar la oferta (bases, visitas, cartas fianza, personal) se ve como **costo de la propuesta**.
+- Datos del proceso: procedimiento (LP, CP, AS, SIE, CD, privada), nomenclatura SEACE, valor referencial, consorcio y participación. La **oferta** es el presupuesto de oferta vigente (aprobado o el último); se muestra su % del valor referencial y el monto de la oportunidad se mantiene igual a la oferta.
+- **Cronograma** (convocatoria, consultas, absolución, integración, presentación, buena pro, consentimiento, firma) y **requisitos del postor** (experiencia, personal clave, equipamiento, RNP, garantía) con documentos adjuntos (sustentos) y vencimiento. Alertas: hitos en 3 días o vencidos sin marcar; requisitos vencidos o por vencer.
+- **Ganar**: obra Adjudicada, monto contratado = oferta, la oferta se copia como **contractual** (si no hay), el centro pasa a **OBRAS** (producción) y la oportunidad queda Ganada. **Perder**: motivo obligatorio (precio, experiencia, plazo, técnica, descalificación), ganador y su precio; obra «No adjudicada» y oportunidad Perdida con el motivo. **Desierta** también se registra.
+- El embudo del CRM no marca como ganada o perdida una oportunidad con licitación en curso: el resultado se registra en la licitación.
+- Reportes: cartera en licitación, **tasa de éxito** por tipo de obra, procedimiento y entidad, motivos de pérdida y **cartera contratada por ejecutar** (contratado menos lo facturado con el centro de la obra).
+- Permiso «obras.licitar» (quien tenía «presupuestar» lo recibe en la migración).
+
+## 13. Proyecto inmobiliario — v1.77.0 (fase 1)
+
+Obra de tipo **Proyecto inmobiliario** con sus **unidades** (departamentos, estacionamientos, depósitos, locales, lotes…): código, piso, área techada y libre, dormitorios, vista y precio de lista. Se registran una a una o pegando desde Excel.
+
+- **Separación y venta** de una o más unidades con su **cronograma de pagos**: separación, cuota inicial, bono o subsidio (BBP, BFH), cuotas mensuales con la empresa (financiamiento directo), desembolso del banco (hipotecario, MiVivienda, Techo Propio) o saldo al contado. Estados: separada → vendida (minuta) → entregada; anulación con motivo y sin cobros.
+- **Cobro de cada cuota** (requiere el permiso de Tesorería): emite su **comprobante de anticipo** (factura si el comprador tiene RUC; si no, boleta). Primera venta de inmuebles: el IGV grava solo la construcción y el **terreno** (el % de la obra; el Reglamento de la Ley del IGV lo presume en el 50 % del valor de venta) va como línea inafecta. Con importe cobrado M y p = % del terreno: construcción = M × (1 − p) / ((1 − p) × 1.18 + p). El cobro entra a la **cuenta recaudadora** del proyecto (banco que financia o fideicomiso) como cobranza del comprobante.
+- **Entrega**: con la minuta firmada y todo cobrado. El ingreso de la venta es el valor sin IGV de sus anticipos; el **costo de cada unidad** = costo del proyecto a la fecha × su participación (por área techada o por precio de lista).
+- **Contabilidad** (centralización, origen «Proyectos inmobiliarios»):
+  - Cada mes los costos del proyecto (clase 6 con el centro de costo de la obra, sin el reparto de gastos generales) se **activan**: 2341 Inmuebles en construcción / 7134 Variación de productos inmuebles en proceso (PCGE 2026: 2312 / 7134).
+  - Cada cobro: 1212 / 40111 IGV de la construcción y 1221 Anticipos (construcción + terreno), y su cobranza 104 / 1212.
+  - En la entrega: 1221 / 7024 Ventas de inmuebles (PCGE 2026: 70221) y 6924 Costo de ventas / 2341 (PCGE 2026: 69221).
+  - Las cuentas son propias para que el ajuste del kardex de la 2311 (manufactura) no las toque; se cambian en «Cuentas por defecto».
+- **Tablero** de unidades por piso y estado, costo por m², costo asignado y margen por unidad, ventas, saldo por cobrar; **cobranza inmobiliaria** con cuotas vencidas y por vencer y separaciones por vencer (alertas).
+- Permiso «obras.vender» (lo asigna el administrador).
+- Pendiente (fase 2): factura final de la venta con la deducción de los anticipos (SUNAT), devolución de separaciones con nota de crédito, costo con presupuesto estimado (avance) en vez del costo a la fecha, fideicomiso y cartas del banco, y la minuta / contrato desde plantilla.

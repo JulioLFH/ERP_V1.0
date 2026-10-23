@@ -25,7 +25,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 ITEM = re.compile(r'^\d{1,3}(\.\d{1,4})*\.?$')
 ITEM_S10 = re.compile(r'^\d{2,3}(\.\d{2,3})*$')  # sin títulos de columnas: ítems con ceros (01, 01.01)
-CODIGO_RECURSO = re.compile(r'^\d{6,12}$')
+CODIGO_RECURSO = re.compile(r'^\d{6,16}$')  # el S10 usa 10, 12 y 14 dígitos
 GRUPOS = {'mano de obra': 'MO', 'materiales': 'MAT', 'material': 'MAT', 'equipos': 'EQ', 'equipo': 'EQ',
           'equipos y herramientas': 'EQ', 'subcontratos': 'SUB', 'subcontrato': 'SUB', 'servicios': 'SUB',
           'subpartidas': 'MAT', 'subpartida': 'MAT'}
@@ -163,22 +163,23 @@ class _Armador:
     def __init__(self):
         self.subs, self.partidas, self.actual, self.vistos = [], [], '', set()
 
-    def sub(self, codigo, nombre):
+    def sub(self, codigo, nombre, auto=False):
         if not any(s['codigo'] == codigo for s in self.subs):
-            self.subs.append({'codigo': codigo, 'nombre': nombre[:250], 'gg': 'gastos generales' in _norm(nombre)})
+            self.subs.append({'codigo': codigo, 'nombre': nombre[:250], 'gg': 'gastos generales' in _norm(nombre),
+                              'auto': auto})
         self.actual = codigo
         self.vistos = {p['item'] for p in self.partidas if p['sub'] == codigo}
 
     def partida(self, p):
         if p['item'] in self.vistos:
             if not self.subs:  # lo leído hasta aquí es el primer subpresupuesto
-                self.subs.append({'codigo': '001', 'nombre': 'Subpresupuesto 001', 'gg': False})
+                self.subs.append({'codigo': '001', 'nombre': 'Subpresupuesto 001', 'gg': False, 'auto': True})
                 for x in self.partidas:
                     x['sub'] = '001'
             n = len(self.subs) + 1
             while any(s['codigo'] == f'{n:03d}' for s in self.subs):
                 n += 1
-            self.sub(f'{n:03d}', f'Subpresupuesto {n:03d}')
+            self.sub(f'{n:03d}', f'Subpresupuesto {n:03d}', auto=True)
         p['sub'] = p.get('sub') or self.actual
         self.vistos.add(p['item'])
         self.partidas.append(p)
@@ -194,6 +195,13 @@ class _Armador:
         for p in self.partidas:
             if any(s == p['sub'] and i.startswith(p['item'] + '.') for s, i in items):
                 p['titulo'] = True
+        # subpresupuesto sin encabezado (el reporte del S10 no lo trae): toma el nombre de su primer título
+        for s in self.subs:
+            if s.get('auto'):
+                titulo = next((p['descripcion'] for p in self.partidas if p['sub'] == s['codigo'] and p['titulo']
+                               and '.' not in p['item']), '')
+                if titulo:
+                    s['nombre'], s['gg'] = titulo[:250], 'gastos generales' in _norm(titulo)
         return self.subs, self.partidas
 
 
@@ -436,13 +444,33 @@ def leer_apu_bloques(filas):
     return (apus or None), subanalisis
 
 
-def _cantidad_desde_parcial(cantidad, precio, parcial):
-    """El CSV del S10 trae las cantidades a 2 decimales: se recupera el aporte con el parcial (4 decimales)."""
-    if precio and parcial:
-        v = (parcial / precio).quantize(C4, rounding=ROUND_HALF_UP)
+def _cantidad_desde_parcial(cantidad, precio, parcial, rendimiento=None):
+    """El CSV del S10 trae las cantidades a 2 decimales (0.06): se recupera el aporte de 4 decimales que da el parcial
+    (0.0625 × 70 = 4.38). Entre los que cumplen, gana el que sale de una cuadrilla redonda con el rendimiento
+    (1 vibrador / 16 m3 por día = 0.0625) y luego el más cercano a parcial ÷ precio."""
+    if not (precio and parcial) or precio <= 0:
+        return cantidad
+    if cantidad is not None and _r2(cantidad * precio) == parcial:  # la cantidad mostrada ya da el parcial (0.40 × 5.81)
+        return cantidad
+    desde = ((parcial - Decimal('0.005')) / precio).quantize(C4, rounding='ROUND_CEILING')
+    hasta = ((parcial + Decimal('0.005')) / precio).quantize(C4, rounding='ROUND_FLOOR')
+    if hasta < desde or (hasta - desde) / C4 > 5000:
+        return cantidad
+    candidatos = []
+    v = desde
+    while v <= hasta:
         if _r2(v * precio) == parcial and (cantidad is None or _r2(v) == _r2(cantidad)):
-            return v
-    return cantidad
+            candidatos.append(v)
+        v += C4
+    if not candidatos:
+        return cantidad
+    exacto = parcial / precio
+
+    def redonda(v):  # la cuadrilla (aporte × rendimiento, o ÷ jornada de 8 h) con 2 decimales
+        if not rendimiento:
+            return 1
+        return 0 if any(x == x.quantize(C2) for x in (v * rendimiento, v * rendimiento / 8)) else 1
+    return min(candidatos, key=lambda v: (redonda(v), abs(v - exacto)))
 
 
 def _fila_apu_csv(celdas):
@@ -482,8 +510,55 @@ def _fila_apu_csv(celdas):
     return sub, celdas[k].rstrip('.'), cabecera, _recurso(codigo, nombre, unidad, tipo, None, cantidad, precio, parcial)
 
 
+GRUPOS_CSV = {'materiales': 'MAT', 'material': 'MAT', 'equipos': 'EQ', 'equipo': 'EQ', 'mano de obra': 'MO',
+              'subcontratos': 'SUB', 'subcontrato': 'SUB', 'sub-analisis': 'SUBANALISIS', 'subanalisis': 'SUBANALISIS',
+              'sub analisis': 'SUBANALISIS', 'subpartidas': 'SUBANALISIS', 'subpartida': 'SUBANALISIS'}
+
+
+def _tras(celdas, normas, etiqueta):
+    """El valor que sigue a la etiqueta en la fila («Rendimiento», 10.00)."""
+    if etiqueta not in normas:
+        return ''
+    j = normas.index(etiqueta) + 1
+    return celdas[j] if j < len(celdas) else ''
+
+
+def _recurso_reporte(celdas, normas, r, grupo, rendimiento):
+    """Recurso de una fila del reporte de APU del S10: [grupo,] código, recurso, recurso, unidad, cantidad, precio, '',
+    parcial, [subtotales…]. Devuelve (recurso, grupo vigente)."""
+    if r > 0 and normas[r - 1] in GRUPOS_CSV:  # el grupo solo viene en el primer recurso de cada grupo
+        grupo = GRUPOS_CSV[normas[r - 1]]
+    resto = celdas[r + 1:]
+    textos = []
+    for c in resto:
+        if _num(c) is not None:
+            break
+        if c:
+            textos.append(c)
+    if not textos:
+        return None, grupo
+    nombre, unidad = textos[0], (textos[-1] if len(textos) > 1 else 'und')
+    nums = [_num(c) for c in resto[resto.index(textos[-1]) + 1:] if _num(c) is not None]
+    if len(nums) < 2:
+        return None, grupo
+    cantidad, precio = nums[0], nums[1]
+    parcial = nums[2] if len(nums) > 2 else _r2(cantidad * precio)
+    codigo = celdas[r]
+    es_sub = grupo == 'SUBANALISIS'
+    tipo = 'MAT' if es_sub else (grupo or _tipo('', codigo, unidad))
+    if not _es_pct(unidad):  # en las herramientas (%mo) la cantidad es el porcentaje
+        cantidad = _cantidad_desde_parcial(cantidad, precio, parcial, rendimiento)
+    recurso = _recurso(codigo, nombre, unidad, tipo, None, cantidad, precio, parcial)
+    if es_sub:
+        recurso['subanalisis'] = True
+    return recurso, grupo
+
+
 def leer_apu_csv(archivo):
-    """CSV de análisis de precios unitarios que exporta el S10 (.chr o .csv, separado por comas, en cp1252)."""
+    """CSV de análisis de precios unitarios que exporta el S10 (.chr o .csv, separado por comas, en cp1252). Dos formas:
+    el reporte («Partida», ítem, «Rendimiento», …, «Presupuesto», subpresupuesto, «Descripción», … en la cabecera de
+    cada partida y luego sus recursos, con el grupo solo en el primero de cada grupo) o una línea por recurso con la
+    cabecera de su partida repetida."""
     datos = _contenido(archivo)
     for codificacion in ('utf-8-sig', 'cp1252', 'latin-1'):
         try:
@@ -496,8 +571,30 @@ def leer_apu_csv(archivo):
     except csv.Error:
         dialecto = csv.excel
     apus, vistos, n_auto, anterior = {}, set(), 1, None
+    actual, grupo, rendimiento = None, None, None
     for fila in csv.reader(io.StringIO(texto), dialecto):
-        r = _fila_apu_csv([c.strip() for c in fila])
+        celdas = [c.strip() for c in fila]
+        normas = [_norm(c) for c in celdas]
+        # reporte: cabecera de la partida
+        if 'partida' in normas and ITEM.match(_tras(celdas, normas, 'partida').rstrip('.') or 'x'):
+            item = _tras(celdas, normas, 'partida').rstrip('.')
+            sub = _tras(celdas, normas, 'presupuesto')
+            rendimiento = _num(_tras(celdas, normas, 'rendimiento'))
+            actual = apus.setdefault(f'@{sub}|{item}' if sub else item, {
+                'rendimiento': str(rendimiento or 0), 'jornada': '8', 'unidad': _tras(celdas, normas, 'unidad'),
+                'descripcion': _tras(celdas, normas, 'descripcion'), 'recursos': []})
+            grupo = None
+            continue
+        r = next((n for n, c in enumerate(celdas) if CODIGO_RECURSO.match(c)), None)
+        if actual is not None and r is not None and not any(ITEM_S10.match(c.rstrip('.')) for c in celdas[:r]):
+            recurso, grupo = _recurso_reporte(celdas, normas, r, grupo, rendimiento)
+            if recurso:
+                actual['recursos'].append(recurso)
+            costo = _num(_tras(celdas, normas, 'costo directo (en s/.)'))
+            if costo is not None:
+                actual['costo'] = str(costo)
+            continue
+        r = _fila_apu_csv(celdas)
         if r is None:
             continue
         sub, item, cabecera, recurso = r
@@ -509,17 +606,23 @@ def leer_apu_csv(archivo):
         a = apus.setdefault(clave, {'rendimiento': cabecera['rendimiento'], 'jornada': '8',
                                     'unidad': cabecera['unidad'], 'recursos': []})
         a['recursos'].append(recurso)
+    apus = {k: a for k, a in apus.items() if a['recursos']}
     if not apus:
-        raise ErrorImportacion('No se encontraron análisis en el CSV: cada línea debe traer el ítem de la partida, el '
-                               'código del recurso (6 a 12 dígitos), su cantidad, precio y parcial.')
+        raise ErrorImportacion('No se encontraron análisis en el CSV: se espera el reporte de análisis de precios '
+                               'unitarios del S10 (cabeceras «Partida» con sus recursos: código de 6 a 16 dígitos, '
+                               'unidad, cantidad, precio y parcial).')
     return apus
 
 
 def _resolver_apu(apus, partidas, subs):
     """Une cada análisis con su partida: por subpresupuesto e ítem; sin subpresupuesto en el análisis, por el orden
-    en que aparecen (el 2.° 01.01 es del 2.° subpresupuesto)."""
+    en que aparecen (el 2.° 01.01 es del 2.° subpresupuesto). Los del reporte del S10 traen el nombre del
+    subpresupuesto («@ESTRUCTURAS|01.01.01»): se unen por la descripción de la partida, luego por ese nombre y si no, por
+    el orden en que aparecen; un subpresupuesto que no tenía nombre toma el del análisis."""
     claves = {p['clave'] for p in partidas}
     codigos = [s['codigo'] for s in subs]
+    por_codigo = {s['codigo']: s for s in subs}
+    nombres_csv = []
     unidos = {}
     for clave, a in apus.items():
         if clave in claves:
@@ -530,6 +633,25 @@ def _resolver_apu(apus, partidas, subs):
         if sub.startswith('#'):
             n = int(sub[1:]) - 1
             destino = f'{codigos[n]}|{item}' if n < len(codigos) else None
+        elif sub.startswith('@'):
+            nombre = sub[1:]
+            if nombre not in nombres_csv:
+                nombres_csv.append(nombre)
+            hojas = [p for p in partidas if p['item'] == item and not p['titulo']]
+            descripcion = _norm(a.get('descripcion'))
+            elegida = (next((p for p in hojas if descripcion and _norm(p['descripcion']) == descripcion), None)
+                       or next((p for p in hojas if _norm(por_codigo.get(p['sub'], {}).get('nombre')) == _norm(nombre)),
+                               None))
+            if elegida is None and hojas:
+                n = nombres_csv.index(nombre)
+                elegida = next((p for p in hojas if codigos and p['sub'] == codigos[min(n, len(codigos) - 1)]),
+                               hojas[0])
+            if elegida is not None:
+                destino = elegida['clave']
+                s = por_codigo.get(elegida['sub'])
+                if s is not None and s.get('auto') and nombre:  # el reporte no traía el nombre del subpresupuesto
+                    s['nombre'], s['auto'] = nombre[:250], False
+                    s['gg'] = s['gg'] or 'gastos generales' in _norm(nombre)
         elif not sub and codigos:
             destino = f'{codigos[0]}|{item}'
         if destino in claves:
@@ -632,6 +754,9 @@ def grabar(datos, obra, tipo, nombre, usuario=None, origen='Excel'):
                                              **extra)
                 if r['codigo']:
                     por_codigo[r['codigo']] = obj
+            if r.get('subanalisis') and not obj.es_subanalisis:  # grupo «Sub-Análisis» del reporte del S10
+                obj.es_subanalisis = True
+                obj.save(update_fields=['es_subanalisis'])
             catalogo[clave] = obj
             if not obj.es_porcentaje_mo and 'precio' in r:
                 precios.setdefault(obj.pk, Decimal(r['precio']))

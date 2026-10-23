@@ -196,6 +196,9 @@ MODULOS = [
         'menu': [
             ('Obras', [('Obras', 'obras:lista', 'bi-cone-striped'),
                        ('Nueva obra', 'obras:obra_nueva', 'bi-plus-circle')]),
+            ('Comercial', [('Licitaciones y propuestas (CRM)', 'obras:licitaciones', 'bi-trophy'),
+                           ('Nueva licitación / propuesta', 'obras:licitacion_nueva', 'bi-plus-circle'),
+                           ('Cobranza inmobiliaria', 'obras:inm_cobranza', 'bi-house-check')]),
             ('Presupuestos', [('Recursos (insumos)', 'obras:recursos', 'bi-boxes'),
                               ('Vincular recursos con productos', 'obras:vincular', 'bi-link-45deg'),
                               ('Biblioteca de partidas tipo', 'obras:biblioteca', 'bi-collection'),

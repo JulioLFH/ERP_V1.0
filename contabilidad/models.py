@@ -72,6 +72,7 @@ ORIGENES = [
     ('MIGRACION', 'Ajustes de migración (fecha de corte)'),
     ('COSTO', 'Costo de ventas (versión anterior)'),
     ('REPARTO', 'Reparto de gastos entre centros de costo'),
+    ('INMUEBLE', 'Proyectos inmobiliarios (costos activados, ventas entregadas)'),
 ]
 # asientos que el sistema no regenera al centralizar
 ORIGENES_FIJOS = ('MANUAL', 'APERTURA', 'ANTERIOR', 'MIGRACION')

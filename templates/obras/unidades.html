@@ -1,0 +1,79 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Unidades · {{ o.nombre }}{% endblock %}
+{% block content %}
+<style>
+  .unidad-chip { display: inline-block; min-width: 4.2rem; padding: .25rem .4rem; margin: 0 .25rem .25rem 0; border-radius: .35rem; font-size: .78rem; text-align: center; text-decoration: none; border: 1px solid transparent; }
+  .u-DISPONIBLE { background: #dcfce7; color: #166534; border-color: #86efac; }
+  .u-SEPARADA { background: #fef9c3; color: #854d0e; border-color: #fde047; }
+  .u-VENDIDA { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+  .u-ENTREGADA { background: #e5e7eb; color: #374151; border-color: #d1d5db; }
+  .u-BLOQUEADA { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+  [data-bs-theme="dark"] .unidad-chip { filter: brightness(.85); }
+</style>
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">{{ o.nombre }}</h1>
+    <div class="text-muted small">{{ o.codigo }} · Proyecto inmobiliario · terreno {{ o.terreno_pct }}% del valor · costo de cada unidad {{ o.get_prorrateo_display|lower }}</div></div>
+  <div class="d-flex flex-wrap gap-2">
+    {% if puede.obras_vender and o.tipo == 'INMOBILIARIA' %}<a href="{% url 'obras:separar' o.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-house-add"></i> Separar unidades</a>{% endif %}
+    <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    <a href="{% url 'obras:obra' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Obra</a>
+  </div>
+</div>
+{% if o.tipo != 'INMOBILIARIA' %}<div class="alert alert-warning">Esta obra no es un proyecto inmobiliario: cambie su tipo en <a href="{% url 'obras:obra_editar' o.pk %}">Editar obra</a> para vender unidades.</div>{% endif %}
+{% if not o.cuenta_recaudadora %}<div class="alert alert-info py-2 small"><i class="bi bi-info-circle"></i> Indique la <b>cuenta recaudadora</b> del proyecto en <a href="{% url 'obras:obra_editar' o.pk %}">Editar obra</a> (la cuenta del banco que financia o del fideicomiso): los cobros la proponen.</div>{% endif %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Unidades</div><div class="value">{{ t.unidades|length }}</div><div class="small text-muted">{% if t.avance_ventas is not None %}{{ t.avance_ventas }}% vendido o separado{% endif %}</div></div></div>
+  {% with r=t.resumen %}
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Disponibles</div><div class="value">{{ r.DISPONIBLE.n }}</div><div class="small text-muted">S/ {{ r.DISPONIBLE.monto|money }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Separadas · vendidas</div><div class="value">{{ r.SEPARADA.n }} · {{ r.VENDIDA.n }}</div><div class="small text-muted">S/ {{ r.SEPARADA.monto|sumar:r.VENDIDA.monto|money }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Entregadas</div><div class="value">{{ r.ENTREGADA.n }}</div><div class="small text-muted">S/ {{ r.ENTREGADA.monto|money }}</div></div></div>
+  {% endwith %}
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Costo del proyecto</div><div class="value">S/ {{ t.costo|money }}</div><div class="small text-muted">{% if t.costo_m2 %}S/ {{ t.costo_m2|money }} por m² techado{% else %}registre las áreas{% endif %}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Por cobrar</div><div class="value">S/ {{ t.por_cobrar|money }}</div><div class="small text-muted">margen estimado S/ {{ t.margen|money }}</div></div></div>
+</div>
+{% if t.unidades %}<div class="card mb-3"><div class="card-header d-flex flex-wrap gap-3 align-items-center"><span class="fw-semibold">Tablero</span>
+  {% for estado, nombre in estados %}<span class="unidad-chip u-{{ estado }}" style="min-width:auto">{{ nombre }}</span>{% endfor %}</div>
+  <div class="card-body">{% regroup t.unidades by piso as pisos %}{% for p in pisos %}
+    <div class="d-flex align-items-start"><div class="text-muted small me-2 pt-1" style="width: 4.5rem">{% if p.grouper %}Piso {{ p.grouper }}{% else %}—{% endif %}</div>
+      <div>{% for u in p.list %}{% if u.venta %}<a href="{% url 'obras:venta_inmueble' u.venta.pk %}" class="unidad-chip u-{{ u.estado }}" title="{{ u.get_tipo_display }} · {{ u.area_techada }} m² · {{ u.venta.cliente.nombre }}">{{ u.codigo }}</a>{% elif u.estado == 'DISPONIBLE' and puede.obras_vender %}<a href="{% url 'obras:separar' o.pk %}?unidad={{ u.pk }}" class="unidad-chip u-{{ u.estado }}" title="{{ u.get_tipo_display }} · {{ u.area_techada }} m² · S/ {{ u.precio_lista|money }} · separar">{{ u.codigo }}</a>{% else %}<span class="unidad-chip u-{{ u.estado }}" title="{{ u.get_tipo_display }} · {{ u.area_techada }} m²">{{ u.codigo }}</span>{% endif %}{% endfor %}</div></div>
+  {% endfor %}</div></div>{% endif %}
+<div class="card mb-3"><div class="card-header fw-semibold">Unidades: precio, costo asignado y margen</div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
+    <thead><tr><th>Código</th><th>Tipo</th><th>Piso</th><th class="num">Á. techada</th><th class="num">Á. libre</th><th class="num">Dorm.</th><th class="num">Precio de lista</th><th>Estado</th><th>Comprador</th><th class="num">Valor sin IGV</th><th class="num">Costo</th><th class="num">Margen</th><th></th></tr></thead>
+    <tbody>{% for u in t.unidades %}
+      <tr><td class="fw-semibold">{{ u.codigo }}</td><td>{{ u.get_tipo_display }}</td><td>{{ u.piso }}</td><td class="num">{{ u.area_techada }}</td><td class="num">{{ u.area_libre }}</td><td class="num">{{ u.dormitorios|default:'' }}</td>
+        <td class="num">{% if puede.obras_vender and u.estado == 'DISPONIBLE' %}<form method="post" class="d-flex gap-1 justify-content-end">{% csrf_token %}<input type="hidden" name="accion" value="precio"><input type="hidden" name="id" value="{{ u.pk }}">
+          <input name="precio_lista" value="{{ u.precio_lista|stringformat:'s' }}" class="form-control form-control-sm text-end" style="width: 9rem"><button class="btn btn-sm btn-outline-secondary py-0" title="Guardar precio"><i class="bi bi-check2"></i></button></form>{% else %}{{ u.precio_lista|money }}{% endif %}</td>
+        <td><span class="unidad-chip u-{{ u.estado }}" style="min-width:auto">{{ u.get_estado_display }}</span></td>
+        <td>{% if u.venta %}<a href="{% url 'obras:venta_inmueble' u.venta.pk %}">{{ u.venta.numero }}</a> {{ u.venta.cliente.nombre|truncatechars:25 }}{% endif %}</td>
+        <td class="num">{{ u.valor|money }}</td><td class="num">{{ u.costo|money }}</td>
+        <td class="num {% if u.margen < 0 %}text-danger{% endif %}">{{ u.margen|money }}{% if u.margen_pct is not None %} <span class="text-muted">({{ u.margen_pct }}%)</span>{% endif %}</td>
+        <td class="text-nowrap">{% if puede.obras_vender and not u.venta %}<form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="id" value="{{ u.pk }}">
+          {% if u.estado == 'DISPONIBLE' %}<button name="accion" value="bloquear" class="btn btn-sm btn-outline-warning py-0" title="Bloquear (no se vende)"><i class="bi bi-lock"></i></button>{% elif u.estado == 'BLOQUEADA' %}<button name="accion" value="liberar" class="btn btn-sm btn-outline-success py-0" title="Liberar"><i class="bi bi-unlock"></i></button>{% endif %}
+          <button name="accion" value="borrar" class="btn btn-sm btn-outline-danger py-0" title="Eliminar" onclick="return confirm('¿Eliminar la unidad {{ u.codigo }}?')"><i class="bi bi-x"></i></button></form>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="13" class="text-center text-muted py-4">Sin unidades. Regístrelas abajo o péguelas desde Excel.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-body small text-muted">Costo asignado: costo del proyecto a la fecha (gastos con el centro de costo de la obra, sin el reparto de gastos generales) × la participación de la unidad ({{ o.get_prorrateo_display|lower }}). Valor sin IGV: construcción sin IGV más el terreno.</div></div>
+<div class="card mb-3"><div class="card-header fw-semibold">Ventas</div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
+    <thead><tr><th>N°</th><th>Comprador</th><th>Unidades</th><th>Financiamiento</th><th class="num">Precio</th><th class="num">Cobrado</th><th class="num">Saldo</th><th>Estado</th></tr></thead>
+    <tbody>{% for v in ventas %}<tr><td class="text-nowrap"><a href="{% url 'obras:venta_inmueble' v.pk %}">{{ v.numero }}</a></td><td>{{ v.cliente.nombre|truncatechars:35 }}</td>
+      <td>{% for u in v.unidades.all %}{{ u.codigo }}{% if not forloop.last %}, {% endif %}{% endfor %}</td><td>{{ v.get_financiamiento_display }}</td>
+      <td class="num">{{ v.precio|money }}</td><td class="num">{{ v.cobrado|money }}</td><td class="num fw-semibold">{{ v.saldo|money }}</td>
+      <td><span class="badge text-bg-light border">{{ v.get_estado_display }}</span></td></tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-3">Sin ventas.</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+{% if puede.obras_vender and o.tipo == 'INMOBILIARIA' %}
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header fw-semibold">Nueva unidad</div><div class="card-body">
+    <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="unidad">
+      {% for field in form %}<div class="{% if field.name == 'notas' %}col-12{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar</button></div></form></div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header fw-semibold">Carga rápida (pegar desde Excel)</div><div class="card-body">
+    <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="carga">
+      <textarea name="lineas" rows="7" class="form-control form-control-sm font-monospace" placeholder="D-101	Departamento	1	72.50	0	3	385000&#10;E-01	Estacionamiento	S1	12.50	0	0	25000"></textarea>
+      <div class="form-text">Una unidad por línea, separada por tabulaciones (copiar de Excel) o punto y coma: código, tipo, piso, área techada, área libre, dormitorios, precio de lista con IGV.</div>
+      <button class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-upload"></i> Registrar unidades</button></form></div></div></div>
+</div>
+{% endif %}
+{% endblock %}

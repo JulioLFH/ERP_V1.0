@@ -1,0 +1,35 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Cobranza inmobiliaria{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Cobranza inmobiliaria</h1><div class="text-muted small">Cuotas vencidas y por vencer de las ventas de unidades, y separaciones por vencer.</div></div>
+  <form class="d-flex gap-2"><select name="obra" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todos los proyectos</option>
+    {% for ob in obras %}<option value="{{ ob.pk }}" {% if obra_id == ob.pk|stringformat:'s' %}selected{% endif %}>{{ ob.codigo }} {{ ob.nombre|truncatechars:40 }}</option>{% endfor %}</select>
+    <a href="?formato=excel{% if obra_id %}&obra={{ obra_id }}{% endif %}" class="btn btn-sm btn-outline-success text-nowrap"><i class="bi bi-file-earmark-excel"></i> Excel</a></form>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Vencido</div><div class="value {% if total_vencido %}text-danger{% endif %}">S/ {{ total_vencido|money }}</div><div class="small text-muted">{{ vencidas|length }} cuota(s)</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Por vencer en 30 días</div><div class="value">{{ proximas|length }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Separaciones por vencer</div><div class="value">{{ separaciones|length }}</div><div class="small text-muted">en 7 días o vencidas</div></div></div>
+</div>
+<div class="card mb-3"><div class="card-header fw-semibold text-danger">Cuotas vencidas</div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
+    <thead><tr><th>Proyecto</th><th>Venta</th><th>Comprador</th><th>Cuota</th><th>Vence</th><th class="num">Días</th><th class="num">Saldo</th><th></th></tr></thead>
+    <tbody>{% for c in vencidas %}<tr><td>{{ c.venta.obra.nombre|truncatechars:30 }}</td><td class="text-nowrap"><a href="{% url 'obras:venta_inmueble' c.venta_id %}">{{ c.venta.numero }}</a></td><td>{{ c.venta.cliente.nombre|truncatechars:35 }}</td>
+      <td>{{ c }}</td><td>{{ c.vence|date:'d/m/Y' }}</td><td class="num">{{ c.dias }}</td><td class="num fw-semibold">{{ c.pendiente|money }}</td>
+      <td>{% if puede.obras_vender and puede.tesoreria_registrar %}<a href="{% url 'obras:inm_cobrar' c.pk %}" class="btn btn-sm btn-outline-success py-0"><i class="bi bi-cash-coin"></i> Cobrar</a>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-muted py-3">Sin cuotas vencidas.</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card h-100"><div class="card-header fw-semibold">Por vencer (30 días)</div>
+    <div class="table-responsive"><table class="table table-sm mb-0 small">
+      <thead><tr><th>Vence</th><th>Venta</th><th>Comprador</th><th>Cuota</th><th class="num">Saldo</th></tr></thead>
+      <tbody>{% for c in proximas %}<tr><td>{{ c.vence|date:'d/m/Y' }}</td><td class="text-nowrap"><a href="{% url 'obras:venta_inmueble' c.venta_id %}">{{ c.venta.numero }}</a></td><td>{{ c.venta.cliente.nombre|truncatechars:30 }}</td><td>{{ c }}</td><td class="num">{{ c.saldo|money }}</td></tr>
+      {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">Nada por vencer.</td></tr>{% endfor %}</tbody></table></div></div></div>
+  <div class="col-lg-5"><div class="card h-100"><div class="card-header fw-semibold">Separaciones por vencer</div>
+    <ul class="list-group list-group-flush small">{% for v in separaciones %}
+      <li class="list-group-item d-flex justify-content-between"><span><a href="{% url 'obras:venta_inmueble' v.pk %}">{{ v.numero }}</a> {{ v.cliente.nombre|truncatechars:30 }} · {{ v.obra.nombre|truncatechars:25 }}</span><span class="{% if v.vence_separacion < hoy %}text-danger fw-semibold{% endif %}">{{ v.vence_separacion|date:'d/m/Y' }}</span></li>
+    {% empty %}<li class="list-group-item text-muted">Ninguna.</li>{% endfor %}</ul>
+    <div class="card-body small text-muted">Una separación vencida sin minuta: firme la minuta o anule la venta para liberar las unidades.</div></div></div>
+</div>
+{% endblock %}

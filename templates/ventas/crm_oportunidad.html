@@ -6,6 +6,10 @@
   <div class="d-flex gap-2">
     {% if o.tercero and not o.cotizacion and puede.ventas_emitir %}<a href="{% url 'ventas:cot_nuevo' %}?tercero={{ o.tercero_id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text"></i> Crear cotización</a>{% endif %}
     {% if o.cotizacion %}<a href="{% url 'ventas:cot_detalle' o.cotizacion_id %}" class="btn btn-sm btn-outline-secondary">{{ o.cotizacion }}</a>{% endif %}
+    {% if licitacion %}<a href="{% url 'obras:licitacion' licitacion.obra_id %}" class="btn btn-sm btn-outline-warning"><i class="bi bi-trophy"></i> Licitación {{ licitacion.obra.codigo }}</a>
+    {% elif con_obras and puede.obras_licitar and o.tercero and o.etapa != 'GANADA' and o.etapa != 'PERDIDA' %}
+      <form method="post" action="{% url 'obras:desde_oportunidad' o.pk %}">{% csrf_token %}
+        <button class="btn btn-sm btn-outline-warning" onclick="return confirm('Se creará la obra en «Propuesta / licitación» con su licitación, vinculada a esta oportunidad. ¿Continuar?')"><i class="bi bi-cone-striped"></i> Convertir en obra / licitación</button></form>{% endif %}
     <a href="{% url 'ventas:crm' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-kanban"></i> Embudo</a>
   </div>
 </div>

@@ -1,0 +1,56 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ v.numero }} · {{ v.cliente.nombre }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">Venta {{ v.numero }} <span class="badge text-bg-light border">{{ v.get_estado_display }}</span></h1>
+    <div class="text-muted small">{{ v.obra.nombre }} · {% for u in unidades %}{{ u.get_tipo_display }} {{ u.codigo }}{% if not forloop.last %} + {% endif %}{% endfor %}</div></div>
+  <div class="d-flex gap-2"><a href="{% url 'obras:unidades' v.obra_id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Unidades</a></div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="kpi"><div class="label">Comprador</div><div class="fw-semibold">{{ v.cliente.nombre }}</div><div class="small text-muted">{{ v.cliente.get_tipo_doc_display }} {{ v.cliente.numero_doc }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Precio (con IGV)</div><div class="value">S/ {{ v.precio|money }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Cobrado</div><div class="value">S/ {{ cobrado|money }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Saldo</div><div class="value {% if v.saldo %}text-danger{% endif %}">S/ {{ v.saldo|money }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Financiamiento</div><div class="fw-semibold">{{ v.get_financiamiento_display }}</div><div class="small text-muted">{{ v.banco }}</div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8"><div class="card"><div class="card-header fw-semibold">Cronograma de pagos</div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle small">
+      <thead><tr><th>#</th><th>Concepto</th><th>Vence</th><th class="num">Monto</th><th class="num">Cobrado</th><th class="num">Saldo</th><th>Comprobantes</th><th></th></tr></thead>
+      <tbody>{% for c in cuotas %}
+        <tr class="{% if not c.saldo %}table-success{% elif c.vence < hoy %}table-danger{% endif %}"><td>{{ c.numero }}</td><td>{{ c.get_concepto_display }}</td><td>{{ c.vence|date:'d/m/Y' }}</td>
+          <td class="num">{{ c.monto|money }}</td><td class="num">{{ c.cobrado|money }}</td><td class="num fw-semibold">{{ c.saldo|money }}</td>
+          <td class="text-nowrap">{% for cb in c.cobros.all %}<div><a href="{% url 'ventas:detalle' cb.comprobante_id %}">{{ cb.comprobante.numero_completo }}</a> · {{ cb.fecha|date:'d/m/Y' }} · S/ {{ cb.monto|money }}{% if cb.movimiento %} <span class="text-muted">({{ cb.movimiento.voucher }})</span>{% endif %}</div>{% endfor %}</td>
+          <td>{% if c.saldo and puede_cobrar and v.estado != 'ANULADA' and v.estado != 'ENTREGADA' %}<a href="{% url 'obras:inm_cobrar' c.pk %}" class="btn btn-sm btn-outline-success py-0 text-nowrap"><i class="bi bi-cash-coin"></i> Cobrar</a>{% endif %}</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+    <div class="card-body small text-muted">Cada cobro emite un comprobante de anticipo (factura si el comprador tiene RUC; si no, boleta): la construcción con IGV y el terreno ({{ v.terreno_pct }}% del valor) inafecto. El ingreso se reconoce en la entrega.</div></div></div>
+  <div class="col-lg-4">
+    <div class="card mb-3"><div class="card-body small">
+      <table class="table table-sm mb-0">
+        <tr><td class="text-muted">Separación</td><td>{{ v.fecha_separacion|date:'d/m/Y' }}{% if v.vence_separacion and v.estado == 'SEPARADA' %} · vence {{ v.vence_separacion|date:'d/m/Y' }}{% endif %}</td></tr>
+        <tr><td class="text-muted">Minuta</td><td>{{ v.fecha_minuta|date:'d/m/Y'|default:'—' }}</td></tr>
+        <tr><td class="text-muted">Entrega</td><td>{{ v.fecha_entrega|date:'d/m/Y'|default:'—' }}</td></tr>
+        {% if v.estado == 'ENTREGADA' %}<tr><td class="text-muted">Ingreso (sin IGV)</td><td>S/ {{ v.ingreso|money }}</td></tr>
+        <tr><td class="text-muted">Costo de las unidades</td><td>S/ {{ v.costo|money }}</td></tr>
+        <tr><td class="text-muted">Margen</td><td class="fw-semibold">S/ {{ margen|money }}</td></tr>{% endif %}
+        <tr><td class="text-muted">Vendedor</td><td>{% if v.vendedor %}{{ v.vendedor.get_full_name|default:v.vendedor.username }}{% else %}—{% endif %}</td></tr>
+        {% if v.motivo_anulacion %}<tr><td class="text-muted">Anulación</td><td>{{ v.motivo_anulacion }}</td></tr>{% endif %}
+        {% if v.notas %}<tr><td class="text-muted">Notas</td><td>{{ v.notas|linebreaksbr }}</td></tr>{% endif %}
+      </table></div></div>
+    {% if puede.obras_vender %}
+    {% if v.estado == 'SEPARADA' %}<div class="card mb-3"><div class="card-body">
+      <form method="post" class="d-flex gap-2 align-items-end">{% csrf_token %}<div class="flex-grow-1"><label class="form-label small">Firma de la minuta</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+        <button name="accion" value="minuta" class="btn btn-sm btn-primary"><i class="bi bi-pen"></i> Minuta firmada</button></form></div></div>{% endif %}
+    {% if v.estado == 'VENDIDA' %}<div class="card mb-3"><div class="card-body">
+      <form method="post" class="d-flex gap-2 align-items-end">{% csrf_token %}<div class="flex-grow-1"><label class="form-label small">Fecha de entrega</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+        <button name="accion" value="entregar" class="btn btn-sm btn-success" {% if v.saldo %}disabled title="Falta cobrar S/ {{ v.saldo|money }}"{% endif %} onclick="return confirm('¿Entregar las unidades? Se reconoce el ingreso y el costo de la venta.')"><i class="bi bi-key"></i> Entregar</button></form>
+      {% if v.saldo %}<div class="form-text">Se entrega pagada (incluido el desembolso del banco).</div>{% endif %}</div></div>{% endif %}
+    {% if v.estado == 'SEPARADA' or v.estado == 'VENDIDA' %}<div class="card"><div class="card-body">
+      <form method="post" class="d-flex gap-2 align-items-end">{% csrf_token %}<div class="flex-grow-1"><label class="form-label small">Motivo de anulación</label><input name="motivo" maxlength="200" class="form-control form-control-sm" placeholder="Desistimiento, separación vencida…"></div>
+        <button name="accion" value="anular" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Anular la venta? Las unidades vuelven a estar disponibles.')"><i class="bi bi-x-circle"></i> Anular</button></form></div></div>{% endif %}
+    {% endif %}
+  </div>
+</div>
+{% include 'core/_sustentos.html' with objeto=v solo_lectura=False %}
+{% endblock %}

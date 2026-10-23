@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import views, views_comercial as com
 
 app_name = 'obras'
 
@@ -24,4 +24,14 @@ urlpatterns = [
     path('recursos/vincular/', views.vincular, name='vincular'),
     path('biblioteca/', views.biblioteca, name='biblioteca'),
     path('plantilla/', views.plantilla, name='plantilla'),
+    # comercial: licitaciones (CRM de constructoras) y proyectos inmobiliarios
+    path('licitaciones/', com.licitaciones, name='licitaciones'),
+    path('licitaciones/nueva/', com.licitacion_nueva, name='licitacion_nueva'),
+    path('licitaciones/desde-oportunidad/<int:pk>/', com.desde_oportunidad, name='desde_oportunidad'),
+    path('<int:pk>/licitacion/', com.licitacion, name='licitacion'),
+    path('<int:pk>/unidades/', com.unidades, name='unidades'),
+    path('<int:pk>/separar/', com.separar, name='separar'),
+    path('ventas-inmuebles/<int:pk>/', com.venta_inmueble, name='venta_inmueble'),
+    path('cuotas/<int:pk>/cobrar/', com.cobrar, name='inm_cobrar'),
+    path('cobranza-inmobiliaria/', com.cobranza, name='inm_cobranza'),
 ]

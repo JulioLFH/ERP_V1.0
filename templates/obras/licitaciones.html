@@ -1,0 +1,57 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Licitaciones y propuestas{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Licitaciones y propuestas</h1>
+    <div class="text-muted small">CRM de obras: cada propuesta es una obra en «Propuesta / licitación» con su oportunidad en el embudo comercial.</div></div>
+  <div class="d-flex gap-2">
+    {% if puede.obras_licitar %}<a href="{% url 'obras:licitacion_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva licitación</a>{% endif %}
+    <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+  </div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">En licitación</div><div class="value">{{ abiertas|length }}</div><div class="small text-muted">VR S/ {{ en_licitacion|money }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Tasa de éxito</div><div class="value">{% if tasa is not None %}{{ tasa }}%{% else %}—{% endif %}</div><div class="small text-muted">{{ ganadas }} ganada(s) · {{ perdidas }} perdida(s)</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Cartera contratada por ejecutar</div><div class="value">S/ {{ total_backlog|money }}</div><div class="small text-muted">{{ backlog|length }} obra(s) adjudicadas o en ejecución</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Plazos en 7 días</div><div class="value {% if hitos %}text-danger{% endif %}">{{ hitos|length }}</div><div class="small text-muted">hitos del cronograma sin marcar</div></div></div>
+</div>
+{% if hitos %}<div class="card mb-3 border-warning"><div class="card-header fw-semibold"><i class="bi bi-calendar-event"></i> Próximos plazos</div>
+  <ul class="list-group list-group-flush small">{% for h in hitos %}
+    <li class="list-group-item d-flex justify-content-between"><span><b>{{ h.fecha|date:'d/m/Y' }}{% if h.hora %} {{ h.hora|time:'H:i' }}{% endif %}</b> · {{ h.get_tipo_display }} — <a href="{% url 'obras:licitacion' h.licitacion.obra_id %}">{{ h.licitacion.obra.nombre }}</a>{% if h.nota %} <span class="text-muted">({{ h.nota }})</span>{% endif %}</span>
+      {% if h.fecha < hoy %}<span class="badge text-bg-danger">Vencido</span>{% endif %}</li>{% endfor %}</ul></div>{% endif %}
+<div class="card mb-3"><div class="card-header fw-semibold">Cartera en licitación</div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+    <thead><tr><th>Obra</th><th>Entidad / cliente</th><th>Procedimiento</th><th class="num">Valor referencial</th><th class="num">Oferta</th><th class="num">% VR</th><th>Próximo hito</th><th class="num">Req. pendientes</th><th class="num">Costo de la propuesta</th></tr></thead>
+    <tbody>{% for x in abiertas %}
+      <tr><td style="min-width: 14rem"><a href="{% url 'obras:licitacion' x.obra_id %}">{{ x.obra.codigo }} {{ x.obra.nombre|truncatechars:45 }}</a>{% if x.consorcio %} <span class="badge text-bg-light border">Consorcio {{ x.participacion_pct|floatformat:0 }}%</span>{% endif %}</td>
+        <td class="small">{{ x.obra.cliente.nombre|default:'—'|truncatechars:35 }}</td>
+        <td class="small">{{ x.get_procedimiento_display }}{% if x.numero %}<div class="text-muted">{{ x.numero }}</div>{% endif %}</td>
+        <td class="num">{{ x.valor_referencial|money }}</td><td class="num">{% if x.oferta %}{{ x.oferta.total|money }}{% else %}—{% endif %}</td>
+        <td class="num">{{ x.pct_referencial|default:'—' }}</td>
+        <td class="small">{% if x.proximo %}{{ x.proximo.get_tipo_display }} · {{ x.proximo.fecha|date:'d/m' }}{% else %}—{% endif %}</td>
+        <td class="num">{% if x.pendientes %}<span class="badge text-bg-warning">{{ x.pendientes }}</span>{% else %}0{% endif %}</td>
+        <td class="num">{{ x.costo|money }}</td></tr>
+    {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">Sin licitaciones en curso.</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+<div class="row g-3 mb-3">
+  <div class="col-md-6 col-xl-4"><div class="card h-100"><div class="card-header fw-semibold">Tasa de éxito por tipo de obra</div>
+    <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th></th><th class="num">Ganadas</th><th class="num">Perdidas</th><th class="num">Éxito</th></tr></thead>
+      <tbody>{% for g in por_tipo %}<tr><td>{{ g.nombre }}</td><td class="num">{{ g.ganadas }}</td><td class="num">{{ g.perdidas }}</td><td class="num fw-semibold">{{ g.tasa }}%</td></tr>{% empty %}<tr><td colspan="4" class="text-muted text-center">Sin resultados aún.</td></tr>{% endfor %}</tbody></table></div></div></div>
+  <div class="col-md-6 col-xl-4"><div class="card h-100"><div class="card-header fw-semibold">Por procedimiento</div>
+    <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th></th><th class="num">Ganadas</th><th class="num">Perdidas</th><th class="num">Éxito</th></tr></thead>
+      <tbody>{% for g in por_procedimiento %}<tr><td>{{ g.nombre }}</td><td class="num">{{ g.ganadas }}</td><td class="num">{{ g.perdidas }}</td><td class="num fw-semibold">{{ g.tasa }}%</td></tr>{% empty %}<tr><td colspan="4" class="text-muted text-center">Sin resultados aún.</td></tr>{% endfor %}</tbody></table></div></div></div>
+  <div class="col-md-6 col-xl-4"><div class="card h-100"><div class="card-header fw-semibold">Por entidad o cliente</div>
+    <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th></th><th class="num">Ganadas</th><th class="num">Perdidas</th><th class="num">Éxito</th></tr></thead>
+      <tbody>{% for g in por_entidad %}<tr><td class="small">{{ g.nombre|truncatechars:30 }}</td><td class="num">{{ g.ganadas }}</td><td class="num">{{ g.perdidas }}</td><td class="num fw-semibold">{{ g.tasa }}%</td></tr>{% empty %}<tr><td colspan="4" class="text-muted text-center">Sin resultados aún.</td></tr>{% endfor %}</tbody></table></div>
+    {% if motivos %}<div class="card-body border-top small"><b>Motivos de pérdida:</b> {% for nombre, n in motivos %}{{ nombre }} ({{ n }}){% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endif %}</div></div>
+</div>
+<div class="card"><div class="card-header fw-semibold">Cartera contratada por ejecutar (backlog)</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>Obra</th><th>Cliente</th><th>Estado</th><th class="num">Contratado</th><th class="num">Facturado</th><th class="num">Por ejecutar</th><th class="num">Avance</th></tr></thead>
+    <tbody>{% for b in backlog %}<tr><td><a href="{% url 'obras:obra' b.obra.pk %}">{{ b.obra.codigo }} {{ b.obra.nombre|truncatechars:45 }}</a></td><td class="small">{{ b.obra.cliente.nombre|default:'—'|truncatechars:35 }}</td>
+      <td><span class="badge text-bg-light border">{{ b.obra.get_estado_display }}</span></td><td class="num">{{ b.contratado|money }}</td><td class="num">{{ b.facturado|money }}</td>
+      <td class="num fw-semibold">{{ b.por_ejecutar|money }}</td><td class="num">{% if b.avance is not None %}{{ b.avance }}%{% else %}—{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin obras adjudicadas o en ejecución.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-body small text-muted">Facturado: comprobantes de venta con el centro de costo de la obra (sin notas de crédito).</div></div>
+{% endblock %}

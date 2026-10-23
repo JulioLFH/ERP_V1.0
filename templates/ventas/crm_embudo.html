@@ -56,7 +56,7 @@
       const d = await r.json().catch(() => ({ ok: false }));
       if (!d.ok) {
         origen.prepend(arrastrada);
-        if (d.url && confirm(`${d.error} ¿Abrir la oportunidad?`)) window.location = d.url;
+        if (d.url && confirm(`${d.error} ¿Abrir la ficha?`)) window.location = d.url;
         else if (!d.url) alert(d.error || 'No se pudo cambiar la etapa.');
       } else { window.location.reload(); }
     });

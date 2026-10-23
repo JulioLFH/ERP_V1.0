@@ -161,7 +161,7 @@ class ImportacionTest(Base):
         a = datos['apu']['01.01']
         self.assertEqual(a['rendimiento'], '500.0000')
         self.assertEqual([(r['codigo'], r['tipo'], r['cantidad']) for r in a['recursos']],
-                         [('0147010003', 'MO', '0.0161'), ('0229060005', 'MAT', '0.0200'), ('0337010001', 'EQ', '3.00')])
+                         [('0147010003', 'MO', '0.0161'), ('0229060005', 'MAT', '0.02'), ('0337010001', 'EQ', '3.00')])
         pres, _ = imp.grabar(datos, self.obra, 'OFERTA', 'CSV')
         self.assertEqual(pres.partidas.get(item='01.01').precio, D('0.61'))  # 0.41 + 0.19 + 3 % de 0.41
 
@@ -179,6 +179,47 @@ class ImportacionTest(Base):
         p = Producto.objects.get(codigo_alterno='0221000099')
         self.assertEqual((p.nombre, p.clase, p.unidad), ('CEMENTO SOL', 'SUMINISTRO', 'BG'))
         self.assertEqual(Recurso.objects.get(codigo='0221000099').producto, p)
+
+
+class S10RealTest(Base):
+    """OBR-11 y OBR-03: los archivos ORIGINALES exportados del S10 2005 (presupuesto del visor en .xls sin títulos y
+    reporte de análisis en .chr) dan los mismos precios y aportes que el S10 (obras/tests_datos/*_esperado.xlsx)."""
+
+    def test_presupuesto_y_analisis_originales_del_s10(self):
+        from pathlib import Path
+
+        from openpyxl import load_workbook
+        datos_dir = Path(__file__).parent / 'tests_datos'
+        datos = imp.leer(SimpleUploadedFile('presupuesto.xls', (datos_dir / 's10_puente_presupuesto.xls').read_bytes()),
+                         SimpleUploadedFile('analisis.chr', (datos_dir / 's10_puente_analisis.chr').read_bytes()))
+        self.assertEqual([(s['codigo'], s['nombre'], s['gg']) for s in datos['subpresupuestos']],
+                         [('001', 'ESTRUCTURAS', False), ('002', 'GASTOS GENERALES', True)])
+        self.assertEqual(len(datos['apu']), 9)
+        pres, diferencias = imp.grabar(datos, self.obra, 'META', 'Puente en carretera (meta)')
+        self.assertEqual(diferencias, [])
+        self.assertEqual((pres.costo_directo, pres.gastos_generales), (D('856807.98'), D('155285.96')))
+        esperado = load_workbook(datos_dir / 's10_puente_esperado.xlsx', data_only=True)
+        precios = {str(f[0]): D(str(f[4])) for f in esperado['Presupuesto'].iter_rows(min_row=2, values_only=True)
+                   if f[4] not in (None, '')}
+        aportes = {(str(f[0]), str(f[4])): D(str(f[8])) for f in esperado['APU'].iter_rows(min_row=2, values_only=True)}
+        partidas = list(pres.partidas.filter(subpresupuesto__codigo='001', es_titulo=False))
+        self.assertEqual({x.item: x.precio for x in partidas}, precios)  # los 9 precios: 41.34 … 201.21
+        for x in partidas:
+            for l in x.recursos.select_related('recurso'):
+                self.assertEqual(calculos.aporte(l, x), aportes[(x.item, l.recurso.codigo)],
+                                 f'{x.item} {l.recurso.nombre}')  # VIBRADOR 0.0625, TRIPLAY 0.0868, PERNO 0.40
+        concreto = Recurso.objects.get(codigo='010420010207')
+        self.assertTrue(concreto.es_subanalisis)
+        self.assertEqual(PrecioPresupuesto.objects.get(presupuesto=pres, recurso=concreto).precio, D('167.18'))
+        self.assertEqual(Recurso.objects.get(codigo='03010400030002').tipo, 'EQ')  # código de 14 dígitos
+        self.assertEqual(Recurso.objects.get(codigo='04001900010001').tipo, 'SUB')
+
+    def test_aporte_desde_el_parcial(self):
+        f = imp._cantidad_desde_parcial
+        self.assertEqual(f(D('0.06'), D('70'), D('4.38'), D('16')), D('0.0625'))  # 1 vibrador ÷ 16 m3 por día
+        self.assertEqual(f(D('0.09'), D('75'), D('6.51'), D('10')), D('0.0868'))
+        self.assertEqual(f(D('0.40'), D('5.81'), D('2.32'), D('10')), D('0.40'))  # ya da el parcial
+        self.assertEqual(f(D('0.01'), D('91'), D('1.14'), D('16')), D('0.0125'))
 
 
 class SubpresupuestosTest(Base):

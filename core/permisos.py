@@ -77,7 +77,9 @@ ACCIONES = {
                 ('depreciar', 'Calcular y revertir depreciación', True)],
     'obras': [('presupuestar', 'Crear obras y elaborar presupuestos', False),
               ('aprobar', 'Aprobar presupuestos de obra', True),
-              ('requerir', 'Requerir materiales y servicios de la obra desde la Meta (solicitudes de pedido)', False)],
+              ('requerir', 'Requerir materiales y servicios de la obra desde la Meta (solicitudes de pedido)', False),
+              ('licitar', 'Licitaciones y propuestas (CRM de obras): datos, cronograma, requisitos y resultado', False),
+              ('vender', 'Proyectos inmobiliarios: unidades, separaciones, ventas, cobros y entregas', True)],
 }
 TODAS = {f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, _ in lista}
 # acciones sensibles nuevas: nunca se dan por defecto (ni a usuarios sin perfil); el administrador las asigna
@@ -229,6 +231,10 @@ RUTAS = {
     'obras:biblioteca': {'POST': 'obras.presupuestar'},
     'obras:subanalisis': {'POST': 'obras.presupuestar'}, 'obras:vincular': {'POST': 'obras.presupuestar'},
     'obras:control': {'POST': 'obras.requerir'},
+    'obras:licitacion_nueva': 'obras.licitar', 'obras:desde_oportunidad': 'obras.licitar',
+    'obras:licitacion': {'POST': 'obras.licitar'},
+    'obras:unidades': {'POST': 'obras.vender'}, 'obras:separar': 'obras.vender',
+    'obras:venta_inmueble': {'POST': 'obras.vender'}, 'obras:inm_cobrar': 'obras.vender',
     'activos:nuevo': 'activos.registrar', 'activos:editar': 'activos.registrar', 'activos:baja': 'activos.baja',
     'activos:anular': 'activos.baja', 'activos:depreciacion': {'POST': 'activos.depreciar'},
     'activos:proceso_revertir': 'activos.depreciar', 'activos:categoria_nueva': 'activos.depreciar',

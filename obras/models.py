@@ -11,18 +11,20 @@ MONEDAS = [('PEN', 'Soles'), ('USD', 'Dólares')]
 
 
 class Obra(models.Model):
-    TIPOS = [('PRIVADA', 'Obra privada'), ('PUBLICA', 'Obra pública')]
+    TIPOS = [('PRIVADA', 'Obra privada'), ('PUBLICA', 'Obra pública'),
+             ('INMOBILIARIA', 'Proyecto inmobiliario (venta de unidades)')]
     SISTEMAS = [('SUMA_ALZADA', 'Suma alzada'), ('PRECIOS_UNITARIOS', 'Precios unitarios'),
                 ('LLAVE_EN_MANO', 'Llave en mano'), ('MIXTO', 'Mixto')]
     ESTADOS = [('LICITACION', 'Propuesta / licitación'), ('ADJUDICADA', 'Adjudicada'), ('EJECUCION', 'En ejecución'),
                ('PARALIZADA', 'Paralizada'), ('RECEPCION', 'En recepción'), ('LIQUIDADA', 'Liquidada'),
-               ('CERRADA', 'Cerrada')]
+               ('CERRADA', 'Cerrada'), ('NO_ADJUDICADA', 'No adjudicada (propuesta perdida)')]
+    PRORRATEOS = [('AREA', 'Por área techada'), ('VALOR', 'Por precio de lista')]
     codigo = models.CharField('Código', max_length=10, unique=True, blank=True,
                               help_text='Vacío = automático (OB0001)')
     nombre = models.CharField(max_length=250)
     cliente = models.ForeignKey('core.Tercero', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
                                 limit_choices_to={'tipo__in': ['CLIENTE', 'AMBOS']})
-    tipo = models.CharField(max_length=8, choices=TIPOS, default='PRIVADA')
+    tipo = models.CharField(max_length=12, choices=TIPOS, default='PRIVADA')
     sistema = models.CharField('Sistema de contratación', max_length=18, choices=SISTEMAS, default='SUMA_ALZADA')
     contrato = models.CharField('N° de contrato', max_length=60, blank=True)
     moneda = models.CharField(max_length=3, choices=MONEDAS, default='PEN')
@@ -35,7 +37,7 @@ class Obra(models.Model):
     residente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                   related_name='+', verbose_name='Residente de obra')
     supervisor = models.CharField('Supervisor / inspector', max_length=150, blank=True)
-    estado = models.CharField(max_length=10, choices=ESTADOS, default='LICITACION')
+    estado = models.CharField(max_length=13, choices=ESTADOS, default='LICITACION')
     gastos_generales_pct = models.DecimalField('Gastos generales %', max_digits=6, decimal_places=2,
                                                default=Decimal('10'))
     utilidad_pct = models.DecimalField('Utilidad %', max_digits=6, decimal_places=2, default=Decimal('10'))
@@ -44,8 +46,19 @@ class Obra(models.Model):
                                                   default=D0)
     retencion_garantia_pct = models.DecimalField('Retención de garantía %', max_digits=5, decimal_places=2,
                                                  default=D0)
-    area_m2 = models.DecimalField('Área de la obra (m²)', max_digits=14, decimal_places=2, default=D0,
+    area_m2 = models.DecimalField('Área de la obra (m²)', max_digits=14, decimal_places=2, default=D0, blank=True,
                                   help_text='Base para repartir gastos generales por m² (Contabilidad › Reparto de gastos)')
+    # proyecto inmobiliario
+    terreno_pct = models.DecimalField(
+        'Terreno en el precio de venta (%)', max_digits=5, decimal_places=2, default=Decimal('50'), blank=True,
+        help_text='Primera venta de inmuebles: el IGV no grava el valor del terreno, que la ley presume en el 50 % del '
+                  'precio. Confírmelo con su asesor tributario')
+    prorrateo = models.CharField('Costo de cada unidad', max_length=5, choices=PRORRATEOS, default='AREA')
+    cuenta_recaudadora = models.ForeignKey(
+        'finanzas.Cuenta', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+        verbose_name='Cuenta recaudadora del proyecto', help_text='Cuenta del banco que financia o del fideicomiso: los '
+                                                                 'cobros de los compradores van a ella')
+    banco_financiador = models.CharField('Banco que financia / supervisa', max_length=120, blank=True)
     centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
                                      related_name='+', editable=False, verbose_name='Centro de costo')
     almacen = models.ForeignKey('core.Almacen', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
@@ -323,3 +336,217 @@ class RecursoBase(models.Model):
 
     class Meta:
         ordering = ['orden', 'id']
+
+
+# ---------------------------------------------------------------- licitaciones (CRM de constructoras)
+class Licitacion(models.Model):
+    """Proceso de selección (SEACE) o propuesta privada de una obra: la oportunidad del CRM, sus datos, cronograma,
+    requisitos del postor y el resultado (buena pro o perdida)."""
+    PROCEDIMIENTOS = [('PRIVADA', 'Propuesta privada / invitación'), ('LP', 'Licitación pública'),
+                      ('CP', 'Concurso público'), ('AS', 'Adjudicación simplificada'),
+                      ('SIE', 'Subasta inversa electrónica'), ('CD', 'Contratación directa'), ('OTRO', 'Otro')]
+    RESULTADOS = [('EN_CURSO', 'En curso'), ('GANADA', 'Ganada (buena pro)'), ('PERDIDA', 'Perdida'),
+                  ('DESIERTA', 'Desierta / cancelada')]
+    MOTIVOS = [('', '—'), ('PRECIO', 'Precio'), ('EXPERIENCIA', 'Experiencia del postor'), ('PLAZO', 'Plazo'),
+               ('TECNICA', 'Propuesta técnica'), ('DESCALIFICACION', 'Descalificación (requisitos)'), ('OTRO', 'Otro')]
+    obra = models.OneToOneField(Obra, on_delete=models.CASCADE, related_name='licitacion')
+    oportunidad = models.OneToOneField('ventas.Oportunidad', on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='licitacion')
+    procedimiento = models.CharField('Procedimiento', max_length=8, choices=PROCEDIMIENTOS, default='PRIVADA')
+    numero = models.CharField('N° / nomenclatura (SEACE)', max_length=80, blank=True)
+    valor_referencial = models.DecimalField('Valor referencial (con IGV)', max_digits=16, decimal_places=2,
+                                            default=D0)
+    consorcio = models.BooleanField('Se postula en consorcio', default=False)
+    consorciados = models.CharField('Empresas del consorcio', max_length=250, blank=True)
+    participacion_pct = models.DecimalField('Nuestra participación %', max_digits=5, decimal_places=2,
+                                            default=Decimal('100'))
+    resultado = models.CharField(max_length=8, choices=RESULTADOS, default='EN_CURSO', editable=False)
+    motivo_perdida = models.CharField('Motivo', max_length=15, choices=MOTIVOS, blank=True, editable=False)
+    detalle_resultado = models.CharField(max_length=250, blank=True, editable=False)
+    ganador = models.CharField('Ganador', max_length=150, blank=True, editable=False)
+    precio_ganador = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True, editable=False)
+    fecha_resultado = models.DateField(null=True, blank=True, editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado']
+        verbose_name = 'licitación'
+        verbose_name_plural = 'licitaciones'
+
+    def __str__(self):
+        return f'{self.get_procedimiento_display()} {self.numero or self.obra.nombre}'
+
+    @property
+    def oferta(self):
+        """Presupuesto de oferta vigente (el aprobado más reciente o el último)."""
+        ofertas = list(self.obra.presupuestos.filter(tipo='OFERTA'))
+        return next((p for p in ofertas if p.estado == 'APROBADO'), ofertas[0] if ofertas else None)
+
+    @property
+    def pct_referencial(self):
+        oferta = self.oferta
+        if oferta is None or not self.valor_referencial:
+            return None
+        return (oferta.total / self.valor_referencial * 100).quantize(Decimal('0.01'))
+
+
+class HitoLicitacion(models.Model):
+    TIPOS = [('CONVOCATORIA', 'Convocatoria'), ('REGISTRO', 'Registro de participantes'),
+             ('CONSULTAS', 'Consultas y observaciones'), ('ABSOLUCION', 'Absolución de consultas'),
+             ('INTEGRACION', 'Integración de bases'), ('PRESENTACION', 'Presentación de ofertas'),
+             ('BUENA_PRO', 'Otorgamiento de la buena pro'), ('CONSENTIMIENTO', 'Consentimiento de la buena pro'),
+             ('FIRMA', 'Firma del contrato'), ('OTRO', 'Otro')]
+    licitacion = models.ForeignKey(Licitacion, on_delete=models.CASCADE, related_name='hitos')
+    tipo = models.CharField(max_length=14, choices=TIPOS)
+    fecha = models.DateField()
+    hora = models.TimeField(null=True, blank=True)
+    hecho = models.BooleanField(default=False)
+    nota = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['fecha', 'hora', 'id']
+
+
+class RequisitoPostor(models.Model):
+    """Lo que el postor debe acreditar: experiencia, personal clave, equipos, RNP, garantía… con su archivo
+    (sustentos) y vencimiento."""
+    TIPOS = [('EXPERIENCIA', 'Experiencia en obras similares'), ('PERSONAL', 'Personal clave'),
+             ('EQUIPO', 'Equipamiento'), ('RNP', 'RNP vigente'), ('GARANTIA', 'Garantía de seriedad de oferta'),
+             ('DOCUMENTO', 'Otro documento')]
+    licitacion = models.ForeignKey(Licitacion, on_delete=models.CASCADE, related_name='requisitos')
+    tipo = models.CharField(max_length=11, choices=TIPOS)
+    descripcion = models.CharField('Descripción', max_length=250)
+    monto = models.DecimalField('Monto (experiencia o garantía)', max_digits=16, decimal_places=2, null=True,
+                                blank=True)
+    vence = models.DateField('Vence', null=True, blank=True)
+    cumple = models.BooleanField('Cumple / listo', default=False)
+
+    class Meta:
+        ordering = ['tipo', 'id']
+        verbose_name = 'requisito del postor'
+
+    def __str__(self):
+        return f'{self.get_tipo_display()}: {self.descripcion}'
+
+
+# ---------------------------------------------------------------- proyecto inmobiliario
+class Unidad(models.Model):
+    """Unidad vendible de un proyecto inmobiliario."""
+    TIPOS = [('DEPARTAMENTO', 'Departamento'), ('ESTACIONAMIENTO', 'Estacionamiento'), ('DEPOSITO', 'Depósito'),
+             ('LOCAL', 'Local comercial'), ('OFICINA', 'Oficina'), ('CASA', 'Casa'), ('LOTE', 'Lote'), ('OTRO', 'Otro')]
+    ESTADOS = [('DISPONIBLE', 'Disponible'), ('SEPARADA', 'Separada'), ('VENDIDA', 'Vendida'),
+               ('ENTREGADA', 'Entregada'), ('BLOQUEADA', 'Bloqueada')]
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='unidades')
+    codigo = models.CharField('Código', max_length=20, help_text='Ej. D-301, E-12')
+    tipo = models.CharField(max_length=15, choices=TIPOS, default='DEPARTAMENTO')
+    piso = models.CharField(max_length=10, blank=True)
+    area_techada = models.DecimalField('Área techada (m²)', max_digits=10, decimal_places=2, default=D0)
+    area_libre = models.DecimalField('Área libre (m²)', max_digits=10, decimal_places=2, default=D0)
+    dormitorios = models.PositiveSmallIntegerField(default=0)
+    vista = models.CharField(max_length=60, blank=True, help_text='Ej. exterior, parque, interior')
+    precio_lista = models.DecimalField('Precio de lista (con IGV)', max_digits=14, decimal_places=2, default=D0)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='DISPONIBLE', editable=False)
+    notas = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['obra', 'piso', 'codigo']
+        unique_together = [('obra', 'codigo')]
+        verbose_name = 'unidad inmobiliaria'
+        verbose_name_plural = 'unidades inmobiliarias'
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} {self.codigo}'
+
+
+class VentaInmueble(models.Model):
+    """Separación y venta de una o más unidades (departamento + estacionamiento…) con su cronograma de pagos. Los
+    cobros son anticipos (122) con su comprobante; en la entrega se reconoce el ingreso y el costo de la unidad."""
+    ESTADOS = [('SEPARADA', 'Separada'), ('VENDIDA', 'Vendida (minuta)'), ('ENTREGADA', 'Entregada'),
+               ('ANULADA', 'Anulada')]
+    FINANCIAMIENTOS = [('CONTADO', 'Contado'), ('DIRECTO', 'Cuotas con la empresa'),
+                       ('HIPOTECARIO', 'Crédito hipotecario'), ('MIVIVIENDA', 'Nuevo Crédito MiVivienda'),
+                       ('TECHO_PROPIO', 'Techo Propio')]
+    obra = models.ForeignKey(Obra, on_delete=models.PROTECT, related_name='ventas_inmuebles')
+    numero = models.CharField('N°', max_length=12, editable=False)
+    cliente = models.ForeignKey('core.Tercero', on_delete=models.PROTECT, related_name='+', verbose_name='Comprador')
+    unidades = models.ManyToManyField(Unidad, related_name='ventas')
+    oportunidad = models.ForeignKey('ventas.Oportunidad', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+', verbose_name='Oportunidad (CRM)')
+    vendedor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name='+')
+    fecha_separacion = models.DateField('Separación', default=timezone.localdate)
+    vence_separacion = models.DateField('La separación vence el', null=True, blank=True)
+    precio = models.DecimalField('Precio de venta (con IGV)', max_digits=14, decimal_places=2)
+    financiamiento = models.CharField(max_length=12, choices=FINANCIAMIENTOS, default='CONTADO')
+    banco = models.CharField('Banco del crédito', max_length=120, blank=True)
+    terreno_pct = models.DecimalField('Terreno en el precio (%)', max_digits=5, decimal_places=2, default=Decimal('50'))
+    estado = models.CharField(max_length=9, choices=ESTADOS, default='SEPARADA', editable=False)
+    fecha_minuta = models.DateField('Firma de la minuta', null=True, blank=True)
+    fecha_entrega = models.DateField('Entrega', null=True, blank=True, editable=False)
+    ingreso = models.DecimalField('Ingreso reconocido (sin IGV)', max_digits=14, decimal_places=2, default=D0,
+                                  editable=False)
+    costo = models.DecimalField('Costo de las unidades', max_digits=14, decimal_places=2, default=D0, editable=False)
+    motivo_anulacion = models.CharField(max_length=200, blank=True, editable=False)
+    notas = models.TextField(blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_separacion', '-id']
+        verbose_name = 'venta de inmueble'
+        verbose_name_plural = 'ventas de inmuebles'
+
+    def __str__(self):
+        return f'{self.numero} {", ".join(u.codigo for u in self.unidades.all())}'
+
+    def save(self, *args, **kwargs):
+        if not self.numero:
+            from core.models import Serie
+            _, numero = Serie.siguiente('VIN', 'VI')
+            self.numero = f'VI-{int(numero):05d}'
+        super().save(*args, **kwargs)
+
+    @property
+    def cobrado(self):
+        return sum((c.monto for c in CobroInmueble.objects.filter(cuota__venta=self)), D0)
+
+    @property
+    def saldo(self):
+        return self.precio - self.cobrado
+
+
+class CuotaInmueble(models.Model):
+    CONCEPTOS = [('SEPARACION', 'Separación'), ('INICIAL', 'Cuota inicial'), ('CUOTA', 'Cuota'),
+                 ('BANCO', 'Desembolso del banco'), ('BONO', 'Bono / subsidio')]
+    venta = models.ForeignKey(VentaInmueble, on_delete=models.CASCADE, related_name='cuotas')
+    numero = models.PositiveSmallIntegerField()
+    concepto = models.CharField(max_length=10, choices=CONCEPTOS, default='CUOTA')
+    vence = models.DateField()
+    monto = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        ordering = ['venta', 'numero']
+
+    def __str__(self):
+        return f'{self.get_concepto_display()} {self.numero}'
+
+    @property
+    def cobrado(self):
+        return sum((c.monto for c in self.cobros.all()), D0)
+
+    @property
+    def saldo(self):
+        return self.monto - self.cobrado
+
+
+class CobroInmueble(models.Model):
+    """Cobro de una cuota: su comprobante de anticipo (IGV sobre la construcción) y el ingreso a caja / bancos."""
+    cuota = models.ForeignKey(CuotaInmueble, on_delete=models.CASCADE, related_name='cobros')
+    fecha = models.DateField()
+    monto = models.DecimalField(max_digits=14, decimal_places=2)
+    comprobante = models.ForeignKey('ventas.Venta', on_delete=models.PROTECT, related_name='+')
+    movimiento = models.ForeignKey('finanzas.Movimiento', on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['fecha', 'id']

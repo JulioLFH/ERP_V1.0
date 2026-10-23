@@ -20,7 +20,8 @@ MODULO_DE = {'contabilidad.asiento': 'contabilidad', 'finanzas.movimiento': 'tes
              'finanzas.lineagasto': 'rendiciones', 'finanzas.rendicion': 'rendiciones',
              'inventario.conteociclico': 'inventario', 'compras.solicitudpedido': 'requerimientos',
              'planillas.documentolegajo': 'planillas', 'planillas.contrato': 'planillas',
-             'planillas.movimientopersonal': 'planillas'}
+             'planillas.movimientopersonal': 'planillas', 'obras.requisitopostor': 'obras',
+             'obras.ventainmueble': 'obras'}
 
 
 class ErrorSustento(Exception):

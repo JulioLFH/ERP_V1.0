@@ -4,7 +4,8 @@ from django.contrib.auth import get_user_model
 from core.forms import BootstrapMixin, remoto
 from core.models import Tercero
 
-from .models import Obra, Partida, Presupuesto, Recurso, Subpresupuesto
+from .models import (HitoLicitacion, Licitacion, Obra, Partida, Presupuesto, Recurso, RequisitoPostor,
+                     Subpresupuesto, Unidad, VentaInmueble)
 
 
 class ObraForm(BootstrapMixin, forms.ModelForm):
@@ -13,15 +14,149 @@ class ObraForm(BootstrapMixin, forms.ModelForm):
         fields = ['codigo', 'nombre', 'cliente', 'tipo', 'sistema', 'contrato', 'moneda', 'monto_contratado',
                   'fecha_contrato', 'fecha_inicio', 'plazo_dias', 'direccion', 'ubigeo', 'area_m2', 'residente',
                   'supervisor', 'estado', 'gastos_generales_pct', 'utilidad_pct', 'adelanto_directo_pct',
-                  'adelanto_materiales_pct', 'retencion_garantia_pct']
+                  'adelanto_materiales_pct', 'retencion_garantia_pct', 'terreno_pct', 'prorrateo',
+                  'cuenta_recaudadora', 'banco_financiador']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from finanzas.models import Cuenta
+        self.fields['cliente'].queryset = Tercero.objects.filter(activo=True, tipo__in=['CLIENTE', 'AMBOS'])
+        remoto(self.fields['cliente'], 'clientes')
+        self.fields['residente'].queryset = get_user_model().objects.filter(is_active=True).order_by('username')
+        self.fields['cuenta_recaudadora'].queryset = Cuenta.objects.filter(activo=True, es_detracciones=False)
+        if self.instance.pk:
+            self.fields['codigo'].disabled = True
+
+    def clean(self):
+        data = super().clean()
+        pct = data.get('terreno_pct')
+        if pct is None:
+            data['terreno_pct'] = 0
+        elif not 0 <= pct < 100:
+            self.add_error('terreno_pct', 'Entre 0 y 99.99 %.')
+        return data
+
+
+# ---------------------------------------------------------------- licitaciones (CRM de constructoras)
+class LicitacionNuevaForm(BootstrapMixin, forms.Form):
+    nombre = forms.CharField(label='Obra / proyecto', max_length=250)
+    cliente = forms.ModelChoiceField(Tercero.objects.none(), label='Entidad o cliente')
+    tipo_obra = forms.ChoiceField(label='Tipo de obra', choices=Obra.TIPOS[:2], initial='PUBLICA')
+    procedimiento = forms.ChoiceField(choices=Licitacion.PROCEDIMIENTOS, initial='LP')
+    numero = forms.CharField(label='N° / nomenclatura (SEACE)', max_length=80, required=False)
+    valor_referencial = forms.DecimalField(label='Valor referencial (con IGV)', max_digits=16, decimal_places=2,
+                                           min_value=0, required=False)
+    consorcio = forms.BooleanField(label='Se postula en consorcio', required=False)
+    consorciados = forms.CharField(label='Empresas del consorcio', max_length=250, required=False)
+    participacion_pct = forms.DecimalField(label='Nuestra participación %', max_digits=5, decimal_places=2,
+                                           initial=100, min_value=0, max_value=100)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['cliente'].queryset = Tercero.objects.filter(activo=True, tipo__in=['CLIENTE', 'AMBOS'])
         remoto(self.fields['cliente'], 'clientes')
-        self.fields['residente'].queryset = get_user_model().objects.filter(is_active=True).order_by('username')
-        if self.instance.pk:
-            self.fields['codigo'].disabled = True
+
+
+class LicitacionForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = Licitacion
+        fields = ['procedimiento', 'numero', 'valor_referencial', 'consorcio', 'consorciados', 'participacion_pct']
+
+
+class HitoForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = HitoLicitacion
+        fields = ['tipo', 'fecha', 'hora', 'nota']
+
+
+class RequisitoForm(BootstrapMixin, forms.ModelForm):
+    archivo = forms.FileField(label='Documento (opcional)', required=False,
+                              help_text='Constancia de RNP, carta fianza, certificados de experiencia…')
+
+    class Meta:
+        model = RequisitoPostor
+        fields = ['tipo', 'descripcion', 'monto', 'vence', 'cumple']
+
+
+class PerderForm(BootstrapMixin, forms.Form):
+    desierta = forms.BooleanField(label='Proceso desierto o cancelado (nadie ganó)', required=False)
+    motivo = forms.ChoiceField(choices=[('', '— elija el motivo —')] + Licitacion.MOTIVOS[1:], required=False)
+    ganador = forms.CharField(label='Ganador', max_length=150, required=False)
+    precio_ganador = forms.DecimalField(label='Precio del ganador', max_digits=16, decimal_places=2, required=False,
+                                        min_value=0)
+    detalle = forms.CharField(label='Detalle', max_length=250, required=False)
+
+
+# ---------------------------------------------------------------- proyecto inmobiliario
+class UnidadForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = Unidad
+        fields = ['codigo', 'tipo', 'piso', 'area_techada', 'area_libre', 'dormitorios', 'vista', 'precio_lista',
+                  'notas']
+
+    def __init__(self, *args, obra=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.obra = obra
+
+    def clean_codigo(self):
+        codigo = self.cleaned_data['codigo'].strip().upper()
+        if Unidad.objects.filter(obra=self.obra, codigo=codigo).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError('Ya existe una unidad con ese código en el proyecto.')
+        return codigo
+
+
+class SepararForm(BootstrapMixin, forms.Form):
+    unidades = forms.ModelMultipleChoiceField(Unidad.objects.none(), label='Unidades',
+                                              help_text='Departamento con su estacionamiento y depósito, si van juntos')
+    cliente = forms.ModelChoiceField(Tercero.objects.none(), label='Comprador')
+    precio = forms.DecimalField(label='Precio de venta (con IGV)', max_digits=14, decimal_places=2, min_value=0,
+                                required=False, help_text='Vacío = la suma de los precios de lista')
+    financiamiento = forms.ChoiceField(choices=VentaInmueble.FINANCIAMIENTOS)
+    banco = forms.CharField(label='Banco del crédito', max_length=120, required=False)
+    fecha = forms.DateField(label='Fecha de separación')
+    vence_separacion = forms.DateField(label='La separación vence el', required=False)
+    separacion = forms.DecimalField(label='Monto de la separación', max_digits=14, decimal_places=2, min_value=0,
+                                    required=False)
+    inicial = forms.DecimalField(label='Cuota inicial', max_digits=14, decimal_places=2, min_value=0, required=False)
+    fecha_inicial = forms.DateField(label='Vence la cuota inicial', required=False)
+    cuotas = forms.IntegerField(label='N° de cuotas con la empresa', min_value=1, max_value=120, required=False,
+                                help_text='Solo financiamiento directo: el saldo en cuotas mensuales')
+    primera_cuota = forms.DateField(label='Vence la primera cuota', required=False)
+    bono = forms.DecimalField(label='Bono o subsidio (BBP, BFH…)', max_digits=14, decimal_places=2, min_value=0,
+                              required=False)
+    fecha_banco = forms.DateField(label='Desembolso estimado del banco', required=False,
+                                  help_text='Crédito hipotecario o MiVivienda: el saldo lo paga el banco')
+    oportunidad = forms.ModelChoiceField(None, label='Oportunidad del CRM', required=False,
+                                         help_text='La del comprador en el embudo de Ventas (visitas, cotización): '
+                                                   'pasa a negociación y, con la minuta, a ganada')
+    notas = forms.CharField(widget=forms.Textarea(attrs={'rows': 2}), required=False)
+
+    def __init__(self, *args, obra=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from ventas.models import Oportunidad
+        self.fields['oportunidad'].queryset = Oportunidad.objects.filter(etapa__in=Oportunidad.ABIERTAS,
+                                                                         licitacion__isnull=True)
+        self.fields['unidades'].queryset = Unidad.objects.filter(obra=obra, estado='DISPONIBLE')
+        self.fields['unidades'].label_from_instance = (
+            lambda u: f'{u} · {u.area_techada:g} m² · S/ {u.precio_lista:,.2f}')
+        self.fields['unidades'].widget.attrs['size'] = 8
+        self.fields['cliente'].queryset = Tercero.objects.filter(activo=True, tipo__in=['CLIENTE', 'AMBOS'])
+        remoto(self.fields['cliente'], 'clientes')
+
+
+class CobroForm(BootstrapMixin, forms.Form):
+    monto = forms.DecimalField(label='Importe cobrado', max_digits=14, decimal_places=2, min_value=0)
+    fecha = forms.DateField()
+    cuenta = forms.ModelChoiceField(None, label='Cuenta (caja o banco)')
+    medio_pago = forms.ChoiceField(label='Medio de pago')
+    numero_operacion = forms.CharField(label='N° de operación', max_length=40, required=False)
+    sustento = forms.FileField(label='Constancia (opcional)', required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from finanzas.models import Cuenta, Movimiento
+        self.fields['cuenta'].queryset = Cuenta.objects.filter(activo=True, es_detracciones=False)
+        self.fields['medio_pago'].choices = Movimiento.MEDIOS
 
 
 class PresupuestoForm(BootstrapMixin, forms.ModelForm):

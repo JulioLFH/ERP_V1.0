@@ -40,7 +40,19 @@ class OportunidadForm(BootstrapMixin, forms.ModelForm):
             self.add_error('motivo_perdida', 'Indique por qué se perdió.')
         if d.get('probabilidad') is not None and d['probabilidad'] > 100:
             self.add_error('probabilidad', 'Máximo 100.')
+        if d.get('etapa') in ('GANADA', 'PERDIDA') and 'etapa' in self.changed_data and \
+                _licitacion_en_curso(self.instance):
+            self.add_error('etapa', 'Es una licitación de obra: registre la buena pro o la pérdida en Obras › '
+                                    'Licitaciones (la oportunidad se actualiza sola).')
         return d
+
+
+def _licitacion_en_curso(o):
+    """Licitación de obra abierta de la oportunidad (su resultado se registra en Obras)."""
+    if not o.pk:
+        return None
+    from obras.models import Licitacion
+    return Licitacion.objects.filter(oportunidad=o, resultado='EN_CURSO').first()
 
 
 class ActividadForm(BootstrapMixin, forms.ModelForm):
@@ -128,8 +140,12 @@ def oportunidad(request, pk):
         if accion == 'hecha':
             o.actividades.filter(pk=request.POST.get('actividad')).update(hecha=True)
             return redirect('ventas:crm_oportunidad', pk)
+    from core.modulos import modulos_del_usuario
+    from obras.models import Licitacion
     return render(request, 'ventas/crm_oportunidad.html', {
-        'o': o, 'form': form, 'actividad': actividad, 'actividades': o.actividades.select_related('usuario')})
+        'o': o, 'form': form, 'actividad': actividad, 'actividades': o.actividades.select_related('usuario'),
+        'licitacion': Licitacion.objects.filter(oportunidad=o).select_related('obra').first(),
+        'con_obras': 'obras' in modulos_del_usuario(request.user)})
 
 
 @login_required
@@ -142,6 +158,11 @@ def cambiar_etapa(request, pk):
     if etapa == 'PERDIDA' and not o.motivo_perdida:
         return JsonResponse({'ok': False, 'error': 'Indique el motivo de pérdida en la ficha de la oportunidad.',
                              'url': reverse('ventas:crm_oportunidad', args=[o.pk])}, status=422)
+    lic = _licitacion_en_curso(o) if etapa in ('GANADA', 'PERDIDA') else None
+    if lic is not None:
+        return JsonResponse({'ok': False, 'error': 'Es una licitación de obra: registre la buena pro o la pérdida en '
+                                                   'la licitación.',
+                             'url': reverse('obras:licitacion', args=[lic.obra_id])}, status=422)
     o.etapa = etapa
     o.save(update_fields=['etapa', 'actualizado'])
     return JsonResponse({'ok': True, 'probabilidad': o.prob})

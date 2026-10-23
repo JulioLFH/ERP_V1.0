@@ -1,0 +1,90 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Licitación · {{ o.nombre }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">{{ o.nombre }}</h1>
+    <div class="text-muted small">{{ o.codigo }} · {{ o.cliente.nombre|default:'Sin cliente' }} · <span class="badge text-bg-light border">{{ o.get_estado_display }}</span>
+      {% if lic %} · <span class="badge {% if lic.resultado == 'GANADA' %}text-bg-success{% elif lic.resultado == 'EN_CURSO' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ lic.get_resultado_display }}</span>{% endif %}</div></div>
+  <div class="d-flex flex-wrap gap-2">
+    {% if lic.oportunidad %}<a href="{% url 'ventas:crm_oportunidad' lic.oportunidad_id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-kanban"></i> Oportunidad en el CRM</a>{% endif %}
+    <a href="{% url 'obras:obra' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-cone-striped"></i> Obra y presupuestos</a>
+    <a href="{% url 'obras:licitaciones' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Licitaciones</a>
+  </div>
+</div>
+{% if not lic %}
+<div class="card" style="max-width: 720px"><div class="card-body">
+  <p class="mb-2">Esta obra aún no tiene los datos de su licitación o propuesta.</p>
+  <p class="small text-muted">Al registrarla, su centro de costo pasa a <b>Propuestas</b> (gasto de ventas: lo que cuesta preparar la oferta) y se crea su oportunidad en el embudo del CRM.</p>
+  {% if puede.obras_licitar and o.estado == 'LICITACION' %}<form method="post">{% csrf_token %}<button name="accion" value="iniciar" class="btn btn-primary"><i class="bi bi-trophy"></i> Registrar la licitación</button></form>{% endif %}
+</div></div>
+{% else %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Valor referencial</div><div class="value">S/ {{ lic.valor_referencial|money }}</div><div class="small text-muted">{{ lic.get_procedimiento_display }} {{ lic.numero }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Nuestra oferta</div>
+    {% if oferta %}<div class="value"><a href="{% url 'obras:presupuesto' oferta.pk %}">S/ {{ oferta.total|money }}</a></div><div class="small text-muted">Oferta v{{ oferta.version }} · {{ oferta.get_estado_display }}</div>
+    {% else %}<div class="value">—</div><div class="small"><a href="{% url 'obras:presupuesto_nuevo' o.pk %}?tipo=OFERTA">Crear el presupuesto de oferta</a></div>{% endif %}</div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">% del valor referencial</div><div class="value">{% if lic.pct_referencial is not None %}{{ lic.pct_referencial }}%{% else %}—{% endif %}</div>
+    {% if lic.consorcio %}<div class="small text-muted">Consorcio: {{ lic.participacion_pct|floatformat:2 }}% nuestro</div>{% endif %}</div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Costo de la propuesta</div><div class="value">S/ {{ costo|money }}</div><div class="small text-muted">gastos con el centro {{ o.centro_costo.codigo }}</div></div></div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-lg-7"><div class="card h-100"><div class="card-header fw-semibold">Datos del proceso</div><div class="card-body">
+    <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="datos">
+      {% for field in f.datos %}<div class="{% if field.name == 'consorciados' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+      {% if puede.obras_licitar %}<div class="col-12"><button class="btn btn-sm btn-success"><i class="bi bi-save"></i> Guardar</button></div>{% endif %}
+    </form></div></div></div>
+  <div class="col-lg-5"><div class="card h-100"><div class="card-header fw-semibold">Resultado</div><div class="card-body">
+    {% if lic.resultado == 'EN_CURSO' %}
+      {% if puede.obras_licitar %}
+      <form method="post" class="mb-3">{% csrf_token %}
+        <button name="accion" value="ganar" class="btn btn-success w-100" onclick="return confirm('¿Registrar la buena pro? La obra pasa a Adjudicada, su centro de costo a Obras y la oferta se copia como presupuesto contractual.')"><i class="bi bi-trophy-fill"></i> Ganamos la buena pro</button></form>
+      <form method="post" class="row g-2 border-top pt-3">{% csrf_token %}<input type="hidden" name="accion" value="perder">
+        {% for field in f.perder %}<div class="{% if field.name == 'detalle' or field.name == 'desierta' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+        <div class="col-12"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Registrar como perdida</button></div></form>
+      {% else %}<p class="text-muted small mb-0">En curso.</p>{% endif %}
+    {% else %}
+      <p class="mb-1"><b>{{ lic.get_resultado_display }}</b> el {{ lic.fecha_resultado|date:'d/m/Y' }}</p>
+      {% if lic.motivo_perdida %}<p class="mb-1">Motivo: {{ lic.get_motivo_perdida_display }}{% if lic.detalle_resultado %} — {{ lic.detalle_resultado }}{% endif %}</p>{% endif %}
+      {% if lic.ganador %}<p class="mb-1">Ganador: {{ lic.ganador }}{% if lic.precio_ganador %} por S/ {{ lic.precio_ganador|money }}{% if oferta %} (nuestra oferta S/ {{ oferta.total|money }}){% endif %}{% endif %}</p>{% endif %}
+      {% if lic.resultado == 'GANADA' %}<p class="small text-muted mb-0">Monto contratado: S/ {{ o.monto_contratado|money }}. Continúe con el presupuesto contractual y la Meta en la obra.</p>{% endif %}
+    {% endif %}
+  </div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-5"><div class="card h-100"><div class="card-header fw-semibold"><i class="bi bi-calendar3"></i> Cronograma</div>
+    <ul class="list-group list-group-flush small">{% for h in hitos %}
+      <li class="list-group-item d-flex justify-content-between align-items-center gap-2 {% if h.hecho %}text-muted{% endif %}">
+        <span>{% if h.hecho %}<i class="bi bi-check2-circle text-success"></i>{% elif h.fecha < hoy %}<i class="bi bi-exclamation-circle text-danger"></i>{% elif h.fecha <= aviso %}<i class="bi bi-alarm text-warning"></i>{% else %}<i class="bi bi-circle"></i>{% endif %}
+          <b>{{ h.fecha|date:'d/m/Y' }}{% if h.hora %} {{ h.hora|time:'H:i' }}{% endif %}</b> · {{ h.get_tipo_display }}{% if h.nota %} <span class="text-muted">— {{ h.nota }}</span>{% endif %}</span>
+        {% if puede.obras_licitar %}<form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="id" value="{{ h.pk }}">
+          <button name="accion" value="hito_hecho" class="btn btn-sm btn-outline-success py-0" title="{% if h.hecho %}Marcar pendiente{% else %}Marcar como hecho{% endif %}"><i class="bi bi-check2"></i></button>
+          <button name="accion" value="hito_borrar" class="btn btn-sm btn-outline-danger py-0" title="Quitar" onclick="return confirm('¿Quitar este hito?')"><i class="bi bi-x"></i></button></form>{% endif %}</li>
+    {% empty %}<li class="list-group-item text-muted">Sin hitos. Registre la convocatoria, consultas, presentación de ofertas y buena pro (SEACE).</li>{% endfor %}</ul>
+    {% if puede.obras_licitar %}<div class="card-body border-top"><form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="hito">
+      {% for field in f.hito %}<div class="{% if field.name == 'nota' %}col-12{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar hito</button></div></form></div>{% endif %}
+  </div></div>
+  <div class="col-lg-7"><div class="card h-100"><div class="card-header fw-semibold"><i class="bi bi-list-check"></i> Requisitos del postor</div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle small">
+      <thead><tr><th>Requisito</th><th class="num">Monto</th><th>Vence</th><th>Documentos</th><th></th></tr></thead>
+      <tbody>{% for r in requisitos %}
+        <tr class="{% if r.cumple %}table-success{% endif %}"><td><b>{{ r.get_tipo_display }}</b><div>{{ r.descripcion }}</div></td>
+          <td class="num">{% if r.monto %}{{ r.monto|money }}{% endif %}</td>
+          <td class="text-nowrap">{% if r.vence %}<span class="{% if r.vence <= aviso %}text-danger fw-semibold{% endif %}">{{ r.vence|date:'d/m/Y' }}</span>{% else %}—{% endif %}</td>
+          <td>{% for s in r.archivos %}<div><a href="{% url 'sustento_ver' s.pk %}" target="_blank"><i class="bi bi-file-earmark"></i> {{ s.archivo.nombre|truncatechars:28 }}</a></div>{% endfor %}
+            {% if puede.obras_licitar %}<form method="post" enctype="multipart/form-data" action="{% url 'sustento_subir' r|ct_id r.pk %}" class="d-flex gap-1 mt-1">{% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="descripcion" value="{{ r.get_tipo_display }}">
+              <input type="file" name="archivo" class="form-control form-control-sm" required style="max-width: 190px" accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.xml,.zip,.docx,.doc,.csv">
+              <button class="btn btn-sm btn-outline-primary py-0" title="Adjuntar"><i class="bi bi-paperclip"></i></button></form>{% endif %}</td>
+          <td class="text-nowrap">{% if puede.obras_licitar %}<form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="id" value="{{ r.pk }}">
+            <button name="accion" value="cumple" class="btn btn-sm {% if r.cumple %}btn-success{% else %}btn-outline-success{% endif %} py-0" title="Cumple / listo"><i class="bi bi-check2"></i></button>
+            {% if not r.archivos %}<button name="accion" value="requisito_borrar" class="btn btn-sm btn-outline-danger py-0" title="Quitar"><i class="bi bi-x"></i></button>{% endif %}</form>{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="5" class="text-muted text-center py-3">Sin requisitos. Registre la experiencia en obras similares, el personal clave, el equipamiento, el RNP y la garantía.</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% if puede.obras_licitar %}<div class="card-body border-top"><form method="post" enctype="multipart/form-data" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="requisito">
+      {% for field in f.requisito %}<div class="{% if field.name == 'descripcion' or field.name == 'archivo' %}col-md-6{% else %}col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar requisito</button></div></form></div>{% endif %}
+  </div></div>
+</div>
+{% endif %}
+{% endblock %}

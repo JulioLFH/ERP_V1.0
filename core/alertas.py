@@ -191,6 +191,8 @@ def calcular(user):
                                    f'{n} trabajador(es) activos sin centro de costo: la planilla no se cierra hasta '
                                    f'asignarlo (use la asignación masiva).',
                                    reverse('planillas:trabajadores') + '?estado=sin_centro', n))
+    if 'obras' in mods:
+        alertas += _alertas_obras(hoy)
     mes_anterior = (hoy.replace(day=1) - timedelta(days=1)).strftime('%Y%m')
     if 'activos' in mods and puede(user, 'activos.depreciar'):
         from activos.models import ActivoFijo
@@ -212,6 +214,39 @@ def calcular(user):
         alertas += _alertas_seguridad()
     orden = {'danger': 0, 'warning': 1, 'info': 2}
     return sorted(alertas, key=lambda a: orden[a['nivel']])
+
+
+def _alertas_obras(hoy):
+    """Licitaciones: hitos del cronograma en 3 días y requisitos del postor (RNP, garantía…) vencidos o por vencer.
+    Proyectos inmobiliarios: cuotas vencidas y separaciones por vencer."""
+    from obras import inmobiliario, licitaciones
+    from obras.models import RequisitoPostor
+    salida = []
+    hitos = list(licitaciones.proximos_hitos())
+    if hitos:
+        vencidos = [h for h in hitos if h.fecha < hoy]
+        salida.append(_alerta('danger' if vencidos else 'warning', 'bi-calendar-event', 'Plazos de licitaciones',
+                              f'{len(hitos)} hito(s) en {licitaciones.DIAS_AVISO} días o vencidos sin marcar: ' + ', '.join(
+                                  f'{h.get_tipo_display()} {h.licitacion.obra.nombre[:30]} ({h.fecha:%d/%m})'
+                                  for h in hitos[:3]), reverse('obras:licitaciones'), len(hitos)))
+    requisitos = list(RequisitoPostor.objects.filter(
+        licitacion__resultado='EN_CURSO', vence__isnull=False,
+        vence__lte=hoy + timedelta(days=licitaciones.DIAS_AVISO)).select_related('licitacion__obra')[:20])
+    if requisitos:
+        salida.append(_alerta('danger', 'bi-shield-x', 'Requisitos del postor vencidos o por vencer',
+                              ', '.join(f'{r.get_tipo_display()} ({r.vence:%d/%m}) en {r.licitacion.obra.nombre[:30]}'
+                                        for r in requisitos[:3]), reverse('obras:licitaciones'), len(requisitos)))
+    cuotas = list(inmobiliario.cuotas_vencidas()[:200])
+    if cuotas:
+        salida.append(_alerta('danger', 'bi-house-exclamation', 'Cuotas inmobiliarias vencidas',
+                              f'{len(cuotas)} cuota(s) vencidas por S/ {sum(c.monto - c.pagado for c in cuotas):,.2f}.',
+                              reverse('obras:inm_cobranza'), len(cuotas)))
+    separaciones = list(inmobiliario.separaciones_por_vencer())
+    if separaciones:
+        salida.append(_alerta('warning', 'bi-house-dash', 'Separaciones por vencer',
+                              ', '.join(f'{v.numero} {v.cliente.nombre[:30]} ({v.vence_separacion:%d/%m})'
+                                        for v in separaciones[:3]), reverse('obras:inm_cobranza'), len(separaciones)))
+    return salida
 
 
 def _alertas_seguridad():

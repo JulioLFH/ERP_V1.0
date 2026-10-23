@@ -35,7 +35,8 @@ PCGE = [
     ('20', 'MERCADERÍAS'), ('201', 'Mercaderías'), ('2011', 'Mercaderías'), ('20111', 'Mercaderías - costo'),
     ('21', 'PRODUCTOS TERMINADOS'), ('211', 'Productos manufacturados'), ('2111', 'Productos manufacturados'),
     ('23', 'PRODUCTOS EN PROCESO'), ('231', 'Productos en proceso de manufactura'),
-    ('2311', 'Productos en proceso (semi elaborados)'),
+    ('2311', 'Productos en proceso (semi elaborados)'), ('234', 'Productos inmuebles en proceso'),
+    ('2341', 'Inmuebles en construcción (proyectos inmobiliarios)'),
     ('24', 'MATERIAS PRIMAS'), ('241', 'Materias primas para productos manufacturados'),
     ('2411', 'Materias primas para productos manufacturados'),
     ('25', 'MATERIALES AUXILIARES, SUMINISTROS Y REPUESTOS'), ('252', 'Suministros'), ('2521', 'Suministros'),
@@ -130,18 +131,18 @@ PCGE = [
     ('6814', 'Depreciación de propiedad, planta y equipo - costo'),
     ('682', 'Amortización de intangibles'), ('6821', 'Amortización de intangibles - costo'),
     ('69', 'COSTO DE VENTAS'), ('691', 'Mercaderías'), ('6911', 'Mercaderías'), ('69111', 'Mercaderías - terceros'),
-    ('692', 'Productos terminados'), ('6921', 'Productos manufacturados'),
+    ('692', 'Productos terminados'), ('6921', 'Productos manufacturados'), ('6924', 'Productos inmuebles terminados'),
     ('695', 'Gastos por desvalorización de existencias'), ('6951', 'Mercaderías'), ('6952', 'Productos terminados'),
     ('6954', 'Productos en proceso'), ('6955', 'Materias primas'),
     ('6956', 'Materiales auxiliares, suministros y repuestos'),
     ('70', 'VENTAS'), ('701', 'Mercaderías'), ('7011', 'Mercaderías'), ('70111', 'Mercaderías - terceros'),
-    ('702', 'Productos terminados'), ('7021', 'Productos manufacturados'),
+    ('702', 'Productos terminados'), ('7021', 'Productos manufacturados'), ('7024', 'Productos inmuebles terminados'),
     ('704', 'Prestación de servicios'), ('7041', 'Prestación de servicios - terceros'),
     ('709', 'Devoluciones sobre ventas'), ('7091', 'Devoluciones sobre ventas'),
     ('71', 'VARIACIÓN DE LA PRODUCCIÓN ALMACENADA'), ('711', 'Variación de productos terminados'),
     ('7111', 'Productos manufacturados'), ('713', 'Variación de productos en proceso'),
-    ('7131', 'Productos en proceso de manufactura'),
-    ('75', 'OTROS INGRESOS DE GESTIÓN'),
+    ('7131', 'Productos en proceso de manufactura'), ('7134', 'Productos inmuebles en proceso'),
+    ('75','OTROS INGRESOS DE GESTIÓN'),
     ('756', 'Enajenación de activos inmovilizados'), ('7563', 'Propiedad, planta y equipo'), ('759', 'Otros ingresos de gestión'), ('7599', 'Otros ingresos de gestión'),
     ('77', 'INGRESOS FINANCIEROS'), ('772', 'Rendimientos ganados'), ('7721', 'Depósitos en instituciones financieras'),
     ('776', 'Diferencia de cambio'), ('7761', 'Ganancia por diferencia de cambio'),
@@ -250,20 +251,21 @@ def analisis_por_defecto(codigo):
 # cuenta del ERP (PCGE 2019) -> cuenta equivalente del PCGE 2026 (imputable); las que no figuran se mantienen
 MAPA_2026 = {
     '1011': '101', '1021': '102', '1221': '122', '1231': '1232', '1232': '1234', '1421': '1422', '1821': '182',
-    '2111': '21111', '2311': '23111', '2411': '24111', '2521': '2524', '2811': '281', '2841': '284', '2851': '285',
+    '2111': '21111', '2311': '23111', '2341': '2312', '2411': '24111', '2521': '2524', '2811': '281', '2841': '284', '2851': '285',
     '2911': '29111', '2921': '29211', '2941': '29411', '2951': '29511', '2961': '2962',
     '3223': '32241', '3224': '32251', '3311': '33111', '3321': '33211', '3331': '33311', '3341': '33411',
     '3351': '33511', '3361': '33611', '3369': '33691', '3431': '34311', '3913': '39516', '3921': '39613',
     '4071': '417', '4221': '422', '4231': '423', '4241': '424', '4521': '452', '5821': '582',
     '6021': '602', '6091': '60919', '6311': '63111', '6511': '651', '6551': '655141', '6561': '656', '6599': '6593',
-    '6731': '67311', '6814': '68316', '6821': '68613', '69111': '69121', '6921': '69221',
-    '70111': '70121', '7021': '70221', '7041': '70321', '7091': '70911', '7563': '75641', '7721': '75961',
+    '6731': '67311', '6814': '68316', '6821': '68613', '69111': '69121', '6921': '69221', '6924': '69221',
+    '70111': '70121', '7021': '70221', '7024': '70221', '7041': '70321', '7091': '70911', '7563': '75641', '7721': '75961',
     '7911': '791', '8811': '881', '8911': '891', '8921': '892',
     '901': '911', '941': '912', '951': '913', '971': '931',
 }
 # divisionarias propias del ERP sobre el PCGE 2026 (el elemento 9 solo trae 91, 92 y 93: la función se define aquí)
 COMPLEMENTO_2026 = [
     ('6399', 'Otros servicios prestados por terceros'),
+    ('2312', 'Inmuebles en construcción (proyectos inmobiliarios)'), ('7134', 'Productos inmuebles en proceso'),
     ('911', 'Costo de producción'), ('912', 'Gastos de administración'), ('913', 'Gastos de ventas'),
     ('921', 'Gastos de inversión'), ('931', 'Gastos de financiamiento'),
 ]
@@ -412,6 +414,12 @@ DEFECTOS = [
     ('prov_cts_pasivo', 'CTS por pagar', '4151'),
     ('prov_vacaciones', 'Provisión de vacaciones (gasto)', '6215'),
     ('prov_vacaciones_pasivo', 'Vacaciones por pagar', '4115'),
+    # proyectos inmobiliarios: los costos se activan como existencias (NIC 2) y pasan a costo de ventas en la entrega;
+    # cuentas propias para que el ajuste del kardex de la 2311 (manufactura) no toque los inmuebles
+    ('inmuebles_proceso', 'Proyectos inmobiliarios: inmuebles en construcción (existencias)', '2341'),
+    ('inmuebles_variacion', 'Proyectos inmobiliarios: costos activados (variación de la producción)', '7134'),
+    ('inmuebles_costo', 'Proyectos inmobiliarios: costo de ventas de las unidades entregadas', '6924'),
+    ('inmuebles_venta', 'Proyectos inmobiliarios: ventas de unidades', '7024'),
 ]
 
 
