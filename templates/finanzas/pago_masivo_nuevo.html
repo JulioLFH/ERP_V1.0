@@ -17,7 +17,7 @@
       <thead><tr><th><input type="checkbox" class="form-check-input" id="todos"></th><th>Proveedor</th><th>Comprobante</th><th>Venc.</th><th>Abono</th><th class="num">Saldo</th><th style="width:150px" class="num">Pagar</th></tr></thead>
       <tbody>
       {% for d in docs %}
-        <tr><td><input type="checkbox" class="form-check-input js-sel" data-saldo="{{ d.saldo|stringformat:'s' }}"></td><td class="small">{{ d.tercero.nombre|truncatechars:35 }}</td><td class="small">{{ d }}</td>
+        <tr><td><input type="checkbox" class="form-check-input js-sel" data-saldo="{{ d.a_pagar|stringformat:'s' }}"></td><td class="small">{{ d.tercero.nombre|truncatechars:35 }}</td><td class="small">{{ d }}{% if d.detr_pendiente %}<div class="text-danger">Detracción por depositar {{ d.detr_pendiente|money }}: no se incluye (<a href="{% url 'finanzas:detracciones_masivas_nuevo' %}">depósito masivo</a>)</div>{% endif %}</td>
           <td {% if d.dias_vencido > 0 %}class="text-danger"{% endif %}>{{ d.fecha_vencimiento|date:'d/m/Y' }}</td>
           <td class="small">{% if d.abono.1 %}{{ d.abono.0 }}{% else %}<span class="text-danger">Sin cuenta bancaria</span>{% endif %}</td>
           <td class="num">{{ d.saldo|money }}</td><td><input type="number" step="0.01" min="0" name="monto_{{ d.pk }}" class="form-control form-control-sm text-end js-monto"></td></tr>
@@ -32,7 +32,7 @@
     <div class="col-md-4"><label class="form-label small">Glosa</label><input name="glosa" class="form-control form-control-sm" placeholder="Pago a proveedores semana…"></div>
     <div class="col-auto"><button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Generar lote</button></div>
   </div>
-  <p class="small text-muted mt-2">Las cuentas de cada proveedor (banco, N° de cuenta, CCI) se registran en su ficha de Contactos.</p>
+  <p class="small text-muted mt-2">Las cuentas de cada proveedor (banco, N° de cuenta, CCI) se registran en su ficha de Contactos. La detracción que falta depositar no se paga al proveedor: se deposita en su cuenta del Banco de la Nación.</p>
   {% endif %}
 </form>
 {% endif %}

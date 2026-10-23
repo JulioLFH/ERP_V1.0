@@ -39,6 +39,16 @@ def _validar_documento(doc, monto, moneda=None):
         raise ErrorTesoreria(f'{doc}: el monto ({monto:,.2f}) supera el saldo ({doc.saldo:,.2f}).')
 
 
+def _validar_sin_detraccion(doc, monto):
+    """Pago al proveedor: no incluye la detracción que aún falta depositar en su cuenta del Banco de la Nación."""
+    pendiente = doc.detraccion_por_depositar
+    if pendiente and monto > doc.saldo - pendiente + Decimal('0.01'):
+        raise ErrorTesoreria(
+            f'{doc}: el pago ({monto:,.2f}) incluye la detracción por depositar ({pendiente:,.2f}). Pague al '
+            f'proveedor como máximo {doc.saldo - pendiente:,.2f} y deposite la detracción en su cuenta del Banco '
+            f'de la Nación (botón «Detracción» o Depósito masivo de detracciones).')
+
+
 # ---------------------------------------------------------------- anticipos
 def anticipos_disponibles(tercero=None, tipo=None):
     """Movimientos de anticipo vigentes con saldo por aplicar (INGRESO = de clientes, EGRESO = a proveedores)."""
@@ -356,6 +366,7 @@ def crear_pago_masivo(cuenta, fecha, lineas, usuario, glosa=''):
     pago = PagoMasivo.objects.create(cuenta=cuenta, fecha=fecha, glosa=glosa, creado_por=usuario)
     for compra, monto in lineas:
         _validar_documento(compra, monto, cuenta.moneda)
+        _validar_sin_detraccion(compra, monto)
         LineaPagoMasivo.objects.create(pago=pago, compra=compra, monto=monto)
     return pago
 
@@ -381,6 +392,7 @@ def registrar_pago_masivo(pago, usuario, numero_operacion=''):
     for linea in pago.lineas.select_related('compra__tercero'):
         compra = type(linea.compra).objects.con_saldos().get(pk=linea.compra_id)
         _validar_documento(compra, linea.monto, pago.cuenta.moneda)
+        _validar_sin_detraccion(compra, linea.monto)
         linea.movimiento = Movimiento.objects.create(
             cuenta=pago.cuenta, fecha=pago.fecha, tipo='EGRESO', concepto='PAGO', medio_pago='TRANSFERENCIA',
             numero_operacion=numero_operacion or pago.numero, tercero=compra.tercero, compra=compra,

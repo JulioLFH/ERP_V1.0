@@ -309,7 +309,8 @@ class ComprobanteViews:
         periodo = normalizar_periodo(request.GET.get('periodo', ''))
         estado = request.GET.get('estado', '')
         filas = pendientes(self.modelo, periodo, estado)
-        nombres = {'DEPOSITADA': 'Depositada', 'PENDIENTE': 'Pendiente de depósito',
+        nombres = {'DEPOSITADA': 'Depositada', 'SIN_CONSTANCIA': 'Depositada: falta el N° de constancia',
+                   'PENDIENTE': 'Pendiente de depósito',
                    'SIN_DEPOSITO': 'Cobrada por el total: la empresa debe depositarla' if self.app == 'ventas'
                    else 'Pagada por el total: falta la constancia del proveedor'}
         if request.GET.get('formato') == 'excel':

@@ -10,7 +10,7 @@ from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 
 from compras.models import Compra
-from core.models import D0, Tercero
+from core.models import D0, Tercero, r2
 from core.utils import a_fecha, excel_response, fmt_fecha
 from ventas.models import Venta
 
@@ -373,6 +373,8 @@ def pago_masivo_nuevo(request):
             messages.error(request, str(exc))
     for d in docs:
         d.abono = op.datos_banco(d.tercero, cuenta)
+        d.detr_pendiente = d.detraccion_por_depositar  # va a la cuenta del BN del proveedor, no a su banco
+        d.a_pagar = r2(d.saldo - d.detr_pendiente)
     return render(request, 'finanzas/pago_masivo_nuevo.html', {
         'bancos': bancos, 'cuenta': cuenta, 'hasta': hasta, 'docs': docs, 'hoy': timezone.localdate(),
         'proveedor': Tercero.objects.filter(pk=request.GET.get('proveedor')).first()
@@ -407,3 +409,146 @@ def pago_masivo(request, pk):
         return redirect('finanzas:pago_masivo', pk)
     sin_cuenta = [l for l in lineas if not l.abono[1]]
     return render(request, 'finanzas/pago_masivo.html', {'pago': pago, 'lineas': lineas, 'sin_cuenta': sin_cuenta})
+
+
+# ---------------------------------------------------------------- constancias de detracción de clientes
+SESION_CONSTANCIAS = 'constancias_clientes'
+
+
+@login_required
+def constancias_clientes(request):
+    """Reporte de constancias de SUNAT (lo que los clientes depositaron en la cuenta del BN de la empresa): vista
+    previa factura por factura y registro de las cobranzas de detracción."""
+    from . import constancias as cst
+    cuentas_bn = Cuenta.objects.filter(activo=True, es_detracciones=True)
+    items = None
+    if request.method == 'POST' and request.POST.get('accion') == 'leer':
+        try:
+            items = cst.emparejar_clientes(cst.leer(request.FILES['archivo']) if request.FILES.get('archivo') else [])
+        except op.ErrorTesoreria as exc:
+            messages.error(request, str(exc))
+        else:
+            if not items:
+                messages.warning(request, 'Elija el archivo con las constancias.')
+            request.session[SESION_CONSTANCIAS] = [
+                {'constancia': i['constancia'], 'fecha': i['fecha'].isoformat() if i['fecha'] else None,
+                 'importe': str(i['importe']) if i['importe'] is not None else None, 'tipo': i['tipo'],
+                 'serie': i['serie'], 'numero': i['numero'], 'ruc_adquirente': i['ruc_adquirente'],
+                 'ruc_proveedor': i['ruc_proveedor']} for i in items]
+    elif request.method == 'POST' and request.POST.get('accion') == 'registrar':
+        guardados = request.session.get(SESION_CONSTANCIAS) or []
+        registros = [{**g, 'fecha': date.fromisoformat(g['fecha']) if g['fecha'] else None,
+                      'importe': Decimal(g['importe']) if g['importe'] else None} for g in guardados]
+        elegidas = set(request.POST.getlist('constancia'))
+        items = [i for i in cst.emparejar_clientes(registros) if i['constancia'] in elegidas]
+        cuenta = cuentas_bn.filter(pk=request.POST.get('cuenta')).first()
+        try:
+            if cuenta is None:
+                raise op.ErrorTesoreria('Elija su cuenta de detracciones del Banco de la Nación.')
+            creados = cst.registrar_clientes(items, cuenta, request.user)
+        except op.ErrorTesoreria as exc:
+            messages.error(request, str(exc))
+            items = cst.emparejar_clientes(registros)
+        else:
+            request.session.pop(SESION_CONSTANCIAS, None)
+            messages.success(request, f'{len(creados)} cobranza(s) de detracción registradas en {cuenta}.')
+            return redirect('ventas:detracciones')
+    nombres = {'REGISTRAR': 'Se registrará', 'YA': 'Ya registrada', 'NO_ENCONTRADA': 'Factura no encontrada',
+               'SIN_DETRACCION': 'Sin detracción por cobrar'}
+    for i in items or []:
+        i['estado_nombre'] = nombres[i['estado']]
+    return render(request, 'finanzas/constancias_clientes.html', {
+        'items': items, 'cuentas_bn': cuentas_bn,
+        'por_registrar': sum(1 for i in items or [] if i['estado'] == 'REGISTRAR')})
+
+
+# ---------------------------------------------------------------- depósito masivo de detracciones
+@login_required
+def detracciones_masivas(request):
+    from .models import DepositoDetraccion
+    qs = DepositoDetraccion.objects.select_related('cuenta')
+    return render(request, 'finanzas/detracciones_masivas.html', {
+        'page_obj': Paginator(qs, 50).get_page(request.GET.get('page'))})
+
+
+@login_required
+def detracciones_masivas_nuevo(request):
+    from . import detracciones_masivo as dm
+    bancos = Cuenta.objects.filter(activo=True, moneda='PEN', es_detracciones=False)
+    cuenta = bancos.filter(pk=request.GET.get('cuenta') or request.POST.get('cuenta')).first() or bancos.first()
+    hasta = request.GET.get('hasta') or timezone.localdate().isoformat()
+    compras = dm.compras_por_depositar(hasta, request.GET.get('proveedor') or None)
+    if request.method == 'POST' and cuenta:
+        try:
+            lineas = []
+            for c in compras:
+                monto = _monto(request.POST.get(f'monto_{c.pk}'))
+                if monto:
+                    lineas.append((c, request.POST.get(f'codigo_{c.pk}', ''), monto))
+            lote = dm.crear_lote(cuenta, _fecha(request.POST.get('fecha')), lineas, request.user,
+                                 request.POST.get('glosa', '')[:250])
+            messages.success(request, f'{lote} generado por S/ {lote.total:,.2f}. Descargue el archivo para SUNAT, '
+                                      f'páguelo y registre el pago con las constancias.')
+            return redirect('finanzas:detraccion_masiva', lote.pk)
+        except op.ErrorTesoreria as exc:
+            messages.error(request, str(exc))
+    for c in compras:
+        c.importe = dm.importe_deposito(c)
+        c.codigo_sunat = dm.codigo_de(c)
+        c.cuenta_bn = dm.cuenta_bn(c.tercero)
+    return render(request, 'finanzas/detraccion_masiva_nuevo.html', {
+        'bancos': bancos, 'cuenta': cuenta, 'hasta': hasta, 'compras': compras, 'codigos': dm.codigos(),
+        'hoy': timezone.localdate(), 'proveedor': Tercero.objects.filter(pk=request.GET.get('proveedor')).first()
+        if request.GET.get('proveedor') else None})
+
+
+@login_required
+def detraccion_masiva(request, pk):
+    from . import detracciones_masivo as dm
+    from .models import DepositoDetraccion
+    lote = get_object_or_404(DepositoDetraccion.objects.select_related('cuenta'), pk=pk)
+    errores = dm.errores_archivo(lote) if lote.estado == 'BORRADOR' else []
+    if request.GET.get('formato') == 'txt':
+        if errores:
+            messages.error(request, 'Corrija antes de generar el archivo: ' + ' '.join(errores))
+            return redirect('finanzas:detraccion_masiva', pk)
+        from django.http import HttpResponse
+        nombre, contenido = dm.archivo_txt(lote)
+        resp = HttpResponse(contenido.encode('ascii', 'replace'), content_type='text/plain; charset=ascii')
+        resp['Content-Disposition'] = f'attachment; filename="{nombre}"'
+        return resp
+    lineas = list(lote.lineas.select_related('compra__tercero', 'movimiento'))
+    if request.GET.get('formato') == 'excel':
+        nombres = dict(dm.codigos())
+        filas = [[n, l.compra.tercero.numero_doc, l.compra.tercero.nombre, dm.cuenta_bn(l.compra.tercero),
+                  f'{l.compra.tipo_comprobante} {l.compra.numero_completo}', l.compra.fecha_emision.strftime('%Y%m'),
+                  nombres.get(l.codigo, l.codigo), l.monto, l.constancia] for n, l in enumerate(lineas, 1)]
+        return excel_response(f'Detracciones_lote_{lote.lote}', f'{lote} - {lote.cuenta}',
+                              ['N°', 'RUC proveedor', 'Proveedor', 'Cuenta BN', 'Comprobante', 'Periodo',
+                               'Bien o servicio', 'Importe S/', 'N° constancia'], filas)
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        constancias = {l.pk: request.POST.get(f'constancia_{l.pk}', '') for l in lineas}
+        try:
+            if accion == 'registrar':
+                dm.registrar_pago(lote, _fecha(request.POST.get('fecha')), request.POST.get('numero_operacion', ''),
+                                  constancias, request.user)
+                messages.success(request, f'Depósitos de {lote} registrados en {lote.cuenta}.')
+            elif accion == 'constancias':
+                if request.FILES.get('archivo'):
+                    leidas, faltan = dm.leer_constancias(request.FILES['archivo'], lote)
+                    constancias = {**constancias, **leidas}
+                    if faltan:
+                        messages.warning(request, 'No están en el lote: ' + ', '.join(faltan[:20]))
+                n = dm.guardar_constancias(lote, constancias)
+                messages.success(request, f'{n} constancia(s) registradas.')
+            elif accion == 'anular':
+                dm.anular_lote(lote)
+                messages.success(request, f'{lote} anulado (no se registró ningún depósito).')
+        except op.ErrorTesoreria as exc:
+            messages.error(request, str(exc))
+        return redirect('finanzas:detraccion_masiva', pk)
+    nombres = dict(dm.codigos())
+    for l in lineas:
+        l.bien = nombres.get(l.codigo, l.codigo)
+    return render(request, 'finanzas/detraccion_masiva.html', {'lote': lote, 'lineas': lineas, 'errores': errores})

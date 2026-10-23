@@ -3,7 +3,13 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title"><i class="bi bi-bank"></i> Detracciones de {{ titulo_modulo|lower }}</h1>
-  <a href="?periodo={{ periodo }}&estado={{ estado }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+  <div class="d-flex gap-2">
+    {% if app == 'compras' and 'finanzas' in mods %}<a href="{% url 'finanzas:detracciones_masivas_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-bank"></i> Depósito masivo</a>
+    <a href="{% url 'finanzas:pago_multiple' %}?solo_detraccion=1" class="btn btn-sm btn-outline-primary"><i class="bi bi-credit-card-2-back"></i> Pago múltiple</a>{% endif %}
+    {% if app == 'ventas' and 'finanzas' in mods %}<a href="{% url 'finanzas:constancias_clientes' %}" class="btn btn-sm btn-primary"><i class="bi bi-cloud-upload"></i> Cargar constancias de SUNAT</a>
+    <a href="{% url 'finanzas:cobranza_multiple' %}?solo_detraccion=1" class="btn btn-sm btn-outline-primary"><i class="bi bi-cash-stack"></i> Cobranza múltiple</a>{% endif %}
+    <a href="?periodo={{ periodo }}&estado={{ estado }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+  </div>
 </div>
 <p class="small text-muted" style="max-width:1000px">{% if app == 'ventas' %}Facturas de venta con detracción. Si el cliente pagó el total sin depositarla, la empresa (proveedor) debe depositarla en su cuenta del Banco de la Nación hasta el 5.° día hábil siguiente al cobro (el plazo no considera feriados).{% else %}Facturas de compra con detracción. La constancia (N° y fecha del depósito) va al Registro de Compras 8.1. Si se pagó el total al proveedor sin depositarla, él debe depositarla: pídale la constancia y regístrela en la compra.{% endif %}</p>
 <form class="row g-2 align-items-end mb-3" method="get">
@@ -16,7 +22,7 @@
   <table class="table table-sm table-hover mb-0 align-middle">
     <thead><tr><th>Fecha</th><th>Comprobante</th><th>{{ etiqueta_tercero }}</th><th class="num">Total</th><th class="num">Detracción S/</th><th>Estado</th><th>Constancia</th>{% if app == 'ventas' %}<th>Depositar hasta</th>{% endif %}</tr></thead>
     <tbody>{% for d, situacion, nombre, fecha, plazo in filas %}
-      <tr class="{% if situacion == 'SIN_DEPOSITO' %}table-danger{% elif situacion == 'PENDIENTE' %}table-warning{% endif %}">
+      <tr class="{% if situacion == 'SIN_DEPOSITO' %}table-danger{% elif situacion == 'PENDIENTE' or situacion == 'SIN_CONSTANCIA' %}table-warning{% endif %}">
         <td>{{ d.fecha_emision|date:'d/m/Y' }}</td>
         <td><a href="{% url app|add:':detalle' d.pk %}">{{ d.numero_completo }}</a></td>
         <td>{{ d.tercero.nombre|truncatechars:40 }}<div class="small text-muted">{{ d.tercero.numero_doc }}</div></td>

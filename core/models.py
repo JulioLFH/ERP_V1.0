@@ -1834,17 +1834,32 @@ class ComprobanteBase(TotalesMixin):
                 return fecha
         return None
 
+    def _detraccion_depositada(self):
+        """Depósitos de detracción registrados en Finanzas (moneda del documento)."""
+        return self.movimientos.filter(concepto='DETRACCION').aggregate(s=Sum('monto_doc'))['s'] or D0
+
     @property
     def detraccion_estado(self):
         """(estado, fecha del cobro/pago total o None) de la detracción del comprobante:
-        DEPOSITADA (tiene constancia), SIN_DEPOSITO (se cobró/pagó el total sin depositar la detracción) o
-        PENDIENTE (aún no se deposita). None si no está sujeto a detracción."""
+        DEPOSITADA (tiene constancia), SIN_CONSTANCIA (depositada en Finanzas, falta el N° de constancia),
+        SIN_DEPOSITO (se cobró/pagó el total sin depositar la detracción) o PENDIENTE (aún no se deposita).
+        None si no está sujeto a detracción."""
         if not self.sujeto_a_detraccion:
             return None
         if self.detraccion_constancia:
             return 'DEPOSITADA', None
+        if self._detraccion_depositada() >= self.detraccion_monto - Decimal('1'):  # depósito sin decimales
+            return 'SIN_CONSTANCIA', None
         fecha = self._cobro_sin_detraccion()
         return ('SIN_DEPOSITO', fecha) if fecha else ('PENDIENTE', None)
+
+    @property
+    def detraccion_por_depositar(self):
+        """Detracción aún no depositada (moneda del documento): no se paga al proveedor ni se cobra al cliente."""
+        estado = self.detraccion_estado
+        if not estado or estado[0] != 'PENDIENTE':
+            return D0
+        return max(self.detraccion_monto - self._detraccion_depositada(), D0)
 
     @property
     def detraccion_plazo(self):

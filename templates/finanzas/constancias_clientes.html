@@ -1,0 +1,38 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Constancias de detracción de clientes{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3"><i class="bi bi-cloud-upload"></i> Constancias de detracción de clientes</h1>
+<p class="small text-muted" style="max-width:1000px">Descargue de SUNAT Operaciones en Línea (Detracciones › Consulta de constancias, como proveedor) los depósitos que sus clientes hicieron en su cuenta del Banco de la Nación y súbalos aquí (Excel .xlsx, CSV o TXT). SUNAT da una constancia por cada factura: el ERP la empareja con su venta (serie, número y RUC del cliente) y registra la cobranza de la detracción con su N° de constancia y fecha. También sirve una planilla propia con serie, número, constancia, fecha e importe.</p>
+<div class="card mb-3"><div class="card-body">
+  <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="leer">
+    <div class="col-md-6"><label class="form-label small">Archivo de constancias</label><input type="file" name="archivo" accept=".xlsx,.csv,.txt" class="form-control form-control-sm" required></div>
+    <div class="col-auto"><button class="btn btn-sm btn-primary"><i class="bi bi-search"></i> Revisar</button></div>
+  </form>
+</div></div>
+{% if items %}
+<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="registrar">
+  <div class="card mb-3"><div class="card-header d-flex justify-content-between">Constancias del archivo <span class="small text-muted">{{ items|length }} · {{ por_registrar }} por registrar</span></div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th></th><th>Constancia</th><th>Fecha</th><th>Comprobante</th><th>Cliente</th><th class="num">Importe S/</th><th class="num">Detracción por cobrar S/</th><th>Resultado</th></tr></thead>
+      <tbody>{% for i in items %}
+        <tr class="{% if i.estado == 'NO_ENCONTRADA' %}table-danger{% elif i.estado != 'REGISTRAR' %}text-muted{% endif %}">
+          <td>{% if i.estado == 'REGISTRAR' %}<input type="checkbox" class="form-check-input" name="constancia" value="{{ i.constancia }}" checked>{% endif %}</td>
+          <td>{{ i.constancia }}</td><td>{{ i.fecha|date:'d/m/Y'|default:'—' }}</td>
+          <td>{% if i.venta %}<a href="{% url 'ventas:detalle' i.venta.pk %}" target="_blank">{{ i.venta.numero_completo }}</a>{% else %}{{ i.serie }}-{{ i.numero }}{% endif %}</td>
+          <td class="small">{% if i.venta %}{{ i.venta.tercero.nombre|truncatechars:35 }}{% else %}{{ i.ruc_adquirente }}{% endif %}</td>
+          <td class="num">{{ i.importe|money }}</td>
+          <td class="num {% if i.pendiente and i.importe and i.importe != i.pendiente %}text-warning fw-semibold{% endif %}">{% if i.pendiente %}{{ i.pendiente|money }}{% else %}—{% endif %}</td>
+          <td>{{ i.estado_nombre }}</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+  </div>
+  {% if por_registrar %}
+  <div class="d-flex gap-2 align-items-end">
+    <div><label class="form-label small">Cuenta de detracciones (Banco de la Nación)</label><select name="cuenta" class="form-select form-select-sm">{% for c in cuentas_bn %}<option value="{{ c.pk }}">{{ c }}{% if c.numero %} · {{ c.numero }}{% endif %}</option>{% empty %}<option value="">Registre su cuenta del BN en Caja y bancos</option>{% endfor %}</select></div>
+    <button class="btn btn-sm btn-success" data-confirm="¿Registrar las cobranzas de detracción marcadas?"><i class="bi bi-check2-all"></i> Registrar cobranzas de detracción</button>
+  </div>
+  <p class="small text-muted mt-2">El importe resaltado no coincide con la detracción calculada en la venta (SUNAT permite depositar sin decimales); se registra el importe de la constancia.</p>
+  {% endif %}
+</form>
+{% endif %}
+{% endblock %}

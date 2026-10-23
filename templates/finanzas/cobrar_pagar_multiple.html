@@ -1,0 +1,80 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{% if modo == 'cobranza' %}Cobranza múltiple{% else %}Pago múltiple{% endif %}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{% if modo == 'cobranza' %}Cobranza múltiple <small class="text-muted fs-6">varios clientes</small>{% else %}Pago múltiple <small class="text-muted fs-6">varios proveedores</small>{% endif %}</h1>
+  <div class="d-flex gap-2">
+    {% if modo == 'cobranza' %}<a href="{% url 'finanzas:constancias_clientes' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-cloud-upload"></i> Cargar constancias de SUNAT</a>
+    {% else %}<a href="{% url 'finanzas:detracciones_masivas_nuevo' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-bank"></i> Depósito masivo de detracciones (archivo SUNAT)</a>{% endif %}
+  </div>
+</div>
+<p class="small text-muted" style="max-width:1100px">Marque los comprobantes e indique en cada uno si registra el <b>saldo</b> ({% if modo == 'cobranza' %}lo que el cliente le pagó{% else %}lo que le paga al proveedor{% endif %}) o la <b>detracción</b> ({% if modo == 'cobranza' %}lo que el cliente depositó en su cuenta del Banco de la Nación{% else %}lo que deposita en la cuenta del BN del proveedor{% endif %}). Cada detracción lleva su propia constancia: SUNAT da un N° de constancia distinto por comprobante. El saldo sugerido ya no incluye la detracción por depositar.</p>
+<div class="card mb-3"><div class="card-body py-2">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-md-4"><label class="small">{{ cfg.etiqueta }} (opcional)</label><select name="tercero" class="form-select form-select-sm" data-opciones="{% url 'opciones' fuente %}"><option value="">Todos</option>{% if tercero %}<option value="{{ tercero.pk }}" selected>{{ tercero.numero_doc }} - {{ tercero.nombre }}</option>{% endif %}</select></div>
+    <div class="col-auto"><label class="small">Vencidos hasta</label><input type="date" name="hasta" value="{{ hasta }}" class="form-control form-control-sm"></div>
+    <div class="col-auto"><label class="small">Moneda</label><select name="moneda" class="form-select form-select-sm"><option value="">Todas</option><option value="PEN" {% if f.moneda == 'PEN' %}selected{% endif %}>Soles</option><option value="USD" {% if f.moneda == 'USD' %}selected{% endif %}>Dólares</option></select></div>
+    <div class="col-md-2"><label class="small">Buscar</label><input name="q" value="{{ f.q }}" class="form-control form-control-sm" placeholder="RUC, nombre, serie…"></div>
+    <div class="col-auto form-check ms-2 mb-1"><input type="checkbox" class="form-check-input" name="solo_detraccion" value="1" id="solo-det" {% if f.solo_detraccion %}checked{% endif %}><label class="form-check-label small" for="solo-det">Solo con detracción por depositar</label></div>
+    <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i> Buscar</button></div>
+  </form>
+</div></div>
+<form method="post" enctype="multipart/form-data">{% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  <div class="card mb-3"><div class="card-header d-flex justify-content-between">Comprobantes pendientes <span class="small text-muted">{{ docs|length }}{% if docs|length == 400 %} (primeros 400: use los filtros){% endif %}</span></div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th><input type="checkbox" class="form-check-input" id="todos"></th><th>{{ cfg.etiqueta }}</th><th>Comprobante</th><th>Venc.</th><th>Mon.</th><th class="num">Saldo</th><th class="num">Detracción por depositar</th><th class="text-center">Detracción</th><th style="width:130px" class="num">Monto</th><th style="width:150px">N° constancia</th></tr></thead>
+      <tbody>
+      {% for d in docs %}
+        <tr class="js-fila" data-saldo="{{ d.sugerido|stringformat:'s' }}" data-detr="{{ d.detr_pendiente|stringformat:'s' }}">
+          <td><input type="checkbox" class="form-check-input js-sel"></td>
+          <td class="small">{{ d.tercero.nombre|truncatechars:32 }}<div class="text-muted">{{ d.tercero.numero_doc }}</div></td>
+          <td class="small"><a href="{% if modo == 'cobranza' %}{% url 'ventas:detalle' d.pk %}{% else %}{% url 'compras:detalle' d.pk %}{% endif %}" target="_blank">{{ d.numero_completo }}</a>{% if d.pago_bloqueado %} <span class="badge text-bg-danger" title="{{ d.motivo_bloqueo_pago }}"><i class="bi bi-lock"></i></span>{% endif %}</td>
+          <td class="small {% if d.dias_vencido > 0 %}text-danger{% endif %}">{{ d.fecha_vencimiento|date:'d/m/Y' }}</td><td class="small">{{ d.moneda }}</td>
+          <td class="num">{{ d.saldo|money }}</td>
+          <td class="num">{% if d.detr_pendiente %}{{ d.detr_pendiente|money }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td class="text-center">{% if d.detr_pendiente %}<input type="checkbox" class="form-check-input js-det" name="det_{{ d.pk }}" value="1" title="Registrar la detracción (no el saldo)">{% endif %}</td>
+          <td><input type="number" step="0.01" min="0" name="monto_{{ d.pk }}" class="form-control form-control-sm text-end js-monto"></td>
+          <td>{% if d.detr_pendiente %}<input name="constancia_{{ d.pk }}" maxlength="40" class="form-control form-control-sm js-constancia d-none" placeholder="N° constancia">{% endif %}</td>
+        </tr>
+      {% empty %}<tr><td colspan="10" class="text-center text-muted py-4">No hay comprobantes pendientes con este filtro.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot><tr class="fw-semibold"><td colspan="8" class="text-end">Saldos <span id="n-saldo">0</span> · Detracciones <span id="n-detr">0</span> · Total</td><td class="num" id="total">0.00</td><td></td></tr></tfoot>
+    </table></div>
+  </div>
+  {% if docs %}
+  <div class="card"><div class="card-body"><div class="row g-3">
+    {% for field in form %}<div class="col-md-3">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div>
+  <button class="btn btn-success mt-3"><i class="bi bi-check2-all"></i> Registrar {% if modo == 'cobranza' %}cobranzas{% else %}pagos{% endif %}</button></div></div>
+  {% endif %}
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const filas = document.querySelectorAll('.js-fila');
+  const total = () => {
+    let t = 0, ns = 0, nd = 0;
+    filas.forEach(tr => { const v = parseFloat(tr.querySelector('.js-monto').value) || 0; if (!v) return; t += v; const d = tr.querySelector('.js-det'); if (d && d.checked) nd++; else ns++; });
+    document.getElementById('total').textContent = t.toLocaleString('en-US', {minimumFractionDigits: 2});
+    document.getElementById('n-saldo').textContent = ns; document.getElementById('n-detr').textContent = nd;
+  };
+  const llenar = (tr) => {
+    const sel = tr.querySelector('.js-sel'), det = tr.querySelector('.js-det'), monto = tr.querySelector('.js-monto');
+    const constancia = tr.querySelector('.js-constancia'), esDet = det && det.checked;
+    if (constancia) constancia.classList.toggle('d-none', !esDet);
+    monto.value = sel.checked ? parseFloat(esDet ? tr.dataset.detr : tr.dataset.saldo).toFixed(2) : '';
+    total();
+  };
+  filas.forEach(tr => {
+    tr.querySelector('.js-sel').addEventListener('change', () => llenar(tr));
+    const det = tr.querySelector('.js-det');
+    if (det) det.addEventListener('change', () => { tr.querySelector('.js-sel').checked = true; llenar(tr); });
+    tr.querySelector('.js-monto').addEventListener('input', total);
+  });
+  const t = document.getElementById('todos');
+  if (t) t.addEventListener('change', () => filas.forEach(tr => { tr.querySelector('.js-sel').checked = t.checked; llenar(tr); }));
+})();
+</script>
+{% endblock %}

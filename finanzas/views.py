@@ -240,6 +240,9 @@ def cobrar_pagar(request, modo):
         qs = (cfg['modelo'].objects.con_saldos().cobrables().filter(tercero=tercero, estado='REGISTRADO')
               .exclude(tipo_comprobante='07').order_by('fecha_vencimiento'))
         pendientes = [d for d in qs if d.saldo > 0]
+        for d in pendientes:  # lo sugerido no incluye la detracción por depositar (va a la cuenta del BN)
+            d.detr_pendiente = d.detraccion_por_depositar
+            d.sugerido = r2(d.saldo - d.detr_pendiente)
         letras = [l for l in Letra.objects.filter(tercero=tercero, tipo='COBRAR' if modo == 'cobranza' else 'PAGAR',
                                                    estado__in=Letra.ABIERTAS) if l.saldo > 0]
         anticipos = anticipos_disponibles(tercero, cfg['tipo'])
@@ -342,6 +345,53 @@ def cobrar_pagar(request, modo):
         'anticipos': anticipos, 'doc_ini': doc_ini, 'cheque': cheque,
         'fuente': 'clientes' if modo == 'cobranza' else 'proveedores',
         'detraccion': request.GET.get('detraccion') == '1'})
+
+
+@login_required
+def cobrar_pagar_multiple(request, modo):
+    """Cobranza / pago de comprobantes de varios clientes o proveedores; cada uno como saldo o como detracción."""
+    from . import multiple
+    from .forms import OperacionMultipleForm
+    from .operaciones import ErrorTesoreria
+    cfg = _cobranza_cfg(modo)
+    f = request.GET
+    tercero = Tercero.objects.filter(pk=f.get('tercero')).first() if f.get('tercero') else None
+    hasta = f.get('hasta') or ''
+    docs = multiple.pendientes(cfg['modelo'], tercero, a_fecha(hasta) if hasta else None, f.get('moneda', ''),
+                               bool(f.get('solo_detraccion')), f.get('q', '').strip())
+    inicial = {'fecha': timezone.localdate()}
+    if modo == 'cobranza':
+        inicial['cuenta_detraccion'] = Cuenta.objects.filter(activo=True, es_detracciones=True).first()
+    form = OperacionMultipleForm(request.POST or None, request.FILES or None, initial=inicial, modo=modo)
+    if request.method == 'POST' and form.is_valid():
+        lineas = []
+        for d in docs:
+            valor = request.POST.get(f'monto_{d.pk}', '').strip().replace(',', '')
+            if not valor:
+                continue
+            try:
+                monto = Decimal(valor)
+            except InvalidOperation:
+                messages.error(request, f'{d}: monto inválido.')
+                break
+            lineas.append((d, bool(request.POST.get(f'det_{d.pk}')), monto, request.POST.get(f'constancia_{d.pk}', '')))
+        else:
+            datos = dict(form.cleaned_data)
+            if modo == 'pago' and not datos.get('cuenta_detraccion'):
+                datos['cuenta_detraccion'] = datos['cuenta'] if datos['cuenta'].moneda == 'PEN' else None
+            try:
+                creados = multiple.registrar(modo, datos, lineas, request.user)
+            except ErrorTesoreria as exc:
+                for e in str(exc).split(' | '):
+                    messages.error(request, e)
+            else:
+                saldos = sum(1 for m in creados if m.concepto != 'DETRACCION')
+                messages.success(request, f'{len(creados)} movimiento(s) registrados: {saldos} de saldo y '
+                                          f'{len(creados) - saldos} de detracción.')
+                return redirect('finanzas:movimientos')
+    return render(request, 'finanzas/cobrar_pagar_multiple.html', {
+        'cfg': cfg, 'modo': modo, 'form': form, 'docs': docs, 'tercero': tercero, 'hasta': hasta, 'f': f,
+        'fuente': 'clientes' if modo == 'cobranza' else 'proveedores'})
 
 
 # ---------------------------------------------------------------- transferencias

@@ -644,6 +644,55 @@ class LineaPagoMasivo(models.Model):
         ordering = ['id']
 
 
+# ---------------------------------------------------------------- depósito masivo de detracciones
+class DepositoDetraccion(models.Model):
+    """Lote de detracciones de compras que la empresa deposita de una vez en SUNAT Operaciones en Línea (archivo
+    D<RUC><lote>.txt); al pagarlo, cada compra queda con su depósito y su constancia."""
+    ESTADOS = [('BORRADOR', 'Archivo generado (por pagar)'), ('PAGADO', 'Pagado'), ('ANULADO', 'Anulado')]
+    lote = models.CharField('N° de lote', max_length=6, editable=False, help_text='AANNNN: año y correlativo')
+    cuenta = models.ForeignKey(Cuenta, on_delete=models.PROTECT, related_name='depositos_detraccion',
+                               verbose_name='Cuenta desde la que se paga')
+    fecha = models.DateField('Fecha de pago', default=timezone.localdate)
+    numero_operacion = models.CharField('N° de operación del pago', max_length=40, blank=True)
+    glosa = models.CharField(max_length=250, blank=True)
+    estado = models.CharField(max_length=8, choices=ESTADOS, default='BORRADOR')
+    creado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                   editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'depósito masivo de detracciones'
+        verbose_name_plural = 'depósitos masivos de detracciones'
+
+    def __str__(self):
+        return f'Lote de detracciones {self.lote}'
+
+    def save(self, *args, **kwargs):
+        if not self.lote:
+            from core.models import Serie
+            anio = self.fecha.year % 100
+            _, numero = Serie.siguiente(f'DET{anio:02d}', f'D{anio:02d}')
+            self.lote = f'{anio:02d}{int(numero) % 10000:04d}'
+        super().save(*args, **kwargs)
+
+    @property
+    def total(self):
+        return self.lineas.aggregate(s=Sum('monto'))['s'] or D0
+
+
+class LineaDepositoDetraccion(models.Model):
+    deposito = models.ForeignKey(DepositoDetraccion, on_delete=models.CASCADE, related_name='lineas')
+    compra = models.ForeignKey('compras.Compra', on_delete=models.PROTECT, related_name='+')
+    codigo = models.CharField('Bien o servicio (catálogo 54)', max_length=3)
+    monto = models.DecimalField('Importe del depósito (S/)', max_digits=14, decimal_places=2)
+    constancia = models.CharField('N° de constancia', max_length=40, blank=True)
+    movimiento = models.ForeignKey(Movimiento, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        ordering = ['id']
+
+
 # ---------------------------------------------------------------- préstamos y leasing
 class Prestamo(models.Model):
     """Préstamo bancario o arrendamiento financiero (leasing) con su cronograma de cuotas (método francés: cuota

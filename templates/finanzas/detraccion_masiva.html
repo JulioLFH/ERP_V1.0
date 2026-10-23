@@ -1,0 +1,51 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ lote }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Lote de detracciones {{ lote.lote }} <span class="badge {% if lote.estado == 'PAGADO' %}text-bg-success{% elif lote.estado == 'ANULADO' %}badge-ANULADO{% else %}text-bg-warning{% endif %}">{{ lote.get_estado_display }}</span></h1>
+  <div class="d-flex gap-2">
+    {% if lote.estado == 'BORRADOR' %}<a href="?formato=txt" class="btn btn-sm btn-primary {% if errores %}disabled{% endif %}"><i class="bi bi-filetype-txt"></i> Archivo para SUNAT</a>{% endif %}
+    <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+  </div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-4"><div class="kpi"><div class="label">Pagar desde</div><div class="fw-semibold">{{ lote.cuenta }}</div></div></div>
+  <div class="col-md-2"><div class="kpi"><div class="label">Fecha</div><div class="fw-semibold">{{ lote.fecha|date:'d/m/Y' }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Total ({{ lineas|length }} depósitos)</div><div class="value">S/ {{ lote.total|money }}</div></div></div>
+  {% if lote.numero_operacion %}<div class="col-md-3"><div class="kpi"><div class="label">N° de operación</div><div class="fw-semibold">{{ lote.numero_operacion }}</div></div></div>{% endif %}
+</div>
+{% if errores %}<div class="alert alert-danger py-2 small"><b>Antes de generar el archivo:</b><ul class="mb-0">{% for e in errores %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+{% if lote.estado == 'BORRADOR' %}<div class="alert alert-info py-2 small"><i class="bi bi-info-circle"></i> 1) Descargue el <b>archivo para SUNAT</b> y cárguelo en SUNAT Operaciones en Línea › Pago masivo de detracciones. 2) Pague el total (S/ {{ lote.total|money }}). 3) Registre aquí el pago y las constancias que entrega SUNAT (puede completarlas después).</div>{% endif %}
+<form method="post" enctype="multipart/form-data">{% csrf_token %}
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Proveedor</th><th>Comprobante</th><th>Cuenta BN</th><th>Bien o servicio</th><th class="num">Importe S/</th><th style="width:200px">N° de constancia</th><th>Voucher</th></tr></thead>
+  <tbody>
+  {% for l in lineas %}
+    <tr><td class="small">{{ l.compra.tercero.nombre|truncatechars:35 }}<div class="text-muted">{{ l.compra.tercero.numero_doc }}</div></td>
+      <td class="small"><a href="{% url 'compras:detalle' l.compra_id %}">{{ l.compra.numero_completo }}</a></td>
+      <td class="small">{{ l.compra.tercero.cuenta_detracciones|default:'—' }}</td>
+      <td class="small">{{ l.bien }}</td>
+      <td class="num">{{ l.monto|money }}</td>
+      <td>{% if lote.estado != 'ANULADO' %}<input name="constancia_{{ l.pk }}" value="{{ l.constancia }}" maxlength="40" class="form-control form-control-sm">{% else %}{{ l.constancia }}{% endif %}</td>
+      <td>{% if l.movimiento %}<a href="{% url 'finanzas:voucher' l.movimiento_id %}" target="_blank">{{ l.movimiento.voucher }}</a>{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+{% if puede.finanzas_registrar %}
+  {% if lote.estado == 'BORRADOR' %}
+  <div class="d-flex flex-wrap gap-2 align-items-end">
+    <div><label class="form-label small">Fecha del pago</label><input type="date" name="fecha" value="{{ lote.fecha|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+    <div><label class="form-label small">N° de operación / orden de pago</label><input name="numero_operacion" class="form-control form-control-sm"></div>
+    <button name="accion" value="registrar" class="btn btn-sm btn-success" data-confirm="¿Ya pagó el lote en SUNAT? Se registrarán {{ lineas|length }} depósitos desde {{ lote.cuenta }}."><i class="bi bi-check2-all"></i> Registrar pago</button>
+    <button name="accion" value="anular" class="btn btn-sm btn-outline-danger" data-confirm="¿Anular el lote? No se registra ningún depósito.">Anular lote</button>
+  </div>
+  {% elif lote.estado == 'PAGADO' %}
+  <div class="d-flex flex-wrap gap-2 align-items-end">
+    <div><label class="form-label small">O suba las constancias (Excel o CSV: serie, número y constancia)</label><input type="file" name="archivo" accept=".xlsx,.csv,.txt" class="form-control form-control-sm"></div>
+    <button name="accion" value="constancias" class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Guardar constancias</button>
+  </div>
+  {% endif %}
+{% endif %}
+</form>
+<a href="{% url 'finanzas:detracciones_masivas' %}" class="btn btn-sm btn-link mt-3"><i class="bi bi-arrow-left"></i> Depósitos masivos de detracciones</a>
+{% endblock %}

@@ -175,6 +175,34 @@ class OperacionForm(BootstrapMixin, forms.Form):
         return data
 
 
+class OperacionMultipleForm(BootstrapMixin, forms.Form):
+    """Cabecera de la cobranza / pago múltiple: la cuenta del saldo y la de las detracciones."""
+    cuenta = forms.ModelChoiceField(Cuenta.objects.filter(activo=True, es_detracciones=False),
+                                    label='Cuenta (saldos)')
+    cuenta_detraccion = forms.ModelChoiceField(Cuenta.objects.filter(activo=True), required=False,
+                                               label='Cuenta (detracciones)')
+    fecha = forms.DateField()
+    medio_pago = forms.ChoiceField(choices=Movimiento.MEDIOS, initial='TRANSFERENCIA')
+    numero_operacion = forms.CharField(label='N° operación (saldos)', required=False)
+    glosa = forms.CharField(required=False)
+    sustento = SustentoField(required=False, label='Sustento (voucher, constancias)')
+
+    def __init__(self, *args, modo='pago', **kwargs):
+        super().__init__(*args, **kwargs)
+        if modo == 'cobranza':  # el cliente deposita la detracción en la cuenta del BN de la empresa
+            self.fields['cuenta_detraccion'].queryset = Cuenta.objects.filter(activo=True, es_detracciones=True)
+            self.fields['cuenta_detraccion'].help_text = 'Su cuenta de detracciones del Banco de la Nación'
+        else:  # la empresa deposita desde su banco en la cuenta del BN del proveedor
+            self.fields['cuenta_detraccion'].queryset = Cuenta.objects.filter(activo=True, es_detracciones=False,
+                                                                              moneda='PEN')
+            self.fields['cuenta_detraccion'].help_text = 'Desde la que paga las detracciones (en soles)'
+
+    def clean(self):
+        data = super().clean()
+        validar_periodo_abierto(self, 'fecha')
+        return data
+
+
 class TransferenciaForm(BootstrapMixin, forms.Form):
     origen = forms.ModelChoiceField(Cuenta.objects.filter(activo=True), label='Cuenta origen')
     destino = forms.ModelChoiceField(Cuenta.objects.filter(activo=True), label='Cuenta destino')
