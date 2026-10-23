@@ -7,7 +7,9 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 
 
-def excel_response(nombre, titulo, encabezados, filas):
+def excel_response(nombre, titulo, encabezados, filas, rojas=()):
+    """Excel con título, encabezados y filas. `rojas`: [(fila, columna)] (desde 0, dentro de `filas`) que se pintan
+    de rojo (datos que faltan)."""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
 
@@ -23,6 +25,9 @@ def excel_response(nombre, titulo, encabezados, filas):
         cell.fill = PatternFill('solid', fgColor='1F4E79')
     for fila in filas:
         ws.append([float(v) if isinstance(v, Decimal) else v for v in fila])
+    rojo = PatternFill('solid', fgColor='FFC7CE')
+    for i, j in rojas:
+        ws.cell(row=4 + i, column=j + 1).fill = rojo
     for col in ws.columns:
         ancho = max(len(str(c.value or '')) for c in col[2:]) if len(col) > 2 else 10
         ws.column_dimensions[col[0].column_letter].width = min(max(ancho + 2, 10), 45)

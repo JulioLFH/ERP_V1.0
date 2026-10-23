@@ -28,18 +28,25 @@
 </div>
 {% if r.solo_sunat %}
 <form method="post" class="card mb-3">{% csrf_token %}<input type="hidden" name="accion" value="crear">
-  <div class="card-header text-warning-emphasis">En la propuesta de SUNAT pero no registrados en el periodo</div>
+  <div class="card-header text-warning-emphasis d-flex flex-wrap justify-content-between gap-2"><span>En la propuesta de SUNAT pero no registrados en el periodo</span>
+    {% if p.libro == 'RCE' and r.sin_propios %}<span class="text-danger small">{{ r.sin_propios }} sin orden de compra, clasificación o cuenta (en rojo)</span>{% endif %}</div>
+  {% if p.libro == 'RCE' %}<div class="card-body py-2 small text-muted border-bottom">Antes de precargar puede agregar al Excel de la propuesta (o al Excel del cruce) las columnas <b>Orden de compra</b>, <b>Clasificación</b> (por número: {% for n, codigo, nombre in clasificaciones %}{{ n }} {{ nombre }}{% if not forloop.last %}, {% endif %}{% endfor %}) y <b>Cuenta contable</b>, y volver a subirlo. No son obligatorias: las compras se crean con lo que traigan y lo que falta queda en rojo para completarlo. Un valor que no se reconoce (orden de otro proveedor, cuenta que no existe) no deja crear esa compra.</div>{% endif %}
   <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
-    <thead><tr>{% if puede_crear %}<th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=falta]').forEach(c => c.checked = this.checked)"></th>{% endif %}<th>{% if p.libro == 'RVIE' %}Cliente{% else %}Proveedor{% endif %}</th><th>Comprobante</th><th>Emisión</th><th class="num">Base</th><th class="num">IGV</th><th class="num">Total</th><th></th></tr></thead>
-    <tbody>{% for x in r.solo_sunat %}<tr>
-      {% if puede_crear %}<td>{% if not x.otro_periodo %}<input type="checkbox" class="form-check-input" name="falta" value="{{ x.clave }}">{% endif %}</td>{% endif %}
+    <thead><tr>{% if puede_crear %}<th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=falta]').forEach(c => c.checked = this.checked)"></th>{% endif %}<th>{% if p.libro == 'RVIE' %}Cliente{% else %}Proveedor{% endif %}</th><th>Comprobante</th><th>Emisión</th><th class="num">Base</th><th class="num">IGV</th><th class="num">Total</th>{% if p.libro == 'RCE' %}<th>Orden de compra</th><th>Clasificación</th><th>Cuenta</th>{% endif %}<th></th></tr></thead>
+    <tbody>{% for x in r.solo_sunat %}{% with q=x.propios %}<tr>
+      {% if puede_crear %}<td>{% if not x.otro_periodo %}<input type="checkbox" class="form-check-input" name="falta" value="{{ x.clave }}" {% if q.errores %}disabled title="{{ q.errores|join:' ' }}"{% endif %}>{% endif %}</td>{% endif %}
       <td>{{ x.ruc }} {{ x.nombre }}</td><td>{{ x.tipo }} {{ x.serie }}-{{ x.numero }}</td><td>{{ x.fecha|date:'d/m/Y' }}</td>
       <td class="num">{{ x.base|money }}</td><td class="num">{{ x.igv|money }}</td><td class="num">{{ x.total|money }}</td>
-      <td class="small">{% if x.otro_periodo %}Registrado en {{ x.otro_periodo.periodo }}{% endif %}</td></tr>{% endfor %}</tbody>
+      {% if p.libro == 'RCE' %}{% if q %}
+        <td class="small {% if q.oc %}{% elif x.oc %}table-danger text-danger{% else %}table-danger{% endif %}" {% if x.oc and not q.oc %}title="{{ q.errores|join:' ' }}"{% endif %}>{% if q.oc %}<a href="{% url 'compras:oc_detalle' q.oc.pk %}">{{ q.oc.numero }}</a>{% elif x.oc %}<i class="bi bi-x-circle"></i> {{ x.oc }}{% else %}Falta{% endif %}</td>
+        <td class="small {% if q.clasificacion %}{% elif x.clasificacion %}table-danger text-danger{% else %}table-danger{% endif %}">{% if q.clasificacion %}{% for n, codigo, nombre in clasificaciones %}{% if codigo == q.clasificacion %}{{ n }} {{ nombre }}{% endif %}{% endfor %}{% elif x.clasificacion %}<i class="bi bi-x-circle"></i> {{ x.clasificacion }}{% else %}Falta{% endif %}</td>
+        <td class="small {% if q.cuenta %}{% elif x.cuenta %}table-danger text-danger{% else %}table-danger{% endif %}" {% if x.cuenta and not q.cuenta %}title="{{ q.errores|join:' ' }}"{% endif %}>{% if q.cuenta %}<span title="{{ q.cuenta.nombre }}">{{ q.cuenta.codigo }}</span>{% elif x.cuenta %}<i class="bi bi-x-circle"></i> {{ x.cuenta }}{% else %}Falta{% endif %}</td>
+      {% else %}<td></td><td></td><td></td>{% endif %}{% endif %}
+      <td class="small">{% if x.otro_periodo %}Registrado en {{ x.otro_periodo.periodo }}{% elif q.errores %}<span class="text-danger">{{ q.errores|join:' ' }}</span>{% endif %}</td></tr>{% endwith %}{% endfor %}</tbody>
   </table></div>
   {% if puede_crear %}<div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
     <button class="btn btn-sm btn-primary" data-confirm="¿Crear en el sistema los comprobantes marcados con los datos de SUNAT?"><i class="bi bi-plus-circle"></i> Crear los marcados</button>
-    <span class="small text-muted">{% if p.libro == 'RVIE' %}Se registran como ventas ya informadas a SUNAT (emitidas fuera del sistema): no se reenvían ni mueven stock.{% else %}Se registran como compras del periodo con base, IGV y total de SUNAT; complete luego su centro de costo y clasificación si corresponde.{% endif %}</span>
+    <span class="small text-muted">{% if p.libro == 'RVIE' %}Se registran como ventas ya informadas a SUNAT (emitidas fuera del sistema): no se reenvían ni mueven stock.{% else %}Se registran como compras del periodo con base, IGV y total de SUNAT, con la orden de compra (y su centro de costo), la clasificación y la cuenta del Excel; sin clasificación quedan como Mercadería.{% endif %}</span>
   </div>{% endif %}
 </form>
 {% endif %}

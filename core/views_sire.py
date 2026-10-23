@@ -39,7 +39,8 @@ class PropuestaForm(BootstrapMixin, forms.Form):
     clave_sol = forms.CharField(label='Clave SOL', required=False, widget=forms.PasswordInput,
                                 help_text='Solo para traer de SUNAT; no se guarda')
     archivo = forms.FileField(label='O suba el archivo de la propuesta', required=False,
-                              help_text='TXT, ZIP, CSV o Excel descargado del SIRE')
+                              help_text='TXT, ZIP, CSV o Excel descargado del SIRE. En compras puede agregarle las '
+                                        'columnas Orden de compra, Clasificación (1 a 8) y Cuenta contable')
 
     def __init__(self, *args, libros=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -135,9 +136,10 @@ def _excel(p, r):
             encabezados, registros = sire.leer_completo(_archivo(bytes(p.archivo), p.nombre_archivo or 'propuesta.zip'))
         except sire.ErrorSIRE:
             pass
-    encabezados, filas = sire.filas_cruce_completo(encabezados, registros, r)
+    compras = p.libro == 'RCE'  # en compras: orden de compra, clasificación y cuenta para precargar
+    encabezados, filas = sire.filas_cruce_completo(encabezados, registros, r, propias=compras)
     return excel_response(f'Cruce_SIRE_{p.libro}_{p.periodo}', f'CRUCE PROPUESTA SIRE {p.libro} {p.periodo}',
-                          encabezados, filas)
+                          encabezados, filas, rojas=sire.celdas_en_rojo(encabezados, filas) if compras else ())
 
 
 @login_required
@@ -199,7 +201,12 @@ def detalle(request, pk):
             return _excel(p, resultado)
         for x in resultado['solo_sunat']:
             x['clave'] = f'{x["tipo"]}|{x["serie"]}|{x["numero"]}|{x["ruc"]}'
+        if p.libro == 'RCE':  # orden de compra, clasificación y cuenta del Excel: lo que falta se ve en rojo
+            sire.propios([x for x in resultado['solo_sunat'] if not x['otro_periodo']])
+            resultado['sin_propios'] = sum(1 for x in resultado['solo_sunat'] if x.get('propios') and
+                                           (x['propios']['faltan'] or x['propios']['errores']))
     return render(request, 'core/sire_propuesta.html', {
         'p': p, 'r': resultado, 'sesion': sire_api.hay_token(), 'configurada': sire_api.configurada(),
+        'clasificaciones': sire.clasificaciones(),
         'puede_crear': puede(request.user, PERMISO_CREAR[p.libro]), 'puede_aceptar': puede(request.user,
                                                                                             PERMISO_ACEPTAR)})

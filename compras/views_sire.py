@@ -42,10 +42,10 @@ def _rend(x):
 
 
 def _excel(periodo, encabezados, registros, r):
-    encabezados, filas = sire.filas_cruce_completo(encabezados, registros, r, rendiciones=True,
+    encabezados, filas = sire.filas_cruce_completo(encabezados, registros, r, rendiciones=True, propias=True,
                                                    extra=(['Rendición de gastos'], lambda x: [_rend(x)]))
     return excel_response(f'Cruce_SIRE_compras_{periodo}', f'CRUCE PROPUESTA SIRE (RCE) {periodo}', encabezados,
-                          filas)
+                          filas, rojas=sire.celdas_en_rojo(encabezados, filas))
 
 
 @login_required
