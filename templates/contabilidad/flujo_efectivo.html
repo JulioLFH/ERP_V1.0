@@ -1,0 +1,72 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Estado de flujos de efectivo{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Estado de flujos de efectivo</h1>
+    <div class="text-muted small">{{ empresa.razon_social }} · {{ desde|slice:"4:" }}/{{ desde|slice:":4" }} a {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }} · en soles · NIC 7, lo percibido</div></div>
+  <form class="d-flex flex-wrap gap-2 d-print-none" method="get">{% include 'contabilidad/_norma.html' %}
+    <input type="month" name="desde" value="{{ mes_desde }}" class="form-control form-control-sm" style="width:auto">
+    <input type="month" name="hasta" value="{{ mes_hasta }}" class="form-control form-control-sm" style="width:auto">
+    <select name="metodo" class="form-select form-select-sm" style="width:auto">
+      <option value="ambos" {% if metodo == 'ambos' %}selected{% endif %}>Directo e indirecto</option>
+      <option value="directo" {% if metodo == 'directo' %}selected{% endif %}>Método directo</option>
+      <option value="indirecto" {% if metodo == 'indirecto' %}selected{% endif %}>Método indirecto</option>
+    </select>
+    <button class="btn btn-sm btn-primary">Ver</button>
+    <button name="formato" value="excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></button>
+    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary" title="Imprimir o guardar como PDF"><i class="bi bi-file-earmark-pdf"></i></button>
+    <a href="{% url 'contabilidad:flujo_configuracion' %}" class="btn btn-sm btn-outline-secondary" title="Rubros, reglas y políticas"><i class="bi bi-sliders"></i></a>
+  </form>
+</div>
+
+<div class="card mb-3 d-print-none" style="max-width:980px"><div class="card-header py-2 small fw-semibold">Validaciones</div>
+  <ul class="list-group list-group-flush small">{% for v in e.validaciones %}
+    <li class="list-group-item py-1 d-flex gap-2"><span class="{% if v.ok %}text-success{% elif v.bloquea %}text-danger{% else %}text-warning{% endif %}"><i class="bi {% if v.ok %}bi-check-circle-fill{% elif v.bloquea %}bi-x-octagon-fill{% else %}bi-exclamation-triangle-fill{% endif %}"></i></span>
+      <span><b>{{ v.codigo }}</b> {{ v.texto }}{% if v.detalle %}<span class="text-muted"> — {{ v.detalle }}</span>{% endif %}</span></li>{% endfor %}
+  </ul>
+</div>
+{% if e.bloqueado %}<div class="alert alert-danger small" style="max-width:980px"><i class="bi bi-x-octagon"></i> El estado no se puede emitir mientras falle una validación en rojo (cuadre del efectivo o periodos sin centralizar). Las cifras se muestran solo como referencia.</div>{% endif %}
+
+{% if metodo != 'indirecto' %}
+<div class="card mb-3" style="max-width:980px"><div class="card-body table-responsive">
+  <table class="table table-sm mb-0">
+    <thead><tr><th>Método directo</th><th class="num">S/</th></tr></thead>
+    {% for s in e.secciones %}
+      <tr><td colspan="2" class="fw-semibold pt-3">{{ s.titulo }}</td></tr>
+      {% for f in s.filas %}<tr><td class="ps-3"><a href="?desde={{ desde }}&hasta={{ hasta }}&detalle={{ f.rubro.codigo }}" class="text-reset">{{ f.rubro.nombre }}</a> <span class="text-muted small">{{ f.rubro.codigo }}</span></td><td class="num {% if f.importe < 0 %}text-danger{% endif %}">{{ f.importe|money }}</td></tr>
+      {% empty %}<tr><td class="ps-3 text-muted small" colspan="2">Sin movimientos</td></tr>{% endfor %}
+      <tr class="fw-semibold border-top"><td>Flujo neto de {{ s.titulo|lower }}</td><td class="num {% if s.total < 0 %}text-danger{% endif %}">{{ s.total|money }}</td></tr>
+    {% endfor %}
+    <tr class="fw-bold border-top border-dark"><td class="pt-3">AUMENTO (DISMINUCIÓN) NETO DEL EFECTIVO Y EQUIVALENTES</td><td class="num pt-3">{{ e.neto|money }}</td></tr>
+    <tr><td>Efecto de las variaciones en el tipo de cambio sobre el efectivo y equivalentes</td><td class="num">{{ e.efecto_tc|money }}</td></tr>
+    {% if e.migracion %}<tr><td>Ajustes de la migración de saldos al ERP (no son flujos)</td><td class="num">{{ e.migracion|money }}</td></tr>{% endif %}
+    <tr><td>Efectivo y equivalentes al inicio del periodo</td><td class="num">{{ e.inicial|money }}</td></tr>
+    <tr class="fw-bold table-light"><td>EFECTIVO Y EQUIVALENTES AL FINAL DEL PERIODO</td><td class="num">{{ e.final|money }}</td></tr>
+    {% if e.restringido %}<tr class="small text-muted"><td class="ps-3">De los cuales, fondos sujetos a restricción (detracciones en el Banco de la Nación)</td><td class="num">{{ e.restringido|money }}</td></tr>{% endif %}
+  </table>
+</div></div>
+{% endif %}
+
+{% if metodo != 'directo' %}
+<div class="card mb-3" style="max-width:980px"><div class="card-body table-responsive">
+  <table class="table table-sm mb-0">
+    <thead><tr><th>Método indirecto: conciliación de la utilidad neta con el flujo de operación</th><th class="num">S/</th></tr></thead>
+    <tr class="fw-semibold"><td>Utilidad (pérdida) neta del periodo</td><td class="num">{{ e.indirecto.utilidad|money }}</td></tr>
+    {% if e.indirecto.ajustes %}<tr><td colspan="2" class="text-muted small pt-2">Ajustes por partidas que no son efectivo o que pertenecen a inversión y financiamiento</td></tr>{% endif %}
+    {% for n, v in e.indirecto.ajustes %}<tr><td class="ps-3">{{ n }}</td><td class="num {% if v < 0 %}text-danger{% endif %}">{{ v|money }}</td></tr>{% endfor %}
+    {% if e.indirecto.variaciones %}<tr><td colspan="2" class="text-muted small pt-2">Variación del capital de trabajo de operación</td></tr>{% endif %}
+    {% for n, v in e.indirecto.variaciones %}<tr><td class="ps-3">{{ n }}</td><td class="num {% if v < 0 %}text-danger{% endif %}">{{ v|money }}</td></tr>{% endfor %}
+    <tr class="fw-bold border-top border-dark"><td>FLUJO NETO DE ACTIVIDADES DE OPERACIÓN</td><td class="num">{{ e.indirecto.operacion|money }}</td></tr>
+    {% if metodo == 'indirecto' %}
+    <tr><td>Flujo neto de actividades de inversión</td><td class="num">{{ e.total.INVERSION|money }}</td></tr>
+    <tr><td>Flujo neto de actividades de financiamiento</td><td class="num">{{ e.total.FINANCIAMIENTO|money }}</td></tr>
+    <tr><td>Efecto de las variaciones en el tipo de cambio sobre el efectivo</td><td class="num">{{ e.efecto_tc|money }}</td></tr>
+    {% if e.migracion %}<tr><td>Ajustes de la migración de saldos al ERP (no son flujos)</td><td class="num">{{ e.migracion|money }}</td></tr>{% endif %}
+    <tr><td>Efectivo y equivalentes al inicio del periodo</td><td class="num">{{ e.inicial|money }}</td></tr>
+    <tr class="fw-bold table-light"><td>EFECTIVO Y EQUIVALENTES AL FINAL DEL PERIODO</td><td class="num">{{ e.final|money }}</td></tr>
+    {% endif %}
+  </table>
+</div></div>
+{% endif %}
+<p class="small text-muted" style="max-width:980px">Políticas (Configuración): intereses pagados en {{ e.politica.get_intereses_pagados_display|lower }}; intereses y dividendos recibidos en {{ e.politica.get_intereses_cobrados_display|lower }}; dividendos pagados en {{ e.politica.get_dividendos_pagados_display|lower }}; la cuenta de detracciones {% if e.politica.detracciones_en_efectivo %}forma parte del efectivo{% else %}queda fuera del efectivo (fondo restringido){% endif %}. Cada rubro abre los asientos que lo forman.{% if e.aperturas %} Se tomaron como saldo inicial (no como flujos): {% for n, g in e.aperturas %}{{ n }} «{{ g|truncatechars:60 }}»{% if not forloop.last %}; {% endif %}{% endfor %}.{% endif %}</p>
+{% endblock %}

@@ -126,10 +126,12 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Movimiento
         fields = ['cuenta', 'fecha', 'tipo', 'concepto', 'medio_pago', 'numero_operacion', 'tercero', 'monto',
-                  'cuenta_contable', 'centro_costo', 'glosa']
+                  'cuenta_contable', 'centro_costo', 'rubro_flujo', 'glosa']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        from contabilidad.models import RubroFlujo
+        self.fields['rubro_flujo'].queryset = RubroFlujo.objects.filter(activo=True)
         self.fields['cuenta'].queryset = Cuenta.objects.filter(activo=True)
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True)
         remoto(self.fields['tercero'], 'terceros')

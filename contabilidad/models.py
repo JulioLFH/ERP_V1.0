@@ -415,3 +415,61 @@ class PresupuestoLinea(models.Model):
     @property
     def total(self):
         return sum(self.meses, D0)
+
+
+# ---------------------------------------------------------------- estado de flujos de efectivo (NIC 7)
+class RubroFlujo(models.Model):
+    """Rubro del Estado de Flujos de Efectivo, método directo (docs/EFE_NIC7.md, tabla 1.1)."""
+    ACTIVIDADES = [('OPERACION', 'Actividades de operación'), ('INVERSION', 'Actividades de inversión'),
+                   ('FINANCIAMIENTO', 'Actividades de financiamiento')]
+    SENTIDOS = [('ENTRADA', 'Entrada (+)'), ('SALIDA', 'Salida (−)'), ('AMBOS', 'Entrada o salida')]
+    codigo = models.CharField('Código', max_length=10, unique=True)
+    nombre = models.CharField(max_length=150)
+    actividad = models.CharField(max_length=15, choices=ACTIVIDADES)
+    sentido = models.CharField(max_length=7, choices=SENTIDOS, default='AMBOS')
+    rubro_smv = models.CharField('Rubro del formato SMV', max_length=20, blank=True)
+    orden = models.PositiveSmallIntegerField(default=0)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['orden', 'codigo']
+        verbose_name = 'rubro del flujo de efectivo'
+
+    def __str__(self):
+        return f'{self.codigo} {self.nombre}'
+
+
+class ReglaFlujoCuenta(models.Model):
+    """Rubro según la cuenta contra la que se movió el efectivo (prefijo PCGE; gana el más largo)."""
+    prefijo = models.CharField('Cuenta (prefijo)', max_length=12, unique=True)
+    rubro_entrada = models.ForeignKey(RubroFlujo, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                      verbose_name='Si entra efectivo')
+    rubro_salida = models.ForeignKey(RubroFlujo, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                     verbose_name='Si sale efectivo')
+
+    class Meta:
+        ordering = ['prefijo']
+        verbose_name = 'regla del flujo de efectivo'
+
+
+class PoliticaFlujo(models.Model):
+    """Opciones de presentación que la NIC 7 deja a la empresa; se aplican igual en todos los periodos (NIC 7.31)."""
+    intereses_pagados = models.CharField(
+        'Intereses pagados', max_length=15, default='FINANCIAMIENTO',
+        choices=[('FINANCIAMIENTO', 'Actividades de financiamiento'), ('OPERACION', 'Actividades de operación')])
+    intereses_cobrados = models.CharField(
+        'Intereses y dividendos recibidos', max_length=15, default='INVERSION',
+        choices=[('INVERSION', 'Actividades de inversión'), ('OPERACION', 'Actividades de operación')])
+    dividendos_pagados = models.CharField(
+        'Dividendos pagados', max_length=15, default='FINANCIAMIENTO',
+        choices=[('FINANCIAMIENTO', 'Actividades de financiamiento'), ('OPERACION', 'Actividades de operación')])
+    detracciones_en_efectivo = models.BooleanField(
+        'La cuenta de detracciones del BN es efectivo', default=True,
+        help_text='Sí: se incluye en el efectivo y se revela la restricción. No: fondo restringido fuera del efectivo')
+
+    class Meta:
+        verbose_name = 'política del flujo de efectivo'
+
+    @classmethod
+    def actual(cls):
+        return cls.objects.first() or cls.objects.create()

@@ -1,0 +1,33 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Configuración del estado de flujos de efectivo{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">Estado de flujos de efectivo: rubros, reglas y políticas</h1>
+  <a href="{% url 'contabilidad:flujo_efectivo' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-water"></i> Ver el estado</a>
+</div>
+<p class="small text-muted" style="max-width:1100px">El estado se calcula con los asientos que mueven el efectivo (clase 10). Cada importe toma su rubro por prioridad: 1) la «Actividad NIC 7» elegida en el movimiento de Finanzas; 2) el documento (el pago de una compra de activo fijo es inversión); 3) la regla de la cuenta contra la que se movió el efectivo (gana el prefijo más largo); 4) el concepto del movimiento. Las cajas y bancos que no son efectivo se desmarcan en Finanzas › Caja y bancos («Incluir en el estado de flujos de efectivo»).</p>
+{% if plan_2026 %}<div class="alert alert-warning small" style="max-width:1100px">La empresa usa el PCGE 2026: las reglas de la semilla están en códigos del PCGE 2019. Revise los prefijos que cambian (ej. depreciación 683, amortización 686).</div>{% endif %}
+<form method="post">{% csrf_token %}
+  <div class="card mb-3" style="max-width:1100px"><div class="card-header py-2 fw-semibold small">Políticas de la empresa (NIC 7)</div><div class="card-body"><div class="row g-3">
+    {% for field in form %}<div class="col-md-3">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div><div class="form-text">Se aplican igual en todos los periodos (NIC 7.31): si las cambia, el estado de periodos anteriores también se recalcula con la nueva política.</div></div></div>
+
+  <div class="card mb-3" style="max-width:1100px"><div class="card-header py-2 fw-semibold small">Reglas por cuenta de contrapartida</div>
+    {{ reglas.management_form }}{% for e in reglas.non_form_errors %}<div class="alert alert-danger m-2 py-1 small">{{ e }}</div>{% endfor %}
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>Cuenta (prefijo)</th><th>Si entra efectivo</th><th>Si sale efectivo</th><th class="text-center">Quitar</th></tr></thead>
+      <tbody>{% for f in reglas %}<tr>{{ f.id }}
+        <td>{{ f.prefijo }}{% for err in f.prefijo.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}</td>
+        <td>{{ f.rubro_entrada }}</td><td>{{ f.rubro_salida }}</td><td class="text-center">{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+
+  <div class="card mb-3" style="max-width:1100px"><div class="card-header py-2 fw-semibold small">Rubros del método directo</div>
+    {{ rubros.management_form }}
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th style="width:100px">Código</th><th>Nombre</th><th>Actividad</th><th>Sentido</th><th style="width:110px">Rubro SMV</th><th style="width:80px">Orden</th><th>Activo</th></tr></thead>
+      <tbody>{% for f in rubros %}<tr>{{ f.id }}
+        <td>{{ f.codigo }}{% for err in f.codigo.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}</td><td>{{ f.nombre }}</td><td>{{ f.actividad }}</td><td>{{ f.sentido }}</td><td>{{ f.rubro_smv }}</td><td>{{ f.orden }}</td><td class="text-center">{{ f.activo }}</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+  <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
+</form>
+{% endblock %}

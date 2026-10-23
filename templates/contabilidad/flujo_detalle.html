@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ rubro|default:codigo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">{% if rubro %}{{ rubro.nombre }}{% else %}{{ codigo }}{% endif %}</h1>
+    <div class="text-muted small">{{ codigo }} · {{ desde|slice:"4:" }}/{{ desde|slice:":4" }} a {{ hasta|slice:"4:" }}/{{ hasta|slice:":4" }} · asientos que forman el rubro</div></div>
+  <div class="d-flex gap-2">
+    <a href="?desde={{ desde }}&hasta={{ hasta }}&detalle={{ codigo }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
+    <a href="{% url 'contabilidad:flujo_efectivo' %}?desde={{ desde }}&hasta={{ hasta }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Estado de flujos</a>
+  </div>
+</div>
+<div class="card" style="max-width:1100px"><div class="table-responsive"><table class="table table-sm table-hover mb-0">
+  <thead><tr><th>Fecha</th><th>Asiento</th><th>Glosa</th><th>Caja / banco</th><th class="num">Importe S/</th></tr></thead>
+  <tbody>{% for a, v in filas %}
+    <tr><td>{{ a.fecha|date:'d/m/Y' }}</td><td><a href="{% url 'contabilidad:asiento_detalle' a.pk %}">{{ a.numero }}</a></td><td class="small">{{ a.glosa|truncatechars:80 }}</td><td class="small">{{ a.movimiento.cuenta|default:'' }}</td><td class="num {% if v < 0 %}text-danger{% endif %}">{{ v|money }}</td></tr>
+  {% empty %}<tr><td colspan="5" class="text-center text-muted">Sin asientos en el rango.</td></tr>{% endfor %}</tbody>
+  <tfoot><tr class="fw-bold"><td colspan="4">Total</td><td class="num">{{ total|money }}</td></tr></tfoot>
+</table></div></div>
+{% endblock %}

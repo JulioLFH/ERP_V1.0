@@ -21,6 +21,13 @@ class Cuenta(models.Model):
     cci = models.CharField('CCI', max_length=30, blank=True)
     moneda = models.CharField(max_length=3, choices=MONEDAS, default='PEN')
     es_detracciones = models.BooleanField('Cuenta de detracciones', default=False)
+    incluir_en_efe = models.BooleanField('Incluir en el estado de flujos de efectivo', default=True,
+                                         help_text='Desmarque los fondos que no son efectivo ni equivalente')
+    tipo_efectivo = models.CharField(
+        'Tipo de efectivo (NIC 7)', max_length=11, blank=True, default='',
+        choices=[('', 'Efectivo'), ('EQUIVALENTE', 'Equivalente de efectivo (≤ 3 meses)'),
+                 ('RESTRINGIDO', 'Fondo sujeto a restricción')],
+        help_text='Restringido: se revela en la nota del efectivo (ej. detracciones)')
     cuenta_contable = models.ForeignKey('contabilidad.CuentaContable', on_delete=models.PROTECT, null=True,
                                         blank=True, related_name='+', limit_choices_to={'imputable': True},
                                         help_text='Ej. 1011 Caja, 1041 Cuenta corriente. Vacío = cuenta por defecto')
@@ -184,6 +191,9 @@ class Movimiento(models.Model):
                                         help_text='Vacío = según el concepto (Contabilidad > Configuración)')
     centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
                                      verbose_name='Centro de costo')
+    rubro_flujo = models.ForeignKey('contabilidad.RubroFlujo', on_delete=models.PROTECT, null=True, blank=True,
+                                    related_name='+', verbose_name='Actividad NIC 7 (rubro del flujo de efectivo)',
+                                    help_text='Vacío = según la cuenta contable (Contabilidad › Flujo de efectivo)')
     conciliado = models.BooleanField(default=False)
     fecha_conciliacion = models.DateField(null=True, blank=True)
     transferencia_par = models.OneToOneField('self', on_delete=models.SET_NULL, null=True, blank=True)

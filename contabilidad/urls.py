@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_cierre, views_cuentas_tipo, views_libro3, views_presupuesto
+from . import views, views_cierre, views_cuentas_tipo, views_flujo, views_libro3, views_presupuesto
 
 app_name = 'contabilidad'
 
@@ -28,6 +28,8 @@ urlpatterns = [
     path('balance-comprobacion/', views.balance, name='balance'),
     path('situacion-financiera/', views.estado_situacion, name='situacion'),
     path('estado-resultados/', views.estado_resultados, name='resultados'),
+    path('estado-flujos-efectivo/', views_flujo.estado_flujo, name='flujo_efectivo'),
+    path('estado-flujos-efectivo/configuracion/', views_flujo.configuracion_flujo, name='flujo_configuracion'),
     path('centros-costo/reporte/', views.centros_costo_reporte, name='centros_reporte'),
     path('plan-cuentas/', views.plan_cuentas, name='plan'),
     path('plan-cuentas/nueva/', views.CuentaNueva.as_view(), name='cuenta_nueva'),
