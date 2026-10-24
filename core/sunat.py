@@ -216,30 +216,36 @@ def payload_comprobante(venta):
     empresa = Empresa.actual()
     cli = venta.tercero
     gratuita = venta.tipo_operacion == 'GRATUITA'
-    items, total_gratuita = [], Decimal('0')
-    for i in venta.items.select_related('producto'):
+    items, total_gratuita, total_anticipo = [], Decimal('0'), Decimal('0')
+    for i in venta.items.select_related('producto', 'anticipo_de'):
         afectacion = i.afectacion_en(venta)  # cada línea con su tipo de IGV (gravado, exonerado, inafecto)
         tipo_igv = TIPO_IGV.get(afectacion, 1)
         tasa = empresa.igv_tasa / 100 if afectacion == 'GRAVADA' else Decimal('0')
-        igv = r2(i.subtotal * tasa)
+        # deducción de un anticipo (regularización): se informa en positivo con el comprobante del anticipo y los
+        # totales del comprobante ya vienen netos de él
+        signo = -1 if i.anticipo_de_id else 1
+        subtotal, valor = i.subtotal * signo, i.precio_unitario * signo
+        igv = r2(subtotal * tasa)
         if gratuita:
             total_gratuita += i.subtotal
+        if i.anticipo_de_id:
+            total_anticipo += subtotal  # valor sin IGV de lo regularizado (total_gravada ya es neto de él)
         items.append({
             'unidad_de_medida': i.producto.unidad if i.producto else 'ZZ',
             'codigo': i.producto.codigo if i.producto else '',
             'descripcion': i.descripcion[:250],
             'cantidad': _num(i.cantidad, 4),
-            'valor_unitario': _num(i.precio_unitario, 4),
-            'precio_unitario': _num(i.precio_unitario * (1 + tasa), 4),
+            'valor_unitario': _num(valor, 4),
+            'precio_unitario': _num(valor * (1 + tasa), 4),
             # descuento de la línea (sin IGV): subtotal = cantidad × valor unitario − descuento
-            'descuento': _num(i.descuento) if i.descuento else '',
-            'subtotal': _num(i.subtotal),
+            'descuento': _num(i.descuento * signo) if i.descuento else '',
+            'subtotal': _num(subtotal),
             'tipo_de_igv': tipo_igv,
             'igv': _num(igv),
-            'total': _num(i.subtotal + igv),
-            'anticipo_regularizacion': 'false',
-            'anticipo_documento_serie': '',
-            'anticipo_documento_numero': '',
+            'total': _num(subtotal + igv),
+            'anticipo_regularizacion': 'true' if i.anticipo_de_id else 'false',
+            'anticipo_documento_serie': i.anticipo_de.serie if i.anticipo_de_id else '',
+            'anticipo_documento_numero': _sin_ceros(i.anticipo_de.numero) if i.anticipo_de_id else '',
         })
     ref = venta.doc_referencia
     inafecta = venta.inafecto + venta.exportacion
@@ -271,7 +277,8 @@ def payload_comprobante(venta):
         'moneda': 2 if venta.moneda == 'USD' else 1,
         'tipo_de_cambio': _num(venta.tipo_cambio, 3) if venta.moneda == 'USD' else '',
         'porcentaje_de_igv': _num(empresa.igv_tasa),
-        'descuento_global': '', 'total_descuento': '', 'total_anticipo': '',
+        'descuento_global': '', 'total_descuento': '',
+        'total_anticipo': _num(total_anticipo) if total_anticipo else '',
         'total_gravada': _num(venta.base_imponible) if venta.base_imponible else '',
         'total_inafecta': _num(inafecta) if inafecta else '',
         'total_exonerada': _num(venta.exonerado) if venta.exonerado else '',

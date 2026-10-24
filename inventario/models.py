@@ -286,6 +286,55 @@ class RequerimientoInterno(models.Model):
         return sum((i.pendiente for i in self.items.all()), D0)
 
 
+class SolicitudTraslado(models.Model):
+    """Atender una necesidad con stock de otro almacén en vez de comprar (COM-13): la aprueba el responsable del
+    almacén de origen (residente), sale a tránsito al costo promedio y quien recibe la acepta (ingresa a su almacén) o
+    la rechaza (vuelve al origen). No es gasto: sigue en existencias hasta que se consume en la obra que la recibe."""
+    ESTADOS = [('POR_APROBAR', 'Por aprobar (almacén de origen)'), ('EN_TRANSITO', 'En tránsito'),
+               ('RECIBIDA', 'Recibida'), ('RECHAZADA', 'Rechazada por el origen'),
+               ('DEVUELTA', 'Rechazada por quien recibe (devuelta)'), ('ANULADA', 'Anulada')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    fecha = models.DateField(default=timezone.localdate)
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='+')
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2)
+    almacen_origen = models.ForeignKey(Almacen, on_delete=models.PROTECT, related_name='+')
+    almacen_destino = models.ForeignKey(Almacen, on_delete=models.PROTECT, related_name='+')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='+', help_text='Centro que recibe (el flete se carga a él)')
+    linea_solped = models.ForeignKey('compras.LineaSolicitud', on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='traslados')
+    motivo = models.CharField(max_length=250, blank=True)
+    estado = models.CharField(max_length=11, choices=ESTADOS, default='POR_APROBAR', editable=False)
+    solicitado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+                                       related_name='+', editable=False)
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False)
+    aprobado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    recibido_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False)
+    comentario = models.CharField('Motivo del rechazo', max_length=250, blank=True, editable=False)
+    envio = models.ForeignKey(Operacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                              editable=False)
+    recepcion = models.ForeignKey(Operacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                  editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'solicitud de traslado'
+        verbose_name_plural = 'solicitudes de traslado'
+
+    def __str__(self):
+        return f'Traslado {self.numero} {self.producto.nombre}'
+
+    def save(self, *args, **kwargs):
+        if not self.numero:
+            from core.models import Serie
+            _, numero = Serie.siguiente('STR', 'ST')
+            self.numero = f'ST-{int(numero):05d}'
+        super().save(*args, **kwargs)
+
+
 class OlaPicking(models.Model):
     """Ola de preparación: junta varios pedidos de venta para recorrer el almacén una sola vez (por ubicación) y
     luego separar lo preparado por pedido."""

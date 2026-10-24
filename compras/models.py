@@ -675,6 +675,15 @@ class LineaSolicitud(models.Model):
     comprador = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
                                   editable=False)
     asignada_en = models.DateTimeField(null=True, blank=True, editable=False)
+    # COM-13: se compra habiendo stock disponible en otros almacenes (urgencia, distancia, especificación…)
+    MOTIVOS_STOCK = [('', '—'), ('URGENCIA', 'Urgencia: no llega a tiempo por traslado'),
+                     ('DISTANCIA', 'Distancia o costo del traslado'), ('ESPECIFICACION', 'Especificación distinta'),
+                     ('COMPROMETIDO', 'El stock ya está comprometido'), ('OTRO', 'Otro')]
+    motivo_stock = models.CharField('Compra con stock disponible: motivo', max_length=14, choices=MOTIVOS_STOCK,
+                                    blank=True, editable=False)
+    justificacion_stock = models.CharField('Justificación', max_length=250, blank=True, editable=False)
+    disponible_al_pedir = models.DecimalField('Disponible en otros almacenes al pedir', max_digits=14,
+                                              decimal_places=2, null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ['id']

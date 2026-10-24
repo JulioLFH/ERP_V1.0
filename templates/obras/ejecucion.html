@@ -1,0 +1,73 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Ejecución {{ o.codigo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-cone-striped"></i> Ejecución · {{ o.nombre }}</h1>
+    <div class="text-muted small">{{ o.codigo }} · {{ o.cliente.nombre|default:'sin cliente' }} · contrato {{ o.contrato|default:'—' }} · <span class="badge text-bg-light border">{{ o.get_estado_display }}</span>{% if r.presupuesto %} · valoriza sobre <a href="{% url 'obras:presupuesto' r.presupuesto.pk %}">{{ r.presupuesto }}</a>{% endif %}</div></div>
+  <div class="d-flex flex-wrap gap-2"><a href="{% url 'obras:obra' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Obra</a></div>
+</div>
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a href="{% url 'obras:avance' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-rulers"></i> Avance físico</a>
+  <a href="{% url 'obras:cronograma' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-graph-up"></i> Cronograma y curva S</a>
+  <a href="{% url 'obras:tareo' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-person-lines-fill"></i> Tareo</a>
+  <a href="{% url 'obras:planillas_civil' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-cash-stack"></i> Planilla de construcción civil</a>
+  <a href="{% url 'obras:partes' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-truck-front"></i> Partes de equipo</a>
+  <a href="{% url 'obras:subcontratos' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-people"></i> Subcontratos</a>
+  <a href="{% url 'obras:formula' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-calculator"></i> Fórmula polinómica</a>
+  <a href="{% url 'obras:reporte_partidas' o.pk %}" class="btn btn-sm btn-outline-success"><i class="bi bi-table"></i> Control por partida</a>
+  <a href="{% url 'obras:versiones' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-layers"></i> Versiones (S10)</a>
+</div>
+<div class="row g-3 mb-3 small">
+  <div class="col-6 col-lg"><div class="kpi"><div class="label">Contrato (sin IGV)</div><div class="value">S/ {{ r.contrato|money }}</div></div></div>
+  <div class="col-6 col-lg"><div class="kpi"><div class="label">Valorizado acumulado</div><div class="value">S/ {{ r.valorizado|money }} <span class="small text-muted">{{ r.avance_pct }} %</span></div></div></div>
+  <div class="col-6 col-lg"><div class="kpi"><div class="label">Facturado (con IGV)</div><div class="value">S/ {{ r.facturado|money }}</div></div></div>
+  {% for a in r.adelantos %}<div class="col-6 col-lg"><div class="kpi"><div class="label">{{ a.nombre }}: saldo por amortizar</div><div class="value">S/ {{ a.saldo|money }} <span class="small text-muted">de {{ a.recibido|money }}</span></div></div></div>{% endfor %}
+  <div class="col-6 col-lg"><div class="kpi"><div class="label">Fondo de garantía retenido</div><div class="value">S/ {{ r.garantia_saldo|money }}</div></div></div>
+</div>
+{% if atrasadas %}<div class="alert alert-warning py-2 small"><i class="bi bi-hourglass-split"></i> Partidas atrasadas frente al cronograma: {% for a in atrasadas %}{{ a.partida.item }} {{ a.partida.descripcion|truncatechars:30 }} ({{ a.atraso_pct }} %){% if not forloop.last %}; {% endif %}{% endfor %}. <a href="{% url 'obras:cronograma' o.pk %}">Ver</a></div>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center"><span class="fw-semibold">Valorizaciones</span>
+      <form method="post" action="{% url 'obras:valorizacion_nueva' o.pk %}" class="d-flex gap-2">{% csrf_token %}<input type="month" name="periodo" value="{{ hoy|date:'Y-m' }}" class="form-control form-control-sm" required><button class="btn btn-sm btn-primary text-nowrap"><i class="bi bi-plus-lg"></i> Valorizar el mes</button></form></div>
+    <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+      <thead><tr><th>N°</th><th>Mes</th><th>Estado</th><th class="num">Valorizado</th><th class="num">Amortización</th><th class="num">Reintegro</th><th class="num">Factura</th><th class="num">Garantía</th><th>Comprobante</th></tr></thead>
+      <tbody>{% for v in valorizaciones %}<tr class="{% if v.estado == 'ANULADA' %}text-muted{% endif %}">
+        <td><a href="{% url 'obras:valorizacion' v.pk %}">{{ v.numero }}</a></td><td>{{ v.periodo|slice:'4:' }}/{{ v.periodo|slice:':4' }}</td>
+        <td><span class="badge text-bg-light border">{{ v.get_estado_display }}</span></td>
+        <td class="num">{{ v.subtotal|money }}</td><td class="num">{{ v.amort_directo|add:v.amort_materiales|money }}</td><td class="num">{{ v.reintegro_neto|money }}</td>
+        <td class="num">{{ v.total_factura|money }}</td><td class="num">{{ v.retencion_garantia|money }}</td>
+        <td class="small">{% if v.factura %}<a href="{% url 'ventas:detalle' v.factura.pk %}">{{ v.factura.numero_completo }}</a>{% else %}—{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="9" class="text-center text-muted py-4">Sin valorizaciones. Registre el avance físico y valorice el mes sobre el presupuesto contractual.</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+    <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold">Adelantos del cliente</span>{% if puede_facturar %}<a href="{% url 'obras:reclasificar' o.pk %}" class="btn btn-sm btn-outline-warning"><i class="bi bi-arrow-repeat"></i> Reclasificar una factura emitida</a>{% endif %}</div>
+    <div class="table-responsive"><table class="table table-sm mb-0">
+      <thead><tr><th>Tipo</th><th>Fecha</th><th>Factura</th><th class="num">Monto sin IGV</th><th class="num">Amortizado</th><th class="num">Saldo</th></tr></thead>
+      <tbody>{% for a in adelantos %}<tr><td>{{ a.get_tipo_display }}{% if a.reclasificada %} <span class="badge text-bg-warning">reclasificada</span>{% endif %}</td><td>{{ a.fecha|date:'d/m/Y' }}</td><td><a href="{% url 'ventas:detalle' a.factura.pk %}">{{ a.factura.numero_completo }}</a></td><td class="num">{{ a.monto|money }}</td><td class="num">{{ a.amortizado|money }}</td><td class="num fw-semibold">{{ a.saldo|money }}</td></tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">Sin adelantos.</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% if puede_facturar %}<form method="post" action="{% url 'obras:adelanto' o.pk %}" class="card-body border-top row g-2 align-items-end">{% csrf_token %}
+      <div class="col-md-3"><label class="form-label small mb-1">Adelanto</label><select name="tipo" class="form-select form-select-sm">{% for v, t in tipos_adelanto %}<option value="{{ v }}">{{ t }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><label class="form-label small mb-1">Monto sin IGV</label><input name="monto" class="form-control form-control-sm text-end" inputmode="decimal" placeholder="{% if o.adelanto_directo_pct %}{{ o.adelanto_directo_pct }} % del contrato{% endif %}" required></div>
+      <div class="col-md-3"><label class="form-label small mb-1">Fecha</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+      <div class="col-md-3"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-receipt"></i> Emitir factura de adelanto</button></div>
+      <div class="col-12 form-text">Va a anticipos de clientes (122) con IGV y detracción (código 030); se amortiza en cada valorización con la deducción del anticipo en su factura. No es venta en el resultado de la obra.</div>
+    </form>{% endif %}</div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3"><div class="card-header fw-semibold">Fondo de garantía</div><div class="card-body small">
+      <table class="table table-sm mb-2"><tr><td>Retenido por el cliente</td><td class="num">S/ {{ r.garantia_retenida|money }}</td></tr><tr><td>Devuelto</td><td class="num">S/ {{ r.garantia_devuelta|money }}</td></tr><tr class="fw-semibold"><td>Por cobrar</td><td class="num">S/ {{ r.garantia_saldo|money }}</td></tr></table>
+      {% if r.garantia_saldo and puede_facturar %}<form method="post" action="{% url 'obras:garantia_cobrar' o.pk %}" class="row g-2">{% csrf_token %}
+        <div class="col-6"><input name="monto" value="{{ r.garantia_saldo|floatformat:'2u' }}" class="form-control form-control-sm text-end"></div><div class="col-6"><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+        <div class="col-12"><select name="cuenta" class="form-select form-select-sm">{% for c in cuentas %}<option value="{{ c.pk }}">{{ c.nombre }} ({{ c.moneda }})</option>{% endfor %}</select></div>
+        <div class="col-12"><button class="btn btn-sm btn-outline-success w-100">Registrar la devolución del fondo</button></div></form>{% endif %}
+      <div class="text-muted">Retención: {{ o.retencion_garantia_pct }} % del total de cada factura de valorización (Editar obra).</div>
+    </div></div>
+    <div class="card mb-3"><div class="card-header d-flex justify-content-between"><span class="fw-semibold">Fórmula polinómica</span><a href="{% url 'obras:indices' %}" class="small">Índices INEI</a></div><div class="card-body small">
+      {% for f in formulas %}<div><b>{{ f }}</b>{% if f.subpresupuesto %} · subpresupuesto {{ f.subpresupuesto }}{% endif %} · base {{ f.periodo_base }} · área {{ f.area }}<div class="text-muted">K = {% for m in f.monomios.all %}{{ m.coeficiente }}·IU{{ m.indice }}{% if not forloop.last %} + {% endif %}{% endfor %}</div></div>
+      {% empty %}<span class="text-muted">Sin reajuste. <a href="{% url 'obras:formula' o.pk %}">Importe la fórmula del S10</a> si el contrato tiene reajuste.</span>{% endfor %}
+    </div></div>
+    <div class="card"><div class="card-header d-flex justify-content-between"><span class="fw-semibold">Subcontratos</span><a href="{% url 'obras:subcontratos' o.pk %}" class="small">Todos</a></div>
+      <ul class="list-group list-group-flush small">{% for s in subcontratos %}<li class="list-group-item"><a href="{% url 'obras:subcontrato' s.pk %}">{{ s.numero }}</a> {{ s.proveedor.nombre|truncatechars:30 }} · {{ s.get_estado_display }}</li>{% empty %}<li class="list-group-item text-muted">Sin subcontratos.</li>{% endfor %}</ul></div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ sc }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-people"></i> {{ sc }}</h1>
+    <div class="text-muted small"><a href="{% url 'obras:subcontratos' sc.obra.pk %}">{{ sc.obra.codigo }} {{ sc.obra.nombre }}</a> · {{ sc.descripcion }} · {{ sc.get_modalidad_display }} · adelanto {{ sc.adelanto_pct }} % · fondo de garantía {{ sc.garantia_pct }} %{% if sc.detraccion %} · con detracción{% endif %} · <span class="badge text-bg-light border">{{ sc.get_estado_display }}</span>{% if sc.orden_compra %} · orden <a href="{% url 'compras:oc_detalle' sc.orden_compra.pk %}">{{ sc.orden_compra.numero }}</a> ({{ sc.orden_compra.get_estado_display }}){% endif %}</div></div>
+  <div class="d-flex gap-2">{% if sc.estado == 'BORRADOR' %}<form method="post">{% csrf_token %}<button class="btn btn-sm btn-primary" name="accion" value="orden"><i class="bi bi-clipboard-check"></i> Emitir orden de servicio</button></form>{% endif %}<a href="{% url 'obras:subcontratos' sc.obra.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Subcontratos</a></div>
+</div>
+<div class="row g-3 mb-3 small">
+  <div class="col"><div class="kpi"><div class="label">Adelanto entregado (Tesorería)</div><div class="value">S/ {{ adelanto|money }}</div></div></div>
+  <div class="col"><div class="kpi"><div class="label">Amortizado</div><div class="value">S/ {{ amortizado|money }}</div></div></div>
+  <div class="col"><div class="kpi"><div class="label">Fondo de garantía retenido · devuelto</div><div class="value">S/ {{ garantia.retenido|money }} · {{ garantia.devuelto|money }}</div></div></div>
+</div>
+<form method="post">{% csrf_token %}
+<div class="card mb-3"><div class="card-header fw-semibold">Partidas: contratado, valorizado y meta</div><div class="table-responsive"><table class="table table-sm mb-0 small align-middle">
+  <thead><tr><th>Partida</th><th>Und.</th><th class="num">Metrado</th><th class="num">P.U.</th><th class="num">Contratado</th><th class="num">Valorizado</th><th class="num">Saldo metrado</th><th class="num">Meta S/</th><th class="num">vs. meta</th>{% if sc.estado == 'VIGENTE' %}<th class="num" style="width:120px">Metrado del mes</th>{% endif %}</tr></thead>
+  <tbody>{% for f in control %}<tr><td>{{ f.linea.partida.item|default:'' }} {{ f.linea.descripcion|truncatechars:50 }}</td><td>{{ f.linea.unidad }}</td><td class="num">{{ f.linea.metrado|floatformat:2 }}</td><td class="num">{{ f.linea.precio|money }}</td><td class="num">{{ f.contratado|money }}</td><td class="num">{{ f.valorizado|money }}</td><td class="num">{{ f.saldo_metrado|floatformat:2 }}</td><td class="num">{{ f.meta|money }}</td><td class="num {% if f.desvio > 0 %}text-danger{% endif %}">{{ f.desvio|money }}</td>
+    {% if sc.estado == 'VIGENTE' %}<td><input name="metrado_{{ f.linea.pk }}" class="form-control form-control-sm text-end" inputmode="decimal"></td>{% endif %}</tr>{% endfor %}</tbody>
+</table></div>
+{% if sc.estado == 'VIGENTE' %}<div class="card-body d-flex gap-2 align-items-end"><div><label class="form-label small mb-1">Mes</label><input type="month" name="periodo" value="{{ hoy|date:'Y-m' }}" class="form-control form-control-sm"></div><button class="btn btn-sm btn-primary" name="accion" value="valorizar"><i class="bi bi-clipboard-data"></i> Valorizar al subcontratista</button></div>{% endif %}
+</div></form>
+<div class="card mb-3"><div class="card-header fw-semibold">Valorizaciones del subcontratista</div><div class="table-responsive"><table class="table table-sm mb-0 small align-middle">
+  <thead><tr><th>N°</th><th>Mes</th><th>Estado</th><th class="num">Valorizado</th><th class="num">Amortización</th><th class="num">Fondo de garantía</th><th class="num">Neto</th><th>Conformidades (HES)</th><th></th></tr></thead>
+  <tbody>{% for v in valorizaciones %}<tr><td>{{ v.numero }}</td><td>{{ v.periodo|slice:'4:' }}/{{ v.periodo|slice:':4' }}</td><td><span class="badge text-bg-light border">{{ v.get_estado_display }}</span></td><td class="num">{{ v.bruto|money }}</td><td class="num">{{ v.amortizacion|money }}</td><td class="num">{{ v.garantia|money }}</td><td class="num fw-semibold">{{ v.neto|money }}</td>
+    <td>{% for l in v.lineas.all %}{% if l.hes %}<a href="{% url 'compras:hes' l.hes.pk %}">{{ l.hes.numero }}</a> {% endif %}{% endfor %}</td>
+    <td>{% if v.estado == 'BORRADOR' %}<form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="valorizacion" value="{{ v.pk }}"><button class="btn btn-sm btn-success py-0" name="accion" value="aprobar">Aprobar (genera HES)</button><button class="btn btn-sm btn-outline-danger py-0" name="accion" value="anular">Anular</button></form>
+      {% elif v.estado == 'APROBADA' and v.garantia %}<form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="valorizacion" value="{{ v.pk }}"><select name="compra" class="form-select form-select-sm" style="max-width:190px"><option value="">Factura del subcontratista</option>{% for c in compras %}<option value="{{ c.pk }}">{{ c.numero_completo }} · {{ c.total|money }}</option>{% endfor %}</select><button class="btn btn-sm btn-outline-primary py-0" name="accion" value="retener">Retener fondo</button></form>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="9" class="text-center text-muted py-3">Sin valorizaciones.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if garantia.saldo > 0 %}<form method="post" class="card" style="max-width:760px">{% csrf_token %}<div class="card-body d-flex flex-wrap gap-2 align-items-end">
+  <div class="small fw-semibold w-100">Devolver el fondo de garantía (saldo S/ {{ garantia.saldo|money }})</div>
+  <input name="monto" value="{{ garantia.saldo|floatformat:'2u' }}" class="form-control form-control-sm text-end" style="max-width:140px">
+  <input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm" style="max-width:160px">
+  <select name="cuenta" class="form-select form-select-sm" style="max-width:240px">{% for c in cuentas %}<option value="{{ c.pk }}">{{ c.nombre }} ({{ c.moneda }})</option>{% endfor %}</select>
+  <input name="numero_operacion" class="form-control form-control-sm" style="max-width:160px" placeholder="N° de operación">
+  <button class="btn btn-sm btn-outline-success" name="accion" value="devolver">Registrar la devolución</button></div></form>{% endif %}
+<p class="small text-muted mt-2">El adelanto al subcontratista se paga en Tesorería como anticipo a proveedores con el centro de costo de la obra; la factura del subcontratista se registra en Compras contra sus HES liberadas (con la detracción del contrato de construcción) y el fondo de garantía se retiene de ella (Debe 4212 / Haber 467) hasta su devolución.</p>
+{% endblock %}

@@ -15,9 +15,23 @@
       <div class="col-auto"><select name="estado" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todos los estados</option>{% for v, l in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
       <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></div>
     </form>
+    {% if lista_clave %}<div class="mt-2">{% include 'core/_lista_opciones.html' %}</div>{% endif %}
   </div>
   <div class="table-responsive">
     <table class="table table-hover mb-0">
+      {% if lista_clave %}
+      <thead><tr>{% if 'numero' in visibles %}<th>Número</th>{% endif %}{% if 'fecha' in visibles %}<th>Fecha</th>{% endif %}{% if 'tercero' in visibles %}<th>{{ etiqueta_tercero }}</th>{% endif %}{% if 'centro' in visibles %}<th>Centro de costo</th>{% endif %}{% if 'comprador' in visibles %}<th>Comprador</th>{% endif %}{% if 'entrega' in visibles %}<th>Entrega</th>{% endif %}{% if 'registro' in visibles %}<th>Registrado</th>{% endif %}{% if 'moneda' in visibles %}<th>Mon.</th>{% endif %}{% if 'total' in visibles %}<th class="num">Total</th>{% endif %}{% if 'estado' in visibles %}<th>Estado</th>{% endif %}</tr></thead>
+      <tbody>
+      {% for d in page_obj %}
+        <tr onclick="location.href='{% url url_detalle d.pk %}'" style="cursor:pointer">
+          {% if 'numero' in visibles %}<td class="fw-semibold">{{ d.numero }}</td>{% endif %}{% if 'fecha' in visibles %}<td>{{ d.fecha|date:'d/m/Y' }}</td>{% endif %}
+          {% if 'tercero' in visibles %}<td>{{ d.tercero.nombre }}<div class="small text-muted">{{ d.tercero.numero_doc }}</div></td>{% endif %}{% if 'centro' in visibles %}<td class="small">{{ d.centro_costo.codigo|default:'' }}</td>{% endif %}
+          {% if 'comprador' in visibles %}<td class="small">{{ d.comprador.username|default:'' }}</td>{% endif %}{% if 'entrega' in visibles %}<td class="small">{{ d.fecha_entrega|date:'d/m/Y' }}</td>{% endif %}
+          {% if 'registro' in visibles %}<td class="small">{{ d.creado|date:'d/m/Y H:i' }}</td>{% endif %}{% if 'moneda' in visibles %}<td>{{ d.moneda }}</td>{% endif %}
+          {% if 'total' in visibles %}<td class="num">{{ d.total|money }}</td>{% endif %}{% if 'estado' in visibles %}<td><span class="badge badge-{{ d.estado }}">{{ d.get_estado_display }}</span></td>{% endif %}
+        </tr>
+      {% empty %}<tr><td colspan="{{ visibles|length }}" class="text-center text-muted py-4">Sin documentos.</td></tr>{% endfor %}
+      {% else %}
       <thead><tr><th>Número</th><th>Fecha</th><th>{{ etiqueta_tercero }}</th><th>Mon.</th><th class="num">Total</th><th>Estado</th></tr></thead>
       <tbody>
       {% for d in page_obj %}
@@ -27,6 +41,7 @@
           <td class="num">{{ d.total|money }}</td><td><span class="badge badge-{{ d.estado }}">{{ d.get_estado_display }}</span></td>
         </tr>
       {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin documentos.</td></tr>{% endfor %}
+      {% endif %}
       </tbody>
     </table>
   </div>

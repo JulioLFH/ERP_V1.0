@@ -5,6 +5,7 @@ y contabilización con ajustes de inventario (tabla 12 SUNAT 28) que llevan el a
 Tipos: general (todo el almacén), cíclico ABC, aleatorio (sorteo con semilla registrada), por ubicación y stock en
 cero. Opcionalmente bloquea los movimientos de sus productos mientras se cuenta."""
 import random
+import re
 from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal
@@ -21,10 +22,31 @@ from .cierre import KardexCerrado
 from .models import ConteoCiclico, ConteoItem, Operacion, TipoOperacion
 
 D0 = Decimal('0')
+MAXIMO_CONTEO = Decimal('999999999.99')  # 9 dígitos enteros: más es un error de digitación
+DIAS_ABIERTO = 7  # aviso de conteos abiertos más de una semana
 
 
 class ErrorFisico(Exception):
     pass
+
+
+def leer_cantidad(texto):
+    """Cantidad contada escrita a mano: la coma o el punto es el decimal (10,5 = 10.5), hasta 2 decimales, no negativa
+    y sin notación científica ni letras. None si está vacía; ErrorFisico con el motivo si no es válida."""
+    t = str(texto or '').strip().replace(' ', '')
+    if not t:
+        return None
+    if t.startswith('-'):
+        raise ErrorFisico('no puede ser negativa')
+    if not re.fullmatch(r'\d+([.,]\d+)?', t):
+        raise ErrorFisico('no es una cantidad (solo dígitos y una coma o un punto decimal)')
+    entero, _, decimales = t.replace(',', '.').partition('.')
+    if len(decimales) > 2:
+        raise ErrorFisico(f'tiene {len(decimales)} decimales (máximo 2); si son miles, escríbalos sin separador')
+    valor = Decimal(f'{entero}.{decimales or "0"}')
+    if valor > MAXIMO_CONTEO:
+        raise ErrorFisico('es demasiado grande: revise los dígitos')
+    return valor
 
 
 class ProductoEnConteo(KardexCerrado):
@@ -93,6 +115,12 @@ def crear(almacen, tipo, usuario, contador=None, bloquear=False, n=20, semilla='
     ids, semilla = seleccion(almacen, tipo, n, semilla, ubicacion, clases, maximo, hoy)
     if not ids:
         raise ErrorFisico('No hay productos que contar con esos criterios.')
+    # un producto no se cuenta en dos documentos abiertos del mismo almacén (se ajustaría dos veces)
+    abiertos = (ConteoItem.objects.filter(conteo__almacen=almacen, conteo__estado__in=ConteoCiclico.VIGENTES,
+                                          producto_id__in=ids).values_list('conteo__numero', flat=True).distinct())
+    if abiertos:
+        raise ErrorFisico(f'Hay productos en otros conteos abiertos de {almacen}: {", ".join(sorted(abiertos)[:5])}. '
+                          f'Contabilícelos o anúlelos antes de crear otro.')
     doc = ConteoCiclico.objects.create(
         numero=_numero(), almacen=almacen, fecha=hoy, tipo=tipo, creado_por=usuario, contador=contador,
         bloquear=bloquear, semilla=semilla if tipo == 'ALEATORIO' else '', filtro_ubicacion=ubicacion[:20],
@@ -154,6 +182,9 @@ def registrar(doc, cantidades, usuario, reconteo=False, motivos=None):
             continue
         if cant < 0:
             raise ErrorFisico(f'{i.producto.nombre}: la cantidad no puede ser negativa.')
+        if cant > MAXIMO_CONTEO:
+            raise ErrorFisico(f'{i.producto.nombre}: la cantidad {cant} es demasiado grande (revise los dígitos).')
+        cant = Decimal(cant).quantize(Decimal('0.01'))
         if not reconteo and i.contado == cant:
             continue  # sin cambio (p. ej. se guardan solo los motivos): no se pierde el reconteo
         if reconteo:
@@ -178,12 +209,31 @@ def registrar(doc, cantidades, usuario, reconteo=False, motivos=None):
         raise ErrorFisico('Registre al menos una cantidad.')
     if not doc.items.filter(contado__isnull=True).exists():
         doc.estado = 'CONTADO'
-        doc.save(update_fields=['estado'])
+        if not any(i.diferencia for i in doc.items.all()):  # sin diferencias: listo para contabilizar
+            doc.estado, doc.aprobado_en = 'APROBADO', timezone.now()
+            doc.save(update_fields=['estado', 'aprobado_en'])
+        else:
+            doc.save(update_fields=['estado'])
     return hechos
 
 
 def _hay_otro(usuario):
     return get_user_model().objects.filter(is_active=True).exclude(pk=usuario.pk).exists()
+
+
+def responsables(doc):
+    """(quiénes pueden recontar, quiénes pueden aprobar): usuarios activos con el permiso que no contaron."""
+    contaron = _contadores(doc)
+    usuarios = list(get_user_model().objects.filter(is_active=True).order_by('username'))
+    nombre = lambda u: u.get_full_name() or u.username  # noqa: E731
+    return ([nombre(u) for u in usuarios if u.pk not in contaron and puede(u, 'inventario.operar')][:6],
+            [nombre(u) for u in usuarios if u.pk not in contaron and puede(u, 'inventario.ajustar')][:6])
+
+
+def contadores_de(doc):
+    """Nombres de quienes contaron (para la lista y el acta)."""
+    ids = _contadores(doc)
+    return [u.get_full_name() or u.username for u in get_user_model().objects.filter(pk__in=ids)]
 
 
 def resumen(doc):
@@ -247,6 +297,17 @@ def acta(doc):
                       i.valor_diferencia, i.get_motivo_display() if i.motivo else '',
                       i.contado_por.username if i.contado_por_id else '',
                       i.reconteo_por.username if i.reconteo_por_id else ''])
+    r = resumen(doc)
+    recontaron = {i.reconteo_por.get_full_name() or i.reconteo_por.username for i in r['items'] if i.reconteo_por_id}
+    filas += [[], ['', '', 'TOTALES', '', '', '', '', '', '', '', '', ''],
+              ['', '', f'Líneas contadas: {r["contados"]} de {r["total"]} · con diferencia: {r["con_diferencia"]}'],
+              ['', '', 'Faltantes S/', '', '', '', '', '', '', '', '', r['faltante']],
+              ['', '', 'Sobrantes S/', '', '', '', '', '', '', '', '', r['sobrante']],
+              ['', '', 'Neto S/', '', '', '', '', '', '', '', '', r['neto']], [],
+              ['', '', 'Contó: ' + ', '.join(contadores_de(doc)), '', '', '', '', 'Firma: ____________________'],
+              ['', '', 'Recontó: ' + (', '.join(sorted(recontaron)) or '—'), '', '', '', '', 'Firma: ____________________'],
+              ['', '', 'Aprobó: ' + ((doc.aprobado_por.get_full_name() or doc.aprobado_por.username)
+                                     if doc.aprobado_por_id else '—'), '', '', '', '', 'Firma: ____________________']]
     titulo = (f'ACTA DE INVENTARIO FÍSICO {doc.numero} ({doc.get_tipo_display()}) - {doc.almacen} - foto '
               f'{timezone.localtime(doc.foto_en):%d/%m/%Y %H:%M}')
     return excel_response(f'Acta_{doc.numero}', titulo, [
@@ -263,6 +324,12 @@ def contabilizar(doc, usuario):
     from . import servicios
     if doc.estado != 'APROBADO':
         raise ErrorFisico('Solo se contabiliza un inventario aprobado.')
+    # lo que se movió después de la foto (incluidos ajustes de otros conteos) se recalcula al contabilizar
+    for i in doc.items.select_related('conteo'):
+        nuevo = _movimientos_desde_foto(i)
+        if nuevo != i.movimientos:
+            i.movimientos = nuevo
+            i.save(update_fields=['movimientos'])
     items = [i for i in doc.items.select_related('producto', 'lote') if i.diferencia]
     archivo = guardar_archivo(None, usuario, datos=acta(doc).content, nombre=f'Acta_{doc.numero}.xlsx',
                               tipo='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -292,6 +359,35 @@ def contabilizar(doc, usuario):
     doc.save(update_fields=['ajuste_ingreso', 'ajuste_salida'])
     vincular(doc, archivo, usuario, 'Acta del inventario físico')
     return doc
+
+
+@transaction.atomic
+def revertir(doc, usuario, motivo):
+    """Anula los ajustes de un conteo contabilizado y lo deja aprobado (para corregir y volver a contabilizar). Los
+    ajustes de un conteo no se anulan sueltos."""
+    from . import servicios
+    if doc.estado != 'CERRADO':
+        raise ErrorFisico('Solo se revierte un inventario contabilizado.')
+    if len((motivo or '').strip()) < 5:
+        raise ErrorFisico('Indique el motivo de la reversión.')
+    for campo in ('ajuste_ingreso', 'ajuste_salida'):
+        op = getattr(doc, campo)
+        if op is not None and op.estado == 'CONFIRMADO':
+            try:
+                servicios.anular(op, usuario, f'Reversión del inventario físico {doc.numero}: {motivo}'[:250],
+                                 desde_conteo=True)
+            except servicios.ErrorOperacion as exc:
+                raise ErrorFisico(str(exc)) from exc
+        setattr(doc, campo, None)
+    doc.estado, doc.cerrado_por, doc.cerrado_en = 'APROBADO', None, None
+    doc.save(update_fields=['estado', 'cerrado_por', 'cerrado_en', 'ajuste_ingreso', 'ajuste_salida'])
+    return doc
+
+
+def abiertos_antiguos(dias=DIAS_ABIERTO):
+    """Conteos abiertos o contados hace más de N días (el stock sigue moviéndose: las diferencias se vuelven falsas)."""
+    limite = timezone.localdate() - timedelta(days=dias)
+    return ConteoCiclico.objects.filter(estado__in=('ABIERTO', 'CONTADO'), fecha__lt=limite).select_related('almacen')
 
 
 @transaction.atomic

@@ -20,12 +20,13 @@ DOCUMENTOS = [('OC', 'Órdenes de compra'), ('SOLPED', 'Solicitudes de pedido'),
 # permiso que aprueba cada documento cuando no hay reglas (o en un nivel sin usuario)
 PERMISOS = {'OC': 'compras.aprobar_oc', 'SOLPED': 'requerimientos.liberar_solped',
             'REQUERIMIENTO': 'requerimientos.aprobar', 'RENDICION': 'rendiciones.aprobar',
-            'VACACION': 'planillas.calcular', 'MOVIMIENTO': 'planillas.cerrar', 'PEDIDO': 'ventas.aprobar_pedidos',
+            'VACACION': 'planillas.calcular', 'MOVIMIENTO': 'planillas.aprobar_movimientos', 'PEDIDO': 'ventas.aprobar_pedidos',
             'HES': 'compras.liberar_hes'}
 
 
 class ErrorAprobacion(Exception):
     pass
+
 
 
 def _jefe_de(usuario):
@@ -102,8 +103,9 @@ def hay_reglas(documento):
     return ReglaAprobacion.objects.filter(documento=documento, activo=True).exists()
 
 
-def calcular_niveles(documento, solicitante, monto, centro_costo=None, tipo='', urgente=False):
-    """[{nivel, usuario, nombre, desde}] según las reglas del documento. [] si ninguna regla aplica."""
+def calcular_niveles(documento, solicitante, monto, centro_costo=None, tipo='', urgente=False, avisos=None):
+    """[{nivel, usuario, nombre, desde}] según las reglas del documento. [] si ninguna regla aplica. En avisos (lista)
+    quedan los niveles que se saltaron por no tener a quién aplicar la regla."""
     from .models import ReglaAprobacion
     por_nivel, centros = {}, {}
     for regla in ReglaAprobacion.objects.filter(documento=documento, activo=True).select_related(
@@ -124,7 +126,17 @@ def calcular_niveles(documento, solicitante, monto, centro_costo=None, tipo='', 
     niveles = []
     ahora = timezone.now().isoformat()
     for nivel in sorted(por_nivel):
-        usuario = _usuario_de_regla(por_nivel[nivel], solicitante, centro_costo)
+        regla = por_nivel[nivel]
+        try:
+            usuario = _usuario_de_regla(regla, solicitante, centro_costo)
+        except ErrorAprobacion as exc:
+            # APR-02: sin jefe o puesto vacante: el aprobador de reemplazo de la regla o se salta al siguiente nivel
+            if regla.reemplazo_id and not es_del_portal(regla.reemplazo):
+                usuario = regla.reemplazo
+            else:
+                if avisos is not None:
+                    avisos.append(f'Nivel {nivel}: {exc} Se pasó al siguiente nivel.')
+                continue
         if solicitante is not None and usuario.pk == solicitante.pk:
             continue  # nadie aprueba lo suyo: su nivel se salta
         if niveles and niveles[-1]['usuario'] == usuario.pk:
@@ -212,6 +224,50 @@ def registrar(documento, objeto, usuario, accion, comentario='', nivel=None):
 def historial(documento, objeto):
     from .models import HistorialAprobacion
     return HistorialAprobacion.objects.filter(documento=documento, objeto_id=objeto.pk).select_related('usuario')
+
+
+def ruta(documento, objeto, niveles, nivel_aprobado, rechazado=False):
+    """[{nivel, nombre, estado, usuario, fecha, comentario}] de la ruta de aprobación: quién aprobó o rechazó cada
+    nivel y cuándo (APR-06). El rechazo sin nivel registrado es del nivel que estaba pendiente."""
+    hist = list(historial(documento, objeto).order_by('fecha', 'id'))
+    por_nivel = {}
+    for h in hist:
+        if h.accion in ('APROBADA', 'LIBERADA', 'RECHAZADA', 'OBSERVADA'):
+            n = h.nivel or ((pendiente(niveles, nivel_aprobado) or {}).get('nivel') if h.accion != 'APROBADA' else
+                            None)
+            if n:
+                por_nivel[n] = h
+    filas = []
+    for n in niveles or []:
+        h = por_nivel.get(n['nivel'])
+        if n['nivel'] <= nivel_aprobado:
+            estado = 'APROBADO'
+        elif h is not None and h.accion in ('RECHAZADA', 'OBSERVADA'):
+            estado = 'RECHAZADO' if h.accion == 'RECHAZADA' else 'OBSERVADO'
+        elif not rechazado and n == pendiente(niveles, nivel_aprobado):
+            estado = 'PENDIENTE'
+        else:
+            estado = ''
+        filas.append({'nivel': n['nivel'], 'nombre': n['nombre'], 'estado': estado,
+                      'usuario': (h.usuario.get_full_name() or h.usuario.username) if h and h.usuario_id else '',
+                      'fecha': h.fecha if h else None, 'comentario': h.comentario if h else ''})
+    return filas
+
+
+def sin_aprobador():
+    """Documentos pendientes cuyo nivel actual nadie puede aprobar (titular inactivo sin jefe ni suplente)."""
+    from compras.models import ConformidadServicio, OrdenCompra, SolicitudPedido
+    from inventario.models import RequerimientoInterno
+    salida = []
+    for doc, qs in (('OC', OrdenCompra.objects.filter(estado='PENDIENTE').exclude(niveles=[])),
+                    ('SOLPED', SolicitudPedido.objects.filter(estado='ENVIADA').exclude(niveles=[])),
+                    ('REQUERIMIENTO', RequerimientoInterno.objects.filter(estado='ENVIADO').exclude(niveles=[])),
+                    ('HES', ConformidadServicio.objects.filter(estado='POR_LIBERAR').exclude(niveles=[]))):
+        for o in qs:
+            n = pendiente(o.niveles, o.nivel_aprobado)
+            if n is not None and not aprobadores(n):
+                salida.append((doc, o, n))
+    return salida
 
 
 def pendientes_de(user):

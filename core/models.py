@@ -1007,6 +1007,10 @@ class ReglaAprobacion(models.Model):
                                      related_name='+',
                                      help_text='Aplica a los documentos de este centro (o sus subcentros). Vacío = '
                                                'todos')
+    reemplazo = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='+', verbose_name='Aprobador de reemplazo',
+                                  help_text='Si la regla no encuentra a quién (sin jefe, puesto vacante): aprueba este '
+                                            'usuario. Vacío = se pasa al siguiente nivel')
     aplica_a = models.CharField('Tipo de documento', max_length=16, choices=APLICA, blank=True)
     activo = models.BooleanField(default=True)
 
@@ -2094,3 +2098,15 @@ class ReglaValidacion(models.Model):
 
     def __str__(self):
         return self.tipo
+
+class PreferenciaLista(models.Model):
+    """Lo que cada usuario elige en una lista (LIS-01): columnas visibles y filtros guardados («Mis recepciones»)."""
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='preferencias_lista')
+    lista = models.CharField(max_length=60)
+    columnas = models.JSONField(default=list, blank=True)
+    filtros = models.JSONField(default=list, blank=True, help_text='[{nombre, query}]')
+
+    class Meta:
+        unique_together = [('usuario', 'lista')]
+        verbose_name = 'preferencia de lista'
+        verbose_name_plural = 'preferencias de listas'

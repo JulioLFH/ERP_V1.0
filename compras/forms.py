@@ -59,6 +59,9 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
             data['valor_aduana'], data['igv_importacion'] = 0, None
             self.instance.valor_aduana, self.instance.igv_importacion = 0, None
         validar_periodo_abierto(self, 'fecha_emision', data.get('periodo'))
+        from django.utils import timezone
+        if data.get('fecha_emision') and data['fecha_emision'] > timezone.localdate():  # ALM-12: documento externo
+            self.add_error('fecha_emision', 'La fecha de emisión del proveedor no puede ser futura.')
         from core.models import Empresa
         if not self.instance.pk and Empresa.actual().exigir_orden_compra and data.get('clasificacion') in Compra.DE_ALMACEN \
                 and data.get('tipo_comprobante') not in ('07', '08') and not data.get('orden_compra'):
@@ -200,6 +203,12 @@ class OrdenCompraForm(BootstrapMixin, forms.ModelForm):
                                                     'Configuración > Centros de costo'
         from .models import ContratoMarco
         self.fields['contrato'].queryset = ContratoMarco.objects.filter(estado='VIGENTE').select_related('proveedor')
+        # ALM-12: la orden es un documento propio: su fecha es la de registro (no se edita)
+        self.fields['fecha'].disabled = True
+        self.fields['fecha'].help_text = 'Fecha de registro (la pone el sistema)'
+        if not self.instance.pk:
+            from django.utils import timezone
+            self.initial['fecha'] = timezone.localdate()
 
     def clean(self):
         data = super().clean()

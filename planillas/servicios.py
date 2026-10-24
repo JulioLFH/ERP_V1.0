@@ -105,8 +105,10 @@ def pagar(planilla, cuenta, fecha, usuario=None):
 
 
 def liberar_pago(movimiento):
-    """Al anular el movimiento de pago la planilla vuelve a 'Cerrada'."""
+    """Al anular el movimiento de pago la planilla (o la de construcción civil de la obra) vuelve a 'Cerrada'."""
     Planilla.objects.filter(movimiento_pago=movimiento).update(estado='CERRADA', movimiento_pago=None)
+    from obras.models import PlanillaCivil
+    PlanillaCivil.objects.filter(movimiento_pago=movimiento).update(estado='CERRADA', movimiento_pago=None)
 
 
 # ---------------------------------------------------------------- contabilidad

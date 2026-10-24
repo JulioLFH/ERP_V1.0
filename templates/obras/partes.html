@@ -1,0 +1,46 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Partes de equipo {{ o.codigo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-truck-front"></i> Partes diarios de equipo</h1>
+    <div class="text-muted small">{{ o.codigo }} {{ o.nombre }} · horas × tarifa frente a la meta de equipos del análisis; el horómetro pasa a Flota</div></div>
+  <a href="{% url 'obras:ejecucion' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Ejecución</a>
+</div>
+<div class="row g-3 mb-3 small">
+  <div class="col"><div class="kpi"><div class="label">Costo de los partes</div><div class="value">S/ {{ r.total|money }}</div></div></div>
+  <div class="col"><div class="kpi"><div class="label">Meta de equipos (análisis)</div><div class="value">S/ {{ r.meta|money }}</div></div></div>
+  <div class="col"><div class="kpi"><div class="label">Desvío</div><div class="value {% if r.desvio > 0 %}text-danger{% endif %}">S/ {{ r.desvio|money }}</div></div></div>
+</div>
+<form method="post" class="card mb-3">{% csrf_token %}
+  <div class="card-header fw-semibold">Nuevo parte</div>
+  <div class="card-body row g-2">
+    <div class="col-6 col-md-2"><label class="form-label small mb-1">Fecha</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+    <div class="col-md-4"><label class="form-label small mb-1">Equipo (Flota)</label><select name="equipo" class="form-select form-select-sm"><option value="">— No está en Flota —</option>{% for e in equipos %}<option value="{{ e.pk }}">{{ e.codigo }} {{ e.nombre }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label small mb-1">…o descripción</label><input name="descripcion" maxlength="120" class="form-control form-control-sm" placeholder="Excavadora 320 alquilada"></div>
+    <div class="col-6 col-md-3"><label class="form-label small mb-1">Propiedad</label><select name="propiedad" class="form-select form-select-sm"><option value="PROPIO">Propio</option><option value="ALQUILADO">Alquilado</option></select></div>
+    <div class="col-md-4"><label class="form-label small mb-1">Proveedor del alquiler</label><select name="proveedor" class="form-select form-select-sm"><option value="">—</option>{% for p in proveedores %}<option value="{{ p.pk }}">{{ p.nombre }}</option>{% endfor %}</select></div>
+    <div class="col-md-5"><label class="form-label small mb-1">Partida</label><select name="partida" class="form-select form-select-sm"><option value="">— Sin partida —</option>{% for x in partidas %}<option value="{{ x.pk }}">{{ x.item }} {{ x.descripcion|truncatechars:55 }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label small mb-1">Operador</label><input name="operador" maxlength="120" class="form-control form-control-sm"></div>
+    <div class="col-4 col-md-2"><label class="form-label small mb-1">Horómetro inicial</label><input name="horometro_inicio" class="form-control form-control-sm text-end" inputmode="decimal"></div>
+    <div class="col-4 col-md-2"><label class="form-label small mb-1">Horómetro final</label><input name="horometro_fin" class="form-control form-control-sm text-end" inputmode="decimal"></div>
+    <div class="col-4 col-md-2"><label class="form-label small mb-1">Horas trabajadas</label><input name="horas" class="form-control form-control-sm text-end" inputmode="decimal" placeholder="final − inicial"></div>
+    <div class="col-4 col-md-2"><label class="form-label small mb-1">Horas en espera</label><input name="horas_espera" class="form-control form-control-sm text-end" inputmode="decimal"></div>
+    <div class="col-4 col-md-2"><label class="form-label small mb-1">Combustible (gal)</label><input name="combustible" class="form-control form-control-sm text-end" inputmode="decimal"></div>
+    <div class="col-4 col-md-2"><label class="form-label small mb-1">Tarifa S/ por hora</label><input name="tarifa" class="form-control form-control-sm text-end" inputmode="decimal" placeholder="la del análisis"></div>
+    <div class="col-4 col-md-2"><label class="form-label small mb-1">Tarifa en espera</label><input name="tarifa_espera" class="form-control form-control-sm text-end" inputmode="decimal"></div>
+    <div class="col-md-6"><label class="form-label small mb-1">Observación</label><input name="observacion" maxlength="200" class="form-control form-control-sm"></div>
+    <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> Registrar parte</button></div>
+  </div>
+</form>
+<div class="row g-3">
+  <div class="col-lg-5"><div class="card mb-3"><div class="card-header fw-semibold">Por equipo</div><table class="table table-sm mb-0 small"><thead><tr><th>Equipo</th><th class="num">Horas</th><th class="num">Espera</th><th class="num">Gal</th><th class="num">Costo</th></tr></thead>
+    <tbody>{% for nombre, f in r.equipos %}<tr><td>{{ nombre }}</td><td class="num">{{ f.horas|floatformat:1 }}</td><td class="num">{{ f.espera|floatformat:1 }}</td><td class="num">{{ f.combustible|floatformat:1 }}</td><td class="num">{{ f.costo|money }}</td></tr>{% empty %}<tr><td colspan="5" class="text-muted">Sin partes.</td></tr>{% endfor %}</tbody></table></div>
+    <div class="card"><div class="card-header fw-semibold">Alquileres: partes vs. facturas del mes</div><table class="table table-sm mb-0 small"><thead><tr><th>Proveedor</th><th>Mes</th><th class="num">Reportado</th><th class="num">Facturado</th><th class="num">Diferencia</th></tr></thead>
+    <tbody>{% for c in r.cruce %}<tr><td>{{ c.proveedor.nombre|truncatechars:28 }}</td><td>{{ c.periodo|slice:'4:' }}/{{ c.periodo|slice:':4' }}</td><td class="num">{{ c.reportado|money }}</td><td class="num">{{ c.facturado|money }}</td><td class="num {% if c.diferencia > 0 %}text-danger{% endif %}">{{ c.diferencia|money }}</td></tr>{% empty %}<tr><td colspan="5" class="text-muted">Sin equipos alquilados.</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-7"><div class="card"><div class="card-header fw-semibold">Últimos partes</div><div class="table-responsive"><table class="table table-sm mb-0 small">
+    <thead><tr><th>Parte</th><th>Fecha</th><th>Equipo</th><th>Partida</th><th class="num">Horas</th><th class="num">Tarifa</th><th class="num">Costo</th></tr></thead>
+    <tbody>{% for x in partes %}<tr><td>{{ x.numero }}</td><td>{{ x.fecha|date:'d/m' }}</td><td>{{ x.nombre_equipo|truncatechars:30 }}{% if x.propiedad == 'ALQUILADO' %} <span class="badge text-bg-light border">alquilado</span>{% endif %}</td><td>{{ x.partida.item|default:'—' }}</td><td class="num">{{ x.horas|floatformat:1 }}{% if x.horas_espera %} +{{ x.horas_espera|floatformat:1 }}e{% endif %}</td><td class="num">{{ x.tarifa|money }}</td><td class="num">{{ x.costo|money }}</td></tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-3">Sin partes.</td></tr>{% endfor %}</tbody>
+  </table></div></div></div>
+</div>
+<p class="small text-muted mt-2">Equipo alquilado: su costo contable es la factura del proveedor con el centro de costo de la obra; el parte la sustenta. Equipo propio: su costo está en el centro de costo del equipo y la regla de reparto con base «Horas de equipo» lo lleva a las obras por las horas de sus partes (Contabilidad › Reparto de gastos).</p>
+{% endblock %}

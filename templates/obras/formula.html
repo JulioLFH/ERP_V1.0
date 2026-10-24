@@ -1,0 +1,31 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Fórmula polinómica {{ o.codigo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-calculator"></i> Fórmula polinómica (reajuste)</h1>
+    <div class="text-muted small">{{ o.codigo }} {{ o.nombre }} · K = Σ coeficiente × Ir / Io (DS 011-79-VC) · reintegro = valorizado × (K − 1)</div></div>
+  <div class="d-flex gap-2"><a href="{% url 'obras:indices' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-table"></i> Índices unificados (INEI)</a><a href="{% url 'obras:ejecucion' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Ejecución</a></div>
+</div>
+{% for t in tabla %}
+<div class="card mb-3"><div class="card-header fw-semibold">{{ t.f }}{% if t.f.subpresupuesto %} · subpresupuesto {{ t.f.subpresupuesto }}{% endif %} · índices base {{ t.f.periodo_base|slice:'4:' }}/{{ t.f.periodo_base|slice:':4' }} · área {{ t.f.area }} · suma {{ t.f.suma_coeficientes }}</div>
+<div class="row g-0"><div class="col-lg-6"><table class="table table-sm mb-0">
+  <thead><tr><th>Símbolo</th><th>Descripción</th><th class="num">Coeficiente</th><th>Índice</th></tr></thead>
+  <tbody>{% for m in t.f.monomios.all %}<tr><td>{{ m.simbolo }}</td><td class="small">{{ m.descripcion }}</td><td class="num">{{ m.coeficiente }}</td><td>IU {{ m.indice }}</td></tr>{% endfor %}</tbody></table></div>
+  <div class="col-lg-6 border-start"><table class="table table-sm mb-0"><thead><tr><th>Mes</th><th class="num">K</th><th>Índices que faltan</th></tr></thead>
+  <tbody>{% for mes, k in t.ks %}<tr><td>{{ mes|slice:'4:' }}/{{ mes|slice:':4' }}</td><td class="num fw-semibold">{{ k.0|default:'—' }}</td><td class="small text-danger">{{ k.1|join:', ' }}</td></tr>{% endfor %}</tbody></table></div></div></div>
+{% empty %}<div class="alert alert-light border">La obra no tiene fórmula polinómica (obra sin reajuste). Impórtela del S10 o escríbala.</div>{% endfor %}
+<form method="post" enctype="multipart/form-data" class="card" style="max-width:980px">{% csrf_token %}
+  <div class="card-header fw-semibold">Importar o escribir la fórmula</div>
+  <div class="card-body row g-2">
+    <div class="col-md-1"><label class="form-label small mb-1">N°</label><input name="numero" value="1" class="form-control form-control-sm" inputmode="numeric"></div>
+    <div class="col-md-4"><label class="form-label small mb-1">Nombre</label><input name="nombre" class="form-control form-control-sm" placeholder="Ej. Estructuras"></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Subpresupuesto</label><input name="subpresupuesto" class="form-control form-control-sm" placeholder="Vacío = todo"></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Área geográfica</label><select name="area" class="form-select form-select-sm">{% for v, t in areas %}<option value="{{ v }}">{{ t }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label small mb-1">Mes de los índices base</label><input type="month" name="periodo_base" class="form-control form-control-sm" required></div>
+    <div class="col-md-6"><label class="form-label small mb-1">Reporte del S10 o Excel (símbolo, factor o coeficiente, %, índice, descripción)</label><input type="file" name="archivo" accept=".xls,.xlsx" class="form-control form-control-sm"></div>
+    <div class="col-md-6"><label class="form-label small mb-1">…o escríbala: una línea por monomio (símbolo coeficiente índice descripción)</label><textarea name="texto" rows="4" class="form-control form-control-sm font-monospace" placeholder="J 0.312 47 Mano de obra&#10;M 0.090 21 Cemento portland&#10;M 0.060 43 Madera&#10;E 0.178 49 Maquinaria y equipo"></textarea></div>
+    <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Guardar fórmula</button>
+      <span class="form-text ms-2">Los coeficientes deben sumar 1.000. Un monomio compuesto (factor × [a % IU1 + b % IU2]) se registra en filas con el coeficiente ya multiplicado; del reporte del S10 se calcula solo. Reemplaza la fórmula del mismo N°.</span></div>
+  </div>
+</form>
+{% endblock %}

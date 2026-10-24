@@ -5,7 +5,7 @@
   <div>
     <h1 class="page-title"><i class="bi {{ op.tipo.icono }}"></i> {{ op.tipo.nombre }} {{ op.numero }}
       <span class="badge {% if op.estado == 'CONFIRMADO' %}text-bg-success{% elif op.estado == 'ANULADO' %}badge-ANULADO{% else %}text-bg-warning{% endif %} fs-6 align-middle">{{ op.get_estado_display }}</span></h1>
-    <div class="text-muted small">{{ op.tipo.get_clase_display }} · Tabla 12 SUNAT {{ op.tipo.codigo_sunat }}{% if op.tipo.cuenta_contable %} · Contrapartida {{ op.tipo.cuenta_contable.codigo }}{% endif %}</div>
+    <div class="text-muted small">{{ op.tipo.get_clase_display }} · Tabla 12 SUNAT {{ op.tipo.codigo_sunat }}{% if contrapartidas %} · Contrapartida {% for c in contrapartidas %}{{ c.codigo }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}</div>
   </div>
   <div class="d-flex flex-wrap gap-2">
     <a href="{% url 'inventario:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
@@ -29,7 +29,8 @@
 {% if op.estado == 'CONFIRMADO' %}
 <div class="collapse mb-3" id="form-anular"><div class="card border-danger"><div class="card-body">
   {% if bloqueo_anular %}<div class="alert alert-danger py-2 mb-0">No se puede anular: {{ bloqueo_anular|join:' ' }}</div>{% else %}
-  <form method="post" action="{% url 'inventario:anular' op.pk %}" class="row g-2 align-items-end" data-confirm="¿Anular {{ op }}? Se revertirá el movimiento de almacén.">
+  {% if facturas_oc %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> La orden {{ op.orden_compra.numero }} ya tiene factura(s): {% for f in facturas_oc %}{{ f.numero_completo }}{% if not forloop.last %}, {% endif %}{% endfor %}. Al anular la recepción la orden vuelve a pendiente de recibir y la factura queda <b>retenida para pago con diferencia</b> (nota de crédito o reingreso).</div>{% endif %}
+  <form method="post" action="{% url 'inventario:anular' op.pk %}" class="row g-2 align-items-end" data-confirm="¿Anular {{ op }}? Se revertirá el movimiento de almacén.{% if facturas_oc %} La orden ya está facturada.{% endif %}">
     {% csrf_token %}
     <div class="col-md-9"><label class="form-label small mb-1">Motivo de la anulación <span class="text-danger">*</span></label>
       <input name="motivo" class="form-control form-control-sm" minlength="5" maxlength="250" required placeholder="Ej. Cantidades registradas por error"></div>
@@ -43,7 +44,9 @@
 <div class="row g-3">
   <div class="col-lg-8">
     <div class="card mb-3"><div class="card-body"><div class="row g-3 small">
-      <div class="col-md-3"><div class="text-muted">Fecha</div>{{ op.fecha|date:'d/m/Y' }}</div>
+      <div class="col-md-3"><div class="text-muted">Fecha contable</div>{{ op.fecha|date:'d/m/Y' }}</div>
+      <div class="col-md-3"><div class="text-muted">Fecha de registro</div>{{ op.creado|date:'d/m/Y H:i' }}{% if op.creado_por %} · {{ op.creado_por.username }}{% endif %}</div>
+      {% if op.fecha_documento %}<div class="col-md-3"><div class="text-muted">Fecha del documento</div>{{ op.fecha_documento|date:'d/m/Y' }}</div>{% endif %}
       {% if op.almacen_origen %}<div class="col-md-3"><div class="text-muted">{% if op.tipo.clase == 'MANUFACTURA' %}Almacén de insumos{% else %}Almacén de origen{% endif %}</div>{{ op.almacen_origen }}</div>{% endif %}
       {% if op.almacen_destino %}<div class="col-md-3"><div class="text-muted">{% if op.tipo.clase == 'TRANSITO_ENVIO' %}Destino final{% elif op.tipo.clase == 'MANUFACTURA' %}Almacén de productos{% else %}Almacén de destino{% endif %}</div>{{ op.almacen_destino }}</div>{% endif %}
       {% if op.tercero %}<div class="col-md-3"><div class="text-muted">Proveedor / cliente</div>{{ op.tercero.nombre }}</div>{% endif %}

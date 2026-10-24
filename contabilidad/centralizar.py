@@ -392,6 +392,9 @@ def asiento_aplicacion(ap, cta, tc_func):
     elif ap.origen == 'CANJE':
         contra = cta['letras_cobrar'] if es_venta else cta['letras_pagar']
         tc_contra, glosa = ap.canje.tc_efectivo, f'Canje por letras {ap.canje.numero}'
+    elif ap.origen == 'GARANTIA':  # fondo de garantía: el cliente lo retiene (1683) o se retiene al subcontratista (467)
+        contra = cta['obras_garantia'] if es_venta else cta['subcontrato_garantia']
+        tc_contra, glosa = doc.tc_efectivo, ap.glosa or 'Fondo de garantía retenido'
     else:
         contra, tc_contra = ap.entrega.cuenta(cta), doc.tc_efectivo
         glosa = f'Pagado con {ap.entrega.get_tipo_display().lower()} {ap.entrega.numero}'
@@ -551,7 +554,8 @@ def asiento_inventario(periodo, cta):
                 contra = por_recibir(p)
             elif contra.pk == cta['costo_ventas'].pk:
                 contra = costo(p)
-            grupos[(ex, contra, f'Operaciones de inventario ({tipo.cuenta_contable.nombre[:50]})', linea,
+            # la glosa con la cuenta que realmente se usa (suministros 285, no «mercaderías» del tipo)
+            grupos[(ex, contra, f'{tipo.nombre[:40]} ({contra.codigo} {contra.nombre[:40]})', linea,
                     k.centro_costo)] += valor
         elif k.origen == 'COMPRA':
             grupos[(ex, por_recibir(p), 'Ingreso al almacén de compras', linea)] += valor
@@ -821,6 +825,8 @@ def centralizar_periodo(periodo):
             asiento_activos(periodo, cta)
             from planillas.servicios import asiento_planillas
             asiento_planillas(periodo, cta)
+            from obras.construccion_civil import asiento_planillas_civil
+            asiento_planillas_civil(periodo, cta)  # antes de activar los costos inmobiliarios del mes
             asiento_provisiones(periodo, cta)
             asiento_vnr(periodo)
             asiento_prestamos(periodo, cta, tc_func)

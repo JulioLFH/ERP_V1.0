@@ -6,7 +6,8 @@
     <div class="text-muted small">{{ o.codigo }} · {{ o.get_tipo_display }} · {{ o.get_sistema_display }} · <span class="badge text-bg-light border">{{ o.get_estado_display }}</span></div></div>
   <div class="d-flex flex-wrap gap-2">
     {% if licitacion or o.estado == 'LICITACION' and o.tipo != 'INMOBILIARIA' %}<a href="{% url 'obras:licitacion' o.pk %}" class="btn btn-sm btn-outline-warning"><i class="bi bi-trophy"></i> Licitación{% if licitacion %} · {{ licitacion.get_resultado_display }}{% endif %}</a>{% endif %}
-    {% if o.tipo == 'INMOBILIARIA' %}<a href="{% url 'obras:unidades' o.pk %}" class="btn btn-sm btn-outline-success"><i class="bi bi-buildings"></i> Unidades y ventas</a>{% endif %}
+    {% if o.tipo == 'INMOBILIARIA' %}<a href="{% url 'obras:unidades' o.pk %}" class="btn btn-sm btn-outline-success"><i class="bi bi-buildings"></i> Unidades y ventas</a>{% else %}<a href="{% url 'obras:ejecucion' o.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-cone-striped"></i> Ejecución</a>{% endif %}
+    <a href="{% url 'obras:versiones' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-layers"></i> Versiones (S10)</a>
     <a href="{% url 'obras:obra_editar' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
     <a href="{% url 'obras:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Obras</a>
   </div>

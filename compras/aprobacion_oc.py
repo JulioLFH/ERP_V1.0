@@ -22,11 +22,11 @@ def solicitante(oc):
     return get_user_model().objects.filter(pk=creador(oc)).first()
 
 
-def calcular_niveles(oc):
+def calcular_niveles(oc, avisos=None):
     tipo = Compra.clasificacion_de(oc.items.select_related('producto'))
     tipo = {'MATERIA_PRIMA': 'MATERIAL', 'SUMINISTRO': 'MATERIAL', 'ENVASE': 'MATERIAL',
             'ACTIVO_FIJO': 'ACTIVO'}.get(tipo, tipo)
-    return aprobaciones.calcular_niveles('OC', solicitante(oc), _monto(oc), oc.centro_costo, tipo)
+    return aprobaciones.calcular_niveles('OC', solicitante(oc), _monto(oc), oc.centro_costo, tipo, avisos=avisos)
 
 
 def por_niveles(oc):

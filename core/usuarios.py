@@ -135,8 +135,8 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         elif self.instance.pk:  # sin perfil hoy puede todo en sus módulos (salvo las acciones explícitas)
             from .permisos import EXPLICITAS
             self.initial['acciones'] = [c for c, _ in self.fields['acciones'].choices if c not in EXPLICITAS]
-        else:  # usuario nuevo: las acciones sensibles (anular, aprobar...) se asignan a propósito
-            self.initial['acciones'] = [f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, s in lista if not s]
+        else:  # usuario nuevo: mínimo privilegio (SEG-05): ninguna acción; se marcan o vienen del perfil elegido
+            self.initial['acciones'] = []
 
     def clean(self):
         data = super().clean()
@@ -238,6 +238,11 @@ def _guardar(request, usuario, titulo):
         for c in conflictos(User.objects.get(pk=u.pk)):  # recargado: sin la caché de módulos y perfil
             messages.warning(request, f'Segregación de funciones ({c["riesgo"].lower()}): {c["motivo"]} '
                                       f'({c["nombre_a"]} + {c["nombre_b"]}).')
+        ajenas = acciones_sin_modulo(User.objects.get(pk=u.pk))
+        if ajenas:  # SEG-05: acciones de módulos que no tiene asignados (no las puede usar, pero quedan marcadas)
+            messages.warning(request, f'Tiene {len(ajenas)} acción(es) de módulos que no tiene asignados: '
+                                      + ', '.join(ajenas[:8]) + ('…' if len(ajenas) > 8 else '') +
+                                      '. Quítelas o asigne el módulo.')
         return redirect('usuarios')
     from .permisos import ACCIONES
     marcadas = set(form['acciones'].value() or [])
@@ -379,3 +384,19 @@ def editar(request, pk):
                                       'deberá activarla de nuevo.')
         return redirect('usuario_editar', pk)
     return _guardar(request, usuario, 'Editar usuario')
+
+def acciones_sin_modulo(user):
+    """Descripciones de las acciones marcadas cuyo módulo el usuario no tiene (SEG-05)."""
+    from .modulos import POR_CLAVE, modulos_del_usuario
+    from .models import PerfilUsuario
+    from .permisos import ACCIONES
+    if user.is_superuser:
+        return []
+    perfil = PerfilUsuario.objects.filter(usuario=user).first()
+    if perfil is None:
+        return []
+    mods = set(modulos_del_usuario(user))
+    nombres = {f'{m}.{a}': f'{POR_CLAVE[m]["nombre"] if m in POR_CLAVE else m}: {d}' for m, lista in ACCIONES.items()
+               for a, d, _ in lista}
+    return [nombres[a] for a in sorted(perfil.acciones or []) if a in nombres and a.split('.')[0] in POR_CLAVE
+            and a.split('.')[0] not in mods]

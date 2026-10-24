@@ -1,0 +1,32 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Atender por traslado{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-arrow-left-right"></i> Atender por traslado</h1>
+    <div class="text-muted small">{{ producto.codigo }} {{ producto.nombre }} · destino <b>{{ destino }}</b>{% if centro %} · centro {{ centro.codigo }}{% endif %}{% if linea %} · línea de <a href="{% url 'solicitudes:detalle' linea.solicitud_id %}">{{ linea.solicitud.numero }}</a> (falta {{ linea.pendiente|money }}){% endif %}</div></div>
+  <div class="d-flex gap-2"><a href="{% url 'compras:traslados' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ul"></i> Traslados</a></div>
+</div>
+<div class="card mb-3"><div class="card-header py-2 small fw-semibold">Disponible en otros almacenes · total {{ total|money }}</div>
+<div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Almacén</th><th>Obra</th><th class="num">Stock</th><th class="num">Reservado</th><th class="num" title="Lo que la meta de su obra aún va a consumir">Meta por consumir</th><th class="num">Disponible</th><th></th></tr></thead>
+  <tbody>{% for f in filas %}<tr class="{% if f.restringido %}text-muted{% endif %}">
+    <td>{{ f.almacen }}</td><td class="small">{% if f.obra %}{{ f.obra.codigo }} · {{ f.obra.get_estado_display }}{% else %}—{% endif %}</td>
+    <td class="num">{{ f.stock|money }}</td><td class="num">{{ f.reservado|money }}</td><td class="num">{{ f.meta|money }}</td>
+    <td class="num fw-semibold">{{ f.disponible|money }}</td>
+    <td>{% if f.sobrante %}<span class="badge text-bg-success">Sobrante: ofrecer primero</span>{% endif %}{% if f.restringido %}<span class="badge text-bg-secondary" title="Obra pública con adelanto para materiales">Restringido</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Ningún otro almacén tiene stock de este producto: corresponde comprarlo.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if total %}
+<form method="post" class="card" style="max-width:720px">{% csrf_token %}
+  <input type="hidden" name="producto" value="{{ producto.pk }}"><input type="hidden" name="destino" value="{{ destino.pk }}">{% if linea %}<input type="hidden" name="linea" value="{{ linea.pk }}">{% endif %}
+  <div class="card-header py-2 small fw-semibold">Solicitar el traslado</div>
+  <div class="card-body row g-2">
+    <div class="col-md-6"><label class="form-label small mb-1">Desde el almacén</label><select name="origen" class="form-select form-select-sm" required>{% for f in filas %}{% if f.disponible > 0 %}<option value="{{ f.almacen.pk }}">{{ f.almacen }} ({{ f.disponible|money }}{% if f.sobrante %}, sobrante{% endif %})</option>{% endif %}{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label small mb-1">Cantidad</label><input name="cantidad" value="{{ sugerida }}" class="form-control form-control-sm text-end" inputmode="decimal" required></div>
+    <div class="col-12"><label class="form-label small mb-1">Motivo</label><input name="motivo" maxlength="250" class="form-control form-control-sm" placeholder="Ej. atender la solicitud con el sobrante de la obra"></div>
+    <div class="col-12"><button class="btn btn-sm btn-success"><i class="bi bi-send"></i> Solicitar traslado</button>
+      <span class="form-text ms-2">Lo aprueba el responsable del almacén de origen (o el residente de su obra); sale a tránsito al costo promedio y quien recibe lo acepta o lo rechaza. No es gasto: es costo de la obra que lo recibe cuando lo consume. El flete se registra con el centro de costo de quien recibe.</span></div>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

@@ -5,7 +5,8 @@
   <h1 class="page-title"><i class="bi bi-check2-square"></i> Mis aprobaciones</h1>
   <a href="{% url 'aprobaciones_delegaciones' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person-check"></i> Suplencias</a>
 </div>
-<p class="small text-muted">Lo que le toca aprobar hoy como titular del nivel, como suplente o porque el nivel pasó el plazo sin respuesta y escaló a usted. {% if rendiciones %}Además tiene <a href="{% url 'rendiciones:lista' %}?vista=aprobar">{{ rendiciones }} rendición(es) de gastos</a> por aprobar.{% endif %}</p>
+<p class="small text-muted">Lo que le toca aprobar hoy de cualquier módulo (órdenes de compra, solicitudes de pedido, requerimientos, pedidos de venta, conformidades de servicio, rendiciones, vacaciones y movimientos de personal) como titular del nivel, como suplente o porque el nivel pasó el plazo sin respuesta y escaló a usted.</p>
+{% if trabados %}<div class="alert alert-danger small"><b><i class="bi bi-sign-stop"></i> Documentos sin aprobador</b> (el titular del nivel está inactivo y no tiene jefe ni suplente): {% for doc, obj, nivel in trabados %}{{ obj }} — nivel {{ nivel.nivel }} de {{ nivel.nombre }}{% if not forloop.last %}; {% endif %}{% endfor %}. Corrija la regla (aprobador de reemplazo) en <a href="{% url 'aprobaciones_reglas' %}">Reglas de aprobación</a> o asigne una suplencia.</div>{% endif %}
 {% for codigo, nombre, obj, nivel, url, detalle in filas %}
 <div class="card mb-2"><div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center justify-content-between">
   <div><span class="badge text-bg-light border">{{ nombre }}</span> <a href="{{ url }}" class="fw-semibold">{{ obj }}</a>

@@ -147,7 +147,9 @@ class Trabajador(models.Model):
     TIPOS_DOC = [('01', 'DNI'), ('04', 'Carné de extranjería'), ('07', 'Pasaporte')]
     TIPOS = [('EMPLEADO', 'Empleado'), ('OBRERO', 'Obrero')]
     REGIMENES = [('GENERAL', 'Régimen general'), ('PEQUENA', 'Pequeña empresa (REMYPE)'),
-                 ('MICRO', 'Microempresa (REMYPE)')]
+                 ('MICRO', 'Microempresa (REMYPE)'),
+                 ('CONSTRUCCION', 'Construcción civil (planilla semanal de obra)')]
+    CATEGORIAS_CIVIL = [('', '—'), ('OPERARIO', 'Operario'), ('OFICIAL', 'Oficial'), ('PEON', 'Peón')]
     PENSIONES = [('ONP', 'ONP (Sistema Nacional de Pensiones)'), ('AFP', 'AFP (Sistema Privado de Pensiones)'),
                  ('NINGUNO', 'Sin sistema de pensiones')]
     COMISIONES = [('FLUJO', 'Comisión sobre la remuneración (flujo)'), ('MIXTA', 'Comisión mixta')]
@@ -174,7 +176,9 @@ class Trabajador(models.Model):
                                    help_text='Al registrar el cese, el usuario se desactiva y sus aprobaciones '
                                              'pendientes pasan a su jefe')
     tipo = models.CharField('Tipo de trabajador', max_length=10, choices=TIPOS, default='EMPLEADO')
-    regimen = models.CharField('Régimen laboral', max_length=10, choices=REGIMENES, default='GENERAL')
+    regimen = models.CharField('Régimen laboral', max_length=12, choices=REGIMENES, default='GENERAL')
+    categoria_civil = models.CharField('Categoría (construcción civil)', max_length=8, choices=CATEGORIAS_CIVIL,
+                                       blank=True, help_text='Operario, oficial o peón: define su jornal y su BUC')
     centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
                                      verbose_name='Centro de costo',
                                      help_text='Define el destino del gasto: producción (90), administración '
@@ -223,6 +227,9 @@ class Trabajador(models.Model):
 
     @property
     def datos_completos(self):
+        if self.regimen == 'CONSTRUCCION':  # el jornal sale de su categoría (parámetros de construcción civil)
+            return bool(self.fecha_ingreso and self.categoria_civil and (self.sistema_pensiones != 'AFP' or
+                                                                         self.afp_id))
         return bool(self.fecha_ingreso and self.sueldo > 0 and (self.sistema_pensiones != 'AFP' or self.afp_id))
 
     def activo_en(self, desde, hasta):

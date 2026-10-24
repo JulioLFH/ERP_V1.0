@@ -367,10 +367,17 @@ def _lineas_para_convertir(ids):
 
 
 @transaction.atomic
-def a_orden_compra(ids, usuario, proveedor=None, contrato=None):
+def a_orden_compra(ids, usuario, proveedor=None, contrato=None, justificaciones=None):
     """Líneas -> órdenes de compra pendientes (pasan por su aprobación), una por proveedor y centro de costo. El
-    proveedor: el indicado, el sugerido de la línea o el habitual del producto. Contra contrato marco: sus precios."""
+    proveedor: el indicado, el sugerido de la línea o el habitual del producto. Contra contrato marco: sus precios.
+    Con justificaciones {línea: (motivo, texto)} (bandeja) se revisa antes el stock de otros almacenes (COM-13)."""
     lineas = _lineas_para_convertir(ids)
+    if justificaciones is not None:
+        from .stock import ErrorStock, validar_compra
+        try:
+            validar_compra(lineas, justificaciones)
+        except ErrorStock as exc:
+            raise ErrorSolped(str(exc)) from exc
     if contrato is not None:
         proveedor = contrato.proveedor
         pactados = {li.producto_id: li for li in contrato.lineas.all()}

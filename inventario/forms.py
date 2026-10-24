@@ -22,6 +22,8 @@ class OperacionForm(BootstrapMixin, forms.ModelForm):
     """Cabecera: solo se muestran los campos que usa la clase del tipo de operación."""
     sustento = SustentoField(required=False, label='Documento de sustento',
                              help_text='Acta, informe, guía, etc. (PDF, imagen, Excel; máx. 5 MB)')
+    motivo_fecha = forms.CharField(label='Motivo de la fecha de un mes anterior', max_length=150, required=False,
+                                   help_text='Solo si la fecha contable es de un mes anterior (exige permiso)')
 
     class Meta:
         model = Operacion
@@ -107,8 +109,20 @@ class OperacionForm(BootstrapMixin, forms.ModelForm):
                 self.initial['almacen_destino'] = tipo.almacen_destino_id or defecto.pk
 
     def clean(self):
+        from django.utils import timezone
         datos = super().clean()
         validar_periodo_abierto(self, 'fecha')
+        hoy, fecha, doc = timezone.localdate(), datos.get('fecha'), datos.get('fecha_documento')
+        # fecha contable: no futura; fecha del documento externo (guía del proveedor): no futura ni posterior a la
+        # contable (ALM-08, ALM-12)
+        if fecha and fecha > hoy:
+            self.add_error('fecha', 'La fecha contable no puede ser futura.')
+        if doc and doc > hoy:
+            self.add_error('fecha_documento', 'La fecha del documento no puede ser futura.')
+        elif doc and fecha and doc > fecha:
+            self.add_error('fecha_documento', 'La fecha del documento no puede ser posterior a la fecha contable.')
+        if fecha and fecha < hoy.replace(day=1) and not (datos.get('motivo_fecha') or '').strip():
+            self.add_error('motivo_fecha', 'La fecha contable es de un mes anterior: indique el motivo.')
         if self.tipo.origen == 'ORDEN_COMPRA' and not (datos.get('orden_compra') or datos.get('compra')):
             self.add_error('orden_compra', 'Indique la orden de compra o la factura que se recibe.')
         if datos.get('orden_compra') and datos.get('compra'):

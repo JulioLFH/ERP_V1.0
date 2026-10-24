@@ -1,0 +1,30 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Traslados entre almacenes{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-arrow-left-right"></i> Traslados entre almacenes</h1>
+  <form method="get" class="d-flex gap-2"><select name="estado" class="form-select form-select-sm" onchange="this.form.submit()">
+    <option value="pendientes" {% if estado == 'pendientes' %}selected{% endif %}>Por aprobar o en tránsito</option><option value="" {% if not estado %}selected{% endif %}>Todos</option>
+    {% for v, t in estados %}<option value="{{ v }}" {% if estado == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></form>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>N°</th><th>Fecha</th><th>Producto</th><th class="num">Cantidad</th><th>Origen → destino</th><th>Estado</th><th>Documentos</th><th class="d-print-none"></th></tr></thead>
+  <tbody>{% for t in traslados %}<tr>
+    <td>{{ t.numero }}</td><td>{{ t.fecha|date:'d/m/Y' }}</td>
+    <td>{{ t.producto.codigo }} {{ t.producto.nombre|truncatechars:40 }}{% if t.linea_solped %}<div class="small text-muted">para {{ t.linea_solped.solicitud.numero }}</div>{% endif %}{% if t.motivo %}<div class="small text-muted">{{ t.motivo }}</div>{% endif %}</td>
+    <td class="num">{{ t.cantidad|money }}</td>
+    <td class="small">{{ t.almacen_origen }} → {{ t.almacen_destino }}</td>
+    <td><span class="badge text-bg-light border">{{ t.get_estado_display }}</span>{% if t.comentario %}<div class="small text-danger">{{ t.comentario }}</div>{% endif %}</td>
+    <td class="small">{% if t.envio %}<a href="{% url 'inventario:detalle' t.envio.pk %}">{{ t.envio.numero }}</a>{% endif %}{% if t.recepcion %} · <a href="{% url 'inventario:detalle' t.recepcion.pk %}">{{ t.recepcion.numero }}</a>{% endif %}
+      {% if t.estado == 'EN_TRANSITO' %}<div><a href="{% url 'logistica:nueva' %}?tipo=09&traslado={{ t.pk }}"><i class="bi bi-truck"></i> Guía de remisión</a></div>{% endif %}</td>
+    <td class="d-print-none">{% if t.puedo_aprobar %}<form method="post" class="d-flex flex-wrap gap-1">{% csrf_token %}<input type="hidden" name="traslado" value="{{ t.pk }}">
+        <button class="btn btn-sm btn-success" name="accion" value="aprobar"><i class="bi bi-check2"></i> Aprobar y enviar</button>
+        <input name="motivo" class="form-control form-control-sm" style="max-width:160px" placeholder="Motivo si rechaza"><button class="btn btn-sm btn-outline-danger" name="accion" value="rechazar">Rechazar</button></form>
+      {% elif t.puedo_recibir %}<form method="post" class="d-flex flex-wrap gap-1">{% csrf_token %}<input type="hidden" name="traslado" value="{{ t.pk }}">
+        <button class="btn btn-sm btn-primary" name="accion" value="recibir"><i class="bi bi-box-arrow-in-down"></i> Recibir</button>
+        <input name="motivo" class="form-control form-control-sm" style="max-width:160px" placeholder="Motivo si lo rechaza"><button class="btn btn-sm btn-outline-danger" name="accion" value="devolver">Rechazar (vuelve)</button></form>
+      {% elif t.estado == 'POR_APROBAR' and t.solicitado_por_id == request.user.pk %}<form method="post">{% csrf_token %}<input type="hidden" name="traslado" value="{{ t.pk }}"><button class="btn btn-sm btn-link text-danger" name="accion" value="anular">Anular</button></form>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Sin traslados.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<p class="small text-muted mt-2">El traslado no es gasto: sale del almacén de origen a tránsito al costo promedio y entra al de destino al mismo costo (sigue en existencias); es costo de la obra que lo recibe cuando lo consume. Productos con lote o serie viajan con los mismos lotes.</p>
+{% endblock %}

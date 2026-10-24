@@ -120,3 +120,66 @@ def aprobar(cot, user):
     cot.save(update_fields=['estado', 'motivo_aprobacion'])
     aprobaciones.registrar('PEDIDO', cot, user, 'APROBADA', cot.motivo_aprobacion)
     return f'{cot.numero}: Aprobado.'
+
+def enviar(cot, user):
+    """Quien registró el pedido lo envía a aprobación (APR-04): calcula su ruta (niveles y aprobadores) y la deja a la
+    espera del nivel 1. Si no requiere aprobación, queda aprobado."""
+    tipo, lista = motivos(cot)
+    cot.motivo_aprobacion = ' · '.join(lista)[:300]
+    avisos = []
+    if aprobaciones.hay_reglas('PEDIDO'):
+        try:
+            cot.niveles, cot.nivel_aprobado = aprobaciones.calcular_niveles(
+                'PEDIDO', _solicitante(cot), _total_pen(cot), None, tipo, avisos=avisos), 0
+        except aprobaciones.ErrorAprobacion as exc:
+            raise ErrorAprobacionPedido(str(exc)) from exc
+    if not cot.niveles and not lista:
+        cot.estado = 'APROBADO'
+        cot.save(update_fields=['estado', 'niveles', 'nivel_aprobado', 'motivo_aprobacion'])
+        aprobaciones.registrar('PEDIDO', cot, user, 'APROBADA', 'No requiere aprobación')
+        return f'{cot.numero}: no requiere aprobación; queda aprobado.'
+    cot.save(update_fields=['niveles', 'nivel_aprobado', 'motivo_aprobacion'])
+    aprobaciones.registrar('PEDIDO', cot, user, 'ENVIADA', cot.motivo_aprobacion)
+    n = aprobaciones.pendiente(cot.niveles, cot.nivel_aprobado)
+    texto = (f'{cot.numero} enviado a aprobación: lo aprueba el nivel {n["nivel"]}, {n["nombre"]}.' if n else
+             f'{cot.numero} enviado a aprobación: lo aprueba quien tenga «Aprobar pedidos de venta».')
+    return ' '.join([texto] + avisos)
+
+
+def enviado_a_aprobacion(cot):
+    """¿Está a la espera de aprobación? (tiene niveles o lo último que pasó fue el envío; un rechazo lo devuelve)."""
+    if cot.niveles:
+        return True
+    ultimo = aprobaciones.historial('PEDIDO', cot).order_by('-fecha', '-id').first()
+    return bool(ultimo and ultimo.accion == 'ENVIADA')
+
+
+def estado_aprobacion(cot, user):
+    """Para la pantalla: (ruta, enviar, espera) — la ruta de niveles (prevista si aún no se envía), si el usuario debe
+    enviarlo y a quién se espera si no le toca aprobar."""
+    from core.permisos import puede
+    if cot.estado != 'PENDIENTE':
+        return aprobaciones.ruta('PEDIDO', cot, cot.niveles, cot.nivel_aprobado), False, ''
+    tipo, lista = motivos(cot)
+    s = _solicitante(cot)
+    niveles = cot.niveles
+    if not niveles and aprobaciones.hay_reglas('PEDIDO'):
+        try:
+            niveles = aprobaciones.calcular_niveles('PEDIDO', s, _total_pen(cot), None, tipo)
+        except aprobaciones.ErrorAprobacion:
+            niveles = []
+    requiere = bool(lista or niveles)
+    enviado = enviado_a_aprobacion(cot)
+    ruta = aprobaciones.ruta('PEDIDO', cot, niveles, cot.nivel_aprobado)
+    if not requiere:
+        return ruta, False, ''
+    if not enviado:
+        return ruta, bool(s and s.pk == user.pk), ''
+    if cot.niveles:
+        if aprobaciones.puede_aprobar(user, 'PEDIDO', cot.niveles, cot.nivel_aprobado, s.pk if s else None):
+            return ruta, False, ''
+        n = aprobaciones.pendiente(cot.niveles, cot.nivel_aprobado)
+        return ruta, False, f'nivel {n["nivel"]}: {n["nombre"]}' if n else 'sin nivel pendiente'
+    if puede(user, 'ventas.aprobar_pedidos') and not (s and s.pk == user.pk):
+        return ruta, False, ''
+    return ruta, False, 'quien tenga «Aprobar pedidos de venta»'

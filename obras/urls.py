@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_comercial as com
+from . import views, views_comercial as com, views_ejecucion as eje
 
 app_name = 'obras'
 
@@ -36,4 +36,23 @@ urlpatterns = [
     path('cobranza-inmobiliaria/', com.cobranza, name='inm_cobranza'),
     path('reportes-inmobiliarios/', com.reportes_inmobiliarios, name='inm_reportes'),
     path('sobrantes/', com.sobrantes, name='sobrantes'),
+    # ejecución: adelantos, valorizaciones, reajustes, planeamiento, mano de obra, equipos y subcontratos
+    path('<int:pk>/ejecucion/', eje.ejecucion, name='ejecucion'),
+    path('<int:pk>/adelanto/', eje.adelanto, name='adelanto'),
+    path('<int:pk>/reclasificar/', eje.reclasificar, name='reclasificar'),
+    path('<int:pk>/garantia/', eje.garantia_cobrar, name='garantia_cobrar'),
+    path('<int:pk>/valorizar/', eje.valorizacion_nueva, name='valorizacion_nueva'),
+    path('valorizaciones/<int:pk>/', eje.valorizacion, name='valorizacion'),
+    path('<int:pk>/formula/', eje.formula, name='formula'),
+    path('indices/', eje.indices, name='indices'),
+    path('<int:pk>/cronograma/', eje.cronograma, name='cronograma'),
+    path('<int:pk>/avance/', eje.avance, name='avance'),
+    path('<int:pk>/partidas/', eje.reporte_partidas, name='reporte_partidas'),
+    path('<int:pk>/versiones/', eje.versiones, name='versiones'),
+    path('<int:pk>/tareo/', eje.tareo, name='tareo'),
+    path('<int:pk>/planillas-civil/', eje.planillas_civil, name='planillas_civil'),
+    path('planillas-civil/<int:pk>/', eje.planilla_civil, name='planilla_civil'),
+    path('<int:pk>/partes-equipo/', eje.partes, name='partes'),
+    path('<int:pk>/subcontratos/', eje.subcontratos, name='subcontratos'),
+    path('subcontratos/<int:pk>/', eje.subcontrato, name='subcontrato'),
 ]

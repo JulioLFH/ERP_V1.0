@@ -150,7 +150,7 @@ def generar_filas(planilla):
     desde, hasta = rango(planilla.periodo)
     incompletos = []
     existentes = set(planilla.filas.values_list('trabajador_id', flat=True))
-    for t in Trabajador.objects.select_related('afp'):
+    for t in Trabajador.objects.exclude(regimen='CONSTRUCCION').select_related('afp'):  # van en la planilla de obra
         if t.fecha_cese and t.fecha_cese < desde or t.fecha_ingreso and t.fecha_ingreso > hasta:
             continue
         if planilla.tipo == 'LIQUIDACION' and not (t.fecha_cese and desde <= t.fecha_cese <= hasta):

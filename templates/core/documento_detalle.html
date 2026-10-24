@@ -16,12 +16,17 @@
     {% endif %}
     {% if doc.estado != 'ANULADO' %}
       <a href="{% url url_convertir %}?{{ param_convertir }}={{ doc.pk }}" class="btn btn-sm btn-success"><i class="bi bi-arrow-right-circle"></i> {{ texto_convertir }}</a>
-      {% if doc.estado == 'PENDIENTE' and not es_oc or doc.estado == 'PENDIENTE' and oc_puede_aprobar %}<form method="post" action="{% url url_estado doc.pk %}">{% csrf_token %}<input type="hidden" name="estado" value="APROBADO"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-check2"></i> Aprobar{% if oc_pendiente and oc_niveles|length > 1 %} nivel {{ oc_pendiente.nivel }}{% endif %}</button></form>
-        {% if es_oc %}<button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="collapse" data-bs-target="#form-rechazar-oc"><i class="bi bi-arrow-return-left"></i> Rechazar</button>{% endif %}{% endif %}
+      {% if pedido_enviar %}<form method="post" action="{% url url_estado doc.pk %}">{% csrf_token %}<input type="hidden" name="estado" value="ENVIAR"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-send"></i> Enviar a aprobación</button></form>
+      {% elif doc.estado == 'PENDIENTE' and not es_oc and not pedido_espera or doc.estado == 'PENDIENTE' and oc_puede_aprobar %}<form method="post" action="{% url url_estado doc.pk %}">{% csrf_token %}<input type="hidden" name="estado" value="APROBADO"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-check2"></i> Aprobar{% if oc_pendiente and oc_niveles|length > 1 %} nivel {{ oc_pendiente.nivel }}{% endif %}{% if pedido_pendiente and pedido_ruta|length > 1 %} nivel {{ pedido_pendiente.nivel }}{% endif %}</button></form>
+        {% if es_oc %}<button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="collapse" data-bs-target="#form-rechazar-oc"><i class="bi bi-arrow-return-left"></i> Rechazar</button>{% endif %}
+      {% elif pedido_espera %}<span class="btn btn-sm btn-light border disabled"><i class="bi bi-hourglass-split"></i> En aprobación: {{ pedido_espera }}</span>{% endif %}
       {% if not es_oc or puede.compras_anular %}<form method="post" action="{% url url_estado doc.pk %}" data-confirm="¿Anular {{ doc.numero }}?">{% csrf_token %}<input type="hidden" name="estado" value="ANULADO"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular</button></form>{% endif %}
     {% endif %}
   </div>
 </div>
+{% if pedido_ruta or pedido_historial %}<div class="card mb-3 d-print-none" style="max-width:900px;margin:auto"><div class="card-header"><i class="bi bi-diagram-3"></i> Ruta de aprobación del pedido</div><ul class="list-group list-group-flush small">
+  {% include 'core/_ruta_aprobacion.html' with ruta=pedido_ruta %}
+  {% for h in pedido_historial %}<li class="list-group-item text-muted">{{ h.fecha|date:'d/m/Y H:i' }} · {% if h.usuario %}{{ h.usuario.get_full_name|default:h.usuario.username }}{% else %}Sistema{% endif %} · {{ h.accion|lower }}{% if h.nivel %} (nivel {{ h.nivel }}){% endif %}{% if h.comentario %}: {{ h.comentario }}{% endif %}</li>{% endfor %}</ul></div>{% endif %}
 {% if pedido_motivos and doc.estado == 'PENDIENTE' %}<div class="alert alert-warning py-2 small d-print-none"><i class="bi bi-shield-exclamation"></i> <b>Requiere aprobación{% if pedido_pendiente %} — nivel {{ pedido_pendiente.nivel }}: {{ pedido_pendiente.nombre }}{% endif %}.</b> {{ pedido_motivos|join:' · ' }}</div>{% endif %}
 
 <div class="card doc-print">
@@ -55,9 +60,10 @@
 {% if es_oc %}
 {% if oc_puede_aprobar %}<div class="collapse mt-3" id="form-rechazar-oc" style="max-width:900px;margin:auto"><div class="card border-warning"><div class="card-body"><form method="post" action="{% url 'compras:oc_rechazar' doc.pk %}" class="row g-2 align-items-end">{% csrf_token %}<div class="col-md-9"><input name="motivo" class="form-control form-control-sm" minlength="10" required placeholder="Motivo del rechazo (vuelve al comprador)"></div><div class="col-md-3"><button class="btn btn-sm btn-warning w-100">Rechazar</button></div></form></div></div></div>{% endif %}
 {% if oc_error_niveles %}<div class="alert alert-warning mt-3 small" style="max-width:900px;margin:auto">Aprobación: {{ oc_error_niveles }}</div>{% endif %}
+{% if oc_avisos_niveles %}<div class="alert alert-info mt-3 small" style="max-width:900px;margin:auto"><i class="bi bi-signpost-split"></i> {% for a in oc_avisos_niveles %}{{ a }} {% endfor %}</div>{% endif %}
 {% if doc.observacion_aprobacion %}<div class="alert alert-warning mt-3 small" style="max-width:900px;margin:auto"><b>Rechazada:</b> {{ doc.observacion_aprobacion }}</div>{% endif %}
 {% if oc_niveles or oc_historial %}<div class="card mt-3 d-print-none" style="max-width:900px;margin:auto"><div class="card-header"><i class="bi bi-diagram-3"></i> Aprobación</div><ul class="list-group list-group-flush small">
-  {% for n in oc_niveles %}<li class="list-group-item d-flex justify-content-between"><span>Nivel {{ n.nivel }}: {{ n.nombre }}</span><span>{% if n.nivel <= doc.nivel_aprobado %}<span class="text-success"><i class="bi bi-check2-circle"></i> Aprobado</span>{% elif oc_pendiente and n.nivel == oc_pendiente.nivel %}<span class="text-warning">Pendiente</span>{% else %}—{% endif %}</span></li>{% endfor %}
+  {% include 'core/_ruta_aprobacion.html' with ruta=oc_ruta %}
   {% for h in oc_historial %}<li class="list-group-item text-muted">{{ h.fecha|date:'d/m/Y H:i' }} · {% if h.usuario %}{{ h.usuario.get_full_name|default:h.usuario.username }}{% else %}Sistema{% endif %} · {{ h.accion|lower }}{% if h.nivel %} (nivel {{ h.nivel }}){% endif %}{% if h.comentario %}: {{ h.comentario }}{% endif %}</li>{% endfor %}
 </ul></div>{% endif %}
 {% if solicitudes_oc %}<div class="alert alert-light border mt-3 small d-print-none" style="max-width:900px;margin:auto"><i class="bi bi-cart"></i> Viene de las solicitudes de pedido {% for s in solicitudes_oc %}<a href="{% url 'solicitudes:detalle' s.pk %}">{{ s.numero }}</a> ({{ s.centro_costo.codigo }}){% if not forloop.last %}, {% endif %}{% endfor %}.</div>{% endif %}

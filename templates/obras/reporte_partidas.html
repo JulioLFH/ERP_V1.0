@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Control por partida {{ o.codigo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-table"></i> Control por partida</h1>
+    <div class="text-muted small">{{ o.codigo }} {{ o.nombre }} · {{ r.presupuesto }}{% if r.meta and r.meta.pk != r.presupuesto.pk %} · meta {{ r.meta }}{% endif %} · orden de ítems del S10</div></div>
+  <div class="d-flex gap-2 d-print-none"><a href="?formato=excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i> Excel</a><a href="{% url 'obras:ejecucion' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Ejecución</a></div>
+</div>
+<div class="card mb-2"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
+  <thead class="sticky-top bg-body"><tr><th>Ítem</th><th>Partida</th><th class="num">Contractual</th><th class="num">Meta</th><th class="num">Avance</th><th class="num">Valorizado</th><th class="num">Materiales</th><th class="num">Mano de obra</th><th class="num">Equipos</th><th class="num">Subcontratos</th><th class="num">GG asignados</th><th class="num">Costo real</th><th class="num">Margen</th></tr></thead>
+  <tbody>{% for f in r.filas %}{% if f.titulo %}<tr class="table-light fw-semibold"><td>{{ f.partida.item }}</td><td colspan="12">{{ f.partida.descripcion }}</td></tr>
+  {% else %}<tr><td>{{ f.partida.item }}</td><td>{{ f.partida.descripcion|truncatechars:50 }}</td><td class="num">{{ f.contractual|money }}</td><td class="num">{{ f.meta|money }}</td>
+    <td class="num">{{ f.avance_pct }} %</td><td class="num">{{ f.valorizado|money }}</td><td class="num">{{ f.mat|money }}</td><td class="num">{{ f.mo|money }}</td><td class="num">{{ f.eq|money }}</td><td class="num">{{ f.sub|money }}</td><td class="num">{{ f.gg|money }}</td>
+    <td class="num fw-semibold">{{ f.costo|money }}</td><td class="num {% if f.margen < 0 %}text-danger{% else %}text-success{% endif %}">{{ f.margen|money }}</td></tr>{% endif %}{% endfor %}
+  <tr class="table-light"><td></td><td>Costos sin partida (no asignables)</td><td></td><td></td><td></td><td></td><td class="num">{{ r.sin_partida.mat|money }}</td><td class="num">{{ r.sin_partida.mo|money }}</td><td class="num">{{ r.sin_partida.eq|money }}</td><td class="num">{{ r.sin_partida.sub|money }}</td><td></td><td></td><td></td></tr>
+  <tr class="fw-semibold"><td></td><td>TOTAL</td><td class="num">{{ r.totales.contractual|money }}</td><td class="num">{{ r.totales.meta|money }}</td><td></td><td class="num">{{ r.totales.valorizado|money }}</td><td class="num">{{ r.totales.mat|money }}</td><td class="num">{{ r.totales.mo|money }}</td><td class="num">{{ r.totales.eq|money }}</td><td class="num">{{ r.totales.sub|money }}</td><td class="num">{{ r.totales.gg|money }}</td><td class="num">{{ r.totales.costo|money }}</td><td class="num">{{ r.totales.margen|money }}</td></tr></tbody>
+</table></div></div>
+<p class="small text-muted">Materiales: lo consumido con el centro de costo de la obra, repartido entre las partidas que lo usan según su análisis (aporte × metrado ejecutado). Mano de obra: planillas de construcción civil cerradas por las horas del tareo. Equipos: partes diarios. Subcontratos: valorizaciones aprobadas. Gastos generales: lo asignado por el reparto, en proporción a lo valorizado. Margen = valorizado − costo real.</p>
+{% endblock %}

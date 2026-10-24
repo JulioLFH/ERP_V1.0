@@ -30,7 +30,8 @@ ACCIONES = {
                    ('ajustar', 'Ajustes de inventario', True),
                    ('aprobar_mayor', 'Aprobar diferencias de inventario físico sobre el tope', True),
                    ('anular', 'Anular operaciones', True),
-                   ('cerrar', 'Cerrar el kardex', True)],
+                   ('cerrar', 'Cerrar el kardex', True),
+                   ('fecha_anterior', 'Fecha contable de un mes anterior en operaciones de almacén (con motivo)', True)],
     'logistica': [('emitir', 'Emitir guías de remisión', False),
                   ('anular', 'Anular guías', True),
                   ('garita', 'Registrar ingresos y salidas en garita', False),
@@ -62,6 +63,8 @@ ACCIONES = {
                ('liquidar', 'Liquidar el costo real y registrar el valor neto realizable (cierre NIC 2)', True)],
     'planillas': [('calcular', 'Registrar trabajadores y calcular planillas', False),
                   ('cerrar', 'Cerrar, reabrir y pagar planillas', True),
+                  ('aprobar_movimientos', 'Aprobar movimientos de personal (sin reglas de aprobación; también los aprueba '
+                                          'el jefe del trabajador)', True),
                   ('configurar', 'Parámetros, AFP y conceptos de planilla', True)],
     'requerimientos': [('solicitar', 'Pedir materiales al almacén', False),
                        ('aprobar', 'Aprobar o rechazar requerimientos', True),
@@ -80,7 +83,11 @@ ACCIONES = {
               ('requerir', 'Requerir materiales y servicios de la obra desde la Meta (solicitudes de pedido)', False),
               ('licitar', 'Licitaciones y propuestas (CRM de obras): datos, cronograma, requisitos y resultado', False),
               ('vender', 'Proyectos inmobiliarios: unidades, separaciones, ventas, cobros y entregas', True),
-              ('reabrir', 'Reabrir obras liquidadas o cerradas (almacén y centro de costo)', True)],
+              ('reabrir', 'Reabrir obras liquidadas o cerradas (almacén y centro de costo)', True),
+              ('ejecutar', 'Ejecución de obra: avance, cronograma, valorizaciones, tareo, planilla civil, partes de equipo y '
+                           'subcontratos', False),
+              ('facturar', 'Facturar adelantos y valorizaciones de obra, reclasificar facturas a anticipo y cobrar el fondo '
+                           'de garantía', True)],
     'sst': [('registrar', 'Registrar exámenes, inspecciones, capacitaciones, IPERC, EPP, permisos y accidentes', False),
             ('validar', 'Validar registros de SST (especialista: jefe o supervisor de SST, médico ocupacional, comité)',
              True),
@@ -94,7 +101,8 @@ TODAS = {f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, _ in lista}
 # acciones sensibles nuevas: nunca se dan por defecto (ni a usuarios sin perfil); el administrador las asigna
 EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar', 'manufactura.aprobar_cambios',
               'costos.liquidar', 'requerimientos.liberar_solped', 'inventario.aprobar_mayor', 'obras.aprobar',
-              'obras.reabrir', 'sst.validar', 'calidad.validar'}
+              'obras.reabrir', 'sst.validar', 'calidad.validar', 'obras.facturar',
+              'inventario.fecha_anterior'}
 
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
@@ -245,6 +253,14 @@ RUTAS = {
     'obras:licitacion': {'POST': 'obras.licitar'},
     'obras:unidades': {'POST': 'obras.vender'}, 'obras:separar': 'obras.vender',
     'obras:venta_inmueble': {'POST': 'obras.vender'}, 'obras:inm_cobrar': 'obras.vender',
+    'obras:adelanto': 'obras.facturar', 'obras:reclasificar': {'POST': 'obras.facturar'},
+    'obras:garantia_cobrar': 'obras.facturar', 'obras:valorizacion_nueva': 'obras.ejecutar',
+    'obras:valorizacion': {'POST': 'obras.ejecutar'}, 'obras:formula': {'POST': 'obras.ejecutar'},
+    'obras:indices': {'POST': 'obras.ejecutar'}, 'obras:cronograma': {'POST': 'obras.ejecutar'},
+    'obras:avance': {'POST': 'obras.ejecutar'}, 'obras:versiones': {'POST': 'obras.presupuestar'},
+    'obras:tareo': {'POST': 'obras.ejecutar'}, 'obras:planillas_civil': {'POST': 'obras.ejecutar'},
+    'obras:planilla_civil': {'POST': 'obras.ejecutar'}, 'obras:partes': {'POST': 'obras.ejecutar'},
+    'obras:subcontratos': {'POST': 'obras.ejecutar'}, 'obras:subcontrato': {'POST': 'obras.ejecutar'},
     'sst:registro_nuevo': 'sst.registrar', 'sst:registro': {'POST': 'sst.registrar'},
     'sst:indices': {'POST': 'sst.registrar'},
     'calidad:registro_nuevo': 'calidad.registrar', 'calidad:registro': {'POST': 'calidad.registrar'},

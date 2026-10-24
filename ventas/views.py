@@ -331,10 +331,13 @@ def cot_editar(request, pk):
 
 @login_required
 def cot_detalle(request, pk):
-    from core.aprobaciones import pendiente
-    from .aprobacion_pedido import motivos
+    from core.aprobaciones import historial, pendiente
+    from .aprobacion_pedido import estado_aprobacion, motivos
     cot = get_object_or_404(Cotizacion, pk=pk)
+    ruta, enviar, espera = estado_aprobacion(cot, request.user) if cot.tipo == 'PED' else ([], False, '')
     return render(request, 'core/documento_detalle.html', {
+        'pedido_ruta': ruta, 'pedido_enviar': enviar, 'pedido_espera': espera,
+        'pedido_historial': historial('PEDIDO', cot) if cot.tipo == 'PED' else [],
         'pedido_motivos': motivos(cot)[1] if cot.estado == 'PENDIENTE' else [],
         'pedido_pendiente': pendiente(cot.niveles, cot.nivel_aprobado),
         'doc': cot, 'items': cot.items.all(), 'app': 'ventas',
@@ -347,10 +350,15 @@ def cot_detalle(request, pk):
 
 @login_required
 def cot_estado(request, pk):
-    from .aprobacion_pedido import ErrorAprobacionPedido, aprobar
+    from .aprobacion_pedido import ErrorAprobacionPedido, aprobar, enviar
     cot = get_object_or_404(Cotizacion, pk=pk)
     estado = request.POST.get('estado')
-    if request.method == 'POST' and estado == 'APROBADO' and cot.estado == 'PENDIENTE':
+    if request.method == 'POST' and estado == 'ENVIAR' and cot.estado == 'PENDIENTE':
+        try:
+            messages.success(request, enviar(cot, request.user))
+        except ErrorAprobacionPedido as exc:
+            messages.error(request, str(exc))
+    elif request.method == 'POST' and estado == 'APROBADO' and cot.estado == 'PENDIENTE':
         try:
             messages.success(request, aprobar(cot, request.user))
         except ErrorAprobacionPedido as exc:

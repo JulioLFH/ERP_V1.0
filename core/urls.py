@@ -2,7 +2,7 @@ from django.contrib.auth import views as auth_views
 from django.contrib.messages.views import SuccessMessageMixin
 from django.urls import path, reverse_lazy
 
-from . import (alertas, inventario, libros_inventario, lotes, manuales, monitoreo, opciones, sustentos, usuarios,
+from . import (alertas, inventario, listas, libros_inventario, lotes, manuales, monitoreo, opciones, sustentos, usuarios,
                instalacion, sso, validacion, views, views_api, views_aprobaciones, views_cliente, views_empresa,
                views_grupo, views_sire)
 
@@ -80,6 +80,7 @@ urlpatterns = [
     path('salud/', monitoreo.salud, name='salud'),
     path('sustentos/<int:ct_id>/<int:obj_id>/subir/', sustentos.subir, name='sustento_subir'),
     path('sustentos/<int:pk>/', sustentos.ver, name='sustento_ver'),
+    path('listas/preferencias/', listas.preferencias, name='lista_preferencias'),
     path('series/', views.SerieLista.as_view(), name='series'),
     path('series/nueva/', views.SerieNueva.as_view(), name='serie_nueva'),
     path('series/<int:pk>/', views.SerieEditar.as_view(), name='serie_editar'),

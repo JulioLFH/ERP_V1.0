@@ -46,6 +46,7 @@ MODULOS = [
             ('Solicitudes de pedido', [('Bandeja de compras', 'compras:solped_bandeja', 'bi-inbox'),
                                        ('Mis líneas por pedir', 'compras:solped_bandeja?comprador=mias',
                                         'bi-person-check'),
+                                       ('Traslados entre almacenes', 'compras:traslados', 'bi-arrow-left-right'),
                                        ('Grupos de compras y compradores', 'compras:grupos', 'bi-people'),
                                        ('Todas las solicitudes', 'solicitudes:lista?vista=todas', 'bi-cart'),
                                        ('Nueva solicitud', 'solicitudes:nueva', 'bi-plus-circle'),
@@ -95,6 +96,7 @@ MODULOS = [
                              ('Todas las operaciones', 'inventario:lista', 'bi-list-ul'),
                              ('Ajuste rápido', 'inv_ajuste', 'bi-sliders'),
                              ('Picking por olas', 'inventario:olas', 'bi-water'),
+                             ('Traslados por aprobar o recibir', 'compras:traslados', 'bi-arrow-left-right'),
                              ('Inventario físico (general, cíclico, aleatorio…)', 'inventario:fisico_lista',
                               'bi-clipboard2-check'),
                              ('Programa cíclico ABC', 'inventario:ciclico', 'bi-arrow-repeat'),
@@ -204,6 +206,7 @@ MODULOS = [
             ('Presupuestos', [('Recursos (insumos)', 'obras:recursos', 'bi-boxes'),
                               ('Vincular recursos con productos', 'obras:vincular', 'bi-link-45deg'),
                               ('Biblioteca de partidas tipo', 'obras:biblioteca', 'bi-collection'),
+                              ('Índices unificados (INEI)', 'obras:indices', 'bi-table'),
                               ('Plantilla de importación (Excel)', 'obras:plantilla', 'bi-file-earmark-excel')]),
             ('Reportes', [('Resultado por obra (con gastos generales asignados)', 'contabilidad:reparto_resultado',
                            'bi-bar-chart')]),
@@ -519,6 +522,7 @@ RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'c
                 'login_2fa', 'recuperar', 'recuperar_confirmar', 'recuperar_listo', 'seguridad',
                 'sustento_subir', 'sustento_ver',  # los sustentos validan el módulo del documento
                 'validacion_accion',  # validación por especialista: valida el módulo y el permiso del registro
+                'lista_preferencias',  # columnas y filtros de las listas: preferencia de cada usuario
                 'api_claves',  # cada usuario administra sus claves de API (actúan con sus propios permisos)
                 'opciones',  # listas de los selectores (códigos y nombres, sin importes)
                 'producto_datos',  # precio y unidad del producto elegido (valida los módulos; el costo según permiso)
@@ -592,7 +596,10 @@ RUTAS_FINANZAS = {
     'flujo_proyectado': ['tesoreria', 'finanzas'],  # incluye las cuotas de préstamos y letras por vencer
 }
 # pantallas de un módulo que también abre otro (vista: módulos; el primero es el principal)
-RUTAS_COMPARTIDAS = {'contabilidad:reparto_resultado': ['contabilidad', 'obras']}
+RUTAS_COMPARTIDAS = {'contabilidad:reparto_resultado': ['contabilidad', 'obras'],
+                     # COM-13: el traslado lo piden, aprueban y reciben compras, almacén y las obras
+                     'compras:traslados': ['compras', 'inventario', 'obras', 'requerimientos'],
+                     'compras:traslado_nuevo': ['compras', 'inventario', 'obras', 'requerimientos']}
 
 
 def modulos_de_ruta(match):

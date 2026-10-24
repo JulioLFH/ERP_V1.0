@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.views.generic import CreateView, UpdateView
 
 from core import sunat
-from core.models import Almacen, Empresa, FacturacionConfig
+from core.models import Almacen, Empresa, FacturacionConfig, Tercero
 from core.utils import faltantes_stock, guardar_documento, lineas_formset
 from core.views import FormGenerico, ListaGenerica
 from ventas.models import Venta
@@ -49,6 +49,23 @@ def punto_partida(almacen, empresa):
     ubigeo = almacen.ubigeo or principal.ubigeo or empresa.ubigeo
     direccion = almacen.direccion or principal.direccion or empresa.direccion
     return ubigeo, direccion
+
+
+def _initial_desde_traslado(t):
+    """Guía de un traslado entre almacenes (COM-13): motivo 04, la empresa como destinatario y sin mover stock (lo
+    mueven el envío a tránsito y la recepción del traslado)."""
+    empresa = Empresa.actual()
+    ubigeo, direccion = punto_partida(t.almacen_origen, empresa)
+    llegada_ubigeo, llegada_direccion = punto_partida(t.almacen_destino, empresa)
+    destinatario = Tercero.objects.filter(numero_doc=empresa.ruc).first()
+    initial = {'motivo_traslado': '04', 'partida_ubigeo': ubigeo, 'partida_direccion': direccion,
+               'llegada_ubigeo': llegada_ubigeo, 'llegada_direccion': llegada_direccion,
+               'almacen_origen': t.almacen_origen_id, 'almacen_destino': t.almacen_destino_id,
+               'efecto_stock': 'NINGUNO', 'doc_relacionado': (t.envio.numero if t.envio_id else t.numero)[:40],
+               'destinatario': destinatario.pk if destinatario else None}
+    items = [{'producto': t.producto_id, 'descripcion': t.producto.nombre, 'cantidad': t.cantidad,
+              'unidad': t.producto.unidad}]
+    return initial, items
 
 
 def _initial_desde_venta(venta):
@@ -177,6 +194,10 @@ def nueva(request):
         initial = {'partida_ubigeo': principal.ubigeo or empresa.ubigeo,
                    'partida_direccion': principal.direccion or empresa.direccion,
                    'almacen_origen': principal.pk, 'efecto_stock': 'SALIDA'}
+    if request.GET.get('traslado'):
+        from inventario.models import SolicitudTraslado
+        initial, items = _initial_desde_traslado(get_object_or_404(SolicitudTraslado.objects.select_related(
+            'producto', 'almacen_origen', 'almacen_destino', 'envio'), pk=request.GET['traslado']))
     if request.GET.get('venta'):
         venta = get_object_or_404(Venta, pk=request.GET['venta'])
         initial, items = _initial_desde_venta(venta)

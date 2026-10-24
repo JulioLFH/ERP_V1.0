@@ -16,13 +16,14 @@ from .models import Delegacion, ReglaAprobacion
 class ReglaForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = ReglaAprobacion
-        fields = ['documento', 'nivel', 'tipo', 'aprobador', 'puesto', 'niveles_arriba', 'monto_desde',
+        fields = ['documento', 'nivel', 'tipo', 'aprobador', 'puesto', 'niveles_arriba', 'reemplazo', 'monto_desde',
                   'centro_costo', 'aplica_a', 'activo']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from contabilidad.models import CentroCosto
         self.fields['aprobador'].queryset = get_user_model().objects.filter(is_active=True).order_by('username')
+        self.fields['reemplazo'].queryset = self.fields['aprobador'].queryset
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
 
     def clean(self):
@@ -138,6 +139,33 @@ def _pendientes(user):
         if mov_puede(user, m):
             filas.append(('MOVIMIENTO', 'Movimiento de personal', m, motor.pendiente(m.niveles, m.nivel_aprobado),
                           reverse('planillas:movimiento', args=[m.pk]), m.motivo[:60]))
+    # APR-03: también pedidos de venta, conformidades de servicio y rendiciones de gastos
+    from compras.hes import puede_liberar as hes_puede
+    from compras.models import ConformidadServicio
+    from ventas.aprobacion_pedido import enviado_a_aprobacion, estado_aprobacion
+    from ventas.models import Cotizacion
+    for cot in Cotizacion.objects.filter(tipo='PED', estado='PENDIENTE').select_related('tercero'):
+        _, enviar, espera = estado_aprobacion(cot, user)
+        if not enviar and not espera and enviado_a_aprobacion(cot):
+            filas.append(('PEDIDO', 'Pedido de venta', cot, motor.pendiente(cot.niveles, cot.nivel_aprobado),
+                          reverse('ventas:cot_detalle', args=[cot.pk]),
+                          f'{cot.tercero.nombre} · S/ {cot.total:,.2f} · {cot.motivo_aprobacion[:60]}'))
+    for h in ConformidadServicio.objects.filter(estado='POR_LIBERAR').select_related('orden_compra__tercero'):
+        if hes_puede(user, h):
+            filas.append(('HES', 'Conformidad de servicio', h, motor.pendiente(h.niveles, h.nivel_aprobado),
+                          reverse('compras:hes', args=[h.pk]),
+                          f'{h.orden_compra.tercero.nombre} · {h.descripcion[:50]} · S/ {h.valor_pen:,.2f}'))
+    try:
+        from finanzas.models_rendicion import Rendicion
+        from finanzas.rendiciones import puede_aprobar as rend_puede
+        for r in Rendicion.objects.filter(estado__in=Rendicion.POR_APROBAR).select_related('rendidor'):
+            if rend_puede(user, r):
+                filas.append(('RENDICION', 'Rendición de gastos', r, r.nivel_pendiente,
+                              reverse('rendiciones:detalle', args=[r.pk]),
+                              f'{r.rendidor.get_full_name() or r.rendidor.username} · '
+                              f'S/ {r.total:,.2f}'))
+    except ImportError:  # pragma: no cover
+        pass
     return filas
 
 
@@ -151,21 +179,18 @@ def bandeja(request):
         from compras.solped import ErrorSolped
         from inventario.requerimientos import ErrorRequerimiento
         from planillas.organizacion import ErrorPersonal
+        from compras.hes import ErrorHES
+        from finanzas.rendiciones import ErrorRendicion
+        from ventas.aprobacion_pedido import ErrorAprobacionPedido
         try:
             messages.success(request, _resolver(request.user, doc, pk, accion, comentario))
-        except (ErrorAprobacionOC, ErrorSolped, ErrorRequerimiento, ErrorPersonal, motor.ErrorAprobacion) as exc:
+        except (ErrorAprobacionOC, ErrorSolped, ErrorRequerimiento, ErrorPersonal, motor.ErrorAprobacion, ErrorHES,
+                ErrorRendicion, ErrorAprobacionPedido) as exc:
             messages.error(request, str(exc))
         return redirect('aprobaciones_bandeja')
     filas = _pendientes(request.user)
-    rendiciones = 0
-    try:
-        from finanzas.models_rendicion import Rendicion
-        from finanzas.rendiciones import puede_aprobar as rend_puede
-        rendiciones = sum(1 for r in Rendicion.objects.filter(estado__in=Rendicion.POR_APROBAR)
-                          if rend_puede(request.user, r))
-    except ImportError:
-        pass
-    return render(request, 'core/aprobaciones_bandeja.html', {'filas': filas, 'rendiciones': rendiciones})
+    trabados = motor.sin_aprobador() if request.user.is_superuser else []  # APR-02
+    return render(request, 'core/aprobaciones_bandeja.html', {'filas': filas, 'trabados': trabados})
 
 
 def _resolver(user, doc, pk, accion, comentario):
@@ -202,4 +227,32 @@ def _resolver(user, doc, pk, accion, comentario):
         m = get_object_or_404(MovimientoPersonal, pk=pk)
         (organizacion.aprobar if aprobar else organizacion.rechazar)(m, user, comentario)
         return f'{m}: {m.get_estado_display().lower()}.'
+    if doc == 'PEDIDO':
+        from ventas import aprobacion_pedido
+        from ventas.models import Cotizacion
+        cot = get_object_or_404(Cotizacion, pk=pk, tipo='PED')
+        if aprobar:
+            return aprobacion_pedido.aprobar(cot, user)
+        if len((comentario or '').strip()) < 5:
+            raise motor.ErrorAprobacion('Indique el motivo del rechazo.')
+        motor.registrar('PEDIDO', cot, user, 'RECHAZADA', comentario,
+                        (motor.pendiente(cot.niveles, cot.nivel_aprobado) or {}).get('nivel'))
+        cot.niveles, cot.nivel_aprobado = [], 0  # vuelve al vendedor para corregirlo y enviarlo otra vez
+        cot.save(update_fields=['niveles', 'nivel_aprobado'])
+        return f'{cot.numero}: rechazado; vuelve al vendedor.'
+    if doc == 'HES':
+        from compras import hes
+        from compras.models import ConformidadServicio
+        h = get_object_or_404(ConformidadServicio, pk=pk)
+        hes.resolver(h, user, 'liberar' if aprobar else 'rechazar', comentario)
+        return f'{h}: {h.get_estado_display().lower()}.'
+    if doc == 'RENDICION':
+        from finanzas import rendiciones
+        from finanzas.models_rendicion import Rendicion
+        r = get_object_or_404(Rendicion, pk=pk)
+        if aprobar:
+            rendiciones.aprobar(r, user, comentario)
+        else:
+            rendiciones.rechazar(r, user, comentario)
+        return f'{r}: {r.get_estado_display().lower()}.'
     raise motor.ErrorAprobacion('Documento no válido.')

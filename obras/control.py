@@ -54,15 +54,25 @@ def almacen(obra):
 
 def control(presupuesto):
     """Filas de meta vs. real por insumo y totales."""
+    from compras.stock import disponibilidad, total_disponible
+    from core.models import StockAlmacen
     obra = presupuesto.obra
     filas, sin_producto = meta(presupuesto)
     pedidos = pedido(obra)
     recibido, consumido = almacen(obra)
+    stock_obra = dict(StockAlmacen.objects.filter(almacen_id=obra.almacen_id, producto_id__in=list(filas)).values_list(
+        'producto_id', 'cantidad')) if obra.almacen_id else {}
+    disp = disponibilidad(set(filas), excluir_almacen=obra.almacen_id)
     for pid, f in filas.items():
         f['pedido'] = pedidos.get(pid, D0)
         f['recibido'] = recibido.get(pid, D0)
         f['consumido'], f['costo_real'] = consumido.get(pid, (D0, D0))
-        f['por_pedir'] = max(f['cantidad'] - f['pedido'], D0)
+        f['stock_obra'] = stock_obra.get(pid, D0)
+        f['otros'] = total_disponible(disp.get(pid, []))
+        f['fuentes'] = [x for x in disp.get(pid, []) if x['disponible'] > 0][:3]
+        # lo que falta: la meta menos lo consumido, lo que hay en el almacén de la obra y lo pedido por llegar
+        por_llegar = max(f['pedido'] - f['recibido'], D0)
+        f['por_pedir'] = max(f['cantidad'] - f['consumido'] - f['stock_obra'] - por_llegar, D0)
         f['avance'] = (f['consumido'] / f['cantidad'] * 100).quantize(Decimal('0.1')) if f['cantidad'] else D0
         f['excede'] = f['pedido'] > f['cantidad']
         # lo que costaría consumir la Meta al costo real promedio, frente a su monto en el presupuesto

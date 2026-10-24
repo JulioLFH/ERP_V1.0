@@ -13,14 +13,15 @@
     {% for field in form|campos:"fecha,fecha_documento,orden_compra,compra,venta,envio,almacen_origen,almacen_destino,tercero,referencia,centro_costo" %}
       <div class="{% if field.name == 'fecha' or field.name == 'fecha_documento' %}col-6 col-md-2{% elif field.name in 'orden_compra,compra,venta,envio,tercero' %}col-md-5{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>
     {% endfor %}
+    {% for field in form|campos:"motivo_fecha" %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}
     {% for field in form|campos:"glosa" %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endfor %}
     {% for field in form|campos:"sustento" %}<div class="col-md-6">{% include 'core/_campo.html' %}{% if tipo.requiere_sustento %}<span class="badge text-bg-warning">Obligatorio para confirmar</span>{% endif %}</div>{% endfor %}
   </div>
   <p class="small text-muted mt-2 mb-0">
     {% if tipo.origen %}Al elegir el documento de origen se cargan las cantidades pendientes; puede recibir/despachar parcialmente.{% endif %}
     {% if tipo.clase == 'MANUFACTURA' %}Indique los insumos que se consumen y los productos terminados que se obtienen: el costo de los productos es la suma del valor de los insumos.{% endif %}
-    {% if tipo.requiere_costo %}Indique el costo unitario en soles (si lo deja vacío se usa el costo promedio actual).{% endif %}
-    {% if tipo.cuenta_contable %}Contabilidad: contrapartida {{ tipo.cuenta_contable.codigo }} {{ tipo.cuenta_contable.nombre }}.{% endif %}
+    {% if tipo.requiere_costo %}Indique el costo unitario en soles (si lo deja vacío se usa el costo promedio actual).{% elif tipo.origen == 'ORDEN_COMPRA' or tipo.origen == 'COMPRA' %}El costo es el de la orden de compra o la factura (no se edita). La fecha contable no puede ser futura; la del documento (guía) no puede ser posterior a ella.{% endif %}
+    {% if tipo.cuenta_contable %}Contabilidad: contrapartida {{ tipo.cuenta_contable.codigo }} {{ tipo.cuenta_contable.nombre }}{% if tipo.codigo == 'REC_COMPRA' or tipo.codigo == 'DEV_PROV' %} o la «por recibir» de cada producto (281 mercaderías, 284 materias primas, 285 suministros…){% endif %}.{% endif %}
   </p></div></div>
 
   <div class="card mb-3">

@@ -1,0 +1,21 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Reclasificar a adelanto{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-arrow-repeat"></i> Reclasificar una factura como adelanto</h1>
+    <div class="text-muted small">{{ o.codigo }} {{ o.nombre }}</div></div>
+  <a href="{% url 'obras:ejecucion' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Ejecución</a>
+</div>
+<div class="alert alert-info small">Una factura del adelanto que se emitió como venta (cuenta 70) pasa a anticipos de clientes (122): sus líneas toman el servicio «Adelanto de obra», queda con el centro de costo de la obra, sale del resultado por obra y se amortiza en las valorizaciones. El comprobante ante SUNAT no cambia; la contabilidad del mes se regenera (el mes debe estar abierto). Queda en la bitácora.</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Factura</th><th>Fecha</th><th>Cliente</th><th>Detalle</th><th class="num">Base</th><th class="num">Total</th><th style="width:360px"></th></tr></thead>
+  <tbody>{% for v in ventas %}<tr>
+    <td><a href="{% url 'ventas:detalle' v.pk %}">{{ v.numero_completo }}</a></td><td>{{ v.fecha_emision|date:'d/m/Y' }}</td><td class="small">{{ v.tercero.nombre|truncatechars:35 }}</td>
+    <td class="small">{{ v.glosa|truncatechars:60 }}</td><td class="num">{{ v.base_imponible|money }}</td><td class="num">{{ v.total|money }}</td>
+    <td><form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="venta" value="{{ v.pk }}">
+      <select name="tipo" class="form-select form-select-sm" style="max-width:150px">{% for k, t in tipos %}<option value="{{ k }}">{{ t }}</option>{% endfor %}</select>
+      <input name="motivo" class="form-control form-control-sm" placeholder="Motivo" required>
+      <button class="btn btn-sm btn-warning text-nowrap" data-confirm="¿Pasar {{ v.numero_completo }} a anticipo de la obra?">Reclasificar</button></form></td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No hay facturas vigentes del cliente o con el centro de costo de la obra.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

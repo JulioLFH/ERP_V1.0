@@ -65,9 +65,51 @@ DEFECTOS = {
                                             'de inmuebles como operación no gravada (1 = sí, 0 = no)', '',
                                      [('2000-01-01', '1')], 'Reglamento de la Ley del IGV, art. 6 num. 6.2 '
                                                              '(confirmar con el contador)'),
+    # obras: valorizaciones y reajustes
+    'OBR_DETRACCION_PCT': ('Obras', 'Detracción de los contratos de construcción (código 030)', '%',
+                           [('2015-01-01', '4')], 'Resolución de Superintendencia 183-2004/SUNAT, anexo 3'),
+    # construcción civil (convenio CAPECO – FTCCP): confirme las tasas con el especialista laboral
+    'CC_JORNAL_OPERARIO': ('Construcción civil', 'Jornal básico diario: operario', 'S/', [('2026-01-01', '89.30')],
+                           'Convención colectiva CAPECO – FTCCP 2026'),
+    'CC_JORNAL_OFICIAL': ('Construcción civil', 'Jornal básico diario: oficial', 'S/', [('2026-01-01', '69.75')],
+                          'Convención colectiva CAPECO – FTCCP 2026'),
+    'CC_JORNAL_PEON': ('Construcción civil', 'Jornal básico diario: peón', 'S/', [('2026-01-01', '62.80')],
+                       'Convención colectiva CAPECO – FTCCP 2026'),
+    'CC_BUC_OPERARIO_PCT': ('Construcción civil', 'BUC del operario (% del jornal básico)', '%',
+                            [('2000-01-01', '32')], 'Bonificación unificada de construcción'),
+    'CC_BUC_OFICIAL_PCT': ('Construcción civil', 'BUC del oficial (% del jornal básico)', '%', [('2000-01-01', '30')],
+                           'Bonificación unificada de construcción'),
+    'CC_BUC_PEON_PCT': ('Construcción civil', 'BUC del peón (% del jornal básico)', '%', [('2000-01-01', '30')],
+                        'Bonificación unificada de construcción'),
+    'CC_MOVILIDAD_DIA': ('Construcción civil', 'Movilidad por día trabajado (no remunerativa)', 'S/',
+                         [('2026-01-01', '8.60')], 'Convención colectiva CAPECO – FTCCP 2026'),
+    'CC_HE_PRIMERAS_PCT': ('Construcción civil', 'Horas extra: sobretasa de las primeras horas', '%',
+                           [('2000-01-01', '60')], 'Convención colectiva de construcción civil'),
+    'CC_HE_SIGUIENTES_PCT': ('Construcción civil', 'Horas extra: sobretasa en domingos y feriados', '%',
+                             [('2000-01-01', '100')], 'Convención colectiva de construcción civil'),
+    'CC_CONAFOVICER_PCT': ('Construcción civil', 'CONAFOVICER: retención (% del jornal básico)', '%',
+                           [('2000-01-01', '2')], 'Fondo de vivienda del trabajador de construcción civil'),
+    'CC_ESSALUD_PCT': ('Construcción civil', 'EsSalud (aporte del empleador)', '%', [('2000-01-01', '9')],
+                       'Ley 26790'),
+    'CC_SCTR_PCT': ('Construcción civil', 'SCTR salud y pensión (prima de la póliza)', '%', [('2000-01-01', '1.5')],
+                    'Según la póliza contratada (Ley 26790 y D.S. 003-98-SA)'),
+    'CC_CTS_PCT': ('Construcción civil', 'CTS (% de los jornales básicos)', '%', [('2000-01-01', '15')],
+                   'Régimen de construcción civil'),
+    'CC_VACACIONES_PCT': ('Construcción civil', 'Vacaciones (% de los jornales básicos)', '%', [('2000-01-01', '10')],
+                          'Régimen de construcción civil'),
+    'CC_GRATIFICACION_PCT': ('Construcción civil', 'Gratificaciones: 40 jornales por semestre (% de los jornales '
+                                                   'básicos y dominicales)', '%', [('2000-01-01', '22.22')],
+                             'Régimen de construcción civil (40 / 180 días)'),
+    # compras: revisar el inventario antes de comprar (COM-13)
+    'STOCK_CONTROL_COMPRA': ('Compras y almacén', 'Comprar habiendo stock disponible en otros almacenes: 0 = no '
+                                                  'controlar, 1 = pedir justificación, 2 = bloquear', '',
+                             [('2000-01-01', '1')], 'Política de la empresa'),
+    'STOCK_RESERVA_META': ('Compras y almacén', 'El stock de una obra en ejecución solo está disponible por encima de '
+                                                'lo que su meta aún va a consumir (1 = sí, 0 = no)', '',
+                           [('2000-01-01', '1')], 'Política de la empresa'),
 }
 GRUPOS = ['Generales', 'Inmobiliario', 'Bancarización y lavado de activos', 'Renta y libros', 'IGV',
-          'Seguridad y salud en el trabajo']
+          'Seguridad y salud en el trabajo', 'Obras', 'Construcción civil', 'Compras y almacén']
 
 
 def _fecha(f):

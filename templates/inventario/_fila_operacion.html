@@ -1,0 +1,15 @@
+{% load erp_tags %}<tr onclick="location.href='{% url 'inventario:detalle' o.pk %}'" style="cursor:pointer">
+  {% if 'fecha' in visibles %}<td>{{ o.fecha|date:'d/m/Y' }}</td>{% endif %}
+  {% if 'numero' in visibles %}<td class="fw-semibold">{{ o.numero|default:'(borrador)' }}</td>{% endif %}
+  {% if 'tipo' in visibles %}<td><i class="bi {{ o.tipo.icono }}"></i> {{ o.tipo.nombre }}</td>{% endif %}
+  {% if 'origen' in visibles %}<td class="small">{{ o.almacen_origen|default:'' }}</td>{% endif %}
+  {% if 'destino' in visibles %}<td class="small">{{ o.almacen_destino|default:'' }}</td>{% endif %}
+  {% if 'documento' in visibles %}<td class="small">{% if o.orden_compra %}<a href="{% url 'compras:oc_detalle' o.orden_compra_id %}" onclick="event.stopPropagation()">{{ o.orden_compra.numero }}</a>{% elif o.compra %}<a href="{% url 'compras:detalle' o.compra_id %}" onclick="event.stopPropagation()">{{ o.compra.numero_completo }}</a>{% elif o.venta %}<a href="{% url 'ventas:detalle' o.venta_id %}" onclick="event.stopPropagation()">{{ o.venta.numero_completo }}</a>{% else %}{{ o.documento_origen|default:o.referencia }}{% endif %}</td>{% endif %}
+  {% if 'tercero' in visibles %}<td class="small">{% if o.tercero %}{{ o.tercero.nombre|truncatechars:30 }}{% elif o.orden_compra %}{{ o.orden_compra.tercero.nombre|truncatechars:30 }}{% elif o.compra %}{{ o.compra.tercero.nombre|truncatechars:30 }}{% elif o.venta %}{{ o.venta.tercero.nombre|truncatechars:30 }}{% endif %}</td>{% endif %}
+  {% if 'guia' in visibles %}<td class="small">{{ o.referencia }}</td>{% endif %}
+  {% if 'centro' in visibles %}<td class="small">{% if o.centro_costo %}{{ o.centro_costo.codigo }}{% elif o.orden_compra.centro_costo %}{{ o.orden_compra.centro_costo.codigo }}{% endif %}</td>{% endif %}
+  {% if 'registro' in visibles %}<td class="small">{{ o.creado|date:'d/m/Y H:i' }} · {{ o.creado_por.username|default:'—' }}</td>{% endif %}
+  {% if 'confirmo' in visibles %}<td class="small">{{ o.confirmado_por.username|default:'' }}</td>{% endif %}
+  {% if 'valor' in visibles %}<td class="num">{{ o.valor_total|money }}</td>{% endif %}
+  {% if 'estado' in visibles %}<td><span class="badge {% if o.estado == 'CONFIRMADO' %}text-bg-success{% elif o.estado == 'ANULADO' %}badge-ANULADO{% else %}text-bg-warning{% endif %}">{{ o.get_estado_display }}</span></td>{% endif %}
+</tr>

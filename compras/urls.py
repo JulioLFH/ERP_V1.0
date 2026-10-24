@@ -3,7 +3,7 @@ from django.urls import path
 from proveedores import views_erp as portal
 
 from . import (views, views_abastecimiento, views_compradores, views_hes, views_importacion, views_registro_info,
-               views_sire, views_solped, views_xml)
+               views_sire, views_solped, views_stock, views_xml)
 
 app_name = 'compras'
 
@@ -11,6 +11,8 @@ urlpatterns = views.compras_views.urls() + [
     path('<int:pk>/distribuir/', views.distribuir, name='distribuir'),
     path('<int:pk>/liberar-pago/', views.liberar_pago, name='liberar_pago'),
     path('solicitudes/bandeja/', views_solped.bandeja, name='solped_bandeja'),
+    path('traslados/', views_stock.traslados, name='traslados'),
+    path('traslados/nuevo/', views_stock.traslado_nuevo, name='traslado_nuevo'),
     path('solicitudes/reglas/', views_solped.reglas, name='solped_reglas'),
     path('solicitudes/reportes/', views_solped.reportes, name='solped_reportes'),
     path('ordenes/<int:oc_pk>/conformidad/', views_hes.conformidad, name='conformidad'),

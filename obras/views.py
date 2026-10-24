@@ -231,6 +231,15 @@ def _accion_presupuesto(request, p, accion):
         p.estado, p.aprobado_por, p.aprobado_en = 'APROBADO', request.user, timezone.now()
         p.save(update_fields=['estado', 'aprobado_por', 'aprobado_en'])
         messages.success(request, f'{p} aprobado por S/ {p.total:,.2f}. Ya no se modifica: cópielo para una nueva versión.')
+        from .versiones import trasladar_registros
+        n, sin_destino = trasladar_registros(p)  # lo ejecutado contra la versión anterior pasa a esta (OBR-16)
+        if n:
+            messages.info(request, f'{n} registro(s) de ejecución (avance, valorizaciones, cronograma, tareo, partes, '
+                                   f'subcontratos) pasaron de la versión anterior a esta.')
+        if sin_destino:
+            messages.warning(request, 'Partidas de la versión anterior con registros y sin equivalente en esta (quedan '
+                                      'en la anterior): ' + ', '.join(f'{x.item} {x.descripcion[:30]}'
+                                                                      for x in sin_destino[:6]))
     return None
 
 

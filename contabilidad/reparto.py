@@ -13,7 +13,7 @@ from django.db.models import Q, Sum
 
 from core.models import r2
 
-from .centralizar import Borrador, ErrorContable, _fin_mes, _repartir
+from .centralizar import Borrador, ErrorContable, _fin_mes, _rango, _repartir
 from .models import (Asiento, AsientoLinea, CentroCosto, CuentaContable, EjecucionReparto, PeriodoContable,
                      ReglaReparto, ValorCifra)
 
@@ -94,6 +94,9 @@ def bases(regla, periodo, destinos):
         valores = _neto_por_centro(_gastos(periodo, destinos))
     elif regla.base == 'PLANILLA':
         valores = _neto_por_centro(_gastos(periodo, destinos, ('62',)))
+    elif regla.base == 'HORAS_EQUIPO':  # equipos propios: su costo (depreciación, combustible…) a las obras
+        from obras.equipos import horas_por_centro
+        valores = horas_por_centro(periodo, destinos)
     elif regla.base == 'COMPRAS':
         from compras.models import Compra
         valores = _documentos(Compra, periodo, destinos)
@@ -240,19 +243,40 @@ def revertir(periodo, usuario, motivo):
 
 
 # ---------------------------------------------------------------- resultado por centro (obra)
+def ventas_por_centro(desde, hasta):
+    """{centro: ingreso sin IGV} de los comprobantes con centro de costo. Los anticipos (líneas que van a la 122:
+    adelantos de obra, cuotas de inmuebles) no son ventas y sus deducciones en las valorizaciones tampoco restan; las
+    unidades inmobiliarias entregadas suman su ingreso reconocido."""
+    from ventas.models import VentaItem
+    ventas = defaultdict(lambda: D0)
+    for c, tipo, moneda, tc, subtotal, cuenta, deduce in VentaItem.objects.filter(
+            documento__periodo__gte=desde, documento__periodo__lte=hasta, documento__estado='REGISTRADO',
+            documento__centro_costo__isnull=False).values_list(
+            'documento__centro_costo_id', 'documento__tipo_comprobante', 'documento__moneda', 'documento__tipo_cambio',
+            'subtotal', 'producto__cuenta_venta__codigo', 'anticipo_de_id'):
+        if deduce or (cuenta or '').startswith('122'):  # anticipos de clientes (PCGE 2019 y 2026)
+            continue
+        ventas[c] += subtotal * (tc if moneda == 'USD' else 1) * (-1 if tipo == '07' else 1)
+    try:
+        from obras.models import VentaInmueble
+        for c, ingreso in VentaInmueble.objects.filter(
+                fecha_entrega__gte=_rango(desde)[0], fecha_entrega__lte=_rango(hasta)[1]).exclude(
+                estado='ANULADA').values_list('obra__centro_costo_id', 'ingreso'):
+            if c:
+                ventas[c] += ingreso
+    except ImportError:  # pragma: no cover
+        pass
+    return ventas
+
+
 def resultado(desde, hasta, solo_obras=False):
     """Por centro de costo: ventas (comprobantes con el centro), gastos propios (clase 6 sin el reparto), asignados
     (reparto recibido menos entregado) y resultado; en las obras, el gasto general del presupuesto frente al real."""
-    from ventas.models import Venta
     lineas = AsientoLinea.objects.filter(asiento__periodo__gte=desde, asiento__periodo__lte=hasta, es_destino=False,
                                          centro_costo__isnull=False, cuenta__codigo__startswith='6')
     propios = _neto_por_centro(lineas.exclude(asiento__origen='REPARTO'))
     asignados = _neto_por_centro(lineas.filter(asiento__origen='REPARTO'))
-    ventas = defaultdict(lambda: D0)
-    for c, tipo, t, igv in Venta.objects.filter(periodo__gte=desde, periodo__lte=hasta, estado='REGISTRADO',
-                                                centro_costo__isnull=False).values_list(
-            'centro_costo_id', 'tipo_comprobante', 'total_pen', 'igv_pen'):
-        ventas[c] += (t - igv) * (-1 if tipo == '07' else 1)
+    ventas = ventas_por_centro(desde, hasta)
     obras = {}
     try:
         from obras.models import Obra

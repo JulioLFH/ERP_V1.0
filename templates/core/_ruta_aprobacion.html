@@ -1,0 +1,6 @@
+{# Ruta de aprobación (APR-04 / APR-06): cada nivel con quién aprobó, rechazó u observó, cuándo y su motivo #}
+{% for n in ruta %}<li class="list-group-item d-flex flex-wrap justify-content-between gap-2"><span>Nivel {{ n.nivel }}: {{ n.nombre }}</span>
+  <span>{% if n.estado == 'APROBADO' %}<span class="text-success"><i class="bi bi-check2-circle"></i> Aprobado{% if n.usuario %} por {{ n.usuario }}{% endif %}{% if n.fecha %} el {{ n.fecha|date:'d/m/Y H:i' }}{% endif %}</span>
+  {% elif n.estado == 'RECHAZADO' %}<span class="text-danger"><i class="bi bi-x-circle"></i> Rechazado por {{ n.usuario|default:'—' }}{% if n.fecha %} el {{ n.fecha|date:'d/m/Y H:i' }}{% endif %}{% if n.comentario %}: {{ n.comentario }}{% endif %}</span>
+  {% elif n.estado == 'OBSERVADO' %}<span class="text-warning"><i class="bi bi-exclamation-circle"></i> Observado por {{ n.usuario|default:'—' }}{% if n.fecha %} el {{ n.fecha|date:'d/m/Y H:i' }}{% endif %}{% if n.comentario %}: {{ n.comentario }}{% endif %}</span>
+  {% elif n.estado == 'PENDIENTE' %}<span class="text-warning"><i class="bi bi-hourglass-split"></i> Pendiente</span>{% else %}<span class="text-muted">—</span>{% endif %}</span></li>{% endfor %}

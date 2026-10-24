@@ -150,6 +150,7 @@ def movimiento(request, pk):
     from core.aprobaciones import historial, pendiente
     return render(request, 'planillas/movimiento.html', {
         'm': m, 'puede_aprobar': org.puede_aprobar(request.user, m), 'historial': historial('MOVIMIENTO', m),
+        'quien_aprueba': org.quien_aprueba(m) if m.estado == 'ENVIADO' else [],
         'pendiente': pendiente(m.niveles, m.nivel_aprobado) if m.estado == 'ENVIADO' else None})
 
 

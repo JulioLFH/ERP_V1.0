@@ -133,6 +133,13 @@ def calcular(user):
                                    f'{n} requerimiento(s) de materiales esperan su aprobación.',
                                    reverse('requerimientos:lista') + '?estado=ENVIADO', n))
     if 'inventario' in mods and puede(user, 'inventario.operar'):
+        from inventario.fisico import DIAS_ABIERTO, abiertos_antiguos
+        viejos = list(abiertos_antiguos()[:20])
+        if viejos:  # el stock se sigue moviendo: las diferencias de un conteo viejo son falsas (INV-24)
+            alertas.append(_alerta('warning', 'bi-clipboard2-x', 'Inventarios físicos abiertos hace días',
+                                   f'{len(viejos)} conteo(s) abiertos hace más de {DIAS_ABIERTO} días: '
+                                   + ', '.join(f'{d.numero} ({d.almacen})' for d in viejos[:3]) +
+                                   '. Contabilícelos o anúlelos.', reverse('inventario:fisico_lista'), len(viejos)))
         n = RequerimientoInterno.objects.filter(estado__in=['APROBADO', 'PARCIAL']).count()
         if n:
             alertas.append(_alerta('warning', 'bi-box-arrow-up', 'Requerimientos por atender',

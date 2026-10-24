@@ -227,9 +227,10 @@ class OperacionesTest(TestCase):
                  'items-TOTAL_FORMS': '1', 'items-INITIAL_FORMS': '0', 'items-MIN_NUM_FORMS': '1',
                  'items-MAX_NUM_FORMS': '1000', 'items-0-producto': self.p3.pk, 'items-0-cantidad': '1',
                  'items-0-observacion': 'Reposición', 'accion': 'confirmar'}
-        # sin sustento queda en borrador: el consumo de mantenimiento lo exige
-        self.client.post(reverse('inventario:nueva') + '?tipo=CONS_MANT', {**datos, 'referencia': 'OT-14'})
-        self.assertEqual(Operacion.objects.get(referencia='OT-14').estado, 'BORRADOR')
+        # sin sustento no se confirma (el consumo de mantenimiento lo exige) y no queda un borrador suelto (ALM-11)
+        r = self.client.post(reverse('inventario:nueva') + '?tipo=CONS_MANT', {**datos, 'referencia': 'OT-14'})
+        self.assertContains(r, 'no se guardó')
+        self.assertFalse(Operacion.objects.filter(referencia='OT-14').exists())
         r = self.client.post(reverse('inventario:nueva') + '?tipo=CONS_MANT', {**datos, 'sustento': acta()})
         op = Operacion.objects.get(referencia='OT-15')
         self.assertRedirects(r, reverse('inventario:detalle', args=[op.pk]))

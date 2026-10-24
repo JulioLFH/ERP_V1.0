@@ -20,6 +20,7 @@
   {% if m.aplicado_en %}<tr><th>Aplicado a la ficha</th><td>{{ m.aplicado_en|date:'d/m/Y H:i' }}</td></tr>{% endif %}
   {% if m.comentario %}<tr><th>Comentario</th><td>{{ m.comentario }}</td></tr>{% endif %}
 </table></div>
+{% if m.estado == 'ENVIADO' and not puede_aprobar %}<div class="alert alert-info py-2 small"><i class="bi bi-person-check"></i> Por aprobar{% if pendiente %} (nivel {{ pendiente.nivel }}: {{ pendiente.nombre }}){% endif %}. Lo puede aprobar: {{ quien_aprueba|join:', '|default:'nadie todavía: asigne el permiso «Aprobar movimientos de personal» o configure las reglas (Ajustes › Reglas de aprobación)' }}.</div>{% endif %}
 {% if puede_aprobar %}<form method="post" class="card border-primary mb-3"><div class="card-body d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
   <input name="comentario" class="form-control form-control-sm" style="max-width:360px" placeholder="Comentario (obligatorio para rechazar)">
   <button name="accion" value="aprobar" class="btn btn-sm btn-success"><i class="bi bi-check2"></i> Aprobar{% if pendiente and m.niveles|length > 1 %} nivel {{ pendiente.nivel }}{% endif %}</button>

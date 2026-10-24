@@ -1,0 +1,47 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Versiones {{ o.codigo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-layers"></i> Versiones del presupuesto (S10)</h1>
+    <div class="text-muted small">{{ o.codigo }} {{ o.nombre }} · reimporte la nueva meta, el adicional o el deductivo del S10 como nueva versión, compárela y apruébela: lo ejecutado pasa a la nueva versión.</div></div>
+  <div class="d-flex gap-2"><a href="{% url 'obras:importar' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-arrow-up"></i> Importar versión del S10</a><a href="{% url 'obras:obra' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Obra</a></div>
+</div>
+<div class="card mb-3"><div class="card-header fw-semibold">Historial de versiones</div><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Versión</th><th>Estado</th><th>Origen</th><th>Motivo · resolución</th><th>Aprobada por</th><th class="num">Total</th><th class="num">Diferencia</th><th></th></tr></thead>
+  <tbody>{% for h in historial %}{% with p=h.p %}<tr>
+    <td><a href="{% url 'obras:presupuesto' p.pk %}">{{ p.get_tipo_display }} v{{ p.version }}</a></td><td><span class="badge {% if p.estado == 'APROBADO' %}text-bg-success{% else %}text-bg-light border{% endif %}">{{ p.get_estado_display }}</span></td>
+    <td class="small">{{ p.origen|default:'—' }}<div class="text-muted">{{ p.creado|date:'d/m/Y' }}</div></td>
+    <td class="small">{{ p.get_motivo_display }}{% if p.resolucion %} · {{ p.resolucion }}{% endif %}{% if p.fecha_resolucion %} ({{ p.fecha_resolucion|date:'d/m/Y' }}){% endif %}</td>
+    <td class="small">{% if p.aprobado_por %}{{ p.aprobado_por.get_full_name|default:p.aprobado_por.username }} · {{ p.aprobado_en|date:'d/m/Y' }}{% else %}—{% endif %}</td>
+    <td class="num">{{ p.total|money }}</td><td class="num {% if h.diferencia < 0 %}text-danger{% endif %}">{% if h.diferencia is not None %}{{ h.diferencia|money }}{% endif %}</td>
+    <td>{% if h.previa %}<a href="?anterior={{ h.previa.pk }}&nuevo={{ p.pk }}" class="btn btn-sm btn-outline-primary py-0">Comparar</a>{% endif %}</td></tr>{% endwith %}
+  {% empty %}<tr><td colspan="8" class="text-center text-muted py-3">Sin presupuestos.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<form method="get" class="card mb-3"><div class="card-body py-2 row g-2 align-items-end">
+  <div class="col-md-4"><label class="form-label small mb-1">Versión anterior</label><select name="anterior" class="form-select form-select-sm">{% for p in presupuestos %}<option value="{{ p.pk }}" {% if anterior.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></div>
+  <div class="col-md-4"><label class="form-label small mb-1">Versión nueva</label><select name="nuevo" class="form-select form-select-sm">{% for p in presupuestos %}<option value="{{ p.pk }}" {% if nuevo.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Comparar</button></div>
+</div></form>
+{% if c %}
+<div class="row g-3 mb-3 small">
+  <div class="col"><div class="kpi"><div class="label">Altas ({{ c.altas|length }})</div><div class="value text-success">S/ {{ c.total_altas|money }}</div></div></div>
+  <div class="col"><div class="kpi"><div class="label">Bajas ({{ c.bajas|length }})</div><div class="value text-danger">S/ {{ c.total_bajas|money }}</div></div></div>
+  <div class="col"><div class="kpi"><div class="label">Cambios ({{ c.cambios|length }})</div><div class="value">S/ {{ c.total_cambios|money }}</div></div></div>
+  <div class="col"><div class="kpi"><div class="label">Costo directo: diferencia</div><div class="value">S/ {{ c.diferencia|money }}</div></div></div>
+  <div class="col"><div class="kpi"><div class="label">Total con IGV: diferencia</div><div class="value">S/ {{ c.diferencia_total|money }}</div></div></div>
+</div>
+{% if c.bajas_con_registros %}<div class="alert alert-warning small">Partidas que salen y tienen registros (quedan en la versión anterior): {% for x, que in c.bajas_con_registros %}<b>{{ x.item }}</b> {{ x.descripcion|truncatechars:40 }} ({{ que|join:', ' }}){% if not forloop.last %}; {% endif %}{% endfor %}.</div>{% endif %}
+<form method="post" class="card mb-3">{% csrf_token %}<input type="hidden" name="presupuesto" value="{{ c.nuevo.pk }}"><input type="hidden" name="anterior" value="{{ c.anterior.pk }}">
+  <div class="card-body py-2 row g-2 align-items-end"><div class="col-12 small fw-semibold">{{ c.nuevo }}: motivo y resolución que la aprueba</div>
+  <div class="col-md-4"><select name="motivo" class="form-select form-select-sm">{% for v, t in motivos %}<option value="{{ v }}" {% if c.nuevo.motivo == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+  <div class="col-md-4"><input name="resolucion" value="{{ c.nuevo.resolucion }}" maxlength="120" class="form-control form-control-sm" placeholder="Resolución / documento"></div>
+  <div class="col-md-2"><input type="date" name="fecha_resolucion" value="{{ c.nuevo.fecha_resolucion|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+  <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100">Guardar</button></div></div></form>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card"><div class="card-header fw-semibold text-success">Altas</div><table class="table table-sm mb-0 small"><tbody>{% for x in c.altas %}<tr><td>{{ x.item }}</td><td>{{ x.descripcion|truncatechars:50 }}</td><td class="num">{{ x.metrado|floatformat:2 }} {{ x.unidad }}</td><td class="num">{{ x.parcial|money }}</td></tr>{% empty %}<tr><td class="text-muted">Ninguna.</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header fw-semibold text-danger">Bajas</div><table class="table table-sm mb-0 small"><tbody>{% for x in c.bajas %}<tr><td>{{ x.item }}</td><td>{{ x.descripcion|truncatechars:50 }}</td><td class="num">{{ x.metrado|floatformat:2 }} {{ x.unidad }}</td><td class="num">{{ x.parcial|money }}</td></tr>{% empty %}<tr><td class="text-muted">Ninguna.</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-12"><div class="card"><div class="card-header fw-semibold">Cambios de metrado, precio, descripción o unidad</div><table class="table table-sm mb-0 small"><thead><tr><th>Ítem</th><th>Partida</th><th>Cambios</th><th class="num">Antes</th><th class="num">Ahora</th><th class="num">Diferencia</th></tr></thead><tbody>{% for x in c.cambios %}<tr><td>{{ x.ahora.item }}</td><td>{{ x.ahora.descripcion|truncatechars:50 }}</td><td>{{ x.motivos|join:'; ' }}</td><td class="num">{{ x.antes.parcial|money }}</td><td class="num">{{ x.ahora.parcial|money }}</td><td class="num">{{ x.diferencia|money }}</td></tr>{% empty %}<tr><td class="text-muted" colspan="6">Ninguno.</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-12"><div class="card"><div class="card-header fw-semibold">Cambios en los análisis (por código de recurso)</div><table class="table table-sm mb-0 small"><thead><tr><th>Partida</th><th>Recurso</th><th class="num">Aporte antes</th><th class="num">Aporte ahora</th></tr></thead><tbody>{% for x in c.recursos|slice:':200' %}<tr><td>{{ x.partida.item }}</td><td>{{ x.recurso.codigo }} {{ x.recurso.nombre|truncatechars:40 }}</td><td class="num">{{ x.antes|default:'—' }}</td><td class="num">{{ x.ahora|default:'—' }}</td></tr>{% empty %}<tr><td class="text-muted" colspan="4">Sin cambios en los análisis.</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+{% endif %}
+{% endblock %}

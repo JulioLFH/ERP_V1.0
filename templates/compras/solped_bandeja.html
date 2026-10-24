@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title"><i class="bi bi-inbox"></i> Bandeja de compras <span class="badge text-bg-light border fs-6 align-middle">{{ total }} línea(s) por pedir</span></h1>
-  <a href="{% url 'solicitudes:lista' %}?vista=todas" class="btn btn-sm btn-outline-secondary"><i class="bi bi-cart"></i> Todas las solicitudes</a>
+  <div class="d-flex gap-2"><a href="{% url 'compras:traslados' %}" class="btn btn-sm btn-outline-success"><i class="bi bi-arrow-left-right"></i> Traslados entre almacenes</a><a href="{% url 'solicitudes:lista' %}?vista=todas" class="btn btn-sm btn-outline-secondary"><i class="bi bi-cart"></i> Todas las solicitudes</a></div>
 </div>
 <form method="get" class="card mb-3"><div class="card-body py-2 row g-2 align-items-end">
   <div class="col-md-3"><label class="form-label small mb-1">Comprador</label><select name="comprador" class="form-select form-select-sm"><option value="todas" {% if comprador == 'todas' or not comprador %}selected{% endif %}>Todas las líneas</option><option value="mias" {% if comprador == 'mias' %}selected{% endif %}>Mis líneas por pedir</option><option value="sin" {% if comprador == 'sin' %}selected{% endif %}>Sin comprador</option>{% for u in compradores %}<option value="{{ u.pk }}" {% if comprador == u.pk|stringformat:'s' %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select></div>
@@ -18,12 +18,15 @@
 <div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><b>{{ clave }}</b>
   <label class="small"><input type="checkbox" class="form-check-input js-todo" data-grupo="g{{ forloop.counter }}"> Marcar todo</label></div>
 <div class="table-responsive"><table class="table table-sm mb-0">
-  <thead><tr><th></th><th>Solicitud</th><th>Ítem</th><th class="num">Falta pedir</th><th class="num">Precio est. S/</th><th class="num">S/</th><th>Centro de costo</th><th>Se necesita</th><th>Proveedor sugerido</th><th>Comprador · plazo</th></tr></thead>
+  <thead><tr><th></th><th>Solicitud</th><th>Ítem</th><th class="num">Falta pedir</th><th class="num" title="Stock disponible en otros almacenes (stock − reservado − lo que la meta de su obra aún consume)">Otros almacenes</th><th class="num">Precio est. S/</th><th class="num">S/</th><th>Centro de costo</th><th>Se necesita</th><th>Proveedor sugerido</th><th>Comprador · plazo</th></tr></thead>
   <tbody>{% for l in lineas %}<tr>
     <td><input type="checkbox" class="form-check-input g{{ forloop.parentloop.counter }}" name="linea" value="{{ l.pk }}"></td>
     <td><a href="{% url 'solicitudes:detalle' l.solicitud_id %}">{{ l.solicitud.numero }}</a>{% if l.solicitud.urgente %} <span class="badge text-bg-danger">Urgente</span>{% endif %}<div class="small text-muted">{{ l.solicitud.get_origen_display }}</div></td>
     <td>{% if l.producto %}{{ l.producto.codigo }} {% endif %}{{ l.descripcion }}<div class="small text-muted">{{ l.get_unidad_display }}{% if l.pedido %} · ya pedido {{ l.pedido|money }} de {{ l.cantidad|money }}{% endif %}</div></td>
-    <td class="num fw-semibold">{{ l.pendiente|money }}</td><td class="num">{{ l.precio|floatformat:4 }}</td><td class="num">{{ l.importe|money }}</td>
+    <td class="num fw-semibold">{{ l.pendiente|money }}</td>
+    <td class="num">{% if l.disp_otros %}<a href="{% url 'compras:traslado_nuevo' %}?linea={{ l.pk }}" class="text-success fw-semibold" title="Atender por traslado en vez de comprar">{{ l.disp_otros|money }} <i class="bi bi-arrow-left-right"></i></a>
+      {% if control_stock == 1 %}<div class="mt-1" style="min-width:170px"><select name="motivo_stock_{{ l.pk }}" class="form-select form-select-sm" title="Para comprar habiendo stock disponible"><option value="">— Si compra: motivo —</option>{% for v, t in motivos_stock %}{% if v %}<option value="{{ v }}">{{ t }}</option>{% endif %}{% endfor %}</select><input name="justif_stock_{{ l.pk }}" class="form-control form-control-sm mt-1" maxlength="250" placeholder="Detalle"></div>{% elif control_stock == 2 %}<div class="small text-danger">Se atiende por traslado</div>{% endif %}
+      {% else %}<span class="text-muted">—</span>{% endif %}{% if l.en_traslado %}<div class="small text-primary">En traslado: {{ l.en_traslado|money }}</div>{% endif %}</td><td class="num">{{ l.precio|floatformat:4 }}</td><td class="num">{{ l.importe|money }}</td>
     <td class="small">{{ l.solicitud.centro_costo }}</td>
     <td class="{% if l.solicitud.fecha_requerida and l.solicitud.fecha_requerida < hoy %}text-danger{% endif %}">{{ l.solicitud.fecha_requerida|date:'d/m/Y'|default:'—' }}</td>
     <td class="small">{% if l.proveedor_sugerido %}{{ l.proveedor_sugerido.nombre }}{% elif l.producto.proveedor %}{{ l.producto.proveedor.nombre }}{% else %}—{% endif %}</td>

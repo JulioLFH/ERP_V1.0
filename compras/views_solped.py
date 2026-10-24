@@ -1,5 +1,6 @@
 """Pantallas de la solicitud de pedido: el área la registra y la envía, los liberadores la liberan (también desde el
 celular) y Compras la convierte desde su bandeja en orden de compra, licitación o pedido contra contrato marco."""
+from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -189,8 +190,23 @@ def detalle(request, pk):
         messages.error(request, 'Solo puede ver sus solicitudes o las que le toca liberar.')
         return redirect('solicitudes:lista')
     filas = srv.trazabilidad(sp)
+    from core.models import StockAlmacen
+
+    from . import stock as srv_stock
+    propio = srv_stock.almacen_de_centro(sp.centro_costo_id)  # COM-13: stock antes de comprar
+    productos = {f['l'].producto_id for f in filas if f['l'].producto_id}
+    disp = srv_stock.disponibilidad(productos, excluir_almacen=propio.pk if propio else None)
+    stock_propio = dict(StockAlmacen.objects.filter(almacen=propio, producto_id__in=productos).values_list(
+        'producto_id', 'cantidad')) if propio else {}
+    for f in filas:
+        pid = f['l'].producto_id
+        f['stock_propio'] = stock_propio.get(pid, Decimal('0'))
+        f['disp_otros'] = srv_stock.total_disponible(disp.get(pid, []))
+    from core import aprobaciones
+    ruta = aprobaciones.ruta('SOLPED', sp, sp.niveles, sp.nivel_aprobado,
+                             rechazado=sp.estado in ('RECHAZADA', 'OBSERVADA', 'ANULADA'))
     return render(request, 'compras/solped_detalle.html', {
-        'sp': sp, 'filas': filas, 'puede_liberar': srv.puede_liberar(request.user, sp),
+        'sp': sp, 'filas': filas, 'ruta': ruta, 'puede_liberar': srv.puede_liberar(request.user, sp),
         'puede_convertir': puede(request.user, 'compras.convertir_solped') and sp.estado in SolicitudPedido.ABIERTAS,
         'propuestas': sp.propuestas_mrp.select_related('producto') if sp.origen == 'MRP' else []})
 
@@ -280,6 +296,22 @@ def bandeja(request):
             pass
     agrupar = request.GET.get('agrupar', 'proveedor')
     grupos = {}
+    # COM-13: lo disponible en otros almacenes (se puede atender por traslado) y lo que ya está en traslado
+    from inventario.models import SolicitudTraslado
+
+    from . import stock as srv_stock
+    disp = srv_stock.disponibilidad({l.producto_id for l in lineas if l.producto_id})
+    propios, en_traslado = {}, defaultdict(lambda: Decimal('0'))
+    for lid, c in SolicitudTraslado.objects.filter(linea_solped__in=[l.pk for l in lineas], estado__in=(
+            'POR_APROBAR', 'EN_TRANSITO')).values_list('linea_solped_id', 'cantidad'):
+        en_traslado[lid] += c
+    for l in lineas:
+        cc = l.solicitud.centro_costo_id
+        if cc not in propios:
+            propios[cc] = srv_stock.almacen_de_centro(cc)
+        l.disp_otros = srv_stock.total_disponible([f for f in disp.get(l.producto_id, [])
+                                                   if f['almacen'].pk != propios[cc].pk])
+        l.en_traslado = en_traslado.get(l.pk, Decimal('0'))
     for l in lineas:
         l.importe = (l.pendiente * l.precio).quantize(Decimal('0.01'))
         if agrupar == 'producto':
@@ -305,9 +337,11 @@ def bandeja(request):
                 n = compradores.asignar_lineas(srv.lineas_abiertas(), request.user)
                 messages.success(request, f'{n} línea(s) asignadas a su comprador según los grupos de compras.')
                 return redirect(request.get_full_path())
+            justificaciones = {i: (request.POST.get(f'motivo_stock_{i}', ''), request.POST.get(f'justif_stock_{i}', ''))
+                               for i in ids}
             if que == 'oc':
                 prov = Tercero.objects.filter(pk=request.POST.get('proveedor') or 0).first()
-                ordenes = srv.a_orden_compra(ids, request.user, proveedor=prov)
+                ordenes = srv.a_orden_compra(ids, request.user, proveedor=prov, justificaciones=justificaciones)
                 messages.success(request, f'{len(ordenes)} orden(es) de compra creadas (pendientes de aprobar): '
                                  + ', '.join(o.numero for o in ordenes))
                 return redirect('compras:oc_detalle', ordenes[0].pk) if len(ordenes) == 1 else \
@@ -316,7 +350,7 @@ def bandeja(request):
                 contrato = ContratoMarco.objects.filter(pk=request.POST.get('contrato') or 0, estado='VIGENTE').first()
                 if contrato is None:
                     raise srv.ErrorSolped('Elija el contrato marco vigente.')
-                ordenes = srv.a_orden_compra(ids, request.user, contrato=contrato)
+                ordenes = srv.a_orden_compra(ids, request.user, contrato=contrato, justificaciones=justificaciones)
                 messages.success(request, 'Pedido contra el contrato: ' + ', '.join(o.numero for o in ordenes))
                 return redirect('compras:oc_detalle', ordenes[0].pk)
             if que == 'licitacion':
@@ -341,7 +375,8 @@ def bandeja(request):
         'producto': request.GET.get('producto', ''), 'hasta': hasta,
         'proveedores': Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS']).order_by('nombre'),
         'contratos': contratos_vigentes().select_related('proveedor'),
-        'hoy': timezone.localdate()})
+        'hoy': timezone.localdate(), 'control_stock': srv_stock.control_compra(),
+        'motivos_stock': LineaSolicitud.MOTIVOS_STOCK})
 
 
 # ---------------------------------------------------------------- reglas de liberación (motor único)

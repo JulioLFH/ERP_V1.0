@@ -18,7 +18,7 @@
     <thead><tr><th>Fecha</th><th>N°</th><th>Tipo</th><th>Almacén</th><th>Contador</th><th>Bloqueo</th><th>Estado</th></tr></thead>
     <tbody>{% for d in docs %}<tr onclick="location.href='{% url 'inventario:fisico' d.pk %}'" style="cursor:pointer">
       <td>{{ d.fecha|date:'d/m/Y' }}</td><td class="fw-semibold">{{ d.numero }}</td><td class="small">{{ d.get_tipo_display }}</td><td class="small">{{ d.almacen }}</td>
-      <td class="small">{{ d.contador.username|default:'—' }}</td><td>{% if d.bloquear %}<i class="bi bi-lock-fill text-warning" title="Movimientos bloqueados"></i>{% endif %}</td>
+      <td class="small">{% if d.contaron %}{{ d.contaron|join:', ' }}{% else %}{{ d.contador.username|default:'—' }}{% endif %}{% if d.antiguo %} <span class="badge text-bg-warning" title="Abierto hace más de una semana: el stock se sigue moviendo">{{ d.dias }} días</span>{% endif %}</td><td>{% if d.bloquear %}<i class="bi bi-lock-fill text-warning" title="Movimientos bloqueados"></i>{% endif %}</td>
       <td><span class="badge {% if d.estado == 'CERRADO' %}text-bg-success{% elif d.estado == 'APROBADO' %}text-bg-primary{% elif d.estado == 'CONTADO' %}text-bg-warning{% elif d.estado == 'ABIERTO' %}text-bg-info{% else %}badge-ANULADO{% endif %}">{{ d.get_estado_display }}</span></td>
     </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin documentos de inventario.</td></tr>{% endfor %}</tbody>
   </table></div>

@@ -28,7 +28,7 @@ class ProductoAdmin(admin.ModelAdmin):
 
 
 def _inline(modelo):
-    return type(f'{modelo.__name__}Inline', (admin.TabularInline,), {'model': modelo, 'extra': 0})
+    return type(f'{modelo.__name__}Inline', (admin.TabularInline,), {'model': modelo, 'extra': 0, 'fk_name': 'documento'})
 
 
 for doc, item in ((Compra, CompraItem), (Venta, VentaItem), (OrdenCompra, OrdenCompraItem),

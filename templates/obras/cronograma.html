@@ -1,0 +1,42 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Cronograma {{ o.codigo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-graph-up"></i> Cronograma y curva S</h1>
+    <div class="text-muted small">{{ o.codigo }} {{ o.nombre }}{% if p %} · <a href="{% url 'obras:presupuesto' p.pk %}">{{ p }}</a>{% endif %} · costo directo programado, ejecutado (avance × precio) y valorizado</div></div>
+  <div class="d-flex gap-2"><a href="{% url 'obras:avance' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-rulers"></i> Avance físico</a><a href="{% url 'obras:ejecucion' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Ejecución</a></div>
+</div>
+{% if curva and curva.filas %}
+<div class="card mb-3"><div class="card-body"><canvas id="curva" height="90"></canvas></div></div>
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Mes</th><th class="num">Programado acumulado</th><th class="num">%</th><th class="num">Ejecutado acumulado</th><th class="num">%</th><th class="num">Valorizado acumulado</th><th class="num">%</th></tr></thead>
+  <tbody>{% for f in curva.filas %}<tr><td>{{ f.etiqueta }}</td><td class="num">{{ f.programado|money }}</td><td class="num">{{ f.pct_programado }}</td><td class="num">{% if f.ejecutado is not None %}{{ f.ejecutado|money }}{% endif %}</td><td class="num">{{ f.pct_ejecutado }}</td><td class="num">{{ f.valorizado|money }}</td><td class="num">{{ f.pct_valorizado }}</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{{ curva.filas|json_script:"curva-datos" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const filas = JSON.parse(document.getElementById('curva-datos').textContent);
+  const num = v => v === null ? null : Number(v);
+  new Chart(document.getElementById('curva'), {type: 'line', data: {labels: filas.map(f => f.etiqueta), datasets: [
+    {label: 'Programado', data: filas.map(f => num(f.programado)), borderColor: '#6c757d', borderDash: [6, 4], tension: .3},
+    {label: 'Ejecutado', data: filas.map(f => num(f.ejecutado)), borderColor: '#0d6efd', tension: .3},
+    {label: 'Valorizado', data: filas.map(f => num(f.valorizado)), borderColor: '#198754', tension: .3}]},
+    options: {plugins: {legend: {position: 'bottom'}}, scales: {y: {ticks: {callback: v => 'S/ ' + Number(v).toLocaleString('es-PE')}}}}});
+})();
+</script>
+{% else %}<div class="alert alert-light border">Sin cronograma ni avance todavía. Importe el cronograma del S10 o de MS Project.</div>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card"><div class="card-header fw-semibold">Partidas atrasadas (tolerancia 10 %)</div>
+    <div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Partida</th><th class="num">Programado a hoy</th><th class="num">Ejecutado</th><th class="num">Atraso</th></tr></thead>
+    <tbody>{% for a in atrasadas %}<tr><td class="small">{{ a.partida.item }} {{ a.partida.descripcion|truncatechars:45 }}</td><td class="num">{{ a.programado|floatformat:2 }}</td><td class="num">{{ a.ejecutado|floatformat:2 }}</td><td class="num text-danger">{{ a.atraso_pct }} %</td></tr>
+    {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">Ninguna partida atrasada.</td></tr>{% endfor %}</tbody></table></div></div></div>
+  <div class="col-lg-6"><form method="post" enctype="multipart/form-data" class="card">{% csrf_token %}
+    <div class="card-header fw-semibold">Importar el cronograma</div><div class="card-body d-grid gap-2">
+      <input type="file" name="archivo" accept=".xls,.xlsx,.xml" class="form-control form-control-sm" required>
+      <div class="d-flex gap-3 small"><label><input type="radio" name="unidad" value="METRADO" checked> Valores en metrado</label><label><input type="radio" name="unidad" value="PCT"> Valores en % de la partida</label></div>
+      <button class="btn btn-sm btn-primary"><i class="bi bi-upload"></i> Importar</button>
+      <div class="form-text">Excel con la columna «Ítem» y una columna por mes (Ene-26, 2026-01, 01/2026…) o con las columnas Inicio y Fin (se reparte por días); o el XML de MS Project (Archivo › Guardar como › XML): cada tarea se une a la partida por su EDT/WBS o número de esquema (01.02 = 1.2) o por su nombre. Reemplaza la programación de las partidas que trae.</div>
+    </div></form></div>
+</div>
+{% endblock %}

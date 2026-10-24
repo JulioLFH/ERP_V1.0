@@ -119,6 +119,9 @@ class Venta(ComprobanteBase, ElectronicoMixin):
 
 class VentaItem(ItemBase):
     documento = models.ForeignKey(Venta, on_delete=models.CASCADE, related_name='items')
+    # deducción de un anticipo (regularización): línea negativa que referencia la factura del anticipo
+    anticipo_de = models.ForeignKey(Venta, on_delete=models.PROTECT, null=True, blank=True,
+                                    related_name='regularizaciones', verbose_name='Deduce el anticipo')
 
 
 # ---------------------------------------------------------------- CRM

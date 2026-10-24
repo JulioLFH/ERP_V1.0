@@ -1,0 +1,35 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Tareo {{ o.codigo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-person-lines-fill"></i> Tareo diario</h1>
+    <div class="text-muted small">{{ o.codigo }} {{ o.nombre }} · horas de cada trabajador de construcción civil por partida de la meta</div></div>
+  <div class="d-flex gap-2"><a href="{% url 'obras:planillas_civil' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-cash-stack"></i> Planilla semanal</a><a href="{% url 'obras:ejecucion' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Ejecución</a></div>
+</div>
+{% if not trabajadores %}<div class="alert alert-warning small">No hay trabajadores del régimen de construcción civil. Regístrelos en Planillas › Trabajadores con régimen «Construcción civil» y su categoría (operario, oficial o peón).</div>{% endif %}
+<form method="post" class="card mb-3">{% csrf_token %}<input type="hidden" name="filas" value="{{ n_filas|length }}">
+  <div class="card-header fw-semibold">Nuevo tareo</div>
+  <div class="card-body row g-2 pb-0">
+    <div class="col-6 col-md-2"><label class="form-label small mb-1">Fecha</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control"></div>
+    <div class="col-6 col-md-3"><label class="form-label small mb-1">Cuadrilla</label><input name="cuadrilla" maxlength="60" class="form-control" placeholder="Concreto, encofrado…"></div>
+    <div class="col-md-3"><label class="form-label small mb-1">Capataz</label><select name="capataz" class="form-select"><option value="">—</option>{% for t in trabajadores %}<option value="{{ t.pk }}">{{ t.nombre_completo }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label small mb-1">Observaciones</label><input name="observaciones" maxlength="250" class="form-control"></div>
+  </div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>Trabajador</th><th>Partida</th><th class="num" style="width:90px">Horas</th><th class="num" style="width:90px">HE 60 %</th><th class="num" style="width:90px">HE 100 %</th></tr></thead>
+    <tbody>{% for n in n_filas %}<tr>
+      <td><select name="trabajador_{{ n }}" class="form-select form-select-sm"><option value="">—</option>{% for t in trabajadores %}<option value="{{ t.pk }}" {% if forloop.counter0 == n %}selected{% endif %}>{{ t.nombre_completo }} ({{ t.get_categoria_civil_display }})</option>{% endfor %}</select></td>
+      <td><select name="partida_{{ n }}" class="form-select form-select-sm"><option value="">— Sin partida —</option>{% for x in partidas %}<option value="{{ x.pk }}">{{ x.item }} {{ x.descripcion|truncatechars:55 }}</option>{% endfor %}</select></td>
+      <td><input name="horas_{{ n }}" value="8" class="form-control form-control-sm text-end" inputmode="decimal"></td>
+      <td><input name="h60_{{ n }}" class="form-control form-control-sm text-end" inputmode="decimal"></td>
+      <td><input name="h100_{{ n }}" class="form-control form-control-sm text-end" inputmode="decimal"></td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-body"><button class="btn btn-primary"><i class="bi bi-check2"></i> Registrar tareo</button> <span class="form-text">Deje en «—» a quien no trabajó. Un trabajador no pasa de 24 horas en el día. Para varias partidas, registre otro tareo de la cuadrilla.</span></div>
+</form>
+<div class="card"><div class="card-header fw-semibold">Últimos tareos</div><div class="table-responsive"><table class="table table-sm mb-0 small">
+  <thead><tr><th>Fecha</th><th>Cuadrilla</th><th>Trabajadores · partida · horas</th></tr></thead>
+  <tbody>{% for t in tareos %}<tr><td>{{ t.fecha|date:'d/m/Y' }}</td><td>{{ t.cuadrilla|default:'—' }}</td>
+    <td>{% for l in t.lineas.all %}<div>{{ l.trabajador.nombre_completo }} · {{ l.partida.item|default:'sin partida' }} · {{ l.horas|floatformat:1 }} h{% if l.horas_60 %} + {{ l.horas_60|floatformat:1 }} HE60{% endif %}{% if l.horas_100 %} + {{ l.horas_100|floatformat:1 }} HE100{% endif %}</div>{% endfor %}</td></tr>
+  {% empty %}<tr><td colspan="3" class="text-center text-muted py-3">Sin tareos.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

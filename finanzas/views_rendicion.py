@@ -373,10 +373,14 @@ def antiguedad(request):
 @login_required
 def configuracion(request):
     from .models import CategoriaCuentaHistorial
+    from core.models import ReglaAprobacion as ReglaMotor
     return render(request, 'finanzas/rendicion_config.html', {
         'categorias': CategoriaGasto.objects.select_related('cuenta_contable'),
         'politicas': PoliticaGasto.objects.prefetch_related('no_permitidas'),
         'reglas': ReglaAprobacion.objects.select_related('aprobador', 'centro_costo'),
+        # APR-05: las reglas vigentes son las de Ajustes › Reglas de aprobación (un solo lugar)
+        'reglas_motor': ReglaMotor.objects.filter(documento='RENDICION', activo=True).select_related(
+            'aprobador', 'centro_costo', 'puesto', 'reemplazo').order_by('nivel', 'monto_desde'),
         'indicadores': IndicadorImpuesto.objects.all(), 'motivos': MotivoObservacion.objects.all(),
         'plantillas': PlantillaDistribucion.objects.prefetch_related('lineas__centro_costo'),
         'mapeos': MapeoCuentaERP.objects.select_related('cuenta'),

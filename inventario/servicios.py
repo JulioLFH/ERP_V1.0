@@ -153,6 +153,8 @@ def errores_confirmacion(op):
     from .cierre import error_cierre
     if error_cierre(op.fecha):
         errores.append(error_cierre(op.fecha))
+    if op.fecha and op.fecha > timezone.localdate():  # ALM-08: ni kardex ni contabilidad de un periodo futuro
+        errores.append(f'La fecha contable ({op.fecha:%d/%m/%Y}) no puede ser futura.')
     from .fisico import ProductoEnConteo, validar_movimiento
     for almacen in {op.almacen_origen, op.almacen_destino} - {None}:  # inventario físico con bloqueo
         for i in items:
@@ -248,6 +250,19 @@ def errores_lotes(op, items):
     return errores
 
 
+def costos_documento(op):
+    """{producto_id: costo unitario en soles por unidad de almacén} de la orden o la factura que se recibe."""
+    doc = op.orden_compra or op.compra
+    if doc is None:
+        return {}
+    tc = doc.tipo_cambio if doc.moneda == 'USD' else Decimal('1')
+    costos = {}
+    for i in doc.items.select_related('producto'):
+        if i.producto_id and i.producto.es_inventariable:
+            costos[i.producto_id] = (i.precio_neto * tc / i.producto.factor).quantize(Decimal('0.0001'))
+    return costos
+
+
 def _lineas_que_salen(op, items):
     clase = op.tipo.clase
     if clase in ('SALIDA', 'TRASLADO', 'TRANSITO_ENVIO', 'TRANSITO_RECEPCION'):
@@ -284,7 +299,12 @@ def confirmar(op, usuario=None):
         items = list(op.items.select_related('producto'))
         transito = Almacen.especial('TRANSITO') if tipo.clase in ('TRANSITO_ENVIO', 'TRANSITO_RECEPCION') else None
         if tipo.clase == 'INGRESO':
+            # recepción de compras: el costo es el de la orden o la factura, no el que se escriba (ALM-07)
+            del_documento = costos_documento(op) if (op.orden_compra_id or op.compra_id) else {}
             for i in items:
+                if i.producto_id in del_documento and i.costo_unitario != del_documento[i.producto_id]:
+                    i.costo_unitario = del_documento[i.producto_id]
+                    i.save(update_fields=['costo_unitario'])
                 costo = i.costo_unitario if i.costo_unitario else None
                 _mover(i, i.cantidad, op, op.almacen_destino, costo, tipo.codigo_sunat)
         elif tipo.clase == 'SALIDA':
@@ -353,9 +373,17 @@ def _actualizar_vencimientos(op):
             liquidar(f)
 
 
-def errores_anulacion(op):
+def errores_anulacion(op, desde_conteo=False):
     if op.estado != 'CONFIRMADO':
         return ['Solo se anulan operaciones confirmadas.']
+    if not desde_conteo:  # el ajuste de un inventario físico se revierte desde el conteo (INV-23)
+        from django.db.models import Q
+
+        from .models import ConteoCiclico
+        conteo = ConteoCiclico.objects.filter(Q(ajuste_ingreso=op) | Q(ajuste_salida=op), estado='CERRADO').first()
+        if conteo is not None:
+            return [f'Es el ajuste del inventario físico {conteo.numero}: revierta su contabilización desde el conteo '
+                    f'(vuelve a «Aprobado»).']
     from .cierre import error_cierre
     if error_cierre(op.fecha):
         return [error_cierre(op.fecha)]
@@ -376,8 +404,8 @@ def errores_anulacion(op):
     return []
 
 
-def anular(op, usuario, motivo):
-    errores = errores_anulacion(op)
+def anular(op, usuario, motivo, desde_conteo=False):
+    errores = errores_anulacion(op, desde_conteo)
     if errores:
         raise ErrorOperacion(' '.join(errores))
     if len((motivo or '').strip()) < 5:
@@ -414,7 +442,60 @@ def anular(op, usuario, motivo):
         op.anulado_en = timezone.now()
         op.save()
         _actualizar_vencimientos(op)
+        if tipo.clase == 'INGRESO' and op.orden_compra_id:
+            recepcion_anulada(op)
     return op
+
+
+def facturas_de_recepcion(op):
+    """Facturas vigentes de la orden que recibió la operación (para avisar antes de anularla)."""
+    if not op.orden_compra_id:
+        return []
+    return list(op.orden_compra.compras.filter(estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08']))
+
+
+def recepcion_anulada(op):
+    """ALM-09: la orden vuelve a pendiente de recibir y sus facturas con más de lo recibido quedan retenidas para pago
+    (con diferencia: nota de crédito o reingreso)."""
+    from compras.cruce import recibido_oc, facturado_oc
+    from compras.models import OrdenCompra
+    from compras.tolerancias import bloquear_pago
+    oc = op.orden_compra
+    recibido, facturado = recibido_oc(oc), facturado_oc(oc)
+    pedido = _cantidades_compra(oc.items.select_related('producto'))
+    if any(recibido.get(k, D0) < v for k, v in pedido.items()):
+        OrdenCompra.objects.filter(pk=oc.pk, estado='ATENDIDO').update(estado='APROBADO')
+    exceso = {k: v - recibido.get(k, D0) for k, v in facturado.items() if v > recibido.get(k, D0)}
+    if exceso:
+        nombres = dict(Producto.objects.filter(pk__in=exceso).values_list('pk', 'nombre'))
+        detalle = ', '.join(f'{nombres[k]}: facturado {facturado[k]:,.2f}, recibido {recibido.get(k, D0):,.2f}'
+                            for k in exceso)
+        for c in oc.compras.filter(estado='REGISTRADO', pago_bloqueado=False).exclude(tipo_comprobante__in=['07', '08']):
+            bloquear_pago(c, f'Con diferencia: se anuló la recepción {op.numero} ({detalle}). Emita la nota de crédito '
+                             f'o registre el reingreso.')
+
+
+def contrapartidas(op):
+    """Cuentas que la contabilidad usa de contrapartida para los productos de la operación (como al centralizar): la
+    por recibir de cada producto (281 mercaderías, 284 materias primas, 285 suministros…) o su costo de ventas, en vez
+    de la cuenta general del tipo."""
+    from contabilidad.models import CuentaDefecto
+    tipo = op.tipo
+    if not tipo.cuenta_contable_id:
+        return []
+    cta = CuentaDefecto.mapa()
+    cuentas = {}
+    for i in op.items.select_related('producto__cuenta_compra__destino_debe', 'producto__cuenta_costo'):
+        p, contra = i.producto, tipo.cuenta_contable
+        if contra.pk == cta['mercaderia_por_recibir'].pk:
+            c = p.cuenta_compra
+            contra = c.destino_debe if c and c.destino_debe_id and c.destino_debe.codigo.startswith('28') else contra
+        elif contra.pk == cta['costo_ventas'].pk and p.cuenta_costo_id:
+            contra = p.cuenta_costo
+        if op.cuenta_gasto_id and tipo.clase == 'SALIDA':
+            contra = op.cuenta_gasto
+        cuentas[contra.pk] = contra
+    return sorted(cuentas.values(), key=lambda c: c.codigo) or [tipo.cuenta_contable]
 
 
 def acciones_para(doc):

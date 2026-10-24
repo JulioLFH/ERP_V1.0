@@ -45,8 +45,21 @@ def lista(request):
         qs = qs.filter(estado=request.GET['estado'])
     if request.GET.get('tipo'):
         qs = qs.filter(tipo=request.GET['tipo'])
+    docs = list(qs[:300])
+    from django.contrib.auth import get_user_model
+    hoy = timezone.localdate()
+    ids = {d.pk for d in docs}
+    por_doc = {}
+    for cid, uid in ConteoItem.objects.filter(conteo_id__in=ids).exclude(contado_por=None).values_list(
+            'conteo_id', 'contado_por').distinct():
+        por_doc.setdefault(cid, set()).add(uid)
+    nombres = {u.pk: u.username for u in get_user_model().objects.filter(pk__in={u for s in por_doc.values() for u in s})}
+    for d in docs:  # quién contó de verdad (INV-22) y conteos abiertos hace días (INV-24)
+        d.contaron = sorted(nombres[u] for u in por_doc.get(d.pk, ()))
+        d.dias = (hoy - d.fecha).days
+        d.antiguo = d.estado in ('ABIERTO', 'CONTADO') and d.dias > srv.DIAS_ABIERTO
     return render(request, 'inventario/fisico_lista.html', {
-        'docs': qs[:300], 'almacenes': Almacen.objects.filter(activo=True), 'estados': ConteoCiclico.ESTADOS,
+        'docs': docs, 'almacenes': Almacen.objects.filter(activo=True), 'estados': ConteoCiclico.ESTADOS,
         'tipos': ConteoCiclico.TIPOS})
 
 
@@ -80,10 +93,29 @@ def nuevo(request):
 
 
 def _ciego(request, doc):
-    """El contador no ve el stock del sistema mientras cuenta (conteo ciego)."""
+    """Conteo a ciegas (INV-21): mientras se cuenta nadie ve el stock del sistema ni las diferencias; contado, solo
+    las ve quien aprueba ajustes y no contó (o es el único usuario)."""
     if request.GET.get('ciego'):
         return True
-    return doc.estado == 'ABIERTO' and doc.contador_id == request.user.pk
+    if doc.estado not in ('ABIERTO', 'CONTADO'):
+        return False
+    if doc.estado == 'ABIERTO' or not puede(request.user, 'inventario.ajustar'):
+        return True
+    return request.user.pk in srv._contadores(doc) and srv._hay_otro(request.user)
+
+
+def _cantidades(request, items):
+    """({item: cantidad}, [errores]) de lo digitado; una cantidad inválida no se guarda (INV-17 a INV-19)."""
+    cantidades, errores = {}, []
+    for i in items:
+        texto = str(request.POST.get(f'c_{i.pk}', '')).strip()
+        if not texto:
+            continue
+        try:
+            cantidades[i.pk] = srv.leer_cantidad(texto)
+        except srv.ErrorFisico as exc:
+            errores.append(f'{i.producto.nombre}: «{texto[:20]}» {exc}')
+    return cantidades, errores
 
 
 @login_required
@@ -96,12 +128,19 @@ def detalle(request, pk):
             if accion in ('contar', 'recontar'):
                 if not puede(request.user, 'inventario.operar'):
                     raise srv.ErrorFisico('Su usuario no registra conteos.')
-                items = doc.items.all()
-                cantidades = {i.pk: _dec(request.POST.get(f'c_{i.pk}')) for i in items
-                              if str(request.POST.get(f'c_{i.pk}', '')).strip()}
+                items = list(doc.items.select_related('producto'))
+                cantidades, errores = _cantidades(request, items)
+                if errores:
+                    raise srv.ErrorFisico('Cantidad inválida, no se guardó nada: ' + '; '.join(errores[:8]))
                 motivos = {i.pk: request.POST.get(f'm_{i.pk}') for i in items if request.POST.get(f'm_{i.pk}')}
                 n = srv.registrar(doc, cantidades, request.user, reconteo=accion == 'recontar', motivos=motivos)
-                messages.success(request, f'{n} línea(s) registradas.')
+                if n:
+                    messages.success(request, f'{n} línea(s) registradas.')
+                elif motivos:
+                    messages.success(request, f'Motivos guardados ({len(motivos)}).')
+                doc.refresh_from_db()
+                if doc.estado == 'APROBADO' and not doc.aprobado_por_id:
+                    messages.info(request, 'Conteo completo y sin diferencias: listo para contabilizar.')
             elif accion == 'aprobar':
                 srv.aprobar(doc, request.user)
                 messages.success(request, f'{doc} aprobado: ya se puede contabilizar.')
@@ -110,6 +149,11 @@ def detalle(request, pk):
                     raise srv.ErrorFisico('Su usuario no registra ajustes de inventario.')
                 srv.contabilizar(doc, request.user)
                 messages.success(request, f'{doc} contabilizado: ajustes registrados con el acta como sustento.')
+            elif accion == 'revertir':
+                if not puede(request.user, 'inventario.ajustar'):
+                    raise srv.ErrorFisico('Su usuario no registra ajustes de inventario.')
+                srv.revertir(doc, request.user, request.POST.get('motivo', ''))
+                messages.success(request, f'{doc}: ajustes anulados; vuelve a «Aprobado».')
             elif accion == 'anular':
                 srv.anular(doc, request.user)
                 messages.success(request, f'{doc} anulado.')
@@ -129,7 +173,9 @@ def detalle(request, pk):
                                 i.producto.unidad, '', ''] for i in doc.items.select_related('producto', 'lote')])
     r = srv.resumen(doc)
     ok, motivo = srv.puede_aprobar(request.user, doc)
+    recuentan, aprueban = srv.responsables(doc) if doc.estado in ('ABIERTO', 'CONTADO') else ([], [])
     return render(request, 'inventario/fisico.html', {
+        'recuentan': recuentan, 'aprueban': aprueban, 'contaron': srv.contadores_de(doc),
         'doc': doc, 'r': r, 'ciego': ciego, 'ver_costos': puede_ver_costos(request.user) and not ciego,
         'puede_aprobar': ok, 'motivo_aprobar': motivo, 'motivos': ConteoItem.MOTIVOS[1:],
         'puede_contar': puede(request.user, 'inventario.operar'),

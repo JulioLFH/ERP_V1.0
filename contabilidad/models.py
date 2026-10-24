@@ -514,6 +514,7 @@ class ReglaReparto(models.Model):
              ('COSTO_DIRECTO', 'Costo directo del mes (gastos propios del centro)'),
              ('COMPRAS', 'Compras del mes con el centro'), ('VENTAS', 'Ventas o valorizaciones del mes con el centro'),
              ('PLANILLA', 'Remuneraciones del mes (cuenta 62) con el centro'),
+             ('HORAS_EQUIPO', 'Horas de equipo del mes (partes diarios de obra)'),
              ('FIJO', 'Porcentaje fijo por destino'), ('IGUALES', 'Partes iguales')]
     DESTINOS = [('HIJOS', 'Los centros que dependen de un centro (ej. todas las obras)'),
                 ('LISTA', 'Los centros de una lista'), ('CON_BASE', 'Todos los centros con base mayor a cero')]

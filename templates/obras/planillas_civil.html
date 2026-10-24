@@ -1,0 +1,27 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Planilla de construcción civil {{ o.codigo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-cash-stack"></i> Planilla de construcción civil</h1>
+    <div class="text-muted small">{{ o.codigo }} {{ o.nombre }} · semanal, desde los tareos · su costo va al centro de costo {{ o.centro_costo.codigo }} y a las partidas</div></div>
+  <div class="d-flex gap-2"><a href="{% url 'obras:tareo' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-person-lines-fill"></i> Tareo</a><a href="{% url 'obras:ejecucion' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Ejecución</a></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center"><span class="fw-semibold">Semanas</span>
+      <form method="post" class="d-flex gap-2">{% csrf_token %}<input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm" title="Un día de la semana"><button class="btn btn-sm btn-primary text-nowrap"><i class="bi bi-plus-lg"></i> Planilla de la semana</button></form></div>
+    <div class="table-responsive"><table class="table table-sm mb-0">
+      <thead><tr><th>Semana</th><th>Del</th><th>Al</th><th>Estado</th><th class="num">Neto</th><th class="num">Costo total</th></tr></thead>
+      <tbody>{% for p in planillas %}<tr><td><a href="{% url 'obras:planilla_civil' p.pk %}">{{ p.numero }}</a></td><td>{{ p.desde|date:'d/m/Y' }}</td><td>{{ p.hasta|date:'d/m/Y' }}</td><td><span class="badge text-bg-light border">{{ p.get_estado_display }}</span></td><td class="num">{{ p.t.neto|money }}</td><td class="num">{{ p.t.costo|money }}</td></tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-3">Sin planillas.</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+    <div class="card"><div class="card-header fw-semibold">Horas-hombre: meta (análisis) vs. real (tareo)</div>
+      <div class="row g-0"><div class="col-md-5"><table class="table table-sm mb-0 small"><thead><tr><th>Categoría</th><th class="num">Meta HH</th><th class="num">Real HH</th></tr></thead><tbody>{% for c in horas.categorias %}<tr><td>{{ c.categoria|title }}</td><td class="num">{{ c.meta|floatformat:1 }}</td><td class="num {% if c.real > c.meta %}text-danger{% endif %}">{{ c.real|floatformat:1 }}</td></tr>{% empty %}<tr><td colspan="3" class="text-muted">Sin datos.</td></tr>{% endfor %}</tbody></table></div>
+      <div class="col-md-7 border-start"><div style="max-height:320px;overflow:auto"><table class="table table-sm mb-0 small"><thead><tr><th>Partida</th><th class="num">Meta HH</th><th class="num">Real</th><th class="num">Desvío</th></tr></thead><tbody>{% for f in horas.partidas %}<tr><td>{{ f.partida.item }} {{ f.partida.descripcion|truncatechars:35 }}</td><td class="num">{{ f.meta|floatformat:1 }}</td><td class="num">{{ f.real|floatformat:1 }}</td><td class="num {% if f.desvio > 0 %}text-danger{% endif %}">{{ f.desvio|floatformat:1 }}</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+  </div>
+  <div class="col-lg-4"><div class="card"><div class="card-header fw-semibold">Tasas vigentes</div><div class="card-body small">
+    <table class="table table-sm mb-2"><thead><tr><th></th><th class="num">Jornal</th><th class="num">BUC</th></tr></thead><tbody>{% for c, j in tasas.jornal.items %}<tr><td>{{ c|title }}</td><td class="num">S/ {{ j }}</td><td class="num">{% for k, b in tasas.buc.items %}{% if k == c %}{{ b }} %{% endif %}{% endfor %}</td></tr>{% endfor %}</tbody></table>
+    Movilidad S/ {{ tasas.movilidad }} por día · horas extra +{{ tasas.he1 }} % / +{{ tasas.he2 }} % · CONAFOVICER {{ tasas.conafovicer }} % · EsSalud {{ tasas.essalud }} % · SCTR {{ tasas.sctr }} % · CTS {{ tasas.cts }} % · vacaciones {{ tasas.vacaciones }} % · gratificaciones {{ tasas.gratificacion }} %.
+    <div class="text-muted mt-2">Se cambian en Ajustes › Parámetros (grupo «Construcción civil») con su fecha de vigencia. Confírmelas con el especialista laboral.</div></div></div></div>
+</div>
+{% endblock %}

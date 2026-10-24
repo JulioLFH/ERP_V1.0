@@ -39,6 +39,8 @@ class FlujoEfectivoTest(TestCase):
         cls.caja = Cuenta.objects.create(tipo='CAJA', nombre='Caja chica', moneda='PEN')
 
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()  # otra prueba pudo dejar marcado «sin tipo de cambio» el día (no se consultaría el patch)
         self.client.force_login(self.user)
         p = patch('core.tipo_cambio._consultar', return_value=(D('3.441'), D('3.450')))
         p.start()

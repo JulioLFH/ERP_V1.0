@@ -26,12 +26,14 @@
   </table></div>
 </div>
 
-<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-diagram-3"></i> Reglas de aprobación</span><a href="{% url 'rendiciones:config_nueva' 'regla' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva</a></div>
+<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-diagram-3"></i> Reglas de aprobación</span><a href="{% url 'aprobaciones_reglas' %}?documento=RENDICION" class="btn btn-sm btn-primary"><i class="bi bi-gear"></i> Configurar en Ajustes › Reglas de aprobación</a></div>
+  <div class="card-body py-2 small text-muted">Las reglas se configuran en un solo lugar (Ajustes › Reglas de aprobación, documento «Rendiciones de gastos»), con suplencias, escalamiento y aprobador de reemplazo. Estas son las vigentes:</div>
   <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
-    <thead><tr><th>Nivel</th><th>Aprueba</th><th class="num">Desde el monto</th><th>Centro de costo</th><th>Activa</th></tr></thead>
-    <tbody>{% for g in reglas %}<tr><td><a href="{% url 'rendiciones:config_editar' 'regla' g.pk %}">Nivel {{ g.nivel }}</a></td><td>{% if g.tipo == 'JEFE' %}Jefe directo del rendidor{% else %}{{ g.aprobador.get_full_name|default:g.aprobador.username }}{% endif %}</td>
-      <td class="num">{% if g.monto_desde %}{{ g.monto_desde|money }}{% else %}Siempre{% endif %}</td><td>{{ g.centro_costo|default:'Todos' }}</td><td>{% if g.activo %}Sí{% else %}No{% endif %}</td></tr>
-    {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">Sin reglas: aprueba en un nivel cualquier usuario con el permiso «Aprobar rendiciones».</td></tr>{% endfor %}</tbody>
+    <thead><tr><th>Nivel</th><th>Aprueba</th><th class="num">Desde el monto</th><th>Centro de costo</th></tr></thead>
+    <tbody>{% for g in reglas_motor %}<tr><td>Nivel {{ g.nivel }}</td><td>{{ g.get_tipo_display }}{% if g.tipo == 'USUARIO' %}: {{ g.aprobador.get_full_name|default:g.aprobador.username }}{% elif g.tipo == 'PUESTO' %}: {{ g.puesto }}{% endif %}{% if g.reemplazo %} <span class="text-muted">(reemplazo {{ g.reemplazo.username }})</span>{% endif %}</td>
+      <td class="num">{% if g.monto_desde %}{{ g.monto_desde|money }}{% else %}Siempre{% endif %}</td><td>{{ g.centro_costo|default:'Todos' }}</td></tr>
+    {% empty %}{% for g in reglas %}{% if g.activo %}<tr><td>Nivel {{ g.nivel }} <span class="badge text-bg-light border">anterior</span></td><td>{% if g.tipo == 'JEFE' %}Jefe directo del rendidor{% else %}{{ g.aprobador.get_full_name|default:g.aprobador.username }}{% endif %}</td><td class="num">{% if g.monto_desde %}{{ g.monto_desde|money }}{% else %}Siempre{% endif %}</td><td>{{ g.centro_costo|default:'Todos' }}</td></tr>{% endif %}
+    {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">Sin reglas: aprueba en un nivel cualquier usuario con el permiso «Aprobar rendiciones».</td></tr>{% endfor %}{% endfor %}</tbody>
   </table></div>
 </div>
 <div class="row g-3 mb-3">

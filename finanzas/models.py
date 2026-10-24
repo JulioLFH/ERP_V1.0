@@ -536,7 +536,8 @@ class GastoRendicion(models.Model):
 class Aplicacion(models.Model):
     """Cancela un comprobante sin mover caja: con un anticipo, con letras (canje) o con un fondo a rendir."""
     ORIGENES = [('ANTICIPO', 'Aplicación de anticipo'), ('CANJE', 'Canje por letras'),
-                ('RENDICION', 'Pagado con entrega a rendir / caja chica')]
+                ('RENDICION', 'Pagado con entrega a rendir / caja chica'),
+                ('GARANTIA', 'Fondo de garantía retenido (obras)')]
     origen = models.CharField(max_length=10, choices=ORIGENES)
     fecha = models.DateField(default=timezone.localdate)
     venta = models.ForeignKey('ventas.Venta', on_delete=models.PROTECT, null=True, blank=True,

@@ -1,0 +1,24 @@
+{# Opciones comunes de una lista (LIS-01): columnas por usuario, filtros guardados, agrupar y Excel #}
+<div class="d-flex flex-wrap gap-2 align-items-center">
+  <div class="dropdown">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" type="button"><i class="bi bi-layout-three-columns"></i> Columnas</button>
+    <form method="post" action="{% url 'lista_preferencias' %}" class="dropdown-menu p-2 small" style="min-width:230px">{% csrf_token %}
+      <input type="hidden" name="lista" value="{{ lista_clave }}"><input type="hidden" name="vuelta" value="{{ lista_vuelta }}">
+      {% for c in lista_columnas %}<label class="d-block"><input type="checkbox" class="form-check-input me-1" name="col" value="{{ c.clave }}" {% if c.visible %}checked{% endif %}>{{ c.titulo }}</label>{% endfor %}
+      <div class="d-flex gap-1 mt-2"><button class="btn btn-sm btn-primary" name="accion" value="columnas">Guardar</button><button class="btn btn-sm btn-link" name="accion" value="restablecer">Por defecto</button></div>
+    </form>
+  </div>
+  <div class="dropdown">
+    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" type="button"><i class="bi bi-star"></i> Filtros</button>
+    <div class="dropdown-menu p-2 small" style="min-width:260px">
+      {% for f in lista_filtros %}<div class="d-flex justify-content-between align-items-center"><a href="?{{ f.query }}">{{ f.nombre }}</a>
+        <form method="post" action="{% url 'lista_preferencias' %}">{% csrf_token %}<input type="hidden" name="lista" value="{{ lista_clave }}"><input type="hidden" name="vuelta" value="{{ lista_vuelta }}"><input type="hidden" name="nombre" value="{{ f.nombre }}"><button class="btn btn-sm btn-link text-danger p-0" name="accion" value="borrar_filtro" title="Quitar">×</button></form></div>
+      {% empty %}<div class="text-muted">Sin filtros guardados.</div>{% endfor %}
+      <form method="post" action="{% url 'lista_preferencias' %}" class="d-flex gap-1 mt-2 border-top pt-2">{% csrf_token %}<input type="hidden" name="lista" value="{{ lista_clave }}"><input type="hidden" name="vuelta" value="{{ lista_vuelta }}"><input type="hidden" name="query" value="{{ lista_query }}">
+        <input name="nombre" class="form-control form-control-sm" maxlength="40" placeholder="Guardar el filtro actual como…"><button class="btn btn-sm btn-outline-primary" name="accion" value="guardar_filtro"><i class="bi bi-save"></i></button></form>
+    </div>
+  </div>
+  {% if lista_agrupaciones %}<form method="get" class="d-flex gap-1">{% for k, v in request.GET.items %}{% if k != 'agrupar' and k != 'page' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+    <select name="agrupar" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Sin agrupar</option>{% for v, t in lista_agrupaciones %}<option value="{{ v }}" {% if agrupar == v %}selected{% endif %}>Agrupar por {{ t|lower }}</option>{% endfor %}</select></form>{% endif %}
+  <a href="?{{ lista_query }}{% if lista_query %}&{% endif %}formato=excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel lo que se ve"><i class="bi bi-file-earmark-excel"></i></a>
+</div>

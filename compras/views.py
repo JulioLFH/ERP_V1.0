@@ -3,11 +3,13 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from core.comprobantes import ComprobanteViews, ple_num
 from core.forms import item_formset
+from core.listas import Lista
 from core.models import Empresa, r2
-from core.utils import fmt_fecha, guardar_documento
+from core.utils import excel_response, fmt_fecha, guardar_documento
 
 from .forms import CompraForm, OrdenCompraForm
 from .models import Compra, CompraItem, OrdenCompra, OrdenCompraItem, SolicitudPedido
@@ -35,6 +37,10 @@ class ComprasViews(ComprobanteViews):
                    'clasificacion': Compra.clasificacion_de(oc.items.select_related('producto'))}
         if tiene_recepciones(orden=oc):
             initial['ingresar_almacen'] = False  # ya se recibió en Inventario
+        from obras.models import Obra
+        obra = Obra.de_centro(oc.centro_costo_id)
+        if obra is not None and obra.almacen_id:
+            initial['almacen'] = obra.almacen_id  # compra de una obra: ingresa a su almacén de obra
         items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,
                   'precio_unitario': i.precio_unitario, 'descuento_pct': i.descuento_pct} for i in oc.items.all()]
         return initial, items
@@ -53,7 +59,21 @@ class ComprasViews(ComprobanteViews):
         return qs
 
     def validar_stock(self, form, formset):
-        return super().validar_stock(form, formset) + self.validar_servicios(form, formset)
+        return (super().validar_stock(form, formset) + self.validar_servicios(form, formset) +
+                self.validar_cruce(form, formset))
+
+    def validar_cruce(self, form, formset):
+        """Cruce de tres vías (ALM-06): no se factura más de lo recibido (o de lo pedido si la factura ingresa la
+        mercadería)."""
+        from .cruce import errores_cantidad
+        datos = form.cleaned_data
+        oc = datos.get('orden_compra')
+        if oc is None or datos.get('tipo_comprobante') in ('07', '08'):
+            return []
+        lineas = [(c.get('producto'), c.get('cantidad')) for c in (getattr(f, 'cleaned_data', None) or {}
+                                                                  for f in formset.forms)
+                  if c and not c.get('DELETE') and c.get('producto')]
+        return errores_cantidad(oc, lineas, bool(datos.get('ingresar_almacen')), form.instance)
 
     def validar_servicios(self, form, formset):
         """Factura de una OC con servicios: solo contra HES liberadas y hasta su valor (PORT-09). Lo ya facturado de
@@ -114,6 +134,8 @@ class ComprasViews(ComprobanteViews):
         liquidar(doc)  # diferencia entre el precio facturado y el costo con que se recibió
         from .registro_info import aprender
         aprender(doc)  # último precio por proveedor y producto (registro info)
+        from .cruce import retener_si_corresponde
+        retener_si_corresponde(doc)  # precio fuera de la tolerancia de la orden: retenida para pago (ALM-06)
 
     def ingresar_almacen(self, request, pk):
         from inventario.servicios import tiene_recepciones
@@ -216,12 +238,19 @@ def distribuir(request, pk):
 
 
 # ---------------------------------------------------------------- órdenes de compra
+LISTA_OC = Lista('compras.ordenes', [  # LIS-01: columnas por usuario, filtros guardados y Excel
+    ('numero', 'Número', True), ('fecha', 'Fecha', True), ('tercero', 'Proveedor', True),
+    ('centro', 'Centro de costo', False), ('comprador', 'Comprador', False), ('entrega', 'Fecha de entrega', False),
+    ('registro', 'Registrado', False), ('moneda', 'Moneda', True), ('total', 'Total', True), ('estado', 'Estado', True)])
+
+
 @login_required
 def oc_lista(request):
-    qs = OrdenCompra.objects.select_related('tercero')
+    qs = OrdenCompra.objects.select_related('tercero', 'centro_costo', 'comprador')
     q = request.GET.get('q', '').strip()
     if q:
-        qs = qs.filter(Q(numero__icontains=q) | Q(tercero__nombre__icontains=q))
+        qs = qs.filter(Q(numero__icontains=q) | Q(tercero__nombre__icontains=q) | Q(tercero__numero_doc__icontains=q) |
+                       Q(centro_costo__codigo__icontains=q) | Q(comprador__username__icontains=q))
     if request.GET.get('estado'):
         qs = qs.filter(estado=request.GET['estado'])
     if request.GET.get('proveedor'):  # respuesta del proveedor (tablero del portal)
@@ -229,11 +258,22 @@ def oc_lista(request):
     comprador = request.GET.get('comprador', '')
     if comprador == 'yo' or comprador.isdigit():  # órdenes de un comprador (COM-09)
         qs = qs.filter(comprador_id=request.user.pk if comprador == 'yo' else int(comprador))
+    ctx_lista = LISTA_OC.contexto(request)
+    if request.GET.get('formato') == 'excel':
+        cols = ctx_lista['visibles']
+        valor = {'numero': lambda d: d.numero, 'fecha': lambda d: d.fecha,
+                 'tercero': lambda d: f'{d.tercero.nombre} ({d.tercero.numero_doc})',
+                 'centro': lambda d: d.centro_costo.codigo if d.centro_costo_id else '',
+                 'comprador': lambda d: d.comprador.username if d.comprador_id else '',
+                 'entrega': lambda d: d.fecha_entrega, 'registro': lambda d: timezone.localtime(d.creado),
+                 'moneda': lambda d: d.moneda, 'total': lambda d: d.total, 'estado': lambda d: d.get_estado_display()}
+        return excel_response('Ordenes_de_compra', 'Órdenes de compra', LISTA_OC.titulos(cols),
+                              [[valor[c](d) for c in cols] for d in qs[:20000]])
     return render(request, 'core/documento_lista.html', {
         'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'q': q,
         'titulo': 'Órdenes de compra', 'etiqueta_tercero': 'Proveedor', 'app': 'compras',
         'url_nuevo': 'compras:oc_nuevo', 'url_detalle': 'compras:oc_detalle',
-        'estados': OrdenCompra._meta.get_field('estado').choices})
+        'estados': OrdenCompra._meta.get_field('estado').choices, **ctx_lista})
 
 
 def _oc_ctx(titulo, doc=None):
@@ -342,14 +382,22 @@ def _aprobacion_ctx(user, oc):
     """Niveles, historial y si el usuario puede aprobar o rechazar la OC (para la pantalla)."""
     from core import aprobaciones
 
-    from .aprobacion_oc import ErrorAprobacionOC, por_niveles, puede_aprobar
+    from .aprobacion_oc import ErrorAprobacionOC, calcular_niveles, por_niveles, puede_aprobar
     try:
         niveles = por_niveles(oc)
         error = ''
     except ErrorAprobacionOC as exc:
         niveles, error = False, str(exc)
+    avisos = []  # APR-02: niveles sin aprobador que se saltaron (sin jefe, puesto vacante)
+    if oc.estado == 'PENDIENTE' and not error and aprobaciones.hay_reglas('OC'):
+        try:
+            calcular_niveles(oc, avisos)
+        except aprobaciones.ErrorAprobacion:
+            pass
     return {'oc_niveles': oc.niveles if niveles else [], 'oc_pendiente': aprobaciones.pendiente(oc.niveles,
                                                                                              oc.nivel_aprobado),
+            'oc_ruta': aprobaciones.ruta('OC', oc, oc.niveles, oc.nivel_aprobado) if niveles else [],
+            'oc_avisos_niveles': avisos,
             'oc_error_niveles': error, 'oc_historial': aprobaciones.historial('OC', oc),
             'oc_puede_aprobar': oc.estado == 'PENDIENTE' and not error and puede_aprobar(user, oc)}
 

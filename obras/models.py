@@ -77,6 +77,13 @@ class Obra(models.Model):
     def __str__(self):
         return f'{self.codigo} {self.nombre}'
 
+    @classmethod
+    def de_centro(cls, centro_costo_id):
+        """La obra de un centro de costo (o None): sus compras y recepciones van a su almacén de obra."""
+        if not centro_costo_id:
+            return None
+        return cls.objects.filter(centro_costo_id=centro_costo_id).select_related('almacen').first()
+
     def save(self, *args, **kwargs):
         if not self.codigo:
             from core.models import Serie
@@ -189,6 +196,13 @@ class Presupuesto(models.Model):
     origen = models.CharField(max_length=40, blank=True, editable=False, help_text='Importado de… / copia de…')
     copia_de = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, editable=False,
                                  related_name='copias')
+    # nueva versión del S10 sobre la obra (adicional, deductivo o nueva meta) con la resolución que la aprueba
+    MOTIVOS = [('', 'Versión inicial'), ('ADICIONAL', 'Adicional de obra'), ('DEDUCTIVO', 'Deductivo de obra'),
+               ('ADICIONAL_DEDUCTIVO', 'Adicional con deductivo vinculado'), ('NUEVA_META', 'Nueva meta / reformulación'),
+               ('CORRECCION', 'Corrección de metrados o precios')]
+    motivo = models.CharField('Motivo de la versión', max_length=19, choices=MOTIVOS, blank=True)
+    resolucion = models.CharField('Resolución / documento que la aprueba', max_length=120, blank=True)
+    fecha_resolucion = models.DateField('Fecha de la resolución', null=True, blank=True)
     # totales (los recalcula obras.calculos.recalcular)
     costo_directo = models.DecimalField(max_digits=16, decimal_places=2, default=D0, editable=False)
     gastos_generales = models.DecimalField(max_digits=16, decimal_places=2, default=D0, editable=False)
@@ -277,6 +291,11 @@ class Partida(models.Model):
     @property
     def nivel(self):
         return self.item.count('.')
+
+    @property
+    def clave(self):
+        """Subpresupuesto e ítem: une la misma partida entre versiones del presupuesto y entre contractual y meta."""
+        return f'{self.subpresupuesto.codigo if self.subpresupuesto_id else ""}|{self.item}'
 
     def save(self, *args, **kwargs):
         self.item = self.item.strip()
@@ -607,3 +626,479 @@ class DevolucionInmueble(models.Model):
 
     class Meta:
         ordering = ['fecha', 'id']
+
+
+# ---------------------------------------------------------------- ejecución: adelantos y valorizaciones (OBR-13/14)
+class AdelantoObra(models.Model):
+    """Adelanto directo o para materiales que paga el cliente: su factura va a anticipos de clientes (122, con IGV y
+    detracción) y se amortiza en las facturas de las valorizaciones (deducción del anticipo)."""
+    TIPOS = [('DIRECTO', 'Adelanto directo'), ('MATERIALES', 'Adelanto para materiales')]
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='adelantos')
+    tipo = models.CharField(max_length=10, choices=TIPOS, default='DIRECTO')
+    fecha = models.DateField(default=timezone.localdate)
+    monto = models.DecimalField('Monto sin IGV', max_digits=16, decimal_places=2)
+    factura = models.ForeignKey('ventas.Venta', on_delete=models.PROTECT, related_name='adelantos_obra')
+    reclasificada = models.BooleanField('Factura emitida como venta y pasada a anticipo', default=False,
+                                        editable=False)
+    glosa = models.CharField(max_length=250, blank=True)
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['obra', 'fecha', 'id']
+        verbose_name = 'adelanto de obra'
+        verbose_name_plural = 'adelantos de obra'
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} {self.factura.numero_completo}'
+
+    @property
+    def amortizado(self):
+        """Lo deducido en las facturas de valorización vigentes (sin IGV)."""
+        from django.db.models import Sum
+        s = self.factura.regularizaciones.filter(documento__estado='REGISTRADO').aggregate(s=Sum('subtotal'))['s']
+        return -(s or D0)
+
+    @property
+    def saldo(self):
+        return self.monto - self.amortizado
+
+
+class Valorizacion(models.Model):
+    """Valorización mensual de la obra sobre el presupuesto contractual: metrado del periodo por partida (acumulado y
+    saldo), gastos generales y utilidad del presupuesto, amortización de los adelantos, reintegro por la fórmula
+    polinómica (menos su deducción por los adelantos) y retención del fondo de garantía. La aprueba el supervisor y
+    se factura desde aquí."""
+    ESTADOS = [('BORRADOR', 'Borrador'), ('POR_APROBAR', 'Por aprobar (supervisor)'), ('APROBADA', 'Aprobada'),
+               ('FACTURADA', 'Facturada'), ('ANULADA', 'Anulada')]
+    obra = models.ForeignKey(Obra, on_delete=models.PROTECT, related_name='valorizaciones')
+    presupuesto = models.ForeignKey(Presupuesto, on_delete=models.PROTECT, related_name='valorizaciones',
+                                    verbose_name='Presupuesto contractual')
+    numero = models.PositiveSmallIntegerField('N°', editable=False)
+    periodo = models.CharField('Periodo (AAAAMM)', max_length=6)
+    fecha_inicio = models.DateField('Desde')
+    fecha_fin = models.DateField('Hasta')
+    estado = models.CharField(max_length=11, choices=ESTADOS, default='BORRADOR', editable=False)
+    costo_directo = models.DecimalField(max_digits=16, decimal_places=2, default=D0, editable=False)
+    gastos_generales = models.DecimalField(max_digits=16, decimal_places=2, default=D0, editable=False)
+    utilidad = models.DecimalField(max_digits=16, decimal_places=2, default=D0, editable=False)
+    subtotal = models.DecimalField('Valorizado sin IGV', max_digits=16, decimal_places=2, default=D0, editable=False)
+    amort_directo = models.DecimalField('Amortización del adelanto directo', max_digits=16, decimal_places=2,
+                                        default=D0)
+    amort_materiales = models.DecimalField('Amortización del adelanto para materiales', max_digits=16,
+                                           decimal_places=2, default=D0)
+    k = models.DecimalField('Coeficiente K del mes', max_digits=8, decimal_places=3, null=True, blank=True,
+                            editable=False)
+    reintegro = models.DecimalField('Reintegro (fórmula polinómica)', max_digits=16, decimal_places=2, default=D0)
+    deduccion_reintegro = models.DecimalField('Deducción del reintegro por adelantos', max_digits=16,
+                                              decimal_places=2, default=D0)
+    retencion_garantia = models.DecimalField('Retención del fondo de garantía', max_digits=16, decimal_places=2,
+                                             default=D0)
+    base_factura = models.DecimalField('Base de la factura', max_digits=16, decimal_places=2, default=D0,
+                                       editable=False)
+    igv = models.DecimalField(max_digits=16, decimal_places=2, default=D0, editable=False)
+    total_factura = models.DecimalField('Total de la factura', max_digits=16, decimal_places=2, default=D0,
+                                        editable=False)
+    supervisor = models.CharField('Supervisor / inspector que aprueba', max_length=150, blank=True)
+    fecha_aprobacion = models.DateField('Aprobada por el supervisor el', null=True, blank=True)
+    observacion = models.CharField('Observación del supervisor', max_length=300, blank=True)
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False)
+    factura = models.ForeignKey('ventas.Venta', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                editable=False)
+    aplicacion_garantia = models.ForeignKey('finanzas.Aplicacion', on_delete=models.SET_NULL, null=True, blank=True,
+                                            related_name='+', editable=False)
+    glosa = models.CharField(max_length=250, blank=True)
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['obra', '-numero']
+        unique_together = [('obra', 'numero')]
+        verbose_name = 'valorización'
+        verbose_name_plural = 'valorizaciones'
+
+    def __str__(self):
+        return f'Valorización N° {self.numero} {self.obra.codigo} ({self.periodo[4:]}/{self.periodo[:4]})'
+
+    @property
+    def editable(self):
+        return self.estado in ('BORRADOR', 'POR_APROBAR')
+
+    @property
+    def reintegro_neto(self):
+        return self.reintegro - self.deduccion_reintegro
+
+    def save(self, *args, **kwargs):
+        if not self.numero:
+            ultimo = Valorizacion.objects.filter(obra=self.obra).order_by('-numero').first()
+            self.numero = (ultimo.numero + 1) if ultimo else 1
+        super().save(*args, **kwargs)
+
+
+class LineaValorizacion(models.Model):
+    valorizacion = models.ForeignKey(Valorizacion, on_delete=models.CASCADE, related_name='lineas')
+    partida = models.ForeignKey(Partida, on_delete=models.PROTECT, related_name='valorizado')
+    metrado = models.DecimalField('Metrado del periodo', max_digits=16, decimal_places=4, default=D0)
+    precio = models.DecimalField(max_digits=16, decimal_places=2, default=D0)
+    monto = models.DecimalField(max_digits=18, decimal_places=2, default=D0)
+
+    class Meta:
+        ordering = ['partida__subpresupuesto__codigo', 'partida__orden']
+
+
+class DevolucionGarantia(models.Model):
+    """Cobro del fondo de garantía que retuvo el cliente (al recibir o liquidar la obra)."""
+    obra = models.ForeignKey(Obra, on_delete=models.PROTECT, related_name='devoluciones_garantia')
+    fecha = models.DateField(default=timezone.localdate)
+    monto = models.DecimalField(max_digits=16, decimal_places=2)
+    movimiento = models.ForeignKey('finanzas.Movimiento', on_delete=models.PROTECT, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['obra', 'fecha']
+
+
+# ---------------------------------------------------------------- reajuste: fórmula polinómica (OBR-21)
+class IndiceUnificado(models.Model):
+    """Índice unificado de precios de la construcción (INEI) del mes, por área geográfica (1 a 6)."""
+    AREAS = [(str(n), f'Área {n}') for n in range(1, 7)]
+    codigo = models.CharField('Código del índice', max_length=2)
+    area = models.CharField('Área geográfica', max_length=1, choices=AREAS, default='1')
+    periodo = models.CharField('Mes (AAAAMM)', max_length=6)
+    valor = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        ordering = ['-periodo', 'area', 'codigo']
+        unique_together = [('codigo', 'area', 'periodo')]
+        verbose_name = 'índice unificado'
+        verbose_name_plural = 'índices unificados'
+
+    def __str__(self):
+        return f'IU {self.codigo} área {self.area} {self.periodo}: {self.valor}'
+
+
+class FormulaPolinomica(models.Model):
+    """Fórmula polinómica de reajuste del contrato (DS 011-79-VC): K = Σ coeficiente × (Ir / Io). Se importa del S10 o
+    de Excel o se escribe a mano; los índices base (Io) son los del mes del presupuesto base."""
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='formulas')
+    numero = models.PositiveSmallIntegerField('N°', default=1)
+    nombre = models.CharField(max_length=150, blank=True)
+    subpresupuesto = models.CharField('Subpresupuesto al que se aplica', max_length=10, blank=True,
+                                      help_text='Código del subpresupuesto; vacío = todo el presupuesto')
+    area = models.CharField('Área geográfica', max_length=1, choices=IndiceUnificado.AREAS, default='1')
+    periodo_base = models.CharField('Mes de los índices base (AAAAMM)', max_length=6)
+    activa = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['obra', 'numero']
+        unique_together = [('obra', 'numero')]
+        verbose_name = 'fórmula polinómica'
+        verbose_name_plural = 'fórmulas polinómicas'
+
+    def __str__(self):
+        return f'Fórmula {self.numero} {self.nombre}'.strip()
+
+    @property
+    def suma_coeficientes(self):
+        return sum((m.coeficiente for m in self.monomios.all()), D0)
+
+
+class Monomio(models.Model):
+    """Término de la fórmula. Un monomio compuesto (0.150 × [0.6 × IU21 + 0.4 × IU43]) se registra en dos filas con
+    el mismo símbolo y su coeficiente ya multiplicado (0.090 y 0.060)."""
+    formula = models.ForeignKey(FormulaPolinomica, on_delete=models.CASCADE, related_name='monomios')
+    simbolo = models.CharField('Símbolo', max_length=10, help_text='Ej. J, M, E, GU')
+    descripcion = models.CharField('Descripción', max_length=120, blank=True)
+    coeficiente = models.DecimalField(max_digits=6, decimal_places=3)
+    indice = models.CharField('Código del índice (INEI)', max_length=2)
+
+    class Meta:
+        ordering = ['formula', 'id']
+
+
+# ---------------------------------------------------------------- planeamiento: cronograma y avance físico (OBR-17)
+class ProgramacionPartida(models.Model):
+    """Metrado programado de la partida en el mes (cronograma importado del S10 o de MS Project, o escrito)."""
+    partida = models.ForeignKey(Partida, on_delete=models.CASCADE, related_name='programacion')
+    periodo = models.CharField('Mes (AAAAMM)', max_length=6)
+    metrado = models.DecimalField(max_digits=16, decimal_places=4, default=D0)
+
+    class Meta:
+        ordering = ['partida', 'periodo']
+        unique_together = [('partida', 'periodo')]
+
+
+class AvancePartida(models.Model):
+    """Avance físico (metrado ejecutado) de una partida en una fecha, con foto y responsable: alimenta la
+    valorización."""
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='avances')
+    partida = models.ForeignKey(Partida, on_delete=models.PROTECT, related_name='avances')
+    fecha = models.DateField(default=timezone.localdate)
+    metrado = models.DecimalField('Metrado ejecutado', max_digits=16, decimal_places=4)
+    responsable = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+')
+    nota = models.CharField(max_length=250, blank=True)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'avance físico'
+        verbose_name_plural = 'avances físicos'
+
+
+# ---------------------------------------------------------------- mano de obra: tareo y construcción civil (OBR-18)
+class Tareo(models.Model):
+    """Parte diario de mano de obra de una cuadrilla: horas de cada trabajador por partida."""
+    ESTADOS = [('BORRADOR', 'Borrador'), ('CERRADO', 'Cerrado')]
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='tareos')
+    fecha = models.DateField(default=timezone.localdate)
+    cuadrilla = models.CharField(max_length=60, blank=True, help_text='Ej. Cuadrilla de concreto, encofrado')
+    capataz = models.ForeignKey('planillas.Trabajador', on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='+')
+    estado = models.CharField(max_length=8, choices=ESTADOS, default='BORRADOR', editable=False)
+    observaciones = models.CharField(max_length=250, blank=True)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+
+    def __str__(self):
+        return f'Tareo {self.fecha:%d/%m/%Y} {self.cuadrilla}'.strip()
+
+
+class LineaTareo(models.Model):
+    tareo = models.ForeignKey(Tareo, on_delete=models.CASCADE, related_name='lineas')
+    trabajador = models.ForeignKey('planillas.Trabajador', on_delete=models.PROTECT, related_name='tareos')
+    partida = models.ForeignKey(Partida, on_delete=models.SET_NULL, null=True, blank=True, related_name='tareos')
+    horas = models.DecimalField('Horas normales', max_digits=4, decimal_places=1, default=Decimal('8'))
+    horas_60 = models.DecimalField('Horas extra 60 %', max_digits=4, decimal_places=1, default=D0)
+    horas_100 = models.DecimalField('Horas extra 100 %', max_digits=4, decimal_places=1, default=D0)
+
+    class Meta:
+        ordering = ['tareo', 'id']
+
+
+class PlanillaCivil(models.Model):
+    """Planilla semanal del régimen de construcción civil de la obra: se calcula desde los tareos con los jornales y
+    porcentajes vigentes (parámetros) y su costo va al centro de costo de la obra y a sus partidas."""
+    ESTADOS = [('BORRADOR', 'Borrador'), ('CERRADA', 'Cerrada'), ('PAGADA', 'Pagada'), ('ANULADA', 'Anulada')]
+    obra = models.ForeignKey(Obra, on_delete=models.PROTECT, related_name='planillas_civil')
+    numero = models.PositiveSmallIntegerField('Semana N°', editable=False)
+    desde = models.DateField()
+    hasta = models.DateField()
+    estado = models.CharField(max_length=8, choices=ESTADOS, default='BORRADOR', editable=False)
+    movimiento_pago = models.ForeignKey('finanzas.Movimiento', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['obra', '-desde']
+        unique_together = [('obra', 'numero')]
+        verbose_name = 'planilla de construcción civil'
+        verbose_name_plural = 'planillas de construcción civil'
+
+    def __str__(self):
+        return f'Planilla civil {self.obra.codigo} semana {self.numero} ({self.desde:%d/%m}–{self.hasta:%d/%m/%Y})'
+
+    def save(self, *args, **kwargs):
+        if not self.numero:
+            ultimo = PlanillaCivil.objects.filter(obra=self.obra).order_by('-numero').first()
+            self.numero = (ultimo.numero + 1) if ultimo else 1
+        super().save(*args, **kwargs)
+
+    @property
+    def periodo(self):
+        return self.hasta.strftime('%Y%m')
+
+
+class LineaPlanillaCivil(models.Model):
+    planilla = models.ForeignKey(PlanillaCivil, on_delete=models.CASCADE, related_name='lineas')
+    trabajador = models.ForeignKey('planillas.Trabajador', on_delete=models.PROTECT, related_name='+')
+    categoria = models.CharField(max_length=8)
+    dias = models.DecimalField(max_digits=4, decimal_places=2, default=D0)
+    horas = models.DecimalField(max_digits=6, decimal_places=1, default=D0)
+    horas_60 = models.DecimalField(max_digits=6, decimal_places=1, default=D0)
+    horas_100 = models.DecimalField(max_digits=6, decimal_places=1, default=D0)
+    jornal = models.DecimalField(max_digits=10, decimal_places=2, default=D0)
+    basico = models.DecimalField(max_digits=12, decimal_places=2, default=D0)
+    dominical = models.DecimalField(max_digits=12, decimal_places=2, default=D0)
+    buc = models.DecimalField('BUC', max_digits=12, decimal_places=2, default=D0)
+    extras = models.DecimalField('Horas extra', max_digits=12, decimal_places=2, default=D0)
+    movilidad = models.DecimalField(max_digits=12, decimal_places=2, default=D0)
+    pension = models.DecimalField('ONP / AFP', max_digits=12, decimal_places=2, default=D0)
+    conafovicer = models.DecimalField('CONAFOVICER', max_digits=12, decimal_places=2, default=D0)
+    neto = models.DecimalField(max_digits=12, decimal_places=2, default=D0)
+    essalud = models.DecimalField('EsSalud', max_digits=12, decimal_places=2, default=D0)
+    sctr = models.DecimalField('SCTR', max_digits=12, decimal_places=2, default=D0)
+    cts = models.DecimalField('CTS', max_digits=12, decimal_places=2, default=D0)
+    vacaciones = models.DecimalField(max_digits=12, decimal_places=2, default=D0)
+    gratificacion = models.DecimalField('Gratificación', max_digits=12, decimal_places=2, default=D0)
+    costo = models.DecimalField('Costo total', max_digits=12, decimal_places=2, default=D0)
+    partidas = models.JSONField(default=dict, help_text='{partida_id: horas} del tareo')
+
+    class Meta:
+        ordering = ['planilla', 'trabajador__apellido_paterno']
+
+    @property
+    def ingresos(self):
+        return self.basico + self.dominical + self.buc + self.extras + self.movilidad
+
+
+# ---------------------------------------------------------------- equipos: parte diario (OBR-19)
+class ParteEquipo(models.Model):
+    """Parte diario del equipo en la obra (horómetro, horas trabajadas y en espera, combustible, operador y
+    partida): su costo (horas × tarifa) se compara con la meta de equipos del APU; el horómetro pasa a Flota."""
+    PROPIEDADES = [('PROPIO', 'Propio'), ('ALQUILADO', 'Alquilado')]
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='partes_equipo')
+    numero = models.CharField('N° de parte', max_length=20, blank=True)
+    fecha = models.DateField(default=timezone.localdate)
+    equipo = models.ForeignKey('produccion.Equipo', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                               help_text='Equipo propio o alquilado registrado en Flota')
+    descripcion = models.CharField('Equipo (si no está en Flota)', max_length=120, blank=True)
+    propiedad = models.CharField(max_length=9, choices=PROPIEDADES, default='PROPIO')
+    proveedor = models.ForeignKey('core.Tercero', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                  verbose_name='Proveedor del alquiler')
+    partida = models.ForeignKey(Partida, on_delete=models.SET_NULL, null=True, blank=True, related_name='partes_equipo')
+    operador = models.CharField(max_length=120, blank=True)
+    horometro_inicio = models.DecimalField('Horómetro inicial', max_digits=12, decimal_places=1, null=True,
+                                           blank=True)
+    horometro_fin = models.DecimalField('Horómetro final', max_digits=12, decimal_places=1, null=True, blank=True)
+    horas = models.DecimalField('Horas trabajadas', max_digits=6, decimal_places=1, default=D0)
+    horas_espera = models.DecimalField('Horas en espera (standby)', max_digits=6, decimal_places=1, default=D0)
+    combustible = models.DecimalField('Combustible (galones)', max_digits=10, decimal_places=2, default=D0)
+    tarifa = models.DecimalField('Tarifa hora-máquina S/', max_digits=12, decimal_places=2, default=D0)
+    tarifa_espera = models.DecimalField('Tarifa en espera S/', max_digits=12, decimal_places=2, default=D0)
+    costo = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    compra = models.ForeignKey('compras.Compra', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                               verbose_name='Factura del alquiler')
+    observacion = models.CharField(max_length=200, blank=True)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'parte diario de equipo'
+        verbose_name_plural = 'partes diarios de equipo'
+
+    def __str__(self):
+        return f'Parte {self.numero or self.pk} {self.nombre_equipo} {self.fecha:%d/%m/%Y}'
+
+    @property
+    def nombre_equipo(self):
+        return str(self.equipo) if self.equipo_id else self.descripcion
+
+    def save(self, *args, **kwargs):
+        from core.models import r2
+        self.costo = r2(self.horas * self.tarifa + self.horas_espera * self.tarifa_espera)
+        super().save(*args, **kwargs)
+
+
+# ---------------------------------------------------------------- subcontratos (OBR-20)
+class Subcontrato(models.Model):
+    """Contrato con un subcontratista por partidas del presupuesto (precios unitarios o suma alzada), con adelanto,
+    fondo de garantía y detracción. Se valoriza cada mes y cada valorización genera sus conformidades (HES)."""
+    MODALIDADES = [('PRECIOS_UNITARIOS', 'Precios unitarios'), ('SUMA_ALZADA', 'Suma alzada')]
+    ESTADOS = [('BORRADOR', 'Borrador'), ('VIGENTE', 'Vigente (con orden de servicio)'), ('LIQUIDADO', 'Liquidado'),
+               ('ANULADO', 'Anulado')]
+    obra = models.ForeignKey(Obra, on_delete=models.PROTECT, related_name='subcontratos')
+    numero = models.CharField('N°', max_length=20, editable=False)
+    proveedor = models.ForeignKey('core.Tercero', on_delete=models.PROTECT, related_name='+',
+                                  verbose_name='Subcontratista')
+    descripcion = models.CharField('Objeto del subcontrato', max_length=250)
+    modalidad = models.CharField(max_length=17, choices=MODALIDADES, default='PRECIOS_UNITARIOS')
+    fecha = models.DateField(default=timezone.localdate)
+    adelanto_pct = models.DecimalField('Adelanto %', max_digits=5, decimal_places=2, default=D0)
+    garantia_pct = models.DecimalField('Fondo de garantía %', max_digits=5, decimal_places=2, default=Decimal('5'))
+    detraccion = models.BooleanField('Sujeto a detracción (contratos de construcción)', default=True)
+    estado = models.CharField(max_length=9, choices=ESTADOS, default='BORRADOR', editable=False)
+    orden_compra = models.ForeignKey('compras.OrdenCompra', on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False, verbose_name='Orden de servicio')
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['obra', '-fecha', '-id']
+
+    def __str__(self):
+        return f'Subcontrato {self.numero} {self.proveedor.nombre}'
+
+    def save(self, *args, **kwargs):
+        if not self.numero:
+            from core.models import Serie
+            _, numero = Serie.siguiente('SBC', 'SC')
+            self.numero = f'SC-{int(numero):05d}'
+        super().save(*args, **kwargs)
+
+    @property
+    def monto(self):
+        return sum((l.monto for l in self.lineas.all()), D0)
+
+
+class LineaSubcontrato(models.Model):
+    subcontrato = models.ForeignKey(Subcontrato, on_delete=models.CASCADE, related_name='lineas')
+    partida = models.ForeignKey(Partida, on_delete=models.SET_NULL, null=True, blank=True, related_name='subcontratado')
+    descripcion = models.CharField('Descripción', max_length=250)
+    unidad = models.CharField(max_length=12, blank=True)
+    metrado = models.DecimalField(max_digits=16, decimal_places=4, default=D0)
+    precio = models.DecimalField('Precio unitario sin IGV', max_digits=16, decimal_places=4, default=D0)
+    oc_item = models.ForeignKey('compras.OrdenCompraItem', on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='+', editable=False)
+
+    class Meta:
+        ordering = ['subcontrato', 'id']
+
+    @property
+    def monto(self):
+        from core.models import r2
+        return r2(self.metrado * self.precio)
+
+
+class ValorizacionSubcontrato(models.Model):
+    ESTADOS = [('BORRADOR', 'Borrador'), ('APROBADA', 'Aprobada (HES generadas)'), ('ANULADA', 'Anulada')]
+    subcontrato = models.ForeignKey(Subcontrato, on_delete=models.PROTECT, related_name='valorizaciones')
+    numero = models.PositiveSmallIntegerField('N°', editable=False)
+    periodo = models.CharField('Periodo (AAAAMM)', max_length=6)
+    estado = models.CharField(max_length=8, choices=ESTADOS, default='BORRADOR', editable=False)
+    bruto = models.DecimalField('Valorizado sin IGV', max_digits=16, decimal_places=2, default=D0, editable=False)
+    amortizacion = models.DecimalField('Amortización del adelanto', max_digits=16, decimal_places=2, default=D0)
+    garantia = models.DecimalField('Fondo de garantía retenido', max_digits=16, decimal_places=2, default=D0)
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False)
+    aprobado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['subcontrato', '-numero']
+        unique_together = [('subcontrato', 'numero')]
+
+    def __str__(self):
+        return f'Valorización {self.numero} del {self.subcontrato}'
+
+    def save(self, *args, **kwargs):
+        if not self.numero:
+            ultimo = ValorizacionSubcontrato.objects.filter(subcontrato=self.subcontrato).order_by('-numero').first()
+            self.numero = (ultimo.numero + 1) if ultimo else 1
+        super().save(*args, **kwargs)
+
+    @property
+    def neto(self):
+        return self.bruto - self.amortizacion - self.garantia
+
+
+class LineaValSubcontrato(models.Model):
+    valorizacion = models.ForeignKey(ValorizacionSubcontrato, on_delete=models.CASCADE, related_name='lineas')
+    linea = models.ForeignKey(LineaSubcontrato, on_delete=models.PROTECT, related_name='valorizado')
+    metrado = models.DecimalField('Metrado del periodo', max_digits=16, decimal_places=4, default=D0)
+    monto = models.DecimalField(max_digits=16, decimal_places=2, default=D0)
+    hes = models.ForeignKey('compras.ConformidadServicio', on_delete=models.SET_NULL, null=True, blank=True,
+                            related_name='+', editable=False)
+
+    class Meta:
+        ordering = ['valorizacion', 'id']

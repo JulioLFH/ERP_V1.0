@@ -20,7 +20,7 @@ class TrabajadorForm(BootstrapMixin, forms.ModelForm):
         ('Datos personales', ['tipo_doc', 'numero_doc', 'apellido_paterno', 'apellido_materno', 'nombres',
                               'fecha_nacimiento', 'sexo', 'email', 'telefono', 'direccion']),
         ('Datos laborales', ['fecha_ingreso', 'fecha_cese', 'motivo_cese', 'puesto', 'cargo', 'tipo', 'regimen',
-                             'centro_costo', 'sueldo', 'asignacion_familiar', 'turno', 'usuario']),
+                             'categoria_civil', 'centro_costo', 'sueldo', 'asignacion_familiar', 'turno', 'usuario']),
         ('Pensiones', ['sistema_pensiones', 'afp', 'comision_afp', 'cuspp']),
         ('Quinta categoría: datos del año antes del sistema', ['quinta_anio', 'quinta_remuneracion_previa',
                                                               'quinta_retencion_previa']),
@@ -63,6 +63,8 @@ class TrabajadorForm(BootstrapMixin, forms.ModelForm):
             self.add_error('fecha_cese', 'No puede ser anterior al ingreso.')
         if d.get('sueldo') is not None and d['sueldo'] < 0:
             self.add_error('sueldo', 'No puede ser negativo.')
+        if d.get('regimen') == 'CONSTRUCCION' and not d.get('categoria_civil'):
+            self.add_error('categoria_civil', 'Indique si es operario, oficial o peón (define su jornal).')
         return d
 
 

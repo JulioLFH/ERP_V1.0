@@ -158,9 +158,12 @@ def enviar(m, usuario):
     except aprobaciones.ErrorAprobacion as exc:
         raise ErrorPersonal(str(exc)) from exc
     m.estado, m.nivel_aprobado, m.solicitante = 'ENVIADO', 0, usuario
-    if not m.niveles:  # sin reglas: aprueba quien tenga «Cerrar planillas»
-        m.niveles = [{'nivel': 1, 'usuario': None, 'nombre': 'Aprobador de planillas',
-                      'desde': timezone.now().isoformat()}]
+    if not m.niveles:  # sin reglas: el jefe del trabajador o, si no tiene, quien tenga «Aprobar movimientos de personal»
+        jefe = jefe_de_trabajador(m.trabajador)
+        jefe_u = jefe.usuario if jefe and jefe.usuario_id and jefe.usuario_id != usuario.pk else None
+        m.niveles = [{'nivel': 1, 'usuario': jefe_u.pk if jefe_u else None,
+                      'nombre': (jefe_u.get_full_name() or jefe_u.username) if jefe_u else
+                      'Aprobador de movimientos de personal', 'desde': timezone.now().isoformat()}]
     m.save()
     aprobaciones.registrar('MOVIMIENTO', m, usuario, 'ENVIADO', m.motivo)
     return m
@@ -332,3 +335,20 @@ def por_vencer(dias=30, hoy=None):
     documentos = list(DocumentoLegajo.objects.filter(trabajador__in=vigentes, vence__isnull=False,
                                                      vence__lte=limite).select_related('trabajador'))
     return contratos, documentos
+
+def quien_aprueba(m):
+    """Nombres de quienes pueden aprobar ahora el movimiento (PLA-01): el titular del nivel, sus suplentes y su jefe si
+    escaló o, en un nivel sin usuario, quienes tienen «Aprobar movimientos de personal» (no el que lo registró)."""
+    from django.contrib.auth import get_user_model
+
+    from core import aprobaciones
+    from core.permisos import puede
+    n = aprobaciones.pendiente(m.niveles, m.nivel_aprobado)
+    if n is None:
+        return []
+    if n.get('usuario'):
+        usuarios = aprobaciones.aprobadores(n)
+    else:
+        usuarios = [u for u in get_user_model().objects.filter(is_active=True).order_by('username')
+                    if u.pk != m.solicitante_id and puede(u, aprobaciones.PERMISOS['MOVIMIENTO'])]
+    return [u.get_full_name() or u.username for u in usuarios][:8]

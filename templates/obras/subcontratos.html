@@ -1,0 +1,31 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Subcontratos {{ o.codigo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-people"></i> Subcontratos</h1>
+    <div class="text-muted small">{{ o.codigo }} {{ o.nombre }} · por partidas de la meta, con orden de servicio, valorización mensual y conformidades (HES)</div></div>
+  <a href="{% url 'obras:ejecucion' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Ejecución</a>
+</div>
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>N°</th><th>Subcontratista</th><th>Objeto</th><th>Modalidad</th><th class="num">Monto</th><th>Orden de servicio</th><th>Estado</th></tr></thead>
+  <tbody>{% for s in lista %}<tr><td><a href="{% url 'obras:subcontrato' s.pk %}">{{ s.numero }}</a></td><td>{{ s.proveedor.nombre|truncatechars:35 }}</td><td class="small">{{ s.descripcion|truncatechars:50 }}</td><td class="small">{{ s.get_modalidad_display }}</td><td class="num">{{ s.monto|money }}</td><td>{{ s.orden_compra.numero|default:'—' }}</td><td><span class="badge text-bg-light border">{{ s.get_estado_display }}</span></td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-muted py-3">Sin subcontratos.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<form method="post" class="card">{% csrf_token %}
+  <div class="card-header fw-semibold">Nuevo subcontrato</div>
+  <div class="card-body row g-2">
+    <div class="col-md-4"><label class="form-label small mb-1">Subcontratista</label><select name="proveedor" class="form-select form-select-sm" required><option value="">—</option>{% for p in proveedores %}<option value="{{ p.pk }}">{{ p.nombre }}</option>{% endfor %}</select></div>
+    <div class="col-md-8"><label class="form-label small mb-1">Objeto</label><input name="descripcion" maxlength="250" class="form-control form-control-sm" required placeholder="Ej. Encofrado y desencofrado de estribos"></div>
+    <div class="col-md-3"><label class="form-label small mb-1">Modalidad</label><select name="modalidad" class="form-select form-select-sm">{% for v, t in modalidades %}<option value="{{ v }}">{{ t }}</option>{% endfor %}</select></div>
+    <div class="col-4 col-md-2"><label class="form-label small mb-1">Adelanto %</label><input name="adelanto_pct" value="0" class="form-control form-control-sm text-end"></div>
+    <div class="col-4 col-md-2"><label class="form-label small mb-1">Fondo de garantía %</label><input name="garantia_pct" value="5" class="form-control form-control-sm text-end"></div>
+    <div class="col-4 col-md-3 d-flex align-items-end"><label class="small"><input type="checkbox" name="detraccion" checked class="form-check-input"> Detracción (contrato de construcción)</label></div>
+  </div>
+  <div class="table-responsive" style="max-height:460px"><table class="table table-sm mb-0 small align-middle">
+    <thead class="sticky-top bg-body"><tr><th>Ítem</th><th>Partida de la meta</th><th>Und.</th><th class="num">Metrado meta</th><th class="num">P.U. meta</th><th class="num" style="width:120px">Metrado subcontratado</th><th class="num" style="width:120px">P.U. subcontrato</th></tr></thead>
+    <tbody>{% for x in partidas %}<tr><td>{{ x.item }}</td><td>{{ x.descripcion|truncatechars:60 }}</td><td>{{ x.unidad }}</td><td class="num">{{ x.metrado|floatformat:2 }}</td><td class="num">{{ x.precio|money }}</td>
+      <td><input name="metrado_{{ x.pk }}" class="form-control form-control-sm text-end" inputmode="decimal"></td><td><input name="precio_{{ x.pk }}" class="form-control form-control-sm text-end" inputmode="decimal"></td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-body"><button class="btn btn-sm btn-primary"><i class="bi bi-save"></i> Registrar subcontrato</button> <span class="form-text">Suma alzada: indique metrado 1 (global) y el precio total. Luego emita la orden de servicio (se aprueba en Compras).</span></div>
+</form>
+{% endblock %}

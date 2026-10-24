@@ -1,0 +1,29 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ p }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title"><i class="bi bi-cash-stack"></i> Planilla de construcción civil · semana {{ p.numero }}</h1>
+    <div class="text-muted small"><a href="{% url 'obras:planillas_civil' p.obra.pk %}">{{ p.obra.codigo }} {{ p.obra.nombre }}</a> · del {{ p.desde|date:'d/m/Y' }} al {{ p.hasta|date:'d/m/Y' }} · <span class="badge text-bg-light border">{{ p.get_estado_display }}</span></div></div>
+  <div class="d-flex gap-2 d-print-none"><a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a><a href="{% url 'obras:planillas_civil' p.obra.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Planillas</a></div>
+</div>
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0 small align-middle">
+  <thead><tr><th>Trabajador</th><th>Cat.</th><th class="num">Días</th><th class="num">HE</th><th class="num">Básico</th><th class="num">Dominical</th><th class="num">BUC</th><th class="num">H. extra</th><th class="num">Movilidad</th><th class="num">ONP/AFP</th><th class="num">CONAFOVICER</th><th class="num">Neto</th><th class="num">EsSalud</th><th class="num">SCTR</th><th class="num">CTS</th><th class="num">Vac.</th><th class="num">Grat.</th><th class="num">Costo</th></tr></thead>
+  <tbody>{% for l in lineas %}<tr><td>{{ l.trabajador.nombre_completo }}</td><td>{{ l.categoria|title }}</td><td class="num">{{ l.dias }}</td><td class="num">{{ l.horas_60|add:l.horas_100 }}</td>
+    <td class="num">{{ l.basico|money }}</td><td class="num">{{ l.dominical|money }}</td><td class="num">{{ l.buc|money }}</td><td class="num">{{ l.extras|money }}</td><td class="num">{{ l.movilidad|money }}</td>
+    <td class="num">{{ l.pension|money }}</td><td class="num">{{ l.conafovicer|money }}</td><td class="num fw-semibold">{{ l.neto|money }}</td>
+    <td class="num">{{ l.essalud|money }}</td><td class="num">{{ l.sctr|money }}</td><td class="num">{{ l.cts|money }}</td><td class="num">{{ l.vacaciones|money }}</td><td class="num">{{ l.gratificacion|money }}</td><td class="num fw-semibold">{{ l.costo|money }}</td></tr>
+  {% empty %}<tr><td colspan="18" class="text-center text-muted py-3">Sin tareos de trabajadores de construcción civil en la semana.</td></tr>{% endfor %}
+  <tr class="fw-semibold table-light"><td colspan="4">Total</td><td class="num">{{ t.basico|money }}</td><td class="num">{{ t.dominical|money }}</td><td class="num">{{ t.buc|money }}</td><td class="num">{{ t.extras|money }}</td><td class="num">{{ t.movilidad|money }}</td><td class="num">{{ t.pension|money }}</td><td class="num">{{ t.conafovicer|money }}</td><td class="num">{{ t.neto|money }}</td><td class="num">{{ t.essalud|money }}</td><td class="num">{{ t.sctr|money }}</td><td class="num">{{ t.cts|money }}</td><td class="num">{{ t.vacaciones|money }}</td><td class="num">{{ t.gratificacion|money }}</td><td class="num">{{ t.costo|money }}</td></tr></tbody>
+</table></div></div>
+<form method="post" class="card d-print-none" style="max-width:760px">{% csrf_token %}<div class="card-body d-flex flex-wrap gap-2 align-items-end">
+  {% if p.estado == 'BORRADOR' %}<button class="btn btn-sm btn-outline-primary" name="accion" value="calcular"><i class="bi bi-calculator"></i> Recalcular</button>
+    <button class="btn btn-sm btn-primary" name="accion" value="cerrar"><i class="bi bi-lock"></i> Cerrar</button>
+    <button class="btn btn-sm btn-outline-danger" name="accion" value="anular">Anular</button>{% endif %}
+  {% if p.estado == 'CERRADA' %}<button class="btn btn-sm btn-outline-secondary" name="accion" value="reabrir">Reabrir</button>
+    <select name="cuenta" class="form-select form-select-sm" style="max-width:260px">{% for c in cuentas %}<option value="{{ c.pk }}">{{ c.nombre }} ({{ c.moneda }})</option>{% endfor %}</select>
+    <input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm" style="max-width:160px">
+    <button class="btn btn-sm btn-success" name="accion" value="pagar"><i class="bi bi-cash"></i> Pagar el neto (S/ {{ t.neto|money }})</button>{% endif %}
+  {% if p.movimiento_pago %}<span class="small">Pagada con {{ p.movimiento_pago.voucher }}.</span>{% endif %}
+</div></form>
+<p class="small text-muted mt-2">Contabilidad al centralizar el mes del fin de semana: jornales, dominical, BUC y horas extra, movilidad, EsSalud, SCTR y provisiones (CTS, vacaciones y gratificaciones) al centro de costo de la obra; ONP/AFP y CONAFOVICER retenidos; neto a remuneraciones por pagar (4111).</p>
+{% endblock %}

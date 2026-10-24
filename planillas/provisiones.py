@@ -38,7 +38,8 @@ def provisiones_del_mes(periodo):
     from contabilidad.centralizar import _repartir
     from .servicios import centros_de_trabajadores
     filas, por_centro = [], {k: defaultdict(lambda: D0) for k in ('gratificacion', 'cts', 'vacaciones')}
-    trabajadores = [t for t in Trabajador.objects.filter(sueldo__gt=0).select_related('centro_costo')
+    trabajadores = [t for t in Trabajador.objects.filter(sueldo__gt=0).exclude(regimen='CONSTRUCCION')
+                    .select_related('centro_costo')
                     if t.activo_en(desde, hasta)]
     centros = centros_de_trabajadores(trabajadores, periodo)  # igual que el gasto de la planilla
     for t in trabajadores:

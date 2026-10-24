@@ -327,3 +327,20 @@ Obra de tipo **Proyecto inmobiliario** con sus **unidades** (departamentos, esta
 ## 14. Cierre de la obra — v1.78.0
 
 Al pasar una obra a **Liquidada** o **Cerrada** su almacén debe estar en cero (Obras › Sobrantes en almacenes de obra, valorizado): los sobrantes se trasladan con guía al almacén central, se devuelven o se dan de baja con aprobación. Entonces el almacén se **cierra** (solo admite ajustes de inventario) y el centro de costo se **desactiva**. Reabrirla exige el permiso «Reabrir obras liquidadas» y un motivo (queda en la auditoría).
+
+## 15. Ejecución de la obra — v1.79.0
+Ceiba no compite con el S10 en presupuestos: el presupuesto (oferta, contractual y meta) se hace en el S10 y se importa; Ceiba gestiona la ejecución (Obras › obra › Ejecución).
+
+| Qué | Dónde | Contabilidad |
+|---|---|---|
+| Adelanto directo o para materiales | Factura de adelanto (servicio «Adelanto de obra») o reclasificar una factura emitida | Debe 1212 / Haber 122 e IGV; detracción 030 |
+| Valorización mensual | Sobre el contractual vigente: metrado del periodo (propuesto del avance), GG y utilidad en la proporción del presupuesto, amortización de adelantos (adelanto ÷ contrato; la última amortiza el saldo), reintegro y retención | Factura: valorizado y reintegro a ventas de servicios; deducción del anticipo como línea negativa con `anticipo_de` (Debe 122); fondo de garantía: aplicación sobre la factura (Debe 1683 / Haber 1212) |
+| Fórmula polinómica | K = Σ coeficiente × Ir / Io (índices INEI del mes y del mes base, por área); R = V × (K − 1); D = A × (Kr / Ka − 1) | En la factura de la valorización |
+| Cronograma y avance | Excel (meses o inicio/fin) o XML de MS Project; avance por partida con foto | Curva S en costo directo |
+| Tareo y planilla civil | Tareo por cuadrilla y partida; planilla semanal con parámetros «Construcción civil» | 6211 / 6271 / 6273 / provisiones con el centro de la obra; retenciones (ONP 4032, AFP 417/4071, CONAFOVICER 4699); neto 4111 |
+| Partes de equipo | Horómetro, horas, espera, combustible, tarifa | Propios: regla de reparto «Horas de equipo»; alquilados: la factura del proveedor con el centro de la obra |
+| Subcontratos | Orden de servicio, valorización del subcontratista, HES generadas | Fondo de garantía retenido: aplicación sobre su factura (Debe 4212 / Haber 467) |
+
+- Las partidas se unen entre versiones y entre contractual y meta por **subpresupuesto e ítem** (`Partida.clave`). Al aprobar una versión nueva, lo registrado contra la anterior pasa a la nueva (`obras/versiones.py`).
+- **Stock antes de comprar** (`compras/stock.py`): disponible = stock − requerimientos aprobados por atender − traslados por aprobar − lo que la meta de la obra dueña aún consume (parámetro STOCK_RESERVA_META); STOCK_CONTROL_COMPRA: 0 no controla, 1 pide justificación, 2 bloquea. El traslado usa «Traslado a tránsito» y «Recepción de tránsito» (no es gasto).
+- Tasas de construcción civil, detracción de construcción y control de stock: Ajustes › Parámetros (con vigencia). Confirmarlas con el especialista laboral y el contador.

@@ -29,6 +29,7 @@ PCGE = [
     ('142', 'Accionistas'), ('1421', 'Préstamos a accionistas'),
     ('16', 'CUENTAS POR COBRAR DIVERSAS - TERCEROS'),
     ('162', 'Reclamaciones a terceros'), ('1629', 'Otras reclamaciones'),
+    ('168', 'Otras cuentas por cobrar diversas'), ('1683', 'Fondos de garantía retenidos por clientes (obras)'),
     ('18', 'SERVICIOS Y OTROS CONTRATADOS POR ANTICIPADO'), ('182', 'Seguros'), ('1821', 'Seguros pagados por anticipado'),
     ('19', 'ESTIMACIÓN DE CUENTAS DE COBRANZA DUDOSA'), ('191', 'Cuentas por cobrar comerciales - terceros'),
     ('1911', 'Estimación de cobranza dudosa'),
@@ -88,7 +89,8 @@ PCGE = [
     ('45', 'OBLIGACIONES FINANCIERAS'), ('451', 'Préstamos de instituciones financieras'),
     ('4511', 'Instituciones financieras'),
     ('452', 'Contratos de arrendamiento financiero'), ('4521', 'Contratos de arrendamiento financiero'),
-    ('46', 'CUENTAS POR PAGAR DIVERSAS - TERCEROS'), ('469', 'Otras cuentas por pagar diversas'),
+    ('46', 'CUENTAS POR PAGAR DIVERSAS - TERCEROS'), ('467', 'Depósitos recibidos en garantía'),
+    ('469', 'Otras cuentas por pagar diversas'),
     ('4699', 'Otras cuentas por pagar'),
     ('48', 'PROVISIONES'), ('486', 'Provisión para garantías'),
     ('50', 'CAPITAL'), ('501', 'Capital social'), ('5011', 'Acciones'),
@@ -107,6 +109,7 @@ PCGE = [
     ('62', 'GASTOS DE PERSONAL Y DIRECTORES'), ('621', 'Remuneraciones'), ('6211', 'Sueldos y salarios'),
     ('6214', 'Gratificaciones'), ('6215', 'Vacaciones'),
     ('627', 'Seguridad, previsión social y otras contribuciones'), ('6271', 'Régimen de prestaciones de salud (ESSALUD)'),
+    ('6273', 'Seguro complementario de trabajo de riesgo (SCTR)'),
     ('629', 'Beneficios sociales de los trabajadores'), ('6291', 'Compensación por tiempo de servicios'),
     ('6293', 'Otros beneficios (indemnizaciones al cese)'),
     ('63', 'GASTOS DE SERVICIOS PRESTADOS POR TERCEROS'),
@@ -253,7 +256,7 @@ def analisis_por_defecto(codigo):
 # ---------------------------------------------------------------- PCGE 2026
 # cuenta del ERP (PCGE 2019) -> cuenta equivalente del PCGE 2026 (imputable); las que no figuran se mantienen
 MAPA_2026 = {
-    '1011': '101', '1021': '102', '1221': '122', '1231': '1232', '1232': '1234', '1421': '1422', '1821': '182',
+    '1011': '101', '1021': '102', '1221': '122', '1231': '1232', '1683': '1699', '1232': '1234', '1421': '1422', '1821': '182',
     '2111': '21111', '2141': '2112', '2311': '23111', '2341': '2312', '2411': '24111', '2521': '2524', '2811': '281', '2841': '284', '2851': '285',
     '2911': '29111', '2921': '29211', '2941': '29411', '2951': '29511', '2961': '2962',
     '3223': '32241', '3224': '32251', '3311': '33111', '3321': '33211', '3331': '33311', '3341': '33411',
@@ -430,6 +433,18 @@ DEFECTOS = [
     ('inmuebles_penalidad', 'Proyectos inmobiliarios: penalidades y arras retenidas por desistimiento', '7599'),
     ('inmuebles_garantia_gasto', 'Proyectos inmobiliarios: provisión de garantías postventa (gasto)', '6866'),
     ('inmuebles_garantia', 'Proyectos inmobiliarios: provisión de garantías postventa (pasivo)', '486'),
+    # obras: fondos de garantía y planilla de construcción civil
+    ('obras_garantia', 'Obras: fondo de garantía que retiene el cliente (por cobrar)', '1683'),
+    ('subcontrato_garantia', 'Obras: fondo de garantía retenido a los subcontratistas', '467'),
+    ('civil_remuneracion', 'Construcción civil: jornales, dominical, BUC y horas extra', '6211'),
+    ('civil_movilidad', 'Construcción civil: movilidad (no remunerativa)', '6211'),
+    ('civil_essalud', 'Construcción civil: EsSalud (gasto)', '6271'),
+    ('civil_essalud_pasivo', 'Construcción civil: EsSalud por pagar', '4031'),
+    ('civil_sctr', 'Construcción civil: SCTR (gasto)', '6273'),
+    ('civil_sctr_pasivo', 'Construcción civil: SCTR por pagar a la aseguradora', '4699'),
+    ('civil_onp', 'Construcción civil: ONP retenida', '4032'),
+    ('civil_afp', 'Construcción civil: AFP retenida', '4071'),
+    ('civil_conafovicer', 'Construcción civil: CONAFOVICER retenido (por pagar)', '4699'),
 ]
 
 

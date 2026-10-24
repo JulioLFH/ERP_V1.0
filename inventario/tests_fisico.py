@@ -60,14 +60,20 @@ class TiposDeConteoTest(Base):
         general = srv.crear(self.almacen, 'GENERAL', self.admin)
         self.assertEqual({i.producto for i in general.items.all()}, {self.harina, self.azucar})
         self.assertEqual(general.items.get(producto=self.harina).sistema, D('100'))
+        # INV-20: un producto no se cuenta en dos documentos abiertos del mismo almacén
+        with self.assertRaisesMessage(srv.ErrorFisico, general.numero):
+            srv.crear(self.almacen, 'GENERAL', self.admin)
+        srv.anular(general, self.admin)
         a1 = srv.crear(self.almacen, 'ALEATORIO', self.admin, n=1, semilla='auditoria-1')
         a2, _ = srv.seleccion(self.almacen, 'ALEATORIO', n=1, semilla='auditoria-1')
         self.assertEqual([a1.items.get().producto_id], a2)
         self.assertEqual(a1.semilla, 'auditoria-1')
+        srv.anular(a1, self.admin)
         ubic = Ubicacion.objects.create(almacen=self.almacen, codigo='A-01-02')
         StockAlmacen.objects.filter(producto=self.harina, almacen=self.almacen).update(ubicacion=ubic)
         por_ubicacion = srv.crear(self.almacen, 'UBICACION', self.admin, ubicacion='A-01')
         self.assertEqual([(i.producto, i.ubicacion) for i in por_ubicacion.items.all()], [(self.harina, 'A-01-02')])
+        srv.anular(por_ubicacion, self.admin)
         cero = srv.crear(self.almacen, 'CERO', self.admin)
         self.assertEqual([i.producto for i in cero.items.all()], [self.sal])
         with self.assertRaises(srv.ErrorFisico):
