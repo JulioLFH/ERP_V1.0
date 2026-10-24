@@ -63,17 +63,50 @@ M['tablero'] = {
     'integra': [('Todos los módulos', 'El tablero lee ventas, compras, tesorería e inventario; no registra nada por sí mismo.')],
 }
 
-M['ventas'] = {
-    'intro': ('Gestiona todo el ciclo comercial: oportunidades del CRM, cotizaciones y pedidos, emisión de facturas, '
-              'boletas y notas electrónicas (Nubefact / SUNAT), punto de venta, listas de precios, cuentas por cobrar '
-              'y los registros tributarios de ventas (PLE 14.1 y SIRE).'),
+M['crm'] = {
+    'intro': ('Módulo propio para la gestión comercial antes de la venta: registra las oportunidades de negocio '
+              '(cliente o prospecto, monto, probabilidad y fecha de cierre), las mueve por las etapas del embudo, '
+              'agenda las actividades de seguimiento y mide lo ganado y lo perdido. En constructoras, la oportunidad '
+              'se convierte en la obra y su licitación. Desde v1.80.0 está separado de Ventas: se asigna por usuario.'),
     'procesos': [
-        ('Oportunidad comercial (CRM)', [
-            'Registre la oportunidad en <b>Ventas › Comercial (CRM) › Nueva oportunidad</b>: cliente, monto estimado, etapa y fecha probable de cierre.',
-            'Muévala por las etapas en el <b>Embudo de oportunidades</b> y registre las actividades (llamadas, reuniones, propuestas).',
-            'Cuando el cliente pida precio, genere la cotización desde la oportunidad.',
-            'Cierre la oportunidad como ganada o perdida (con motivo) para medir la tasa de éxito.',
-        ], 'Embudo con el valor esperado por etapa y la historia de cada cliente.'),
+        ('Registrar la oportunidad', [
+            'En <b>CRM › Oportunidades › Nueva oportunidad</b> ingrese el nombre, el cliente (o el prospecto con su contacto, teléfono y correo), la etapa, el monto estimado, la probabilidad, la fecha probable de cierre, el origen y el responsable.',
+            'Si el cliente no existe, créelo en <b>CRM › Clientes</b> con su RUC o DNI (los datos se completan en línea).',
+        ], 'Oportunidad abierta con su valor ponderado (monto × probabilidad).'),
+        ('Seguimiento en el embudo', [
+            'Abra el <b>Embudo de oportunidades</b>: una columna por etapa (Prospecto, Calificado, Propuesta / cotización, Negociación, Ganada, Perdida) con el monto y el ponderado.',
+            'Arrastre la tarjeta para cambiar de etapa (permiso «crm.registrar»). Para «Perdida» se pide el motivo en la ficha.',
+            'En la ficha registre las actividades (llamada, reunión, visita, correo / WhatsApp, tarea o nota) con su fecha y márquelas como realizadas; el embudo muestra las pendientes vencidas.',
+            'Use <b>Mis oportunidades</b> para ver solo las suyas y <b>Todas las oportunidades</b> para filtrar por etapa y descargar a Excel.',
+        ], 'Cartera comercial al día con el siguiente paso de cada oportunidad.'),
+        ('De la oportunidad a la venta', [
+            'Cuando el cliente pide precio, use <b>Crear cotización</b> en la ficha (requiere el módulo Ventas y su permiso de emitir): abre la cotización con el cliente; luego elíjala en el campo «Cotización» de la oportunidad.',
+            'Al cerrar, marque la oportunidad como <b>Ganada</b> o <b>Perdida</b> (con motivo) para medir la tasa de éxito.',
+        ], 'Venta con su origen comercial y motivo de las pérdidas.'),
+        ('Licitaciones de obra (constructoras)', [
+            'En la ficha de la oportunidad use <b>Convertir en obra / licitación</b> (requiere el módulo Obras y el permiso de licitar): se crea la obra en «Propuesta / licitación» unida a la oportunidad.',
+            'El resultado (buena pro o pérdida) se registra en <b>Obras › Licitaciones</b> y la oportunidad se actualiza sola.',
+        ], 'La oportunidad ganada se convierte en la obra adjudicada.'),
+    ],
+    'pantallas': {
+        'Embudo de oportunidades': 'Tablero por etapa con montos, ponderado y actividades vencidas; se arrastran las tarjetas.',
+        'Todas las oportunidades': 'Lista con filtros por etapa y búsqueda, y descarga a Excel.',
+        'Mis oportunidades': 'Las oportunidades de las que el usuario es responsable.',
+        'Nueva oportunidad': 'Registrar una oportunidad con su cliente o prospecto.',
+        'Clientes': 'Maestro de clientes (el mismo de Ventas y Contactos) con consulta de RUC y DNI.',
+    },
+    'integra': [
+        ('Ventas', 'Cotizaciones creadas desde la oportunidad.'),
+        ('Obras', 'Licitaciones y obras nacidas de una oportunidad; su resultado actualiza la oportunidad.'),
+        ('Contactos', 'Mismo maestro de clientes.'),
+    ],
+}
+
+M['ventas'] = {
+    'intro': ('Gestiona el ciclo de venta: cotizaciones y pedidos, emisión de facturas, boletas y notas electrónicas '
+              '(Nubefact / SUNAT), punto de venta, listas de precios, cuentas por cobrar y los registros tributarios '
+              'de ventas (PLE 14.1 y SIRE). Las oportunidades comerciales están en el módulo CRM.'),
+    'procesos': [
         ('Cotización, pedido y aprobación', [
             'Cree la cotización en <b>Ventas › Cotizaciones y pedidos</b>: cliente, productos, lista de precios, descuentos, moneda y condición de pago.',
             'Envíela al cliente (PDF o correo) y, cuando la acepte, conviértala en pedido.',
@@ -110,9 +143,6 @@ M['ventas'] = {
         ], 'Libros electrónicos listos para subir a SUNAT.'),
     ],
     'pantallas': {
-        'Embudo de oportunidades': 'Tablero de oportunidades por etapa con montos y probabilidad.',
-        'Oportunidades': 'Lista de oportunidades con filtros por vendedor, etapa y estado.',
-        'Nueva oportunidad': 'Registrar una oportunidad comercial con su cliente, monto y etapa.',
         'Punto de venta': 'Venta rápida en mostrador con boleta o factura y cobro inmediato.',
         'Cotizaciones y pedidos': 'Crear cotizaciones, convertirlas en pedidos, enviarlas a aprobación y facturarlas.',
         'Comprobantes': 'Lista de facturas y boletas emitidas con su estado SUNAT, saldo, PDF y XML.',
@@ -127,6 +157,7 @@ M['ventas'] = {
         'Cargar listas de precios (Excel)': 'Carga masiva de precios desde una plantilla Excel.',
     },
     'integra': [
+        ('CRM', 'Cotizaciones creadas desde una oportunidad.'),
         ('Inventario', 'Salida de mercadería al costo promedio (kardex) y reingreso por devolución.'),
         ('Tesorería', 'Cobranzas, retenciones y detracciones de clientes.'),
         ('Logística', 'Guía de remisión que acompaña el despacho.'),

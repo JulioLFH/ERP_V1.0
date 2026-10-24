@@ -24,6 +24,7 @@ urlpatterns += [
     path('api/v1/', include('core.urls_api')),
     path('compras/', include('compras.urls')),
     path('ventas/', include('ventas.urls')),
+    path('crm/', include('ventas.urls_crm')),
     path('finanzas/', include('finanzas.urls')),
     path('logistica/', include('logistica.urls')),
     path('contabilidad/', include('contabilidad.urls')),

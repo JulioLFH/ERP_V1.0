@@ -6,15 +6,15 @@
   <div class="d-flex gap-2 align-items-center">
     <form method="get" class="d-flex gap-2"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Buscar">
       <div class="form-check mt-1"><input type="checkbox" class="form-check-input" name="mias" value="1" id="mias" {% if request.GET.mias %}checked{% endif %} onchange="this.form.submit()"><label for="mias" class="form-check-label small">Solo mías</label></div></form>
-    <a href="{% url 'ventas:crm_lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ul"></i> Lista</a>
-    <a href="{% url 'ventas:crm_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Oportunidad</a>
+    <a href="{% url 'crm:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ul"></i> Lista</a>
+    <a href="{% url 'crm:nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Oportunidad</a>
   </div>
 </div>
 <div class="row g-3 mb-3">
   <div class="col-md-3"><div class="kpi"><div class="label">En negociación (abierto)</div><div class="value">S/ {{ total_abierto|money }}</div></div></div>
   <div class="col-md-3"><div class="kpi"><div class="label">Pronóstico ponderado</div><div class="value">S/ {{ total_ponderado|money }}</div></div></div>
   <div class="col-md-6"><div class="kpi"><div class="label">Actividades vencidas o para hoy</div>
-    {% for a in pendientes %}<div class="small"><a href="{% url 'ventas:crm_oportunidad' a.oportunidad_id %}">{{ a.get_tipo_display }}: {{ a.descripcion|truncatechars:50 }}</a> <span class="text-muted">{{ a.fecha|date:'d/m' }} · {{ a.oportunidad }}</span></div>{% empty %}<div class="small text-muted">Al día.</div>{% endfor %}</div></div>
+    {% for a in pendientes %}<div class="small"><a href="{% url 'crm:oportunidad' a.oportunidad_id %}">{{ a.get_tipo_display }}: {{ a.descripcion|truncatechars:50 }}</a> <span class="text-muted">{{ a.fecha|date:'d/m' }} · {{ a.oportunidad }}</span></div>{% empty %}<div class="small text-muted">Al día.</div>{% endfor %}</div></div>
 </div>
 <div class="d-flex gap-2 overflow-auto pb-2" style="min-height:60vh">
   {% for c in columnas %}
@@ -23,8 +23,8 @@
       <div class="card-header py-2"><div class="fw-semibold small">{{ c.nombre }} <span class="badge text-bg-light">{{ c.tarjetas|length }}</span></div><div class="small text-muted">S/ {{ c.monto|money }}</div></div>
       <div class="card-body p-2 js-columna" data-etapa="{{ c.etapa }}" style="min-height:120px">
         {% for o in c.tarjetas %}
-        <div class="card mb-2 js-tarjeta" draggable="true" data-id="{{ o.pk }}" data-url="{% url 'ventas:crm_etapa' o.pk %}" style="cursor:grab">
-          <div class="card-body p-2 small"><a href="{% url 'ventas:crm_oportunidad' o.pk %}" class="fw-semibold">{{ o.nombre|truncatechars:40 }}</a>
+        <div class="card mb-2 js-tarjeta" draggable="true" data-id="{{ o.pk }}" data-url="{% url 'crm:etapa' o.pk %}" style="cursor:grab">
+          <div class="card-body p-2 small"><a href="{% url 'crm:oportunidad' o.pk %}" class="fw-semibold">{{ o.nombre|truncatechars:40 }}</a>
             <div class="text-muted">{{ o.cliente|truncatechars:30 }}</div>
             <div class="d-flex justify-content-between"><span>S/ {{ o.monto|money }}</span><span class="text-muted">{{ o.prob }}%</span></div>
             {% if o.fecha_cierre %}<div class="text-muted">Cierre {{ o.fecha_cierre|date:'d/m/Y' }}</div>{% endif %}</div>

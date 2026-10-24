@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.80.0 — 24/10/2026 · CRM como módulo propio
+- **CRM separado de Ventas**: nuevo módulo **CRM** en la pantalla de aplicaciones (URL `/crm/`) con el embudo de oportunidades, todas las oportunidades, **mis oportunidades**, nueva oportunidad y clientes. Ventas queda con cotizaciones, comprobantes, punto de venta, precios, cuentas por cobrar y reportes.
+- **Se asigna por usuario** (Ajustes › Usuarios y Perfiles de acceso): un vendedor de campo puede tener solo el CRM y un cajero solo Ventas. Nuevo permiso **«crm.registrar»** (registrar y editar oportunidades, etapas y actividades); antes se usaba «Emitir comprobantes».
+- **Nadie pierde acceso**: la actualización da el módulo CRM a todos los usuarios y perfiles que tenían Ventas, y «crm.registrar» a quienes podían emitir. Los enlaces guardados de `/ventas/crm/…` llevan a `/crm/…`.
+- El giro de la empresa (Ajustes › Giro y régimen) incluye el CRM en todos los giros; en construcción lleva las oportunidades que se convierten en licitación y obra.
+- El log de modificaciones del CRM muestra las oportunidades y sus actividades; el manual de procesos tiene ahora el PDF del CRM.
+
 ## v1.79.1 — 24/10/2026 · Manual de procesos por módulo
 - **Manual de procesos por módulo**: en Ajustes › Manuales de usuario, nueva sección con un PDF por módulo (20) y uno completo: para qué sirve el módulo, sus **procesos paso a paso** con el resultado que dejan, **todas las pantallas del menú** con lo que se hace en cada una (marca las que solo ve el administrador o requieren ver costos), las **acciones con permiso** (y cuáles son sensibles) y con qué módulos se integra. Solo los administradores lo ven.
 - Las pantallas y las acciones se toman del propio sistema, así que el manual se rehace en cada versión con `python scripts/manual_procesos/generar.py` (los textos de los procesos están en `scripts/manual_procesos/contenido.py`).

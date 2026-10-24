@@ -1,17 +1,15 @@
-from django.urls import path
+from django.urls import path, re_path
+from django.views.generic import RedirectView
 
-from . import crm, envio, pos, views
+from . import envio, pos, views
 
 app_name = 'ventas'
 
 urlpatterns = views.ventas_views.urls() + [
     path('pos/', pos.pos, name='pos'),
     path('pos/productos/', pos.pos_productos, name='pos_productos'),
-    path('crm/', crm.embudo, name='crm'),
-    path('crm/lista/', crm.oportunidades, name='crm_lista'),
-    path('crm/nueva/', crm.oportunidad_nueva, name='crm_nueva'),
-    path('crm/<int:pk>/', crm.oportunidad, name='crm_oportunidad'),
-    path('crm/<int:pk>/etapa/', crm.cambiar_etapa, name='crm_etapa'),
+    # el CRM es un módulo propio (/crm/): los enlaces guardados de /ventas/crm/… llevan allí
+    re_path(r'^crm/(?P<resto>.*)$', RedirectView.as_view(url='/crm/%(resto)s', query_string=True), name='crm_antiguo'),
     path('<int:pk>/enviar/', envio.enviar_correo, name='enviar_correo'),
     path('<int:pk>/whatsapp/', envio.whatsapp, name='whatsapp'),
     path('cotizaciones/', views.cot_lista, name='cot_lista'),

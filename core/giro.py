@@ -12,21 +12,21 @@ from . import parametros
 # giro -> (para qué sirve, módulos que suele usar, cuentas de existencias, costeo sugerido)
 GIROS = {
     'COMERCIAL': ('Compra y vende mercadería sin transformarla',
-                  {'ventas', 'compras', 'inventario', 'logistica', 'tesoreria', 'finanzas', 'contabilidad'},
+                  {'crm', 'ventas', 'compras', 'inventario', 'logistica', 'tesoreria', 'finanzas', 'contabilidad'},
                   '20 Mercaderías y 28 por recibir; costo de ventas 69 desde el kardex', 'NATURALEZA'),
     'MANUFACTURA': ('Transforma insumos en productos (recetas, órdenes de fabricación)',
-                    {'manufactura', 'costos', 'inventario', 'compras', 'ventas', 'planillas', 'contabilidad'},
+                    {'crm', 'manufactura', 'costos', 'inventario', 'compras', 'ventas', 'planillas', 'contabilidad'},
                     '24 materias primas, 25 suministros, 23 productos en proceso y 21 terminados; variación 61 y 71',
                     'PROCESOS'),
-    'CONSTRUCCION': ('Obras por contrato para un cliente (valorizaciones)',
-                     {'obras', 'compras', 'inventario', 'requerimientos', 'planillas', 'contabilidad'},
+    'CONSTRUCCION': ('Obras por contrato para un cliente (valorizaciones)',  # el CRM lleva las licitaciones
+                     {'crm', 'obras', 'compras', 'inventario', 'requerimientos', 'planillas', 'contabilidad'},
                      'Almacén por obra (25 suministros); costo por obra con su centro de costo', 'ORDENES'),
     'INMOBILIARIA': ('Construye para vender inmuebles (departamentos, lotes)',
-                     {'obras', 'ventas', 'compras', 'tesoreria', 'finanzas', 'contabilidad'},
+                     {'crm', 'obras', 'ventas', 'compras', 'tesoreria', 'finanzas', 'contabilidad'},
                      '2341 inmuebles en construcción, 2141 terminados, 7134 variación, 7024 ventas y 6924 costo',
                      'ORDENES'),
     'SERVICIOS': ('Presta servicios (sin inventario propio relevante)',
-                  {'ventas', 'compras', 'tesoreria', 'finanzas', 'contabilidad', 'planillas'},
+                  {'crm', 'ventas', 'compras', 'tesoreria', 'finanzas', 'contabilidad', 'planillas'},
                   'Sin existencias: gastos por naturaleza; 70 servicios', 'NATURALEZA'),
 }
 # módulos que no dependen del giro (siempre visibles; SST es obligatorio para todo empleador)

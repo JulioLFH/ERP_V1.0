@@ -65,7 +65,7 @@ def desde_oportunidad(request, pk):
     if existente is not None:
         return redirect('obras:licitacion', existente.obra_id)
     if request.method != 'POST':
-        return redirect('ventas:crm_oportunidad', pk)
+        return redirect('crm:oportunidad', pk)
     if not o.tercero_id:
         messages.error(request, 'Registre primero al cliente de la oportunidad: la obra necesita su entidad o cliente.')
     elif o.etapa in ('GANADA', 'PERDIDA'):
@@ -74,7 +74,7 @@ def desde_oportunidad(request, pk):
         lic = lic_srv.crear(o.nombre, o.tercero, request.user, oportunidad=o, valor_referencial=o.monto or 0)
         messages.success(request, f'Obra {lic.obra.codigo} creada en «Propuesta / licitación» desde la oportunidad.')
         return redirect('obras:licitacion', lic.obra_id)
-    return redirect('ventas:crm_oportunidad', pk)
+    return redirect('crm:oportunidad', pk)
 
 
 def _accion_licitacion(request, obra, lic, accion, forms_):

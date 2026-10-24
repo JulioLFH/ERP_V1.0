@@ -6,7 +6,7 @@
     <div class="text-muted small">{{ o.codigo }} · {{ o.cliente.nombre|default:'Sin cliente' }} · <span class="badge text-bg-light border">{{ o.get_estado_display }}</span>
       {% if lic %} · <span class="badge {% if lic.resultado == 'GANADA' %}text-bg-success{% elif lic.resultado == 'EN_CURSO' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ lic.get_resultado_display }}</span>{% endif %}</div></div>
   <div class="d-flex flex-wrap gap-2">
-    {% if lic.oportunidad %}<a href="{% url 'ventas:crm_oportunidad' lic.oportunidad_id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-kanban"></i> Oportunidad en el CRM</a>{% endif %}
+    {% if lic.oportunidad %}<a href="{% url 'crm:oportunidad' lic.oportunidad_id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-kanban"></i> Oportunidad en el CRM</a>{% endif %}
     <a href="{% url 'obras:obra' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-cone-striped"></i> Obra y presupuestos</a>
     <a href="{% url 'obras:licitaciones' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Licitaciones</a>
   </div>

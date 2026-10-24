@@ -198,6 +198,7 @@ def auditoria(request):
 
 # Registros de cada módulo en la bitácora: 'app.' = toda la aplicación, 'app.Modelo' = solo ese registro
 MODELOS_DEL_MODULO = {
+    'crm': ['ventas.Oportunidad', 'ventas.ActividadCRM'],
     'ventas': ['ventas.'],
     'compras': ['compras.', 'proveedores.'],
     'inventario': ['inventario.Operacion', 'inventario.TipoOperacion', 'inventario.CierreKardex', 'core.Producto',

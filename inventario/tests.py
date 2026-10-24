@@ -218,6 +218,28 @@ class OperacionesTest(TestCase):
         for asiento in Asiento.objects.all():
             self.assertTrue(asiento.cuadrado, f'{asiento} no cuadra')
 
+    def test_glosa_y_contrapartida_de_suministros(self):
+        """CON-12: la recepción de suministros va contra su cuenta por recibir (285…), que se ve en la pantalla y en
+        la glosa del asiento (no la cuenta general del tipo)."""
+        from contabilidad.models import CuentaContable
+        compra = CuentaContable.objects.filter(codigo__startswith='6032', destino_debe__codigo__startswith='285').first()
+        if compra is None:
+            self.skipTest('el plan de cuentas de la demo no tiene la 6032 con destino 285')
+        por_recibir = compra.destino_debe
+        guantes = Producto.objects.create(codigo='S900', nombre='Guantes', clase='SUMINISTRO', cuenta_compra=compra)
+        prov = Tercero.objects.filter(tipo='PROVEEDOR').first()
+        oc = OrdenCompra.objects.create(numero='OC01-00000098', tercero=prov, estado='APROBADO')
+        OrdenCompraItem.objects.create(documento=oc, producto=guantes, descripcion='Guantes', cantidad=10,
+                                       precio_unitario=D('5'))
+        op = self.crear('REC_COMPRA', [(guantes, '10', '5')], orden_compra=oc, almacen_destino=self.principal)
+        servicios.confirmar(op, self.user)
+        self.assertEqual([c.codigo for c in servicios.contrapartidas(op)], [por_recibir.codigo])
+        self.assertContains(self.client.get(reverse('inventario:detalle', args=[op.pk])), por_recibir.codigo)
+        centralizar_periodo(HOY.strftime('%Y%m'))
+        linea = Asiento.objects.get(periodo=HOY.strftime('%Y%m'), origen='INVENTARIO').lineas.get(cuenta=por_recibir)
+        self.assertEqual(linea.haber, D('50.00'))
+        self.assertIn(f'({por_recibir.codigo} ', linea.glosa)
+
     # ---------------------------------------------------------------- pantallas
     def test_flujo_por_pantallas(self):
         self.assertEqual(self.client.get(reverse('inventario:nueva')).status_code, 200)

@@ -217,6 +217,8 @@ def main():
     if not CHROME:
         sys.exit('No se encontró Chrome ni Edge para imprimir los PDF.')
     SALIDA.mkdir(parents=True, exist_ok=True)
+    for viejo in SALIDA.glob('[0-9][0-9]. *.pdf'):  # la numeración cambia si se agrega un módulo
+        viejo.unlink()
     cuerpos, indice = [], []
     for num, modulo in enumerate(MODULOS, 1):
         nombre, cuerpo = cuerpo_modulo(num, modulo)

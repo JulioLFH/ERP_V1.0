@@ -1,4 +1,5 @@
-"""CRM: embudo comercial (oportunidades por etapa, tablero arrastrable) y actividades de seguimiento."""
+"""CRM (módulo propio desde v1.80, URL /crm/): embudo comercial (oportunidades por etapa, tablero arrastrable) y
+actividades de seguimiento."""
 from datetime import date
 from decimal import Decimal
 
@@ -115,7 +116,7 @@ def oportunidad_nueva(request):
     if request.method == 'POST' and form.is_valid():
         o = form.save()
         messages.success(request, f'Oportunidad «{o}» registrada.')
-        return redirect('ventas:crm_oportunidad', o.pk)
+        return redirect('crm:oportunidad', o.pk)
     return render(request, 'core/form.html', {'form': form, 'titulo': 'Nueva oportunidad'})
 
 
@@ -130,16 +131,16 @@ def oportunidad(request, pk):
         if accion == 'datos' and form.is_valid():
             form.save()
             messages.success(request, 'Oportunidad actualizada.')
-            return redirect('ventas:crm_oportunidad', pk)
+            return redirect('crm:oportunidad', pk)
         if accion == 'actividad' and actividad.is_valid():
             a = actividad.save(commit=False)
             a.oportunidad, a.usuario = o, request.user
             a.save()
             o.save(update_fields=['actualizado'])
-            return redirect('ventas:crm_oportunidad', pk)
+            return redirect('crm:oportunidad', pk)
         if accion == 'hecha':
             o.actividades.filter(pk=request.POST.get('actividad')).update(hecha=True)
-            return redirect('ventas:crm_oportunidad', pk)
+            return redirect('crm:oportunidad', pk)
     from core.modulos import modulos_del_usuario
     from obras.models import Licitacion
     return render(request, 'ventas/crm_oportunidad.html', {
@@ -157,7 +158,7 @@ def cambiar_etapa(request, pk):
         return JsonResponse({'ok': False, 'error': 'Etapa no válida.'}, status=400)
     if etapa == 'PERDIDA' and not o.motivo_perdida:
         return JsonResponse({'ok': False, 'error': 'Indique el motivo de pérdida en la ficha de la oportunidad.',
-                             'url': reverse('ventas:crm_oportunidad', args=[o.pk])}, status=422)
+                             'url': reverse('crm:oportunidad', args=[o.pk])}, status=422)
     lic = _licitacion_en_curso(o) if etapa in ('GANADA', 'PERDIDA') else None
     if lic is not None:
         return JsonResponse({'ok': False, 'error': 'Es una licitación de obra: registre la buena pro o la pérdida en '

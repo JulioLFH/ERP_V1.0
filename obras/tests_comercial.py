@@ -111,7 +111,7 @@ class LicitacionTest(Base):
     def test_convertir_oportunidad_del_crm_y_bloqueo_de_etapa(self):
         o = Oportunidad.objects.create(nombre='Edificio corporativo', tercero=self.entidad, etapa='CALIFICADO',
                                        monto=D('2500000'))
-        r = self.client.get(reverse('ventas:crm_oportunidad', args=[o.pk]))
+        r = self.client.get(reverse('crm:oportunidad', args=[o.pk]))
         self.assertContains(r, 'Convertir en obra / licitación')
         r = self.client.post(reverse('obras:desde_oportunidad', args=[o.pk]))
         lic = Licitacion.objects.get(oportunidad=o)
@@ -123,15 +123,15 @@ class LicitacionTest(Base):
         self.client.post(reverse('obras:desde_oportunidad', args=[o.pk]))
         self.assertEqual(Licitacion.objects.filter(oportunidad=o).count(), 1)
         # el embudo no la marca como ganada: el resultado se registra en la licitación
-        r = self.client.post(reverse('ventas:crm_etapa', args=[o.pk]), {'etapa': 'GANADA'})
+        r = self.client.post(reverse('crm:etapa', args=[o.pk]), {'etapa': 'GANADA'})
         self.assertEqual(r.status_code, 422)
         self.assertEqual(r.json()['url'], reverse('obras:licitacion', args=[lic.obra_id]))
-        r = self.client.post(reverse('ventas:crm_oportunidad', args=[o.pk]), {
+        r = self.client.post(reverse('crm:oportunidad', args=[o.pk]), {
             'accion': 'datos', 'nombre': o.nombre, 'tercero': self.entidad.pk, 'etapa': 'GANADA', 'monto': '1'})
         self.assertContains(r, 'registre la buena pro')
         o.refresh_from_db()
         self.assertEqual(o.etapa, 'PROPUESTA')
-        self.assertContains(self.client.get(reverse('ventas:crm_oportunidad', args=[o.pk])), 'Licitación OB')
+        self.assertContains(self.client.get(reverse('crm:oportunidad', args=[o.pk])), 'Licitación OB')
 
     def test_pantalla_cronograma_requisitos_y_alertas(self):
         lic = lic_srv.crear('Hospital Camaná', self.entidad, self.user, procedimiento='CP',

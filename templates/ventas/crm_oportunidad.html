@@ -10,7 +10,7 @@
     {% elif con_obras and puede.obras_licitar and o.tercero and o.etapa != 'GANADA' and o.etapa != 'PERDIDA' %}
       <form method="post" action="{% url 'obras:desde_oportunidad' o.pk %}">{% csrf_token %}
         <button class="btn btn-sm btn-outline-warning" onclick="return confirm('Se creará la obra en «Propuesta / licitación» con su licitación, vinculada a esta oportunidad. ¿Continuar?')"><i class="bi bi-cone-striped"></i> Convertir en obra / licitación</button></form>{% endif %}
-    <a href="{% url 'ventas:crm' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-kanban"></i> Embudo</a>
+    <a href="{% url 'crm:embudo' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-kanban"></i> Embudo</a>
   </div>
 </div>
 <div class="row g-3 mb-3">

@@ -60,18 +60,18 @@ class PosCrmTest(TestCase):
 
     def test_crm_embudo_y_etapas(self):
         cliente = Tercero.objects.filter(tipo='CLIENTE').first()
-        r = self.client.post(reverse('ventas:crm_nueva'), {
+        r = self.client.post(reverse('crm:nueva'), {
             'nombre': 'Contrato anual', 'tercero': cliente.pk, 'etapa': 'PROPUESTA', 'monto': '10000'})
         o = Oportunidad.objects.get()
-        self.assertRedirects(r, reverse('ventas:crm_oportunidad', args=[o.pk]))
+        self.assertRedirects(r, reverse('crm:oportunidad', args=[o.pk]))
         self.assertEqual(o.ponderado, D('5000'))
-        self.assertContains(self.client.get(reverse('ventas:crm')), 'Contrato anual')
-        r = self.client.post(reverse('ventas:crm_etapa', args=[o.pk]), {'etapa': 'PERDIDA'})
+        self.assertContains(self.client.get(reverse('crm:embudo')), 'Contrato anual')
+        r = self.client.post(reverse('crm:etapa', args=[o.pk]), {'etapa': 'PERDIDA'})
         self.assertEqual(r.status_code, 422)  # perdida exige motivo
-        self.client.post(reverse('ventas:crm_etapa', args=[o.pk]), {'etapa': 'GANADA'})
+        self.client.post(reverse('crm:etapa', args=[o.pk]), {'etapa': 'GANADA'})
         o.refresh_from_db()
         self.assertEqual((o.etapa, o.prob), ('GANADA', 100))
-        self.client.post(reverse('ventas:crm_oportunidad', args=[o.pk]), {
+        self.client.post(reverse('crm:oportunidad', args=[o.pk]), {
             'accion': 'actividad', 'tipo': 'LLAMADA', 'fecha': HOY.isoformat(), 'descripcion': 'Coordinar entrega'})
         self.assertEqual(o.actividades.count(), 1)
 

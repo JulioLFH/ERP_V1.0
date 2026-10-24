@@ -7,6 +7,7 @@ from decimal import Decimal
 
 # módulo -> [(acción, descripción, sensible)]; las sensibles vienen desmarcadas para usuarios nuevos
 ACCIONES = {
+    'crm': [('registrar', 'Registrar y editar oportunidades, sus etapas y actividades de seguimiento', False)],
     'ventas': [('emitir', 'Emitir comprobantes y cotizaciones', False),
                ('notas', 'Emitir notas de crédito y débito', True),
                ('anular', 'Anular comprobantes', True),
@@ -110,8 +111,8 @@ RUTAS = {
     'ventas:editar': 'ventas.emitir', 'ventas:anular': 'ventas.anular', 'ventas:reactivar': 'ventas.reactivar', 'ventas:eliminar': 'ventas.anular',
     'ventas:importar': 'ventas.emitir', 'ventas:notas': 'ventas.notas', 'ventas:trasladar': 'ventas.emitir',
     'ventas:lista_precios_nueva': 'ventas.precios', 'ventas:lista_precios_editar': 'ventas.precios',
-    'ventas:pos': {'POST': 'ventas.emitir'}, 'ventas:crm_nueva': 'ventas.emitir',
-    'ventas:crm_oportunidad': {'POST': 'ventas.emitir'}, 'ventas:crm_etapa': 'ventas.emitir',
+    'ventas:pos': {'POST': 'ventas.emitir'},
+    'crm:nueva': 'crm.registrar', 'crm:oportunidad': {'POST': 'crm.registrar'}, 'crm:etapa': 'crm.registrar',
     'ventas:cot_nuevo': 'ventas.emitir','ventas:cot_editar': 'ventas.emitir', 'ventas:cot_estado': 'ventas.emitir',
     'compras:nuevo': 'compras.registrar', 'compras:editar': 'compras.registrar', 'compras:importar': 'compras.registrar',
     'compras:importar_xml': 'compras.registrar', 'compras:importar_xml_revisar': 'compras.registrar',

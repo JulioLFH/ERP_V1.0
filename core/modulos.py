@@ -15,12 +15,20 @@ MODULOS = [
         'menu': [],
     },
     {
+        'clave': 'crm', 'nombre': 'CRM', 'icono': 'bi-kanban', 'color': '#c2255c',
+        'inicio': 'crm:embudo', 'descripcion': 'Oportunidades, embudo comercial y seguimiento de clientes',
+        'menu': [
+            ('Embudo de oportunidades', 'crm:embudo'),
+            ('Oportunidades', [('Todas las oportunidades', 'crm:lista', 'bi-list-stars'),
+                               ('Mis oportunidades', 'crm:lista?mias=1', 'bi-person-check'),
+                               ('Nueva oportunidad', 'crm:nueva', 'bi-plus-circle')]),
+            ('Clientes', 'terceros?tipo=CLIENTE'),
+        ],
+    },
+    {
         'clave': 'ventas', 'nombre': 'Ventas', 'icono': 'bi-receipt', 'color': '#2f9e44',
         'inicio': 'ventas:lista', 'descripcion': 'Cotizaciones, comprobantes y cobranzas',
         'menu': [
-            ('Comercial (CRM)', [('Embudo de oportunidades', 'ventas:crm', 'bi-kanban'),
-                                 ('Oportunidades', 'ventas:crm_lista', 'bi-list-stars'),
-                                 ('Nueva oportunidad', 'ventas:crm_nueva', 'bi-plus-circle')]),
             ('Punto de venta', 'ventas:pos'),
             ('Ventas', [('Cotizaciones y pedidos', 'ventas:cot_lista', 'bi-file-earmark-text'),
                         ('Comprobantes', 'ventas:lista', 'bi-receipt'),
@@ -475,7 +483,7 @@ POR_CLAVE = {m['clave']: m for m in MODULOS}
 GRUPOS = {m['clave']: m['nombre'] for m in MODULOS if m['clave'] != 'contactos'}
 
 # Contactos no tiene grupo propio: lo usan quienes venden, compran, cobran o despachan
-DERIVADOS = {'contactos': {'ventas', 'compras', 'tesoreria', 'finanzas', 'logistica', 'contabilidad'},
+DERIVADOS = {'contactos': {'crm', 'ventas', 'compras', 'tesoreria', 'finanzas', 'logistica', 'contabilidad'},
              # el almacén atiende los requerimientos de las áreas; Compras ve y libera sus solicitudes de pedido
              'requerimientos': {'inventario', 'compras', 'obras'},  # la obra pide materiales y servicios
              'rendiciones': {'tesoreria', 'finanzas', 'contabilidad'}}  # tesorería y contabilidad revisan las rendiciones
@@ -486,7 +494,7 @@ RUTAS_CORE = {
     'cliente_subir': ['cliente'], 'cliente_reportes': ['cliente'],
     'cliente_documentos': ['cliente', 'contabilidad'], 'cliente_archivo': ['cliente', 'contabilidad'],
     'empresa': ['ajustes'], 'empresa_giro': ['ajustes'], 'parametros': ['ajustes', 'contabilidad'],
-    'validacion_reglas': ['sst', 'calidad', 'ajustes'], 'consulta_ruc': ['ajustes', 'contactos', 'ventas', 'compras'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
+    'validacion_reglas': ['sst', 'calidad', 'ajustes'], 'consulta_ruc': ['ajustes', 'contactos', 'crm', 'ventas', 'compras'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
     'auditoria': ['ajustes'], 'manuales': ['ajustes'], 'manual_pdf': ['ajustes'], 'manual_proceso_pdf': ['ajustes'],
     'incidencias': ['ajustes'], 'incidencia': ['ajustes'],
     'modificaciones': [m['clave'] for m in MODULOS],  # se ve dentro del módulo; la vista exige ser administrador
@@ -499,8 +507,8 @@ RUTAS_CORE = {
     'aprobaciones_reglas': ['ajustes', 'compras', 'rendiciones', 'planillas'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
     'tipos_cambio': ['ajustes', 'tesoreria', 'finanzas'],
-    'terceros': ['contactos', 'ventas', 'compras'], 'tercero_nuevo': ['contactos', 'ventas', 'compras'],
-    'tercero_editar': ['contactos', 'ventas', 'compras'],
+    'terceros': ['contactos', 'crm', 'ventas', 'compras'], 'tercero_nuevo': ['contactos', 'crm', 'ventas', 'compras'],
+    'tercero_editar': ['contactos', 'crm', 'ventas', 'compras'],
     'productos': ['inventario', 'ventas', 'compras', 'manufactura'],
     'producto_nuevo': ['inventario', 'ventas', 'compras', 'manufactura'],
     'producto_editar': ['inventario', 'ventas', 'compras', 'manufactura'], 'kardex': ['inventario'],
@@ -599,7 +607,8 @@ RUTAS_FINANZAS = {
 RUTAS_COMPARTIDAS = {'contabilidad:reparto_resultado': ['contabilidad', 'obras'],
                      # COM-13: el traslado lo piden, aprueban y reciben compras, almacén y las obras
                      'compras:traslados': ['compras', 'inventario', 'obras', 'requerimientos'],
-                     'compras:traslado_nuevo': ['compras', 'inventario', 'obras', 'requerimientos']}
+                     'compras:traslado_nuevo': ['compras', 'inventario', 'obras', 'requerimientos'],
+                     'ventas:crm_antiguo': ['crm', 'ventas']}  # enlaces guardados de /ventas/crm/ (van a /crm/)
 
 
 def modulos_de_ruta(match):
