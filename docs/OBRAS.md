@@ -309,4 +309,21 @@ Obra de tipo **Proyecto inmobiliario** con sus **unidades** (departamentos, esta
   - Las cuentas son propias para que el ajuste del kardex de la 2311 (manufactura) no las toque; se cambian en «Cuentas por defecto».
 - **Tablero** de unidades por piso y estado, costo por m², costo asignado y margen por unidad, ventas, saldo por cobrar; **cobranza inmobiliaria** con cuotas vencidas y por vencer y separaciones por vencer (alertas).
 - Permiso «obras.vender» (lo asigna el administrador).
-- Pendiente (fase 2): factura final de la venta con la deducción de los anticipos (SUNAT), devolución de separaciones con nota de crédito, costo con presupuesto estimado (avance) en vez del costo a la fecha, fideicomiso y cartas del banco, y la minuta / contrato desde plantilla.
+
+### 13.1 Fase 2 — v1.78.0
+
+- **Terminación (conformidad de obra)**: el saldo de 2341 pasa a **2141 inmuebles terminados** (PCGE 2026: 2112); desde entonces no se activan costos (intereses, predial, mantenimiento van a resultados) y las entregas sacan el costo de 2141.
+- **Intereses (NIC 23)**: el préstamo que financia el proyecto lleva el centro de costo de la obra; sus intereses (y comisiones) se activan con los demás costos hasta la terminación.
+- **Costo por unidad**: área techada, precio de lista o **mixto** (% del área); las **áreas comunes** son unidades que no se venden y no llevan costo propio. **Inventario permanente valorizado por unidad** (Excel desde el tablero).
+- **Exoneración de vivienda**: si el parámetro INM_EXONERACION_UIT está vigente, la venta de vivienda (departamento o casa con su estacionamiento o depósito, sin locales) hasta ese límite va exonerada del IGV.
+- **Arras de retractación**: hasta INM_ARRAS_PCT % del precio, sin IGV ni comprobante (4699); con la minuta se emite su comprobante de anticipo y se aplican. Si el comprador desiste, las pierde (otros ingresos).
+- **Desistimiento**: penalidad (sugerida con INM_PENALIDAD_PCT), primero de las arras; de lo demás se emite **nota de crédito** por lo que se devuelve y se registra la devolución (Tesorería); lo retenido de los anticipos pasa de 122 a otros ingresos (su IGV ya declarado no se revierte).
+- **Garantías postventa (NIC 37)**: en la entrega, INM_GARANTIA_PCT % del ingreso: 6866 / 486 (PCGE 2026: 6896 / 486).
+- **Controles**: bancarización (BANCARIZACION_SOLES: sin efectivo y con N° de operación) y **ficha del comprador** (ocupación, origen de los fondos, PEP, declaración jurada) con alerta desde el umbral del registro de operaciones de la UIF.
+- **Reportes inmobiliarios**: anticipos por aplicar, cobranza por comprador, flujo de caja del proyecto, margen por unidad y proyecto, registro de operaciones (UIF) y unidades en propiedad (predial).
+- **Prorrata del crédito fiscal**: ver Contabilidad › Reportes; las compras del proyecto indican su destino del IGV.
+- Pendiente: factura final de la venta con la deducción de los anticipos (SUNAT), independización y escritura, supervisión del fideicomiso y post-venta (reclamos y garantías atendidas).
+
+## 14. Cierre de la obra — v1.78.0
+
+Al pasar una obra a **Liquidada** o **Cerrada** su almacén debe estar en cero (Obras › Sobrantes en almacenes de obra, valorizado): los sobrantes se trasladan con guía al almacén central, se devuelven o se dan de baja con aprobación. Entonces el almacén se **cierra** (solo admite ajustes de inventario) y el centro de costo se **desactiva**. Reabrirla exige el permiso «Reabrir obras liquidadas» y un motivo (queda en la auditoría).

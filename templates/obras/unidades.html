@@ -8,6 +8,7 @@
   .u-VENDIDA { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
   .u-ENTREGADA { background: #e5e7eb; color: #374151; border-color: #d1d5db; }
   .u-BLOQUEADA { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+  .u-COMUN { background: #f3f4f6; color: #6b7280; border-color: #e5e7eb; border-style: dashed; }
   [data-bs-theme="dark"] .unidad-chip { filter: brightness(.85); }
 </style>
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
@@ -16,9 +17,18 @@
   <div class="d-flex flex-wrap gap-2">
     {% if puede.obras_vender and o.tipo == 'INMOBILIARIA' %}<a href="{% url 'obras:separar' o.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-house-add"></i> Separar unidades</a>{% endif %}
     <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    <a href="?formato=inventario" class="btn btn-sm btn-outline-success" title="Registro de inventario permanente valorizado por unidad"><i class="bi bi-box-seam"></i> Inventario por unidad</a>
+    <a href="{% url 'obras:inm_reportes' %}?obra={{ o.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-graph-up"></i> Reportes</a>
     <a href="{% url 'obras:obra' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Obra</a>
   </div>
 </div>
+{% if o.tipo == 'INMOBILIARIA' %}<div class="card mb-3"><div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center small">
+  {% if o.fecha_terminacion %}<span><i class="bi bi-check2-circle text-success"></i> <b>Proyecto terminado</b> (conformidad de obra) el {{ o.fecha_terminacion|date:'d/m/Y' }}: los inmuebles están en «terminados» y los costos posteriores van a resultados.</span>
+    {% if puede.obras_vender %}<form method="post" class="ms-auto">{% csrf_token %}<button name="accion" value="deshacer_terminacion" class="btn btn-sm btn-outline-secondary py-0" onclick="return confirm('¿Deshacer la terminación del proyecto?')">Deshacer</button></form>{% endif %}
+  {% else %}<span><i class="bi bi-hammer"></i> En construcción: los costos del mes (incluidos los intereses del préstamo del proyecto) se activan como inmuebles en construcción.</span>
+    {% if puede.obras_vender %}<form method="post" class="ms-auto d-flex gap-2 align-items-center">{% csrf_token %}<input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm" style="width: 10rem">
+      <button name="accion" value="terminar" class="btn btn-sm btn-outline-success py-0 text-nowrap" onclick="return confirm('¿Registrar la terminación (conformidad de obra)? Los inmuebles pasan a terminados y se deja de activar costos.')"><i class="bi bi-flag"></i> Terminar proyecto</button></form>{% endif %}
+  {% endif %}</div></div>{% endif %}
 {% if o.tipo != 'INMOBILIARIA' %}<div class="alert alert-warning">Esta obra no es un proyecto inmobiliario: cambie su tipo en <a href="{% url 'obras:obra_editar' o.pk %}">Editar obra</a> para vender unidades.</div>{% endif %}
 {% if not o.cuenta_recaudadora %}<div class="alert alert-info py-2 small"><i class="bi bi-info-circle"></i> Indique la <b>cuenta recaudadora</b> del proyecto en <a href="{% url 'obras:obra_editar' o.pk %}">Editar obra</a> (la cuenta del banco que financia o del fideicomiso): los cobros la proponen.</div>{% endif %}
 <div class="row g-3 mb-3">
@@ -35,7 +45,7 @@
   {% for estado, nombre in estados %}<span class="unidad-chip u-{{ estado }}" style="min-width:auto">{{ nombre }}</span>{% endfor %}</div>
   <div class="card-body">{% regroup t.unidades by piso as pisos %}{% for p in pisos %}
     <div class="d-flex align-items-start"><div class="text-muted small me-2 pt-1" style="width: 4.5rem">{% if p.grouper %}Piso {{ p.grouper }}{% else %}—{% endif %}</div>
-      <div>{% for u in p.list %}{% if u.venta %}<a href="{% url 'obras:venta_inmueble' u.venta.pk %}" class="unidad-chip u-{{ u.estado }}" title="{{ u.get_tipo_display }} · {{ u.area_techada }} m² · {{ u.venta.cliente.nombre }}">{{ u.codigo }}</a>{% elif u.estado == 'DISPONIBLE' and puede.obras_vender %}<a href="{% url 'obras:separar' o.pk %}?unidad={{ u.pk }}" class="unidad-chip u-{{ u.estado }}" title="{{ u.get_tipo_display }} · {{ u.area_techada }} m² · S/ {{ u.precio_lista|money }} · separar">{{ u.codigo }}</a>{% else %}<span class="unidad-chip u-{{ u.estado }}" title="{{ u.get_tipo_display }} · {{ u.area_techada }} m²">{{ u.codigo }}</span>{% endif %}{% endfor %}</div></div>
+      <div>{% for u in p.list %}{% if not u.vendible %}<span class="unidad-chip u-COMUN" title="Área común (no se vende)">{{ u.codigo }}</span>{% elif u.venta %}<a href="{% url 'obras:venta_inmueble' u.venta.pk %}" class="unidad-chip u-{{ u.estado }}" title="{{ u.get_tipo_display }} · {{ u.area_techada }} m² · {{ u.venta.cliente.nombre }}">{{ u.codigo }}</a>{% elif u.estado == 'DISPONIBLE' and puede.obras_vender %}<a href="{% url 'obras:separar' o.pk %}?unidad={{ u.pk }}" class="unidad-chip u-{{ u.estado }}" title="{{ u.get_tipo_display }} · {{ u.area_techada }} m² · S/ {{ u.precio_lista|money }} · separar">{{ u.codigo }}</a>{% else %}<span class="unidad-chip u-{{ u.estado }}" title="{{ u.get_tipo_display }} · {{ u.area_techada }} m²">{{ u.codigo }}</span>{% endif %}{% endfor %}</div></div>
   {% endfor %}</div></div>{% endif %}
 <div class="card mb-3"><div class="card-header fw-semibold">Unidades: precio, costo asignado y margen</div>
   <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
@@ -44,7 +54,7 @@
       <tr><td class="fw-semibold">{{ u.codigo }}</td><td>{{ u.get_tipo_display }}</td><td>{{ u.piso }}</td><td class="num">{{ u.area_techada }}</td><td class="num">{{ u.area_libre }}</td><td class="num">{{ u.dormitorios|default:'' }}</td>
         <td class="num">{% if puede.obras_vender and u.estado == 'DISPONIBLE' %}<form method="post" class="d-flex gap-1 justify-content-end">{% csrf_token %}<input type="hidden" name="accion" value="precio"><input type="hidden" name="id" value="{{ u.pk }}">
           <input name="precio_lista" value="{{ u.precio_lista|stringformat:'s' }}" class="form-control form-control-sm text-end" style="width: 9rem"><button class="btn btn-sm btn-outline-secondary py-0" title="Guardar precio"><i class="bi bi-check2"></i></button></form>{% else %}{{ u.precio_lista|money }}{% endif %}</td>
-        <td><span class="unidad-chip u-{{ u.estado }}" style="min-width:auto">{{ u.get_estado_display }}</span></td>
+        <td>{% if u.vendible %}<span class="unidad-chip u-{{ u.estado }}" style="min-width:auto">{{ u.get_estado_display }}</span>{% else %}<span class="unidad-chip u-COMUN" style="min-width:auto">Área común</span>{% endif %}</td>
         <td>{% if u.venta %}<a href="{% url 'obras:venta_inmueble' u.venta.pk %}">{{ u.venta.numero }}</a> {{ u.venta.cliente.nombre|truncatechars:25 }}{% endif %}</td>
         <td class="num">{{ u.valor|money }}</td><td class="num">{{ u.costo|money }}</td>
         <td class="num {% if u.margen < 0 %}text-danger{% endif %}">{{ u.margen|money }}{% if u.margen_pct is not None %} <span class="text-muted">({{ u.margen_pct }}%)</span>{% endif %}</td>
@@ -53,7 +63,7 @@
           <button name="accion" value="borrar" class="btn btn-sm btn-outline-danger py-0" title="Eliminar" onclick="return confirm('¿Eliminar la unidad {{ u.codigo }}?')"><i class="bi bi-x"></i></button></form>{% endif %}</td></tr>
     {% empty %}<tr><td colspan="13" class="text-center text-muted py-4">Sin unidades. Regístrelas abajo o péguelas desde Excel.</td></tr>{% endfor %}</tbody>
   </table></div>
-  <div class="card-body small text-muted">Costo asignado: costo del proyecto a la fecha (gastos con el centro de costo de la obra, sin el reparto de gastos generales) × la participación de la unidad ({{ o.get_prorrateo_display|lower }}). Valor sin IGV: construcción sin IGV más el terreno.</div></div>
+  <div class="card-body small text-muted">Costo asignado: costo del proyecto a la fecha (gastos con el centro de costo de la obra hasta la terminación, sin el reparto de gastos generales, más el terreno y lo cargado directo a inmuebles en construcción) × la participación de la unidad ({{ o.get_prorrateo_display|lower }}); las áreas comunes no llevan costo propio. Valor sin IGV: construcción sin IGV más el terreno.</div></div>
 <div class="card mb-3"><div class="card-header fw-semibold">Ventas</div>
   <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
     <thead><tr><th>N°</th><th>Comprador</th><th>Unidades</th><th>Financiamiento</th><th class="num">Precio</th><th class="num">Cobrado</th><th class="num">Saldo</th><th>Estado</th></tr></thead>

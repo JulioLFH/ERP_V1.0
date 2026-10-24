@@ -36,6 +36,8 @@ urlpatterns += [
     path('obras/', include('obras.urls')),
     path('planillas/', include('planillas.urls')),
     path('historial/', include('historial.urls')),
+    path('sst/', include('sst.urls')),
+    path('calidad/', include('calidad.urls')),
     path('requerimientos/', include('inventario.urls_requerimientos')),
     path('solicitudes/', include('compras.urls_solped')),
     path('mi-portal/', personal.mi_portal, name='mi_portal'),

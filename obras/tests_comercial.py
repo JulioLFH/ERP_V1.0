@@ -235,7 +235,9 @@ class InmobiliarioTest(Base):
             inm.entregar(v)
         with self.assertRaisesMessage(inm.ErrorInmobiliario, 'supera el saldo'):
             inm.cobrar(c2, D('322000.01'), HOY, None, self.user)
-        inm.cobrar(c2, D('322000'), HOY, self.banco, self.user)
+        with self.assertRaisesMessage(inm.ErrorInmobiliario, 'no en efectivo (bancarización)'):
+            inm.cobrar(c2, D('322000'), HOY, self.banco, self.user, medio_pago='EFECTIVO', numero_operacion='X')
+        inm.cobrar(c2, D('322000'), HOY, self.banco, self.user, numero_operacion='OP-2')
         v.refresh_from_db()
         inm.entregar(v, HOY)
         v.refresh_from_db()
@@ -286,7 +288,7 @@ class InmobiliarioTest(Base):
                         [('SEPARACION', HOY, D('1000')), ('CUOTA', HOY, D('108000'))], 'CONTADO')
         cobro = inm.cobrar(v.cuotas.first(), D('1000'), HOY, None, self.user)
         self.assertEqual((cobro.comprobante.tipo_comprobante, cobro.comprobante.serie[0]), ('01', 'F'))
-        with self.assertRaisesMessage(inm.ErrorInmobiliario, 'nota de crédito'):
+        with self.assertRaisesMessage(inm.ErrorInmobiliario, 'registre el desistimiento'):
             inm.anular(v, 'Desistimiento')
         v2 = inm.separar(self.obra, [self.d101], self.persona, D('327000'), self.user, [])
         with self.assertRaisesMessage(inm.ErrorInmobiliario, 'motivo'):

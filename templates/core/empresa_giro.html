@@ -1,0 +1,36 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Giro y régimen tributario{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Giro y régimen tributario</h1>
+    <div class="text-muted small">{{ empresa.razon_social }} · RUC {{ empresa.ruc }}. Define la plantilla contable, el costeo, los módulos que se usan y las obligaciones. Todo se puede cambiar después (no borra asientos) y queda en la auditoría.</div></div>
+  <div class="d-flex gap-2"><a href="{% url 'parametros' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-percent"></i> Parámetros tributarios</a>
+    <a href="{% url 'empresa' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-building"></i> Datos de la empresa</a></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="card-body">
+    <form method="post" class="row g-3">{% csrf_token %}
+      {% for e in form.non_field_errors %}<div class="col-12"><div class="alert alert-danger py-2">{{ e }}</div></div>{% endfor %}
+      <div class="col-12">{% with field=form.giros %}{% include 'core/_campo.html' %}{% endwith %}</div>
+      <div class="col-md-3">{% with field=form.ciiu %}{% include 'core/_campo.html' %}{% endwith %}</div>
+      <div class="col-md-9">{% with field=form.actividad %}{% include 'core/_campo.html' %}{% endwith %}</div>
+      <div class="col-md-6">{% with field=form.regimen %}{% include 'core/_campo.html' %}{% endwith %}</div>
+      <div class="col-md-6">{% with field=form.ingresos_uit %}{% include 'core/_campo.html' %}{% endwith %}</div>
+      <div class="col-12">{% with field=form.sistema_costeo %}{% include 'core/_campo.html' %}{% endwith %}
+        <div class="form-text">Sin costeo: los gastos quedan por naturaleza (sin destinos a la clase 9 y 79). Por procesos u órdenes: cada gasto con centro de costo va a producción (90), administración (94) o ventas (95). Los periodos abiertos se vuelven a centralizar con el cambio.</div></div>
+      <div class="col-12">{% with field=form.ocultos %}{% include 'core/_campo.html' %}{% endwith %}</div>
+      <div class="col-12 d-flex flex-wrap gap-2">
+        <button name="accion" value="guardar" class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
+        <button name="accion" value="sugerir" class="btn btn-outline-primary"><i class="bi bi-magic"></i> Sugerir módulos y costeo según el giro</button>
+        <button name="accion" value="sunat" class="btn btn-outline-secondary" formnovalidate><i class="bi bi-cloud-download"></i> Traer la actividad de SUNAT</button>
+      </div>
+    </form></div></div></div>
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-header fw-semibold">Obligaciones · {{ regimen_nombre }}</div>
+      <ul class="list-group list-group-flush small">{% for tema, detalle in obligaciones %}<li class="list-group-item"><b>{{ tema }}:</b> {{ detalle }}</li>{% endfor %}</ul>
+      <div class="card-body small text-muted">UIT vigente: S/ {{ uit|money }}. Montos y porcentajes en Ajustes › Parámetros tributarios: confírmelos con su contador.</div></div>
+    <div class="card"><div class="card-header fw-semibold">Plantilla por giro</div>
+      <ul class="list-group list-group-flush small">{% for clave, g in giros.items %}<li class="list-group-item"><b>{{ g.0 }}</b><div class="text-muted">{{ g.2 }}</div></li>{% endfor %}</ul></div>
+  </div>
+</div>
+{% endblock %}

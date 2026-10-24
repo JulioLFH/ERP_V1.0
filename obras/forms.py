@@ -9,13 +9,16 @@ from .models import (HitoLicitacion, Licitacion, Obra, Partida, Presupuesto, Rec
 
 
 class ObraForm(BootstrapMixin, forms.ModelForm):
+    motivo_cambio = forms.CharField(label='Motivo para reabrir', max_length=250, required=False,
+                                    help_text='Solo al reabrir una obra liquidada o cerrada (queda en la auditoría)')
+
     class Meta:
         model = Obra
         fields = ['codigo', 'nombre', 'cliente', 'tipo', 'sistema', 'contrato', 'moneda', 'monto_contratado',
                   'fecha_contrato', 'fecha_inicio', 'plazo_dias', 'direccion', 'ubigeo', 'area_m2', 'residente',
                   'supervisor', 'estado', 'gastos_generales_pct', 'utilidad_pct', 'adelanto_directo_pct',
                   'adelanto_materiales_pct', 'retencion_garantia_pct', 'terreno_pct', 'prorrateo',
-                  'cuenta_recaudadora', 'banco_financiador']
+                  'prorrateo_area_pct', 'cuenta_recaudadora', 'banco_financiador']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -26,6 +29,8 @@ class ObraForm(BootstrapMixin, forms.ModelForm):
         self.fields['cuenta_recaudadora'].queryset = Cuenta.objects.filter(activo=True, es_detracciones=False)
         if self.instance.pk:
             self.fields['codigo'].disabled = True
+        if self.instance.estado not in ('LIQUIDADA', 'CERRADA'):
+            del self.fields['motivo_cambio']
 
     def clean(self):
         data = super().clean()
@@ -117,6 +122,9 @@ class SepararForm(BootstrapMixin, forms.Form):
     vence_separacion = forms.DateField(label='La separación vence el', required=False)
     separacion = forms.DecimalField(label='Monto de la separación', max_digits=14, decimal_places=2, min_value=0,
                                     required=False)
+    arras = forms.BooleanField(label='La separación es arras de retractación', required=False,
+                               help_text='Sin IGV ni comprobante hasta el % del parámetro; con la minuta se emite su '
+                                         'comprobante. Si el comprador desiste, las pierde')
     inicial = forms.DecimalField(label='Cuota inicial', max_digits=14, decimal_places=2, min_value=0, required=False)
     fecha_inicial = forms.DateField(label='Vence la cuota inicial', required=False)
     cuotas = forms.IntegerField(label='N° de cuotas con la empresa', min_value=1, max_value=120, required=False,
@@ -142,6 +150,34 @@ class SepararForm(BootstrapMixin, forms.Form):
         self.fields['unidades'].widget.attrs['size'] = 8
         self.fields['cliente'].queryset = Tercero.objects.filter(activo=True, tipo__in=['CLIENTE', 'AMBOS'])
         remoto(self.fields['cliente'], 'clientes')
+
+
+class FichaCompradorForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = VentaInmueble
+        fields = ['ocupacion', 'origen_fondos', 'origen_fondos_detalle', 'es_pep', 'pep_cargo', 'declaracion_fondos']
+
+    def clean(self):
+        d = super().clean()
+        if d.get('es_pep') and not (d.get('pep_cargo') or '').strip():
+            self.add_error('pep_cargo', 'Indique el cargo público del comprador.')
+        return d
+
+
+class DesistimientoForm(BootstrapMixin, forms.Form):
+    motivo = forms.CharField(max_length=180)
+    penalidad = forms.DecimalField(label='Penalidad retenida', max_digits=14, decimal_places=2, min_value=0,
+                                   help_text='Según el contrato; primero se retienen las arras')
+    fecha = forms.DateField()
+    cuenta = forms.ModelChoiceField(None, label='Cuenta desde la que se devuelve', required=False)
+    medio_pago = forms.ChoiceField(label='Medio de pago')
+    numero_operacion = forms.CharField(label='N° de operación', max_length=40, required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from finanzas.models import Cuenta, Movimiento
+        self.fields['cuenta'].queryset = Cuenta.objects.filter(activo=True, es_detracciones=False)
+        self.fields['medio_pago'].choices = Movimiento.MEDIOS
 
 
 class CobroForm(BootstrapMixin, forms.Form):

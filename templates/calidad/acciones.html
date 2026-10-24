@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Acciones correctivas y preventivas{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Acciones correctivas y preventivas</h1><div class="text-muted small">De no conformidades, auditorías, inspecciones y accidentes (calidad y SST).</div></div>
+  <div class="d-flex gap-2"><a href="?estado=abiertas" class="btn btn-sm btn-outline-secondary">Abiertas</a><a href="?estado=abiertas&mias=1" class="btn btn-sm btn-outline-secondary">Mías</a><a href="?" class="btn btn-sm btn-outline-secondary">Todas</a></div>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
+  <thead><tr><th>Origen</th><th>Acción</th><th>Responsable</th><th>Plazo</th><th>Estado</th><th>Eficacia</th></tr></thead>
+  <tbody>{% for a in filas %}<tr class="{% if a.vencida %}table-danger{% endif %}">
+    <td>{% if a.origen %}<a href="{{ a.origen.get_absolute_url }}#acciones">{{ a.origen }}</a>{% endif %}</td>
+    <td><span class="badge text-bg-light border">{{ a.get_tipo_display }}</span> {{ a.descripcion }}</td>
+    <td>{% if a.responsable %}{{ a.responsable.get_full_name|default:a.responsable.username }}{% endif %}</td>
+    <td class="text-nowrap">{{ a.plazo|date:'d/m/Y' }}</td><td>{{ a.get_estado_display }}</td>
+    <td>{% if a.eficaz is True %}Eficaz{% elif a.eficaz is False %}No eficaz{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin acciones.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

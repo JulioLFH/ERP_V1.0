@@ -1,0 +1,40 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Seguridad y salud en el trabajo{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Seguridad y salud en el trabajo</h1>
+    <div class="text-muted small">Registros obligatorios (Ley 29783; G.050 en construcción) con los trabajadores, almacenes y obras de Ceiba. Formatos y plazos: confírmelos con su especialista en SST.</div></div>
+  <div class="d-flex flex-wrap gap-2"><a href="{% url 'sst:registro_nuevo' %}?tipo=eventos" class="btn btn-sm btn-danger"><i class="bi bi-exclamation-octagon"></i> Registrar accidente / incidente</a>
+    <a href="{% url 'sst:indices' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-graph-up"></i> Índices</a></div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Índice de frecuencia {{ hoy.year }}</div><div class="value">{{ total.if|default:'—' }}</div><div class="small text-muted">{{ total.accidentes }} accidente(s) incapacitante(s)</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Índice de gravedad</div><div class="value">{{ total.ig|default:'—' }}</div><div class="small text-muted">{{ total.dias }} día(s) perdidos</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Índice de accidentabilidad</div><div class="value">{{ total.ia|default:'—' }}</div><div class="small text-muted">HHT {{ total.hht|floatformat:0 }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="kpi"><div class="label">Por atender</div><div class="value {% if avisos %}text-danger{% endif %}">{{ avisos }}</div><div class="small text-muted">vencimientos en 30 días</div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card mb-3"><div class="card-header fw-semibold">Registros</div><div class="card-body d-flex flex-wrap gap-2">
+      {% for slug, t in tipos.items %}<a href="{% url 'sst:registros' %}?tipo={{ slug }}" class="btn btn-sm btn-outline-secondary">{{ t.titulo }}</a>{% endfor %}
+    </div></div>
+    <div class="card mb-3"><div class="card-header fw-semibold">Vencimientos y pendientes (30 días)</div>
+      <div class="list-group list-group-flush small">{% for tema, filas in vencimientos.items %}{% if filas %}
+        <div class="list-group-item"><b>{{ tema }}</b> <span class="badge text-bg-light border">{{ filas|length }}</span>
+          <ul class="mb-0 mt-1">{% for obj, fecha, detalle in filas|slice:':8' %}<li>{% if obj.get_absolute_url %}<a href="{{ obj.get_absolute_url }}">{{ detalle }}</a>{% else %}{{ detalle }}{% endif %}{% if fecha %} · <span class="{% if fecha < hoy %}text-danger fw-semibold{% endif %}">{{ fecha|date:'d/m/Y' }}</span>{% endif %}</li>{% endfor %}{% if filas|length > 8 %}<li class="text-muted">y {{ filas|length|add:'-8' }} más…</li>{% endif %}</ul></div>
+      {% endif %}{% empty %}<div class="list-group-item text-muted">Nada pendiente.</div>{% endfor %}</div></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-header fw-semibold">Por validar u observados</div>
+      <ul class="list-group list-group-flush small">{% for nombre, slug, por_validar, observados in por_validar %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'sst:registros' %}?tipo={{ slug }}">{{ nombre|capfirst }}</a><span>{% if por_validar %}<span class="badge text-bg-warning">{{ por_validar }} por validar</span>{% endif %} {% if observados %}<span class="badge text-bg-danger">{{ observados }} observados</span>{% endif %}</span></li>
+      {% empty %}<li class="list-group-item text-muted">Nada por validar.</li>{% endfor %}</ul>
+      <div class="card-body small"><a href="{% url 'validacion_reglas' %}">Reglas de validación por especialista</a></div></div>
+    <div class="card mb-3"><div class="card-header fw-semibold">Acciones correctivas vencidas</div>
+      <ul class="list-group list-group-flush small">{% for a in acciones %}<li class="list-group-item">{{ a.descripcion }} · <span class="text-danger">{{ a.plazo|date:'d/m/Y' }}</span>{% if a.origen.get_absolute_url %} · <a href="{{ a.origen.get_absolute_url }}">{{ a.origen }}</a>{% endif %}</li>
+      {% empty %}<li class="list-group-item text-muted">Ninguna.</li>{% endfor %}</ul></div>
+    <div class="card"><div class="card-header fw-semibold">Últimos accidentes e incidentes</div>
+      <ul class="list-group list-group-flush small">{% for e in eventos %}<li class="list-group-item"><a href="{{ e.get_absolute_url }}">{{ e.get_tipo_display }}</a> · {{ e.fecha|date:'d/m/Y' }} · {{ e.trabajador.nombre_completo|default:'' }} {{ e.donde }}</li>
+      {% empty %}<li class="list-group-item text-muted">Sin registros.</li>{% endfor %}</ul></div>
+  </div>
+</div>
+{% endblock %}

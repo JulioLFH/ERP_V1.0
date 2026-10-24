@@ -1,0 +1,28 @@
+{% load erp_tags %}{# Estado y acciones de la validación por especialista de un registro (objeto=registro, modulo='sst'|'calidad') #}
+<div class="card mt-3" id="validacion">
+  <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+    <span class="fw-semibold"><i class="bi bi-patch-check"></i> Validación · versión {{ objeto.version }}</span>
+    <span class="badge {% if objeto.estado_validacion == 'VALIDADO' %}text-bg-success{% elif objeto.estado_validacion == 'POR_VALIDAR' %}text-bg-warning{% elif objeto.estado_validacion == 'OBSERVADO' %}text-bg-danger{% else %}text-bg-light border{% endif %}">{{ objeto.get_estado_validacion_display }}</span>
+  </div>
+  <div class="card-body small">
+    {% with r=objeto.regla %}<p class="mb-2">{% if r.0 %}Requiere la validación de: <b>{{ r.1|default:'especialista' }}</b> (adjuntar el registro validado y firmado).{% else %}No requiere validación de especialista.{% endif %}</p>{% endwith %}
+    {% if not objeto.vigente %}<div class="alert alert-secondary py-1">Versión anterior (historia): no se modifica.</div>{% endif %}
+    {% if objeto.estado_validacion == 'VALIDADO' %}<p class="mb-2">Validado por <b>{{ objeto.validador_nombre }}</b>{% if objeto.validador_cargo %} ({{ objeto.validador_cargo }}{% if objeto.validador_registro %} · {{ objeto.validador_registro }}{% endif %}){% endif %} el {{ objeto.validado_en|date:'d/m/Y' }}. El registro queda bloqueado.</p>{% endif %}
+    {% if objeto.observacion %}<div class="alert alert-danger py-1">Observación: {{ objeto.observacion }}</div>{% endif %}
+    {% if objeto.vigente %}
+      {% if objeto.editable and puede_registrar %}<form method="post" action="{% url 'validacion_accion' objeto|ct_id objeto.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button name="accion" value="enviar" class="btn btn-sm btn-primary"><i class="bi bi-send"></i> {% if objeto.regla.0 %}Enviar a validar{% else %}Registrar{% endif %}</button></form>{% endif %}
+      {% if objeto.estado_validacion == 'POR_VALIDAR' and puede_validar %}
+        <form method="post" enctype="multipart/form-data" action="{% url 'validacion_accion' objeto|ct_id objeto.pk %}" class="row g-2 align-items-end mt-1">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <div class="col-md-4"><label class="form-label small mb-0">Especialista que valida</label><input name="nombre" class="form-control form-control-sm" required></div>
+          <div class="col-md-3"><label class="form-label small mb-0">Cargo</label><input name="cargo" class="form-control form-control-sm" required></div>
+          <div class="col-md-2"><label class="form-label small mb-0">N° colegiatura / registro</label><input name="registro" class="form-control form-control-sm"></div>
+          <div class="col-md-3"><label class="form-label small mb-0">Registro validado y firmado</label><input type="file" name="archivo" class="form-control form-control-sm" required accept=".pdf,.png,.jpg,.jpeg,.webp"></div>
+          <div class="col-12"><button name="accion" value="validar" class="btn btn-sm btn-success"><i class="bi bi-patch-check"></i> Validar</button></div></form>
+        <form method="post" action="{% url 'validacion_accion' objeto|ct_id objeto.pk %}" class="d-flex gap-2 mt-2">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <input name="motivo" class="form-control form-control-sm" placeholder="Observación" required><button name="accion" value="observar" class="btn btn-sm btn-outline-danger text-nowrap">Observar</button></form>{% endif %}
+      {% if objeto.estado_validacion == 'VALIDADO' and puede_registrar %}
+        <form method="post" action="{% url 'validacion_accion' objeto|ct_id objeto.pk %}" class="d-flex gap-2 mt-2">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <input name="motivo" class="form-control form-control-sm" placeholder="Motivo del cambio" required><button name="accion" value="version" class="btn btn-sm btn-outline-secondary text-nowrap"><i class="bi bi-files"></i> Nueva versión</button></form>{% endif %}
+    {% endif %}
+  </div>
+</div>

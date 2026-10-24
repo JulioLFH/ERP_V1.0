@@ -1,0 +1,16 @@
+<div class="card mt-3"><div class="card-header fw-semibold d-flex justify-content-between"><span>Análisis de causa · {{ objeto.get_metodo_display }}</span><span class="badge text-bg-light border">{{ objeto.get_estado_display }}</span></div><div class="card-body">
+  <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="analisis">
+    {% if objeto.metodo == 'ISHIKAWA' %}
+      {% for clave, nombre, texto in seis_m %}<div class="col-md-6"><label class="form-label small mb-0">{{ nombre }}</label><textarea name="m_{{ clave }}" rows="2" class="form-control form-control-sm" {% if not editable %}disabled{% endif %}>{{ texto }}</textarea></div>{% endfor %}
+    {% else %}
+      {% for i, texto in porques %}<div class="col-12"><div class="input-group input-group-sm"><span class="input-group-text">¿Por qué? {{ i }}</span><input name="porque_{{ i }}" value="{{ texto }}" class="form-control" {% if not editable %}disabled{% endif %}></div></div>{% endfor %}
+    {% endif %}
+    <div class="col-12"><label class="form-label small mb-0">Causa raíz</label><textarea name="causa_raiz" rows="2" class="form-control form-control-sm" {% if not editable %}disabled{% endif %}>{{ objeto.causa_raiz }}</textarea></div>
+    {% if editable %}<div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-save"></i> Guardar análisis</button></div>{% endif %}
+  </form>
+  {% if objeto.estado != 'CERRADA' and puede_registrar %}<form method="post" class="d-flex gap-2 mt-3 align-items-center">{% csrf_token %}<input type="hidden" name="accion" value="cerrar_nc">
+    <select name="eficaz" class="form-select form-select-sm" style="width: auto"><option value="1">Tratamiento eficaz</option><option value="0">No eficaz</option></select>
+    <button class="btn btn-sm btn-success" onclick="return confirm('¿Cerrar la no conformidad?')"><i class="bi bi-check2-all"></i> Cerrar no conformidad</button></form>
+  {% elif objeto.estado == 'CERRADA' %}<p class="small mt-3 mb-0">Cerrada el {{ objeto.fecha_cierre|date:'d/m/Y' }} · {% if objeto.eficaz %}tratamiento eficaz{% else %}tratamiento no eficaz{% endif %}.</p>{% endif %}
+</div></div>
+{% include 'calidad/_acciones.html' %}

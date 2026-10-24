@@ -34,4 +34,6 @@ urlpatterns = [
     path('ventas-inmuebles/<int:pk>/', com.venta_inmueble, name='venta_inmueble'),
     path('cuotas/<int:pk>/cobrar/', com.cobrar, name='inm_cobrar'),
     path('cobranza-inmobiliaria/', com.cobranza, name='inm_cobranza'),
+    path('reportes-inmobiliarios/', com.reportes_inmobiliarios, name='inm_reportes'),
+    path('sobrantes/', com.sobrantes, name='sobrantes'),
 ]

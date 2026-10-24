@@ -1,10 +1,12 @@
 from django.urls import path
 
-from . import views, views_cierre, views_cuentas_tipo, views_flujo, views_libro3, views_presupuesto, views_reparto
+from . import (views, views_cierre, views_cuentas_tipo, views_flujo, views_libro3, views_presupuesto, views_prorrata,
+               views_reparto)
 
 app_name = 'contabilidad'
 
 urlpatterns = [
+    path('prorrata-credito-fiscal/', views_prorrata.prorrata, name='prorrata'),
     path('reparto-de-gastos/', views_reparto.reparto, name='reparto'),
     path('reparto-de-gastos/reglas/nueva/', views_reparto.regla, name='reparto_regla_nueva'),
     path('reparto-de-gastos/reglas/<int:pk>/', views_reparto.regla, name='reparto_regla'),

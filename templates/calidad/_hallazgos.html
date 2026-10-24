@@ -1,0 +1,14 @@
+<div class="card mt-3"><div class="card-header fw-semibold">Hallazgos</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle small">
+    <thead><tr><th>Tipo</th><th>Requisito</th><th>Descripción</th><th>No conformidad</th></tr></thead>
+    <tbody>{% for h in hallazgos %}<tr><td>{{ h.get_tipo_display }}</td><td>{{ h.requisito }}</td><td>{{ h.descripcion }}</td>
+      <td>{% if h.no_conformidad %}<a href="{{ h.no_conformidad.get_absolute_url }}">{{ h.no_conformidad.codigo }}</a> <span class="text-muted">{{ h.no_conformidad.get_estado_display }}</span>
+        {% elif puede_registrar %}<form method="post">{% csrf_token %}<input type="hidden" name="id" value="{{ h.pk }}"><button name="accion" value="nc_hallazgo" class="btn btn-sm btn-outline-primary py-0">Crear no conformidad</button></form>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">Sin hallazgos.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if editable %}<div class="card-body border-top"><form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="hallazgo">
+    <div class="col-md-3"><select name="tipo" class="form-select form-select-sm">{% for v, n in tipos_hallazgo %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><input name="requisito" class="form-control form-control-sm" placeholder="Cláusula"></div>
+    <div class="col-md-5"><input name="descripcion" class="form-control form-control-sm" placeholder="Descripción" required></div>
+    <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-plus-lg"></i> Agregar</button></div></form></div>{% endif %}
+</div>

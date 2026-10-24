@@ -1,0 +1,25 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Parámetros tributarios{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Parámetros tributarios</h1>
+    <div class="text-muted small">UIT, porcentajes y umbrales con vigencia: cada operación usa el valor vigente a su fecha y se conserva la historia. Los valores por defecto son referenciales: confirme los vigentes con su contador.</div></div>
+  <a href="{% url 'empresa_giro' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-sliders"></i> Giro y régimen</a>
+</div>
+{% for grupo, filas in grupos %}
+<div class="card mb-3"><div class="card-header fw-semibold">{{ grupo }}</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle small">
+    <thead><tr><th style="width: 34%">Parámetro</th><th class="num">Vigente</th><th>Desde</th><th>Norma o sustento</th><th style="width: 30%">Nuevo valor</th></tr></thead>
+    <tbody>{% for p in filas %}<tr>
+      <td>{{ p.descripcion }}<div class="text-muted">{{ p.clave }}</div>
+        {% if p.historia|length > 1 %}<details><summary class="text-muted">Historia</summary>{% for desde, valor, nota, propio in p.historia %}<div>{{ desde|date:'d/m/Y' }}: {{ valor }}{% if propio %} <span class="badge text-bg-light border">registrado</span> {{ nota }}{% endif %}</div>{% endfor %}</details>{% endif %}</td>
+      <td class="num fw-semibold">{% if p.unidad == 'S/' %}S/ {% endif %}{{ p.valor }}{% if p.unidad and p.unidad != 'S/' %} {{ p.unidad }}{% endif %}</td>
+      <td>{{ p.desde|date:'d/m/Y' }}</td><td class="text-muted">{{ p.norma }}</td>
+      <td><form method="post" class="d-flex flex-wrap gap-1">{% csrf_token %}<input type="hidden" name="clave" value="{{ p.clave }}">
+        <input name="valor" class="form-control form-control-sm" style="width: 6.5rem" placeholder="Valor" required>
+        <input type="date" name="desde" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm" style="width: 9rem" required>
+        <input name="nota" class="form-control form-control-sm" style="width: 9rem" placeholder="Norma (opcional)">
+        <button class="btn btn-sm btn-outline-primary py-0">Registrar</button></form></td></tr>{% endfor %}</tbody>
+  </table></div></div>
+{% endfor %}
+{% endblock %}

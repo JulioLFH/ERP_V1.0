@@ -1,0 +1,23 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ objeto }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title">{{ objeto }}</h1>
+    <div class="text-muted small">{{ objeto.donde|default:'' }}{% if objeto.version %} · versión {{ objeto.version }}{% if not objeto.vigente %} (anterior){% endif %}{% endif %}</div></div>
+  <a href="{% url app|add:':registros' %}?tipo={{ tipo.slug }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> {{ tipo.titulo }}</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="card-body">
+    <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="datos">
+      {% for e in form.non_field_errors %}<div class="col-12"><div class="alert alert-danger py-2">{{ e }}</div></div>{% endfor %}
+      {% for field in form %}<div class="{% if field.field.widget.input_type == 'checkbox' and field.field.widget.allow_multiple_selected or field.field.widget.attrs.rows %}col-12{% elif field.field.widget.allow_multiple_selected %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+      {% if editable %}<div class="col-12"><button class="btn btn-sm btn-success"><i class="bi bi-save"></i> Guardar</button></div>{% endif %}
+    </form></div></div>
+    {% if tipo.extra %}{% include tipo.extra %}{% endif %}
+  </div>
+  <div class="col-lg-5">
+    {% if validable %}{% include 'core/_validacion.html' %}{% endif %}
+    {% include 'core/_sustentos.html' with objeto=objeto solo_lectura=False %}
+  </div>
+</div>
+{% endblock %}

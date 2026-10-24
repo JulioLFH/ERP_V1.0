@@ -195,16 +195,52 @@ MODULOS = [
         'inicio': 'obras:lista', 'descripcion': 'Presupuestos de obra con análisis de precios unitarios',
         'menu': [
             ('Obras', [('Obras', 'obras:lista', 'bi-cone-striped'),
-                       ('Nueva obra', 'obras:obra_nueva', 'bi-plus-circle')]),
+                       ('Nueva obra', 'obras:obra_nueva', 'bi-plus-circle'),
+                       ('Sobrantes en almacenes de obra', 'obras:sobrantes', 'bi-box-seam')]),
             ('Comercial', [('Licitaciones y propuestas (CRM)', 'obras:licitaciones', 'bi-trophy'),
                            ('Nueva licitación / propuesta', 'obras:licitacion_nueva', 'bi-plus-circle'),
-                           ('Cobranza inmobiliaria', 'obras:inm_cobranza', 'bi-house-check')]),
+                           ('Cobranza inmobiliaria', 'obras:inm_cobranza', 'bi-house-check'),
+                           ('Reportes inmobiliarios', 'obras:inm_reportes', 'bi-graph-up')]),
             ('Presupuestos', [('Recursos (insumos)', 'obras:recursos', 'bi-boxes'),
                               ('Vincular recursos con productos', 'obras:vincular', 'bi-link-45deg'),
                               ('Biblioteca de partidas tipo', 'obras:biblioteca', 'bi-collection'),
                               ('Plantilla de importación (Excel)', 'obras:plantilla', 'bi-file-earmark-excel')]),
             ('Reportes', [('Resultado por obra (con gastos generales asignados)', 'contabilidad:reparto_resultado',
                            'bi-bar-chart')]),
+        ],
+    },
+    {
+        'clave': 'sst', 'nombre': 'Seguridad y salud', 'icono': 'bi-heart-pulse', 'color': '#e11d48',
+        'inicio': 'sst:tablero', 'descripcion': 'Registros obligatorios de SST, IPERC, EPP, accidentes e índices',
+        'menu': [
+            ('SST', [('Tablero de SST', 'sst:tablero', 'bi-speedometer2'),
+                     ('Accidentes, incidentes y enfermedades', 'sst:registros?tipo=eventos', 'bi-exclamation-octagon'),
+                     ('Índices de accidentabilidad', 'sst:indices', 'bi-graph-up')]),
+            ('Registros', [('Exámenes médicos ocupacionales', 'sst:registros?tipo=emo', 'bi-clipboard2-pulse'),
+                           ('Monitoreo de agentes', 'sst:registros?tipo=monitoreos', 'bi-activity'),
+                           ('Inspecciones', 'sst:registros?tipo=inspecciones', 'bi-search'),
+                           ('Inducción, capacitación y simulacros', 'sst:registros?tipo=capacitaciones',
+                            'bi-mortarboard'),
+                           ('Equipos de seguridad y emergencia', 'sst:registros?tipo=equipos', 'bi-fire'),
+                           ('IPERC', 'sst:registros?tipo=iperc', 'bi-grid-3x3'),
+                           ('Entrega de EPP', 'sst:registros?tipo=epp', 'bi-shield-check'),
+                           ('SCTR', 'sst:registros?tipo=sctr', 'bi-file-medical'),
+                           ('Permisos de trabajo de alto riesgo', 'sst:registros?tipo=permisos', 'bi-cone')]),
+            ('Configuración', [('Reglas de validación por especialista', 'validacion_reglas', 'bi-patch-check')]),
+        ],
+    },
+    {
+        'clave': 'calidad', 'nombre': 'Excelencia organizacional', 'icono': 'bi-award', 'color': '#0d9488',
+        'inicio': 'calidad:tablero', 'descripcion': 'Indicadores por área, no conformidades, auditorías y mejora',
+        'menu': [
+            ('Gestión', [('Objetivos e indicadores (BSC)', 'calidad:tablero', 'bi-bullseye'),
+                         ('Definir indicadores', 'calidad:registros?tipo=indicadores', 'bi-sliders'),
+                         ('Acciones correctivas y preventivas', 'calidad:acciones', 'bi-check2-square')]),
+            ('Registros', [('No conformidades', 'calidad:registros?tipo=no-conformidades', 'bi-x-octagon'),
+                           ('Auditorías internas', 'calidad:registros?tipo=auditorias', 'bi-clipboard-check'),
+                           ('Documentos controlados', 'calidad:registros?tipo=documentos', 'bi-file-earmark-text'),
+                           ('Sugerencias de mejora (Kaizen)', 'calidad:registros?tipo=sugerencias', 'bi-lightbulb')]),
+            ('Configuración', [('Reglas de validación por especialista', 'validacion_reglas', 'bi-patch-check')]),
         ],
     },
     {
@@ -354,6 +390,7 @@ MODULOS = [
                           ('Resultado por centro y obra (con gastos asignados)', 'contabilidad:reparto_resultado',
                            'bi-bar-chart'),
                           ('Presupuestos y ejecución', 'contabilidad:presupuestos', 'bi-clipboard-data'),
+                          ('Prorrata del crédito fiscal (IGV)', 'contabilidad:prorrata', 'bi-percent'),
                           ('Conciliación NIIF - tributaria', 'contabilidad:conciliacion_normas', 'bi-intersect'),
                           ('Estados consolidados del grupo', 'contabilidad:consolidacion', 'bi-buildings'),
                           ('Documentos del cliente (estudio)', 'cliente_documentos', 'bi-inbox')]),
@@ -389,7 +426,9 @@ MODULOS = [
         'clave': 'ajustes', 'nombre': 'Ajustes', 'icono': 'bi-gear', 'color': '#495057',
         'inicio': 'empresa', 'descripcion': 'Empresa, usuarios y configuración general',
         'menu': [
-            ('Empresa', 'empresa'),
+            ('Empresa', [('Datos de la empresa', 'empresa', 'bi-building'),
+                         ('Giro y régimen tributario', 'empresa_giro', 'bi-sliders'),
+                         ('Parámetros tributarios (UIT, tasas, umbrales)', 'parametros', 'bi-percent')]),
             ('Usuarios y permisos', [('Usuarios', 'usuarios', 'bi-people'),
                                      ('Perfiles de acceso (roles)', 'perfiles_acceso', 'bi-person-badge'),
                                      ('Ingreso con Microsoft / Google', 'sso_lista', 'bi-microsoft'),
@@ -443,7 +482,8 @@ RUTAS_CORE = {
     'dashboard': ['tablero'],
     'cliente_subir': ['cliente'], 'cliente_reportes': ['cliente'],
     'cliente_documentos': ['cliente', 'contabilidad'], 'cliente_archivo': ['cliente', 'contabilidad'],
-    'empresa': ['ajustes'], 'consulta_ruc': ['ajustes', 'contactos', 'ventas', 'compras'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
+    'empresa': ['ajustes'], 'empresa_giro': ['ajustes'], 'parametros': ['ajustes', 'contabilidad'],
+    'validacion_reglas': ['sst', 'calidad', 'ajustes'], 'consulta_ruc': ['ajustes', 'contactos', 'ventas', 'compras'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
     'auditoria': ['ajustes'], 'manuales': ['ajustes'], 'manual_pdf': ['ajustes'],
     'incidencias': ['ajustes'], 'incidencia': ['ajustes'],
     'modificaciones': [m['clave'] for m in MODULOS],  # se ve dentro del módulo; la vista exige ser administrador
@@ -478,6 +518,7 @@ RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'c
                 'alertas', 'alertas_json',  # cada alerta ya se filtra por los módulos del usuario
                 'login_2fa', 'recuperar', 'recuperar_confirmar', 'recuperar_listo', 'seguridad',
                 'sustento_subir', 'sustento_ver',  # los sustentos validan el módulo del documento
+                'validacion_accion',  # validación por especialista: valida el módulo y el permiso del registro
                 'api_claves',  # cada usuario administra sus claves de API (actúan con sus propios permisos)
                 'opciones',  # listas de los selectores (códigos y nombres, sin importes)
                 'producto_datos',  # precio y unidad del producto elegido (valida los módulos; el costo según permiso)
@@ -505,19 +546,27 @@ def puede_ver_costos(user):
     return cache
 
 
+def _ocultos_empresa():
+    """Módulos que la empresa no usa (Ajustes › Giro y régimen): no se muestran ni se abren. Ajustes nunca."""
+    from .models import Empresa
+    return set(Empresa.objects.values_list('modulos_ocultos', flat=True).first() or []) - {'ajustes', 'tablero'}
+
+
 def modulos_del_usuario(user):
     """Conjunto de claves de módulos a los que el usuario tiene acceso."""
     if not user.is_authenticated:
         return set()
-    if user.is_superuser:
-        return set(POR_CLAVE)
     cache = getattr(user, '_modulos_cache', None)
     if cache is None:
-        nombres = set(user.groups.values_list('name', flat=True))
-        cache = {clave for clave, nombre in GRUPOS.items() if nombre in nombres}
-        for derivado, origen in DERIVADOS.items():
-            if cache & origen:
-                cache.add(derivado)
+        if user.is_superuser:
+            cache = set(POR_CLAVE)
+        else:
+            nombres = set(user.groups.values_list('name', flat=True))
+            cache = {clave for clave, nombre in GRUPOS.items() if nombre in nombres}
+            for derivado, origen in DERIVADOS.items():
+                if cache & origen:
+                    cache.add(derivado)
+        cache -= _ocultos_empresa()
         user._modulos_cache = cache
     return cache
 

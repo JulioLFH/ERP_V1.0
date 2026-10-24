@@ -1,0 +1,22 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Índices de SST{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Índices de seguridad y salud</h1>
+    <div class="text-muted small">IF = accidentes incapacitantes (y mortales) × 1 000 000 / horas-hombre trabajadas · IG = días perdidos × 1 000 000 / HHT · IA = IF × IG / 1 000.</div></div>
+  <form class="d-flex gap-2"><select name="anio" class="form-select form-select-sm">{% for a in anios %}<option {% if a == anio %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+    <select name="obra" class="form-select form-select-sm"><option value="">Toda la empresa</option>{% for o in obras %}<option value="{{ o.pk }}" {% if obra.pk == o.pk %}selected{% endif %}>{{ o.codigo }} {{ o.nombre|truncatechars:35 }}</option>{% endfor %}</select>
+    <button class="btn btn-sm btn-primary">Ver</button></form>
+</div>
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0 align-middle small">
+  <thead><tr><th>Mes</th><th class="num">Accidentes incapacitantes</th><th class="num">Todos los accidentes</th><th class="num">Incidentes y EO</th><th class="num">Días perdidos</th><th class="num">Horas-hombre</th><th class="num">IF</th><th class="num">IG</th><th class="num">IA</th></tr></thead>
+  <tbody>{% for f in filas %}<tr><td>{{ f.periodo|slice:'4:' }}/{{ anio }}</td><td class="num">{{ f.accidentes }}</td><td class="num">{{ f.todos }}</td><td class="num">{{ f.incidentes }}</td><td class="num">{{ f.dias }}</td><td class="num">{{ f.hht|floatformat:0 }}</td><td class="num">{{ f.if|default:'—' }}</td><td class="num">{{ f.ig|default:'—' }}</td><td class="num">{{ f.ia|default:'—' }}</td></tr>{% endfor %}</tbody>
+  <tfoot><tr class="fw-semibold"><td>{{ anio }}</td><td class="num">{{ total.accidentes }}</td><td class="num">{{ total.todos }}</td><td class="num">{{ total.incidentes }}</td><td class="num">{{ total.dias }}</td><td class="num">{{ total.hht|floatformat:0 }}</td><td class="num">{{ total.if|default:'—' }}</td><td class="num">{{ total.ig|default:'—' }}</td><td class="num">{{ total.ia|default:'—' }}</td></tr></tfoot>
+</table></div>
+<div class="card-body small text-muted">Horas-hombre: las registradas o, si no hay, los trabajadores con vínculo en el mes{% if obra %} con el centro de costo de la obra{% endif %} × las horas por mes del parámetro SST_HORAS_MES.</div></div>
+{% if puede.sst_registrar %}<div class="card" style="max-width: 640px"><div class="card-header fw-semibold">Registrar horas-hombre trabajadas{% if obra %} · {{ obra.nombre }}{% endif %}</div><div class="card-body">
+  <form method="post" class="d-flex gap-2 align-items-end">{% csrf_token %}
+    <div><label class="form-label small mb-0">Mes</label><input type="month" name="periodo" class="form-control form-control-sm" required></div>
+    <div><label class="form-label small mb-0">Horas-hombre</label><input name="horas" class="form-control form-control-sm" required></div>
+    <button class="btn btn-sm btn-outline-primary">Registrar</button></form></div></div>{% endif %}
+{% endblock %}

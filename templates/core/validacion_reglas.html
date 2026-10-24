@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Reglas de validación{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Reglas de validación por especialista</h1>
+    <div class="text-muted small">Qué registros de SST y de calidad necesitan el registro validado y firmado por un especialista antes de darse por validados.</div></div>
+</div>
+<form method="post" class="card" style="max-width: 900px">{% csrf_token %}
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle small">
+    <thead><tr><th>Tipo de registro</th><th class="text-center">Requiere validación</th><th>Quién valida</th></tr></thead>
+    <tbody>{% for tipo, nombre, requiere, especialista in filas %}<tr><td>{{ nombre|capfirst }}</td>
+      <td class="text-center"><input type="checkbox" class="form-check-input" name="requiere_{{ tipo }}" {% if requiere %}checked{% endif %}></td>
+      <td><input name="especialista_{{ tipo }}" value="{{ especialista }}" class="form-control form-control-sm" maxlength="120"></td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-body"><button class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> Guardar</button></div>
+</form>
+{% endblock %}

@@ -34,6 +34,7 @@ PCGE = [
     ('1911', 'Estimación de cobranza dudosa'),
     ('20', 'MERCADERÍAS'), ('201', 'Mercaderías'), ('2011', 'Mercaderías'), ('20111', 'Mercaderías - costo'),
     ('21', 'PRODUCTOS TERMINADOS'), ('211', 'Productos manufacturados'), ('2111', 'Productos manufacturados'),
+    ('214', 'Productos inmuebles'), ('2141', 'Inmuebles terminados (proyectos inmobiliarios)'),
     ('23', 'PRODUCTOS EN PROCESO'), ('231', 'Productos en proceso de manufactura'),
     ('2311', 'Productos en proceso (semi elaborados)'), ('234', 'Productos inmuebles en proceso'),
     ('2341', 'Inmuebles en construcción (proyectos inmobiliarios)'),
@@ -89,6 +90,7 @@ PCGE = [
     ('452', 'Contratos de arrendamiento financiero'), ('4521', 'Contratos de arrendamiento financiero'),
     ('46', 'CUENTAS POR PAGAR DIVERSAS - TERCEROS'), ('469', 'Otras cuentas por pagar diversas'),
     ('4699', 'Otras cuentas por pagar'),
+    ('48', 'PROVISIONES'), ('486', 'Provisión para garantías'),
     ('50', 'CAPITAL'), ('501', 'Capital social'), ('5011', 'Acciones'),
     ('58', 'RESERVAS'), ('582', 'Legal'), ('5821', 'Reserva legal'),
     ('59', 'RESULTADOS ACUMULADOS'), ('591', 'Utilidades no distribuidas'), ('5911', 'Utilidades acumuladas'),
@@ -130,6 +132,7 @@ PCGE = [
     ('68', 'VALUACIÓN Y DETERIORO DE ACTIVOS Y PROVISIONES'), ('681', 'Depreciación'),
     ('6814', 'Depreciación de propiedad, planta y equipo - costo'),
     ('682', 'Amortización de intangibles'), ('6821', 'Amortización de intangibles - costo'),
+    ('686', 'Provisiones'), ('6866', 'Provisión para garantías'),
     ('69', 'COSTO DE VENTAS'), ('691', 'Mercaderías'), ('6911', 'Mercaderías'), ('69111', 'Mercaderías - terceros'),
     ('692', 'Productos terminados'), ('6921', 'Productos manufacturados'), ('6924', 'Productos inmuebles terminados'),
     ('695', 'Gastos por desvalorización de existencias'), ('6951', 'Mercaderías'), ('6952', 'Productos terminados'),
@@ -251,13 +254,14 @@ def analisis_por_defecto(codigo):
 # cuenta del ERP (PCGE 2019) -> cuenta equivalente del PCGE 2026 (imputable); las que no figuran se mantienen
 MAPA_2026 = {
     '1011': '101', '1021': '102', '1221': '122', '1231': '1232', '1232': '1234', '1421': '1422', '1821': '182',
-    '2111': '21111', '2311': '23111', '2341': '2312', '2411': '24111', '2521': '2524', '2811': '281', '2841': '284', '2851': '285',
+    '2111': '21111', '2141': '2112', '2311': '23111', '2341': '2312', '2411': '24111', '2521': '2524', '2811': '281', '2841': '284', '2851': '285',
     '2911': '29111', '2921': '29211', '2941': '29411', '2951': '29511', '2961': '2962',
     '3223': '32241', '3224': '32251', '3311': '33111', '3321': '33211', '3331': '33311', '3341': '33411',
     '3351': '33511', '3361': '33611', '3369': '33691', '3431': '34311', '3913': '39516', '3921': '39613',
     '4071': '417', '4221': '422', '4231': '423', '4241': '424', '4521': '452', '5821': '582',
     '6021': '602', '6091': '60919', '6311': '63111', '6511': '651', '6551': '655141', '6561': '656', '6599': '6593',
-    '6731': '67311', '6814': '68316', '6821': '68613', '69111': '69121', '6921': '69221', '6924': '69221',
+    '6731': '67311', '6814': '68316', '6821': '68613', '6866': '6896', '69111': '69121', '6921': '69221',
+    '6924': '69221',
     '70111': '70121', '7021': '70221', '7024': '70221', '7041': '70321', '7091': '70911', '7563': '75641', '7721': '75961',
     '7911': '791', '8811': '881', '8911': '891', '8921': '892',
     '901': '911', '941': '912', '951': '913', '971': '931',
@@ -266,6 +270,7 @@ MAPA_2026 = {
 COMPLEMENTO_2026 = [
     ('6399', 'Otros servicios prestados por terceros'),
     ('2312', 'Inmuebles en construcción (proyectos inmobiliarios)'), ('7134', 'Productos inmuebles en proceso'),
+    ('2112', 'Inmuebles terminados (proyectos inmobiliarios)'),
     ('911', 'Costo de producción'), ('912', 'Gastos de administración'), ('913', 'Gastos de ventas'),
     ('921', 'Gastos de inversión'), ('931', 'Gastos de financiamiento'),
 ]
@@ -420,6 +425,11 @@ DEFECTOS = [
     ('inmuebles_variacion', 'Proyectos inmobiliarios: costos activados (variación de la producción)', '7134'),
     ('inmuebles_costo', 'Proyectos inmobiliarios: costo de ventas de las unidades entregadas', '6924'),
     ('inmuebles_venta', 'Proyectos inmobiliarios: ventas de unidades', '7024'),
+    ('inmuebles_terminados', 'Proyectos inmobiliarios: inmuebles terminados (desde la conformidad de obra)', '2141'),
+    ('inmuebles_arras', 'Proyectos inmobiliarios: arras de retractación recibidas (sin IGV)', '4699'),
+    ('inmuebles_penalidad', 'Proyectos inmobiliarios: penalidades y arras retenidas por desistimiento', '7599'),
+    ('inmuebles_garantia_gasto', 'Proyectos inmobiliarios: provisión de garantías postventa (gasto)', '6866'),
+    ('inmuebles_garantia', 'Proyectos inmobiliarios: provisión de garantías postventa (pasivo)', '486'),
 ]
 
 

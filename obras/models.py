@@ -18,7 +18,8 @@ class Obra(models.Model):
     ESTADOS = [('LICITACION', 'Propuesta / licitación'), ('ADJUDICADA', 'Adjudicada'), ('EJECUCION', 'En ejecución'),
                ('PARALIZADA', 'Paralizada'), ('RECEPCION', 'En recepción'), ('LIQUIDADA', 'Liquidada'),
                ('CERRADA', 'Cerrada'), ('NO_ADJUDICADA', 'No adjudicada (propuesta perdida)')]
-    PRORRATEOS = [('AREA', 'Por área techada'), ('VALOR', 'Por precio de lista')]
+    PRORRATEOS = [('AREA', 'Por área techada'), ('VALOR', 'Por precio de lista'),
+                  ('MIXTO', 'Mixto: área techada y precio de lista')]
     codigo = models.CharField('Código', max_length=10, unique=True, blank=True,
                               help_text='Vacío = automático (OB0001)')
     nombre = models.CharField(max_length=250)
@@ -54,6 +55,11 @@ class Obra(models.Model):
         help_text='Primera venta de inmuebles: el IGV no grava el valor del terreno, que la ley presume en el 50 % del '
                   'precio. Confírmelo con su asesor tributario')
     prorrateo = models.CharField('Costo de cada unidad', max_length=5, choices=PRORRATEOS, default='AREA')
+    prorrateo_area_pct = models.DecimalField('Mixto: peso del área (%)', max_digits=5, decimal_places=2,
+                                             default=Decimal('50'), help_text='El resto pesa el precio de lista')
+    fecha_terminacion = models.DateField('Terminación (conformidad de obra)', null=True, blank=True, editable=False,
+                                         help_text='Los inmuebles pasan de «en construcción» a «terminados» y se deja '
+                                                   'de activar costos (intereses y gastos posteriores van a resultados)')
     cuenta_recaudadora = models.ForeignKey(
         'finanzas.Cuenta', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
         verbose_name='Cuenta recaudadora del proyecto', help_text='Cuenta del banco que financia o del fideicomiso: los '
@@ -433,7 +439,9 @@ class RequisitoPostor(models.Model):
 class Unidad(models.Model):
     """Unidad vendible de un proyecto inmobiliario."""
     TIPOS = [('DEPARTAMENTO', 'Departamento'), ('ESTACIONAMIENTO', 'Estacionamiento'), ('DEPOSITO', 'Depósito'),
-             ('LOCAL', 'Local comercial'), ('OFICINA', 'Oficina'), ('CASA', 'Casa'), ('LOTE', 'Lote'), ('OTRO', 'Otro')]
+             ('LOCAL', 'Local comercial'), ('OFICINA', 'Oficina'), ('CASA', 'Casa'), ('LOTE', 'Lote'), ('OTRO', 'Otro'),
+             ('COMUN', 'Área común (no se vende)')]
+    VIVIENDA = ('DEPARTAMENTO', 'CASA')
     ESTADOS = [('DISPONIBLE', 'Disponible'), ('SEPARADA', 'Separada'), ('VENDIDA', 'Vendida'),
                ('ENTREGADA', 'Entregada'), ('BLOQUEADA', 'Bloqueada')]
     obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='unidades')
@@ -456,6 +464,11 @@ class Unidad(models.Model):
 
     def __str__(self):
         return f'{self.get_tipo_display()} {self.codigo}'
+
+    @property
+    def vendible(self):
+        """Las áreas comunes no se venden: su costo lo llevan las unidades vendibles."""
+        return self.tipo != 'COMUN'
 
 
 class VentaInmueble(models.Model):
@@ -486,7 +499,23 @@ class VentaInmueble(models.Model):
     ingreso = models.DecimalField('Ingreso reconocido (sin IGV)', max_digits=14, decimal_places=2, default=D0,
                                   editable=False)
     costo = models.DecimalField('Costo de las unidades', max_digits=14, decimal_places=2, default=D0, editable=False)
+    provision_garantia = models.DecimalField('Provisión de garantías', max_digits=14, decimal_places=2, default=D0,
+                                             editable=False)
+    exonerada_igv = models.BooleanField('Exonerada del IGV (vivienda)', default=False, editable=False)
     motivo_anulacion = models.CharField(max_length=200, blank=True, editable=False)
+    fecha_anulacion = models.DateField(null=True, blank=True, editable=False)
+    penalidad = models.DecimalField('Penalidad retenida', max_digits=14, decimal_places=2, default=D0, editable=False)
+    # ficha del comprador (prevención del lavado de activos, UIF-SBS)
+    FONDOS = [('', '—'), ('AHORROS', 'Ahorros propios'), ('CREDITO', 'Crédito hipotecario'),
+              ('VENTA_BIEN', 'Venta de otro bien'), ('HERENCIA', 'Herencia o donación'),
+              ('PRESTAMO', 'Préstamo de terceros'), ('NEGOCIO', 'Ingresos del negocio'), ('OTRO', 'Otro')]
+    ocupacion = models.CharField('Ocupación / actividad del comprador', max_length=120, blank=True)
+    origen_fondos = models.CharField('Origen de los fondos', max_length=10, choices=FONDOS, blank=True)
+    origen_fondos_detalle = models.CharField('Detalle del origen de los fondos', max_length=200, blank=True)
+    es_pep = models.BooleanField('Persona expuesta políticamente (PEP)', default=False)
+    pep_cargo = models.CharField('Cargo público (PEP)', max_length=120, blank=True)
+    declaracion_fondos = models.BooleanField('Declaración jurada de origen de fondos firmada', default=False,
+                                             help_text='Adjúntela en los sustentos de la venta')
     notas = models.TextField(blank=True)
     creado = models.DateTimeField(auto_now_add=True)
 
@@ -513,10 +542,16 @@ class VentaInmueble(models.Model):
     def saldo(self):
         return self.precio - self.cobrado
 
+    @property
+    def ficha_completa(self):
+        """Datos mínimos del comprador para la prevención del lavado de activos."""
+        return bool(self.ocupacion and self.origen_fondos and self.declaracion_fondos and
+                    (not self.es_pep or self.pep_cargo))
+
 
 class CuotaInmueble(models.Model):
-    CONCEPTOS = [('SEPARACION', 'Separación'), ('INICIAL', 'Cuota inicial'), ('CUOTA', 'Cuota'),
-                 ('BANCO', 'Desembolso del banco'), ('BONO', 'Bono / subsidio')]
+    CONCEPTOS = [('ARRAS', 'Arras de retractación'), ('SEPARACION', 'Separación'), ('INICIAL', 'Cuota inicial'),
+                 ('CUOTA', 'Cuota'), ('BANCO', 'Desembolso del banco'), ('BONO', 'Bono / subsidio')]
     venta = models.ForeignKey(VentaInmueble, on_delete=models.CASCADE, related_name='cuotas')
     numero = models.PositiveSmallIntegerField()
     concepto = models.CharField(max_length=10, choices=CONCEPTOS, default='CUOTA')
@@ -539,11 +574,33 @@ class CuotaInmueble(models.Model):
 
 
 class CobroInmueble(models.Model):
-    """Cobro de una cuota: su comprobante de anticipo (IGV sobre la construcción) y el ingreso a caja / bancos."""
+    """Cobro de una cuota: su comprobante de anticipo (IGV sobre la construcción) y el ingreso a caja / bancos. Las
+    arras de retractación no llevan comprobante hasta la minuta (entonces se emite y se aplica)."""
     cuota = models.ForeignKey(CuotaInmueble, on_delete=models.CASCADE, related_name='cobros')
     fecha = models.DateField()
     monto = models.DecimalField(max_digits=14, decimal_places=2)
-    comprobante = models.ForeignKey('ventas.Venta', on_delete=models.PROTECT, related_name='+')
+    comprobante = models.ForeignKey('ventas.Venta', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    movimiento = models.ForeignKey('finanzas.Movimiento', on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+')
+    aplicacion = models.ForeignKey('finanzas.Aplicacion', on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', help_text='Arras aplicadas al comprobante emitido con la minuta')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['fecha', 'id']
+
+    @property
+    def es_arras(self):
+        return self.cuota.concepto == 'ARRAS'
+
+
+class DevolucionInmueble(models.Model):
+    """Devolución al comprador que desiste: la nota de crédito del anticipo (o las arras, sin comprobante) y el pago."""
+    venta = models.ForeignKey(VentaInmueble, on_delete=models.CASCADE, related_name='devoluciones')
+    fecha = models.DateField()
+    monto = models.DecimalField(max_digits=14, decimal_places=2)
+    nota_credito = models.ForeignKey('ventas.Venta', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='+')
     movimiento = models.ForeignKey('finanzas.Movimiento', on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name='+')
     creado = models.DateTimeField(auto_now_add=True)

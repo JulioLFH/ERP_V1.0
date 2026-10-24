@@ -1,0 +1,18 @@
+{% load erp_tags %}<div class="card mt-3"><div class="card-header fw-semibold d-flex justify-content-between"><span>EPP entregados</span>
+  {% if objeto.operacion %}<span class="badge text-bg-success">Salida de almacén {{ objeto.operacion.numero }}</span>{% endif %}</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle small">
+    <thead><tr><th>EPP</th><th class="num">Cantidad</th><th>Reponer el</th><th></th></tr></thead>
+    <tbody>{% for l in lineas %}<tr><td>{{ l.producto.codigo }} {{ l.producto.nombre }}</td><td class="num">{{ l.cantidad|money }}</td><td>{{ l.reponer_el|date:'d/m/Y'|default:'—' }}</td>
+      <td>{% if not objeto.operacion and puede_registrar %}<form method="post">{% csrf_token %}<input type="hidden" name="id" value="{{ l.pk }}"><button name="accion" value="borrar_epp" class="btn btn-sm btn-outline-danger py-0"><i class="bi bi-x"></i></button></form>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="4" class="text-center text-muted py-3">Agregue los EPP.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if not objeto.operacion and puede_registrar %}<div class="card-body border-top">
+    <form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="linea_epp">
+      <div class="col-md-6"><label class="form-label small mb-0">EPP (producto del almacén)</label><select name="producto" class="form-select form-select-sm" required><option value="">—</option>{% for p in productos %}<option value="{{ p.pk }}">{{ p.codigo }} {{ p.nombre }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-md-2"><label class="form-label small mb-0">Cantidad</label><input name="cantidad" value="1" class="form-control form-control-sm"></div>
+      <div class="col-6 col-md-2"><label class="form-label small mb-0">Reponer en (días)</label><input name="reposicion_dias" value="0" class="form-control form-control-sm"></div>
+      <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-plus-lg"></i> Agregar</button></div></form>
+    {% if lineas %}<form method="post" class="mt-2">{% csrf_token %}<button name="accion" value="entregar_epp" class="btn btn-sm btn-success" onclick="return confirm('¿Registrar la salida de almacén de estos EPP?')"><i class="bi bi-box-arrow-up"></i> Entregar (salida de almacén)</button></form>{% endif %}
+  </div>{% endif %}
+  <div class="card-body small text-muted border-top">La salida va al gasto con el centro de costo del trabajador (o el de la obra). Adjunte el cargo de entrega firmado por el trabajador en los sustentos.</div>
+</div>

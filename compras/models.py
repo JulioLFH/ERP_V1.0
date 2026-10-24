@@ -107,6 +107,15 @@ class Compra(ComprobanteBase):
     ]
     DE_ALMACEN = ('MERCADERIA', 'MATERIA_PRIMA', 'SUMINISTRO', 'ENVASE')  # clasificaciones de bienes que ingresan al almacén
     clasificacion = models.CharField('Clasificación', max_length=20, choices=CLASIFICACION, default='MERCADERIA')
+    # IGV de la compra según a qué operaciones se destina (Reglamento de la Ley del IGV, art. 6): solo gravadas da
+    # crédito completo; solo no gravadas, ninguno (el IGV va al costo); común, la prorrata de los últimos 12 meses
+    DESTINOS_IGV = [('GRAVADA', 'Operaciones gravadas o exportación'),
+                    ('COMUN', 'Gravadas y no gravadas (común: prorrata)'),
+                    ('NO_GRAVADA', 'Solo operaciones no gravadas (sin crédito fiscal)')]
+    destino_igv = models.CharField(
+        'Destino del IGV', max_length=10, choices=DESTINOS_IGV, default='GRAVADA',
+        help_text='Empresas con operaciones gravadas y no gravadas (ej. inmobiliaria con viviendas exoneradas): el '
+                  'IGV que no da crédito va al costo o gasto')
     orden_compra = models.ForeignKey(OrdenCompra, on_delete=models.SET_NULL, null=True, blank=True,
                                      related_name='compras', verbose_name='Orden de compra')
     doc_referencia = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True,

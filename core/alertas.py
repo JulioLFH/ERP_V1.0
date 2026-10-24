@@ -193,6 +193,13 @@ def calcular(user):
                                    reverse('planillas:trabajadores') + '?estado=sin_centro', n))
     if 'obras' in mods:
         alertas += _alertas_obras(hoy)
+    if 'sst' in mods or 'calidad' in mods:
+        alertas += _alertas_sst_calidad(user, mods)
+    from .models import Empresa
+    if user.is_superuser and not Empresa.objects.values_list('giros', flat=True).first():
+        alertas.append(_alerta('info', 'bi-sliders', 'Configure el giro y el régimen de la empresa',
+                               'Define la plantilla contable, el costeo, los módulos que se usan y los libros '
+                               'obligatorios (Ajustes › Giro y régimen).', reverse('empresa_giro'), 1))
     mes_anterior = (hoy.replace(day=1) - timedelta(days=1)).strftime('%Y%m')
     if 'activos' in mods and puede(user, 'activos.depreciar'):
         from activos.models import ActivoFijo
@@ -241,11 +248,54 @@ def _alertas_obras(hoy):
         salida.append(_alerta('danger', 'bi-house-exclamation', 'Cuotas inmobiliarias vencidas',
                               f'{len(cuotas)} cuota(s) vencidas por S/ {sum(c.monto - c.pagado for c in cuotas):,.2f}.',
                               reverse('obras:inm_cobranza'), len(cuotas)))
+    fichas = inmobiliario.fichas_incompletas()
+    if fichas:
+        salida.append(_alerta('warning', 'bi-person-vcard', 'Fichas del comprador incompletas (lavado de activos)',
+                              ', '.join(f'{v.numero} {v.cliente.nombre[:30]}' for v in fichas[:3]),
+                              reverse('obras:inm_reportes') + '?reporte=fichas', len(fichas)))
     separaciones = list(inmobiliario.separaciones_por_vencer())
     if separaciones:
         salida.append(_alerta('warning', 'bi-house-dash', 'Separaciones por vencer',
                               ', '.join(f'{v.numero} {v.cliente.nombre[:30]} ({v.vence_separacion:%d/%m})'
                                         for v in separaciones[:3]), reverse('obras:inm_cobranza'), len(separaciones)))
+    return salida
+
+
+def _alertas_sst_calidad(user, mods):
+    """SST: accidentes por notificar y vencimientos (EMO, SCTR, equipos, EPP, monitoreos). Registros por validar
+    (para quien valida) y acciones correctivas vencidas."""
+    from calidad.servicios import acciones_vencidas
+
+    from .validacion import pendientes
+    salida = []
+    if 'sst' in mods:
+        from sst.servicios import vencimientos
+        vence = vencimientos(15)
+        notificar = vence.pop('Accidentes por notificar', [])
+        vence.pop('Trabajadores sin examen médico', None)
+        if notificar:
+            salida.append(_alerta('danger', 'bi-exclamation-octagon', 'Accidentes por notificar a la autoridad',
+                                  ', '.join(f'{d} (hasta {f:%d/%m})' for _, f, d in notificar[:3]),
+                                  reverse('sst:registros') + '?tipo=eventos', len(notificar)))
+        total = sum(len(v) for v in vence.values())
+        if total:
+            salida.append(_alerta('warning', 'bi-heart-pulse', 'Vencimientos de SST en 15 días',
+                                  ', '.join(f'{k.lower()} ({len(v)})' for k, v in vence.items() if v),
+                                  reverse('sst:tablero'), total))
+    for modulo in ('sst', 'calidad'):
+        if modulo in mods and puede(user, f'{modulo}.validar'):
+            filas = [(m, pv) for m, pv, _ in pendientes() if getattr(m, 'MODULO', '') == modulo and pv]
+            if filas:
+                salida.append(_alerta('info', 'bi-patch-check', 'Registros por validar',
+                                      ', '.join(f'{m._meta.verbose_name_plural} ({n})' for m, n in filas),
+                                      reverse('sst:tablero' if modulo == 'sst' else 'calidad:tablero'),
+                                      sum(n for _, n in filas)))
+    vencidas = [a for a in acciones_vencidas() if a.modulo in mods]
+    if vencidas:
+        salida.append(_alerta('warning', 'bi-check2-square', 'Acciones correctivas vencidas',
+                              ', '.join(a.descripcion[:40] for a in vencidas[:3]),
+                              reverse('calidad:acciones') + '?estado=abiertas' if 'calidad' in mods else
+                              reverse('sst:tablero'), len(vencidas)))
     return salida
 
 

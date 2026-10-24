@@ -16,8 +16,9 @@ from core.utils import excel_response, fmt_fecha
 
 from . import inmobiliario as inm
 from . import licitaciones as lic_srv
-from .forms import (CobroForm, HitoForm, LicitacionForm, LicitacionNuevaForm, PerderForm, RequisitoForm, SepararForm,
-                    UnidadForm)
+from .inmobiliario import r2
+from .forms import (CobroForm, DesistimientoForm, FichaCompradorForm, HitoForm, LicitacionForm, LicitacionNuevaForm,
+                    PerderForm, RequisitoForm, SepararForm, UnidadForm)
 from .models import CuotaInmueble, Licitacion, Obra, Unidad, VentaInmueble
 
 
@@ -248,6 +249,19 @@ def unidades(request, pk):
             for e in errores[:10]:
                 messages.warning(request, e)
             return redirect('obras:unidades', pk)
+        if accion in ('terminar', 'deshacer_terminacion'):
+            try:
+                if accion == 'terminar':
+                    fecha = request.POST.get('fecha')
+                    inm.terminar(obra, date.fromisoformat(fecha) if fecha else None)
+                    messages.success(request, 'Proyecto terminado: sus inmuebles pasan a terminados y se deja de '
+                                              'activar costos (al centralizar el mes).')
+                else:
+                    inm.deshacer_terminacion(obra)
+                    messages.info(request, 'Se deshizo la terminación del proyecto.')
+            except (inm.ErrorInmobiliario, ValueError) as exc:
+                messages.error(request, str(exc))
+            return redirect('obras:unidades', pk)
         if accion in ('bloquear', 'liberar', 'borrar', 'precio'):
             u = obra.unidades.filter(pk=request.POST.get('id')).first()
             if u is None:
@@ -267,6 +281,14 @@ def unidades(request, pk):
             else:
                 messages.error(request, 'La unidad ya tiene ventas: no se modifica su estado desde aquí.')
             return redirect('obras:unidades', pk)
+    if request.GET.get('formato') == 'inventario':
+        return excel_response(f'Inventario_unidades_{obra.codigo}',
+                              f'Registro de inventario permanente valorizado por unidad · {obra.nombre}', [
+                                  'Código', 'Tipo', 'Piso', 'Área techada', 'Costo asignado', 'Situación',
+                                  'En inventario'],
+                              [[f['unidad'].codigo, f['unidad'].get_tipo_display(), f['unidad'].piso,
+                                f['unidad'].area_techada, f['costo'], f['situacion'], 'Sí' if f['en_stock'] else 'No']
+                               for f in inm.inventario_unidades(obra)])
     t = inm.tablero(obra)
     if request.GET.get('formato') == 'excel':
         return excel_response(f'Unidades_{obra.codigo}', f'Unidades del proyecto {obra.nombre}', [
@@ -277,7 +299,7 @@ def unidades(request, pk):
               u.margen_pct] for u in t['unidades']])
     ventas = obra.ventas_inmuebles.select_related('cliente').prefetch_related('unidades', 'cuotas__cobros')
     return render(request, 'obras/unidades.html', {'o': obra, 't': t, 'form': form, 'ventas': ventas,
-                                                   'estados': Unidad.ESTADOS})
+                                                   'estados': Unidad.ESTADOS, 'hoy': timezone.localdate()})
 
 
 @login_required
@@ -296,32 +318,65 @@ def separar(request, pk):
         try:
             filas = inm.cronograma(precio, d['financiamiento'], d['fecha'], d.get('separacion'), d.get('inicial'),
                                    d.get('fecha_inicial'), d.get('cuotas'), d.get('primera_cuota'), d.get('bono'),
-                                   d.get('fecha_banco'))
+                                   d.get('fecha_banco'), arras=d.get('arras'))
             v = inm.separar(obra, unidades_, d['cliente'], precio, request.user, filas, d['financiamiento'],
                             d.get('banco') or '', d['fecha'], d.get('vence_separacion'), d.get('oportunidad'),
                             notas=d.get('notas') or '')
-            messages.success(request, f'Venta {v.numero} registrada como separación con {v.cuotas.count()} cuota(s). '
-                                      f'Cobre la separación para emitir su comprobante.')
+            messages.success(request, f'Venta {v.numero} registrada como separación con {v.cuotas.count()} cuota(s)'
+                                      f'{" (exonerada del IGV: vivienda dentro del límite)" if v.exonerada_igv else ""}.'
+                                      f' Complete la ficha del comprador y cobre la separación.')
             return redirect('obras:venta_inmueble', v.pk)
         except inm.ErrorInmobiliario as exc:
             form.add_error(None, str(exc))
+    from core import parametros
+    exo = parametros.valor('INM_EXONERACION_UIT', hoy)
     return render(request, 'core/form.html', {
         'form': form, 'titulo': f'Separar unidades · {obra.nombre}',
-        'ayuda': 'El cronograma se arma con la separación, la cuota inicial, el bono y el saldo: en cuotas mensuales '
-                 '(financiamiento directo), con el desembolso del banco (crédito hipotecario o MiVivienda) o al '
-                 'contado en la fecha de la cuota inicial. Cada cobro emite su comprobante de anticipo.'})
+        'ayuda': 'El cronograma se arma con la separación (o arras de retractación, sin IGV hasta el '
+                 f'{parametros.valor("INM_ARRAS_PCT", hoy):g} % del precio), la cuota inicial, el bono y el saldo: en '
+                 'cuotas mensuales (financiamiento directo), con el desembolso del banco (crédito hipotecario o '
+                 'MiVivienda) o al contado en la fecha de la cuota inicial. Cada cobro emite su comprobante de '
+                 'anticipo. ' + (f'La vivienda de hasta {exo:g} UIT (S/ {exo * parametros.uit(hoy):,.2f}) va '
+                                 f'exonerada del IGV.' if exo else 'Hoy no hay exoneración del IGV para vivienda '
+                                                                   '(Ajustes › Parámetros tributarios).')})
 
 
 @login_required
 def venta_inmueble(request, pk):
+    from core import parametros
     v = get_object_or_404(VentaInmueble.objects.select_related('obra', 'cliente', 'vendedor', 'oportunidad'), pk=pk)
-    if request.method == 'POST':
-        accion = request.POST.get('accion')
+    hoy = timezone.localdate()
+    accion = request.POST.get('accion') if request.method == 'POST' else None
+    ficha = FichaCompradorForm(request.POST if accion == 'ficha' else None, instance=v)
+    cobrado = v.cobrado
+    penalidad = min(r2(v.precio * parametros.valor('INM_PENALIDAD_PCT', hoy) / 100), cobrado)
+    desistimiento = DesistimientoForm(request.POST if accion == 'desistir' else None, initial={
+        'penalidad': penalidad, 'fecha': hoy, 'cuenta': v.obra.cuenta_recaudadora_id, 'medio_pago': 'TRANSFERENCIA'})
+    if accion == 'ficha':
+        if ficha.is_valid():
+            ficha.save()
+            messages.success(request, 'Ficha del comprador guardada.')
+            return redirect('obras:venta_inmueble', pk)
+    elif accion == 'desistir':
+        if not puede(request.user, 'tesoreria.registrar'):
+            messages.error(request, 'La devolución requiere el permiso de Tesorería «registrar cobros y pagos».')
+            return redirect('obras:venta_inmueble', pk)
+        if desistimiento.is_valid():
+            d = desistimiento.cleaned_data
+            try:
+                inm.desistir(v, d['motivo'], d['penalidad'], d['fecha'], d.get('cuenta'), request.user,
+                             d['medio_pago'], d.get('numero_operacion') or '')
+                messages.info(request, f'Desistimiento registrado: se devolvió S/ {cobrado - v.penalidad:,.2f} y se '
+                                       f'retuvo S/ {v.penalidad:,.2f}; las unidades vuelven a estar disponibles.')
+                return redirect('obras:venta_inmueble', pk)
+            except inm.ErrorInmobiliario as exc:
+                desistimiento.add_error(None, str(exc))
+    elif accion:
         try:
             fecha = request.POST.get('fecha')
             fecha = date.fromisoformat(fecha) if fecha else None
             if accion == 'minuta':
-                inm.firmar_minuta(v, fecha)
+                inm.firmar_minuta(v, fecha, request.user)
                 messages.success(request, 'Minuta firmada: la venta pasó a Vendida.')
             elif accion == 'entregar':
                 inm.entregar(v, fecha)
@@ -334,9 +389,12 @@ def venta_inmueble(request, pk):
             messages.error(request, str(exc))
         return redirect('obras:venta_inmueble', pk)
     cuotas = list(v.cuotas.prefetch_related('cobros__comprobante', 'cobros__movimiento'))
+    umbral = parametros.valor('UIF_RO_USD', v.fecha_separacion) * inm.tipo_cambio(v.fecha_separacion)
     return render(request, 'obras/venta_inmueble.html', {
-        'v': v, 'cuotas': cuotas, 'unidades': v.unidades.all(), 'hoy': timezone.localdate(),
-        'cobrado': sum((c.cobrado for c in cuotas), Decimal('0')), 'margen': v.ingreso - v.costo,
+        'v': v, 'cuotas': cuotas, 'unidades': v.unidades.all(), 'hoy': hoy, 'cobrado': cobrado,
+        'margen': v.ingreso - v.costo - v.provision_garantia, 'ficha': ficha, 'desistimiento': desistimiento,
+        'devoluciones': v.devoluciones.select_related('nota_credito', 'movimiento'),
+        'requiere_ficha': v.precio >= umbral, 'umbral_ficha': umbral,
         'puede_cobrar': puede(request.user, 'tesoreria.registrar') and puede(request.user, 'obras.vender')})
 
 
@@ -356,17 +414,29 @@ def cobrar(request, pk):
         try:
             cobro = inm.cobrar(cuota, d['monto'], d['fecha'], d['cuenta'], request.user, d['medio_pago'],
                                d.get('numero_operacion') or '', d.get('sustento'))
-            messages.success(request, f'Cobro registrado con el comprobante {cobro.comprobante.numero_completo} '
-                                      f'(anticipo) y su ingreso en {cobro.movimiento.cuenta}.')
+            if cobro.comprobante_id:
+                messages.success(request, f'Cobro registrado con el comprobante {cobro.comprobante.numero_completo} '
+                                          f'(anticipo) y su ingreso en {cobro.movimiento.cuenta}.')
+            else:
+                messages.success(request, f'Arras registradas en {cobro.movimiento.cuenta} (sin comprobante: se emite '
+                                          f'con la minuta).')
             return redirect('obras:venta_inmueble', v.pk)
         except inm.ErrorInmobiliario as exc:
             form.add_error(None, str(exc))
+    from core import parametros
     tipo = 'factura' if v.cliente.tipo_doc == '6' else 'boleta'
+    if cuota.concepto == 'ARRAS' and v.estado == 'SEPARADA':
+        detalle = 'Arras de retractación: sin IGV ni comprobante hasta la minuta (van a la cuenta de arras).'
+    elif v.exonerada_igv:
+        detalle = f'Se emite una {tipo} de anticipo exonerada del IGV (vivienda dentro del límite).'
+    else:
+        detalle = (f'Se emite una {tipo} de anticipo: la construcción con IGV y el terreno ({v.terreno_pct:g} % del '
+                   f'valor) inafecto; el ingreso queda como anticipo hasta la entrega.')
+    tope = parametros.valor('BANCARIZACION_SOLES')
     return render(request, 'core/form.html', {
         'form': form, 'titulo': f'Cobrar {cuota} · {v.numero} {v.cliente.nombre}',
-        'ayuda': f'Saldo de la cuota: S/ {cuota.saldo:,.2f}. Se emite una {tipo} de anticipo: la construcción con IGV '
-                 f'y el terreno ({v.terreno_pct:g} % del valor) inafecto; el ingreso queda como anticipo hasta la '
-                 f'entrega.'})
+        'ayuda': f'Saldo de la cuota: S/ {cuota.saldo:,.2f}. {detalle} Desde S/ {tope:,.2f} no se acepta efectivo y se '
+                 f'pide el N° de operación (bancarización).'})
 
 
 @login_required
@@ -393,3 +463,113 @@ def cobranza(request):
         'vencidas': vencidas, 'proximas': proximas, 'separaciones': inm.separaciones_por_vencer(7),
         'total_vencido': sum((c.pendiente for c in vencidas), Decimal('0')), 'hoy': hoy,
         'obras': Obra.objects.filter(tipo='INMOBILIARIA'), 'obra_id': obra_id})
+
+
+REPORTES_INMOBILIARIOS = [
+    ('anticipos', 'Anticipos por aplicar'), ('compradores', 'Cobranza por comprador'),
+    ('flujo', 'Flujo de caja del proyecto'), ('margen', 'Margen por unidad y por proyecto'),
+    ('operaciones', 'Registro de operaciones (UIF)'), ('predial', 'Unidades en propiedad (predial)'),
+    ('fichas', 'Fichas del comprador incompletas')]
+
+
+def _reporte_inmobiliario(clave, obra, desde, hasta):
+    """(columnas, filas, totales) del reporte."""
+    if clave == 'anticipos':
+        filas = inm.anticipos_por_aplicar(obra)
+        return (['Proyecto', 'Venta', 'Comprador', 'Estado', 'Precio', 'Cobrado', 'Anticipo sin IGV (122)', 'Arras',
+                 'Saldo'],
+                [[f['venta'].obra.nombre, f['venta'].numero, f['venta'].cliente.nombre,
+                  f['venta'].get_estado_display(), f['venta'].precio, f['cobrado'], f['anticipo'], f['arras'],
+                  f['saldo']] for f in filas],
+                ['', '', 'Total', '', None, sum((f['cobrado'] for f in filas), Decimal('0')),
+                 sum((f['anticipo'] for f in filas), Decimal('0')), sum((f['arras'] for f in filas), Decimal('0')),
+                 sum((f['saldo'] for f in filas), Decimal('0'))])
+    if clave == 'compradores':
+        filas = inm.cobranza_por_comprador(obra)
+        return (['Comprador', 'Documento', 'Ventas', 'Precio', 'Cobrado', 'Saldo', 'Vencido'],
+                [[g['cliente'].nombre, g['cliente'].numero_doc, ', '.join(v.numero for v in g['ventas']),
+                  g['precio'], g['cobrado'], g['saldo'], g['vencido']] for g in filas],
+                ['Total', '', '', sum((g['precio'] for g in filas), Decimal('0')),
+                 sum((g['cobrado'] for g in filas), Decimal('0')), sum((g['saldo'] for g in filas), Decimal('0')),
+                 sum((g['vencido'] for g in filas), Decimal('0'))])
+    if clave == 'flujo':
+        if obra is None:
+            return ['Elija un proyecto'], [], None
+        filas = inm.flujo_proyecto(obra)
+        return (['Mes', 'Cobrado a compradores', 'Pagado (proveedores y egresos de la obra)', 'Neto', 'Acumulado',
+                 'Cuotas por cobrar'],
+                [[f'{f["periodo"][4:]}/{f["periodo"][:4]}', f['ingresos'], f['egresos'], f['neto'], f['acumulado'],
+                  f['por_cobrar']] for f in filas], None)
+    if clave == 'margen':
+        obras = [obra] if obra else list(Obra.objects.filter(tipo='INMOBILIARIA'))
+        filas, totales = [], [Decimal('0')] * 4
+        for o in obras:
+            t = inm.tablero(o)
+            for u in t['unidades']:
+                if u.vendible:
+                    filas.append([o.nombre, u.codigo, u.get_tipo_display(), u.area_techada, u.get_estado_display(),
+                                  u.valor, u.costo, u.margen, u.margen_pct])
+            ventas = sum((u.valor for u in t['unidades'] if u.vendible), Decimal('0'))
+            filas.append([o.nombre, 'TOTAL DEL PROYECTO', '', t['area'], '', ventas, t['costo'], t['margen'],
+                          (t['margen'] * 100 / ventas).quantize(Decimal('0.1')) if ventas else None])
+        return ['Proyecto', 'Unidad', 'Tipo', 'Área techada', 'Estado', 'Valor sin IGV', 'Costo', 'Margen',
+                'Margen %'], filas, None
+    if clave == 'operaciones':
+        r = inm.registro_operaciones(desde, hasta)
+        filas = [[fmt_fecha(c.fecha), c.cuota.venta.cliente.nombre, c.cuota.venta.cliente.numero_doc,
+                  c.cuota.venta.numero, 'Individual', c.monto, c.usd, c.movimiento.get_medio_pago_display()
+                  if c.movimiento_id else ''] for c in r['individuales']]
+        filas += [[f'{m["periodo"][4:]}/{m["periodo"][:4]}', m['cliente'].nombre, m['cliente'].numero_doc,
+                   ', '.join(sorted({c.cuota.venta.numero for c in m['cobros']})), f'Múltiple ({len(m["cobros"])})',
+                   sum((c.monto for c in m['cobros']), Decimal('0')), m['usd'], ''] for m in r['multiples']]
+        return ['Fecha / mes', 'Comprador', 'Documento', 'Venta', 'Operación', 'Monto S/', 'US$', 'Medio de pago'], \
+            filas, None
+    if clave == 'predial':
+        filas = inm.unidades_al(desde)
+        return (['Proyecto', 'Unidad', 'Tipo', 'Piso', 'Área techada', 'Área libre', 'Costo a la fecha'],
+                [[f['obra'].nombre, f['unidad'].codigo, f['unidad'].get_tipo_display(), f['unidad'].piso,
+                  f['unidad'].area_techada, f['unidad'].area_libre, f['costo']] for f in filas
+                 if obra is None or f['obra'].pk == obra.pk], None)
+    filas = [v for v in inm.fichas_incompletas() if obra is None or v.obra_id == obra.pk]
+    return (['Proyecto', 'Venta', 'Comprador', 'Precio', 'Ocupación', 'Origen de fondos', 'PEP', 'Declaración'],
+            [[v.obra.nombre, v.numero, v.cliente.nombre, v.precio, v.ocupacion or '—',
+              v.get_origen_fondos_display() if v.origen_fondos else '—', 'Sí' if v.es_pep else 'No',
+              'Sí' if v.declaracion_fondos else 'No'] for v in filas], None)
+
+
+@login_required
+def reportes_inmobiliarios(request):
+    hoy = timezone.localdate()
+    clave = request.GET.get('reporte') or 'anticipos'
+    if clave not in dict(REPORTES_INMOBILIARIOS):
+        clave = 'anticipos'
+    obras = Obra.objects.filter(tipo='INMOBILIARIA')
+    obra = obras.filter(pk=request.GET.get('obra')).first() if (request.GET.get('obra') or '').isdigit() else None
+    try:
+        desde = date.fromisoformat(request.GET.get('desde')) if request.GET.get('desde') else (
+            hoy.replace(month=1, day=1) if clave == 'predial' else hoy.replace(day=1))
+        hasta = date.fromisoformat(request.GET.get('hasta')) if request.GET.get('hasta') else hoy
+    except ValueError:
+        desde, hasta = hoy.replace(day=1), hoy
+    columnas, filas, totales = _reporte_inmobiliario(clave, obra, desde, hasta)
+    titulo = dict(REPORTES_INMOBILIARIOS)[clave]
+    if request.GET.get('formato') == 'excel':
+        return excel_response(f'Inmobiliario_{clave}', f'{titulo}{" · " + obra.nombre if obra else ""}', columnas,
+                              filas + ([totales] if totales else []))
+    return render(request, 'obras/reportes_inmobiliarios.html', {
+        'reportes': REPORTES_INMOBILIARIOS, 'clave': clave, 'titulo': titulo, 'obras': obras, 'obra': obra,
+        'columnas': columnas, 'filas': filas, 'totales': totales, 'desde': desde, 'hasta': hasta,
+        'con_fechas': clave in ('operaciones', 'predial')})
+
+
+@login_required
+def sobrantes(request):
+    from .cierre import sobrantes_por_obra
+    datos = sobrantes_por_obra()
+    if request.GET.get('formato') == 'excel':
+        return excel_response('Sobrantes_por_obra', 'Sobrantes valorizados en los almacenes de obra', [
+            'Obra', 'Estado', 'Almacén', 'Producto', 'Cantidad', 'Costo promedio', 'Valor'],
+            [[d['obra'].nombre, d['obra'].get_estado_display(), str(d['obra'].almacen), p.nombre, c, costo, valor]
+             for d in datos for p, c, costo, valor in d['filas']])
+    return render(request, 'obras/sobrantes.html', {'datos': datos,
+                                                    'total': sum((d['valor'] for d in datos), Decimal('0'))})

@@ -58,7 +58,21 @@ class ObraEditar(FormGenerico, UpdateView):
     model, form_class, titulo = Obra, ObraForm, 'Editar obra'
 
     def form_valid(self, form):
+        from .cierre import CERRADAS, ErrorCierre, cerrar, reabrir, validar_cierre
+        antes, nuevo = Obra.objects.get(pk=self.object.pk).estado, form.cleaned_data['estado']
+        try:
+            if nuevo in CERRADAS and antes not in CERRADAS:
+                validar_cierre(self.object)  # el almacén de la obra debe quedar en cero
+            elif antes in CERRADAS and nuevo not in CERRADAS:
+                reabrir(self.object, self.request.user, form.cleaned_data.get('motivo_cambio'))
+        except ErrorCierre as exc:
+            form.add_error('estado', str(exc))
+            return self.form_invalid(form)
         respuesta = super().form_valid(form)
+        if nuevo in CERRADAS and antes not in CERRADAS:
+            cerrar(self.object, self.request.user)
+            messages.info(self.request, 'Obra cerrada: su almacén solo admite ajustes y su centro de costo quedó '
+                                        'inactivo.')
         if 'tipo' in form.changed_data and self.object.tipo == 'INMOBILIARIA':
             from .inmobiliario import al_volverse_inmobiliaria
             al_volverse_inmobiliaria(self.object)  # sus costos ya contabilizados se activan al centralizar

@@ -1,0 +1,15 @@
+{% load erp_tags %}<style>.sem-verde { background: #16a34a; } .sem-ambar { background: #f59e0b; } .sem-rojo { background: #dc2626; } .sem { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; }</style>
+<div class="card mt-3"><div class="card-header fw-semibold">Valores del año</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 small"><thead><tr>{% for s in serie %}<th class="text-center">{{ s.periodo|slice:'4:' }}</th>{% endfor %}</tr></thead>
+    <tbody><tr>{% for s in serie %}<td class="text-center">{% if s.valor is not None %}<span class="sem sem-{{ s.semaforo }}"></span> {{ s.valor|floatformat:'-2' }}{% else %}—{% endif %}</td>{% empty %}<td class="text-muted">Sin datos.</td>{% endfor %}</tr></tbody></table></div>
+  {% if objeto.fuente == 'MANUAL' %}
+  <div class="card-body border-top">
+    {% if puede_registrar %}<form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="medicion">
+      <div class="col-md-3"><label class="form-label small mb-0">Mes</label><input type="month" name="periodo" class="form-control form-control-sm" required></div>
+      <div class="col-md-2"><label class="form-label small mb-0">Valor</label><input name="valor" class="form-control form-control-sm" required></div>
+      <div class="col-md-4"><label class="form-label small mb-0">Evidencia</label><input type="file" name="evidencia" class="form-control form-control-sm"></div>
+      <div class="col-md-3"><button class="btn btn-sm btn-outline-primary w-100">Registrar medición</button></div>
+      <div class="col-12"><input name="nota" class="form-control form-control-sm" placeholder="Nota (opcional)"></div></form>{% endif %}
+    <ul class="list-unstyled small mt-2 mb-0">{% for m in mediciones %}<li>{{ m.periodo|slice:'4:' }}/{{ m.periodo|slice:':4' }}: <b>{{ m.valor|floatformat:'-2' }}</b>{% if m.nota %} · {{ m.nota }}{% endif %}{% for s in m|sustentos %} · <a href="{% url 'sustento_ver' s.pk %}" target="_blank"><i class="bi bi-paperclip"></i> {{ s.archivo.nombre|truncatechars:24 }}</a>{% endfor %}</li>{% endfor %}</ul>
+  </div>{% else %}<div class="card-body small text-muted border-top">Se calcula solo con los datos de Ceiba ({{ objeto.get_fuente_display|lower }}).</div>{% endif %}
+</div>

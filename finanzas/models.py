@@ -730,6 +730,11 @@ class Prestamo(models.Model):
                                       blank=True, related_name='+', limit_choices_to={'imputable': True},
                                       verbose_name='Cuenta del bien (leasing)',
                                       help_text='Leasing: cuenta 32 del activo. Vacío = la configurada')
+    centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='+', verbose_name='Centro de costo de los intereses',
+                                     help_text='Ej. la obra o el proyecto inmobiliario que financia: en un proyecto '
+                                               'inmobiliario los intereses se activan al costo hasta su terminación '
+                                               '(NIC 23)')
     estado = models.CharField(max_length=10, choices=ESTADOS, default='VIGENTE')
     creado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, related_name='+',
                                    editable=False)

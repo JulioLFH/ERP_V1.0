@@ -173,6 +173,22 @@ class Empresa(models.Model):
         'Segregación de funciones estricta', default=False,
         help_text='Nadie aprueba lo que registró (órdenes de compra, requerimientos, planillas), ni siquiera el '
                   'administrador, mientras haya otro usuario activo que pueda hacerlo')
+    # ---- giro y régimen (asistente «Giro y régimen tributario»; se cambian allí y quedan en la auditoría)
+    GIROS = [('COMERCIAL', 'Comercializadora'), ('MANUFACTURA', 'Manufactura'),
+             ('CONSTRUCCION', 'Construcción por contrato'), ('INMOBILIARIA', 'Inmobiliaria (venta de inmuebles)'),
+             ('SERVICIOS', 'Servicios')]
+    REGIMENES = [('GENERAL', 'Régimen General'), ('MYPE', 'Régimen MYPE Tributario'),
+                 ('RER', 'Régimen Especial (RER)'), ('NRUS', 'Nuevo RUS')]
+    COSTEOS = [('NATURALEZA', 'Sin costeo: gasto directo por naturaleza (sin clase 9)'),
+               ('PROCESOS', 'Costeo por procesos (manufactura)'), ('ORDENES', 'Costeo por órdenes u obras')]
+    giros = models.JSONField('Giros del negocio', default=list, blank=True, editable=False)
+    ciiu = models.CharField('CIIU', max_length=10, blank=True, editable=False)
+    actividad_economica = models.CharField('Actividad económica (SUNAT)', max_length=200, blank=True, editable=False)
+    regimen_tributario = models.CharField('Régimen tributario', max_length=7, choices=REGIMENES, default='GENERAL',
+                                          editable=False)
+    sistema_costeo = models.CharField('Sistema de costeo', max_length=10, choices=COSTEOS, default='PROCESOS',
+                                      editable=False)
+    modulos_ocultos = models.JSONField('Módulos que no usa la empresa', default=list, blank=True, editable=False)
 
     class Meta:
         verbose_name = 'empresa'
@@ -719,6 +735,8 @@ class Almacen(models.Model):
     responsables = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name='almacenes_a_cargo',
                                           help_text='Usuarios responsables del almacén')
     activo = models.BooleanField(default=True)
+    cerrado = models.BooleanField('Cerrado', default=False, editable=False,
+                                  help_text='Almacén de una obra liquidada o cerrada: solo admite ajustes de inventario')
 
     class Meta:
         ordering = ['-es_principal', 'nombre']
@@ -729,8 +747,15 @@ class Almacen(models.Model):
         return self.nombre
 
     def validar_operacion(self, origen, concepto, referencia=''):
-        """El almacén permite el movimiento (operaciones permitidas). Las reversiones y anulaciones siempre pasan."""
-        if not self.operaciones or str(referencia).startswith(('Reversión', 'Anulación')):
+        """El almacén permite el movimiento (operaciones permitidas). Las reversiones y anulaciones siempre pasan; un
+        almacén cerrado (obra liquidada) solo admite ajustes de inventario."""
+        if str(referencia).startswith(('Reversión', 'Anulación')):
+            return
+        if self.cerrado and origen != 'AJUSTE':
+            from inventario.cierre import KardexCerrado
+            raise KardexCerrado(f'El almacén {self} está cerrado (obra liquidada o cerrada): solo admite ajustes de '
+                                f'inventario. Reabra la obra para moverlo.')
+        if not self.operaciones:
             return
         categoria = categoria_movimiento(origen, concepto)
         if categoria and categoria not in self.operaciones:
@@ -2030,3 +2055,42 @@ class ElectronicoMixin(models.Model):
 
     class Meta:
         abstract = True
+
+
+class ParametroTributario(models.Model):
+    """Valor de un parámetro legal o de política (UIT, tasas, umbrales, porcentajes) desde una fecha: cada operación
+    usa el vigente a su fecha y queda la historia. Los valores por defecto y su norma están en core.parametros."""
+    clave = models.CharField(max_length=40)
+    valor = models.DecimalField(max_digits=16, decimal_places=4)
+    desde = models.DateField('Vigente desde')
+    nota = models.CharField('Norma o sustento', max_length=200, blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['clave', '-desde']
+        unique_together = [('clave', 'desde')]
+        verbose_name = 'parámetro tributario'
+        verbose_name_plural = 'parámetros tributarios'
+
+    def __str__(self):
+        return f'{self.clave} = {self.valor} desde {self.desde:%d/%m/%Y}'
+
+
+class ReglaValidacion(models.Model):
+    """Registros de SST y de calidad que exigen la validación de un especialista: el registro validado y firmado
+    (PDF o imagen) se adjunta antes de darlo por validado (core.validacion)."""
+    tipo = models.CharField('Tipo de registro', max_length=40, unique=True)
+    requiere = models.BooleanField('Requiere validación', default=True)
+    especialista = models.CharField('Quién valida', max_length=120, blank=True,
+                                    help_text='Ej. jefe o supervisor de SST, médico ocupacional, comité de SST, '
+                                              'auditor')
+
+    class Meta:
+        ordering = ['tipo']
+        verbose_name = 'regla de validación'
+        verbose_name_plural = 'reglas de validación'
+
+    def __str__(self):
+        return self.tipo

@@ -13,8 +13,8 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         fields = ['tipo_comprobante', 'serie', 'numero', 'tercero', 'fecha_emision', 'fecha_vencimiento', 'periodo',
                   'clasificacion', 'forma_pago', 'moneda', 'tipo_cambio', 'tipo_operacion', 'detraccion_pct',
                   'detraccion_constancia', 'detraccion_fecha', 'retencion_pct', 'percepcion_pct', 'icbper', 'orden_compra', 'doc_referencia',
-                  'ingresar_almacen', 'almacen', 'centro_costo', 'cuenta_contable', 'valor_aduana', 'igv_importacion',
-                  'glosa']
+                  'ingresar_almacen', 'almacen', 'centro_costo', 'cuenta_contable', 'destino_igv', 'valor_aduana',
+                  'igv_importacion', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2})}
         labels = {'tercero': 'Proveedor'}
 
@@ -30,12 +30,16 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         remoto(self.fields['doc_referencia'], 'compras', perezoso=True)
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
         self.fields['valor_aduana'].required = False  # solo la DUA (tipo 50)
+        self.fields['destino_igv'].required = False  # vacío = operaciones gravadas
         if not self.instance.pk:
             self.fields['detraccion_pct'].help_text = ('0 = el % del producto, si la factura supera S/ 700 '
                                                        '(Productos › Detracción)')
 
     def clean_valor_aduana(self):
         return self.cleaned_data.get('valor_aduana') or 0
+
+    def clean_destino_igv(self):
+        return self.cleaned_data.get('destino_igv') or 'GRAVADA'
 
     def clean(self):
         data = super().clean()

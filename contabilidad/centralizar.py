@@ -250,7 +250,10 @@ def asiento_compra(c, cta):
     doc = f'{c.tipo_comprobante} {c.numero_completo}'
     honorarios = c.tipo_comprobante == '02'
     ajuste = getattr(c, 'ajuste_pen', D0)  # redondeo del proveedor: a su propia cuenta, no al gasto
-    base = c.total_pen - c.igv_pen - ajuste
+    # IGV sin crédito fiscal (compra para operaciones no gravadas o la parte no prorrateada de una común): al costo
+    from .prorrata import partir_igv
+    igv_credito, igv_costo = partir_igv(c)
+    base = c.total_pen - c.igv_pen - ajuste + igv_costo
     cuenta_gasto = c.cuenta_contable or cta.get(f'compra_{c.clasificacion}') or cta['compra_GASTO']
     # los productos de almacén (suministros, insumos, mercadería) van siempre a su cuenta de compra: ingresan a sus
     # existencias (20-25) y el gasto con su centro de costo nace al consumirlos (requerimiento); en lo demás manda la
@@ -266,14 +269,15 @@ def asiento_compra(c, cta):
         pesos = {cuenta_gasto: Decimal('1')}
     total_items = sum(pesos.values(), D0)
     centros = _distribucion_compra(c)  # factura de una rendición repartida en varios centros de costo
+    igv_me_costo = c.igv * igv_costo / c.igv_pen if c.igv_pen else D0
     for cuenta, parte in _repartir(base, pesos):
-        me = (c.total - c.igv) * pesos[cuenta] / total_items
+        me = (c.total - c.igv + igv_me_costo) * pesos[cuenta] / total_items
         if centros:
             for centro, sub in _repartir(parte, centros):
                 b.add(cuenta, debe=sub, documento=doc, centro_costo=centro, importe_me=me * centros[centro] / 100)
         else:
             b.add(cuenta, debe=parte, documento=doc, centro_costo=c.centro_costo, importe_me=me)
-    b.add(cta['igv'], debe=c.igv_pen, documento=doc, importe_me=c.igv)
+    b.add(cta['igv'], debe=igv_credito, documento=doc, importe_me=c.igv - igv_me_costo)
     if ajuste > 0:
         b.add(cta.get('redondeo_perdida') or cta['egreso_otro'], debe=ajuste, documento=doc,
               glosa='Diferencia de redondeo del proveedor', importe_me=c.ajuste_redondeo)
@@ -316,10 +320,12 @@ def asiento_movimiento(m, cta, tc_func):
                   (cta['leasing_interes' if leasing else 'prestamo_interes'], c.interes, 'Intereses'),
                   (cta['mov_GASTO_BANCARIO'], c.comision, 'Comisiones y seguros'), (cta['igv'], c.igv, 'IGV')]
         resto = importe_caja
+        centro = c.prestamo.centro_costo  # intereses de la obra o del proyecto que financia (NIC 23)
         for n, (cuenta, importe, glosa) in enumerate(p for p in partes if p[1]):
             en_soles = r2(importe * tc_dia)
             resto -= en_soles
-            b.add(cuenta, debe=en_soles, tercero=tercero, documento=doc, glosa=glosa, importe_me=importe)
+            b.add(cuenta, debe=en_soles, tercero=tercero, documento=doc, glosa=glosa, importe_me=importe,
+                  centro_costo=centro if glosa in ('Intereses', 'Comisiones y seguros') else None)
         if resto:  # redondeo del tipo de cambio: al interés
             b.add(partes[1][0], debe=resto, documento=doc, glosa='Redondeo')
         b.add(caja, haber=importe_caja, documento=doc, importe_me=m.monto)
@@ -759,6 +765,8 @@ def centralizar_periodo(periodo):
         return {'compras': 0, 'ventas': 0, 'tesoreria': 0, 'costo': 0, 'errores': [], 'migrado': True}
     cta = CuentaDefecto.mapa()
     _DESTINOS.clear()
+    from .prorrata import limpiar
+    limpiar()  # coeficiente de la prorrata con las ventas al día
     from core.tipo_cambio import obtener, venta_del_dia
     cache_tc = {}
 

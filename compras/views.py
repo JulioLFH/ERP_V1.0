@@ -139,14 +139,17 @@ class ComprasViews(ComprobanteViews):
         ref = d.doc_referencia
         s = d.signo
         anulado = d.estado == 'ANULADO'
+        # DUA (50): la base del IGV de importación es el valor en aduana más los tributos (ad valorem)
+        base = 0 if anulado else s * (d.base_imponible + (d.valor_aduana + d.no_gravado if d.es_dua else 0))
+        igv = 0 if anulado else s * d.igv
+        # base e IGV según el destino: campos 14-15 gravadas, 16-17 gravadas y no gravadas, 18-19 no gravadas
+        columnas = {'GRAVADA': 0, 'COMUN': 1, 'NO_GRAVADA': 2}.get(d.destino_igv, 0)
+        destinos = ['0.00'] * 6
+        destinos[columnas * 2], destinos[columnas * 2 + 1] = ple_num(base), ple_num(igv)
         campos = [
             f'{periodo}00', f'C{n:06d}', f'M{n:06d}', fmt_fecha(d.fecha_emision), fmt_fecha(d.fecha_vencimiento),
             d.tipo_comprobante, d.serie, '', d.numero, '', d.tercero.tipo_doc, d.tercero.numero_doc,
-            d.tercero.nombre[:100],
-            # DUA (50): la base del IGV de importación es el valor en aduana más los tributos (ad valorem)
-            ple_num(0 if anulado else s * (d.base_imponible + (d.valor_aduana + d.no_gravado if d.es_dua else 0))),
-            ple_num(0 if anulado else s * d.igv),
-            '0.00', '0.00', '0.00', '0.00',
+            d.tercero.nombre[:100], *destinos,
             ple_num(0 if anulado or d.es_dua else s * d.no_gravado), '0.00', ple_num(d.icbper), '0.00',
             ple_num(0 if anulado else s * d.total), d.moneda, f'{d.tipo_cambio:.3f}',
             fmt_fecha(ref.fecha_emision) if ref else '', ref.tipo_comprobante if ref else '',

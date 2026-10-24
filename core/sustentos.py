@@ -21,7 +21,12 @@ MODULO_DE = {'contabilidad.asiento': 'contabilidad', 'finanzas.movimiento': 'tes
              'inventario.conteociclico': 'inventario', 'compras.solicitudpedido': 'requerimientos',
              'planillas.documentolegajo': 'planillas', 'planillas.contrato': 'planillas',
              'planillas.movimientopersonal': 'planillas', 'obras.requisitopostor': 'obras',
-             'obras.ventainmueble': 'obras'}
+             'obras.ventainmueble': 'obras',
+             **{f'sst.{m}': 'sst' for m in ('examenmedico', 'monitoreo', 'inspeccion', 'capacitacion',
+                                           'equipoemergencia', 'iperc', 'entregaepp', 'sctr', 'permisotrabajo',
+                                           'evento')},
+             **{f'calidad.{m}': 'calidad' for m in ('noconformidad', 'auditoria', 'documentocontrolado',
+                                                   'indicador', 'medicion', 'sugerencia')}}
 
 
 class ErrorSustento(Exception):

@@ -328,15 +328,16 @@ class PrestamoForm(BootstrapMixin, forms.ModelForm):
         model = Prestamo
         fields = ['tipo', 'entidad', 'descripcion', 'referencia', 'moneda', 'monto', 'tasa_anual', 'plazo',
                   'meses_entre_cuotas', 'fecha_desembolso', 'primera_cuota', 'opcion_compra', 'cuenta',
-                  'cuenta_activo']
+                  'cuenta_activo', 'centro_costo']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['entidad'].queryset = Tercero.objects.filter(activo=True)
         remoto(self.fields['entidad'], 'terceros')
         self.fields['cuenta'].queryset = Cuenta.objects.filter(activo=True)
-        from contabilidad.models import CuentaContable
+        from contabilidad.models import CentroCosto, CuentaContable
         self.fields['cuenta_activo'].queryset = CuentaContable.objects.filter(imputable=True, codigo__startswith='32')
+        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
 
     def clean(self):
         data = super().clean()

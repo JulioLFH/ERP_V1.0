@@ -1,0 +1,18 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Prorrata del crédito fiscal{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Prorrata del crédito fiscal (IGV)</h1>
+    <div class="text-muted small">Compras destinadas a operaciones gravadas y no gravadas: dan crédito en la proporción de las gravadas y exportaciones de los últimos 12 meses (Reglamento de la Ley del IGV, art. 6 num. 6.2).</div></div>
+  <form class="d-flex gap-2"><select name="anio" class="form-select form-select-sm" onchange="this.form.submit()">{% for a in anios %}<option {% if a == anio %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+    <a href="?anio={{ anio }}&formato=excel" class="btn btn-sm btn-outline-success text-nowrap"><i class="bi bi-file-earmark-excel"></i> Excel</a></form>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
+  <thead><tr><th>Periodo</th><th class="num">Gravadas y exportación</th><th class="num">No gravadas</th><th class="num">Coeficiente (12 meses)</th><th class="num">IGV a gravadas</th><th class="num">IGV común</th><th class="num">IGV a no gravadas</th><th class="num">Crédito fiscal</th><th class="num">IGV al costo o gasto</th></tr></thead>
+  <tbody>{% for f in filas %}<tr><td>{{ f.periodo|slice:'4:' }}/{{ anio }}</td><td class="num">{{ f.gravadas|money }}</td><td class="num">{{ f.no_gravadas|money }}</td>
+    <td class="num fw-semibold">{{ f.coeficiente }}</td><td class="num">{{ f.igv_gravada|money }}</td><td class="num">{{ f.igv_comun|money }}</td><td class="num">{{ f.igv_no_gravada|money }}</td>
+    <td class="num">{{ f.credito|money }}</td><td class="num {% if f.al_costo %}text-danger{% endif %}">{{ f.al_costo|money }}</td></tr>{% endfor %}</tbody>
+  <tfoot><tr class="fw-semibold"><td>Total</td><td class="num">{{ totales.gravadas|money }}</td><td class="num">{{ totales.no_gravadas|money }}</td><td></td><td class="num">{{ totales.igv_gravada|money }}</td><td class="num">{{ totales.igv_comun|money }}</td><td class="num">{{ totales.igv_no_gravada|money }}</td><td class="num">{{ totales.credito|money }}</td><td class="num">{{ totales.al_costo|money }}</td></tr></tfoot>
+</table></div>
+<div class="card-body small text-muted">El destino del IGV se indica en cada factura de compra (gravadas, común o no gravadas). El IGV que no da crédito va al costo o gasto de la compra al centralizar. Las operaciones no gravadas excluyen el terreno de la primera venta de inmuebles según el parámetro «IGV_PRORRATA_EXCLUYE_TERRENO» (Ajustes › Parámetros tributarios; confírmelo con su contador). En el registro de compras 8.1 la base y el IGV van a los campos 14-15, 16-17 o 18-19 según el destino.</div></div>
+{% endblock %}

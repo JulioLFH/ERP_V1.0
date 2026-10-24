@@ -1,0 +1,28 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Reportes inmobiliarios</h1><div class="text-muted small">{{ titulo }}{% if obra %} · {{ obra.nombre }}{% endif %}</div></div>
+  <a href="?{{ request.GET.urlencode }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+</div>
+<ul class="nav nav-pills flex-wrap gap-1 mb-3 small">
+  {% for c, n in reportes %}<li class="nav-item"><a class="nav-link py-1 {% if c == clave %}active{% endif %}" href="?reporte={{ c }}{% if obra %}&obra={{ obra.pk }}{% endif %}">{{ n }}</a></li>{% endfor %}
+</ul>
+<form class="row g-2 align-items-end mb-3"><input type="hidden" name="reporte" value="{{ clave }}">
+  <div class="col-auto"><label class="form-label small mb-0">Proyecto</label>
+    <select name="obra" class="form-select form-select-sm"><option value="">Todos</option>{% for o in obras %}<option value="{{ o.pk }}" {% if obra.pk == o.pk %}selected{% endif %}>{{ o.codigo }} {{ o.nombre|truncatechars:40 }}</option>{% endfor %}</select></div>
+  {% if con_fechas %}<div class="col-auto"><label class="form-label small mb-0">{% if clave == 'predial' %}Al{% else %}Desde{% endif %}</label><input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+  {% if clave != 'predial' %}<div class="col-auto"><label class="form-label small mb-0">Hasta</label><input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm"></div>{% endif %}{% endif %}
+  <div class="col-auto"><button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Ver</button></div>
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
+  <thead><tr>{% for c in columnas %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+  <tbody>{% for f in filas %}<tr class="{% if f.1 == 'TOTAL DEL PROYECTO' %}fw-semibold table-light{% endif %}">{% for x in f %}<td class="{% if x|es_numero %}num{% endif %}">{% if x|es_numero %}{{ x|money }}{% elif x is None %}—{% else %}{{ x }}{% endif %}</td>{% endfor %}</tr>
+  {% empty %}<tr><td colspan="{{ columnas|length }}" class="text-center text-muted py-4">Sin datos.</td></tr>{% endfor %}</tbody>
+  {% if totales and filas %}<tfoot><tr class="fw-semibold">{% for x in totales %}<td class="{% if x|es_numero %}num{% endif %}">{% if x|es_numero %}{{ x|money }}{% elif x is not None %}{{ x }}{% endif %}</td>{% endfor %}</tr></tfoot>{% endif %}
+</table></div>
+{% if clave == 'operaciones' %}<div class="card-body small text-muted">Operaciones desde los umbrales de la UIF-SBS (Ajustes › Parámetros tributarios), al tipo de cambio del día. Registre en el registro de operaciones las que correspondan y complete la ficha del comprador.</div>
+{% elif clave == 'predial' %}<div class="card-body small text-muted">Unidades que seguían en propiedad de la empresa a la fecha (no entregadas): al 1 de enero son las que declara para el impuesto predial; después de la terminación, el predial de las no vendidas es gasto del periodo (no se activa).</div>
+{% elif clave == 'flujo' %}<div class="card-body small text-muted">Cobrado: cobros de los compradores menos las devoluciones. Pagado: pagos de facturas con el centro de costo de la obra y egresos con ese centro. Cuotas por cobrar: saldo del cronograma por mes de vencimiento (las vencidas, en el mes actual).</div>{% endif %}
+</div>
+{% endblock %}
