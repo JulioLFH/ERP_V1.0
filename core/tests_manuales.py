@@ -2,7 +2,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from .manuales import _manuales
+from .manuales import PROCESOS, _manuales
 
 
 class ManualesTests(TestCase):
@@ -33,3 +33,19 @@ class ManualesTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r['Content-Type'], 'application/pdf')
         self.assertEqual(self.client.get(reverse('manual_pdf', args=['..%2Fsettings.py'])).status_code, 404)
+
+    def test_procesos_por_modulo(self):
+        pdfs = _manuales(PROCESOS)
+        if not pdfs:
+            self.skipTest('sin manuales de procesos en la carpeta')
+        url = reverse('manual_proceso_pdf', args=[pdfs[0].name])
+        self.client.force_login(self.usuario)
+        self.assertIn(self.client.get(url).status_code, (403, 404))
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(reverse('manuales')), url)
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r['Content-Type'], 'application/pdf')
+        # un PDF de la carpeta principal no se sirve por la ruta de procesos (ni al revés)
+        self.assertEqual(self.client.get(reverse('manual_proceso_pdf', args=[_manuales()[0].name])).status_code, 404)
+        self.assertEqual(self.client.get(reverse('manual_pdf', args=[pdfs[0].name])).status_code, 404)

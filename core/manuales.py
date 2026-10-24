@@ -8,14 +8,19 @@ from django.http import FileResponse, Http404
 from django.shortcuts import render
 
 CARPETA = settings.BASE_DIR / 'Manuales'
+PROCESOS = CARPETA / 'Procesos por módulo'  # procesos, pantallas y acciones de cada módulo (scripts/manual_procesos)
 
 
-def _manuales():
+def _manuales(carpeta=CARPETA):
     """PDF de la carpeta en el orden de su número (1, 2… 10), no alfabético."""
     def orden(p):
         n = re.match(r'^(\d+)', p.name)
         return (int(n.group(1)) if n else 999, p.name)
-    return sorted(CARPETA.glob('*.pdf'), key=orden) if CARPETA.is_dir() else []
+    return sorted(carpeta.glob('*.pdf'), key=orden) if carpeta.is_dir() else []
+
+
+def _fichas(carpeta):
+    return [{'nombre': p.stem, 'archivo': p.name, 'kb': round(p.stat().st_size / 1024)} for p in _manuales(carpeta)]
 
 
 def _solo_admin(request):
@@ -26,8 +31,7 @@ def _solo_admin(request):
 @login_required
 def manuales(request):
     _solo_admin(request)
-    return render(request, 'core/manuales.html', {
-        'manuales': [{'nombre': p.stem, 'archivo': p.name, 'kb': round(p.stat().st_size / 1024)} for p in _manuales()]})
+    return render(request, 'core/manuales.html', {'manuales': _fichas(CARPETA), 'procesos': _fichas(PROCESOS)})
 
 
 def versiones(desde='1.0'):
@@ -67,9 +71,9 @@ def novedades(request):
 
 
 @login_required
-def manual_pdf(request, archivo):
+def manual_pdf(request, archivo, carpeta=CARPETA):
     _solo_admin(request)
-    pdf = next((p for p in _manuales() if p.name == archivo), None)  # solo archivos de la carpeta, por nombre exacto
+    pdf = next((p for p in _manuales(carpeta) if p.name == archivo), None)  # solo archivos de la carpeta, por nombre exacto
     if pdf is None:
         raise Http404
     descargar = request.GET.get('descargar') == '1'

@@ -72,6 +72,7 @@ urlpatterns = [
     path('manuales/', manuales.manuales, name='manuales'),
     path('novedades/', manuales.novedades, name='novedades'),
     path('manuales/<str:archivo>', manuales.manual_pdf, name='manual_pdf'),
+    path('manuales/procesos/<str:archivo>', manuales.manual_pdf, {'carpeta': manuales.PROCESOS}, name='manual_proceso_pdf'),
     path('auditoria/', views.auditoria, name='auditoria'),
     path('modificaciones/', views.modificaciones, name='modificaciones'),
     path('incidencias/', monitoreo.incidencias, name='incidencias'),

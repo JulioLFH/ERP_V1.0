@@ -487,7 +487,7 @@ RUTAS_CORE = {
     'cliente_documentos': ['cliente', 'contabilidad'], 'cliente_archivo': ['cliente', 'contabilidad'],
     'empresa': ['ajustes'], 'empresa_giro': ['ajustes'], 'parametros': ['ajustes', 'contabilidad'],
     'validacion_reglas': ['sst', 'calidad', 'ajustes'], 'consulta_ruc': ['ajustes', 'contactos', 'ventas', 'compras'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
-    'auditoria': ['ajustes'], 'manuales': ['ajustes'], 'manual_pdf': ['ajustes'],
+    'auditoria': ['ajustes'], 'manuales': ['ajustes'], 'manual_pdf': ['ajustes'], 'manual_proceso_pdf': ['ajustes'],
     'incidencias': ['ajustes'], 'incidencia': ['ajustes'],
     'modificaciones': [m['clave'] for m in MODULOS],  # se ve dentro del módulo; la vista exige ser administrador
     'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'tesoreria', 'finanzas', 'contactos', 'manufactura',

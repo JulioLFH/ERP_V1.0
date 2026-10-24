@@ -20,4 +20,18 @@
   <div class="col-12"><div class="alert alert-info">Aún no hay manuales publicados.</div></div>
   {% endfor %}
 </div>
+{% if procesos %}
+<h2 class="h5 mt-4 mb-1">Procesos por módulo</h2>
+<p class="small text-muted mb-2">Para cada módulo: para qué sirve, sus procesos paso a paso, las pantallas del menú, las acciones con permiso (y cuáles son sensibles) y con qué módulos se integra.</p>
+<div class="card"><div class="list-group list-group-flush">
+  {% for m in procesos %}
+  <div class="list-group-item d-flex align-items-center gap-2 flex-wrap">
+    <i class="bi bi-file-earmark-pdf text-danger"></i>
+    <span class="flex-grow-1">{{ m.nombre }} <span class="small text-muted">· {{ m.kb }} KB</span></span>
+    <a href="{% url 'manual_proceso_pdf' m.archivo %}" target="_blank" rel="noopener" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Ver</a>
+    <a href="{% url 'manual_proceso_pdf' m.archivo %}?descargar=1" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download"></i> Descargar</a>
+  </div>
+  {% endfor %}
+</div></div>
+{% endif %}
 {% endblock %}
