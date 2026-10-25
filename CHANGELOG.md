@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.84.2 — 25/10/2026 · Tablero financiero rápido también con mucha historia contable
+- El Tablero financiero y el análisis vertical y horizontal leen la contabilidad una sola vez (debe y haber por cuenta y mes) y arman los 12 cierres desde ahí: con la base de producción baja de 5.5 s a menos de medio segundo, con los mismos valores.
+
 ## v1.84.1 — 25/10/2026 · Tablero financiero más rápido y rotaciones correctas
 - **Tablero financiero rápido**: ya no consulta el tipo de cambio en internet para cada uno de los 12 meses (usa el ya registrado en el sistema); abre en menos de un segundo en lugar de 5 a 9.
 - **Días de cobro, de pago y de inventario (FIN-09)**: el DSO usa solo las facturas y letras por cobrar (121 y 123), sin restar los anticipos de clientes (122), con el promedio de los saldos al inicio y al cierre de los 12 meses; igual el DPO (421 y 423) y el DIO. Sin ventas, compras o costo en el periodo el indicador muestra «—» en lugar de un valor imposible (antes salía un DSO negativo y un ciclo de caja de miles de días).

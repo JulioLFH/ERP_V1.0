@@ -27,10 +27,39 @@ def _flujo(s, prefijos, excluir=()):
     return -_neto(s, prefijos, excluir)
 
 
-def datos(periodo):
+class Sumas:
+    """Debe y haber por cuenta y mes leídos una sola vez (hasta el último periodo): el tablero arma los saldos y los
+    flujos de sus 12 meses sin volver a leer toda la historia contable para cada uno."""
+
+    def __init__(self, hasta):
+        from django.db.models import Sum
+
+        from contabilidad.reportes import lineas_rango
+        self.por_mes = {}
+        for f in (lineas_rango('190001', hasta).values('asiento__periodo', 'cuenta__codigo')
+                  .annotate(d=Sum('debe'), h=Sum('haber'))):
+            self.por_mes.setdefault(f['asiento__periodo'], {})[f['cuenta__codigo']] = (r2(f['d'] or D0),
+                                                                                        r2(f['h'] or D0))
+        self._cache = {}
+
+    def rango(self, desde, hasta):
+        clave = (desde, hasta)
+        if clave not in self._cache:
+            total = {}
+            for p, cuentas in self.por_mes.items():
+                if desde <= p <= hasta:
+                    for c, (d, h) in cuentas.items():
+                        td, th = total.get(c, (D0, D0))
+                        total[c] = (td + d, th + h)
+            self._cache[clave] = total
+        return self._cache[clave]
+
+
+def datos(periodo, sumas=None):
     """Saldos al cierre del mes y flujos de los 12 meses que terminan en él."""
-    saldo = sumas_por_cuenta('190001', periodo)
-    flujos = sumas_por_cuenta(_menos_meses(periodo, 11), periodo)
+    leer = sumas.rango if sumas is not None else sumas_por_cuenta
+    saldo = leer('190001', periodo)
+    flujos = leer(_menos_meses(periodo, 11), periodo)
     caja = _neto(saldo, ('10',))
     cxc = _neto(saldo, ('12', '13')) + _neto(saldo, ('19',))
     otras_cxc = _neto(saldo, ('14', '16', '17', '18'))
@@ -42,7 +71,7 @@ def datos(periodo):
     porcion_lp = _porcion_no_corriente(periodo, deuda_financiera)
     pasivo_total = -_neto(saldo, ('4',))
     pasivo_corriente = pasivo_total - porcion_lp - (-_neto(saldo, ('49',)))
-    resultado_acum = reportes.resultado_ejercicio(sumas_por_cuenta(f'{periodo[:4]}01', periodo))
+    resultado_acum = reportes.resultado_ejercicio(leer(f'{periodo[:4]}01', periodo))
     patrimonio = -_neto(saldo, ('5',)) + resultado_acum
     lineas, neta = reportes.estado_resultados(None, None, sumas=flujos)
     valores = {n: v for n, v, _ in lineas}
@@ -55,7 +84,7 @@ def datos(periodo):
     compras = _neto(flujos, ('60',)) or costo
     # FIN-09: rotaciones con el promedio de los saldos comerciales al inicio y al cierre de los 12 meses: por cobrar
     # solo facturas y letras (121, 123), sin los anticipos de clientes (122); por pagar 421 y 423
-    inicio = sumas_por_cuenta('190001', _menos_meses(periodo, 12))
+    inicio = leer('190001', _menos_meses(periodo, 12))
     cxc_com = lambda s: max(_neto(s, ('121', '123')), D0)
     cxp_com = lambda s: max(-_neto(s, ('421', '423')), D0)
     inv = lambda s: max(_neto(s, ('20', '21', '22', '23', '24', '25', '26', '27', '28', '29')), D0)
@@ -139,7 +168,8 @@ def semaforo(clave, valor, fecha=None):
 def tablero(periodo, meses=12):
     """Indicadores del mes con su semáforo y la tendencia mensual."""
     columnas = meses_entre(_menos_meses(periodo, meses - 1), periodo)
-    base = [datos(p) for p in columnas]
+    sumas = Sumas(periodo)
+    base = [datos(p, sumas) for p in columnas]
     por_mes = [calcular(d) for d in base]
     actual = por_mes[-1]
     filas = [{'clave': k, 'nombre': n, 'unidad': u, 'valor': actual[k], 'semaforo': semaforo(k, actual[k]),
@@ -168,7 +198,8 @@ def situacion_comparativa(periodos):
               ('ACTIVO TOTAL', 'activo_total'), ('Cuentas por pagar comerciales', 'cxp'),
               ('Obligaciones financieras', 'deuda_financiera'), ('PASIVO CORRIENTE', 'pasivo_corriente'),
               ('PASIVO TOTAL', 'pasivo_total'), ('PATRIMONIO', 'patrimonio')]
-    cols = [datos(p) for p in periodos]
+    sumas = Sumas(max(periodos))
+    cols = [datos(p, sumas) for p in periodos]
     filas = []
     for nombre, k in rubros:
         valores = [c[k] for c in cols]
