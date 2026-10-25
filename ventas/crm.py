@@ -132,10 +132,11 @@ def _filtrar(request):
     qs = srv.visibles(request.user, Oportunidad.objects.select_related('tercero', 'responsable', 'campana'))
     if request.GET.get('mias'):
         qs = qs.filter(responsable=request.user)
-    if (request.GET.get('responsable') or '').isdigit():
-        qs = qs.filter(responsable_id=request.GET['responsable'])
-    if (request.GET.get('campana') or '').isdigit():
-        qs = qs.filter(campana_id=request.GET['campana'])
+    from core.utils import elegidos
+    for campo in ('responsable', 'campana'):  # PLAT-13: varios valores
+        valores = [v for v in elegidos(request, campo) if v.isdigit()]
+        if valores:
+            qs = qs.filter(**{f'{campo}_id__in': valores})
     if request.GET.get('q'):
         q = request.GET['q']
         qs = qs.filter(Q(nombre__icontains=q) | Q(prospecto__icontains=q) | Q(tercero__nombre__icontains=q) |
@@ -187,9 +188,10 @@ def embudo(request):
 
 @login_required
 def oportunidades(request):
+    from core.utils import elegidos
     qs = _filtrar(request)
-    if request.GET.get('etapa'):
-        qs = qs.filter(etapa=request.GET['etapa'])
+    if elegidos(request, 'etapa'):
+        qs = qs.filter(etapa__in=elegidos(request, 'etapa'))
     etiquetas = dict(srv.etapas())
     if request.GET.get('formato') == 'excel':
         return excel_response('Oportunidades', 'Oportunidades comerciales', [

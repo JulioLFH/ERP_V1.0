@@ -213,7 +213,7 @@ def recordatorios(request):
                       v.tercero.email or {'texto': 'sin correo', 'clase': 'text-danger'},
                       {'texto': 'WhatsApp', 'url': enlace} if enlace else ''])
     from .models import RecordatorioCobranza
-    historial = [[r.creado.strftime('%d/%m/%Y %H:%M'), str(r.venta), f'{r.dias:+d}', r.canal,
+    historial = [[timezone.localtime(r.creado).strftime('%d/%m/%Y %H:%M'), str(r.venta), f'{r.dias:+d}', r.canal,
                   'Enviado' if r.enviado else {'texto': r.error or 'No enviado', 'clase': 'text-danger'}]
                  for r in RecordatorioCobranza.objects.select_related('venta')[:100]]
     return responder(request, 'Recordatorios de cobranza', [

@@ -18,6 +18,7 @@ from . import operaciones as op
 from .forms import ChequeForm, EntregaForm, GastoRendicionForm
 from .models import (Aplicacion, CanjeLetras, Cheque, Cuenta, EntregaRendir, Letra, Movimiento, PagoMasivo)
 from django.utils import timezone
+from core.utils import id_o_none
 
 
 def _monto(valor):
@@ -146,7 +147,7 @@ def letras(request):
 def canje_nuevo(request):
     tipo = request.GET.get('tipo') or request.POST.get('tipo') or 'COBRAR'
     moneda = request.GET.get('moneda') or 'PEN'
-    tercero = Tercero.objects.filter(pk=request.GET.get('tercero')).first() if request.GET.get('tercero') else None
+    tercero = Tercero.objects.filter(pk=id_o_none(request.GET.get('tercero'))).first() if request.GET.get('tercero') else None
     docs = _pendientes(Venta if tipo == 'COBRAR' else Compra, tercero=tercero, moneda=moneda) if tercero else []
     if request.method == 'POST' and tercero:
         try:
@@ -193,7 +194,7 @@ def letra(request, pk):
         try:
             fecha = _fecha(request.POST.get('fecha'))
             if accion == 'estado':
-                banco = Cuenta.objects.filter(pk=request.POST.get('banco')).first() if request.POST.get('banco') else None
+                banco = Cuenta.objects.filter(pk=id_o_none(request.POST.get('banco'))).first() if request.POST.get('banco') else None
                 op.cambiar_estado_letra(l, request.POST.get('estado'), fecha, banco, request.POST.get('codigo', ''))
                 messages.success(request, f'{l}: {l.get_estado_display().lower()}.')
             elif accion == 'renovar':
@@ -353,7 +354,7 @@ def pagos_masivos(request):
 @login_required
 def pago_masivo_nuevo(request):
     bancos = Cuenta.objects.filter(activo=True, tipo='BANCO', es_detracciones=False)
-    cuenta = bancos.filter(pk=request.GET.get('cuenta')).first() or bancos.first()
+    cuenta = bancos.filter(pk=id_o_none(request.GET.get('cuenta'))).first() or bancos.first()
     hasta = request.GET.get('hasta') or timezone.localdate().isoformat()
     docs = []
     if cuenta:
@@ -377,7 +378,7 @@ def pago_masivo_nuevo(request):
         d.a_pagar = r2(d.saldo - d.detr_pendiente)
     return render(request, 'finanzas/pago_masivo_nuevo.html', {
         'bancos': bancos, 'cuenta': cuenta, 'hasta': hasta, 'docs': docs, 'hoy': timezone.localdate(),
-        'proveedor': Tercero.objects.filter(pk=request.GET.get('proveedor')).first()
+        'proveedor': Tercero.objects.filter(pk=id_o_none(request.GET.get('proveedor'))).first()
         if request.GET.get('proveedor') else None})
 
 
@@ -441,7 +442,7 @@ def constancias_clientes(request):
                       'importe': Decimal(g['importe']) if g['importe'] else None} for g in guardados]
         elegidas = set(request.POST.getlist('constancia'))
         items = [i for i in cst.emparejar_clientes(registros) if i['constancia'] in elegidas]
-        cuenta = cuentas_bn.filter(pk=request.POST.get('cuenta')).first()
+        cuenta = cuentas_bn.filter(pk=id_o_none(request.POST.get('cuenta'))).first()
         try:
             if cuenta is None:
                 raise op.ErrorTesoreria('Elija su cuenta de detracciones del Banco de la Nación.')
@@ -498,7 +499,7 @@ def detracciones_masivas_nuevo(request):
         c.cuenta_bn = dm.cuenta_bn(c.tercero)
     return render(request, 'finanzas/detraccion_masiva_nuevo.html', {
         'bancos': bancos, 'cuenta': cuenta, 'hasta': hasta, 'compras': compras, 'codigos': dm.codigos(),
-        'hoy': timezone.localdate(), 'proveedor': Tercero.objects.filter(pk=request.GET.get('proveedor')).first()
+        'hoy': timezone.localdate(), 'proveedor': Tercero.objects.filter(pk=id_o_none(request.GET.get('proveedor'))).first()
         if request.GET.get('proveedor') else None})
 
 

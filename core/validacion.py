@@ -58,6 +58,11 @@ class Validable(models.Model):
     def regla(self):
         return regla(type(self))
 
+    def flujo_propio(self):
+        """Texto si este registro no se valida con el flujo genérico de especialista (tiene su propio flujo con
+        firmas, CAL-12); '' si sí."""
+        return ''
+
     def copiar_relaciones(self, nuevo):
         """La subclase copia aquí sus líneas o relaciones a la versión nueva."""
 
@@ -80,6 +85,8 @@ def enviar(obj, usuario):
     """Borrador u observado: a validar (o validado directamente si su tipo no requiere especialista)."""
     if not obj.editable:
         raise ErrorValidacion('Solo se envía un registro en borrador u observado.')
+    if obj.flujo_propio():
+        raise ErrorValidacion(obj.flujo_propio())
     requiere, especialista = regla(type(obj))
     anterior = obj.estado_validacion
     if requiere:
@@ -99,6 +106,8 @@ def validar(obj, usuario, nombre, cargo, registro, archivo, fecha=None):
     from .sustentos import ErrorSustento, adjuntar
     if obj.estado_validacion != 'POR_VALIDAR':
         raise ErrorValidacion('Solo se valida un registro enviado a validar.')
+    if obj.flujo_propio():
+        raise ErrorValidacion(obj.flujo_propio())
     if not (nombre or '').strip() or not (cargo or '').strip():
         raise ErrorValidacion('Indique el nombre y el cargo de quien valida.')
     if archivo is None:

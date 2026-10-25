@@ -40,7 +40,8 @@
     if (!window.TomSelect || sel.tomselect || sel.multiple || sel.dataset.sinBuscador !== undefined ||
         sel.dataset.ubigeoNivel) return;
     new window.TomSelect(sel, {
-      maxOptions: 200, allowEmptyOption: false, dropdownParent: 'body', searchField: ['text'],
+      // CAL-11: la opción elegida ya se ve en la casilla; en la lista salía otra vez (parecía repetida)
+      maxOptions: 200, allowEmptyOption: false, dropdownParent: 'body', searchField: ['text'], hideSelected: true,
       placeholder: 'Escriba para buscar…', plugins: sel.required ? [] : ['clear_button'],
       onFocus: () => { if (sel.dataset.opciones) llenar(sel); },
       render: { no_results: () => '<div class="no-results px-2 py-1 text-muted small">Sin coincidencias</div>' },
@@ -57,7 +58,7 @@
       buscable(sel);
     });
     raiz.querySelectorAll('select:not([data-opciones])').forEach((sel) => {
-      if (sel.options.length > 50) buscable(sel);
+      if (sel.options.length > 50 || sel.dataset.buscable !== undefined) buscable(sel);  // PLAT-13: data-buscable
     });
   }
   window.prepararSelectores = preparar;
@@ -343,6 +344,170 @@
     todas.textContent = 'Ver todas las alertas';
     lista.appendChild(todas);
   }).catch(() => { lista.innerHTML = '<div class="p-3 small text-muted">No se pudieron cargar las alertas.</div>'; });
+})();
+
+// PLAT-12: buscadores de las listas (campo «q» de un formulario de filtros): al escribir 2 o más caracteres se
+// proponen hasta 10 coincidencias de lo registrado según la pantalla; al elegir una, se filtra.
+(function () {
+  const url = window.ERP_SUGERENCIAS_URL;
+  if (!url) return;
+  document.querySelectorAll('form input[name="q"]').forEach((input, i) => {
+    const form = input.form;
+    if (!form || (form.method || 'get').toLowerCase() !== 'get' || input.list) return;
+    const lista = document.createElement('datalist');
+    lista.id = `sugerencias-${i}`;
+    input.insertAdjacentElement('afterend', lista);
+    input.setAttribute('list', lista.id);
+    input.setAttribute('autocomplete', 'off');
+    let timer = null;
+    let ultimas = [];
+    input.addEventListener('input', (e) => {
+      const valor = input.value.trim();
+      // elegir una sugerencia de la lista: filtra en el acto
+      if (e.inputType === 'insertReplacementText' || ultimas.includes(input.value)) { form.requestSubmit(); return; }
+      clearTimeout(timer);
+      if (valor.length < 2) { lista.innerHTML = ''; return; }
+      timer = setTimeout(() => {
+        const q = new URLSearchParams({ q: valor, ruta: location.pathname });
+        fetch(`${url}?${q}`, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : [])).then((filas) => {
+          ultimas = filas.map((f) => f.valor);
+          lista.innerHTML = '';
+          filas.forEach((f) => {
+            const op = document.createElement('option');
+            op.value = f.valor;
+            op.label = f.texto;
+            op.textContent = f.texto;
+            lista.appendChild(op);
+          });
+        }).catch(() => {});
+      }, 250);
+    });
+  });
+})();
+
+// PLAT-13: filtros de lista con varias opciones (select[multiple][data-filtro]): lista de casillas con buscador,
+// «Todos / Ninguno», contador y etiquetas que se quitan con una x; se recuerdan por usuario y pantalla.
+(function () {
+  const usuario = (document.body.dataset.usuario || '');
+  const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  document.querySelectorAll('select[multiple][data-filtro]').forEach((sel) => {
+    const form = sel.form;
+    const clave = `filtro:${usuario}:${location.pathname}:${sel.name}`;
+    const params = new URLSearchParams(location.search);
+    // sin filtros en la dirección: se recupera lo último elegido por este usuario en esta pantalla
+    if (![...params.keys()].length) {
+      try {
+        const guardado = JSON.parse(localStorage.getItem(clave) || '[]');
+        if (guardado.length && form) {
+          [...sel.options].forEach((o) => { o.selected = guardado.includes(o.value); });
+          if ([...sel.selectedOptions].length && !sessionStorage.getItem(clave)) {
+            sessionStorage.setItem(clave, '1');
+            form.requestSubmit();
+            return;
+          }
+        }
+      } catch (e) { /* sin almacenamiento local: no se recuerda */ }
+    }
+    try { localStorage.setItem(clave, JSON.stringify([...sel.selectedOptions].map((o) => o.value))); } catch (e) { /* */ }
+    const etiqueta = sel.dataset.filtro || sel.name;
+    const caja = document.createElement('div');
+    caja.className = 'dropdown d-inline-block filtro-multiple';
+    const contar = () => {
+      const n = [...sel.selectedOptions].length;
+      return n ? `${etiqueta}: ${n === 1 ? sel.selectedOptions[0].text : n + ' seleccionados'}` : `${etiqueta}: todos`;
+    };
+    caja.innerHTML = `<button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside">${esc(contar())}</button>
+      <div class="dropdown-menu p-2" style="min-width:16rem;max-width:22rem">
+        <input type="search" class="form-control form-control-sm mb-2" placeholder="Buscar…" aria-label="Buscar en ${esc(etiqueta)}">
+        <div class="d-flex gap-2 mb-2 small"><a href="#" data-todos>Todos</a><a href="#" data-ninguno>Ninguno</a></div>
+        <div class="opciones" style="max-height:16rem;overflow:auto">${[...sel.options].filter((o) => o.value !== '').map((o) =>
+          `<label class="form-check small d-block"><input type="checkbox" class="form-check-input" value="${esc(o.value)}"${o.selected ? ' checked' : ''}> ${esc(o.text)}</label>`).join('')}</div>
+        <button type="submit" class="btn btn-sm btn-primary w-100 mt-2">Aplicar</button>
+      </div>`;
+    sel.hidden = true;
+    sel.insertAdjacentElement('afterend', caja);
+    const boton = caja.querySelector('button');
+    const casillas = [...caja.querySelectorAll('input[type=checkbox]')];
+    const sincronizar = () => {
+      const marcados = casillas.filter((c) => c.checked).map((c) => c.value);
+      [...sel.options].forEach((o) => { o.selected = marcados.includes(o.value); });
+      boton.textContent = contar();
+    };
+    casillas.forEach((c) => c.addEventListener('change', sincronizar));
+    caja.querySelector('input[type=search]').addEventListener('input', (e) => {
+      const t = e.target.value.toLowerCase();
+      casillas.forEach((c) => { c.parentElement.hidden = t && !c.parentElement.textContent.toLowerCase().includes(t); });
+    });
+    caja.querySelector('[data-todos]').addEventListener('click', (e) => { e.preventDefault(); casillas.forEach((c) => { if (!c.parentElement.hidden) c.checked = true; }); sincronizar(); });
+    caja.querySelector('[data-ninguno]').addEventListener('click', (e) => { e.preventDefault(); casillas.forEach((c) => { c.checked = false; }); sincronizar(); });
+    // etiquetas de lo elegido, con x para quitar cada valor
+    const marcados = [...sel.selectedOptions];
+    if (marcados.length && form) {
+      let barra = form.querySelector('.filtros-elegidos');
+      if (!barra) {
+        barra = document.createElement('div');
+        barra.className = 'filtros-elegidos d-flex flex-wrap gap-1 w-100 small';
+        form.appendChild(barra);
+      }
+      marcados.forEach((o) => {
+        const chip = document.createElement('span');
+        chip.className = 'badge text-bg-light border';
+        chip.innerHTML = `${esc(etiqueta)}: ${esc(o.text)} <a href="#" class="ms-1 text-danger text-decoration-none" aria-label="Quitar">×</a>`;
+        chip.querySelector('a').addEventListener('click', (e) => { e.preventDefault(); o.selected = false; form.requestSubmit(); });
+        barra.appendChild(chip);
+      });
+    }
+  });
+  // «Limpiar» olvida lo recordado de la pantalla
+  document.querySelectorAll('a[data-limpiar-filtros]').forEach((a) => a.addEventListener('click', () => {
+    try { Object.keys(localStorage).filter((k) => k.startsWith(`filtro:${usuario}:${location.pathname}:`)).forEach((k) => localStorage.removeItem(k)); } catch (e) { /* */ }
+  }));
+})();
+
+// PLAT-14: fechas propuestas. Vencimiento = emisión + días de crédito del cliente o proveedor (si la venta o compra es
+// al crédito), mientras el usuario no lo cambie. Desde / Hasta de los reportes: el mes en curso.
+(function () {
+  const emision = document.getElementById('id_fecha_emision');
+  const vence = document.getElementById('id_fecha_vencimiento');
+  const tercero = document.getElementById('id_tercero');
+  const forma = document.getElementById('id_forma_pago');
+  if (emision && vence && window.ERP_TERCERO_CREDITO_URL) {
+    let manual = !!vence.value;
+    vence.addEventListener('input', () => { manual = true; });
+    const sumar = (iso, dias) => {
+      const d = new Date(`${iso}T12:00:00`);
+      d.setDate(d.getDate() + dias);
+      return d.toISOString().slice(0, 10);
+    };
+    async function proponer() {
+      if (manual || !emision.value) return;
+      let dias = 0;
+      if (tercero && tercero.value && (!forma || forma.value === 'CREDITO')) {
+        try {
+          const r = await fetch(window.ERP_TERCERO_CREDITO_URL.replace('/0/', `/${tercero.value}/`), { credentials: 'same-origin' });
+          if (r.ok) dias = (await r.json()).dias || 0;
+        } catch (e) { /* sin datos: vence el día de emisión */ }
+      }
+      if (forma && forma.value === 'CREDITO' && !dias) { vence.value = ''; return; }  // lo calcula el servidor
+      vence.value = sumar(emision.value, dias);
+    }
+    [emision, tercero, forma].forEach((el) => { if (el) el.addEventListener('change', proponer); });
+    proponer();
+  }
+  // reportes con Desde / Hasta vacíos y sin filtros en la dirección: se propone el mes en curso
+  if (!location.search) {
+    document.querySelectorAll('form').forEach((f) => {
+      if ((f.method || 'get').toLowerCase() !== 'get') return;
+      const desde = f.querySelector('input[type=date][name=desde]');
+      const hasta = f.querySelector('input[type=date][name=hasta]');
+      if (!desde || !hasta || desde.value || hasta.value) return;
+      const hoy = new Date();
+      const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      desde.value = iso(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
+      hasta.value = iso(hoy);
+      f.requestSubmit();
+    });
+  }
 })();
 
 // confirmación de acciones destructivas

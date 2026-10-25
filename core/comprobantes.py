@@ -114,9 +114,10 @@ class ComprobanteViews:
         periodo = normalizar_periodo(request.GET.get('periodo', ''))
         if periodo:
             qs = qs.filter(periodo=periodo)
-        for campo in ('tipo_comprobante', 'estado', 'moneda'):
-            if request.GET.get(campo):
-                qs = qs.filter(**{campo: request.GET[campo]})
+        for campo in ('tipo_comprobante', 'estado', 'moneda'):  # PLAT-13: varios valores por filtro
+            valores = [v for v in request.GET.getlist(campo) if v]
+            if valores:
+                qs = qs.filter(**{f'{campo}__in': valores})
         if request.GET.get('pago_bloqueado') and hasattr(self.modelo, 'pago_bloqueado'):  # alerta de Compras
             qs = qs.filter(pago_bloqueado=True)
         qs = self.anotar_lista(qs, request)

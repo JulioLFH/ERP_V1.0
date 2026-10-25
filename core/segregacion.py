@@ -25,10 +25,23 @@ REGLAS = [
     ('compras.registrar', 'portal_proveedores.aprobar', 'BAJO', 'Registra facturas y aprueba las del portal de proveedores'),
     ('rendiciones.aprobar', 'rendiciones.tesoreria', 'ALTO', 'Aprueba rendiciones de gastos y paga sus reembolsos'),
     ('rendiciones.rendir', 'rendiciones.contabilizar', 'MEDIO', 'Rinde gastos y contabiliza las rendiciones'),
+    ('tesoreria.registrar', 'tesoreria.aprobar_pagos', 'ALTO', 'Arma la propuesta de pagos y la aprueba'),
+    ('flota.registrar', 'flota.aprobar_lecturas', 'MEDIO', 'Registra partes de horómetro / odómetro y los aprueba'),
 ]
 # reglas fijas del sistema (se cumplen siempre, sin importar los permisos)
 REGLAS_FIJAS = ['Nadie aprueba su propia rendición de gastos: pasa al siguiente nivel o a otro aprobador.',
-                'Nadie libera su propia solicitud de pedido: pasa al siguiente nivel o a otro liberador.']
+                'Nadie libera su propia solicitud de pedido: pasa al siguiente nivel o a otro liberador.',
+                'Nadie aprueba su propia propuesta de pagos ni su propio parte de lecturas (tampoco el administrador), '
+                'salvo que sea el único usuario activo.']
+
+
+def propio(user, obj):
+    """FIN-10: mensaje si el usuario quiere aprobar lo que él mismo registró y hay otro usuario que puede hacerlo
+    (regla fija: también para el administrador)."""
+    if creador(obj) == user.pk and _otro_usuario(user):
+        return (f'Segregación de funciones: usted registró {obj} y no puede aprobarlo; debe hacerlo otro usuario '
+                f'(regla fija del sistema).')
+    return ''
 NOMBRES = {f'{m}.{a}': d for m, lista in ACCIONES.items() for a, d, _ in lista}
 
 

@@ -7,6 +7,24 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 
 
+def elegidos(request, nombre):
+    """PLAT-13: valores marcados de un filtro de lista (varias casillas = varios valores), sin vacíos."""
+    return [v for v in request.GET.getlist(nombre) if v not in ('', None)]
+
+
+def filtrar(qs, request, nombre, campo=None):
+    """Filtra por los valores elegidos (OR dentro del filtro); sin elegidos no filtra."""
+    valores = elegidos(request, nombre)
+    return qs.filter(**{f'{campo or nombre}__in': valores}) if valores else qs
+
+
+def id_o_none(valor):
+    """Identificador numérico de un formulario o None (vacío, «yo», texto): filter(pk=None) no encuentra nada en
+    lugar del error 500 «Field 'id' expected a number» (EXC-03)."""
+    valor = str(valor or '').strip()
+    return int(valor) if valor.isdigit() else None
+
+
 def excel_response(nombre, titulo, encabezados, filas, rojas=()):
     """Excel con título, encabezados y filas. `rojas`: [(fila, columna)] (desde 0, dentro de `filas`) que se pintan
     de rojo (datos que faltan)."""

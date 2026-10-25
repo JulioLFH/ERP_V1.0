@@ -256,8 +256,10 @@ def indicadores(desde, hasta, centro=None):
     for e in equipos.select_related('centro'):
         ots = por_equipo.get(e.pk, [])
         fallas = [o for o in ots if o.tipo == 'CORRECTIVO']
-        parada = sum((o.horas_parada for o in ots), D0)
-        reparacion = [o.horas_reparacion or o.horas_parada for o in fallas]
+        # MNT-09: un valor imposible grabado antes de la validación (negativo) no entra en los indicadores
+        parada = min(sum((max(o.horas_parada, D0) for o in ots), D0), horas_periodo)
+        reparacion = [h for h in (o.horas_reparacion if o.horas_reparacion is not None else o.horas_parada
+                                  for o in fallas) if h is not None and h >= 0]
         operativas = horas_periodo - parada
         costo = sum((o.costo_total for o in ots), D0)
         prev = sum((o.costo_total for o in ots if o.tipo != 'CORRECTIVO'), D0)
@@ -301,9 +303,18 @@ def models_f(campo, dias):
     return ExpressionWrapper(F(campo) + timedelta(days=dias), output_field=DateField())
 
 
+def imposibles():
+    """MNT-09: órdenes con horas o costos negativos o con el fin antes del inicio (grabadas antes de la validación)."""
+    from django.db.models import F, Q
+    return (OrdenMantenimiento.objects.filter(Q(horas_parada__lt=0) | Q(costo_mano_obra__lt=0) |
+                                              Q(costo_servicios__lt=0) | Q(fin_real__lt=F('inicio_real')))
+            .select_related('equipo'))
+
+
 def alertas():
-    """Garantías por vencer, repuestos críticos bajos y equipos que superan el % del valor de reposición."""
+    """Garantías por vencer, repuestos críticos bajos, equipos que superan el % del valor de reposición y órdenes con
+    valores imposibles."""
     from .models import Equipo
     hoy = timezone.localdate()
     garantias = Equipo.objects.filter(activo=True, garantia_hasta__range=(hoy, hoy + timedelta(days=30)))
-    return {'garantias': garantias, 'repuestos': repuestos_criticos_bajos()}
+    return {'garantias': garantias, 'repuestos': repuestos_criticos_bajos(), 'imposibles': imposibles()}

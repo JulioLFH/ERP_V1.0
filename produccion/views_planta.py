@@ -15,6 +15,7 @@ from . import planta
 from .forms_planta import (CertificadoForm, CierreMantenimientoForm, InspeccionForm, OrdenMantenimientoForm,
                            ParametrosFormSet, PlantillaCertificadoForm, RepuestoForm)
 from .models import CertificadoAnalisis, InspeccionCalidad, OrdenMantenimiento, PlantillaCertificado
+from core.utils import id_o_none
 
 
 def _dec(valor):
@@ -251,7 +252,7 @@ def orden_mant(request, pk):
                     raise planta.ErrorPlanta('Revise el permiso de trabajo y el LOTO.')
                 seguridad.save()
             elif accion == 'tarea':
-                t = o.tareas.filter(pk=request.POST.get('tarea')).first()
+                t = o.tareas.filter(pk=id_o_none(request.POST.get('tarea'))).first()
                 if t:
                     t.hecha = request.POST.get('hecha') == '1'
                     t.observacion = request.POST.get('observacion', t.observacion)[:200]

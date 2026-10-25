@@ -143,16 +143,21 @@ def avisos(request):
         except ErrorPlanta as exc:
             messages.error(request, str(exc))
         return redirect('manufactura:avisos_mant')
+    from core.permisos import puede
     estado = request.GET.get('estado', 'PENDIENTE')
     qs = AvisoMantenimiento.objects.select_related('equipo', 'reportado_por', 'orden')
     if estado:
         qs = qs.filter(estado=estado)
+    aprueba = puede(request.user, 'mantenimiento.avisos')
     filas = []
     for a in qs[:300]:
-        acciones = ([{'texto': 'Aprobar → OT', 'post': '', 'campo': 'aviso', 'valor': a.pk,
-                      'extra': {'accion': 'convertir'}},
-                     {'texto': 'Rechazar', 'post': '', 'campo': 'aviso', 'valor': a.pk, 'extra': {'accion': 'rechazar'},
-                      'confirmar': f'¿Rechazar el {a}?'}] if a.estado == 'PENDIENTE' else
+        pendiente = ([{'texto': 'Aprobar → OT', 'post': '', 'campo': 'aviso', 'valor': a.pk,
+                       'extra': {'accion': 'convertir'}},
+                      {'texto': 'Rechazar', 'post': '', 'campo': 'aviso', 'valor': a.pk, 'extra': {'accion': 'rechazar'},
+                       'confirmar': f'¿Rechazar el {a}?'}] if aprueba else
+                     {'texto': 'Lo aprueba quien tiene «Aprobar o rechazar avisos de mantenimiento»',
+                      'clase': 'text-muted small'})
+        acciones = (pendiente if a.estado == 'PENDIENTE' else
                     ({'texto': str(a.orden), 'url': reverse('manufactura:orden_mant', args=[a.orden_id])}
                      if a.orden_id else a.motivo_rechazo))
         filas.append([a.numero, timezone.localtime(a.creado).strftime('%d/%m %H:%M'), str(a.equipo),
@@ -322,7 +327,11 @@ def tablero_mant(request):
     alertas = mnt.alertas()
     avisos = ([[f'Garantía de {e} vence el {e.garantia_hasta:%d/%m/%Y}'] for e in alertas['garantias']] +
               [[f'Repuesto crítico {b["critico"].producto.nombre} ({b["critico"].equipo.codigo}): disponible '
-                f'{b["disponible"]:g}, mínimo {b["critico"].stock_minimo:g}'] for b in alertas['repuestos']])
+                f'{b["disponible"]:g}, mínimo {b["critico"].stock_minimo:g}'] for b in alertas['repuestos']] +
+              [[{'texto': f'{o} ({o.equipo.codigo}): valores imposibles (horas o costos negativos o fin antes del '
+                          f'inicio); no entran en los indicadores: corríjala',
+                 'url': reverse('manufactura:orden_mant', args=[o.pk]), 'clase': 'text-danger'}]
+               for o in alertas['imposibles']])
     resumen = (f'Cumplimiento del preventivo: {ind["cumplimiento"] if ind["cumplimiento"] is not None else "—"} % '
                f'({ind["a_tiempo"]} de {ind["programadas"]} a tiempo) · backlog {ind["backlog"]:g} h en '
                f'{ind["abiertas"]} órdenes abiertas · fallas {ind["fallas"]} · costo S/ {ind["costo"]:,.2f} · '

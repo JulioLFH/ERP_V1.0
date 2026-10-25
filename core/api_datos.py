@@ -8,6 +8,7 @@ from decimal import Decimal
 from django.db.models import Q, Sum
 
 from .api import ErrorParametro, _filtrar_comprobantes, _pagina, api, error, fecha_param, respuesta, s_comprobante
+from .utils import id_o_none
 
 D0 = Decimal('0')
 
@@ -230,7 +231,7 @@ def stock_al_corte(request, corte):
     """Stock y valor por producto a una fecha, según el kardex."""
     from .inventario import valor_inventario
     from .models import Almacen
-    almacen = Almacen.objects.filter(pk=request.GET.get('almacen')).first() if request.GET.get('almacen') else None
+    almacen = Almacen.objects.filter(pk=id_o_none(request.GET.get('almacen'))).first() if request.GET.get('almacen') else None
     filas, total = valor_inventario(corte, almacen)
     costos = _ver_costos(request)
 

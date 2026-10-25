@@ -23,6 +23,7 @@ from . import comprobantes as cp
 from . import rendiciones as rd
 from .forms_rendicion import LineaGastoForm
 from .models import CategoriaGasto, ConfigRendicion, LineaGasto, Proyecto, Rendicion
+from core.utils import id_o_none
 
 log = logging.getLogger(__name__)
 
@@ -127,7 +128,7 @@ def movil_gasto(request):
     clave = f'movil-gasto-{request.user.pk}-{cliente_id}'
     if cliente_id and cache.get(clave):
         return _json({'ok': True, 'linea': cache.get(clave), 'repetido': True})
-    r = rd.visibles(request.user).filter(pk=request.POST.get('rendicion')).first()
+    r = rd.visibles(request.user).filter(pk=id_o_none(request.POST.get('rendicion'))).first()
     if r is None:
         return _json({'error': 'Rendición no encontrada.'}, 404)
     form = LineaGastoForm(request.POST, request.FILES)

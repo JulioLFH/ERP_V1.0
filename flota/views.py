@@ -240,18 +240,21 @@ def parte(request):
 @login_required
 def lecturas(request):
     """Lecturas por aprobar (y el historial): el supervisor aprueba o rechaza el parte."""
-    from .lecturas import resolver
+    from .lecturas import ErrorLectura, resolver
     puede_aprobar = puede(request.user, 'flota.aprobar_lecturas')
     if request.method == 'POST':
         if not puede_aprobar:
             messages.error(request, 'Su usuario no aprueba lecturas.')
         else:
-            ids = request.POST.getlist('lectura')
+            ids = [i for i in request.POST.getlist('lectura') if i.isdigit()]
             accion = request.POST.get('accion')
-            n = resolver(list(LecturaEquipo.objects.filter(pk__in=ids, estado='PENDIENTE').select_related('equipo')),
-                         request.user, accion == 'aprobar', request.POST.get('motivo', ''))
-            messages.success(request, f'Lecturas {"aprobadas" if accion == "aprobar" else "rechazadas"} '
-                                      f'({n} equipo(s)).')
+            try:
+                n = resolver(list(LecturaEquipo.objects.filter(pk__in=ids, estado='PENDIENTE').select_related('equipo')),
+                             request.user, accion == 'aprobar', request.POST.get('motivo', ''))
+                messages.success(request, f'Lecturas {"aprobadas" if accion == "aprobar" else "rechazadas"} '
+                                          f'({n} equipo(s)).')
+            except ErrorLectura as exc:
+                messages.error(request, str(exc))
         return redirect('flota:lecturas')
     estado = request.GET.get('estado', 'PENDIENTE')
     qs = LecturaEquipo.objects.select_related('equipo', 'registrado_por', 'aprobado_por')

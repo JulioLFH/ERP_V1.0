@@ -205,6 +205,13 @@ class DocumentoControlado(Validable):
     def get_absolute_url(self):
         return reverse('calidad:registro', args=['documentos', self.pk])
 
+    def flujo_propio(self):
+        """CAL-12: un documento BPM solo queda vigente con elaboró → revisó → aprobó y sus firmas electrónicas."""
+        if self.norma == 'BPM_DIGEMID':
+            return ('Documento BPM: se aprueba con su flujo de firmas (Revisar y Aprobar con su contraseña, personas '
+                    'distintas), no con la validación genérica. Use «Flujo de firmas».')
+        return ''
+
 
 class Indicador(models.Model):
     """Objetivo e indicador de un área (balanced scorecard / OKR): meta, fórmula, frecuencia, responsable y semáforo.

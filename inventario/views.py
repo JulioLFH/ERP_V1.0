@@ -12,7 +12,7 @@ from compras.models import Compra, OrdenCompra
 from core.listas import Lista
 from core.models import Empresa, Producto
 from core.permisos import puede
-from core.utils import rango_por_defecto
+from core.utils import elegidos, rango_por_defecto
 from core.views import FormGenerico, ListaGenerica
 from ventas.models import Venta
 
@@ -77,16 +77,19 @@ def lista(request):
     tipos = TipoOperacion.objects.filter(activo=True)
     if grupo in GRUPOS:
         tipos = tipos.filter(clase__in=GRUPOS[grupo][1])
-    if g.get('tipo'):
-        qs = qs.filter(tipo_id=g['tipo'])
-    if g.get('estado'):
-        qs = qs.filter(estado=g['estado'])
-    if g.get('almacen', '').isdigit():
-        qs = qs.filter(Q(almacen_origen_id=g['almacen']) | Q(almacen_destino_id=g['almacen']))
-    if g.get('usuario', '').isdigit():
-        qs = qs.filter(Q(creado_por_id=g['usuario']) | Q(confirmado_por_id=g['usuario']))
-    if g.get('centro', '').isdigit():
-        qs = qs.filter(Q(centro_costo_id=g['centro']) | Q(orden_compra__centro_costo_id=g['centro']))
+    # PLAT-13: cada filtro admite varios valores (OR dentro del filtro, AND entre filtros)
+    sel = {k: [v for v in elegidos(request, k) if k == 'estado' or v.isdigit()]
+           for k in ('tipo', 'estado', 'almacen', 'usuario', 'centro')}
+    if sel['tipo']:
+        qs = qs.filter(tipo_id__in=sel['tipo'])
+    if sel['estado']:
+        qs = qs.filter(estado__in=sel['estado'])
+    if sel['almacen']:
+        qs = qs.filter(Q(almacen_origen_id__in=sel['almacen']) | Q(almacen_destino_id__in=sel['almacen']))
+    if sel['usuario']:
+        qs = qs.filter(Q(creado_por_id__in=sel['usuario']) | Q(confirmado_por_id__in=sel['usuario']))
+    if sel['centro']:
+        qs = qs.filter(Q(centro_costo_id__in=sel['centro']) | Q(orden_compra__centro_costo_id__in=sel['centro']))
     q = g.get('q', '').strip()
     if q:  # número, guía, OC, factura, proveedor (nombre o RUC), producto y usuario
         qs = qs.filter(Q(numero__icontains=q) | Q(referencia__icontains=q) | Q(glosa__icontains=q) |
@@ -131,7 +134,7 @@ def lista(request):
         'tipos': tipos, 'q': q, 'desde': desde, 'hasta': hasta, 'en_transito': en_transito,
         'estados': Operacion.ESTADOS, 'recepcion_transito': _tipo_recepcion_transito(), 'grupos_filas': grupos_filas,
         'almacenes': Almacen.objects.filter(activo=True), 'usuarios': usuarios,
-        'centros': CentroCosto.objects.filter(activo=True).order_by('codigo'), **ctx_lista})
+        'centros': CentroCosto.objects.filter(activo=True).order_by('codigo'), 'sel': sel, **ctx_lista})
 
 def _tipo_recepcion_transito():
     return TipoOperacion.objects.filter(clase='TRANSITO_RECEPCION', activo=True).first()

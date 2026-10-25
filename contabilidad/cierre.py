@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.db.models import Q, Sum
 from django.urls import reverse
+from django.utils import timezone
 
 from core.models import r2
 
@@ -81,7 +82,7 @@ def pasos(periodo):
              f'{reverse("contabilidad:reparto")}?mes={mes}')
     centralizado = bool(p and p.fecha_centralizacion and not p.pendiente)
     paso('Centralización contable', 'ok' if centralizado else 'pendiente',
-         f'Centralizado el {p.fecha_centralizacion:%d/%m/%Y %H:%M}.' if centralizado else
+         f'Centralizado el {timezone.localtime(p.fecha_centralizacion):%d/%m/%Y %H:%M}.' if centralizado else
          'Hay cambios sin contabilizar: centralice el periodo.', '')
     filas, tot = reportes.balance_comprobacion(periodo, periodo)
     cuadra = tot['d'] == tot['h']

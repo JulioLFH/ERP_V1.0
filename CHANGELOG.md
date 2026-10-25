@@ -3,6 +3,20 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.85.0 — 25/10/2026 · Buscadores con sugerencias, filtros de varias opciones, fechas propuestas y correcciones
+- **Buscadores de las listas (PLAT-12)**: al escribir 2 o más caracteres en «Buscar» se proponen hasta 10 coincidencias de lo registrado según la pantalla (productos por código y nombre, clientes y proveedores con RUC, números de comprobantes, órdenes, operaciones, asientos, vouchers, guías, trabajadores, obras, recursos, activos, equipos…); al elegir una, filtra.
+- **Filtros de varias opciones (PLAT-13)**: en Operaciones de inventario (tipo, estado, almacén, centro, usuario), Compras y Ventas (tipo de comprobante y estado), Asientos (libro y origen), Movimientos de Tesorería (cuenta y concepto), Bitácora (usuario, acción y registro), Activos (estado y categoría) y Oportunidades del CRM (etapa, vendedor y campaña) los filtros son listas de casillas con buscador, «Todos / Ninguno» y contador; se marcan varios valores (cualquiera de ellos dentro del filtro, todos los filtros a la vez), lo elegido se ve como etiquetas que se quitan con una x y se recuerda por usuario. El producto del Kardex y de Lotes tiene buscador.
+- **Fechas propuestas (PLAT-14)**: la fecha del documento de las operaciones de inventario, la fecha de pago de la planilla, el contrato e inicio de la obra, el inicio del proyecto y de la oportunidad, la adquisición e inicio de uso del activo y la notificación de SST proponen hoy; el vencimiento de compras y ventas se propone con la emisión + los días de crédito del cliente o proveedor; los reportes con Desde / Hasta vacíos proponen el mes en curso.
+- **Mantenimiento**: «Aprobar → OT» y «Rechazar» de los avisos son botones (en todas las tablas de este tipo los botones salían como texto) y, sin el permiso, se dice cuál falta (MNT-10); las órdenes grabadas antes de la validación con horas o costos negativos quedan en cero con la nota del valor original, y el tablero ignora y alerta los valores imposibles (MNT-09).
+- **Calidad**: en los selectores con buscador la opción elegida ya no se repite en la lista (CAL-11); un documento BPM solo queda vigente con su flujo de firmas (elaboró, revisó, aprobó), no con la validación genérica; los que quedaron vigentes así vuelven a elaboración (CAL-12).
+- **Excelencia**: una acción correctiva con responsable «yo» ya no da error 500; el mismo arreglo en otras 22 pantallas donde un identificador vacío causaba el mismo error (EXC-03).
+- **Segregación (FIN-10)**: nadie aprueba su propia propuesta de pagos ni su propio parte de lecturas, tampoco el administrador (salvo que sea el único usuario); la matriz de segregación lo muestra.
+- **Inmobiliario (INM-09)**: el terreno es el 50 % por defecto (Reglamento de la Ley del IGV, art. 5, num. 9); otro % exige confirmar que lo aprobó el contador y la pantalla de unidades lo advierte.
+- **Versiones del S10 (OBR-24)**: si el archivo nuevo trae un solo subpresupuesto, las partidas se emparejan con el subpresupuesto principal (o por ítem y descripción): 01.01.01 sale como cambio de metrado y lo ejecutado pasa a la nueva versión.
+- **Presupuesto del proyecto (SRV-15)**: las cuentas de cada rubro siguen el plan de la empresa (PCGE 2026) y la cuenta configurada para honorarios: el recibo del especialista pasa de comprometido a gastado.
+- **Asientos (CON-13)**: el importe de la lista es el total del asiento (al buscar por cuenta se multiplicaba).
+- **Hora (PLAT-15)**: el historial de Reasignar cartera y otros muestran la hora de Lima.
+
 ## v1.84.2 — 25/10/2026 · Tablero financiero rápido también con mucha historia contable
 - El Tablero financiero y el análisis vertical y horizontal leen la contabilidad una sola vez (debe y haber por cuenta y mes) y arman los 12 cierres desde ahí: con la base de producción baja de 5.5 s a menos de medio segundo, con los mismos valores.
 

@@ -97,6 +97,140 @@ def datos_productos(user, ids=None):
     return productos
 
 
+# ---------------------------------------------------------------- PLAT-12: sugerencias de los buscadores de listas
+def _q(campos, q):
+    from django.db.models import Q
+    filtro = Q()
+    for c in campos:
+        filtro |= Q(**{f'{c}__icontains': q})
+    return filtro
+
+
+def _modelo(label):
+    from django.apps import apps
+    return apps.get_model(label)
+
+
+def _s_productos(q):
+    # el nombre: lo buscan todas las listas (por código solo algunas)
+    return [(n, f'{c} · {n}') for c, n in Producto.objects.filter(_q(['codigo', 'nombre'], q), activo=True)
+            .order_by('codigo').values_list('codigo', 'nombre')[:10]]
+
+
+def _s_terceros(q):
+    return [(n, f'{n} · {d}') for d, n in Tercero.objects.filter(_q(['numero_doc', 'nombre'], q))
+            .order_by('nombre').values_list('numero_doc', 'nombre')[:10]]
+
+
+def _s_docs(label, numero='numero', con_serie=False):
+    def buscar(q):
+        m = _modelo(label)
+        campos = ['numero', 'tercero__nombre'] + (['serie'] if con_serie else [])
+        filas = m.objects.filter(_q(campos, q)).order_by('-id').values_list(
+            *(['serie'] if con_serie else []), numero, 'tercero__nombre')[:10]
+        salida = []
+        for f in filas:
+            *doc, nombre = f
+            texto = '-'.join(str(x) for x in doc)
+            salida.append((doc[-1], f'{texto} · {nombre or ""}'))
+        return salida
+    return buscar
+
+
+def _s_simple(label, campos, valor, *mostrar, orden='-id'):
+    def buscar(q):
+        m = _modelo(label)
+        return [(f[0], ' · '.join(str(x) for x in f if x)) for f in
+                m.objects.filter(_q(campos, q)).order_by(orden).values_list(valor, *mostrar)[:10]]
+    return buscar
+
+
+def _s_trabajadores(q):
+    T = _modelo('planillas.Trabajador')
+    return [(d, f'{a} {n} · {d}') for d, a, n in T.objects.filter(_q(['numero_doc', 'apellido_paterno', 'nombres'], q))
+            .order_by('apellido_paterno').values_list('numero_doc', 'apellido_paterno', 'nombres')[:10]]
+
+
+SUGERIR = {  # módulo de la pantalla -> fuentes (en orden); la pantalla «productos» y «terceros» van por su nombre
+    'inventario': [_s_productos, _s_docs('inventario.Operacion')],
+    'codigo_barras': [_s_productos], 'toma_pedido': [_s_productos, _s_terceros],
+    'compras': [_s_docs('compras.Compra', con_serie=True), _s_docs('compras.OrdenCompra'), _s_terceros, _s_productos],
+    'portal_proveedores': [_s_docs('compras.Compra', con_serie=True), _s_terceros],
+    'requerimientos': [_s_simple('compras.SolicitudPedido', ['numero', 'motivo'], 'numero', 'motivo'), _s_productos],
+    'ventas': [_s_docs('ventas.Venta', con_serie=True), _s_docs('ventas.Cotizacion'), _s_terceros, _s_productos],
+    'crm': [_s_terceros, _s_simple('ventas.Oportunidad', ['nombre', 'tercero__nombre'], 'nombre', 'tercero__nombre')],
+    'contactos': [_s_terceros], 'tesoreria': [_s_simple('finanzas.Movimiento', ['voucher', 'tercero__nombre', 'glosa'],
+                                                         'voucher', 'tercero__nombre'), _s_terceros],
+    'finanzas': [_s_terceros], 'rendiciones': [_s_simple('finanzas.Rendicion', ['numero', 'descripcion'], 'numero',
+                                                         'descripcion'), _s_trabajadores],
+    'contabilidad': [_s_simple('contabilidad.Asiento', ['numero', 'glosa'], 'numero', 'glosa'),
+                     _s_simple('contabilidad.CuentaContable', ['codigo', 'nombre'], 'codigo', 'nombre',
+                               orden='codigo')],
+    'logistica': [_s_simple('logistica.GuiaRemision', ['numero', 'serie', 'destinatario__nombre'], 'numero', 'serie',
+                            'destinatario__nombre'), _s_terceros],
+    'distribucion': [_s_terceros],
+    'obras': [_s_simple('obras.Obra', ['codigo', 'nombre'], 'codigo', 'nombre', orden='codigo'),
+              _s_simple('obras.Recurso', ['codigo', 'nombre'], 'codigo', 'nombre', orden='codigo')],
+    'activos': [_s_simple('activos.ActivoFijo', ['codigo', 'nombre', 'serie'], 'codigo', 'nombre', orden='codigo')],
+    'planillas': [_s_trabajadores], 'empleados': [_s_trabajadores], 'tiempo_personal': [_s_trabajadores],
+    'sst': [_s_trabajadores], 'calidad': [_s_simple('calidad.NoConformidad', ['codigo', 'descripcion'], 'codigo',
+                                                    'descripcion')],
+    'manufactura': [_s_productos], 'planificacion': [_s_productos], 'control_calidad': [_s_productos],
+    'mantenimiento': [_s_simple('produccion.Equipo', ['codigo', 'nombre'], 'codigo', 'nombre', orden='codigo')],
+    'flota': [_s_simple('produccion.Equipo', ['codigo', 'nombre', 'placa'], 'codigo', 'nombre', 'placa',
+                        orden='codigo')],
+    'costos': [_s_productos],
+}
+POR_NOMBRE = {'productos': [_s_productos], 'terceros': [_s_terceros]}
+
+
+@login_required
+def sugerencias(request):
+    """Hasta 10 coincidencias para el buscador de la lista en la que está el usuario (pantalla = su dirección)."""
+    from django.urls import Resolver404, resolve
+
+    from .modulos import modulos_de_ruta, modulos_del_usuario
+    q = (request.GET.get('q') or '').strip()
+    if len(q) < 2:
+        return JsonResponse([], safe=False)
+    try:
+        match = resolve(request.GET.get('ruta') or '/')
+    except Resolver404:
+        return JsonResponse([], safe=False)
+    modulos = modulos_de_ruta(match) or []
+    fuentes = POR_NOMBRE.get(match.url_name) if not match.namespace else None
+    if fuentes is None:
+        propios = [m for m in modulos if request.user.is_superuser or m in modulos_del_usuario(request.user)]
+        if modulos and not propios:
+            return JsonResponse([], safe=False)
+        fuentes = next((SUGERIR[m] for m in (propios or modulos) if m in SUGERIR), [])
+    salida, vistos = [], set()
+    for fuente in fuentes:
+        try:
+            filas = fuente(q)
+        except Exception:  # fuente de una app no instalada o un campo que no existe en esta versión
+            continue
+        for valor, texto in filas:
+            if valor and texto not in vistos:
+                vistos.add(texto)
+                salida.append({'valor': str(valor), 'texto': texto})
+        if len(salida) >= 10:
+            break
+    return JsonResponse(salida[:10], safe=False)
+
+
+@login_required
+def tercero_credito(request, pk):
+    """Días de crédito del cliente o proveedor: el formulario propone el vencimiento = emisión + días (PLAT-14)."""
+    from .modulos import modulos_del_usuario
+    if not request.user.is_superuser and not (_TERCEROS & modulos_del_usuario(request.user)):
+        raise Http404
+    t = Tercero.objects.filter(pk=pk).values('dias_credito').first()
+    if t is None:
+        raise Http404
+    return JsonResponse({'dias': t['dias_credito'] or 0})
+
+
 @login_required
 def producto_datos(request, pk):
     """Un producto para el detalle de ítems (el formulario ya no descarga todo el catálogo)."""

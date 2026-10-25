@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 from django.contrib.auth import get_user_model
 
@@ -11,6 +13,10 @@ from .models import (HitoLicitacion, Licitacion, Obra, Partida, Presupuesto, Rec
 class ObraForm(BootstrapMixin, forms.ModelForm):
     motivo_cambio = forms.CharField(label='Motivo para reabrir', max_length=250, required=False,
                                     help_text='Solo al reabrir una obra liquidada o cerrada (queda en la auditoría)')
+    terreno_distinto = forms.BooleanField(
+        label='Confirmo un % de terreno distinto al 50 % del Reglamento (aprobado por el contador)', required=False,
+        help_text='Reglamento de la Ley del IGV, art. 5, num. 9: en la primera venta de inmuebles el terreno es el 50 % '
+                  'del valor de transferencia')
 
     class Meta:
         model = Obra
@@ -42,10 +48,15 @@ class ObraForm(BootstrapMixin, forms.ModelForm):
     def clean(self):
         data = super().clean()
         pct = data.get('terreno_pct')
+        inmobiliaria = data.get('tipo') == 'INMOBILIARIA'
         if pct is None:
-            data['terreno_pct'] = 0
+            data['terreno_pct'] = Decimal('50') if inmobiliaria else 0  # INM-09: el del Reglamento
         elif not 0 <= pct < 100:
             self.add_error('terreno_pct', 'Entre 0 y 99.99 %.')
+        elif inmobiliaria and pct != 50 and not data.get('terreno_distinto'):
+            self.add_error('terreno_pct', 'El Reglamento de la Ley del IGV (art. 5, num. 9) fija el terreno en el 50 % del '
+                                          'valor de transferencia en la primera venta. Para usar otro %, marque la '
+                                          'confirmación (con la aprobación del contador).')
         return data
 
 

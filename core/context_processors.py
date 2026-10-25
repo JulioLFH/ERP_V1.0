@@ -42,6 +42,9 @@ def empresa(request):
         # igual rechaza cualquier POST)
         'solo_lectura': nivel_pantalla(request.user, request.path) == 'LECTURA',
         'url_carga': _url_carga(request, mods),
+        # PLAT-13: valores elegidos de cada filtro de la lista ({% if v in elegido.origen %}); «filtros» ya lo usa
+        # la tabla genérica para sus casillas
+        'elegido': {k: request.GET.getlist(k) for k in request.GET},
     }
 
 

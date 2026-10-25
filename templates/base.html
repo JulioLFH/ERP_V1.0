@@ -10,7 +10,7 @@
   {% include 'core/_head_marca.html' %}
   <link href="{% static 'css/app.css' %}?v={{ erp_version }}" rel="stylesheet">
 </head>
-<body class="{% if menu_modulo %}con-lateral{% endif %}{% if solo_lectura %} solo-lectura{% endif %}">
+<body class="{% if menu_modulo %}con-lateral{% endif %}{% if solo_lectura %} solo-lectura{% endif %}"{% if user.is_authenticated %} data-usuario="{{ user.pk }}"{% endif %}>
 <nav class="navbar navbar-dark topnav d-print-none" {% if modulo %}style="--mod-color: {{ modulo.color }}"{% endif %}>
   <div class="container-fluid flex-nowrap">
     {% if menu_modulo %}
@@ -104,7 +104,7 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
-<script>window.ERP_TC_URL = "{% url 'tipo_cambio_api' %}"; window.ERP_PRODUCTO_URL = "{% url 'producto_datos' 0 %}";</script>
+<script>window.ERP_TC_URL = "{% url 'tipo_cambio_api' %}"; window.ERP_PRODUCTO_URL = "{% url 'producto_datos' 0 %}";{% if user.is_authenticated %} window.ERP_SUGERENCIAS_URL = "{% url 'sugerencias' %}"; window.ERP_TERCERO_CREDITO_URL = "{% url 'tercero_credito' 0 %}";{% endif %}</script>
 <script src="{% static 'js/app.js' %}?v={{ erp_version }}"></script>
 {% block scripts %}{% endblock %}
 </body>

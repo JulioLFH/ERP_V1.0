@@ -23,7 +23,19 @@ class ErrorPresupuesto(Exception):
 
 
 def prefijos(rubro):
-    return (rubro.cuentas or CUENTAS.get(rubro.rubro, '')).split()
+    """Cuentas del rubro: las escritas en el rubro o las de por defecto en el plan de la empresa (SRV-15: con el
+    PCGE 2026 los códigos 2019 no coincidían y el recibo del especialista no pasaba a gastado), más la cuenta
+    configurada para los recibos por honorarios en el rubro de especialistas."""
+    if rubro.cuentas:
+        return rubro.cuentas.split()
+    from contabilidad import pcge
+    lista = [pcge.codigo(c) for c in CUENTAS.get(rubro.rubro, '').split()]
+    if rubro.rubro == 'ESPECIALISTAS':
+        from contabilidad.models import CuentaDefecto
+        cuenta = CuentaDefecto.mapa().get('compra_HONORARIOS')
+        if cuenta is not None and not any(cuenta.codigo.startswith(p) for p in lista):
+            lista.append(cuenta.codigo)
+    return lista
 
 
 def _lineas(obra):
@@ -82,10 +94,10 @@ def control(obra):
     rubros = {r.rubro: r for r in obra.rubros.all()}
     partes = obra.partes_horas.filter(estado='APROBADO')
     filas = []
+    otros = [p for k, _ in RUBROS_PROYECTO if k not in ('HORAS', 'OTROS')
+             for p in prefijos(rubros.get(k) or RubroProyecto(obra=obra, rubro=k))]  # lo que no cae en «Otros»
     for clave, nombre in RUBROS_PROYECTO:
         r = rubros.get(clave) or RubroProyecto(obra=obra, rubro=clave)
-        otros = [p for k, x in rubros.items() if k != 'OTROS' for p in prefijos(x)] + [
-            p for k, v in CUENTAS.items() if k not in rubros for p in v.split()]
         comprometido = comprometido_oc(obra, clave)
         if clave == 'HORAS':
             gastado = sum((p.costo for p in partes.filter(trabajador__isnull=False)), D0)

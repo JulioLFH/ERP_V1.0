@@ -108,9 +108,10 @@ def enviar(p, usuario):
 
 
 def puede_aprobar(user, p):
+    """FIN-10: quien la armó no la aprueba (tampoco el administrador), salvo que sea el único usuario activo."""
     from core.permisos import puede
-    return (user.is_superuser or puede(user, 'tesoreria.aprobar_pagos')) and (
-        user.is_superuser or p.creado_por_id != user.pk)
+    from core.segregacion import propio
+    return (user.is_superuser or puede(user, 'tesoreria.aprobar_pagos')) and not propio(user, p)
 
 
 def aprobar(p, usuario, aprobar_=True, motivo=''):

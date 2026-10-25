@@ -271,12 +271,13 @@ def consulta_bitacora(request, app=None, titulo='Bitácora de auditoría', volve
     if prefijos:
         qs = qs.filter(_filtro_modelos(prefijos))
     f = request.GET
-    if f.get('usuario'):
-        qs = qs.filter(usuario_id=f['usuario'])
-    if f.get('accion'):
-        qs = qs.filter(accion=f['accion'])
-    if f.get('modelo'):
-        qs = qs.filter(modelo=f['modelo'])
+    usuarios = [u for u in f.getlist('usuario') if u.isdigit()]  # PLAT-13: varios valores por filtro
+    if usuarios:
+        qs = qs.filter(usuario_id__in=usuarios)
+    for campo in ('accion', 'modelo'):
+        valores = [v for v in f.getlist(campo) if v]
+        if valores:
+            qs = qs.filter(**{f'{campo}__in': valores})
     if f.get('objeto'):
         qs = qs.filter(objeto_id=f['objeto'])
     if f.get('desde'):

@@ -347,7 +347,7 @@ def _datos_persona(c):
     contactos = ContactoCliente.objects.filter(filtro) if filtro else []
     return {
         'titular': c.titular, 'documento': c.documento, 'email': c.email, 'telefono': c.telefono,
-        'consentimientos': [{'fecha': f'{x.fecha:%d/%m/%Y %H:%M}', 'canal': x.get_canal_display(),
+        'consentimientos': [{'fecha': f'{timezone.localtime(x.fecha):%d/%m/%Y %H:%M}', 'canal': x.get_canal_display(),
                              'finalidad': x.finalidad, 'estado': x.get_estado_display()}
                             for x in ConsentimientoDatos.objects.filter(
                                 Q(pk=c.pk) | (filtro if filtro else Q(pk=c.pk)))],
@@ -439,7 +439,7 @@ def reasignaciones(request):
             return redirect('crm:reasignaciones')
         except srv.ErrorCRM as exc:
             form.add_error('a', str(exc))
-    filas = [[f'{r.fecha:%d/%m/%Y %H:%M}', _usuario_txt(r.de), _usuario_txt(r.a), r.oportunidades, r.actividades,
+    filas = [[f'{timezone.localtime(r.fecha):%d/%m/%Y %H:%M}', _usuario_txt(r.de), _usuario_txt(r.a), r.oportunidades, r.actividades,
               r.clientes, r.motivo, _usuario_txt(r.usuario)]
              for r in Reasignacion.objects.select_related('de', 'a', 'usuario')[:300]]
     from .crm_tabla import responder

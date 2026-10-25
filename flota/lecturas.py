@@ -74,6 +74,13 @@ def registrar_parte(filas, fecha, usuario):
 
 @transaction.atomic
 def resolver(lecturas, usuario, aprobar=True, motivo=''):
+    from core.segregacion import _otro_usuario
+    lecturas = list(lecturas)
+    propias = [l for l in lecturas if l.estado == 'PENDIENTE' and l.registrado_por_id == usuario.pk]
+    if aprobar and propias and _otro_usuario(usuario):  # FIN-10: regla fija, también para el administrador
+        partes = sorted({l.parte or str(l.equipo) for l in propias})
+        raise ErrorLectura(f'Segregación de funciones: usted registró {", ".join(partes)} y no puede aprobarlo; '
+                           f'debe hacerlo otro usuario.')
     equipos = set()
     for l in lecturas:
         if l.estado != 'PENDIENTE':

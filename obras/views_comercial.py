@@ -20,6 +20,7 @@ from .inmobiliario import r2
 from .forms import (CobroForm, DesistimientoForm, FichaCompradorForm, HitoForm, LicitacionForm, LicitacionNuevaForm,
                     PerderForm, RequisitoForm, SepararForm, UnidadForm)
 from .models import CuotaInmueble, Licitacion, Obra, Unidad, VentaInmueble
+from core.utils import id_o_none
 
 
 # ---------------------------------------------------------------- licitaciones
@@ -99,7 +100,7 @@ def _accion_licitacion(request, obra, lic, accion, forms_):
         h.save()
         return True
     if accion in ('hito_hecho', 'hito_borrar'):
-        h = lic.hitos.filter(pk=request.POST.get('id')).first()
+        h = lic.hitos.filter(pk=id_o_none(request.POST.get('id'))).first()
         if h is not None and accion == 'hito_hecho':
             h.hecho = not h.hecho
             h.save(update_fields=['hecho'])
@@ -118,7 +119,7 @@ def _accion_licitacion(request, obra, lic, accion, forms_):
                 messages.warning(request, f'Requisito guardado sin el documento: {exc}')
         return True
     if accion in ('cumple', 'requisito_borrar'):
-        r = lic.requisitos.filter(pk=request.POST.get('id')).first()
+        r = lic.requisitos.filter(pk=id_o_none(request.POST.get('id'))).first()
         if r is not None and accion == 'cumple':
             r.cumple = not r.cumple
             r.save(update_fields=['cumple'])
@@ -263,7 +264,7 @@ def unidades(request, pk):
                 messages.error(request, str(exc))
             return redirect('obras:unidades', pk)
         if accion in ('bloquear', 'liberar', 'borrar', 'precio'):
-            u = obra.unidades.filter(pk=request.POST.get('id')).first()
+            u = obra.unidades.filter(pk=id_o_none(request.POST.get('id'))).first()
             if u is None:
                 return redirect('obras:unidades', pk)
             if accion == 'precio':
@@ -549,7 +550,7 @@ def reportes_inmobiliarios(request):
     if clave not in dict(REPORTES_INMOBILIARIOS):
         clave = 'anticipos'
     obras = Obra.objects.filter(tipo='INMOBILIARIA')
-    obra = obras.filter(pk=request.GET.get('obra')).first() if (request.GET.get('obra') or '').isdigit() else None
+    obra = obras.filter(pk=id_o_none(request.GET.get('obra'))).first() if (request.GET.get('obra') or '').isdigit() else None
     try:
         desde = date.fromisoformat(request.GET.get('desde')) if request.GET.get('desde') else (
             hoy.replace(month=1, day=1) if clave == 'predial' else hoy.replace(day=1))

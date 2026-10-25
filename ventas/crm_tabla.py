@@ -29,9 +29,9 @@ def _celda(v):
 
 def _plano(v):
     if isinstance(v, (list, tuple)):
-        return ' '.join(_plano(x) for x in v if x and not (isinstance(x, dict) and x.get('post')))
+        return ' '.join(_plano(x) for x in v if x and not (isinstance(x, dict) and 'post' in x))
     if isinstance(v, dict):
-        return '' if v.get('post') else v.get('texto', '')
+        return '' if 'post' in v else v.get('texto', '')  # botón (post vacío = la misma pantalla)
     return v
 
 

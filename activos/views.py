@@ -24,11 +24,15 @@ D0 = Decimal('0')
 @login_required
 def lista(request):
     qs = ActivoFijo.objects.select_related('categoria', 'centro_costo').prefetch_related('depreciaciones')
-    estado = request.GET.get('estado', 'ACTIVO')
-    if estado:
-        qs = qs.filter(estado=estado)
-    if request.GET.get('categoria'):
-        qs = qs.filter(categoria_id=request.GET['categoria'])
+    from core.utils import elegidos
+    # PLAT-13: varios estados y categorías a la vez (sin filtros en la dirección: los activos)
+    estados = elegidos(request, 'estado') or ([] if 'estado' in request.GET else ['ACTIVO'])
+    estado = estados[0] if len(estados) == 1 else ''
+    if estados:
+        qs = qs.filter(estado__in=estados)
+    categorias = [c for c in elegidos(request, 'categoria') if c.isdigit()]
+    if categorias:
+        qs = qs.filter(categoria_id__in=categorias)
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(codigo__icontains=q) | Q(nombre__icontains=q) | Q(serie__icontains=q) |
@@ -47,6 +51,7 @@ def lista(request):
                                'Depreciación acumulada', 'Valor neto', 'Estado'], datos)
     return render(request, 'activos/lista.html', {
         'activos': activos, 'totales': totales, 'q': q, 'estado': estado, 'estados': ActivoFijo.ESTADOS,
+        'estados_sel': estados,
         'categorias': CategoriaActivo.objects.all()})
 
 

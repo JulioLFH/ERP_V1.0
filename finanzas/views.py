@@ -96,15 +96,17 @@ def _filtrar_movs(request):
     qs = filtrar_cuentas(base.select_related('cuenta', 'tercero', 'venta', 'compra'), request.user)
     if f.get('estado') == 'ANULADO':
         qs = qs.filter(estado='ANULADO')
-    if f.get('cuenta'):
-        qs = qs.filter(cuenta_id=f['cuenta'])
+    cuentas = [c for c in f.getlist('cuenta') if c.isdigit()]
+    if cuentas:
+        qs = qs.filter(cuenta_id__in=cuentas)
     if f.get('desde'):
         qs = qs.filter(fecha__gte=f['desde'])
     if f.get('hasta'):
         qs = qs.filter(fecha__lte=f['hasta'])
-    for campo in ('tipo', 'concepto'):
-        if f.get(campo):
-            qs = qs.filter(**{campo: f[campo]})
+    for campo in ('tipo', 'concepto'):  # PLAT-13: varios valores
+        valores = [v for v in f.getlist(campo) if v]
+        if valores:
+            qs = qs.filter(**{f'{campo}__in': valores})
     if f.get('q'):
         q = f['q']
         qs = qs.filter(Q(glosa__icontains=q) | Q(voucher__icontains=q) | Q(numero_operacion__icontains=q) |

@@ -190,7 +190,8 @@ def accion_nueva(request, ct_id, obj_id):
     if not descripcion or plazo is None:
         messages.error(request, 'Indique la acción y su plazo.')
         return redirect(destino)
-    responsable = get_user_model().objects.filter(pk=request.POST.get('responsable')).first() or request.user
+    elegido = (request.POST.get('responsable') or '').strip()  # EXC-03: «yo» llega vacío = el usuario actual
+    responsable = (get_user_model().objects.filter(pk=elegido).first() if elegido.isdigit() else None) or request.user
     Accion.objects.create(origen=origen, tipo=request.POST.get('tipo') or 'CORRECTIVA', descripcion=descripcion[:300],
                           responsable=responsable, plazo=plazo)
     if isinstance(origen, NoConformidad) and origen.estado == 'ABIERTA':

@@ -14,7 +14,7 @@ from django.views.generic import CreateView, UpdateView
 
 from compras.models import Compra
 from core.models import Empresa
-from core.utils import excel_response, fmt_fecha, txt_response
+from core.utils import elegidos, excel_response, fmt_fecha, txt_response
 from core.views import FormGenerico, ListaGenerica
 from finanzas.models import Movimiento
 from ventas.models import Venta
@@ -26,6 +26,7 @@ from .forms import (AsientoForm, CentroBeneficioForm, CentroCostoForm, CuentaCon
 from .models import (LIBROS, ORIGENES, Asiento, AsientoLinea, CentroBeneficio, CentroCosto, CuentaContable,
                      CuentaDefecto, PeriodoContable, norma_excluida, usar_norma)
 from django.utils import timezone
+from core.utils import id_o_none
 
 
 def con_norma(vista):
@@ -148,18 +149,28 @@ def periodos(request):
 @login_required
 @al_dia
 def asientos(request):
-    qs = Asiento.objects.annotate(total=Sum('lineas__debe'))
+    # CON-13: el total con una subconsulta propia; con Sum('lineas__debe') el buscador por cuenta (que también une las
+    # líneas) multiplicaba el importe por el número de líneas que coincidían
+    from django.db.models import DecimalField, OuterRef, Subquery
+    from django.db.models.functions import Coalesce
+    total = (AsientoLinea.objects.filter(asiento=OuterRef('pk')).order_by().values('asiento')
+             .annotate(s=Sum('debe')).values('s')[:1])
+    qs = Asiento.objects.annotate(total=Coalesce(Subquery(total, output_field=DecimalField(max_digits=16,
+                                                                                            decimal_places=2)),
+                                                 Decimal('0'), output_field=DecimalField(max_digits=16,
+                                                                                         decimal_places=2)))
     periodo = _periodo(request)
     qs = qs.filter(periodo=periodo)
-    for campo in ('libro', 'origen'):
-        if request.GET.get(campo):
-            qs = qs.filter(**{campo: request.GET[campo]})
+    sel = {campo: elegidos(request, campo) for campo in ('libro', 'origen')}  # PLAT-13: varios valores
+    for campo, valores in sel.items():
+        if valores:
+            qs = qs.filter(**{f'{campo}__in': valores})
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(glosa__icontains=q) | Q(numero__icontains=q) | Q(lineas__cuenta__codigo__startswith=q)).distinct()
     return render(request, 'contabilidad/asientos.html', {
         'page_obj': Paginator(qs.order_by('fecha', 'libro', 'numero'), 50).get_page(request.GET.get('page')),
-        'periodo': periodo, 'mes': _mes_input(periodo), 'libros': LIBROS, 'origenes': ORIGENES, 'q': q,
+        'periodo': periodo, 'mes': _mes_input(periodo), 'libros': LIBROS, 'origenes': ORIGENES, 'q': q, 'sel': sel,
         'cerrado': PeriodoContable.esta_cerrado(periodo)})
 
 
@@ -343,7 +354,7 @@ def _mayor_ple(periodo):
 @con_norma
 def libro_mayor(request):
     cuentas = CuentaContable.objects.filter(imputable=True)
-    cuenta = cuentas.filter(pk=request.GET.get('cuenta')).first() if request.GET.get('cuenta') else None
+    cuenta = cuentas.filter(pk=id_o_none(request.GET.get('cuenta'))).first() if request.GET.get('cuenta') else None
     hasta = _periodo(request, 'hasta')
     desde = _periodo(request, 'desde', defecto=f'{hasta[:4]}01')
     if request.GET.get('formato') == 'ple':  # todas las cuentas del mes "hasta"

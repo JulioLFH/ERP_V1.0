@@ -14,6 +14,7 @@ from core.registros import Tipo
 from . import servicios as srv
 from .models import (Capacitacion, EntregaEPP, EquipoEmergencia, Evento, ExamenMedico, HorasTrabajadas, Inspeccion,
                      Iperc, LineaEPP, LineaIperc, Monitoreo, PermisoTrabajo, Sctr)
+from core.utils import id_o_none
 
 LUGAR = ['obra', 'area', 'lugar']
 TIPOS = {
@@ -106,7 +107,7 @@ def _accion_extra(request, obj, accion):
         obj.lineas.filter(pk=request.POST.get('id')).delete()
     elif accion == 'linea_epp' and isinstance(obj, EntregaEPP):
         from core.models import Producto
-        producto = Producto.objects.filter(pk=request.POST.get('producto')).first()
+        producto = Producto.objects.filter(pk=id_o_none(request.POST.get('producto'))).first()
         try:
             cantidad = Decimal(request.POST.get('cantidad') or '1')
             dias = int(request.POST.get('reposicion_dias') or 0)
@@ -162,7 +163,7 @@ def indices(request):
     from obras.models import Obra
     hoy = timezone.localdate()
     anio = int(request.GET['anio']) if (request.GET.get('anio') or '').isdigit() else hoy.year
-    obra = Obra.objects.filter(pk=request.GET.get('obra')).first() if (request.GET.get('obra') or '').isdigit() \
+    obra = Obra.objects.filter(pk=id_o_none(request.GET.get('obra'))).first() if (request.GET.get('obra') or '').isdigit() \
         else None
     if request.method == 'POST':
         try:

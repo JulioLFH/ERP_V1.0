@@ -14,6 +14,7 @@ from finanzas.models import Movimiento
 
 from . import importaciones as imp_srv
 from .models import Compra, GastoImportacion, Importacion, OrdenCompra
+from core.utils import id_o_none
 
 TIPOS_FACTURA_COMERCIAL = ('01', '00', '91')  # factura, otros y comprobante de no domiciliado (IMP-01)
 
@@ -75,9 +76,9 @@ def importacion(request, pk):
         accion = request.POST.get('accion')
         try:
             if accion == 'gasto':
-                compra = Compra.objects.filter(pk=request.POST.get('compra')).first() if request.POST.get('compra') \
+                compra = Compra.objects.filter(pk=id_o_none(request.POST.get('compra'))).first() if request.POST.get('compra') \
                     else None
-                mov = Movimiento.objects.filter(pk=request.POST.get('movimiento')).first() \
+                mov = Movimiento.objects.filter(pk=id_o_none(request.POST.get('movimiento'))).first() \
                     if request.POST.get('movimiento') else None
                 imp_srv.agregar_gasto(imp, request.POST.get('concepto', 'OTRO'), _monto(request.POST.get('monto')),
                                       request.POST.get('descripcion', ''), compra, mov, request.POST.get('metodo', ''))

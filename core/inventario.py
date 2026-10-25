@@ -16,6 +16,7 @@ from .models import D0, Almacen, Kardex, Producto, r2
 from .utils import _fin_de_mes, excel_response, fmt_fecha, rango_por_defecto
 from .views import FormGenerico, ListaGenerica
 from django.utils import timezone
+from .utils import id_o_none
 
 
 def _signo(k):
@@ -84,8 +85,8 @@ def kardex(request):
     permitidos = almacenes_permitidos(request.user)  # usuario limitado a ciertos almacenes: solo sus movimientos
     productos = Producto.objects.filter(tipo='BIEN')
     almacenes = Almacen.objects.all() if permitidos is None else Almacen.objects.filter(pk__in=permitidos)
-    producto = productos.filter(pk=request.GET.get('producto')).first() if request.GET.get('producto') else None
-    almacen = almacenes.filter(pk=request.GET.get('almacen')).first() if request.GET.get('almacen') else None
+    producto = productos.filter(pk=id_o_none(request.GET.get('producto'))).first() if request.GET.get('producto') else None
+    almacen = almacenes.filter(pk=id_o_none(request.GET.get('almacen'))).first() if request.GET.get('almacen') else None
     from inventario.cierre import ultimo_cierre
     ctx = {'productos': productos, 'almacenes': almacenes, 'producto': producto, 'almacen': almacen,
            'cierre': ultimo_cierre()}
@@ -356,7 +357,7 @@ def valorizacion(request):
     from .permisos import almacenes_permitidos
     permitidos = almacenes_permitidos(request.user)  # usuario limitado: solo sus almacenes
     almacenes = Almacen.objects.all() if permitidos is None else Almacen.objects.filter(pk__in=permitidos)
-    almacen = almacenes.filter(pk=request.GET.get('almacen')).first() if request.GET.get('almacen') else None
+    almacen = almacenes.filter(pk=id_o_none(request.GET.get('almacen'))).first() if request.GET.get('almacen') else None
     filas, total = valor_inventario(corte, almacen, permitidos)
     if request.GET.get('formato') == 'excel':
         enc = ['Código', 'Producto', 'U.M.', 'Cantidad', 'Costo promedio', 'Valor S/']
@@ -422,7 +423,7 @@ def ubicaciones(request):
                     'descripcion': request.POST.get('descripcion', '')[:100]})
                 messages.success(request, f'Ubicación {codigo} {"creada" if creada else "ya existía"}.')
         elif accion == 'asignar':
-            producto = Producto.objects.filter(pk=request.POST.get('producto')).first()
+            producto = Producto.objects.filter(pk=id_o_none(request.POST.get('producto'))).first()
             ubic = Ubicacion.objects.filter(pk=request.POST.get('ubicacion'), almacen=almacen).first()
             if producto is None:
                 messages.error(request, 'Elija el producto.')

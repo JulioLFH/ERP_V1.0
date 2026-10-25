@@ -29,6 +29,48 @@ def _partidas(p):
         'subpresupuesto__codigo', 'orden'))
 
 
+def _principal(partidas):
+    """Código del subpresupuesto principal: el que no es de gastos generales y tiene más partidas."""
+    cuenta = {}
+    for x in partidas.values():
+        s = x.subpresupuesto
+        if s is not None and not s.es_gastos_generales:
+            cuenta[s.codigo] = cuenta.get(s.codigo, 0) + 1
+    return max(cuenta, key=cuenta.get) if cuenta else None
+
+
+def emparejar(a, n):
+    """{clave nueva: partida anterior} (OBR-24). 1) mismo subpresupuesto e ítem; 2) si la partida nueva no tiene
+    subpresupuesto o la versión nueva trae uno solo, el ítem contra el subpresupuesto principal de la anterior; 3) el
+    mismo ítem con la misma descripción en cualquier subpresupuesto (si es único)."""
+    pares, usadas = {}, set()
+    for k, x in n.items():
+        if k in a and not x.es_titulo:
+            pares[k] = a[k]
+            usadas.add(a[k].pk)
+    subs_nuevos = {x.subpresupuesto.codigo for x in n.values() if x.subpresupuesto_id}
+    principal = _principal(a)
+    por_item = {}
+    for y in a.values():
+        if not y.es_titulo and y.pk not in usadas:
+            por_item.setdefault(y.item, []).append(y)
+    for k, x in n.items():
+        if k in pares or x.es_titulo:
+            continue
+        candidatas = [y for y in por_item.get(x.item, []) if y.pk not in usadas]
+        elegida = None
+        if principal and (not x.subpresupuesto_id or len(subs_nuevos) <= 1):
+            elegida = next((y for y in candidatas if y.subpresupuesto_id and y.subpresupuesto.codigo == principal),
+                           None)
+        if elegida is None:
+            iguales = [y for y in candidatas if y.descripcion.strip().lower() == x.descripcion.strip().lower()]
+            elegida = iguales[0] if len(iguales) == 1 else None
+        if elegida is not None:
+            pares[k] = elegida
+            usadas.add(elegida.pk)
+    return pares
+
+
 def _recursos(p):
     """{clave de partida: {código del recurso: (cantidad, recurso)}}."""
     salida = {}
@@ -51,13 +93,15 @@ def comparar(anterior, nuevo):
     """Altas, bajas y cambios (metrado, precio, descripción o unidad) por partida y los cambios de los análisis por
     recurso; con el efecto en el total y las bajas que tienen registros."""
     a, n = _partidas(anterior), _partidas(nuevo)
-    altas = [x for k, x in n.items() if k not in a and not x.es_titulo]
-    bajas = [x for k, x in a.items() if k not in n and not x.es_titulo]
+    pares = emparejar(a, n)
+    emparejadas = {y.pk for y in pares.values()}
+    altas = [x for k, x in n.items() if k not in pares and not x.es_titulo]
+    bajas = [x for x in a.values() if x.pk not in emparejadas and not x.es_titulo]
     cambios = []
     for k, x in n.items():
-        if k not in a or x.es_titulo:
+        if k not in pares or x.es_titulo:
             continue
-        y = a[k]
+        y = pares[k]
         motivos = []
         if x.metrado != y.metrado:
             motivos.append(f'metrado {y.metrado:,.2f} → {x.metrado:,.2f}')
@@ -71,8 +115,10 @@ def comparar(anterior, nuevo):
             cambios.append({'antes': y, 'ahora': x, 'motivos': motivos, 'diferencia': x.parcial - y.parcial})
     ra, rn = _recursos(anterior), _recursos(nuevo)
     recursos = []
-    for k in sorted(set(ra) & set(rn)):
-        viejos, nuevos = ra[k], rn[k]
+    for k in sorted(set(rn) & set(pares)):
+        if pares[k].clave not in ra:
+            continue
+        viejos, nuevos = ra[pares[k].clave], rn[k]
         for codigo in sorted(set(viejos) | set(nuevos)):
             antes, ahora = viejos.get(codigo), nuevos.get(codigo)
             if antes and ahora and antes[0] == ahora[0]:
@@ -100,13 +146,15 @@ def trasladar_registros(nuevo):
     if anterior is None:
         return 0, []
     destino = _partidas(nuevo)
-    origen = list(anterior.partidas.select_related('subpresupuesto'))
+    a = _partidas(anterior)
+    origen = list(a.values())
+    equivalente = {y.pk: destino[k] for k, y in emparejar(a, destino).items()}  # OBR-24
     n, sin_destino = 0, []
     registros = con_registros(origen)
     for p in origen:
         if p.pk not in registros:
             continue
-        nueva = destino.get(p.clave)
+        nueva = equivalente.get(p.pk)
         if nueva is None or nueva.es_titulo:
             sin_destino.append(p)
             continue

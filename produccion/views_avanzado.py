@@ -13,6 +13,7 @@ from . import abc, avanzado
 from .forms_planta import ActividadForm, CambioForm, RecursosFormSet
 from .models import ActividadABC, CambioIngenieria, CentroTrabajo, OrdenProduccion
 from .views_costos import con_costos
+from core.utils import id_o_none
 
 
 def _dec(valor):
@@ -68,7 +69,7 @@ def planta_orden(request, pk):
                 from .models import Equipo
                 equipo = Equipo.objects.filter(pk=request.POST.get('equipo') or 0, activo=True).first()
                 parada = avanzado.registrar_parada(
-                    orden, hora, MotivoParada.objects.filter(pk=request.POST.get('motivo')).first(),
+                    orden, hora, MotivoParada.objects.filter(pk=id_o_none(request.POST.get('motivo'))).first(),
                     _dec(request.POST.get('minutos')), request.user, equipo=equipo)
                 messages.success(request, 'Parada registrada.' + (
                     f' Se propuso la orden de mantenimiento {parada.orden_mantenimiento.numero}.'

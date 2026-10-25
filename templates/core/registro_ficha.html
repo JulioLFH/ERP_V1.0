@@ -16,7 +16,7 @@
     {% if tipo.extra %}{% include tipo.extra %}{% endif %}
   </div>
   <div class="col-lg-5">
-    {% if validable %}{% include 'core/_validacion.html' %}{% endif %}
+    {% if validable and objeto.flujo_propio %}<div class="alert alert-info small mt-2"><i class="bi bi-pen"></i> {{ objeto.flujo_propio }} <a href="{% url 'calidad:documento_flujo' objeto.pk %}">Ir al flujo de firmas »</a></div>{% elif validable %}{% include 'core/_validacion.html' %}{% endif %}
     {% include 'core/_sustentos.html' with objeto=objeto solo_lectura=False %}
   </div>
 </div>

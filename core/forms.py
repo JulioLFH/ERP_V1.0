@@ -57,6 +57,14 @@ def remoto(campo, fuente, perezoso=False):
     campo.widget = widget
 
 
+FECHAS_HOY = {  # PLAT-14: modelo -> fechas que un registro nuevo propone con la fecha de hoy
+    'inventario.operacion': ('fecha_documento',), 'planillas.planilla': ('fecha_pago',),
+    'obras.obra': ('fecha_contrato', 'fecha_inicio'), 'colaboracion.proyecto': ('fecha_inicio',),
+    'ventas.oportunidad': ('fecha_inicio',), 'activos.activofijo': ('fecha_adquisicion', 'fecha_uso'),
+    'sst.evento': ('notificado_en',),
+}
+
+
 class BootstrapMixin:
     """Aplica clases Bootstrap a todos los widgets."""
 
@@ -76,6 +84,12 @@ class BootstrapMixin:
         # un campo con valor por defecto que el formulario (o la API, una pantalla antigua) no envía no es
         # obligatorio: Django guarda el valor por defecto del modelo (construct_instance lo omite)
         modelo = getattr(getattr(self, '_meta', None), 'model', None)
+        # PLAT-14: las fechas de un documento nuevo proponen hoy (el usuario las cambia si quiere)
+        if modelo is not None and not getattr(self, 'is_bound', False) and not getattr(self.instance, 'pk', None):
+            from django.utils import timezone
+            for nombre in FECHAS_HOY.get(modelo._meta.label_lower, ()):
+                if nombre in self.fields and not self.initial.get(nombre) and not getattr(self.instance, nombre, None):
+                    self.initial[nombre] = timezone.localdate()
         if modelo is not None and getattr(self, 'is_bound', False):
             for nombre, field in self.fields.items():
                 try:
