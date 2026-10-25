@@ -160,20 +160,6 @@ MODULOS = [
                           ('Tablero diario de producción', 'manufactura:tablero', 'bi-speedometer2'),
                           ('Todos los reportes de producción', 'manufactura:reportes', 'bi-bar-chart-line'),
                           ('Log de modificaciones', 'manufactura:modificaciones', 'bi-journal-text')]),
-            ('Planificación', [('MRP: necesidades y órdenes planificadas', 'manufactura:mrp', 'bi-diagram-2'),
-                               ('Pronóstico de demanda', 'manufactura:pronostico', 'bi-graph-up'),
-                               ('Programación detallada de planta', 'manufactura:programacion', 'bi-calendar-range'),
-                               ('Carga y capacidad de puestos', 'manufactura:capacidad', 'bi-speedometer')]),
-            ('Calidad', [('Inspecciones de calidad', 'manufactura:inspecciones', 'bi-clipboard2-check'),
-                         ('Nueva inspección', 'manufactura:inspeccion_nueva', 'bi-plus-circle'),
-                         ('Planes de calidad por producto', 'manufactura:planes_calidad', 'bi-list-check'),
-                         ('Certificados de análisis y liberación de lotes', 'manufactura:certificados',
-                          'bi-patch-check')]),
-            ('Mantenimiento', [('Órdenes de mantenimiento', 'manufactura:ordenes_mant', 'bi-wrench-adjustable'),
-                               ('Nueva orden de mantenimiento', 'manufactura:orden_mant_nueva', 'bi-plus-circle'),
-                               ('Equipos y planes preventivos', 'manufactura:equipos', 'bi-gear'),
-                               ('Parte diario de horómetros / odómetros', 'flota:parte', 'bi-speedometer'),
-                               ('Documentos de equipos por vencer', 'flota:documentos', 'bi-calendar-x')]),
             ('Ingeniería', [('Listas de materiales (recetas)', 'manufactura:listas', 'bi-diagram-3'),
                             ('Cambios de ingeniería', 'manufactura:cambios', 'bi-arrow-left-right'),
                             ('Hojas de ruta', 'manufactura:hojas', 'bi-signpost-split'),
@@ -183,6 +169,41 @@ MODULOS = [
                             ('Carga masiva de maestros (Excel)', 'carga_masiva?tipo=centros_beneficio',
                              'bi-file-earmark-arrow-up')]),
             ('Productos', 'productos'),
+        ],
+    },
+    # v1.82: Planificación, Calidad y Mantenimiento se separan de Manufactura (las URL siguen en /manufactura/…)
+    {
+        'clave': 'planificacion', 'nombre': 'Planificación (MRP)', 'icono': 'bi-diagram-2', 'color': '#9a3412',
+        'inicio': 'manufactura:mrp', 'descripcion': 'MRP, pronóstico de demanda, programación y capacidad de planta',
+        'menu': [
+            ('MRP: necesidades y órdenes planificadas', 'manufactura:mrp'),
+            ('Demanda', [('Pronóstico de demanda', 'manufactura:pronostico', 'bi-graph-up')]),
+            ('Planta', [('Programación detallada de planta', 'manufactura:programacion', 'bi-calendar-range'),
+                        ('Carga y capacidad de puestos', 'manufactura:capacidad', 'bi-speedometer'),
+                        ('Requerimiento de materiales', 'manufactura:requerimiento', 'bi-basket')]),
+        ],
+    },
+    {
+        'clave': 'control_calidad', 'nombre': 'Calidad', 'icono': 'bi-clipboard2-check', 'color': '#15803d',
+        'inicio': 'manufactura:inspecciones',
+        'descripcion': 'Inspecciones, planes de calidad, certificados de análisis y liberación de lotes',
+        'menu': [
+            ('Inspecciones', [('Inspecciones de calidad', 'manufactura:inspecciones', 'bi-clipboard2-check'),
+                              ('Nueva inspección', 'manufactura:inspeccion_nueva', 'bi-plus-circle')]),
+            ('Planes de calidad por producto', 'manufactura:planes_calidad'),
+            ('Certificados de análisis y liberación de lotes', 'manufactura:certificados'),
+        ],
+    },
+    {
+        'clave': 'mantenimiento', 'nombre': 'Mantenimiento', 'icono': 'bi-wrench-adjustable', 'color': '#475569',
+        'inicio': 'manufactura:ordenes_mant',
+        'descripcion': 'Equipos, planes preventivos, órdenes de mantenimiento y lecturas',
+        'menu': [
+            ('Órdenes', [('Órdenes de mantenimiento', 'manufactura:ordenes_mant', 'bi-wrench-adjustable'),
+                         ('Nueva orden de mantenimiento', 'manufactura:orden_mant_nueva', 'bi-plus-circle')]),
+            ('Equipos', [('Equipos y planes preventivos', 'manufactura:equipos', 'bi-gear'),
+                         ('Parte diario de horómetros / odómetros', 'flota:parte', 'bi-speedometer'),
+                         ('Documentos de equipos por vencer', 'flota:documentos', 'bi-calendar-x')]),
         ],
     },
     {
@@ -609,7 +630,19 @@ def modulos_del_usuario(user):
 
 # espacios de nombres que no son un módulo pero se usan desde varios (el primero es el principal)
 NAMESPACES_COMPARTIDOS = {'solicitudes': ['requerimientos', 'compras', 'manufactura'],
-                          'flota': ['logistica', 'manufactura']}  # maestro único de equipos y flota
+                          'flota': ['logistica', 'mantenimiento', 'manufactura']}  # maestro único de equipos y flota
+
+# Manufactura, Planificación, Calidad y Mantenimiento comparten la app produccion (URL /manufactura/…): módulos de
+# cada pantalla (el primero es el principal; Manufactura también las consulta). Las demás quedan en Manufactura.
+RUTAS_MANUFACTURA = {
+    **{n: ['planificacion', 'manufactura'] for n in ('mrp', 'pronostico', 'programacion', 'capacidad')},
+    'requerimiento': ['manufactura', 'planificacion'],
+    **{n: ['control_calidad', 'manufactura'] for n in (
+        'inspecciones', 'inspeccion_nueva', 'inspeccion', 'planes_calidad', 'plan_calidad', 'certificados',
+        'certificado_nuevo', 'certificado')},
+    **{n: ['mantenimiento', 'manufactura'] for n in (
+        'ordenes_mant', 'orden_mant_nueva', 'orden_mant', 'equipos', 'equipo_nuevo', 'equipo')},
+}
 
 # Tesorería y Finanzas comparten la app finanzas (URL /finanzas/…): módulos de cada pantalla (el primero es el
 # principal). Una pantalla nueva de la app que no esté aquí queda en Finanzas.
@@ -650,6 +683,8 @@ def modulos_de_ruta(match):
             return NAMESPACES_COMPARTIDOS[match.namespace]
         if match.namespace == 'finanzas':
             return RUTAS_FINANZAS.get(match.url_name, ['finanzas'])
+        if match.namespace == 'manufactura':
+            return RUTAS_MANUFACTURA.get(match.url_name, ['manufactura'])
         return [match.namespace] if match.namespace in POR_CLAVE else None
     if match.url_name in RUTAS_LIBRES:
         return None

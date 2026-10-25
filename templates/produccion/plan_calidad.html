@@ -23,7 +23,7 @@
         {% if campo.name == 'requiere_liberacion' %}{{ campo }} <label class="form-check-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>{% else %}<label class="form-label small mb-1">{{ campo.label }}</label>{{ campo }}{% endif %}
         {% for e in campo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</div>{% endfor %}</div>
     </div></div>
-  {% if puede.manufactura_calidad %}<button class="btn btn-sm btn-success"><i class="bi bi-save"></i> Guardar plan</button>{% endif %}
+  {% if puede.control_calidad_inspecciones %}<button class="btn btn-sm btn-success"><i class="bi bi-save"></i> Guardar plan</button>{% endif %}
   <a href="{% url 'manufactura:planes_calidad' %}" class="btn btn-sm btn-link">Volver</a>
 </form>
 {% endblock %}

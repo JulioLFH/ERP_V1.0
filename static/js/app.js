@@ -3,11 +3,9 @@
 (function () {
   const cache = {};
   const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-  function html(url) {
+  function lista(url) {
     if (!cache[url]) {
       cache[url] = fetch(url, { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : []))
-        .then((lista) => '<option value="">---------</option>' +
-          lista.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join(''))
         .catch(() => null);
     }
     return cache[url];
@@ -15,20 +13,25 @@
   function llenar(sel) {
     if (sel.dataset.llenado) return;
     sel.dataset.llenado = '1';
-    const actual = sel.value;
-    const elegida = sel.selectedOptions[0] && actual ? sel.selectedOptions[0].outerHTML : '';
-    html(sel.dataset.opciones).then((opciones) => {
-      if (!opciones) { delete sel.dataset.llenado; return; }
-      sel.innerHTML = opciones;
+    lista(sel.dataset.opciones).then((filas) => {
+      if (!filas) { delete sel.dataset.llenado; return; }
+      const ts = sel.tomselect;
+      if (ts) {
+        // CRM-13: con el buscador las opciones se cargan por su API; reemplazar el <select> por debajo hacía que el
+        // buscador volviera a agregar la opción elegida (salía repetida)
+        // solo se agregan las que faltan: la elegida ya está (actualizarla hacía que se duplicara en el <select>)
+        ts.addOptions(filas.filter(([v]) => !ts.options[String(v)]).map(([v, t]) => ({ value: String(v), text: t })));
+        ts.refreshOptions(false);
+        return;
+      }
+      const actual = sel.value;
+      const elegida = sel.selectedOptions[0] && actual ? sel.selectedOptions[0].outerHTML : '';
+      sel.innerHTML = '<option value="">---------</option>' +
+        filas.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join('');
       if (actual) {
         sel.value = actual;
         if (sel.value !== actual && elegida) { sel.insertAdjacentHTML('beforeend', elegida); sel.value = actual; }
       }
-      const vistos = new Set();  // cada opción una sola vez (CRM-13)
-      [...sel.options].forEach((o) => { if (vistos.has(o.value)) o.remove(); else vistos.add(o.value); });
-      if (actual) sel.value = actual;
-      // CRM-13: sin limpiar, el buscador conservaba la opción elegida además de la de la lista (salía repetida)
-      if (sel.tomselect) { sel.tomselect.clearOptions(); sel.tomselect.sync(); }
     });
   }
   // buscador: escribir cualquier palabra (FRESA) lista todo lo que la contiene, en cualquier parte del texto;

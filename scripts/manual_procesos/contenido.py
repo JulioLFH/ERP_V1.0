@@ -377,36 +377,21 @@ M['inventario'] = {
 }
 
 M['manufactura'] = {
-    'intro': ('Planifica y controla la producción: recetas (listas de materiales), hojas de ruta y puestos de trabajo, '
-              'pronóstico y MRP, órdenes de producción con reporte de planta desde tablets, paradas y OEE, '
-              'calidad (inspecciones, certificados y liberación de lotes) y mantenimiento de equipos.'),
+    'intro': ('Controla la producción: recetas (listas de materiales), hojas de ruta y puestos de trabajo, órdenes de '
+              'producción con reporte de planta desde tablets, paradas y OEE. Desde v1.82 la planificación (MRP), la '
+              'calidad y el mantenimiento son módulos propios que se asignan por separado.'),
     'procesos': [
         ('Ingeniería del producto', [
             'Defina la receta en <b>Ingeniería › Listas de materiales (recetas)</b>: insumos, cantidades y mermas.',
             'Defina la <b>Hoja de ruta</b> con las operaciones, los <b>Puestos de trabajo</b> y sus tiempos; combínelas en <b>Versiones de fabricación</b>.',
             'Los cambios se proponen como <b>Cambios de ingeniería</b> y los aprueba quien tiene «aprobar_cambios».',
         ], 'Estructura de producto con la que se calcula el costo estándar y el MRP.'),
-        ('Planificación (MRP)', [
-            'Registre o calcule el <b>Pronóstico de demanda</b>.',
-            'Corra el <b>MRP</b>: compara demanda, stock y órdenes abiertas y propone órdenes de producción y solicitudes de compra.',
-            'Ajuste la secuencia en <b>Programación detallada de planta</b> y revise <b>Carga y capacidad de puestos</b>.',
-        ], 'Plan de producción y de compras de insumos.'),
         ('Orden de producción', [
-            'Cree la orden en <b>Producción › Nueva orden de producción</b> (o desde el MRP).',
+            'Cree la orden en <b>Producción › Nueva orden de producción</b> (o desde el MRP del módulo Planificación).',
             'Genere el <b>Requerimiento de materiales</b>; el almacén despacha los insumos.',
             'En planta se reporta el avance, las mermas y las paradas desde las tablets (<b>Reporte de planta</b>).',
             'Al terminar, ingresa el producto con su lote y se cierra la orden con su costo real.',
         ], 'Producto terminado en stock con su costo.'),
-        ('Calidad y liberación de lotes', [
-            'Defina los <b>Planes de calidad por producto</b> (características, límites, muestreo).',
-            'Registre las <b>Inspecciones de calidad</b> en recepción, proceso o producto terminado.',
-            'Emita el <b>Certificado de análisis</b> y libere el lote en cuarentena (permiso «liberar_lotes»).',
-        ], 'Solo se despachan lotes liberados.'),
-        ('Mantenimiento', [
-            'Registre los <b>Equipos y planes preventivos</b> por tiempo u horómetro.',
-            'Cree las <b>Órdenes de mantenimiento</b> (preventivas o correctivas) y registre repuestos y horas.',
-            'Registre lecturas en el <b>Parte diario de horómetros / odómetros</b> y controle los documentos por vencer.',
-        ], 'Equipos disponibles y costo de mantenimiento por equipo.'),
     ],
     'pantallas': {
         'Órdenes de producción': 'Órdenes con su estado, avance y costo.',
@@ -444,7 +429,86 @@ M['manufactura'] = {
         ('Compras', 'Solicitudes de compra que propone el MRP.'),
         ('Costos', 'Costo estándar, costo real de las órdenes y variaciones.'),
         ('Excelencia organizacional', 'El OEE alimenta los indicadores por área.'),
+        ('Planificación, Calidad y Mantenimiento', 'El MRP propone las órdenes; los lotes se liberan en Calidad; los '
+                                                   'equipos y paradas se atienden en Mantenimiento.'),
     ],
+}
+
+M['planificacion'] = {
+    'intro': ('Planifica la producción y las compras de insumos: pronóstico de demanda, MRP (necesidades y órdenes '
+              'planificadas), programación detallada de planta, carga y capacidad de puestos y requerimiento de '
+              'materiales. Se asigna por usuario, separado de Manufactura.'),
+    'procesos': [
+        ('Demanda y MRP', [
+            'Registre o calcule el <b>Pronóstico de demanda</b> por producto y periodo.',
+            'Corra el <b>MRP</b> (permiso «planificar»): compara demanda, pedidos, stock y órdenes abiertas con las recetas y propone órdenes de producción y solicitudes de compra con su fecha.',
+            'Convierta las órdenes planificadas en órdenes de producción y las compras en solicitudes de pedido.',
+        ], 'Plan de producción y de compras de insumos.'),
+        ('Programación y capacidad', [
+            'Ordene la secuencia de las órdenes por puesto y turno en <b>Programación detallada de planta</b>.',
+            'Revise <b>Carga y capacidad de puestos</b>: horas requeridas frente a disponibles.',
+            'Revise el <b>Requerimiento de materiales</b>: insumos que faltan para las órdenes abiertas (también sale en Inicio).',
+        ], 'Plan factible con la capacidad de la planta.'),
+    ],
+    'pantallas': {
+        'MRP: necesidades y órdenes planificadas': 'Cálculo de necesidades y órdenes sugeridas.',
+        'Pronóstico de demanda': 'Demanda esperada por producto y periodo.',
+        'Programación detallada de planta': 'Secuencia de órdenes por puesto y turno.',
+        'Carga y capacidad de puestos': 'Horas requeridas vs disponibles por puesto.',
+        'Requerimiento de materiales': 'Insumos que piden las órdenes y lo que falta.',
+    },
+    'integra': [('Manufactura', 'Órdenes de producción que salen del MRP.'),
+                ('Compras', 'Solicitudes de pedido de insumos.'), ('Ventas', 'Pedidos como demanda.')],
+}
+
+M['control_calidad'] = {
+    'intro': ('Control de calidad de la producción y las recepciones: planes de calidad por producto, inspecciones, '
+              'certificados de análisis y liberación de lotes en cuarentena. Se asigna por usuario, separado de '
+              'Manufactura (las no conformidades y auditorías del sistema de gestión están en Excelencia organizacional).'),
+    'procesos': [
+        ('Planes e inspecciones', [
+            'Defina los <b>Planes de calidad por producto</b> (características, límites, muestreo).',
+            'Registre las <b>Inspecciones de calidad</b> en recepción, proceso o producto terminado (permiso «inspecciones»); un rechazo pone el lote en cuarentena.',
+        ], 'Cada lote con su resultado de calidad.'),
+        ('Certificado y liberación de lotes', [
+            'Emita el <b>Certificado de análisis</b> con los resultados de la inspección.',
+            'Apruébelo y libere el lote en cuarentena (permiso «liberar_lotes»).',
+        ], 'Solo se despachan lotes liberados.'),
+    ],
+    'pantallas': {
+        'Inspecciones de calidad': 'Inspecciones registradas con sus resultados.',
+        'Nueva inspección': 'Registrar una inspección.',
+        'Planes de calidad por producto': 'Características a controlar y sus límites.',
+        'Certificados de análisis y liberación de lotes': 'Certificados y liberación de lotes en cuarentena.',
+    },
+    'integra': [('Manufactura e Inventario', 'Lotes producidos y recibidos; cuarentena y liberación.'),
+                ('Excelencia organizacional', 'Los rechazos pueden abrir una no conformidad.')],
+}
+
+M['mantenimiento'] = {
+    'intro': ('Mantenimiento de equipos y máquinas: equipos con planes preventivos por tiempo u horómetro, órdenes de '
+              'mantenimiento preventivas y correctivas con repuestos y horas, lecturas diarias y documentos por vencer. '
+              'Comparte el maestro de equipos con la flota de Logística. Se asigna por usuario, separado de Manufactura.'),
+    'procesos': [
+        ('Equipos y planes preventivos', [
+            'Registre los <b>Equipos y planes preventivos</b> por tiempo u horómetro (permiso «registrar»).',
+            'Registre las lecturas en el <b>Parte diario de horómetros / odómetros</b>.',
+            'Controle los <b>Documentos de equipos por vencer</b> (también salen en Inicio).',
+        ], 'Equipos con su plan y sus lecturas al día.'),
+        ('Órdenes de mantenimiento', [
+            'Programe los preventivos de los próximos días desde <b>Órdenes de mantenimiento</b> o cree una correctiva en <b>Nueva orden de mantenimiento</b>.',
+            'Registre repuestos (salen del almacén) y horas; cierre la orden con su costo.',
+        ], 'Equipos disponibles y costo de mantenimiento por equipo.'),
+    ],
+    'pantallas': {
+        'Órdenes de mantenimiento': 'Órdenes preventivas y correctivas con su costo.',
+        'Nueva orden de mantenimiento': 'Crear una orden de mantenimiento.',
+        'Equipos y planes preventivos': 'Equipos con sus planes por tiempo u horómetro.',
+        'Parte diario de horómetros / odómetros': 'Lecturas diarias de los equipos.',
+        'Documentos de equipos por vencer': 'Certificados y documentos de equipos por vencer.',
+    },
+    'integra': [('Manufactura', 'Paradas de planta y equipos de producción.'),
+                ('Logística', 'Mismo maestro de equipos y flota.'), ('Inventario', 'Repuestos del almacén.')],
 }
 
 M['costos'] = {

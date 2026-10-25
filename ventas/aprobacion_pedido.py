@@ -157,7 +157,15 @@ def enviado_a_aprobacion(cot):
 def bloqueo(cot):
     """VEN-12: texto si desde el pedido aún no se puede emitir comprobante, preparar el despacho ni reservar stock
     (está en aprobación o la requiere y no se envió); '' si se puede. Las cotizaciones no se bloquean."""
-    if cot is None or cot.tipo != 'PED' or cot.estado in ('APROBADO', 'ATENDIDO'):
+    if cot is None or cot.tipo != 'PED':
+        return ''
+    # VEN-14: manda la ruta, no el estado (un pedido «Atendido» por una factura anulada seguía con un nivel pendiente)
+    pendiente_ruta = aprobaciones.pendiente(cot.niveles, cot.nivel_aprobado) if cot.niveles else None
+    if pendiente_ruta is not None:
+        return (f'El pedido {cot.numero} no está aprobado en todos sus niveles (espera el nivel '
+                f'{pendiente_ruta["nivel"]}: {pendiente_ruta["nombre"]}): no se puede emitir el comprobante, la guía '
+                f'ni reservar su stock hasta que se apruebe.')
+    if cot.estado in ('APROBADO', 'ATENDIDO'):
         return ''
     if cot.estado != 'PENDIENTE':
         return f'El pedido {cot.numero} está {cot.get_estado_display().lower()}: no se emite nada desde él.'
@@ -168,6 +176,27 @@ def bloqueo(cot):
               'espera su aprobación' if enviado_a_aprobacion(cot) else 'requiere aprobación y aún no se envía')
     return (f'El pedido {cot.numero} no está aprobado en todos sus niveles ({espera}): no se puede emitir el '
             f'comprobante, la guía ni reservar su stock hasta que se apruebe.')
+
+
+def restaurar_al_anular(cot):
+    """VEN-14: al anular la última factura de un pedido o cotización, vuelve a su estado anterior: Aprobado si su ruta
+    está completa (o se aprobó) y Pendiente si no."""
+    if cot is None or cot.estado != 'ATENDIDO' or cot.ventas.exclude(estado='ANULADO').exists():
+        return cot
+    ultimo = aprobaciones.historial('PEDIDO', cot).order_by('-fecha', '-id').first()
+    completa = bool(cot.niveles) and aprobaciones.pendiente(cot.niveles, cot.nivel_aprobado) is None
+    cot.estado = 'APROBADO' if completa or (ultimo and ultimo.accion == 'APROBADA') else 'PENDIENTE'
+    cot.save(update_fields=['estado'])
+    return cot
+
+
+def aceptar_cotizacion(cot, user):
+    """VEN-13: una cotización (no un pedido) la acepta el cliente: queda aprobada sin ruta de niveles. Los controles de
+    precio y crédito se aplican al pedido o al comprobante que salga de ella."""
+    cot.estado, cot.niveles, cot.nivel_aprobado = 'APROBADO', [], 0
+    cot.save(update_fields=['estado', 'niveles', 'nivel_aprobado'])
+    aprobaciones.registrar('PEDIDO', cot, user, 'APROBADA', 'Cotización aceptada por el cliente')
+    return f'{cot.numero}: cotización aceptada por el cliente.'
 
 
 def estado_aprobacion(cot, user):

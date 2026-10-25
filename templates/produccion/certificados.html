@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title">Certificados de análisis y liberación de lotes</h1>
-  {% if puede.manufactura_calidad %}<a href="{% url 'manufactura:certificado_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo certificado</a>{% endif %}
+  {% if puede.control_calidad_inspecciones %}<a href="{% url 'manufactura:certificado_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo certificado</a>{% endif %}
 </div>
 <p class="small text-muted">Los productos con plantilla de certificado y «Lotes nuevos en cuarentena» (Planes de calidad por producto) ingresan cada lote bloqueado: no sale en una venta hasta que Calidad apruebe su certificado. Aprobar libera el lote; rechazar lo deja rechazado.</p>
 {% if cuarentena %}
@@ -12,7 +12,7 @@
     <thead><tr><th>Producto</th><th>Lote</th><th>Vence</th><th class="num">Existencia</th><th>Estado</th><th></th></tr></thead>
     <tbody>{% for l in cuarentena %}<tr><td class="small">{{ l.producto.codigo }} {{ l.producto.nombre }}</td><td>{{ l.codigo }}</td><td>{{ l.vencimiento|date:'d/m/Y'|default:'—' }}</td>
       <td class="num">{{ l.existencia|default_if_none:0|cant }}</td><td><span class="badge {% if l.estado_calidad == 'RECHAZADO' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ l.get_estado_calidad_display }}</span></td>
-      <td class="text-end">{% if l.estado_calidad == 'CUARENTENA' and puede.manufactura_calidad %}<a href="{% url 'manufactura:inspeccion_nueva' %}?producto={{ l.producto_id }}&lote={{ l.codigo|urlencode }}&tipo=TERMINADO" class="btn btn-sm btn-outline-secondary">Inspeccionar</a> <a href="{% url 'manufactura:certificado_nuevo' %}?lote={{ l.pk }}" class="btn btn-sm btn-outline-primary">Certificado</a>{% endif %}</td></tr>{% endfor %}</tbody>
+      <td class="text-end">{% if l.estado_calidad == 'CUARENTENA' and puede.control_calidad_inspecciones %}<a href="{% url 'manufactura:inspeccion_nueva' %}?producto={{ l.producto_id }}&lote={{ l.codigo|urlencode }}&tipo=TERMINADO" class="btn btn-sm btn-outline-secondary">Inspeccionar</a> <a href="{% url 'manufactura:certificado_nuevo' %}?lote={{ l.pk }}" class="btn btn-sm btn-outline-primary">Certificado</a>{% endif %}</td></tr>{% endfor %}</tbody>
   </table></div></div>
 {% endif %}
 <form class="row g-2 mb-2">

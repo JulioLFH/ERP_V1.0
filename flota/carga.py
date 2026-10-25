@@ -14,7 +14,7 @@ TIPOS = ('equipos', 'componentes', 'planes_mantenimiento', 'lecturas', 'document
 
 DEFINICIONES = [
     ('equipos', {
-        'titulo': 'Equipos y vehículos', 'icono': 'bi-truck-flatbed', 'modulos': ['logistica', 'manufactura'],
+        'titulo': 'Equipos y vehículos', 'icono': 'bi-truck-flatbed', 'modulos': ['logistica', 'mantenimiento', 'manufactura'],
         'descripcion': 'Maestro único de máquinas, vehículos, montacargas y herramientas. Un vehículo con placa '
                        'aparece en las guías de remisión. Con «Actualizar existentes» se cambian los que ya existen.',
         'columnas': [
@@ -35,7 +35,7 @@ DEFINICIONES = [
             ('presta', 'Se presta a clientes', False, 'No', 'Sí o No'),
         ]}),
     ('componentes', {
-        'titulo': 'Componentes de equipos', 'icono': 'bi-diagram-3', 'modulos': ['logistica', 'manufactura'],
+        'titulo': 'Componentes de equipos', 'icono': 'bi-diagram-3', 'modulos': ['logistica', 'mantenimiento', 'manufactura'],
         'descripcion': 'Estructura por niveles (sistema › subsistema › componente › pieza). El componente superior '
                        'se indica por su código (puede venir en una fila anterior del mismo archivo).',
         'columnas': [
@@ -47,7 +47,7 @@ DEFINICIONES = [
             ('cantidad', 'Cantidad del repuesto', False, '1', ''),
         ]}),
     ('planes_mantenimiento', {
-        'titulo': 'Planes preventivos', 'icono': 'bi-calendar-check', 'modulos': ['logistica', 'manufactura'],
+        'titulo': 'Planes preventivos', 'icono': 'bi-calendar-check', 'modulos': ['logistica', 'mantenimiento', 'manufactura'],
         'descripcion': 'Cada N días, cada N km u horas, o lo que ocurra primero. Con «Actualizar existentes» se '
                        'reemplaza el plan con la misma tarea del equipo.',
         'columnas': [
@@ -59,7 +59,7 @@ DEFINICIONES = [
             ('ultima_lectura', 'Lectura de la última ejecución', False, '', ''),
         ]}),
     ('lecturas', {
-        'titulo': 'Lecturas de odómetro / horómetro', 'icono': 'bi-speedometer', 'modulos': ['logistica', 'manufactura'],
+        'titulo': 'Lecturas de odómetro / horómetro', 'icono': 'bi-speedometer', 'modulos': ['logistica', 'mantenimiento', 'manufactura'],
         'descripcion': 'Quedan por aprobar (Logística › Flota › Lecturas por aprobar). En orden de fecha: ninguna '
                        'puede ser menor a la anterior del equipo.',
         'columnas': [
@@ -69,7 +69,7 @@ DEFINICIONES = [
         ]}),
     ('documentos_flota', {
         'titulo': 'Documentos de flota (SOAT, revisión, licencias)', 'icono': 'bi-calendar-x',
-        'modulos': ['logistica', 'manufactura'],
+        'modulos': ['logistica', 'mantenimiento', 'manufactura'],
         'descripcion': 'Del equipo (código o placa) o del conductor (DNI). SOAT, revisión técnica, MTC y licencia '
                        'vencidos bloquean la guía.',
         'columnas': [

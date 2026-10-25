@@ -53,6 +53,32 @@ class PedidoEnAprobacionTest(BaseObras):
         self.assertEqual(bloqueo(cot), '')  # las cotizaciones no se bloquean
 
 
+class CotizacionYPedidoTest(BaseObras):
+    def test_cotizacion_la_acepta_el_cliente(self):
+        """VEN-13: la cotización no entra a la ruta de pedidos: se acepta y queda aprobada (sin estado intermedio)."""
+        cot = Cotizacion.objects.create(tipo='COT', numero='CT01-00000088', tercero=self.entidad,
+                                        niveles=[{'nivel': 1, 'nombre': 'Gerente General'}])
+        CotizacionItem.objects.create(documento=cot, descripcion='Obra', cantidad=1, precio_unitario=D('380000'))
+        r = self.client.get(reverse('ventas:cot_detalle', args=[cot.pk]))
+        self.assertContains(r, 'Aceptada por el cliente')
+        self.client.post(reverse('ventas:cot_estado', args=[cot.pk]), {'estado': 'APROBADO'})
+        cot.refresh_from_db()
+        self.assertEqual((cot.estado, cot.niveles), ('APROBADO', []))
+
+    def test_pedido_atendido_con_ruta_pendiente_y_factura_anulada(self):
+        """VEN-14: manda la ruta, no el estado; al anular la única factura el pedido vuelve a su estado."""
+        from ventas.aprobacion_pedido import bloqueo, restaurar_al_anular
+        from ventas.models import Venta
+        ped = Cotizacion.objects.create(tipo='PED', numero='PD01-00000066', tercero=self.entidad, estado='ATENDIDO',
+                                        niveles=[{'nivel': 1, 'nombre': 'Gerente General', 'estado': 'PENDIENTE'}])
+        self.assertIn('espera el nivel 1', bloqueo(ped))
+        Venta.objects.create(tipo_comprobante='01', serie='F001', numero='66', tercero=self.entidad,
+                             fecha_emision=HOY, cotizacion=ped, estado='ANULADO')
+        restaurar_al_anular(ped)
+        ped.refresh_from_db()
+        self.assertEqual(ped.estado, 'PENDIENTE')
+
+
 class CruceLiberarPagoTest(BaseAlmacen):
     def test_liberar_revisa_todo_y_factura_propone_lo_recibido(self):
         """ALM-14: al liberar se revisan precio y cantidad (la anulación agrega su motivo aunque ya estuviera
@@ -156,7 +182,10 @@ class CRMOportunidadTest(CRMBase):
                  'etapa': 'PERDIDA', 'responsable': self.user.pk, 'motivo_perdida_tipo': 'COMPETIDOR'}
         r = self.client.post(reverse('crm:oportunidad', args=[o.pk]), datos)
         self.assertContains(r, 'competidor que ganó')
+        ActividadCRM.objects.create(oportunidad=o, tipo='LLAMADA', fecha=HOY - timedelta(days=1), descripcion='x',
+                                    usuario=self.user)
         r = self.client.post(reverse('crm:oportunidad', args=[o.pk]), {**datos, 'competidor': 'GyM'})
+        self.assertFalse(o.actividades.filter(hecha=False).exists())  # CRM-22: no quedan vencidas
         o.refresh_from_db()
         self.assertEqual((o.etapa, o.competidor, o.cerrada_en), ('PERDIDA', 'GyM', HOY))
         self.assertTrue(CambioEtapa.objects.filter(oportunidad=o, a='PERDIDA').exists())
@@ -366,6 +395,9 @@ class CRMGestionTest(CRMBase):
         cons.refresh_from_db()
         self.assertEqual(cons.estado, 'SUPRIMIDO')
         self.assertFalse(self.entidad.contactos_crm.filter(nombre='Ing. Rosa Díaz').exists())
+        html = self.client.get(reverse('crm:configuracion')).content.decode()  # SEG-06
+        self.assertIn('autocomplete="new-password"', html)
+        self.assertRegex(html, r'name="correo_usuario"[^>]*autocomplete="off"|autocomplete="off"[^>]*name="correo_usuario"')
         for nombre in ('crm:clientes', 'crm:contactos', 'crm:segmentos', 'crm:visitas', 'crm:equipos',
                        'crm:reasignaciones', 'crm:datos_personales', 'crm:configuracion', 'crm:casos'):
             self.assertEqual(self.client.get(reverse(nombre)).status_code, 200, nombre)

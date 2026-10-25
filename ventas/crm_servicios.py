@@ -91,6 +91,9 @@ def cambiar_etapa(o, etapa, usuario=None, guardar=True):
         o.save(update_fields=['etapa', 'cerrada_en', 'actualizado'])
     CambioEtapa.objects.create(oportunidad=o, de=anterior, a=etapa,
                                usuario=usuario if usuario is not None and usuario.is_authenticated else None)
+    if etapa in ('GANADA', 'PERDIDA'):  # CRM-22: sus actividades pendientes se cierran (no quedan como vencidas)
+        o.actividades.filter(hecha=False).update(
+            hecha=True, resultado=f'Cerrada: oportunidad {"ganada" if etapa == "GANADA" else "perdida"}')
     if etapa == 'GANADA':
         transaction.on_commit(lambda: avisar_ganada(o))
     return o

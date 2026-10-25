@@ -9,7 +9,7 @@
   </div>
   <span class="badge fs-6 {% if c.estado == 'APROBADO' %}text-bg-success{% elif c.estado == 'BORRADOR' %}text-bg-warning{% elif c.estado == 'RECHAZADO' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ c.get_estado_display }}</span>
 </div>
-{% if puede.manufactura_liberar_lotes and c.estado != 'ANULADO' %}
+{% if puede.control_calidad_liberar_lotes and c.estado != 'ANULADO' %}
 <div class="card mb-3 d-print-none border-warning"><div class="card-body">
   <form method="post" class="row g-2 align-items-end">{% csrf_token %}
     <div class="col-md-7"><label class="form-label small mb-1">Comentario {% if c.estado == 'BORRADOR' %}(obligatorio si se libera con resultados fuera de especificación){% endif %}</label>

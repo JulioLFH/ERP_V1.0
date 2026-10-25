@@ -15,7 +15,8 @@ GIROS = {
                   {'crm', 'ventas', 'compras', 'inventario', 'logistica', 'tesoreria', 'finanzas', 'contabilidad'},
                   '20 Mercaderías y 28 por recibir; costo de ventas 69 desde el kardex', 'NATURALEZA'),
     'MANUFACTURA': ('Transforma insumos en productos (recetas, órdenes de fabricación)',
-                    {'crm', 'manufactura', 'costos', 'inventario', 'compras', 'ventas', 'planillas', 'contabilidad'},
+                    {'crm', 'manufactura', 'planificacion', 'control_calidad', 'mantenimiento', 'costos', 'inventario',
+                     'compras', 'ventas', 'planillas', 'contabilidad'},
                     '24 materias primas, 25 suministros, 23 productos en proceso y 21 terminados; variación 61 y 71',
                     'PROCESOS'),
     'CONSTRUCCION': ('Obras por contrato para un cliente (valorizaciones)',  # el CRM lleva las licitaciones

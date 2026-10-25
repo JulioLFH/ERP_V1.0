@@ -3,6 +3,17 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.82.0 — 24/10/2026 · Planificación (MRP), Calidad y Mantenimiento como módulos propios
+- **Tres módulos nuevos separados de Manufactura**, cada uno en la pantalla de aplicaciones y asignable por usuario: **Planificación (MRP)** (MRP, pronóstico de demanda, programación de planta, carga y capacidad, requerimiento de materiales), **Calidad** (inspecciones, planes de calidad por producto, certificados de análisis y liberación de lotes) y **Mantenimiento** (órdenes de mantenimiento, equipos y planes preventivos, parte diario de horómetros y documentos por vencer). Manufactura queda con órdenes de producción, planta, reportes e ingeniería y puede consultar las pantallas de los tres.
+- **Permisos propios**: «planificacion.planificar», «control_calidad.inspecciones», «control_calidad.liberar_lotes» y «mantenimiento.registrar» (reemplazan a los de calidad, liberar lotes y mantenimiento de Manufactura).
+- **Nadie pierde acceso**: la actualización da los tres módulos a los usuarios y perfiles que tenían Manufactura y les pasa sus permisos (quien gestionaba órdenes también puede correr el MRP). Las direcciones de las pantallas no cambian.
+- El giro Manufactura incluye los tres módulos; el log de modificaciones y los avisos de Inicio (insumos que faltan, documentos de equipos) van al módulo que corresponde. Manual con un PDF por cada módulo nuevo.
+- **Selector de clientes sin repetidos (CRM-13)**: la causa era que la lista se cargaba por debajo del buscador y este volvía a agregar el cliente elegido; ahora se carga con el propio buscador (todos los selectores de listas grandes).
+- **Cotización (VEN-13)**: una cotización no sigue la ruta de aprobación de pedidos: el botón es «Aceptada por el cliente» y queda aprobada (nunca un estado intermedio sin aprobador). Los controles de precio y crédito se aplican al pedido o al comprobante que sale de ella.
+- **Pedido con ruta pendiente (VEN-14)**: la emisión se valida por la ruta de aprobación, no por el estado; al anular la última factura de un pedido, vuelve a Aprobado o Pendiente según su ruta.
+- **Actividades de oportunidades cerradas (CRM-22)**: al ganar o perder una oportunidad sus actividades pendientes se cierran solas (no quedan vencidas en Mis actividades).
+- **Buzones (SEG-06)**: el navegador ya no llena el usuario y la contraseña del buzón IMAP (CRM y Rendiciones) con los de Ceiba; la clave guardada no se vuelve a mostrar.
+
 ## v1.81.0 — 24/10/2026 · CRM ampliado, servicios profesionales por proyecto y correcciones del checklist
 - **Pedidos en aprobación (VEN-12)**: un pedido de venta que no está aprobado en todos sus niveles no se convierte en comprobante (botón bloqueado y validación en el servidor, también entrando con `/ventas/nuevo/?cot=N`) ni entra al picking por olas.
 - **Segunda empresa: las transacciones se deshacen bien (ALM-11)**: en la empresa que no es la principal, un error a mitad de camino no deshacía lo ya grabado (por eso quedaba el borrador de la recepción que «no se guardó»). Ahora toda transacción usa la base de la empresa activa.

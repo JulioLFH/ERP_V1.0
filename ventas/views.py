@@ -72,8 +72,11 @@ class VentasViews(ComprobanteViews):
 
     @staticmethod
     def _pedido_aprobado(datos):
+        """Pedido aprobado (por su ruta): autoriza lo que se aprobó en él (bajo la tarifa, crédito). Una cotización
+        aceptada por el cliente no aprueba precios (VEN-13)."""
+        from .aprobacion_pedido import bloqueo
         cot = datos.get('cotizacion')
-        return cot is not None and cot.estado in ('APROBADO', 'ATENDIDO')
+        return cot is not None and cot.tipo == 'PED' and cot.estado in ('APROBADO', 'ATENDIDO') and not bloqueo(cot)
 
     def validar_permisos(self, form, formset):
         """Acciones del perfil (VEN-11): vender bajo la tarifa (salvo desde un pedido aprobado), notas de crédito
@@ -363,10 +366,10 @@ def cot_detalle(request, pk):
     ruta, enviar, espera = estado_aprobacion(cot, request.user) if cot.tipo == 'PED' else ([], False, '')
     from .crm_servicios import credito
     return render(request, 'core/documento_detalle.html', {
-        'bloqueo_convertir': bloqueo(cot), 'credito_cliente': credito(cot.tercero) if cot.estado == 'PENDIENTE' else None,
+        'bloqueo_convertir': bloqueo(cot), 'es_cotizacion': cot.tipo == 'COT', 'credito_cliente': credito(cot.tercero) if cot.estado == 'PENDIENTE' else None,
         'pedido_ruta': ruta, 'pedido_enviar': enviar, 'pedido_espera': espera,
         'pedido_historial': historial('PEDIDO', cot) if cot.tipo == 'PED' else [],
-        'pedido_motivos': motivos(cot)[1] if cot.estado == 'PENDIENTE' else [],
+        'pedido_motivos': motivos(cot)[1] if cot.estado == 'PENDIENTE' and cot.tipo == 'PED' else [],
         'pedido_pendiente': pendiente(cot.niveles, cot.nivel_aprobado),
         'doc': cot, 'items': cot.items.all(), 'app': 'ventas',
         'titulo_doc': 'COTIZACIÓN / PROFORMA' if cot.tipo == 'COT' else 'ORDEN DE PEDIDO',
@@ -386,6 +389,9 @@ def cot_estado(request, pk):
             messages.success(request, enviar(cot, request.user))
         except ErrorAprobacionPedido as exc:
             messages.error(request, str(exc))
+    elif request.method == 'POST' and estado == 'APROBADO' and cot.estado == 'PENDIENTE' and cot.tipo == 'COT':
+        from .aprobacion_pedido import aceptar_cotizacion
+        messages.success(request, aceptar_cotizacion(cot, request.user))  # VEN-13: sin ruta de niveles
     elif request.method == 'POST' and estado == 'APROBADO' and cot.estado == 'PENDIENTE':
         try:
             messages.success(request, aprobar(cot, request.user))

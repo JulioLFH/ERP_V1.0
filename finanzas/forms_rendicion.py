@@ -252,8 +252,10 @@ class ConfigRendicionForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = ConfigRendicion
         fields = '__all__'
-        widgets = {c: forms.PasswordInput(render_value=False) for c in
-                   ('ia_api_key', 'whatsapp_token', 'whatsapp_app_secret', 'correo_clave')}
+        # SEG-06: que el navegador no llene estos secretos con el usuario y la clave de Ceiba
+        widgets = {**{c: forms.PasswordInput(render_value=False, attrs={'autocomplete': 'new-password'}) for c in
+                      ('ia_api_key', 'whatsapp_token', 'whatsapp_app_secret', 'correo_clave')},
+                   'correo_usuario': forms.TextInput(attrs={'autocomplete': 'off'})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

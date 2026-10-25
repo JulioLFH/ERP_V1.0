@@ -145,14 +145,14 @@ def calcular(user):
             alertas.append(_alerta('warning', 'bi-box-arrow-up', 'Requerimientos por atender',
                                    f'{n} requerimiento(s) aprobados esperan la entrega del almacén.',
                                    reverse('requerimientos:lista') + '?estado=APROBADO', n))
-    if 'manufactura' in mods:
+    if mods & {'manufactura', 'planificacion'}:
         from produccion.servicios import requerimientos
         faltan = [f for f in requerimientos() if f['faltante'] > 0]
         if faltan:
             alertas.append(_alerta('warning', 'bi-basket', 'Insumos insuficientes para producir',
                                    f'{len(faltan)} insumo(s) no alcanzan para las órdenes de producción abiertas.',
                                    reverse('manufactura:requerimiento'), len(faltan)))
-    if 'logistica' in mods or 'manufactura' in mods:  # SOAT, revisión técnica, MTC, licencias (FLO-04)
+    if mods & {'logistica', 'manufactura', 'mantenimiento'}:  # SOAT, revisión técnica, MTC, licencias (FLO-04)
         from flota.servicios import por_vencer as docs_por_vencer
         docs, licencias = docs_por_vencer()
         if docs or licencias:

@@ -248,6 +248,9 @@ class ComprobanteViews:
             else:
                 with transaction.atomic():
                     doc.anular(request.user, motivo)
+                    if doc._meta.model_name == 'venta' and getattr(doc, 'cotizacion_id', None):
+                        from ventas.aprobacion_pedido import restaurar_al_anular
+                        restaurar_al_anular(doc.cotizacion)  # VEN-14: el pedido vuelve a su estado anterior
                     if doc._meta.model_name == 'compra':
                         from compras.precios import liquidar
                         liquidar(doc)  # se revierte la diferencia de precio que hubiera liquidado

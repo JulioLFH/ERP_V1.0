@@ -481,8 +481,10 @@ class ConfigForm(BootstrapMixin, forms.ModelForm):
         fields = ['web_activo', 'asignacion_web', 'responsable_web', 'equipo_web', 'avisar_ganadas',
                   'finalidad_datos', 'correo_activo', 'correo_servidor', 'correo_puerto', 'correo_usuario',
                   'correo_clave']
+        # SEG-06: el navegador no debe llenar el buzón con el usuario y la clave de Ceiba
         widgets = {'avisar_ganadas': forms.CheckboxSelectMultiple,
-                   'correo_clave': forms.PasswordInput(render_value=False)}
+                   'correo_usuario': forms.TextInput(attrs={'autocomplete': 'off'}),
+                   'correo_clave': forms.PasswordInput(render_value=False, attrs={'autocomplete': 'new-password'})}
 
     def clean_correo_clave(self):  # vacía = la que ya estaba (no se muestra)
         return self.cleaned_data.get('correo_clave') or self.instance.correo_clave
@@ -490,6 +492,8 @@ class ConfigForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['responsable_web'].queryset = self.fields['avisar_ganadas'].queryset = _usuarios()
+        if self.instance.correo_clave:
+            self.fields['correo_clave'].help_text = 'Registrada. Déjela vacía para conservarla.'
         self.fields['nombres'].initial = '\n'.join(f'{k} = {v}' for k, v in (self.instance.nombres_etapas or {}).items())
 
     def clean_nombres(self):

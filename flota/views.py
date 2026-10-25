@@ -31,15 +31,15 @@ def _fecha(texto):
 
 
 def puede_flota(user):
-    """Registra en la flota quien tiene la acción de Logística o, desde Manufactura, la de mantenimiento."""
-    return puede(user, 'logistica.flota') or puede(user, 'manufactura.mantenimiento')
+    """Registra en la flota quien tiene la acción de Logística o la de Mantenimiento."""
+    return puede(user, 'logistica.flota') or puede(user, 'mantenimiento.registrar')
 
 
 def accion_flota(request):
     """Acción exigida a las rutas de flota (core/permisos.RUTAS)."""
     if request.method != 'POST':
         return None
-    return 'logistica.flota' if 'logistica' in modulos_del_usuario(request.user) else 'manufactura.mantenimiento'
+    return 'logistica.flota' if 'logistica' in modulos_del_usuario(request.user) else 'mantenimiento.registrar'
 
 
 def _ns(request):
