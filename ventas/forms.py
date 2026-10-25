@@ -154,7 +154,7 @@ def _serie_defecto(tipo, referencia=None):
 class CotizacionForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Cotizacion
-        fields = ['tipo', 'tercero', 'fecha', 'validez_dias', 'vendedor', 'moneda', 'tipo_cambio',
+        fields = ['tipo', 'tercero', 'fecha', 'validez_dias', 'fecha_entrega', 'vendedor', 'moneda', 'tipo_cambio',
                   'tipo_operacion', 'condicion_pago', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2})}
         labels = {'tercero': 'Cliente'}

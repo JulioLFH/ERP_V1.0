@@ -392,6 +392,8 @@ class OrdenProduccion(models.Model):
                                            'hora reales quedan en «terminado en»')
     terminado_en = models.DateTimeField('Fecha y hora de término', null=True, blank=True)
     cantidad_producida = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    lote_producido = models.CharField('Lote producido', max_length=60, blank=True, editable=False,
+                                      help_text='Lote del producto terminado (INV-30); vacío = el número de la orden')
     # costeo
     costo_estandar_unit = models.DecimalField('Costo estándar unitario', max_digits=14, decimal_places=4, default=D0)
     estandar_detalle = models.JSONField(default=dict, blank=True, editable=False,
@@ -565,6 +567,9 @@ class ParametroCalidad(models.Model):
     orden = models.PositiveSmallIntegerField(default=0)
     en_certificado = models.BooleanField('En el certificado', default=True,
                                          help_text='Se imprime en el certificado de análisis del lote')
+    metodo = models.CharField('Método de análisis', max_length=120, blank=True,
+                              help_text='Ej. Valoración por HPLC, MA-QC-012 (CAL-05)')
+    referencia = models.CharField('Referencia (farmacopea)', max_length=80, blank=True, help_text='Ej. USP <791>')
 
     class Meta:
         ordering = ['producto', 'orden', 'id']
@@ -578,7 +583,8 @@ class ParametroCalidad(models.Model):
 class InspeccionCalidad(models.Model):
     TIPOS = [('RECEPCION', 'Recepción (materia prima / compras)'), ('PROCESO', 'En proceso'),
              ('TERMINADO', 'Producto terminado'), ('DEVOLUCION', 'Devolución de clientes')]
-    RESULTADOS = [('PENDIENTE', 'Pendiente'), ('APROBADO', 'Aprobado'), ('OBSERVADO', 'Aprobado con observaciones'),
+    RESULTADOS = [('PENDIENTE', 'Pendiente'), ('OOS', 'En investigación (fuera de especificación)'),
+                  ('APROBADO', 'Aprobado'), ('OBSERVADO', 'Aprobado con observaciones'),
                   ('REPROCESO', 'Reprocesado'), ('RECHAZADO', 'Rechazado')]
     numero = models.CharField('N°', max_length=20, editable=False)
     tipo = models.CharField(max_length=10, choices=TIPOS, default='RECEPCION')
@@ -598,6 +604,13 @@ class InspeccionCalidad(models.Model):
                                    related_name='+', editable=False)
     inspector = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+',
                                   editable=False)
+    # v1.84 (CAL-01, CAL-05, CAL-08): especificación usada, instrumento y bloqueo al decidir
+    especificacion = models.ForeignKey('produccion.EspecificacionCalidad', on_delete=models.PROTECT, null=True,
+                                       blank=True, related_name='inspecciones', editable=False)
+    instrumento = models.ForeignKey('produccion.Equipo', on_delete=models.PROTECT, null=True, blank=True,
+                                    related_name='inspecciones', limit_choices_to={'es_instrumento': True},
+                                    help_text='Balanza, pHmetro u otro instrumento calibrado que se usó')
+    decidida_en = models.DateTimeField(null=True, blank=True, editable=False)
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -674,6 +687,8 @@ class CertificadoAnalisis(models.Model):
     aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                      related_name='+', editable=False)
     aprobado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    firma = models.ForeignKey('core.FirmaElectronica', on_delete=models.PROTECT, null=True, blank=True,
+                              related_name='+', editable=False)  # CAL-03: liberación firmada
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -722,6 +737,22 @@ class Equipo(models.Model):
     rendimiento_esperado = models.DecimalField('Rendimiento esperado (km u horas por galón)', max_digits=8,
                                                decimal_places=2, null=True, blank=True)
     aplica_prestamo = models.BooleanField('Se presta a clientes (comodato)', default=False)
+    # instrumento de medición (CAL-08): con calibración vigente se acepta en las inspecciones
+    es_instrumento = models.BooleanField('Instrumento de medición (se calibra)', default=False)
+    rango_tolerancia = models.CharField('Rango y tolerancia', max_length=80, blank=True,
+                                        help_text='Ej. 0–220 g, ± 0.1 mg')
+    calibracion_dias = models.PositiveIntegerField('Calibrar cada (días)', default=0)
+    proxima_calibracion = models.DateField('Próxima calibración', null=True, blank=True, editable=False)
+    # historial técnico (MNT-05)
+    CRITICIDADES = [('', '—'), ('A', 'A: crítico (producción o seguridad)'), ('B', 'B: importante'),
+                    ('C', 'C: no crítico')]
+    criticidad = models.CharField(max_length=1, choices=CRITICIDADES, blank=True)
+    ubicacion_tecnica = models.ForeignKey('produccion.UbicacionTecnica', on_delete=models.SET_NULL, null=True,
+                                          blank=True, related_name='equipos', verbose_name='Ubicación técnica')
+    garantia_hasta = models.DateField('Garantía hasta', null=True, blank=True)
+    valor_reposicion = models.DecimalField('Valor de reposición S/', max_digits=14, decimal_places=2, default=D0)
+    presupuesto_anual = models.DecimalField('Presupuesto de mantenimiento anual S/', max_digits=14, decimal_places=2,
+                                            default=D0)
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -758,6 +789,12 @@ class PlanMantenimiento(models.Model):
     ultima_fecha = models.DateField('Última ejecución', null=True, blank=True)
     ultima_lectura = models.DecimalField('Lectura de la última ejecución', max_digits=12, decimal_places=1,
                                          null=True, blank=True)
+    # MNT-02: por condición (lectura de temperatura, vibración o presión fuera del umbral) y horizonte
+    variable = models.CharField('Variable de condición', max_length=40, blank=True,
+                                help_text='Ej. Temperatura del rodamiento. Con umbral, una lectura fuera genera la orden')
+    umbral_min = models.DecimalField('Umbral mínimo', max_digits=12, decimal_places=3, null=True, blank=True)
+    umbral_max = models.DecimalField('Umbral máximo', max_digits=12, decimal_places=3, null=True, blank=True)
+    anticipacion_dias = models.PositiveSmallIntegerField('Programar con (días de anticipación)', default=0)
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -806,12 +843,14 @@ class PlanMantenimiento(models.Model):
 
 
 class OrdenMantenimiento(models.Model):
-    TIPOS = [('PREVENTIVO', 'Preventivo'), ('CORRECTIVO', 'Correctivo (falla)')]
+    TIPOS = [('PREVENTIVO', 'Preventivo'), ('CORRECTIVO', 'Correctivo (falla)'), ('PREDICTIVO', 'Predictivo'),
+             ('MEJORA', 'Mejora'), ('INSPECCION', 'Inspección'), ('CALIBRACION', 'Calibración')]
     ESTADOS = [('PROGRAMADA', 'Programada'), ('EN_EJECUCION', 'En ejecución'), ('CERRADA', 'Cerrada'),
                ('ANULADA', 'Anulada')]
+    PRIORIDADES = [('EMERGENCIA', 'Emergencia'), ('ALTA', 'Alta'), ('NORMAL', 'Normal')]
     numero = models.CharField('N°', max_length=20, editable=False)
     equipo = models.ForeignKey(Equipo, on_delete=models.PROTECT, related_name='ordenes')
-    tipo = models.CharField(max_length=10, choices=TIPOS, default='CORRECTIVO')
+    tipo = models.CharField(max_length=11, choices=TIPOS, default='CORRECTIVO')
     plan = models.ForeignKey(PlanMantenimiento, on_delete=models.SET_NULL, null=True, blank=True, related_name='ordenes')
     fecha_programada = models.DateField(default=timezone.localdate)
     fecha_inicio = models.DateField(null=True, blank=True)
@@ -827,6 +866,32 @@ class OrdenMantenimiento(models.Model):
     costo_servicios = models.DecimalField('Servicios externos S/', max_digits=14, decimal_places=2, default=D0)
     consumo = models.OneToOneField('inventario.Operacion', on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name='orden_mantenimiento', editable=False)
+    # v1.84 (MNT-01 a MNT-08)
+    prioridad = models.CharField(max_length=10, choices=PRIORIDADES, default='NORMAL')
+    tecnico = models.ForeignKey('planillas.Trabajador', on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='+', verbose_name='Técnico asignado')
+    inicio_real = models.DateTimeField('Inicio real', null=True, blank=True)
+    fin_real = models.DateTimeField('Fin real', null=True, blank=True)
+    horas_estimadas = models.DecimalField('Horas estimadas', max_digits=8, decimal_places=2, default=D0)
+    costo_estimado = models.DecimalField('Costo planificado S/', max_digits=14, decimal_places=2, default=D0)
+    orden_servicio = models.ForeignKey('compras.OrdenCompra', on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='+', verbose_name='Orden de servicio del contratista')
+    falla_sintoma = models.ForeignKey('produccion.CodigoFalla', on_delete=models.PROTECT, null=True, blank=True,
+                                      related_name='+', limit_choices_to={'tipo': 'SINTOMA'}, verbose_name='Síntoma')
+    falla_modo = models.ForeignKey('produccion.CodigoFalla', on_delete=models.PROTECT, null=True, blank=True,
+                                   related_name='+', limit_choices_to={'tipo': 'MODO'}, verbose_name='Modo de falla')
+    falla_causa = models.ForeignKey('produccion.CodigoFalla', on_delete=models.PROTECT, null=True, blank=True,
+                                    related_name='+', limit_choices_to={'tipo': 'CAUSA'}, verbose_name='Causa')
+    falla_accion = models.ForeignKey('produccion.CodigoFalla', on_delete=models.PROTECT, null=True, blank=True,
+                                     related_name='+', limit_choices_to={'tipo': 'ACCION'}, verbose_name='Acción')
+    requiere_permiso = models.BooleanField('Requiere permiso de trabajo (alto riesgo)', default=False)
+    permiso_trabajo = models.ForeignKey('sst.PermisoTrabajo', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='+', verbose_name='Permiso de trabajo (SST)')
+    requiere_loto = models.BooleanField('Requiere bloqueo y etiquetado (LOTO)', default=False)
+    loto_aplicado_por = models.CharField('LOTO aplicado por', max_length=120, blank=True)
+    lectura_cierre = models.DecimalField('Lectura del medidor al cerrar', max_digits=12, decimal_places=1, null=True,
+                                         blank=True)
+    conformidad_por = models.CharField('Conformidad de (usuario del equipo)', max_length=120, blank=True)
     creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+',
                                    editable=False)
     creado = models.DateTimeField(auto_now_add=True)
@@ -846,6 +911,13 @@ class OrdenMantenimiento(models.Model):
     @property
     def costo_total(self):
         return self.costo_mano_obra + self.costo_servicios + self.costo_repuestos
+
+    @property
+    def horas_reparacion(self):
+        """Horas entre el inicio y el fin reales (MTTR)."""
+        if self.inicio_real and self.fin_real:
+            return Decimal((self.fin_real - self.inicio_real).total_seconds() / 3600).quantize(Decimal('0.01'))
+        return None
 
 
 class RepuestoOrden(models.Model):
@@ -1210,3 +1282,12 @@ class PruebaVNRLinea(models.Model):
 
     class Meta:
         ordering = ['-deterioro', 'producto__nombre']
+
+
+from .models_calidad import (  # noqa: E402,F401
+    CalibracionEquipo, CalificacionEquipo, CambioResultado, Contramuestra, ControlCambio, Desviacion,
+    EspecificacionCalidad, EstudioEstabilidad, InvestigacionOOS, PasoRegistroLote, PuntoEstabilidad, QuejaLote,
+    RegistroLote, RetiroMercado)
+from .models_mantenimiento import (  # noqa: E402,F401
+    AvisoMantenimiento, CodigoFalla, HoraTecnico, LecturaCondicion, MaterialPlan, RepuestoCritico, TareaOrden,
+    TareaPlan, UbicacionTecnica, VentanaParada)

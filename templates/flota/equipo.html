@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title">{% if eq.pk %}{{ eq.get_tipo_display }} {{ eq }}{% else %}Nuevo equipo{% endif %}
     {% if eq.pk %}<span class="badge fs-6 align-middle {% if eq.estado == 'OPERATIVO' %}text-bg-success{% elif eq.estado == 'MANTENIMIENTO' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ eq.get_estado_display }}</span>{% endif %}</h1>
-  <a href="{% url ns|add:':equipos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Equipos</a>
+  <div class="d-flex gap-2">{% if eq.pk and ns == 'manufactura' %}<a href="{% url 'manufactura:historial_equipo' eq.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-clock-history"></i> Historial técnico</a><a href="{% url 'manufactura:aviso_nuevo' %}?equipo={{ eq.pk }}" class="btn btn-sm btn-outline-warning"><i class="bi bi-megaphone"></i> Avisar falla</a>{% endif %}<a href="{% url ns|add:':equipos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Equipos</a></div>
 </div>
 {% if eq.pk %}<div class="row g-3 mb-3">
   {% if eq.medidor %}<div class="col-6 col-md-3"><div class="kpi"><div class="label">Lectura actual</div><div class="fw-semibold">{{ eq.lectura_actual|floatformat:-1 }} {{ eq.unidad_medidor }}</div><div class="small text-muted">{{ eq.lectura_fecha|date:'d/m/Y'|default:'sin lecturas' }}</div></div></div>{% endif %}
@@ -58,7 +58,7 @@
     </div>
     <div class="card mb-3"><div class="card-header">Planes preventivos (por días, por uso o lo que ocurra primero)</div>
       <table class="table table-sm mb-0 align-middle"><thead><tr><th>Tarea</th><th>Frecuencia</th><th>Última</th><th>Próxima</th><th></th></tr></thead><tbody>
-      {% for p in planes %}<tr><td>{{ p.tarea }}{% if p.componente %}<div class="small text-muted">{{ p.componente.ruta }}</div>{% endif %}</td>
+      {% for p in planes %}<tr><td>{% if ns == 'manufactura' %}<a href="{% url 'manufactura:plan_mant' p.pk %}" title="Hoja de tareas y materiales">{{ p.tarea }}</a>{% else %}{{ p.tarea }}{% endif %}{% if p.variable %}<div class="small text-muted">Condición: {{ p.variable }} {{ p.umbral_min|default_if_none:'—' }} a {{ p.umbral_max|default_if_none:'—' }}</div>{% endif %}{% if p.componente %}<div class="small text-muted">{{ p.componente.ruta }}</div>{% endif %}</td>
         <td class="small">{% if p.frecuencia_dias %}cada {{ p.frecuencia_dias }} días{% endif %}{% if p.frecuencia_dias and p.frecuencia_uso %} o {% endif %}{% if p.frecuencia_uso %}cada {{ p.frecuencia_uso|floatformat:-1 }} {{ eq.unidad_medidor }} (±{{ p.tolerancia_pct|floatformat:-2 }} %){% endif %}</td>
         <td class="small">{{ p.ultima_fecha|date:'d/m/Y'|default:'—' }}{% if p.ultima_lectura is not None %} · {{ p.ultima_lectura|floatformat:-1 }} {{ eq.unidad_medidor }}{% endif %}</td>
         <td class="small">{{ p.proxima|date:'d/m/Y'|default:'—' }}{% if p.proxima_lectura is not None %} · a los {{ p.proxima_lectura|floatformat:-1 }} {{ eq.unidad_medidor }} (faltan {{ p.falta_uso|floatformat:-1 }}){% endif %}</td>

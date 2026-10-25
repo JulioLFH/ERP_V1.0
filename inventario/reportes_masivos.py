@@ -87,24 +87,55 @@ def comprometido():
 
 
 def bloqueado():
-    """{(producto_id, almacen_id): cantidad} no disponible: almacenes de cuarentena o por destruir, productos en un
-    inventario físico con bloqueo y lotes vencidos."""
+    """{(producto_id, almacen_id): cantidad} no disponible (INV-25): en calidad o bloqueado (lotes en cuarentena,
+    rechazados o bloqueados y almacenes de calidad, bloqueo o cuarentena), lotes vencidos y productos en un inventario
+    físico con bloqueo."""
+    from inventario.estados import USOS_NO_LIBRE, no_libre, vencido
     from inventario.models import ConteoItem
     res = defaultdict(lambda: D0)
-    for s in StockAlmacen.objects.filter(almacen__uso='DESTRUCCION').exclude(cantidad=0):
-        res[(s.producto_id, s.almacen_id)] += s.cantidad
+    for clave, (cal, bloq) in no_libre().items():
+        res[clave] += cal + bloq
+    for clave, cant in vencido().items():
+        res[clave] += cant
     en_conteo = set(ConteoItem.objects.filter(conteo__bloquear=True, conteo__estado__in=['ABIERTO', 'CONTADO',
                                                                                         'APROBADO'])
                     .values_list('producto_id', 'conteo__almacen_id'))
-    for s in StockAlmacen.objects.exclude(cantidad=0).exclude(almacen__uso='DESTRUCCION'):
-        if (s.producto_id, s.almacen_id) in en_conteo:
-            res[(s.producto_id, s.almacen_id)] += s.cantidad
-    for sl in StockLote.objects.filter(lote__vencimiento__lt=timezone.localdate(), cantidad__gt=0).exclude(
-            almacen__uso='DESTRUCCION').select_related('lote'):
-        clave = (sl.lote.producto_id, sl.almacen_id)
-        if clave not in en_conteo:
-            res[clave] += sl.cantidad
+    for s in StockAlmacen.objects.exclude(cantidad=0).exclude(almacen__uso__in=USOS_NO_LIBRE):
+        clave = (s.producto_id, s.almacen_id)
+        if clave in en_conteo:
+            res[clave] = s.cantidad  # todo el producto del almacén está bloqueado mientras se cuenta
     return res
+
+
+def por_estado():
+    """Filas del reporte de stock por estado (INV-26): producto, almacén, lote, libre, en calidad, bloqueado y
+    vencido."""
+    from inventario.estados import USOS_BLOQUEO, USOS_CALIDAD
+    hoy = timezone.localdate()
+    filas = []
+    for sl in (StockLote.objects.filter(cantidad__gt=0).select_related('lote__producto', 'almacen')
+               .order_by('lote__producto__codigo', 'almacen__codigo', 'lote__codigo')):
+        lote, cant = sl.lote, sl.cantidad
+        if sl.almacen.uso in USOS_CALIDAD or lote.estado_calidad == 'CUARENTENA':
+            estado = 'En calidad'
+        elif sl.almacen.uso in USOS_BLOQUEO or lote.estado_calidad in ('RECHAZADO', 'BLOQUEADO'):
+            estado = 'Bloqueado'
+        elif lote.vencimiento and lote.vencimiento < hoy:
+            estado = 'Vencido'
+        else:
+            estado = 'Libre'
+        filas.append({'producto': lote.producto, 'almacen': sl.almacen, 'lote': lote, 'cantidad': cant,
+                      'estado': estado})
+    con_lote = {(f['producto'].pk, f['almacen'].pk) for f in filas}
+    for s in (StockAlmacen.objects.exclude(cantidad=0).filter(producto__control='')
+              .select_related('producto', 'almacen').order_by('producto__codigo', 'almacen__codigo')):
+        if (s.producto_id, s.almacen_id) in con_lote:
+            continue
+        estado = ('En calidad' if s.almacen.uso in USOS_CALIDAD else 'Bloqueado' if s.almacen.uso in USOS_BLOQUEO
+                  else 'Libre')
+        filas.append({'producto': s.producto, 'almacen': s.almacen, 'lote': None, 'cantidad': s.cantidad,
+                      'estado': estado})
+    return filas
 
 
 def stock_actual(almacenes=None, q='', familia='', por_lote=False, ubicacion=''):

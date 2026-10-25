@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Mis órdenes de mantenimiento{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2"><i class="bi bi-phone"></i> Mis órdenes</h1>
+{% if not trabajador %}<div class="alert alert-info small">Su usuario no está vinculado a una ficha de trabajador (Empleados › Trabajadores): pida que lo vinculen para ver las órdenes asignadas a usted.</div>{% endif %}
+<div class="list-group" style="max-width:640px">
+  {% for o in ordenes %}<a href="{% url 'manufactura:orden_mant' o.pk %}" class="list-group-item list-group-item-action py-3">
+    <div class="d-flex justify-content-between"><b>{{ o.numero }} · {{ o.get_tipo_display }}</b><span class="badge {% if o.prioridad == 'EMERGENCIA' %}text-bg-danger{% elif o.prioridad == 'ALTA' %}text-bg-warning{% else %}text-bg-light{% endif %}">{{ o.get_prioridad_display }}</span></div>
+    <div>{{ o.equipo }}</div><div class="small text-muted">{{ o.fecha_programada|date:'d/m/Y' }} · {{ o.get_estado_display }} · {{ o.descripcion|truncatechars:80 }}</div></a>
+  {% empty %}<div class="list-group-item text-muted">No tiene órdenes abiertas asignadas.</div>{% endfor %}
+</div>
+<p class="small text-muted mt-3" style="max-width:640px">En la orden: marque el checklist, registre sus horas, suba las fotos, anote la lectura del medidor y la conformidad del usuario del equipo al cerrar. Para avisar una falla nueva: <a href="{% url 'manufactura:aviso_nuevo' %}">Avisar una falla</a>.</p>
+{% endblock %}

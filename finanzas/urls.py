@@ -1,10 +1,32 @@
 from django.urls import path
 
-from . import views, views_extractos, views_prestamos as vp, views_tesoreria as vt
+from . import views, views_extractos, views_gestion as vg, views_prestamos as vp, views_tesoreria as vt
 
 app_name = 'finanzas'
 
 urlpatterns = [
+    # v1.84: planeamiento y gestión financiera (FIN-02 a FIN-08)
+    path('presupuesto-caja/', vg.presupuesto_caja, name='presupuesto_caja'),
+    path('presupuesto-caja/<int:pk>/real/', vg.real_vs_proyectado, name='real_vs_proyectado'),
+    path('cobranza/', vg.cobranza_gestion, name='cobranza_gestion'),
+    path('cobranza/cliente/<int:pk>/', vg.cobranza_cliente, name='cobranza_cliente'),
+    path('cobranza/recordatorios/', vg.recordatorios, name='recordatorios'),
+    path('cobranza/provision/', vg.provision, name='provision'),
+    path('propuestas-pago/', vg.propuestas, name='propuestas'),
+    path('propuestas-pago/nueva/', vg.propuesta_nueva, name='propuesta_nueva'),
+    path('propuestas-pago/<int:pk>/', vg.propuesta, name='propuesta'),
+    path('propuestas-pago/descuentos/', vg.descuentos_pp, name='descuentos_pp'),
+    path('lineas-credito/', vg.lineas_credito, name='lineas_credito'),
+    path('depositos-plazo/', vg.depositos, name='depositos'),
+    path('factoring/', vg.cesiones, name='cesiones'),
+    path('cartas-fianza/', vg.cartas_fianza, name='cartas_fianza'),
+    path('prestamos/cierre/', vg.prestamos_cierre, name='prestamos_cierre'),
+    path('arrendamientos/', vg.arrendamientos, name='arrendamientos'),
+    path('arrendamientos/<int:pk>/', vg.arrendamiento, name='arrendamiento'),
+    path('posicion-moneda/', vg.posicion_moneda, name='posicion_moneda'),
+    path('forwards/', vg.forwards, name='forwards'),
+    path('tablero/', vg.tablero_financiero, name='tablero_financiero'),
+    path('analisis-estados/', vg.analisis_estados, name='analisis_estados'),
     path('prestamos/', vp.prestamos, name='prestamos'),
     path('prestamos/nuevo/', vp.prestamo_nuevo, name='prestamo_nuevo'),
     path('prestamos/<int:pk>/', vp.prestamo, name='prestamo'),

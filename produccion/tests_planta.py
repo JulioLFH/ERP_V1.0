@@ -72,8 +72,9 @@ class PlantaTest(TestCase):
         insp = InspeccionCalidad.objects.get()
         self.assertRedirects(r, reverse('manufactura:inspeccion', args=[insp.pk]))
         res = insp.resultados.get()
-        with self.assertRaises(planta.ErrorPlanta):  # 15.2 % está fuera de especificación: no se aprueba
-            planta.registrar_resultados(insp, {res.pk: (D('15.2'), '', None)}, 'APROBADO', '', self.user)
+        # 15.2 % está fuera de especificación: no se aprueba, queda en investigación OOS (CAL-02)
+        insp = planta.registrar_resultados(insp, {res.pk: (D('15.2'), '', None)}, 'APROBADO', '', self.user)
+        self.assertEqual(insp.resultado, 'OOS')
         planta.registrar_resultados(insp, {res.pk: (D('15.2'), '', None)}, 'RECHAZADO', 'Humedad alta', self.user)
         res.refresh_from_db()
         self.assertIs(res.conforme, False)

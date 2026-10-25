@@ -38,7 +38,9 @@ ACCIONES = {
                    ('aprobar_mayor', 'Aprobar diferencias de inventario físico sobre el tope', True),
                    ('anular', 'Anular operaciones', True),
                    ('cerrar', 'Cerrar el kardex', True),
-                   ('fecha_anterior', 'Fecha contable de un mes anterior en operaciones de almacén (con motivo)', True)],
+                   ('fecha_anterior', 'Fecha contable de un mes anterior en operaciones de almacén (con motivo)', True),
+                   ('estado_stock', 'Cambiar el estado del stock: poner en calidad, bloquear o desbloquear (con motivo)',
+                    True)],
     'codigo_barras': [('asignar', 'Asignar o cambiar el código de barras de los productos', False)],
     'logistica': [('emitir', 'Emitir guías de remisión', False),
                   ('anular', 'Anular guías', True),
@@ -51,10 +53,15 @@ ACCIONES = {
     'tesoreria': [('registrar', 'Registrar cobros, pagos, depósitos de detracción y movimientos', False),
                   ('transferir', 'Transferencias entre cuentas', False),
                   ('anular', 'Anular movimientos, cheques y entregas a rendir', True),
-                  ('cuentas', 'Crear cuentas de caja y bancos y sus saldos iniciales', True)],
+                  ('cuentas', 'Crear cuentas de caja y bancos y sus saldos iniciales', True),
+                  ('aprobar_pagos', 'Aprobar la propuesta de pagos (gerencia)', True)],
     'finanzas': [('registrar', 'Aplicar anticipos, registrar letras, canjes y cuotas de préstamos', False),
                  ('anular', 'Anular aplicaciones, canjes y préstamos', True),
-                 ('cuentas', 'Registrar préstamos y leasing', True)],
+                 ('cuentas', 'Registrar préstamos y leasing', True),
+                 ('cobranza', 'Gestión de cobranza: gestiones, promesas, recordatorios y provisión', False),
+                 ('financiamiento', 'Líneas de crédito, depósitos, factoring, cartas fianza, arrendamientos y '
+                                    'forwards', True),
+                 ('planeamiento', 'Presupuesto de caja: partidas manuales y escenarios', False)],
     'contabilidad': [('asientos', 'Asientos manuales', False),
                      ('extornar', 'Extornar asientos', True),
                      ('periodos', 'Centralizar y cerrar periodos', True),
@@ -69,8 +76,18 @@ ACCIONES = {
     'planificacion': [('planificar', 'Correr el MRP, pronóstico de demanda y programación de planta (genera órdenes '
                                      'y solicitudes)', False)],
     'control_calidad': [('inspecciones', 'Inspecciones, planes de calidad y certificados de análisis', False),
-                        ('liberar_lotes', 'Aprobar certificados de análisis y liberar lotes en cuarentena', True)],
-    'mantenimiento': [('registrar', 'Equipos, planes preventivos, órdenes de mantenimiento y lecturas', False)],
+                        ('liberar_lotes', 'Aprobar certificados de análisis y liberar lotes en cuarentena', True),
+                        ('reabrir', 'Reabrir inspecciones decididas y anular certificados aprobados (QA, con motivo)',
+                         True),
+                        ('aprobar_oos', 'Cerrar investigaciones de resultados fuera de especificación (OOS)', True),
+                        ('especificaciones', 'Aprobar especificaciones de calidad (versiones)', True),
+                        ('registros_gmp', 'Registrar desviaciones, quejas, cambios, retiros, contramuestras y '
+                                          'estudios de estabilidad', False),
+                        ('aprobar_qa', 'Aprobación de QA: cerrar desviaciones, aprobar y cerrar cambios y retiros',
+                         True)],
+    'mantenimiento': [('registrar', 'Equipos, planes preventivos, órdenes de mantenimiento y lecturas', False),
+                      ('calibrar', 'Calibraciones y calificación (IQ/OQ/PQ) de equipos e instrumentos', False),
+                      ('avisos', 'Aprobar o rechazar avisos de mantenimiento del operador', False)],
     'costos': [('liberar', 'Calcular y liberar el costo estándar', True),
                ('abc', 'Configurar actividades del costeo ABC', True),
                ('liquidar', 'Liquidar el costo real y registrar el valor neto realizable (cierre NIC 2)', True)],
@@ -121,7 +138,10 @@ TODAS = {f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, _ in lista}
 EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar', 'manufactura.aprobar_cambios',
               'costos.liquidar', 'requerimientos.liberar_solped', 'inventario.aprobar_mayor', 'obras.aprobar',
               'obras.reabrir', 'sst.validar', 'calidad.validar', 'obras.facturar',
-              'inventario.fecha_anterior', 'proyectos.ver_todos'}
+              'inventario.fecha_anterior', 'proyectos.ver_todos',
+              # v1.84: aprobaciones de QA (BPM): solo a quien se le asignan
+              'control_calidad.reabrir', 'control_calidad.aprobar_oos', 'control_calidad.especificaciones',
+              'control_calidad.aprobar_qa', 'tesoreria.aprobar_pagos'}
 
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
@@ -198,7 +218,20 @@ RUTAS = {
     'finanzas:canje': {'POST': 'finanzas.anular'}, 'finanzas:letra': {'POST': 'finanzas.registrar'},
     'finanzas:prestamo_nuevo': {'POST': 'finanzas.cuentas'},
     'finanzas:prestamo': lambda r: (None if r.method != 'POST' else 'finanzas.anular'
-                                    if r.POST.get('accion') == 'anular' else 'finanzas.registrar'),
+                                    if r.POST.get('accion') == 'anular' else 'finanzas.cuentas'
+                                    if r.POST.get('accion') in ('prepagar', 'reprogramar') else 'finanzas.registrar'),
+    # v1.84: planeamiento, cobranza, propuesta de pagos, financiamiento e indicadores (FIN-01 a FIN-08)
+    'finanzas:presupuesto_caja': {'POST': 'finanzas.planeamiento'},
+    'finanzas:cobranza_gestion': {'POST': 'finanzas.cobranza'}, 'finanzas:cobranza_cliente': {'POST': 'finanzas.cobranza'},
+    'finanzas:recordatorios': {'POST': 'finanzas.cobranza'}, 'finanzas:provision': {'POST': 'contabilidad.asientos'},
+    'finanzas:propuesta_nueva': {'POST': 'tesoreria.registrar'},
+    'finanzas:propuesta': lambda r: (None if r.method != 'POST' else 'tesoreria.aprobar_pagos'
+                                     if r.POST.get('accion') in ('aprobar', 'rechazar') else 'tesoreria.registrar'),
+    'finanzas:lineas_credito': {'POST': 'finanzas.financiamiento'},
+    'finanzas:depositos': {'POST': 'finanzas.financiamiento'}, 'finanzas:cesiones': {'POST': 'finanzas.financiamiento'},
+    'finanzas:cartas_fianza': {'POST': 'finanzas.financiamiento'},
+    'finanzas:arrendamientos': {'POST': 'finanzas.financiamiento'},
+    'finanzas:prestamos_cierre': {'POST': 'finanzas.cuentas'}, 'finanzas:forwards': {'POST': 'finanzas.financiamiento'},
     'contabilidad:asiento_nuevo': 'contabilidad.asientos', 'contabilidad:asiento_editar': 'contabilidad.asientos',
     'contabilidad:asiento_eliminar': 'contabilidad.extornar', 'contabilidad:asiento_extornar': 'contabilidad.extornar',
     'contabilidad:periodos': lambda r: (None if r.method != 'POST' else 'contabilidad.reabrir'
@@ -230,6 +263,15 @@ RUTAS = {
     'manufactura:orden_confirmar': 'manufactura.ordenes', 'manufactura:orden_iniciar': 'manufactura.ordenes',
     'manufactura:orden_terminar': 'manufactura.ordenes', 'manufactura:orden_maquila': 'manufactura.ordenes',
     'manufactura:inspeccion_nueva': 'control_calidad.inspecciones',
+    # v1.84: calidad farmacéutica (las aprobaciones de QA las valida cada servicio con su firma)
+    **{f'manufactura:{n}': 'control_calidad.registros_gmp' for n in (
+        'desviacion_nueva', 'cambio_cc_nuevo', 'queja_nueva', 'retiro_nuevo', 'contramuestra_nueva', 'estudio_nuevo')},
+    **{f'manufactura:{n}': {'POST': 'control_calidad.registros_gmp'} for n in (
+        'desviacion', 'cambio_cc', 'queja', 'retiro', 'contramuestra', 'estudio')},
+    'manufactura:oos': {'POST': 'control_calidad.inspecciones'},
+    'manufactura:registro_lote': {'POST': 'manufactura.ordenes'},
+    # calibraciones: las registra Mantenimiento («calibrar») o Calidad («inspecciones»)
+    'manufactura:calibracion_nueva': lambda r: _calibrar(r), 'manufactura:calificacion_nueva': lambda r: _calibrar(r),
     'manufactura:inspeccion': {'POST': 'control_calidad.inspecciones'},
     'manufactura:plan_calidad': {'POST': 'control_calidad.inspecciones'},
     'manufactura:certificado_nuevo': 'control_calidad.inspecciones',
@@ -244,6 +286,14 @@ RUTAS = {
     'manufactura:ordenes_mant': {'POST': 'mantenimiento.registrar'},
     'manufactura:orden_mant_nueva': 'mantenimiento.registrar',
     'manufactura:orden_mant': {'POST': 'mantenimiento.registrar'},
+    # v1.84: avisar una falla lo puede cualquiera del módulo; aprobarla, quien tenga «avisos»
+    'manufactura:avisos_mant': {'POST': 'mantenimiento.avisos'},
+    'manufactura:lecturas_mant': {'POST': 'mantenimiento.registrar'},
+    'manufactura:plan_mant': {'POST': 'mantenimiento.registrar'},
+    'manufactura:ubicaciones_mant': {'POST': 'mantenimiento.registrar'},
+    'manufactura:codigos_falla': {'POST': 'mantenimiento.registrar'},
+    'manufactura:repuestos_criticos': {'POST': 'mantenimiento.registrar'},
+    'manufactura:calendario_mant': {'POST': 'mantenimiento.registrar'},
 'manufactura:orden_eliminar': 'manufactura.ordenes',
     'manufactura:orden_anular': 'manufactura.anular',
     'manufactura:lista_nueva': 'manufactura.recetas', 'manufactura:lista_editar': 'manufactura.recetas',
@@ -303,6 +353,7 @@ RUTAS = {
     'obras:entregables': {'POST': 'obras.ejecutar'}, 'obras:partes_horas': {'POST': 'obras.ejecutar'},
     'obras:garantia': {'POST': 'obras.ejecutar'}, 'obras:garantia_nueva': {'POST': 'obras.ejecutar'},
     'obras:servicios_proceso': {'POST': 'obras.facturar'}, 'obras:versiones': {'POST': 'obras.presupuestar'},
+    'obras:presupuesto_proyecto': {'POST': 'obras.presupuestar'},
     'obras:tareo': {'POST': 'obras.ejecutar'}, 'obras:planillas_civil': {'POST': 'obras.ejecutar'},
     'obras:planilla_civil': {'POST': 'obras.ejecutar'}, 'obras:partes': {'POST': 'obras.ejecutar'},
     'obras:subcontratos': {'POST': 'obras.ejecutar'}, 'obras:subcontrato': {'POST': 'obras.ejecutar'},
@@ -335,6 +386,10 @@ def _aprobar_oc():
 
 def _tipo(request):
     return request.POST.get('tipo_comprobante') or request.GET.get('tipo') or ''
+
+
+def _calibrar(request):
+    return None if puede(request.user, 'control_calidad.inspecciones') else 'mantenimiento.calibrar'
 
 
 def _flota(request):
@@ -375,6 +430,18 @@ def puede(user, accion):
     if perfil is None:
         return accion not in EXPLICITAS
     return accion in perfil.acciones
+
+
+def rutas_sin_permiso(user):
+    """Pantallas que siempre exigen una acción que el usuario no tiene (SEG-07): el menú no las muestra (el servidor
+    igual las rechaza)."""
+    if not user.is_authenticated or user.is_superuser:
+        return set()
+    cache = getattr(user, '_rutas_sin_permiso', None)
+    if cache is None:
+        cache = user._rutas_sin_permiso = {r for r, regla in RUTAS.items()
+                                          if isinstance(regla, str) and not puede(user, regla)}
+    return cache
 
 
 def accion_de_ruta(match, request):

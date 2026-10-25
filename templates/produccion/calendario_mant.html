@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Calendario de mantenimiento{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-calendar-week"></i> Semana del {{ lunes|date:'d/m/Y' }}</h1>
+  <div class="d-flex gap-2"><a href="?semana={{ anterior|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary" aria-label="Semana anterior"><i class="bi bi-chevron-left"></i></a><a href="?" class="btn btn-sm btn-outline-secondary">Hoy</a><a href="?semana={{ siguiente|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary" aria-label="Semana siguiente"><i class="bi bi-chevron-right"></i></a>
+    <a href="{% url 'manufactura:tablero_mant' %}" class="btn btn-sm btn-outline-primary">Tablero</a></div>
+</div>
+<div class="table-responsive mb-3"><table class="table table-bordered table-sm small align-top" style="min-width:900px">
+  <thead><tr>{% for d in c.dias %}<th class="text-center" style="width:14%">{{ d|date:'D d/m' }}</th>{% endfor %}</tr></thead>
+  <tbody><tr>{% for lista in c.por_dia %}<td>{% for o in lista %}<a href="{% url 'manufactura:orden_mant' o.pk %}" class="d-block border rounded p-1 mb-1 text-decoration-none{% if o.prioridad == 'EMERGENCIA' %} border-danger{% elif o.prioridad == 'ALTA' %} border-warning{% endif %}"><b>{{ o.numero }}</b> {{ o.get_tipo_display }}<br>{{ o.equipo.codigo }} · {{ o.tecnico|default:'sin técnico' }}{% if o.horas_estimadas %} · {{ o.horas_estimadas }} h{% endif %}</a>{% empty %}<span class="text-muted">—</span>{% endfor %}</td>{% endfor %}</tr></tbody>
+</table></div>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="card-header small fw-semibold">Carga por técnico (capacidad {{ capacidad }} h por día)</div><div class="table-responsive"><table class="table table-sm mb-0 small">
+    <thead><tr><th>Técnico</th>{% for d in c.dias %}<th class="num">{{ d|date:'D' }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for f in c.carga %}<tr><td>{{ f.tecnico }}</td>{% for h in f.horas %}<td class="num{% if h > capacidad %} text-danger fw-semibold{% endif %}">{% if h %}{{ h }}{% endif %}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="8" class="text-muted text-center">Sin órdenes programadas.</td></tr>{% endfor %}</tbody>
+  </table></div></div></div>
+  <div class="col-lg-5"><div class="card"><div class="card-header small fw-semibold">Ventanas de parada acordadas con producción</div><ul class="list-group list-group-flush small">
+    {% for v in c.ventanas %}<li class="list-group-item">{{ v.inicio|date:'D d/m H:i' }} – {{ v.fin|date:'H:i' }} · {{ v.centro|default:v.equipo }}{% if v.motivo %} · {{ v.motivo }}{% endif %}</li>{% empty %}<li class="list-group-item text-muted">Sin ventanas esta semana.</li>{% endfor %}</ul>
+    {% if puede.mantenimiento_registrar %}<form method="post" class="card-body row g-2 small">{% csrf_token %}{% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1">{{ e }}</div>{% endfor %}{% for field in form %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}<div class="col-12"><button class="btn btn-sm btn-outline-primary">Agregar ventana</button></div></form>{% endif %}</div></div>
+</div>
+{% endblock %}

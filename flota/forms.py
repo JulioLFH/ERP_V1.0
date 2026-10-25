@@ -80,7 +80,10 @@ class EquipoForm(BootstrapMixin, forms.ModelForm):
         model = Equipo
         fields = ['codigo', 'nombre', 'tipo', 'estado', 'placa', 'marca_modelo', 'serie', 'anio', 'combustible',
                   'medidor', 'rendimiento_esperado', 'centro', 'centro_costo', 'activo_fijo', 'responsable',
-                  'ubicacion', 'aplica_prestamo', 'activo']
+                  'ubicacion', 'aplica_prestamo', 'criticidad', 'ubicacion_tecnica', 'garantia_hasta',
+                  'valor_reposicion', 'presupuesto_anual', 'es_instrumento', 'rango_tolerancia', 'calibracion_dias',
+                  'activo']
+        widgets = {'garantia_hasta': forms.DateInput(attrs={'type': 'date'})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

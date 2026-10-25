@@ -34,6 +34,14 @@ class OrdenCompra(DocumentoBase):
                                               editable=False)
     comprador = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
                                   verbose_name='Comprador', help_text='Vacío = quien la registra')
+    # SRV-11: rubro del presupuesto del proyecto de servicios que compromete (el centro de costo es el del proyecto)
+    rubro_proyecto = models.CharField('Rubro del proyecto', max_length=13, blank=True, choices=[
+        ('HORAS', 'Horas del personal'), ('ESPECIALISTAS', 'Especialistas independientes'),
+        ('VIAJES', 'Viajes y movilidad'), ('OFICINA', 'Gastos de oficina'), ('OTROS', 'Otros gastos')],
+        help_text='Solo si el centro de costo es un proyecto de servicios con presupuesto. Vacío = Otros gastos')
+    exceso_autorizado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                              related_name='+', editable=False)
+    exceso_motivo = models.CharField('Motivo del exceso de presupuesto', max_length=250, blank=True, editable=False)
 
     class Meta(DocumentoBase.Meta):
         verbose_name = 'orden de compra'
@@ -392,6 +400,18 @@ class RegistroInfo(models.Model):
                                     help_text='No se le compra este producto (calidad, homologación vencida…): no se '
                                               'aprueba una OC con él y el MRP no lo propone')
     motivo_bloqueo = models.CharField('Motivo del bloqueo', max_length=200, blank=True)
+    # v1.84 (CAL-10): calificación del proveedor para el material (aseguramiento de la calidad)
+    CALIFICACIONES = [('', 'Sin calificar'), ('APROBADO', 'Aprobado'), ('CONDICIONAL', 'Aprobado condicional'),
+                      ('SUSPENDIDO', 'Suspendido'), ('RECHAZADO', 'Rechazado')]
+    INSPECCIONES = [('NORMAL', 'Normal'), ('REDUCIDA', 'Reducida (historial confiable)'),
+                    ('COMPLETA', 'Completa: cada lote entra en cuarentena')]
+    calificacion = models.CharField('Calificación del proveedor', max_length=11, choices=CALIFICACIONES, blank=True)
+    cuestionario = models.BooleanField('Cuestionario de calificación recibido', default=False)
+    auditoria_fecha = models.DateField('Auditoría al proveedor', null=True, blank=True)
+    muestras_aprobadas = models.BooleanField('Muestras aprobadas', default=False)
+    calificado_hasta = models.DateField('Calificación vigente hasta', null=True, blank=True)
+    nivel_inspeccion = models.CharField('Inspección de recepción', max_length=8, choices=INSPECCIONES,
+                                        default='NORMAL')
     activo = models.BooleanField(default=True)
     ultimo_precio = models.DecimalField('Último precio comprado', max_digits=14, decimal_places=4, null=True,
                                         blank=True, editable=False)

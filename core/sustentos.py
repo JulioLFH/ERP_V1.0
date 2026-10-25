@@ -22,6 +22,8 @@ MODULO_DE = {'contabilidad.asiento': 'contabilidad', 'finanzas.movimiento': 'tes
              'planillas.documentolegajo': 'planillas', 'planillas.contrato': 'planillas',
              'planillas.movimientopersonal': 'planillas', 'obras.requisitopostor': 'obras',
              'obras.ventainmueble': 'obras',
+             # v1.84: fotos de la orden y del aviso de mantenimiento (MNT-03, MNT-07)
+             'produccion.ordenmantenimiento': 'mantenimiento', 'produccion.avisomantenimiento': 'mantenimiento',
              **{f'sst.{m}': 'sst' for m in ('examenmedico', 'monitoreo', 'inspeccion', 'capacitacion',
                                            'equipoemergencia', 'iperc', 'entregaepp', 'sctr', 'permisotrabajo',
                                            'evento')},

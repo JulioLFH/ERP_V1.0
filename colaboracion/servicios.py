@@ -171,7 +171,24 @@ def por_hacer(user):
         url = reverse('crm:oportunidad', args=[a.oportunidad_id]) if a.oportunidad_id else reverse('crm:actividades')
         filas.append({'origen': 'CRM', 'icono': 'bi-kanban', 'titulo': f'{a.get_tipo_display()}: {a.descripcion}',
                       'fecha': a.fecha, 'url': url, 'detalle': a.cliente, 'pk': a.pk, 'alta': False})
+    filas += _documentos_por_leer(user)
     return sorted(filas, key=lambda f: (f['fecha'] is None, f['fecha'] or timezone.localdate()))
+
+
+def _documentos_por_leer(user):
+    """CAL-09: documentos vigentes de lectura obligatoria del puesto del usuario que aún no leyó."""
+    from calidad.models import DocumentoControlado, LecturaDocumento
+    from planillas.organizacion import trabajador_de_usuario
+    t = trabajador_de_usuario(user)
+    if t is None or not t.puesto_id:
+        return []
+    leidos = set(LecturaDocumento.objects.filter(usuario=user).values_list('documento_id', flat=True))
+    return [{'origen': 'Documento', 'icono': 'bi-file-earmark-text', 'titulo': f'Leer {d}', 'fecha': d.fecha_vigencia,
+             'url': reverse('calidad:documento_flujo', args=[d.pk]), 'detalle': 'Lectura obligatoria de su puesto',
+             'pk': d.pk, 'alta': False}
+            for d in DocumentoControlado.objects.filter(vigente=True, estado_validacion='VALIDADO',
+                                                        lectura_obligatoria=True, puestos=t.puesto)
+            if d.pk not in leidos]
 
 
 def agrupar(filas, hoy):

@@ -128,6 +128,9 @@ class VentasViews(ComprobanteViews):
         deuda = [v for v in Venta.objects.con_saldos().cobrables().filter(tercero=cliente, estado='REGISTRADO').exclude(
             tipo_comprobante='07').exclude(pk=doc.pk) if v.saldo > 0]
         errores = []
+        if cliente.bloqueado_mora:  # FIN-03
+            errores.append(f'{cliente.nombre} está bloqueado por mora (Finanzas › Gestión de cobranza): cobre la deuda '
+                           f'vencida o emita la venta al contado.')
         if empresa.bloquear_deuda_vencida:
             limite_fecha = timezone.localdate() - timedelta(days=empresa.dias_gracia)
             vencidos = [v for v in deuda if v.fecha_vencimiento and v.fecha_vencimiento < limite_fecha]

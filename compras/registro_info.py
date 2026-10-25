@@ -32,10 +32,37 @@ def problemas_orden(oc):
         if r is not None and r.bloqueado:
             bloqueos.append(f'{p.codigo} {p.nombre}: {oc.tercero.nombre} está bloqueado para este producto'
                             f'{f" ({r.motivo_bloqueo})" if r.motivo_bloqueo else ""}.')
+        elif error_calificacion(p, oc.tercero, r):
+            bloqueos.append(error_calificacion(p, oc.tercero, r))
         elif p.pk in con_homologados and not (r and r.homologado):
             avisos.append(f'{p.codigo} {p.nombre}: {oc.tercero.nombre} no está homologado para este producto '
                           f'(hay proveedores homologados).')
     return bloqueos, avisos
+
+
+def calificado(producto, proveedor, registro=None, fecha=None):
+    """CAL-10: el proveedor está aprobado (o condicional) y vigente para el material."""
+    from django.utils import timezone
+    r = registro if registro is not None else RegistroInfo.objects.filter(producto=producto,
+                                                                          proveedor=proveedor).first()
+    fecha = fecha or timezone.localdate()
+    return bool(r and r.activo and not r.bloqueado and r.calificacion in ('APROBADO', 'CONDICIONAL')
+                and (r.calificado_hasta is None or r.calificado_hasta >= fecha))
+
+
+def error_calificacion(producto, proveedor, registro=None, fecha=None):
+    """Mensaje si el producto exige proveedor calificado y este no lo está (o '' si puede comprarse / recibirse)."""
+    if not getattr(producto, 'exige_proveedor_calificado', False) or proveedor is None:
+        return ''
+    if calificado(producto, proveedor, registro, fecha):
+        return ''
+    return (f'{producto.codigo} {producto.nombre}: {proveedor.nombre} no es un proveedor calificado y vigente para este '
+            f'material (Compras › Proveedores por producto: calificación, auditoría y vigencia).')
+
+
+def nivel_inspeccion(producto, proveedor):
+    r = RegistroInfo.objects.filter(producto=producto, proveedor=proveedor).first() if proveedor else None
+    return r.nivel_inspeccion if r else 'NORMAL'
 
 
 def proveedor_y_plazo(producto):

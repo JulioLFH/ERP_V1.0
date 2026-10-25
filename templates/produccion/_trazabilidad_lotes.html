@@ -1,0 +1,20 @@
+{% load erp_tags %}{% for x in d.lotes %}
+<div class="card mb-3"><div class="card-header"><b>Lote {{ x.lote.codigo }}</b> · {{ x.lote.producto.codigo }} {{ x.lote.producto.nombre }}{% if x.lote.fabricacion %} · fabricado {{ x.lote.fabricacion|date:'d/m/Y' }}{% endif %}{% if x.lote.vencimiento %} · vence {{ x.lote.vencimiento|date:'d/m/Y' }}{% endif %} · {{ x.lote.estado_stock }} · stock {{ x.lote.stock|money }}</div>
+  <div class="card-body row g-3">
+    <div class="col-lg-6">
+      <h6><i class="bi bi-arrow-left-circle"></i> De dónde viene</h6>
+      {% if x.orden %}<p class="small mb-1">Fabricado en la orden <a href="{% url 'manufactura:orden' x.orden.pk %}">{{ x.orden.numero }}</a>, terminada el {{ x.orden.fecha_fin|date:'d/m/Y' }} ({{ x.orden.cantidad_producida|money }} {{ x.lote.producto.unidad }}).</p>
+        <table class="table table-sm small mb-0"><thead><tr><th>Insumo</th><th>Lote del insumo</th><th class="num">Cantidad</th></tr></thead><tbody>
+        {% for i in x.insumos %}<tr><td>{{ i.producto.codigo }} {{ i.producto.nombre }}</td><td>{% if i.lote %}<a href="?lote={{ i.lote.codigo }}">{{ i.lote.codigo }}</a>{% else %}<span class="text-muted">sin lote</span>{% endif %}</td><td class="num">{{ i.cantidad|money }}</td></tr>{% empty %}<tr><td colspan="3" class="text-muted">Sin consumos registrados.</td></tr>{% endfor %}</tbody></table>
+      {% else %}<p class="small text-muted">No fue fabricado en una orden del sistema (compra o saldo inicial).</p>{% endif %}
+      {% if x.usado_en %}<h6 class="mt-3">Usado como insumo en</h6><table class="table table-sm small mb-0"><tbody>
+        {% for u in x.usado_en %}<tr><td>{{ u.fecha|date:'d/m/Y' }}</td><td>{% if u.orden %}<a href="{% url 'manufactura:orden' u.orden.pk %}">{{ u.orden.numero }}</a> · {{ u.orden.producto.nombre }} · <a href="?lote={{ u.orden.lote_producido|default:u.orden.numero }}">ver su lote</a>{% endif %}</td><td class="num">{{ u.cantidad|money }}</td></tr>{% endfor %}</tbody></table>{% endif %}
+    </div>
+    <div class="col-lg-6">
+      <h6><i class="bi bi-arrow-right-circle"></i> A dónde fue (ventas)</h6>
+      <table class="table table-sm small mb-0"><thead><tr><th>Fecha</th><th>Comprobante</th><th>Cliente</th><th class="num">Cantidad</th></tr></thead><tbody>
+      {% for v in x.ventas %}<tr><td>{{ v.fecha|date:'d/m/Y' }}</td><td><a href="{% url 'ventas:detalle' v.venta.pk %}">{{ v.venta }}</a></td><td>{{ v.cliente.nombre }}</td><td class="num">{{ v.cantidad|money }}</td></tr>{% empty %}<tr><td colspan="4" class="text-muted">Aún no se vendió.</td></tr>{% endfor %}</tbody></table>
+    </div>
+  </div>
+</div>
+{% endfor %}

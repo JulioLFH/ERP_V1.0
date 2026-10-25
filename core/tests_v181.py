@@ -445,7 +445,8 @@ class ServiciosProyectoTest(BaseObras):
         t = Trabajador.objects.create(nombres='Luis', apellido_paterno='Rojas', numero_doc='41414141',
                                       sueldo=D('5760'), fecha_ingreso=HOY - timedelta(days=100))
         self.assertEqual(s.costo_hora(t), D('43.50'))  # 5760 × 145 % / 192
-        parte = s.registrar_parte(p, HOY, D('30'), self.user, trabajador=t, entregable=e)
+        # v1.84 (SRV-13): horas generales del proyecto (sin entregable): se reparten por el % facturado del contrato
+        parte = s.registrar_parte(p, HOY, D('30'), self.user, trabajador=t)
         with self.assertRaisesMessage(s.ErrorServicio, 'máximo'):
             s.registrar_parte(p, HOY, D('60'), self.user, trabajador=t)
         r = self.client.post(reverse('obras:partes_aprobar'), {'parte': parte.pk, 'accion': 'aprobar'})
@@ -457,6 +458,7 @@ class ServiciosProyectoTest(BaseObras):
         periodo = HOY.strftime('%Y%m')
         sit = s.situacion(p, periodo)
         self.assertEqual(sit['costo'], D('1305.00'))
+        self.assertEqual(sit['costo_proceso'], D('783.00'))  # 60 % no facturado del contrato
         asiento = s.registrar_cierre(periodo, self.user)
         self.assertTrue(asiento.cuadrado)
         with self.assertRaisesMessage(s.ErrorServicio, 'ya se registró'):

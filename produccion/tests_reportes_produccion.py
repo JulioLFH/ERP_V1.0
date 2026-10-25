@@ -49,7 +49,8 @@ class Base(TestCase):
         self.empaque = Producto.objects.create(nombre='Empaque', clase='MATERIA_PRIMA', proveedor=prov)
         # paquete de 500 g
         self.galleta = Producto.objects.create(nombre='Galleta paquete', clase='PRODUCTO_TERMINADO', control='LOTE',
-                                               precio_venta=D('8'), peso_neto=D('0.5'), familia='Galletas')
+                                               precio_venta=D('8'), peso_neto=D('0.5'), familia='Galletas',
+                                               vida_util_dias=180)  # v1.84: el lote vence (INV-28)
         cc = CentroCosto.objects.create(codigo='PL', nombre='Planta', tipo='PRODUCCION')
         self.horno = CentroTrabajo.objects.create(codigo='HOR', nombre='Horno', costo_hora_mo=D('20'),
                                                   costo_hora_cif=D('30'), centro_costo=cc, horas_turno=D('8'),

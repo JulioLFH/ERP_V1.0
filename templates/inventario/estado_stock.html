@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}Estado del stock{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Estado del stock</h1>
+  <form method="get" class="d-flex gap-2 small">
+    <input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Producto o lote">
+    <select name="estado" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Estado"><option value="">Todos los estados</option>{% for e in estados %}<option{% if e == estado %} selected{% endif %}>{{ e }}</option>{% endfor %}</select>
+    <button class="btn btn-sm btn-outline-primary">Ver</button>
+  </form>
+</div>
+<div class="row g-3 mb-3 small">{% for e in estados %}<div class="col-6 col-md-3"><a href="?estado={{ e|urlencode }}" class="card text-decoration-none text-body"><div class="card-body py-2"><div class="text-muted">{{ e }}</div><div class="fs-5 fw-semibold">{% for k, v in totales.items %}{% if k == e %}{{ v|floatformat:'-2' }}{% endif %}{% endfor %}</div></div></a></div>{% endfor %}</div>
+<div class="row g-3">
+  <div class="col-xl-8"><div class="card"><div class="table-responsive" style="max-height: 60vh"><table class="table table-sm table-hover mb-0 small">
+    <thead><tr><th>Producto</th><th>Almacén</th><th>Lote</th><th>Vence</th><th class="num">Cantidad</th><th>Estado</th></tr></thead>
+    <tbody>{% for f in filas %}<tr><td>{{ f.producto.codigo }} {{ f.producto.nombre }}</td><td>{{ f.almacen.codigo }}{% if f.almacen.uso %} <span class="text-muted">({{ f.almacen.get_uso_display }})</span>{% endif %}</td>
+      <td>{{ f.lote.codigo|default:'—' }}</td><td>{{ f.lote.vencimiento|date:'d/m/Y'|default:'' }}</td><td class="num">{{ f.cantidad|floatformat:'-2' }}</td>
+      <td><span class="badge text-bg-{% if f.estado == 'Libre' %}success{% elif f.estado == 'En calidad' %}warning{% elif f.estado == 'Vencido' %}dark{% else %}danger{% endif %}">{{ f.estado }}</span>{% if f.lote.motivo_estado and f.estado != 'Libre' %}<div class="text-muted">{{ f.lote.motivo_estado }}</div>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="6" class="text-muted">Sin stock en este estado.</td></tr>{% endfor %}</tbody>
+  </table></div></div></div>
+  <div class="col-xl-4">
+    <div class="card mb-3"><div class="card-header fw-semibold small">Cambiar el estado de un lote</div><div class="card-body small">
+      <form method="post" class="d-grid gap-2">{% csrf_token %}<input type="hidden" name="que" value="lote">
+        <select name="lote" class="form-select form-select-sm" required aria-label="Lote"><option value="">Lote…</option>{% for f in filas %}{% if f.lote and f.lote.codigo != 'S/L' %}{% ifchanged f.lote.pk %}<option value="{{ f.lote.pk }}">{{ f.producto.codigo }} · {{ f.lote.codigo }} ({{ f.estado|lower }})</option>{% endifchanged %}{% endif %}{% endfor %}</select>
+        <select name="estado" class="form-select form-select-sm" required aria-label="Nuevo estado">{% for v, n in destinos %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select>
+        <input name="motivo" class="form-control form-control-sm" placeholder="Motivo (obligatorio)" required minlength="5">
+        <button class="btn btn-sm btn-primary">Cambiar estado</button>
+      </form>
+      <div class="form-text">Bloquear o poner en calidad: permiso «estado del stock» de Inventario. Liberar un lote en cuarentena o rechazado: «liberar lotes» de Calidad.</div>
+    </div></div>
+    <div class="card mb-3"><div class="card-header fw-semibold small">Producto sin lote: mover a calidad, bloquear o liberar</div><div class="card-body small">
+      <form method="post" class="d-grid gap-2">{% csrf_token %}<input type="hidden" name="que" value="almacen">
+        <select name="producto" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'productos_bienes' %}" required aria-label="Producto"><option value="">Producto…</option></select>
+        <input name="cantidad" class="form-control form-control-sm" inputmode="decimal" placeholder="Cantidad" required>
+        <select name="origen" class="form-select form-select-sm" required aria-label="Desde">{% for a in almacenes %}<option value="{{ a.pk }}">Desde {{ a }}{% if a.uso %} ({{ a.get_uso_display }}){% endif %}</option>{% endfor %}</select>
+        <select name="destino" class="form-select form-select-sm" required aria-label="Hacia">{% for a in almacenes %}<option value="{{ a.pk }}">Hacia {{ a }}{% if a.uso %} ({{ a.get_uso_display }}){% endif %}</option>{% endfor %}</select>
+        <input name="lote_codigo" class="form-control form-control-sm" placeholder="Lote (si el producto tiene lote)">
+        <input name="motivo" class="form-control form-control-sm" placeholder="Motivo (obligatorio)" required minlength="5">
+        <button class="btn btn-sm btn-outline-primary">Registrar el traslado</button>
+      </form>
+      <div class="form-text">Cree en Inventario › Almacenes los almacenes con uso «En control de calidad» y «Stock bloqueado». Lo que está en ellos no entra al disponible, al MRP ni a las reservas y solo sale trasladándolo.</div>
+    </div></div>
+    <div class="card"><div class="card-header fw-semibold small">Últimos cambios de estado</div><ul class="list-group list-group-flush small">{% for c in cambios %}<li class="list-group-item"><b>{{ c.producto.codigo }}{% if c.lote %} · {{ c.lote.codigo }}{% endif %}</b> {{ c.get_estado_anterior_display }} → {{ c.get_estado_nuevo_display }}<div class="text-muted">{{ c.creado|date:'d/m/Y H:i' }} · {{ c.usuario.username|default:'sistema' }} · {{ c.motivo }}{% if c.operacion %} · {{ c.operacion.numero }}{% endif %}</div></li>{% empty %}<li class="list-group-item text-muted">Sin cambios.</li>{% endfor %}</ul></div>
+  </div>
+</div>
+<p class="small text-muted mt-2">Solo el stock libre entra al disponible, al MRP, a las reservas y a las salidas automáticas (FEFO o FIFO). Un lote en calidad, bloqueado o vencido no sale por ninguna operación salvo el traslado a un almacén de calidad o cuarentena, la destrucción o la devolución al proveedor.</p>
+{% endblock %}

@@ -129,6 +129,20 @@ def orden_detalle(request, pk):
         planta = [t for t in trabajadores if t.tipo == 'OBRERO' or (t.centro_costo_id and
                                                                      t.centro_costo.tipo == 'PRODUCCION')]
         trabajadores = planta or trabajadores
+    if abierta:  # INV-30: lotes libres y vigentes de cada insumo con lote (vacío = por la regla de salida)
+        from core.models import StockLote
+        from inventario.estados import utilizable
+        for f in filas:
+            c = f['consumo']
+            if c.producto.control:
+                f['lotes'] = [sl for sl in StockLote.objects.filter(
+                    lote__producto=c.producto, almacen_id=c.almacen_id or orden.almacen_insumos_id, cantidad__gt=0)
+                    .select_related('lote').order_by('lote__vencimiento', 'lote__codigo')
+                    if utilizable(c.producto, sl.lote, 'PRODUCCION')]
+    if abierta and orden.producto.control == 'LOTE':
+        from inventario.estados import vencimiento_propuesto
+        hoy_ = timezone.localdate()
+        orden.vence_propuesto = vencimiento_propuesto(orden.producto, hoy_)
     ctx = {'o': orden, 'filas': filas, 'horas': horas, 'abierta': abierta, 'trabajadores': trabajadores,
            'salidas': list(orden.salidas.select_related('producto')), 'ahora': timezone.localtime(),
            'faltan': any(f['faltante'] > 0 for f in filas) and orden.estado != 'TERMINADA',
@@ -190,11 +204,22 @@ def orden_terminar(request, pk):
         salidas = {s.pk: _decimal(request.POST.get(f'salida_{s.pk}'), s.cantidad_real) for s in orden.salidas.all()}
         cantidad = _decimal(request.POST.get('cantidad_producida'))
         fecha = request.POST.get('fecha') or None
+        from datetime import date as _date
+
         from inventario.cierre import KardexCerrado
+
+        def _dia(nombre):
+            try:
+                return _date.fromisoformat(request.POST.get(nombre) or '')
+            except ValueError:
+                return None
+        lotes_insumos = {c.pk: request.POST.get(f'lote_{c.pk}', '') for c in orden.consumos.all()}
         try:
             servicios.terminar(orden, request.user, cantidad, consumos, horas, fecha, personal=personal,
                                salidas=salidas, merma_a_gasto=request.POST.get('merma_a_gasto') == '1',
-                               fecha_contable=request.POST.get('fecha_contable') or None)
+                               fecha_contable=request.POST.get('fecha_contable') or None,
+                               lote_producto=request.POST.get('lote_producto', ''), fabricacion=_dia('fabricacion'),
+                               vencimiento=_dia('vencimiento'), lotes_insumos=lotes_insumos)
             messages.success(request, f'Orden {orden.numero} terminada: ingresaron {orden.cantidad_producida:,.2f} '
                                       f'{orden.producto.unidad} de {orden.producto.nombre} al almacén.')
         except (servicios.ErrorProduccion, KardexCerrado) as exc:

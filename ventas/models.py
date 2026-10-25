@@ -42,6 +42,9 @@ class Cotizacion(DocumentoBase):
     TIPOS = [('COT', 'Cotización / Proforma'), ('PED', 'Orden de pedido')]
     tipo = models.CharField(max_length=3, choices=TIPOS, default='COT')
     validez_dias = models.PositiveIntegerField('Validez (días)', default=15)
+    fecha_entrega = models.DateField('Fecha de entrega', null=True, blank=True,
+                                     help_text='Pedido: el flujo de caja espera el cobro en la entrega + la condición '
+                                               'de pago')
     vendedor = models.CharField(max_length=80, blank=True)
     # aprobación por niveles (motor único, documento PEDIDO): bajo la tarifa, exceso de crédito, etc.
     niveles = models.JSONField(default=list, blank=True, editable=False)

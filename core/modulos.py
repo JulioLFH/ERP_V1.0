@@ -120,7 +120,7 @@ MODULOS = [
     # v1.83: el portal de proveedores deja de ser una sección de Compras (las URL siguen en /compras/portal/…)
     {
         'clave': 'portal_proveedores', 'nombre': 'Portal de proveedores', 'icono': 'bi-shop', 'color': '#d9480f',
-        'inicio': 'compras:portal_tablero', 'descripcion': 'Facturas que suben los proveedores, revisión y accesos',
+        'inicio': 'compras:portal_facturas', 'descripcion': 'Facturas que suben los proveedores, revisión y accesos',
         'menu': [
             ('Tablero del portal', 'compras:portal_tablero'),
             ('Facturas por revisar', 'compras:portal_facturas'),
@@ -144,6 +144,8 @@ MODULOS = [
                              ('Inventario físico (general, cíclico, aleatorio…)', 'inventario:fisico_lista',
                               'bi-clipboard2-check'),
                              ('Programa cíclico ABC', 'inventario:ciclico', 'bi-arrow-repeat'),
+                             ('Estado del stock (libre, en calidad, bloqueado)', 'inventario:estado_stock',
+                              'bi-shield-lock'),
                              ('Requerimientos de las áreas', 'requerimientos:lista?estado=APROBADO',
                               'bi-clipboard-plus'),
                              ('Carga masiva de saldos y productos', 'carga_masiva?tipo=saldos',
@@ -154,6 +156,7 @@ MODULOS = [
                           ('Kardex', 'inv_kardex', 'bi-list-columns'),
                           ('Kardex del sistema anterior', 'hist_kardex', 'bi-clock-history'),
                           ('Lotes, series y vencimientos', 'inv_lotes', 'bi-upc-scan'),
+                          ('Trazabilidad por lote', 'inventario:trazabilidad', 'bi-diagram-2'),
                           ('Inventario permanente SUNAT 12.1 / 13.1', 'inv_libro_sunat', 'bi-journal-text'),
                           ('Sugerencia de compra', 'inv_reposicion', 'bi-cart-plus'),
                           ('Valorización al cierre', 'inv_valorizacion', 'bi-calculator'),
@@ -216,21 +219,47 @@ MODULOS = [
         'descripcion': 'Inspecciones, planes de calidad, certificados de análisis y liberación de lotes',
         'menu': [
             ('Inspecciones', [('Inspecciones de calidad', 'manufactura:inspecciones', 'bi-clipboard2-check'),
-                              ('Nueva inspección', 'manufactura:inspeccion_nueva', 'bi-plus-circle')]),
-            ('Planes de calidad por producto', 'manufactura:planes_calidad'),
-            ('Certificados de análisis y liberación de lotes', 'manufactura:certificados'),
+                              ('Nueva inspección', 'manufactura:inspeccion_nueva', 'bi-plus-circle'),
+                              ('Investigaciones OOS', 'manufactura:oos_lista', 'bi-exclamation-diamond')]),
+            ('Especificaciones', [('Planes de calidad y versiones', 'manufactura:planes_calidad', 'bi-list-check'),
+                                  ('Contramuestras', 'manufactura:contramuestras', 'bi-archive'),
+                                  ('Estudios de estabilidad', 'manufactura:estabilidad', 'bi-thermometer-half')]),
+            ('Liberación', [('Certificados de análisis y liberación de lotes', 'manufactura:certificados',
+                             'bi-patch-check'),
+                            ('Estado del stock (cuarentena, bloqueado)', 'inventario:estado_stock', 'bi-shield-lock'),
+                            ('Trazabilidad por lote', 'inventario:trazabilidad', 'bi-diagram-2')]),
+            ('Sistema de calidad (BPM)', [('Desviaciones', 'manufactura:desviaciones', 'bi-sign-turn-right'),
+                                          ('Control de cambios', 'manufactura:cambios_cc', 'bi-arrow-repeat'),
+                                          ('Quejas por lote', 'manufactura:quejas', 'bi-chat-left-text'),
+                                          ('Retiros de mercado y simulacros', 'manufactura:retiros',
+                                           'bi-box-arrow-left'),
+                                          ('Revisión anual de producto (PQR)', 'manufactura:pqr', 'bi-calendar-check'),
+                                          ('Proveedores calificados', 'compras:registros_info', 'bi-person-check')]),
+            ('Equipos y validación', [('Calibración y calificación', 'manufactura:calibraciones', 'bi-rulers'),
+                                      ('Validación del sistema (CSV)', 'manufactura:validacion_sistema',
+                                       'bi-file-earmark-check')]),
         ],
     },
     {
         'clave': 'mantenimiento', 'nombre': 'Mantenimiento', 'icono': 'bi-wrench-adjustable', 'color': '#475569',
         'inicio': 'manufactura:ordenes_mant',
-        'descripcion': 'Equipos, planes preventivos, órdenes de mantenimiento y lecturas',
+        'descripcion': 'Avisos, órdenes, planes preventivos y por condición, calendario, indicadores y equipos',
         'menu': [
-            ('Órdenes', [('Órdenes de mantenimiento', 'manufactura:ordenes_mant', 'bi-wrench-adjustable'),
-                         ('Nueva orden de mantenimiento', 'manufactura:orden_mant_nueva', 'bi-plus-circle')]),
+            ('Avisos y órdenes', [('Avisos de mantenimiento', 'manufactura:avisos_mant', 'bi-megaphone'),
+                                  ('Avisar una falla', 'manufactura:aviso_nuevo', 'bi-exclamation-octagon'),
+                                  ('Órdenes de mantenimiento', 'manufactura:ordenes_mant', 'bi-wrench-adjustable'),
+                                  ('Nueva orden de mantenimiento', 'manufactura:orden_mant_nueva', 'bi-plus-circle'),
+                                  ('Mis órdenes (técnico)', 'manufactura:mis_ordenes_mant', 'bi-phone')]),
+            ('Programación', [('Calendario semanal y ventanas de parada', 'manufactura:calendario_mant',
+                               'bi-calendar-week'),
+                              ('Lecturas de condición', 'manufactura:lecturas_mant', 'bi-thermometer-half')]),
             ('Equipos', [('Equipos y planes preventivos', 'manufactura:equipos', 'bi-gear'),
+                         ('Ubicaciones técnicas', 'manufactura:ubicaciones_mant', 'bi-diagram-3'),
+                         ('Repuestos críticos', 'manufactura:repuestos_criticos', 'bi-exclamation-diamond'),
                          ('Parte diario de horómetros / odómetros', 'flota:parte', 'bi-speedometer'),
                          ('Documentos de equipos por vencer', 'flota:documentos', 'bi-calendar-x')]),
+            ('Reportes', [('Tablero de mantenimiento', 'manufactura:tablero_mant', 'bi-speedometer2')]),
+            ('Configuración', [('Códigos de falla', 'manufactura:codigos_falla', 'bi-tags')]),
         ],
     },
     {
@@ -480,6 +509,7 @@ MODULOS = [
                                    ('Pagos', 'finanzas:pago', 'bi-credit-card'),
                                    ('Pago múltiple (varios proveedores)', 'finanzas:pago_multiple',
                                     'bi-credit-card-2-back'),
+                                   ('Propuestas de pago (con aprobación)', 'finanzas:propuestas', 'bi-list-check'),
                                    ('Pagos masivos a bancos', 'finanzas:pagos_masivos', 'bi-send')]),
             ('Detracciones', [('Depósito masivo de detracciones', 'finanzas:detracciones_masivas', 'bi-bank'),
                               ('Constancias de detracción de clientes (SUNAT)', 'finanzas:constancias_clientes',
@@ -488,19 +518,40 @@ MODULOS = [
                         ('Conciliación bancaria', 'finanzas:conciliacion', 'bi-check2-square'),
                         ('Importar estado de cuenta', 'finanzas:importar', 'bi-upload')]),
             ('Reportes', [('Flujo de caja', 'finanzas:flujo', 'bi-water'),
-                          ('Flujo de caja proyectado', 'finanzas:flujo_proyectado', 'bi-graph-up-arrow')]),
+                          ('Flujo de caja proyectado', 'finanzas:flujo_proyectado', 'bi-graph-up-arrow'),
+                          ('Presupuesto de caja (mensual)', 'finanzas:presupuesto_caja', 'bi-calendar3')]),
             ('Configuración', [('Tipo de cambio', 'tipos_cambio', 'bi-currency-exchange')]),
         ],
     },
     {
         'clave': 'finanzas', 'nombre': 'Finanzas', 'icono': 'bi-piggy-bank', 'color': '#3b5bdb',
-        'inicio': 'finanzas:anticipos', 'descripcion': 'Anticipos, letras, canjes, préstamos y leasing',
+        'inicio': 'finanzas:tablero_financiero',
+        'descripcion': 'Tablero financiero, presupuesto de caja, cobranza, pagos, financiamiento y riesgo cambiario',
         'menu': [
+            ('Tablero', [('Tablero financiero', 'finanzas:tablero_financiero', 'bi-speedometer2'),
+                         ('Análisis vertical y horizontal', 'finanzas:analisis_estados', 'bi-bar-chart-steps')]),
+            ('Planeamiento de caja', [('Flujo de caja proyectado (semanal)', 'finanzas:flujo_proyectado',
+                                       'bi-graph-up-arrow'),
+                                      ('Presupuesto de caja (mensual, escenarios)', 'finanzas:presupuesto_caja',
+                                       'bi-calendar3')]),
+            ('Crédito y cobranza', [('Gestión de cobranza', 'finanzas:cobranza_gestion', 'bi-telephone-outbound'),
+                                    ('Recordatorios de cobranza', 'finanzas:recordatorios', 'bi-bell'),
+                                    ('Provisión de cobranza dudosa', 'finanzas:provision', 'bi-shield-exclamation')]),
+            ('Pagos', [('Propuestas de pago', 'finanzas:propuestas', 'bi-list-check'),
+                       ('Descuentos por pronto pago', 'finanzas:descuentos_pp', 'bi-percent')]),
             ('Documentos', [('Anticipos', 'finanzas:anticipos', 'bi-hourglass-split'),
                             ('Letras por cobrar y pagar', 'finanzas:letras', 'bi-file-earmark-ruled'),
-                            ('Canje de facturas por letras', 'finanzas:canje_nuevo', 'bi-arrow-repeat')]),
-            ('Financiamiento', [('Préstamos y leasing', 'finanzas:prestamos', 'bi-piggy-bank')]),
-            ('Reportes', [('Flujo de caja proyectado', 'finanzas:flujo_proyectado', 'bi-graph-up-arrow')]),
+                            ('Canje de facturas por letras', 'finanzas:canje_nuevo', 'bi-arrow-repeat'),
+                            ('Facturas negociables y factoring', 'finanzas:cesiones', 'bi-receipt')]),
+            ('Financiamiento', [('Préstamos y leasing', 'finanzas:prestamos', 'bi-piggy-bank'),
+                                ('Préstamos al cierre (devengo y corriente)', 'finanzas:prestamos_cierre',
+                                 'bi-calendar-check'),
+                                ('Arrendamientos (NIIF 16)', 'finanzas:arrendamientos', 'bi-building'),
+                                ('Líneas de crédito', 'finanzas:lineas_credito', 'bi-bank2'),
+                                ('Cartas fianza', 'finanzas:cartas_fianza', 'bi-shield-check'),
+                                ('Depósitos a plazo', 'finanzas:depositos', 'bi-safe')]),
+            ('Riesgo cambiario', [('Posición en moneda extranjera', 'finanzas:posicion_moneda', 'bi-currency-dollar'),
+                                  ('Forwards de moneda', 'finanzas:forwards', 'bi-arrow-left-right')]),
         ],
     },
     {
@@ -601,7 +652,8 @@ MODULOS = [
         'clave': 'actividades', 'nombre': 'Actividades pendientes', 'icono': 'bi-check2-square', 'color': '#0ca678',
         'inicio': 'actividades:lista', 'descripcion': 'Lo que cada uno tiene por hacer: tareas, CRM y aprobaciones',
         'menu': [('Mis pendientes', 'actividades:lista'), ('Encargadas por mí', 'actividades:lista?vista=encargadas'),
-                 ('Nueva actividad', 'actividades:nueva'), ('Aprobaciones pendientes', 'aprobaciones_bandeja')],
+                 ('Nueva actividad', 'actividades:nueva'), ('Aprobaciones pendientes', 'aprobaciones_bandeja'),
+                 ('Documentos por leer', 'calidad:lecturas_pendientes')],
     },
     {
         'clave': 'ajustes', 'nombre': 'Ajustes', 'icono': 'bi-gear', 'color': '#495057',
@@ -806,9 +858,20 @@ RUTAS_MANUFACTURA = {
     'requerimiento': ['manufactura', 'planificacion'],
     **{n: ['control_calidad', 'manufactura'] for n in (
         'inspecciones', 'inspeccion_nueva', 'inspeccion', 'planes_calidad', 'plan_calidad', 'certificados',
-        'certificado_nuevo', 'certificado')},
+        'certificado_nuevo', 'certificado',
+        # v1.84: calidad farmacéutica
+        'oos_lista', 'oos', 'desviaciones', 'desviacion_nueva', 'desviacion', 'cambios_cc', 'cambio_cc_nuevo',
+        'cambio_cc', 'quejas', 'queja_nueva', 'queja', 'retiros', 'retiro_nuevo', 'retiro', 'contramuestras',
+        'contramuestra_nueva', 'contramuestra', 'estabilidad', 'estudio_nuevo', 'estudio', 'pqr',
+        'validacion_sistema')},
+    **{n: ['control_calidad', 'mantenimiento', 'manufactura'] for n in (
+        'calibraciones', 'calibracion_nueva', 'calificacion_nueva')},
+    'registro_lote': ['manufactura', 'control_calidad'],
     **{n: ['mantenimiento', 'manufactura'] for n in (
-        'ordenes_mant', 'orden_mant_nueva', 'orden_mant', 'equipos', 'equipo_nuevo', 'equipo')},
+        'ordenes_mant', 'orden_mant_nueva', 'orden_mant', 'equipos', 'equipo_nuevo', 'equipo',
+        # v1.84: mantenimiento ampliado
+        'avisos_mant', 'aviso_nuevo', 'lecturas_mant', 'plan_mant', 'ubicaciones_mant', 'codigos_falla',
+        'repuestos_criticos', 'tablero_mant', 'historial_equipo', 'calendario_mant', 'mis_ordenes_mant')},
 }
 
 # Tesorería y Finanzas comparten la app finanzas (URL /finanzas/…): módulos de cada pantalla (el primero es el
@@ -826,6 +889,13 @@ RUTAS_FINANZAS = {
     # el voucher se abre desde ambos; las aplicaciones se anulan desde anticipos y desde las entregas a rendir
     'voucher': ['tesoreria', 'finanzas'], 'aplicacion_anular': ['finanzas', 'tesoreria'],
     'flujo_proyectado': ['tesoreria', 'finanzas'],  # incluye las cuotas de préstamos y letras por vencer
+    # v1.84: la propuesta de pagos la arma tesorería y la aprueba la gerencia (FIN-04); el presupuesto de caja, igual
+    **{nombre: ['tesoreria', 'finanzas'] for nombre in ('propuestas', 'propuesta', 'propuesta_nueva', 'descuentos_pp',
+                                                         'presupuesto_caja', 'real_vs_proyectado')},
+    **{nombre: ['finanzas'] for nombre in (
+        'cobranza_gestion', 'cobranza_cliente', 'recordatorios', 'provision', 'lineas_credito', 'depositos', 'cesiones',
+        'cartas_fianza', 'prestamos_cierre', 'arrendamientos', 'arrendamiento', 'posicion_moneda', 'forwards',
+        'tablero_financiero', 'analisis_estados')},
     # detracciones: también desde el módulo SUNAT (registrar sigue exigiendo la acción de Tesorería)
     **{nombre: ['tesoreria', 'sunat'] for nombre in (
         'detracciones_masivas', 'detracciones_masivas_nuevo', 'detraccion_masiva', 'constancias_clientes')},
@@ -838,6 +908,15 @@ RUTAS_COMPARTIDAS = {'contabilidad:reparto_resultado': ['contabilidad', 'obras']
                      'ventas:crm_antiguo': ['crm', 'ventas'],  # enlaces guardados de /ventas/crm/ (van a /crm/)
                      # CRM-21: obras, producción y logística ven lo que viene del CRM
                      'crm:operaciones': ['crm', 'obras', 'manufactura', 'logistica', 'inventario'],
+                     # v1.84: estado del stock y trazabilidad también desde Calidad (y Manufactura)
+                     'inventario:estado_stock': ['inventario', 'control_calidad'],
+                     'inventario:trazabilidad': ['inventario', 'control_calidad', 'manufactura'],
+                     # CAL-09: cada trabajador lee los documentos de su puesto (desde Actividades pendientes)
+                     'calidad:documento_flujo': ['calidad', 'actividades'],
+                     'calidad:lecturas_pendientes': ['actividades', 'calidad'],
+                     # CAL-10: la calificación de proveedores la lleva Calidad en el libro de fuentes
+                     **{f'compras:{n}': ['compras', 'control_calidad'] for n in (
+                         'registros_info', 'registro_info_nuevo', 'registro_info')},
                      # v1.83: pantallas de otras apps que son de los módulos nuevos
                      **{f'compras:{n}': ['portal_proveedores', 'compras'] for n in (
                          'portal_tablero', 'portal_facturas', 'portal_factura', 'portal_factura_sunat',

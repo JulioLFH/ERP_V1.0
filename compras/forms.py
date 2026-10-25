@@ -184,7 +184,7 @@ def contrato_formset():
 class OrdenCompraForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = OrdenCompra
-        fields = ['tercero', 'contrato', 'fecha', 'fecha_entrega', 'centro_costo', 'moneda', 'tipo_cambio',
+        fields = ['tercero', 'contrato', 'fecha', 'fecha_entrega', 'centro_costo', 'rubro_proyecto', 'moneda', 'tipo_cambio',
                   'tipo_operacion', 'condicion_pago', 'dias_credito', 'comprador', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2})}
         labels = {'tercero': 'Proveedor'}

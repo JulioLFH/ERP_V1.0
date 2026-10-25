@@ -73,6 +73,18 @@ class BootstrapMixin:
             if isinstance(field, forms.DateField):
                 w.input_type = 'date'
                 w.format = '%Y-%m-%d'
+        # un campo con valor por defecto que el formulario (o la API, una pantalla antigua) no envía no es
+        # obligatorio: Django guarda el valor por defecto del modelo (construct_instance lo omite)
+        modelo = getattr(getattr(self, '_meta', None), 'model', None)
+        if modelo is not None and getattr(self, 'is_bound', False):
+            for nombre, field in self.fields.items():
+                try:
+                    campo = modelo._meta.get_field(nombre)
+                except Exception:  # campo extra del formulario
+                    continue
+                if (field.required and campo.has_default() and campo.default not in (None, '')
+                        and field.widget.value_omitted_from_data(self.data, self.files, self.add_prefix(nombre))):
+                    field.required = False
         for nombre in ('almacen', 'almacen_origen', 'almacen_destino'):
             if nombre in self.fields:
                 self.fields[nombre].queryset = Almacen.objects.filter(activo=True)
@@ -237,8 +249,11 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
          ['clase', 'codigo', 'nombre', 'unidad', 'marca', 'familia', 'codigo_barras', 'peso', 'peso_neto',
           'unidad_reporte', 'control', 'descripcion',
           'imagen_archivo', 'quitar_imagen', 'activo']),
+        ('lotes', 'Lotes y vencimientos', 'bi-upc-scan',
+         ['exige_vencimiento', 'regla_salida', 'vida_util_dias', 'vencimiento_mes', 'vida_remanente_recepcion',
+          'vida_remanente_despacho']),
         ('compras', 'Compras', 'bi-bag', ['puede_comprarse', 'precio_compra', 'proveedor', 'unidad_compra',
-                                          'factor_compra']),
+                                          'factor_compra', 'exige_proveedor_calificado']),
         ('ventas', 'Ventas', 'bi-receipt', ['puede_venderse', 'precio_venta', 'afectacion_igv']),
         ('detraccion', 'Detracción', 'bi-bank', ['detraccion_codigo', 'detraccion_pct']),
         ('contabilidad', 'Contabilidad', 'bi-journal-bookmark',

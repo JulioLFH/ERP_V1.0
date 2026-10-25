@@ -204,7 +204,27 @@ def errores_confirmacion(op):
         almacen = Almacen.especial('TRANSITO') if tipo.clase == 'TRANSITO_RECEPCION' else op.almacen_origen
         errores += faltantes_stock(salidas, almacen, fecha=op.fecha)  # sin negativos en su fecha ni después
     errores += errores_lotes(op, items)
+    errores += errores_proveedor(op, items)
     return errores
+
+
+def _proveedor_de(op):
+    if op.tipo.clase != 'INGRESO':
+        return None
+    if op.orden_compra_id:
+        return op.orden_compra.tercero
+    if op.compra_id:
+        return op.compra.tercero
+    return op.tercero if op.tercero_id and op.tipo.codigo == 'REC_COMPRA' else None
+
+
+def errores_proveedor(op, items):
+    """CAL-10: no se recibe un material que exige proveedor calificado de uno que no lo está."""
+    from compras.registro_info import error_calificacion
+    proveedor = _proveedor_de(op)
+    if proveedor is None:
+        return []
+    return [e for e in (error_calificacion(i.producto, proveedor, fecha=op.fecha) for i in items) if e]
 
 
 def errores_lotes(op, items):
@@ -247,6 +267,30 @@ def errores_lotes(op, items):
                 if stock.get(codigo, D0) < cant:
                     errores.append(f'"{nombre}": el lote/serie {codigo} solo tiene '
                                    f'{stock.get(codigo, D0).normalize():f} en {op.almacen_origen}.')
+        errores += _errores_estado_lote(op, i, entra, sale)
+    return errores
+
+
+def _errores_estado_lote(op, i, entra, sale):
+    """INV-25/27/28: los mismos controles que hará el movimiento, como mensajes antes de confirmar."""
+    from core.models import Lote, categoria_movimiento
+
+    from . import estados
+    categoria = categoria_movimiento('OPERACION', op.tipo.codigo)
+    destino = op.almacen_destino if op.tipo.clase == 'TRASLADO' else None
+    errores = []
+    for codigo in (i.codigos_lote if i.producto.control else []):
+        lote = Lote.objects.filter(producto=i.producto, codigo=codigo).first()
+        try:
+            if entra and i.producto.control == 'LOTE':
+                estados.validar_ingreso(i.producto, lote or Lote(producto=i.producto, codigo=codigo), lote is None,
+                                        i.vencimiento, i.fabricacion, categoria, op.fecha,
+                                        inicial=op.tipo.codigo == 'SALDO_INI')
+            elif sale and lote is not None:
+                estados.validar_salida_lote(i.producto, lote, categoria, op.tipo.codigo, 'OPERACION', destino,
+                                            op.fecha)
+        except estados.ErrorLote as exc:
+            errores.append(str(exc))
     return errores
 
 
@@ -272,16 +316,19 @@ def _lineas_que_salen(op, items):
     return []
 
 
-def _mover(item, cantidad, op, almacen, costo, codigo):
+def _mover(item, cantidad, op, almacen, costo, codigo, destino=None):
     base = f'{op.tipo.nombre} {op.numero}'
     lotes = item.lotes_para(cantidad)
     # en traslados la entrada al destino lleva los mismos lotes que salieron del origen
-    lotes_de = base if not lotes and cantidad > 0 and op.tipo.clase in (
-        'TRASLADO', 'TRANSITO_ENVIO', 'TRANSITO_RECEPCION') else None
+    # (sin volver a validar el ingreso: un lote vencido o bloqueado se puede llevar a cuarentena)
+    traslado = op.tipo.clase in ('TRASLADO', 'TRANSITO_ENVIO', 'TRANSITO_RECEPCION')
+    lotes_de = base if traslado and cantidad > 0 else None
+    if lotes_de:
+        lotes = None
     item.producto.mover_stock(cantidad, base + (f' | {op.venta}' if op.venta_id else ''),
                               costo=costo, fecha=op.fecha, almacen=almacen, origen='OPERACION',
                               concepto=op.tipo.codigo, codigo_sunat=codigo, lotes=lotes, lotes_de=lotes_de,
-                              centro_costo=op.centro_costo, cuenta_contra=op.cuenta_gasto)
+                              centro_costo=op.centro_costo, cuenta_contra=op.cuenta_gasto, destino=destino)
 
 
 def confirmar(op, usuario=None):
@@ -291,6 +338,14 @@ def confirmar(op, usuario=None):
     if errores:
         raise ErrorOperacion(' '.join(errores))
     tipo = op.tipo
+    from .estados import USOS_NO_LIBRE
+    if (tipo.clase == 'TRASLADO' and usuario is not None and getattr(usuario, 'is_authenticated', False)
+            and op.almacen_origen and op.almacen_origen.uso in USOS_NO_LIBRE
+            and op.almacen_destino and op.almacen_destino.uso not in USOS_NO_LIBRE):
+        from core.permisos import puede
+        if not (puede(usuario, 'control_calidad.liberar_lotes') or puede(usuario, 'inventario.estado_stock')):
+            raise ErrorOperacion(f'Sacar stock de {op.almacen_origen} ({op.almacen_origen.get_uso_display().lower()}) a '
+                                 f'un almacén normal es liberarlo: lo hace Calidad o quien cambia el estado del stock.')
     entrada_cod = tipo.codigo_sunat_ingreso or '21'
     with transaction.atomic():
         prefijo = PREFIJOS[tipo.clase]
@@ -301,6 +356,12 @@ def confirmar(op, usuario=None):
         if tipo.clase == 'INGRESO':
             # recepción de compras: el costo es el de la orden o la factura, no el que se escriba (ALM-07)
             del_documento = costos_documento(op) if (op.orden_compra_id or op.compra_id) else {}
+            proveedor = _proveedor_de(op)
+            if proveedor is not None:  # CAL-10: inspección completa del proveedor: el lote entra en cuarentena
+                from compras.registro_info import nivel_inspeccion
+                for i in items:
+                    if i.producto.control and nivel_inspeccion(i.producto, proveedor) == 'COMPLETA':
+                        i.producto._ingreso_a_calidad = True
             for i in items:
                 if i.producto_id in del_documento and i.costo_unitario != del_documento[i.producto_id]:
                     i.costo_unitario = del_documento[i.producto_id]
@@ -318,7 +379,7 @@ def confirmar(op, usuario=None):
             for i in items:
                 i.costo_unitario = Producto.objects.get(pk=i.producto_id).costo_promedio
                 i.save(update_fields=['costo_unitario'])
-                _mover(i, -i.cantidad, op, origen, None, tipo.codigo_sunat)
+                _mover(i, -i.cantidad, op, origen, None, tipo.codigo_sunat, destino=destino)
                 _mover(i, i.cantidad, op, destino, None, entrada_cod)
         elif tipo.clase == 'MANUFACTURA':
             insumos = [i for i in items if i.rol == 'INSUMO']

@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}{{ e }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title mb-0">{{ e }}</h1><div class="small text-muted">{{ e.lote.producto }} · {{ e.get_condicion_display }} · desde {{ e.inicio|date:'d/m/Y' }} · {{ e.get_estado_display }}</div></div>
+  <a href="{% url 'manufactura:estabilidad' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Estudios</a>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0 small align-middle">
+  <thead><tr><th>Tiempo</th><th>Programado</th><th>Realizado</th><th>Resultado</th><th>Conformidad</th></tr></thead>
+  <tbody>{% for p in puntos %}<tr{% if p.conforme == False %} class="table-danger"{% endif %}>
+    <td>{{ p.mes }} meses</td><td class="{% if not p.realizado and p.programado < hoy %}text-danger fw-semibold{% endif %}">{{ p.programado|date:'d/m/Y' }}</td>
+    {% if p.realizado %}<td>{{ p.realizado|date:'d/m/Y' }}</td><td>{{ p.resultado }}</td><td>{% if p.conforme %}Conforme{% else %}No conforme{% endif %}</td>
+    {% else %}<td colspan="3"><form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="punto" value="{{ p.pk }}"><input name="resultado" class="form-control form-control-sm" placeholder="Resultados del tiempo (valoración, impurezas, disolución…)" required><select name="conforme" class="form-select form-select-sm" style="width: 9rem"><option value="1">Conforme</option><option value="0">No conforme</option></select><button class="btn btn-sm btn-outline-primary">Registrar</button></form></td>{% endif %}
+  </tr>{% endfor %}</tbody>
+</table></div></div>
+<p class="small text-muted mt-2">En rojo: tiempos de análisis vencidos sin registrar. Un resultado no conforme se investiga como OOS o desviación.</p>
+{% endblock %}

@@ -126,6 +126,8 @@ DEFECTOS = {
     'CRM_COMISION_PCT': ('CRM', 'Comisión del vendedor sobre ventas nacidas en una oportunidad', '%',
                          [('2000-01-01', '0')], 'Política de la empresa'),
     # servicios profesionales por proyecto (EMP-02, SRV-01 a 06)
+    'CAL_PROHIBIR_OBSERVADO': ('Calidad', 'No permitir «aprobado con observaciones» en las inspecciones (1 = sí, 0 = no)',
+                               '', [('2000-01-01', '0')], 'BPM de DIGEMID para productos farmacéuticos (CAL-02)'),
     'SRV_DETRACCION_PCT': ('Servicios por proyecto', 'Detracción de servicios empresariales (código 022)', '%',
                            [('2015-01-01', '12')], 'Resolución de Superintendencia 183-2004/SUNAT, anexo 3'),
     'SRV_HORAS_MES': ('Servicios por proyecto', 'Horas laborables al mes para el costo hora del personal', 'h',
@@ -134,9 +136,37 @@ DEFECTOS = {
                                                         'gratificaciones, vacaciones)', '%',
                               [('2000-01-01', '145')], 'Estimado: confirmar con el contador'),
 }
+_F = 'Finanzas'
+DEFECTOS.update({
+    'FIN_PROB_COTIZACION_PCT': (_F, 'Probabilidad de las cotizaciones vigentes en el flujo proyectado (referencial)', '%',
+                                [('2000-01-01', '30')], 'Estimado del área comercial (FIN-01)'),
+    'FIN_ESC_OPTIMISTA_PCT': (_F, 'Escenario optimista: más cobranzas sobre el base', '%', [('2000-01-01', '10')],
+                              'Presupuesto de caja (FIN-02)'),
+    'FIN_ESC_PESIMISTA_PCT': (_F, 'Escenario pesimista: menos cobranzas sobre el base', '%', [('2000-01-01', '15')],
+                              'Presupuesto de caja (FIN-02)'),
+    'FIN_RENTA_COEF_PCT': (_F, 'Pago a cuenta del impuesto a la renta sobre las ventas netas', '%',
+                           [('2000-01-01', '1.5')], 'LIR art. 85 (coeficiente o 1.5 %; confirmar con el contador)'),
+    'FIN_DIAS_BLOQUEO_MORA': (_F, 'Días de mora para bloquear los pedidos del cliente (0 = no bloquear)', 'días',
+                              [('2000-01-01', '30')], 'Política de crédito (FIN-03)'),
+    'FIN_PROV_0_30_PCT': (_F, 'Pérdida esperada: vencido de 1 a 30 días', '%', [('2000-01-01', '1')],
+                          'NIIF 9, enfoque simplificado (matriz de provisiones; ajustar con la historia)'),
+    'FIN_PROV_31_60_PCT': (_F, 'Pérdida esperada: vencido de 31 a 60 días', '%', [('2000-01-01', '5')], 'NIIF 9'),
+    'FIN_PROV_61_90_PCT': (_F, 'Pérdida esperada: vencido de 61 a 90 días', '%', [('2000-01-01', '15')], 'NIIF 9'),
+    'FIN_PROV_91_180_PCT': (_F, 'Pérdida esperada: vencido de 91 a 180 días', '%', [('2000-01-01', '50')], 'NIIF 9'),
+    'FIN_PROV_181_PCT': (_F, 'Pérdida esperada: vencido más de 180 días', '%', [('2000-01-01', '100')], 'NIIF 9'),
+    'FIN_SEM_LIQUIDEZ_MIN': (_F, 'Semáforo: liquidez corriente mínima', 'veces', [('2000-01-01', '1.2')],
+                             'Tablero financiero (FIN-08)'),
+    'FIN_SEM_ACIDA_MIN': (_F, 'Semáforo: prueba ácida mínima', 'veces', [('2000-01-01', '0.8')], 'FIN-08'),
+    'FIN_SEM_ENDEUDAMIENTO_MAX': (_F, 'Semáforo: endeudamiento máximo (pasivo / activo)', '%',
+                                  [('2000-01-01', '70')], 'FIN-08'),
+    'FIN_SEM_DSO_MAX': (_F, 'Semáforo: días de cobro máximos (DSO)', 'días', [('2000-01-01', '60')], 'FIN-08'),
+    'FIN_SEM_COBERTURA_MIN': (_F, 'Semáforo: cobertura de intereses mínima (EBIT / intereses)', 'veces',
+                              [('2000-01-01', '3')], 'FIN-08'),
+})
+
 GRUPOS = ['Generales', 'Inmobiliario', 'Bancarización y lavado de activos', 'Renta y libros', 'IGV',
           'Seguridad y salud en el trabajo', 'Obras', 'Construcción civil', 'Compras y almacén', 'CRM',
-          'Servicios por proyecto']
+          'Servicios por proyecto', 'Calidad', 'Finanzas']
 
 
 def _fecha(f):

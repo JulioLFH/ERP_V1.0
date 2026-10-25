@@ -103,7 +103,7 @@ def horas_proyecto(obra):
         x = por_persona.setdefault(p.nombre_persona, {'horas': D0, 'costo': D0})
         x['horas'] += p.horas
         x['costo'] += p.costo
-    for ent in obra.entregables.all():
+    for ent in vigentes(obra):
         por_entregable.setdefault(ent.pk, {'nombre': str(ent), 'presupuestadas': ent.horas_presupuestadas,
                                            'horas': D0, 'costo': D0})
     horas = sum((p.horas for p in partes), D0)
@@ -114,11 +114,90 @@ def horas_proyecto(obra):
 
 
 # ---------------------------------------------------------------- entregables (SRV-01)
-def nuevo_entregable(obra, **datos):
+def vigentes(obra):
+    """Entregables del contrato (sin los anulados)."""
+    return obra.entregables.exclude(estado='ANULADO')
+
+
+def contrato_sin_igv(obra):
+    """Monto del contrato sin IGV (el monto contratado; si no se registró, la suma de los entregables)."""
+    from core.models import Empresa
+    if obra.monto_contratado:
+        return (obra.monto_contratado / (1 + Empresa.actual().igv_tasa / 100)).quantize(Decimal('0.01'))
+    return sum((e.valor for e in vigentes(obra)), D0)
+
+
+def fin_de_plazo(obra):
+    inicio = obra.fecha_inicio or obra.fecha_contrato
+    return inicio + timedelta(days=obra.plazo_dias) if inicio and obra.plazo_dias else None
+
+
+def validar_entregable(e, autorizar_exceso=False, usuario=None, motivo=''):
+    """SRV-08: los entregables no pasan el contrato (% y monto); avisa si las horas superan las del proyecto o la
+    fecha comprometida el plazo. Exceder el contrato solo con autorización (permiso «aprobar» de Obras y motivo).
+    Devuelve los avisos."""
+    from core.permisos import puede
+    obra = e.obra
+    otros = vigentes(obra).exclude(pk=e.pk)
+    pct = sum((x.porcentaje for x in otros), D0) + (e.porcentaje or D0)
+    total = sum((x.valor for x in otros), D0) + e.valor
+    contrato = contrato_sin_igv(obra) if obra.monto_contratado else None
+    excesos = []
+    if pct > 100:
+        excesos.append(f'los entregables sumarían {pct.normalize():f} % del contrato')
+    if contrato is not None and total > contrato:
+        excesos.append(f'sumarían S/ {total:,.2f} contra S/ {contrato:,.2f} del contrato (sin IGV)')
+    if excesos:
+        if not autorizar_exceso:
+            raise ErrorServicio('No se registra: ' + ' y '.join(excesos) + '. Ajuste los entregables o registre un '
+                                'adicional al contrato (o autorice el exceso con su motivo).')
+        if not (usuario is not None and (usuario.is_superuser or puede(usuario, 'obras.aprobar'))):
+            raise ErrorServicio('Exceder el contrato lo autoriza quien aprueba en Obras (permiso «aprobar»).')
+        if len((motivo or '').strip()) < 10:
+            raise ErrorServicio('Indique el motivo del exceso (adenda, adicional aprobado por el cliente…).')
+    avisos = []
+    horas = sum((x.horas_presupuestadas for x in otros), D0) + (e.horas_presupuestadas or D0)
+    if obra.horas_presupuestadas and horas > obra.horas_presupuestadas:
+        avisos.append(f'Las horas de los entregables ({horas:g}) superan las del proyecto '
+                      f'({obra.horas_presupuestadas:g}).')
+    fin = fin_de_plazo(obra)
+    if fin and e.fecha_comprometida and e.fecha_comprometida > fin:
+        avisos.append(f'La fecha comprometida ({e.fecha_comprometida:%d/%m/%Y}) pasa el plazo del contrato '
+                      f'({fin:%d/%m/%Y}).')
+    return avisos
+
+
+def nuevo_entregable(obra, autorizar_exceso=False, usuario=None, motivo='', **datos):
     ultimo = obra.entregables.order_by('-numero').values_list('numero', flat=True).first() or 0
+    if datos.get('monto') is None:
+        datos['monto'] = D0
     e = EntregableProyecto(obra=obra, numero=ultimo + 1, **datos)
     e.full_clean(exclude=['factura'])
+    e.avisos = validar_entregable(e, autorizar_exceso, usuario, motivo)
     e.save()
+    return e
+
+
+def editar_entregable(e, datos, autorizar_exceso=False, usuario=None, motivo=''):
+    """Un entregable pendiente u observado se corrige (nombre, %, monto, fecha, horas, penalidades)."""
+    if e.estado not in ('PENDIENTE', 'OBSERVADO'):
+        raise ErrorServicio('Solo se edita un entregable pendiente u observado.')
+    for campo, valor in datos.items():
+        setattr(e, campo, D0 if campo == 'monto' and valor is None else valor)
+    e.full_clean(exclude=['factura'])
+    e.avisos = validar_entregable(e, autorizar_exceso, usuario, motivo)
+    e.save()
+    return e
+
+
+def anular_entregable(e, motivo):
+    if e.estado not in ('PENDIENTE', 'OBSERVADO'):
+        raise ErrorServicio('Solo se anula un entregable pendiente u observado (uno entregado o facturado no).')
+    if len((motivo or '').strip()) < 5:
+        raise ErrorServicio('Indique por qué se anula el entregable.')
+    e.estado, e.observacion = 'ANULADO', f'Anulado: {motivo.strip()}'[:250]
+    e.save(update_fields=['estado', 'observacion'])
+    e.partes.update(entregable=None)  # las horas quedan en el proyecto
     return e
 
 
@@ -190,14 +269,19 @@ def facturar(e, usuario, fecha=None):
         raise ErrorServicio(str(exc)) from exc
     lineas = [(producto_servicio(), f'Entregable {e.numero}: {e.nombre} – {obra.nombre}', e.valor, None)]
     total_adelantos = sum((a.monto for a in val.adelantos(obra, 'DIRECTO')), D0)
-    contrato = sum((x.valor for x in obra.entregables.all()), D0)
-    amortizar = (total_adelantos * e.valor / contrato).quantize(Decimal('0.01')) if contrato else D0
+    # SRV-08: el adelanto se amortiza en proporción al contrato (no a la suma de los entregables, que puede pasarlo)
+    # y el último entregable por facturar amortiza todo el saldo
+    contrato = contrato_sin_igv(obra)
+    ultimo = not vigentes(obra).exclude(pk=e.pk).exclude(estado='FACTURADO').exists()
+    saldo = sum((a.saldo for a in val.adelantos(obra, 'DIRECTO')), D0)
+    amortizar = saldo if ultimo else (
+        min((total_adelantos * e.valor / contrato).quantize(Decimal('0.01')), saldo) if contrato else D0)
     for a in val.adelantos(obra, 'DIRECTO').order_by('fecha', 'id'):
         if amortizar <= 0:
             break
         parte = min(amortizar, a.saldo)
         if parte > 0:
-            lineas.append((val.producto_adelanto(), f'Deducción del anticipo {a.factura.numero_completo}', -parte,
+            lineas.append((val.producto_adelanto(obra), f'Deducción del anticipo {a.factura.numero_completo}', -parte,
                            a.factura))
             amortizar -= parte
     try:
@@ -230,22 +314,35 @@ def situacion(obra, periodo):
             base = (c.base_imponible or D0) + (c.no_gravado or D0)
             compras += base * (c.tipo_cambio or 1) if c.moneda == 'USD' else base
     costo = (horas + compras).quantize(Decimal('0.01'))
-    from core.models import Empresa
-    igv = 1 + Empresa.actual().igv_tasa / 100
-    contrato = ((obra.monto_contratado / igv).quantize(Decimal('0.01')) if obra.monto_contratado else
-                sum((e.valor for e in obra.entregables.all()), D0))
-    facturado = sum((e.valor for e in obra.entregables.filter(estado='FACTURADO', factura__fecha_emision__lte=fin)),
-                    D0)
+    contrato = contrato_sin_igv(obra)
+    facturados = {e.pk for e in vigentes(obra).filter(estado='FACTURADO', factura__fecha_emision__lte=fin)}
+    facturado = sum((e.valor for e in vigentes(obra) if e.pk in facturados), D0)
     costo_hora_prom = (horas / sum((p.horas for p in obra.partes_horas.filter(estado='APROBADO')), D0)
                        if obra.partes_horas.filter(estado='APROBADO').exists() else D0)
     presupuesto = obra.horas_presupuestadas * costo_hora_prom + obra.gastos_presupuestados
     avance = min(costo / presupuesto, Decimal('1')) if presupuesto else None
-    costo_facturado = (costo * facturado / contrato).quantize(Decimal('0.01')) if contrato else D0
-    proceso = max(costo - costo_facturado, D0)
+    # SRV-13: el costo de las horas cargadas a un entregable queda en proceso hasta que ese entregable se factura; lo
+    # que no tiene entregable (horas generales y compras del centro) se reparte por el % facturado del contrato
+    por_entregable, sin_entregable = {}, compras
+    for p in obra.partes_horas.filter(estado='APROBADO', semana__lte=fin).select_related('entregable'):
+        if p.entregable_id and p.entregable.estado != 'ANULADO':
+            por_entregable[p.entregable_id] = por_entregable.get(p.entregable_id, D0) + p.costo
+        else:
+            sin_entregable += p.costo
+    detalle = []
+    for e in vigentes(obra):
+        c = por_entregable.get(e.pk, D0)
+        detalle.append({'entregable': e, 'costo': c, 'facturado': e.pk in facturados,
+                        'en_proceso': D0 if e.pk in facturados else c})
+    general_facturado = (sin_entregable * facturado / contrato).quantize(Decimal('0.01')) if contrato else D0
+    proceso = (sum((d['en_proceso'] for d in detalle), D0) + max(sin_entregable - general_facturado, D0)
+               ).quantize(Decimal('0.01'))
     devengado = max((contrato * avance).quantize(Decimal('0.01')) - facturado, D0) if avance is not None else D0
     return {'obra': obra, 'costo': costo, 'horas': horas, 'compras': compras, 'contrato': contrato,
             'facturado': facturado, 'avance': (avance * 100).quantize(Decimal('0.1')) if avance is not None else None,
-            'costo_proceso': proceso, 'ingreso_devengado': devengado, 'presupuesto': presupuesto}
+            'costo_proceso': proceso, 'ingreso_devengado': devengado, 'presupuesto': presupuesto,
+            'detalle': detalle, 'costo_general': sin_entregable.quantize(Decimal('0.01')),
+            'general_en_proceso': max(sin_entregable - general_facturado, D0).quantize(Decimal('0.01'))}
 
 
 def proyectos_de_servicio():
@@ -253,12 +350,58 @@ def proyectos_de_servicio():
 
 
 def _cuenta(candidatos, nombre):
+    """Cuenta imputable del código (en el plan de la empresa) para el asiento (SRV-09): la misma si acepta
+    movimientos; si es de agrupación, su primera subcuenta imputable (o se crea la «…1»); si no existe, se crea. Antes
+    buscaba solo imputables y, al no hallarla, intentaba crear un código que ya existía (error UNIQUE)."""
+    from contabilidad import pcge
     from contabilidad.models import CuentaContable
-    for codigo in candidatos:
-        c = CuentaContable.objects.filter(codigo=codigo, imputable=True).first()
-        if c is not None:
-            return c
-    return CuentaContable.objects.create(codigo=candidatos[0], nombre=nombre)
+    base = pcge.codigo(candidatos[0])
+    c = CuentaContable.objects.filter(codigo=base).first()
+    if c is None:
+        return CuentaContable.objects.create(codigo=base, nombre=nombre)
+    if c.imputable:
+        return c
+    hija = (CuentaContable.objects.filter(codigo__startswith=base, imputable=True).exclude(pk=c.pk)
+            .order_by('codigo').first())
+    if hija is not None:
+        return hija
+    hija, _ = CuentaContable.objects.get_or_create(codigo=f'{base}1', defaults={'nombre': nombre})
+    return hija
+
+
+@transaction.atomic
+def distribuir_horas(periodo, usuario=None):
+    """SRV-10: asiento del mes que lleva el costo de las horas aprobadas del personal en planilla (horas × costo hora)
+    del centro de costo del trabajador al del proyecto (Debe y Haber en la cuenta de remuneraciones 6211), para que el
+    resultado por proyecto muestre su costo. Los especialistas independientes llegan con su recibo por honorarios
+    registrado con el centro de costo del proyecto."""
+    from contabilidad.models import Asiento, PeriodoContable
+    if PeriodoContable.esta_cerrado(periodo):
+        raise ErrorServicio(f'El periodo {periodo[4:]}/{periodo[:4]} está cerrado.')
+    desde, fin = _fin_de(periodo).replace(day=1), _fin_de(periodo)
+    partes = list(ParteHoras.objects.filter(estado='APROBADO', semana__range=(desde, fin), trabajador__isnull=False,
+                                            asiento_distribucion__isnull=True, obra__centro_costo__isnull=False)
+                  .select_related('obra__centro_costo', 'trabajador__centro_costo'))
+    sin_centro = sorted({str(p.trabajador) for p in partes if not p.trabajador.centro_costo_id})
+    if sin_centro:
+        raise ErrorServicio('Asigne el centro de costo de la planilla a: ' + ', '.join(sin_centro) + '.')
+    partes = [p for p in partes if p.trabajador.centro_costo_id != p.obra.centro_costo_id and p.costo]
+    if not partes:
+        raise ErrorServicio('No hay horas aprobadas del mes por distribuir a los proyectos.')
+    cuenta = _cuenta(['6211', '621'], 'Sueldos y salarios')
+    asiento = Asiento.objects.create(fecha=fin, libro='05', origen='MANUAL',
+                                     glosa=f'Distribución del costo de horas a proyectos {periodo[4:]}/{periodo[:4]}')
+    grupos = {}
+    for p in partes:
+        clave = (p.obra.centro_costo, p.trabajador.centro_costo, p.obra)
+        grupos[clave] = grupos.get(clave, D0) + p.costo
+    for (destino, origen, obra), monto in grupos.items():
+        asiento.lineas.create(cuenta=cuenta, debe=monto, haber=D0, centro_costo=destino,
+                              glosa=f'Horas del personal en {obra.codigo} {obra.nombre}'[:200])
+        asiento.lineas.create(cuenta=cuenta, debe=D0, haber=monto, centro_costo=origen,
+                              glosa=f'Horas del personal en {obra.codigo} {obra.nombre}'[:200])
+    ParteHoras.objects.filter(pk__in=[p.pk for p in partes]).update(asiento_distribucion=asiento)
+    return asiento
 
 
 @transaction.atomic

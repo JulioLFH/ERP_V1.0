@@ -23,46 +23,59 @@ def _numero(tipo, serie):
 # ---------------------------------------------------------------- calidad
 @transaction.atomic
 def crear_inspeccion(insp, usuario):
+    """La inspección se hace con la especificación aprobada vigente (CAL-05): sus características y la versión quedan
+    en la inspección. Si el producto tiene especificaciones y ninguna aprobada, no se inspecciona."""
+    from decimal import Decimal, InvalidOperation
+
+    from .calidad_farma import especificacion_vigente, validar_instrumento
+    validar_instrumento(insp.instrumento, insp.fecha)
+    esp = especificacion_vigente(insp.producto)
+    if esp is None and insp.producto.especificaciones.exists():
+        raise ErrorPlanta(f'{insp.producto.nombre} no tiene una especificación aprobada vigente: QA debe aprobarla.')
     insp.numero = _numero('CAL', 'QC')
     insp.inspector = usuario
+    insp.especificacion = esp
     insp.save()
-    for p in ParametroCalidad.objects.filter(producto=insp.producto):
-        ResultadoCalidad.objects.create(inspeccion=insp, caracteristica=p.nombre, unidad=p.unidad, minimo=p.minimo,
-                                        maximo=p.maximo, especificacion=p.especificacion)
+
+    def _dec(texto):
+        try:
+            return Decimal(texto) if texto not in (None, '') else None
+        except InvalidOperation:
+            return None
+    if esp is not None:
+        for c in esp.caracteristicas:
+            ResultadoCalidad.objects.create(inspeccion=insp, caracteristica=c['nombre'], unidad=c.get('unidad', ''),
+                                            minimo=_dec(c.get('minimo')), maximo=_dec(c.get('maximo')),
+                                            especificacion=c.get('especificacion', ''))
+    else:
+        for p in ParametroCalidad.objects.filter(producto=insp.producto):
+            ResultadoCalidad.objects.create(inspeccion=insp, caracteristica=p.nombre, unidad=p.unidad,
+                                            minimo=p.minimo, maximo=p.maximo, especificacion=p.especificacion)
     return insp
 
 
-@transaction.atomic
-def registrar_resultados(insp, valores, resultado, observaciones, usuario):
-    """valores: {resultado_id: (valor Decimal o None, texto, conforme bool o None)}."""
-    if insp.cuarentena_id:
-        raise ErrorPlanta('La inspección ya envió la mercadería a cuarentena.')
-    for r in insp.resultados.all():
-        if r.pk in valores:
-            r.valor, r.texto, conforme = valores[r.pk]
-            r.conforme = conforme
-            r.evaluar()
-            r.save()
-    if resultado not in dict(InspeccionCalidad.RESULTADOS):
-        raise ErrorPlanta('Resultado no válido.')
-    if resultado == 'APROBADO' and insp.resultados.filter(conforme=False).exists():
-        raise ErrorPlanta('Hay características fuera de especificación: márquela como rechazada o aprobada con '
-                          'observaciones (explíquelo en las observaciones).')
-    if resultado == 'OBSERVADO' and len((observaciones or '').strip()) < 10:
-        raise ErrorPlanta('Explique las observaciones (mínimo 10 caracteres).')
-    insp.resultado, insp.observaciones, insp.inspector = resultado, observaciones, usuario
-    insp.save()
-    return insp
+def registrar_resultados(insp, valores, resultado, observaciones, usuario, motivo=''):
+    """valores: {resultado_id: (valor Decimal o None, texto, conforme bool o None)}. Con rastro de auditoría, bloqueo
+    al decidir y OOS (produccion/calidad_farma.py)."""
+    from .calidad_farma import registrar_resultados as registrar
+    return registrar(insp, valores, resultado, observaciones, usuario, motivo)
 
 
 @transaction.atomic
 def crear_certificado(cert, usuario):
     """Certificado de análisis del lote (por aprobar) con los resultados de su inspección: las características del
     plan de calidad marcadas «en el certificado»."""
+    lote = cert.lote  # CAL-04: solo lotes con stock y vigentes
+    if lote.stock <= 0:
+        raise ErrorPlanta(f'El lote {lote.codigo} no tiene stock.')
+    if lote.vencido:
+        raise ErrorPlanta(f'El lote {lote.codigo} está vencido ({lote.vencimiento:%d/%m/%Y}).')
     if cert.inspeccion_id:
         insp = cert.inspeccion
         if insp.producto_id != cert.lote.producto_id:
             raise ErrorPlanta('La inspección es de otro producto.')
+        if insp.lote and insp.lote.upper() != lote.codigo.upper():
+            raise ErrorPlanta(f'La inspección {insp.numero} es del lote {insp.lote}.')
         if insp.resultado not in ('APROBADO', 'OBSERVADO', 'RECHAZADO'):
             raise ErrorPlanta(f'La inspección {insp.numero} aún no tiene resultado.')
         excluidas = set(ParametroCalidad.objects.filter(producto=insp.producto, en_certificado=False)
@@ -81,21 +94,29 @@ def crear_certificado(cert, usuario):
 
 
 @transaction.atomic
-def resolver_certificado(cert, usuario, accion, comentario=''):
-    """Aprobar libera el lote para la venta; rechazar lo deja rechazado; anular devuelve el lote a cuarentena si su
-    producto exige liberación."""
+def resolver_certificado(cert, usuario, accion, comentario='', firmado=False):
+    """Aprobar libera el lote (solo con firma electrónica y la revisión de QA: calidad_farma.liberar); rechazar lo deja
+    rechazado; anular devuelve el lote a cuarentena si su producto exige liberación (si ya estaba liberado, con
+    motivo y permiso de QA)."""
+    from core.permisos import puede
     lote = cert.lote
     if accion in ('aprobar', 'rechazar'):
         if cert.estado != 'BORRADOR':
             raise ErrorPlanta('El certificado ya fue resuelto.')
-        if accion == 'aprobar' and any(r.get('conforme') is False for r in cert.resultados) and \
-                len((comentario or cert.observaciones or '').strip()) < 10:
-            raise ErrorPlanta('Hay resultados fuera de especificación: explique por qué se libera el lote.')
+        if accion == 'aprobar' and not firmado:
+            raise ErrorPlanta('La liberación del lote va con firma electrónica (Liberar con firma).')
+        if accion == 'aprobar' and any(r.get('conforme') is False for r in cert.resultados):
+            raise ErrorPlanta('Hay resultados fuera de especificación: un OOS no se libera (CAL-02).')
         cert.estado = 'APROBADO' if accion == 'aprobar' else 'RECHAZADO'
         lote.estado_calidad = 'LIBERADO' if accion == 'aprobar' else 'RECHAZADO'
     elif accion == 'anular':
         if cert.estado == 'ANULADO':
             raise ErrorPlanta('El certificado ya está anulado.')
+        if cert.estado == 'APROBADO':
+            if not (usuario.is_superuser or puede(usuario, 'control_calidad.reabrir')):
+                raise ErrorPlanta('Un certificado aprobado (lote liberado) lo anula QA (permiso «reabrir»).')
+            if len((comentario or '').strip()) < 10:
+                raise ErrorPlanta('Indique el motivo de la anulación (mínimo 10 caracteres).')
         cert.estado = 'ANULADO'
         lote.estado_calidad = 'CUARENTENA' if lote.producto._requiere_liberacion() else 'LIBRE'
     else:
@@ -153,7 +174,7 @@ def programar_preventivos(dias, usuario):
     creadas = []
     for plan in PlanMantenimiento.objects.filter(activo=True, equipo__activo=True).select_related(
             'equipo', 'componente__repuesto'):
-        if not plan.vence(hasta):
+        if not plan.vence(hasta + timedelta(days=plan.anticipacion_dias or 0)):  # MNT-02: anticipación del plan
             continue
         if plan.ordenes.filter(estado__in=('PROGRAMADA', 'EN_EJECUCION')).exists():
             continue
@@ -164,9 +185,13 @@ def programar_preventivos(dias, usuario):
         ot = crear_orden(OrdenMantenimiento(
             equipo=plan.equipo, tipo='PREVENTIVO', plan=plan, fecha_programada=max(plan.proxima or hoy, hoy),
             descripcion=descripcion), usuario)
-        if plan.componente_id and plan.componente.repuesto_id:
+        from .mantenimiento import preparar_orden
+        preparar_orden(ot)  # MNT-02: hoja de tareas (checklist) y materiales reservados
+        if plan.componente_id and plan.componente.repuesto_id and not ot.repuestos.filter(
+                producto=plan.componente.repuesto).exists():
             ot.repuestos.create(producto=plan.componente.repuesto, cantidad=plan.componente.cantidad_repuesto,
                                 almacen=Almacen.principal())
+        if ot.repuestos.exists():
             ot.solicitud = _solicitar_repuestos(ot, usuario)
         creadas.append(ot)
     return creadas

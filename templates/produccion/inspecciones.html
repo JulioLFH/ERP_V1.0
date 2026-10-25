@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title">Inspecciones de calidad</h1>
-  <a href="{% url 'manufactura:inspeccion_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva inspección</a>
+  {% if puede.control_calidad_inspecciones %}<a href="{% url 'manufactura:inspeccion_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva inspección</a>{% endif %}
 </div>
 <div class="row g-3 mb-3">{% for n, cantidad in resumen %}<div class="col-6 col-md-3"><div class="kpi"><div class="label">{{ n }}</div><div class="value">{{ cantidad }}</div></div></div>{% endfor %}</div>
 <div class="card">

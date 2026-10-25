@@ -376,7 +376,12 @@ def oc_detalle(request, pk):
     from .registro_info import problemas_orden
     bloqueos_fuente, avisos_fuente = problemas_orden(oc)
     pendiente = oc.estado == 'PENDIENTE'
+    from obras.presupuesto_proyecto import evaluar_oc, mensaje
+    presupuesto = evaluar_oc(oc) if pendiente else None  # SRV-11: disponible del rubro del proyecto
+    if presupuesto:
+        avisos_fuente = [*avisos_fuente, mensaje(presupuesto)]
     return render(request, 'core/documento_detalle.html', {
+        'oc_exceso': bool(presupuesto and presupuesto['excede'] and not oc.exceso_autorizado_por_id),
         'alertas_precio': alertas_orden(oc) if pendiente else [], 'avisos_fuente': avisos_fuente if pendiente else [],
         'bloqueos_fuente': bloqueos_fuente if pendiente else [],
         'acciones_inv': acciones_para(oc), 'operaciones_inv': operaciones_de(oc), 'es_oc': True,
@@ -441,7 +446,7 @@ def oc_estado(request, pk):
         if estado == 'APROBADO':  # por niveles (Ajustes › Aprobaciones) o, sin reglas, por el límite del usuario
             from .aprobacion_oc import ErrorAprobacionOC, aprobar
             try:
-                messages.success(request, aprobar(oc, request.user))
+                messages.success(request, aprobar(oc, request.user, request.POST.get('comentario', '')))
             except ErrorAprobacionOC as exc:
                 messages.error(request, str(exc))
             return redirect('compras:oc_detalle', pk)

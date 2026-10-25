@@ -44,7 +44,9 @@ class CertificadoAnalisisTest(TestCase):
             'con_certificado': '1', 'coa-titulo': 'CERTIFICADO DE ANÁLISIS', 'coa-norma': 'FT-01',
             'coa-texto': 'Cumple.', 'coa-responsable': 'Jefe de Calidad', 'coa-requiere_liberacion': 'on'})
         self.assertTrue(hasattr(Producto.objects.get(pk=p.pk), 'plantilla_certificado'))
-        p.mover_stock(D('10'), 'PT lote L-100', costo=D('5'), almacen=alm, lotes=[('L-100', D('10'), None)])
+        from datetime import date
+        p.mover_stock(D('10'), 'PT lote L-100', costo=D('5'), almacen=alm,
+                      lotes=[('L-100', D('10'), date(2030, 12, 31))])  # v1.84: el lote exige vencimiento
         lote = Lote.objects.get(producto=p, codigo='L-100')
         self.assertEqual(lote.estado_calidad, 'CUARENTENA')
         # la venta no lo toma (ni por FEFO ni indicándolo); un traslado o consumo sí
@@ -73,7 +75,13 @@ class CertificadoAnalisisTest(TestCase):
         self.client.force_login(self.admin)
         r = self.client.get(reverse('manufactura:certificado', args=[cert.pk]))
         self.assertContains(r, 'FT-01')
-        self.client.post(reverse('manufactura:certificado', args=[cert.pk]), {'accion': 'aprobar'})
+        # v1.84 (CAL-03): libera otra persona de QA, con su firma electrónica (no quien inspeccionó)
+        qa = User.objects.create_user('qa_v161', password='Clave-segura-9')
+        qa.groups.add(Group.objects.get_or_create(name=GRUPOS['control_calidad'])[0])
+        PerfilUsuario.objects.create(usuario=qa, acciones=['control_calidad.liberar_lotes'])
+        self.client.force_login(qa)
+        self.client.post(reverse('manufactura:certificado', args=[cert.pk]), {'accion': 'aprobar',
+                                                                             'clave': 'Clave-segura-9'})
         lote.refresh_from_db()
         self.assertEqual(lote.estado_calidad, 'LIBERADO')
         p.mover_stock(D('-2'), 'F001-1', almacen=alm, origen='VENTA')

@@ -327,7 +327,8 @@ def _momento_termino(fecha):
 
 
 def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, personal=None, salidas=None,
-             merma_a_gasto=False, fecha_contable=None):
+             merma_a_gasto=False, fecha_contable=None, lote_producto='', fabricacion=None, vencimiento=None,
+             lotes_insumos=None):
     """Registra la producción: salen los insumos realmente consumidos y entran el producto y sus subproductos.
 
     Costo de la orden = materiales consumidos + mano de obra + máquina + CIF (+ maquila):
@@ -339,7 +340,11 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
     producido va a gasto (NIC 2 párr. 16) y no al producto.
 
     consumos: {consumo_id: cantidad real}; horas: {hora_id: horas máquina reales};
-    personal: {hora_id: [{'rol', 'trabajador' (id o None), 'horas'}]}; salidas: {salida_id: cantidad producida}."""
+    personal: {hora_id: [{'rol', 'trabajador' (id o None), 'horas'}]}; salidas: {salida_id: cantidad producida}.
+
+    INV-30: lote del producto terminado (por defecto el número de la orden), su fabricación (la fecha de término) y
+    vencimiento (fabricación + vida útil si no se indica); lotes_insumos: {consumo_id: código de lote} (sin indicar,
+    salen por la regla de salida). El kardex guarda qué lote de cada insumo entró en qué lote producido."""
     from inventario import servicios as inv
     from inventario.models import Operacion, TipoOperacion
     if orden.estado not in ('CONFIRMADA', 'EN_PROCESO'):
@@ -448,10 +453,15 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
             almacen_destino=orden.almacen_destino, referencia=orden.numero, creado_por=usuario,
             costo_adicional=mo + maq + cif + orden.costo_servicio - merma,
             glosa=f'Orden de producción {orden.numero}: {orden.producto.nombre}')
+        lotes_insumos = lotes_insumos or {}
         for c in por_almacen.pop(principal, []):
-            op.items.create(producto=c.producto, cantidad=r2(c.cantidad_real), rol='INSUMO')
+            op.items.create(producto=c.producto, cantidad=r2(c.cantidad_real), rol='INSUMO',
+                            lote=(lotes_insumos.get(c.pk) or '').strip()[:60] if c.producto.control else '')
+        lote_pt = (lote_producto or '').strip().upper()[:60] or orden.numero
         op.items.create(producto=orden.producto, cantidad=cantidad_producida, rol='PRODUCTO',
-                        lote=orden.numero if orden.producto.control == 'LOTE' else '')
+                        lote=lote_pt if orden.producto.control == 'LOTE' else '',
+                        fabricacion=(fabricacion or fecha) if orden.producto.control == 'LOTE' else None,
+                        vencimiento=vencimiento if orden.producto.control == 'LOTE' else None)
         for s in lista_salidas:
             if s.cantidad_real > 0:
                 op.items.create(producto=s.producto, cantidad=r2(s.cantidad_real), rol='SUBPROD',
@@ -492,6 +502,7 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
         orden.cantidad_producida, orden.fecha_fin, orden.terminado_en = cantidad_producida, contable, momento
         orden.fecha_inicio = orden.fecha_inicio or contable
         orden.estado, orden.operacion = 'TERMINADA', op
+        orden.lote_producido = lote_pt if orden.producto.control == 'LOTE' else ''
         orden.save()
         registrar_variaciones(orden)
     return orden
@@ -782,6 +793,8 @@ def ejecutar_mrp(horizonte, usuario=None):
         corrida = CorridaMRP.objects.create(horizonte=horizonte,
                                             usuario=usuario if usuario and usuario.is_authenticated else None)
         procesados = set()
+        from inventario.estados import no_libre_por_producto
+        no_libre = no_libre_por_producto()  # INV-25: el MRP solo cuenta el stock libre
         while True:
             pendientes_ids = [pid for pid in demanda if pid not in procesados]
             if not pendientes_ids:
@@ -792,7 +805,7 @@ def ejecutar_mrp(horizonte, usuario=None):
             if not p.es_inventariable or p.tipo_planificacion != 'MRP':
                 continue
             mto = p.estrategia == 'MTO'  # contra pedido: sin stock libre ni de seguridad, sin lotes
-            disponible = D0 if mto else p.stock - (p.stock_minimo or D0)
+            disponible = D0 if mto else p.stock - no_libre.get(p.pk, D0) - (p.stock_minimo or D0)
             eventos = sorted([(f, c, o, 'E') for f, c, o in entradas[pid]] +
                              [(f, c, o, 'D') for f, c, o in demanda[pid] if f <= horizonte],
                              key=lambda e: (e[0], e[3] != 'E'))
@@ -917,9 +930,11 @@ def requerimientos():
         requerido[producto_id] += cantidad
         ordenes[producto_id].add(numero)
     camino = en_camino()
+    from inventario.estados import no_libre_por_producto
+    no_libre = no_libre_por_producto()
     filas = []
     for p in Producto.objects.filter(pk__in=requerido).select_related('proveedor').order_by('nombre'):
-        disponible = p.stock + camino.get(p.pk, D0)
+        disponible = p.stock - no_libre.get(p.pk, D0) + camino.get(p.pk, D0)
         faltante = requerido[p.pk] - disponible
         filas.append({'p': p, 'requerido': requerido[p.pk], 'stock': p.stock, 'camino': camino.get(p.pk, D0),
                       'faltante': max(faltante, D0), 'ordenes': sorted(ordenes[p.pk])})

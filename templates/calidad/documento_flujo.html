@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}{{ d }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title mb-0">{{ d }}</h1>
+    <div class="small text-muted">{{ d.get_tipo_display }}{% if d.norma %} · {{ d.get_norma_display }}{% endif %} · {% if d.estado_validacion == 'VALIDADO' and d.vigente %}<span class="badge text-bg-success">Vigente{% if d.fecha_vigencia %} desde {{ d.fecha_vigencia|date:'d/m/Y' }}{% endif %}</span>{% elif not d.vigente %}<span class="badge text-bg-secondary">Obsoleto</span>{% else %}<span class="badge text-bg-warning">En elaboración</span>{% endif %}</div></div>
+  <a href="{% url 'calidad:registro' 'documentos' d.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Documento</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card mb-3"><div class="card-header small fw-semibold">Elaboró · revisó · aprobó</div><ul class="list-group list-group-flush small">
+      <li class="list-group-item"><b>Elaboró:</b> {{ d.elaborado_por|default:d.creado_por.get_full_name|default:'—' }}</li>
+      <li class="list-group-item"><b>Revisó:</b> {% if d.revisado_por %}{{ d.revisado_por.get_full_name|default:d.revisado_por.username }} · {{ d.revisado_en|date:'d/m/Y H:i' }}{% else %}pendiente{% endif %}</li>
+      <li class="list-group-item"><b>Aprobó:</b> {% if d.aprobado_por %}{{ d.aprobado_por.get_full_name|default:d.aprobado_por.username }} · {{ d.validado_en|date:'d/m/Y' }}{% elif d.validador_nombre %}{{ d.validador_nombre }}{% else %}pendiente{% endif %}</li>
+      {% for f in firmas %}<li class="list-group-item text-muted"><i class="bi bi-pen"></i> {{ f }}</li>{% endfor %}
+    </ul>
+    {% if d.estado_validacion != 'VALIDADO' and d.vigente %}<form method="post" class="card-body row g-2 align-items-end">{% csrf_token %}
+      <div class="col-md-4"><label class="form-label small mb-1">Vigente desde</label><input type="date" name="vigencia" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+      <div class="col-md-4"><label class="form-label small mb-1">Su contraseña (firma)</label><input type="password" name="clave" class="form-control form-control-sm" autocomplete="current-password" required></div>
+      <div class="col-md-4 d-flex gap-1">{% if not d.revisado_por %}<button name="accion" value="revisar" class="btn btn-sm btn-outline-primary">Revisar</button>{% else %}<button name="accion" value="aprobar" class="btn btn-sm btn-success">Aprobar</button>{% endif %}</div>
+    </form>{% endif %}</div>
+    <div class="card"><div class="card-header small fw-semibold">Distribución controlada</div><form method="post" class="card-body small">{% csrf_token %}<input type="hidden" name="accion" value="distribucion">
+      <select name="puestos" multiple size="8" class="form-select form-select-sm mb-2" aria-label="Puestos">{% for p in puestos %}<option value="{{ p.pk }}"{% if p.pk in elegidos %} selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+      <label class="form-check-label"><input type="checkbox" name="lectura_obligatoria" value="1" class="form-check-input"{% if d.lectura_obligatoria %} checked{% endif %}> Lectura obligatoria con constancia</label>
+      <div><button class="btn btn-sm btn-outline-primary mt-2">Guardar distribución</button></div>
+    </form></div>
+  </div>
+  <div class="col-lg-6">
+    {% if d.vigente and d.estado_validacion == 'VALIDADO' and not ya_lei %}<div class="card mb-3 border-primary"><form method="post" class="card-body d-flex gap-2 align-items-end small">{% csrf_token %}<input type="hidden" name="accion" value="leido"><div class="flex-grow-1"><label class="form-label small mb-1">Capacitación / evidencia (opcional)</label><input name="capacitacion" class="form-control form-control-sm"></div><button class="btn btn-sm btn-primary">Leí y entendí este documento</button></form></div>{% endif %}
+    <div class="card mb-3"><div class="card-header small fw-semibold">Lecturas registradas ({{ lecturas|length }})</div><ul class="list-group list-group-flush small">{% for l in lecturas %}<li class="list-group-item">{{ l.trabajador|default:l.usuario.get_full_name|default:l.usuario.username }} · {{ l.fecha|date:'d/m/Y H:i' }}{% if l.capacitacion %} · {{ l.capacitacion }}{% endif %}</li>{% empty %}<li class="list-group-item text-muted">Nadie aún.</li>{% endfor %}</ul></div>
+    <div class="card"><div class="card-header small fw-semibold">Pendientes de leer ({{ pendientes|length }})</div><ul class="list-group list-group-flush small">{% for t in pendientes %}<li class="list-group-item">{{ t }}{% if not t.usuario %} <span class="text-warning">(sin usuario)</span>{% endif %}</li>{% empty %}<li class="list-group-item text-muted">Ninguno.</li>{% endfor %}</ul></div>
+  </div>
+</div>
+<p class="small text-muted mt-2">Quien elabora, quien revisa y quien aprueba son personas distintas; cada paso va con firma electrónica. Al aprobar una versión, la anterior queda obsoleta.</p>
+{% endblock %}

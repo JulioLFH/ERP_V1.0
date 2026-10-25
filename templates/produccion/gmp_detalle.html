@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">{{ titulo }}{% if estado %} <span class="badge text-bg-light border fs-6 align-middle">{{ estado }}</span>{% endif %}</h1>
+  {% if volver %}<a href="{{ volver }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>{% endif %}
+</div>
+<div class="row g-3">
+  <div class="col-lg-4"><div class="card"><ul class="list-group list-group-flush small">{% for etiqueta, valor, url in info %}<li class="list-group-item"><div class="text-muted">{{ etiqueta }}</div>{% if url %}<a href="{{ url }}">{{ valor }}</a>{% else %}<div style="white-space: pre-wrap">{{ valor }}</div>{% endif %}</li>{% endfor %}</ul></div></div>
+  <div class="col-lg-8">
+    {% if form or acciones %}<div class="card"><div class="card-body">
+      <form method="post" class="row g-2">{% csrf_token %}
+        {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1 small">{{ e }}</div>{% endfor %}
+        {% for field in form %}<div class="{% if field.field.widget.input_type == 'textarea' or field.name in 'descripcion hipotesis investigacion_proceso causa_raiz capa impacto motivo investigacion' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+        {% if acciones %}<div class="col-12 d-flex flex-wrap gap-2 align-items-end mt-2">
+          {% if pide_firma %}<div><label class="form-label small mb-1">Su contraseña (firma)</label><input type="password" name="clave" class="form-control form-control-sm" autocomplete="current-password" style="width: 11rem"></div>{% endif %}
+          {% for accion, etiqueta, firma, clase in acciones %}<button name="accion" value="{{ accion }}" class="btn btn-sm btn-{{ clase }}">{% if firma %}<i class="bi bi-pen"></i> {% endif %}{{ etiqueta }}</button>{% endfor %}
+        </div>{% endif %}
+      </form>
+    </div></div>{% endif %}
+    {% for t in tablas %}<div class="card mt-3"><div class="card-header small fw-semibold">{{ t.titulo }}</div><div class="table-responsive"><table class="table table-sm mb-0 small">
+      <thead><tr>{% for c in t.columnas %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for f in t.filas %}<tr>{% for c in f %}<td>{{ c }}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="{{ t.columnas|length }}" class="text-muted">Sin registros.</td></tr>{% endfor %}</tbody>
+    </table></div></div>{% endfor %}
+    {% if ayuda %}<p class="small text-muted mt-2">{{ ayuda }}</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

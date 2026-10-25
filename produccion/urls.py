@@ -2,7 +2,8 @@ from django.urls import path
 
 from flota import views as flota_views
 
-from . import views, views_avanzado as va, views_planta as vp, views_reportes as vr
+from . import views, views_avanzado as va, views_gmp as vg, views_mantenimiento as vmn, views_planta as vp, \
+    views_reportes as vr
 
 app_name = 'manufactura'
 
@@ -27,12 +28,51 @@ urlpatterns = [
     path('calidad/certificados/', vp.certificados, name='certificados'),
     path('calidad/certificados/nuevo/', vp.certificado_nuevo, name='certificado_nuevo'),
     path('calidad/certificados/<int:pk>/', vp.certificado, name='certificado'),
+    # v1.84: calidad farmacéutica (CAL-01 a CAL-08)
+    path('calidad/oos/', vg.oos_lista, name='oos_lista'),
+    path('calidad/oos/<int:pk>/', vg.oos, name='oos'),
+    path('calidad/desviaciones/', vg.desviaciones, name='desviaciones'),
+    path('calidad/desviaciones/nueva/', vg.desviacion_nueva, name='desviacion_nueva'),
+    path('calidad/desviaciones/<int:pk>/', vg.desviacion, name='desviacion'),
+    path('calidad/cambios/', vg.cambios, name='cambios_cc'),
+    path('calidad/cambios/nuevo/', vg.cambio_nuevo, name='cambio_cc_nuevo'),
+    path('calidad/cambios/<int:pk>/', vg.cambio, name='cambio_cc'),
+    path('calidad/quejas/', vg.quejas, name='quejas'),
+    path('calidad/quejas/nueva/', vg.queja_nueva, name='queja_nueva'),
+    path('calidad/quejas/<int:pk>/', vg.queja, name='queja'),
+    path('calidad/retiros/', vg.retiros, name='retiros'),
+    path('calidad/retiros/nuevo/', vg.retiro_nuevo, name='retiro_nuevo'),
+    path('calidad/retiros/<int:pk>/', vg.retiro, name='retiro'),
+    path('calidad/contramuestras/', vg.contramuestras, name='contramuestras'),
+    path('calidad/contramuestras/nueva/', vg.contramuestra, name='contramuestra_nueva'),
+    path('calidad/contramuestras/<int:pk>/', vg.contramuestra, name='contramuestra'),
+    path('calidad/estabilidad/', vg.estabilidad, name='estabilidad'),
+    path('calidad/estabilidad/nuevo/', vg.estudio_nuevo, name='estudio_nuevo'),
+    path('calidad/estabilidad/<int:pk>/', vg.estudio, name='estudio'),
+    path('calidad/pqr/', vg.pqr, name='pqr'),
+    path('calidad/validacion/', vg.validacion_sistema, name='validacion_sistema'),
+    path('calidad/calibraciones/', vg.calibraciones, name='calibraciones'),
+    path('calidad/calibraciones/nueva/', vg.calibracion_nueva, name='calibracion_nueva'),
+    path('calidad/calificaciones/nueva/', vg.calificacion_nueva, name='calificacion_nueva'),
+    path('ordenes/<int:pk>/registro-lote/', vg.registro_lote, name='registro_lote'),
     path('mantenimiento/equipos/', flota_views.equipos, name='equipos'),
     path('mantenimiento/equipos/nuevo/', flota_views.equipo, name='equipo_nuevo'),
     path('mantenimiento/equipos/<int:pk>/', flota_views.equipo, name='equipo'),
     path('mantenimiento/', vp.ordenes_mantenimiento, name='ordenes_mant'),
     path('mantenimiento/nueva/', vp.orden_mant_nueva, name='orden_mant_nueva'),
     path('mantenimiento/<int:pk>/', vp.orden_mant, name='orden_mant'),
+    # v1.84: mantenimiento ampliado (MNT-02 a MNT-08)
+    path('mantenimiento/avisos/', vmn.avisos, name='avisos_mant'),
+    path('mantenimiento/avisos/nuevo/', vmn.aviso_nuevo, name='aviso_nuevo'),
+    path('mantenimiento/lecturas/', vmn.lecturas, name='lecturas_mant'),
+    path('mantenimiento/planes/<int:pk>/', vmn.plan_mant, name='plan_mant'),
+    path('mantenimiento/ubicaciones/', vmn.ubicaciones, name='ubicaciones_mant'),
+    path('mantenimiento/codigos-falla/', vmn.codigos_falla, name='codigos_falla'),
+    path('mantenimiento/repuestos-criticos/', vmn.repuestos_criticos, name='repuestos_criticos'),
+    path('mantenimiento/tablero/', vmn.tablero_mant, name='tablero_mant'),
+    path('mantenimiento/equipos/<int:pk>/historial/', vmn.historial_equipo, name='historial_equipo'),
+    path('mantenimiento/calendario/', vmn.calendario_mant, name='calendario_mant'),
+    path('mantenimiento/mis-ordenes/', vmn.mis_ordenes_mant, name='mis_ordenes_mant'),
     path('', views.ordenes, name='ordenes'),
     path('ordenes/nueva/', views.orden_nueva, name='orden_nueva'),
     path('ordenes/<int:pk>/', views.orden_detalle, name='orden'),

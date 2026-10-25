@@ -10,6 +10,7 @@
   </div>
   <div class="d-flex flex-wrap gap-2">
     <a href="{% url 'manufactura:ordenes' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
+    {% if o.estado != 'BORRADOR' and o.estado != 'ANULADA' %}<a href="{% url 'manufactura:registro_lote' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-journal-check"></i> Registro de lote</a>{% endif %}
     {% if request.user.is_superuser %}<a href="{% url 'manufactura:modificaciones' %}?modelo=produccion.OrdenProduccion&objeto={{ o.pk }}&volver={{ request.path|urlencode }}" class="btn btn-sm btn-outline-secondary" title="Quién creó, modificó o anuló esta orden"><i class="bi bi-journal-text"></i> Historial</a>{% endif %}
     {% if o.estado == 'BORRADOR' %}
       <a href="{% url 'manufactura:orden_editar' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
@@ -68,7 +69,7 @@
           <td>{{ c.producto.codigo }} {{ c.producto.nombre }}</td><td>{{ c.producto.unidad }}</td>
           <td class="num">{{ c.cantidad_plan|cant:c.producto.unidad }}</td>
           {% if o.estado != 'TERMINADA' and o.estado != 'ANULADA' %}<td class="num {% if f.faltante > 0 %}text-danger fw-semibold{% endif %}">{{ f.stock|money }}</td>{% endif %}
-          <td class="num">{% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}<input name="consumo_{{ c.pk }}" value="{{ c.cantidad_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ c.cantidad_real|cant:c.producto.unidad }}{% endif %}</td>
+          <td class="num">{% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}<input name="consumo_{{ c.pk }}" value="{{ c.cantidad_real|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% if c.producto.control %}<select name="lote_{{ c.pk }}" class="form-select form-select-sm mt-1" title="Lote del insumo (vacío = regla de salida)"><option value="">Lote: por regla de salida</option>{% for sl in f.lotes %}<option value="{{ sl.lote.codigo }}">{{ sl.lote.codigo }}{% if sl.lote.vencimiento %} · vence {{ sl.lote.vencimiento|date:'d/m/Y' }}{% endif %} · {{ sl.cantidad|floatformat:'-2' }}</option>{% endfor %}</select>{% endif %}{% else %}{{ c.cantidad_real|cant:c.producto.unidad }}{% endif %}</td>
           {% if ver_costos and o.estado == 'TERMINADA' %}<td class="num">{{ c.costo_unitario|costo }}</td><td class="num">{{ c.valor|money }}</td>{% endif %}
         </tr>{% endwith %}{% endfor %}</tbody>
       </table></div>
@@ -116,6 +117,9 @@
         <input name="cantidad_producida" value="{{ a_producir|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal" required>{% if avance.producido %}<div class="form-text">Según el reporte de planta</div>{% endif %}</div>
       <div class="col-md-4"><label class="form-label small mb-1">Fecha y hora de término</label><input type="datetime-local" name="fecha" value="{{ ahora|date:'Y-m-d\TH:i' }}" max="{{ ahora|date:'Y-m-d\TH:i' }}" class="form-control form-control-sm"></div>
       <div class="col-md-4"><label class="form-label small mb-1">Fecha contable (opcional)</label><input type="date" name="fecha_contable" max="{{ ahora|date:'Y-m-d' }}" class="form-control form-control-sm"><div class="form-text">Si la producción va a otro día o mes que el de término (kardex, costos y asientos).</div></div>
+      {% if o.producto.control == 'LOTE' %}<div class="col-md-4"><label class="form-label small mb-1">Lote producido</label><input name="lote_producto" value="{{ o.numero }}" maxlength="60" class="form-control form-control-sm"></div>
+      <div class="col-md-4"><label class="form-label small mb-1">Fabricación</label><input type="date" name="fabricacion" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+      <div class="col-md-4"><label class="form-label small mb-1">Vencimiento</label><input type="date" name="vencimiento" value="{{ o.vence_propuesto|date:'Y-m-d' }}" class="form-control form-control-sm"><div class="form-text">{% if o.producto.vida_util_dias %}Fabricación + {{ o.producto.vida_util_dias }} días de vida útil{% else %}Indique el vencimiento (o la vida útil en el producto){% endif %}</div></div>{% endif %}
       <div class="col-md-4"><button class="btn btn-sm btn-success w-100"><i class="bi bi-flag"></i> Terminar y registrar en almacén</button></div>
       <div class="col-12"><div class="form-check small"><input class="form-check-input" type="checkbox" name="merma_a_gasto" value="1" id="merma_a_gasto"><label class="form-check-label" for="merma_a_gasto">Llevar a gasto el consumo sobre la receta (merma anormal, NIC 2 párr. 16). Sin marcar, el producto lleva todo lo consumido ÷ todo lo producido.</label></div></div>
       <div class="col-12 small text-muted">Costo unitario = (insumos consumidos + mano de obra + máquina + CIF − lo asignado a subproductos) ÷ cantidad producida. Tabla 12 SUNAT: 10 salida a producción, 19 entrada de producción.</div>

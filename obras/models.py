@@ -111,8 +111,9 @@ class Obra(models.Model):
             while CentroCosto.objects.filter(codigo=codigo).exists():
                 n += 1
                 codigo = f'{self.codigo[:7]}-{n}'[:10]
+            prefijo = 'Proyecto' if self.tipo == 'SERVICIO' else 'Obra'  # SRV-12
             cambios['centro_costo'] = CentroCosto.objects.create(
-                codigo=codigo, nombre=f'Obra {self.nombre}'[:100], tipo='PRODUCCION', padre=padre)
+                codigo=codigo, nombre=f'{prefijo} {self.nombre}'[:100], tipo='PRODUCCION', padre=padre)
         if not self.almacen_id and self.tipo != 'SERVICIO':  # un proyecto de servicios no tiene almacén (EMP-02)
             codigo, n = f'AO{self.codigo[2:]}'[:10], 1
             while Almacen.objects.filter(codigo=codigo).exists():
@@ -1130,13 +1131,13 @@ class EntregableProyecto(models.Model):
     cliente da su conformidad y recién entonces se factura (con la amortización del adelanto). El atraso calcula la
     penalidad."""
     ESTADOS = [('PENDIENTE', 'Pendiente'), ('ENTREGADO', 'Entregado al cliente'), ('OBSERVADO', 'Observado por el cliente'),
-               ('CONFORME', 'Conforme (aprobado por el cliente)'), ('FACTURADO', 'Facturado')]
+               ('CONFORME', 'Conforme (aprobado por el cliente)'), ('FACTURADO', 'Facturado'), ('ANULADO', 'Anulado')]
     obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='entregables', verbose_name='Proyecto')
     numero = models.PositiveSmallIntegerField('N°', default=1)
     nombre = models.CharField(max_length=150, help_text='Ej. Anteproyecto, Expediente técnico, Supervisión de marzo')
     porcentaje = models.DecimalField('% del contrato', max_digits=5, decimal_places=2, default=D0)
     monto = models.DecimalField('Monto sin IGV', max_digits=14, decimal_places=2, default=D0,
-                                help_text='Vacío o 0 = el % del monto contratado')
+                                blank=True, help_text='Vacío o 0 = el % del monto contratado')
     fecha_comprometida = models.DateField('Fecha comprometida')
     horas_presupuestadas = models.DecimalField(max_digits=10, decimal_places=2, default=D0)
     penalidad_diaria_pct = models.DecimalField('Penalidad por día de atraso (% del monto)', max_digits=6,
@@ -1197,6 +1198,9 @@ class ParteHoras(models.Model):
     aprobado_en = models.DateTimeField(null=True, blank=True, editable=False)
     registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='+', editable=False)
+    # SRV-10: asiento que llevó el costo de las horas del personal en planilla al centro de costo del proyecto
+    asiento_distribucion = models.ForeignKey('contabilidad.Asiento', on_delete=models.SET_NULL, null=True,
+                                             blank=True, related_name='+', editable=False)
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1237,6 +1241,29 @@ class GarantiaContrato(models.Model):
     def por_vencer(self):
         from datetime import timedelta
         return self.estado == 'VIGENTE' and self.vencimiento <= timezone.localdate() + timedelta(days=15)
+
+
+RUBROS_PROYECTO = [('HORAS', 'Horas del personal'), ('ESPECIALISTAS', 'Especialistas independientes'),
+                   ('VIAJES', 'Viajes y movilidad'), ('OFICINA', 'Gastos de oficina'), ('OTROS', 'Otros gastos')]
+
+
+class RubroProyecto(models.Model):
+    """Presupuesto del proyecto de servicios por rubro (SRV-11): se compara con lo comprometido (OC/OS aprobadas sin
+    factura) y lo gastado (partes de horas, recibos, facturas, rendiciones y reparto al centro del proyecto)."""
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='rubros', verbose_name='Proyecto')
+    rubro = models.CharField(max_length=13, choices=RUBROS_PROYECTO)
+    monto = models.DecimalField('Presupuesto S/ (sin IGV)', max_digits=14, decimal_places=2, default=D0)
+    cuentas = models.CharField('Cuentas del gasto', max_length=100, blank=True,
+                               help_text='Prefijos de cuenta separados por espacio (ej. 631 6371). Vacío = los del rubro')
+
+    class Meta:
+        ordering = ['obra', 'id']
+        unique_together = [('obra', 'rubro')]
+        verbose_name = 'rubro del presupuesto del proyecto'
+        verbose_name_plural = 'presupuesto del proyecto por rubro'
+
+    def __str__(self):
+        return self.get_rubro_display()
 
 
 class CierreServicioProyecto(models.Model):

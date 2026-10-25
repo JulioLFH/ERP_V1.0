@@ -9,13 +9,15 @@
   </div>
   <span class="badge fs-6 {% if c.estado == 'APROBADO' %}text-bg-success{% elif c.estado == 'BORRADOR' %}text-bg-warning{% elif c.estado == 'RECHAZADO' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ c.get_estado_display }}</span>
 </div>
+{% if c.estado == 'BORRADOR' %}<div class="card mb-3 d-print-none {% if bloqueos %}border-danger{% else %}border-success{% endif %}"><div class="card-header small fw-semibold">Revisión de QA antes de liberar</div><div class="card-body small">{% for b in bloqueos %}<div class="text-danger"><i class="bi bi-x-circle"></i> {{ b }}</div>{% empty %}<div class="text-success"><i class="bi bi-check-circle"></i> Sin OOS, desviaciones ni cambios abiertos; registro de lote completo{% if c.inspeccion %}; inspección {{ c.inspeccion.numero }} aprobada{% endif %}.</div>{% endfor %}{% if c.inspeccion.inspector %}<div class="text-muted mt-1">Analista: {{ c.inspeccion.inspector.get_full_name|default:c.inspeccion.inspector.username }} (no puede liberar este lote).</div>{% endif %}</div></div>{% endif %}
 {% if puede.control_calidad_liberar_lotes and c.estado != 'ANULADO' %}
 <div class="card mb-3 d-print-none border-warning"><div class="card-body">
   <form method="post" class="row g-2 align-items-end">{% csrf_token %}
-    <div class="col-md-7"><label class="form-label small mb-1">Comentario {% if c.estado == 'BORRADOR' %}(obligatorio si se libera con resultados fuera de especificación){% endif %}</label>
+    <div class="col-md-5"><label class="form-label small mb-1">Comentario{% if c.estado == 'APROBADO' %} (motivo de la anulación, obligatorio){% endif %}</label>
       <input name="comentario" class="form-control form-control-sm" maxlength="300"></div>
+    <div class="col-md-2"><label class="form-label small mb-1">Su contraseña (firma)</label><input type="password" name="clave" class="form-control form-control-sm" autocomplete="current-password"></div>
     <div class="col-md-5 d-flex gap-2">
-      {% if c.estado == 'BORRADOR' %}<button name="accion" value="aprobar" class="btn btn-sm btn-success"><i class="bi bi-unlock"></i> Aprobar y liberar el lote</button>
+      {% if c.estado == 'BORRADOR' %}<button name="accion" value="aprobar" class="btn btn-sm btn-success"{% if bloqueos %} disabled{% endif %}><i class="bi bi-pen"></i> Liberar con firma</button>
       <button name="accion" value="rechazar" class="btn btn-sm btn-outline-danger" data-confirm="¿Rechazar el lote {{ c.lote.codigo }}? No se podrá vender."><i class="bi bi-x-octagon"></i> Rechazar</button>{% endif %}
       <button name="accion" value="anular" class="btn btn-sm btn-outline-secondary" data-confirm="¿Anular el certificado? El lote vuelve a cuarentena."><i class="bi bi-x-circle"></i> Anular</button>
     </div>
@@ -43,7 +45,7 @@
   {% if c.observaciones %}<p class="small"><b>Observaciones:</b> {{ c.observaciones|linebreaksbr }}</p>{% endif %}
   <div class="row mt-5 text-center small">
     <div class="col-6"><div class="border-top pt-1 mx-4">Emitido por: {% if c.emitido_por %}{{ c.emitido_por.get_full_name|default:c.emitido_por.username }}{% else %}—{% endif %}</div></div>
-    <div class="col-6"><div class="border-top pt-1 mx-4">{{ plantilla.responsable|default:'Aseguramiento de la Calidad' }}{% if c.aprobado_por %}<br>{{ c.aprobado_por.get_full_name|default:c.aprobado_por.username }} · {{ c.aprobado_en|date:'d/m/Y H:i' }}{% endif %}</div></div>
+    <div class="col-6"><div class="border-top pt-1 mx-4">{{ plantilla.responsable|default:'Aseguramiento de la Calidad' }}{% if c.firma %}<br><b>Firmado electrónicamente: {{ c.firma.nombre }}</b><br>{{ c.firma.significado }} · {{ c.firma.fecha|date:'d/m/Y H:i:s' }}{% elif c.aprobado_por %}<br>{{ c.aprobado_por.get_full_name|default:c.aprobado_por.username }} · {{ c.aprobado_en|date:'d/m/Y H:i' }}{% endif %}</div></div>
   </div>
 </div></div>
 {% endblock %}

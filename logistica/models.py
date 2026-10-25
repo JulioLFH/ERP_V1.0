@@ -174,7 +174,8 @@ class GuiaRemision(ElectronicoMixin):
                     # traslado: entra al destino con los mismos lotes que salieron del origen
                     item.producto.mover_stock(signo * item.cantidad, str(self), fecha=self.fecha_traslado,
                                               almacen=almacen or Almacen.principal(), origen='GUIA',
-                                              lotes_de=str(self) if signo > 0 and len(movs) > 1 else None)
+                                              lotes_de=str(self) if signo > 0 and len(movs) > 1 else None,
+                                              destino=self.almacen_destino if signo < 0 else None)
         self.stock_aplicado = True
         self.save(update_fields=['stock_aplicado'])
 

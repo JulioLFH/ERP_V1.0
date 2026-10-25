@@ -30,5 +30,21 @@
     <td class="small">{% if c.pagada %}<i class="bi bi-check2 text-success"></i> {{ c.pago.voucher }} {{ c.pago.fecha|date:'d/m/Y' }}{% endif %}</td></tr>{% endfor %}</tbody>
   <tfoot><tr class="fw-semibold"><td colspan="2">Total</td><td class="num">{{ totales.capital|money }}</td><td class="num">{{ totales.interes|money }}</td><td class="num">{{ totales.comision|money }}</td>{% if p.tipo == 'LEASING' %}<td class="num">{{ totales.igv|money }}</td>{% endif %}<td class="num">{{ totales.cuota|money }}</td><td colspan="2"></td></tr></tfoot>
 </table></div></div>
+{% if p.estado == 'VIGENTE' and siguiente and puede.finanzas_cuentas %}
+<div class="row g-3 mb-3">
+  <div class="col-lg-6"><form method="post" class="card h-100">{% csrf_token %}<input type="hidden" name="accion" value="prepagar">
+    <div class="card-header small fw-semibold">Prepago de capital</div><div class="card-body row g-2 align-items-end small">
+      <div class="col-6"><label class="form-label mb-1">Monto ({{ p.simbolo }})</label><input name="monto" inputmode="decimal" class="form-control form-control-sm" required></div>
+      <div class="col-6"><label class="form-label mb-1">Fecha</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+      <div class="col-6"><label class="form-label mb-1">Recalcular</label><select name="modo" class="form-select form-select-sm"><option value="PLAZO">Misma cuota, menos cuotas</option><option value="CUOTA">Mismo plazo, menor cuota</option></select></div>
+      <div class="col-6"><label class="form-label mb-1">N° operación</label><input name="numero_operacion" maxlength="40" class="form-control form-control-sm"></div>
+      <div class="col-12"><button class="btn btn-sm btn-outline-primary" data-confirm="¿Registrar el prepago desde {{ p.cuenta }} y recalcular las cuotas pendientes?">Registrar prepago</button></div></div></form></div>
+  <div class="col-lg-6"><form method="post" class="card h-100">{% csrf_token %}<input type="hidden" name="accion" value="reprogramar">
+    <div class="card-header small fw-semibold">Cambio de tasa o reprogramación</div><div class="card-body row g-2 align-items-end small">
+      <div class="col-6"><label class="form-label mb-1">Nueva TEA %</label><input name="tea" inputmode="decimal" value="{{ p.tasa_anual|floatformat:4 }}" class="form-control form-control-sm" required></div>
+      <div class="col-6"><label class="form-label mb-1">Cuotas pendientes (vacío = las mismas)</label><input name="cuotas" type="number" min="1" class="form-control form-control-sm"></div>
+      <div class="col-12"><label class="form-label mb-1">Motivo</label><input name="motivo" minlength="10" class="form-control form-control-sm" required placeholder="Ej. reajuste de la tasa variable según el contrato"></div>
+      <div class="col-12"><button class="btn btn-sm btn-outline-primary">Recalcular cuotas pendientes</button></div></div></form></div>
+</div>{% endif %}
 {% if p.estado == 'VIGENTE' and puede.finanzas_anular %}<form method="post" class="d-flex gap-2 justify-content-end">{% csrf_token %}<input type="hidden" name="accion" value="anular"><input name="motivo" class="form-control form-control-sm w-auto" placeholder="Motivo de la anulación" minlength="10"><button class="btn btn-sm btn-outline-danger" data-confirm="¿Anular el préstamo y su desembolso? Solo si no tiene cuotas pagadas.">Anular</button></form>{% endif %}
 {% endblock %}

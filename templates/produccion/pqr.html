@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Revisión anual de producto{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Revisión anual de producto (PQR)</h1>
+  {% if d %}<button onclick="window.print()" class="btn btn-sm btn-outline-secondary d-print-none"><i class="bi bi-printer"></i> Imprimir / PDF</button>{% endif %}
+</div>
+<form method="get" class="d-flex flex-wrap gap-2 mb-3 d-print-none" style="max-width: 720px">
+  <select name="producto" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'productos_bienes' %}" required aria-label="Producto"><option value="">Producto…</option>{% if producto %}<option value="{{ producto.pk }}" selected>{{ producto }}</option>{% endif %}</select>
+  <input name="anio" type="number" value="{{ anio }}" class="form-control form-control-sm" style="width: 7rem" aria-label="Año">
+  <button class="btn btn-sm btn-primary">Ver</button>
+</form>
+{% if d %}
+<h2 class="h5">{{ d.producto }} · {{ d.anio }}</h2>
+<div class="row g-3 mb-3 small">
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Lotes</div><div class="value">{{ d.lotes }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Órdenes terminadas</div><div class="value">{{ d.ordenes }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Lotes liberados</div><div class="value">{{ d.liberados }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Lotes rechazados</div><div class="value">{{ d.rechazados }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">Inspecciones</div><div class="value">{{ d.inspecciones }}</div></div></div>
+  <div class="col-6 col-md-2"><div class="kpi"><div class="label">OOS</div><div class="value">{{ d.oos|length }}</div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card"><div class="card-header small fw-semibold">Inspecciones por resultado</div><ul class="list-group list-group-flush small">{% for n, c in d.por_resultado.items %}{% if c %}<li class="list-group-item d-flex justify-content-between"><span>{{ n }}</span><b>{{ c }}</b></li>{% endif %}{% endfor %}</ul></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header small fw-semibold">Investigaciones OOS</div><ul class="list-group list-group-flush small">{% for o in d.oos %}<li class="list-group-item"><a href="{% url 'manufactura:oos' o.pk %}">{{ o.numero }}</a> · {{ o.resultado.caracteristica }} {{ o.valor_original }} · {{ o.get_conclusion_display|default:o.get_estado_display }}</li>{% empty %}<li class="list-group-item text-muted">Ninguna.</li>{% endfor %}</ul></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header small fw-semibold">Desviaciones</div><ul class="list-group list-group-flush small">{% for x in d.desviaciones %}<li class="list-group-item"><a href="{% url 'manufactura:desviacion' x.pk %}">{{ x.numero }}</a> · {{ x.get_criticidad_display }} · {{ x.descripcion|truncatechars:70 }} · {{ x.get_estado_display }}</li>{% empty %}<li class="list-group-item text-muted">Ninguna.</li>{% endfor %}</ul></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header small fw-semibold">Quejas de clientes</div><ul class="list-group list-group-flush small">{% for x in d.quejas %}<li class="list-group-item"><a href="{% url 'manufactura:queja' x.pk %}">{{ x.numero }}</a> · {{ x.cliente.nombre }} · lote {{ x.lote.codigo }} · {{ x.get_estado_display }}</li>{% empty %}<li class="list-group-item text-muted">Ninguna.</li>{% endfor %}</ul></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header small fw-semibold">Cambios</div><ul class="list-group list-group-flush small">{% for x in d.cambios %}<li class="list-group-item"><a href="{% url 'manufactura:cambio_cc' x.pk %}">{{ x.numero }}</a> · {{ x.titulo }} · {{ x.get_estado_display }}</li>{% empty %}<li class="list-group-item text-muted">Ninguno.</li>{% endfor %}</ul></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header small fw-semibold">Retiros y estabilidad</div><ul class="list-group list-group-flush small">{% for x in d.retiros %}<li class="list-group-item"><a href="{% url 'manufactura:retiro' x.pk %}">{{ x.numero }}</a> · {{ x.get_tipo_display }} · lote {{ x.lote.codigo }}</li>{% endfor %}{% for x in d.estabilidad %}<li class="list-group-item"><a href="{% url 'manufactura:estudio' x.pk %}">{{ x.numero }}</a> · lote {{ x.lote.codigo }} · {{ x.get_condicion_display }}</li>{% endfor %}{% if not d.retiros and not d.estabilidad %}<li class="list-group-item text-muted">Ninguno.</li>{% endif %}</ul></div></div>
+</div>
+<p class="small text-muted mt-3">Revisión de la calidad del producto del año (BPM): tendencia de resultados, lotes rechazados, OOS, desviaciones, quejas, cambios, retiros y estabilidad. Complete la conclusión y las acciones con QA.</p>
+{% endif %}
+{% endblock %}

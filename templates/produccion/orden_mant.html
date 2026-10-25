@@ -13,17 +13,37 @@
   <div class="col-md-4"><div class="kpi"><div class="label">Equipo</div><div class="fw-semibold"><a href="{% url 'manufactura:equipo' o.equipo_id %}">{{ o.equipo }}</a></div><div class="small text-muted">{{ o.equipo.centro|default:'' }}</div></div></div>
   <div class="col-md-3"><div class="kpi"><div class="label">{{ o.get_tipo_display }}</div><div class="fw-semibold">Programada {{ o.fecha_programada|date:'d/m/Y' }}</div>{% if o.plan %}<div class="small text-muted">Plan: {{ o.plan.tarea }}</div>{% endif %}</div></div>
   <div class="col-md-3"><div class="kpi"><div class="label">Costo total</div><div class="value">{{ o.costo_total|money }}</div><div class="small text-muted">MO {{ o.costo_mano_obra|money }} · servicios {{ o.costo_servicios|money }} · repuestos {{ o.costo_repuestos|money }}</div></div></div>
-  <div class="col-md-2"><div class="kpi"><div class="label">Parada</div><div class="value">{{ o.horas_parada|money }} h</div></div></div>
+  <div class="col-md-2"><div class="kpi"><div class="label">Parada</div><div class="value">{{ o.horas_parada|money }} h</div>{% if o.horas_reparacion is not None %}<div class="small text-muted">Reparación {{ o.horas_reparacion }} h</div>{% endif %}</div></div>
 </div>
+<div class="small text-muted mb-2">Prioridad {{ o.get_prioridad_display|lower }}{% if o.tecnico %} · técnico {{ o.tecnico }}{% endif %}{% if o.horas_estimadas %} · {{ o.horas_estimadas }} h estimadas{% endif %}{% if o.costo_estimado %} · costo planificado S/ {{ o.costo_estimado|money }} (real S/ {{ o.costo_total|money }}){% endif %}{% if o.orden_servicio %} · OS <a href="{% url 'compras:oc_detalle' o.orden_servicio_id %}">{{ o.orden_servicio.numero }}</a>{% endif %}{% if o.inicio_real %} · inicio real {{ o.inicio_real|date:'d/m/Y H:i' }}{% endif %}</div>
+{% if o.requiere_permiso or o.requiere_loto or abierta %}<div class="card mb-3{% if o.requiere_permiso and not o.permiso_trabajo or o.requiere_loto and not o.loto_aplicado_por %} border-warning{% endif %}"><div class="card-header small fw-semibold"><i class="bi bi-cone-striped"></i> Seguridad: permiso de trabajo y bloqueo (LOTO)</div><div class="card-body small">
+  {% if o.permiso_trabajo %}<div>Permiso: {{ o.permiso_trabajo }} · {{ o.permiso_trabajo.get_estado_validacion_display }}</div>{% endif %}{% if o.loto_aplicado_por %}<div>LOTO aplicado por {{ o.loto_aplicado_por }}</div>{% endif %}
+  {% if abierta and puede.mantenimiento_registrar %}<form method="post" class="row g-2 align-items-end mt-1">{% csrf_token %}<input type="hidden" name="accion" value="seguridad">{% for field in seguridad %}<div class="col-md-3">{% include 'core/_campo.html' %}</div>{% endfor %}<div class="col-12"><button class="btn btn-sm btn-outline-primary">Guardar</button> <span class="text-muted">Sin el permiso validado por SST y el LOTO, la orden no se inicia.</span></div></form>{% endif %}
+</div></div>{% endif %}
+<div class="row g-3 mb-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header small fw-semibold">Checklist (hoja de tareas)</div><ul class="list-group list-group-flush small">
+    {% for t in tareas %}<li class="list-group-item d-flex justify-content-between align-items-center"><span>{% if t.hecha %}<i class="bi bi-check2-square text-success"></i>{% else %}<i class="bi bi-square"></i>{% endif %} {{ t.descripcion }}{% if t.observacion %} <span class="text-muted">· {{ t.observacion }}</span>{% endif %}</span>
+      {% if abierta and puede.mantenimiento_registrar %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="tarea"><input type="hidden" name="tarea" value="{{ t.pk }}"><input type="hidden" name="hecha" value="{% if t.hecha %}0{% else %}1{% endif %}"><button class="btn btn-sm btn-outline-secondary py-0">{% if t.hecha %}Desmarcar{% else %}Hecha{% endif %}</button></form>{% endif %}</li>
+    {% empty %}<li class="list-group-item text-muted">Sin tareas (las trae la hoja de tareas del plan).</li>{% endfor %}</ul>
+    {% if abierta and puede.mantenimiento_registrar %}<form method="post" class="card-body d-flex gap-2 small">{% csrf_token %}<input type="hidden" name="accion" value="nueva_tarea"><input name="descripcion" class="form-control form-control-sm" placeholder="Agregar tarea" aria-label="Nueva tarea"><button class="btn btn-sm btn-outline-primary">Agregar</button></form>{% endif %}</div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header small fw-semibold">Horas de los técnicos (costo S/ {{ costo_mo|money }})</div><ul class="list-group list-group-flush small">
+    {% for h in horas %}<li class="list-group-item d-flex justify-content-between"><span>{{ h.fecha|date:'d/m' }} · {{ h.trabajador }}</span><span>{{ h.horas }} h × {{ h.costo_hora|money }} = {{ h.costo|money }}</span></li>{% empty %}<li class="list-group-item text-muted">Sin horas registradas.</li>{% endfor %}</ul>
+    {% if abierta and puede.mantenimiento_registrar %}<form method="post" class="card-body row g-2 small">{% csrf_token %}<input type="hidden" name="accion" value="horas">
+      <div class="col-md-5"><select name="trabajador" class="form-select form-select-sm" aria-label="Técnico">{% for t in tecnicos %}<option value="{{ t.pk }}"{% if t.pk == o.tecnico_id %} selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm" aria-label="Fecha"></div>
+      <div class="col-md-2"><input name="horas" inputmode="decimal" class="form-control form-control-sm" placeholder="Horas" aria-label="Horas"></div>
+      <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100">Agregar</button></div></form>{% endif %}</div></div>
+</div>
+{% if paradas %}<div class="card mb-3"><div class="card-header small fw-semibold">Paradas de producción vinculadas</div><ul class="list-group list-group-flush small">{% for p in paradas %}<li class="list-group-item">{{ p }} · {{ p.horas }} h</li>{% endfor %}</ul><div class="card-body py-2 small text-muted">Al cerrar, si no indica las horas de parada, se toman de estas paradas.</div></div>{% endif %}
 <div class="card mb-3"><div class="card-body"><div class="small text-muted">Falla / trabajo a realizar</div>{{ o.descripcion|linebreaksbr }}
   {% if o.trabajo_realizado %}<div class="small text-muted mt-2">Trabajo realizado</div>{{ o.trabajo_realizado|linebreaksbr }}{% endif %}
   {% if o.proveedor %}<div class="small mt-2">Servicio externo: {{ o.proveedor.nombre }}</div>{% endif %}
   {% if o.consumo %}<div class="small mt-2">Repuestos descargados: <a href="{% url 'inventario:detalle' o.consumo_id %}">{{ o.consumo }}</a></div>{% endif %}</div></div>
 <div class="card mb-3"><div class="card-header">Repuestos y materiales</div>
-  <table class="table table-sm mb-0"><thead><tr><th>Producto</th><th>Almacén</th><th class="num">Cantidad</th><th></th></tr></thead><tbody>
-  {% for r in repuestos %}<tr><td>{{ r.producto.codigo }} {{ r.producto.nombre }}</td><td>{{ r.almacen }}</td><td class="num">{{ r.cantidad|money }}</td>
+  <table class="table table-sm mb-0"><thead><tr><th>Producto</th><th>Almacén</th><th class="num">Cantidad</th><th class="num">Stock</th><th class="num">Reservado en otras OT</th><th></th></tr></thead><tbody>
+  {% for r in repuestos %}<tr{% if r.stock < r.cantidad|add:r.reservado_otras %} class="table-warning"{% endif %}><td>{{ r.producto.codigo }} {{ r.producto.nombre }}</td><td>{{ r.almacen }}</td><td class="num">{{ r.cantidad|money }}</td><td class="num">{{ r.stock|money }}</td><td class="num">{{ r.reservado_otras|money }}</td>
     <td>{% if abierta and puede.mantenimiento_registrar %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="quitar"><button name="repuesto" value="{{ r.pk }}" class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x-circle"></i></button></form>{% endif %}</td></tr>
-  {% empty %}<tr><td colspan="4" class="text-muted text-center py-3">Sin repuestos.</td></tr>{% endfor %}
+  {% empty %}<tr><td colspan="6" class="text-muted text-center py-3">Sin repuestos.</td></tr>{% endfor %}
   </tbody></table>
   {% if abierta and puede.mantenimiento_registrar %}<div class="card-body border-top"><form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="repuesto">
     {% for field in rep_form %}<div class="col-md-4">{% include 'core/_campo.html' %}</div>{% endfor %}
@@ -33,11 +53,18 @@
 <div class="card"><div class="card-header">Cerrar la orden</div><div class="card-body">
   <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="cerrar">
     {% for field in cierre %}<div class="{% if field.name == 'trabajo_realizado' %}col-12{% else %}col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+    {% if o.tipo == 'CALIBRACION' %}<div class="col-12 small fw-semibold mt-2">Calibración del instrumento</div>
+      <div class="col-md-3"><label class="form-label small">Laboratorio</label><input name="cal_entidad" class="form-control form-control-sm"></div>
+      <div class="col-md-3"><label class="form-label small">N° de certificado</label><input name="cal_certificado" required class="form-control form-control-sm"></div>
+      <div class="col-md-3"><label class="form-label small">Resultado</label><select name="cal_resultado" class="form-select form-select-sm">{% for v, n in resultados_cal %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><label class="form-label small">Próxima calibración</label><input type="date" name="cal_proxima" required class="form-control form-control-sm"></div>{% endif %}
     <div class="col-12"><button class="btn btn-sm btn-success" data-confirm="¿Cerrar la orden? Se descargan los repuestos del almacén."><i class="bi bi-check2-circle"></i> Cerrar orden</button></div>
   </form>
   <div class="small text-muted mt-2">Los repuestos salen del almacén como consumo (gasto 6343 mantenimiento, al centro de costo del puesto del equipo).</div>
 </div></div>
 {% endif %}
+<div class="card mt-3"><div class="card-header small fw-semibold"><i class="bi bi-camera"></i> Fotos y evidencias</div><ul class="list-group list-group-flush small">{% for f in fotos %}<li class="list-group-item"><a href="{% url 'sustento_ver' f.pk %}" target="_blank" rel="noopener">{{ f.archivo.nombre }}</a> · {{ f.descripcion }}</li>{% empty %}<li class="list-group-item text-muted">Sin fotos.</li>{% endfor %}</ul>
+  {% if abierta and puede.mantenimiento_registrar %}<form method="post" enctype="multipart/form-data" class="card-body d-flex flex-wrap gap-2 small">{% csrf_token %}<input type="hidden" name="accion" value="foto"><input type="file" name="foto" accept="image/*" capture="environment" class="form-control form-control-sm w-auto" aria-label="Foto"><input name="descripcion" class="form-control form-control-sm w-auto" placeholder="Descripción" aria-label="Descripción"><button class="btn btn-sm btn-outline-primary">Subir</button></form>{% endif %}</div>
 {% if o.solicitudes.exists %}<div class="card mt-3"><div class="card-header"><i class="bi bi-cart"></i> Solicitudes de pedido</div><ul class="list-group list-group-flush small">{% for s in o.solicitudes.all %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'solicitudes:detalle' s.pk %}">{{ s.numero|default:'(borrador)' }}</a><span>{{ s.motivo|truncatechars:60 }} · {% include 'compras/_estado_solped.html' %}</span></li>{% endfor %}</ul></div>{% endif %}
 <a href="{% url 'manufactura:ordenes_mant' %}" class="btn btn-sm btn-link mt-3"><i class="bi bi-arrow-left"></i> Órdenes de mantenimiento</a>
 {% endblock %}

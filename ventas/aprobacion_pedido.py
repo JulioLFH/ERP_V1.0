@@ -46,6 +46,8 @@ def exceso_credito(cliente, nuevo_pen, excluir_venta=None):
     deuda = [v for v in Venta.objects.con_saldos().cobrables().filter(tercero=cliente, estado='REGISTRADO')
              .exclude(tipo_comprobante='07').exclude(pk=getattr(excluir_venta, 'pk', None)) if v.saldo > 0]
     textos = []
+    if cliente.bloqueado_mora:  # FIN-03: lo marca la cobranza al superar los días de mora
+        textos.append('cliente bloqueado por mora (Finanzas › Gestión de cobranza)')
     if empresa.bloquear_deuda_vencida:
         limite_fecha = timezone.localdate() - timedelta(days=empresa.dias_gracia)
         vencidos = [v for v in deuda if v.fecha_vencimiento and v.fecha_vencimiento < limite_fecha]

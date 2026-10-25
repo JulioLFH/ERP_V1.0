@@ -83,25 +83,39 @@ def partidas_de(presupuesto):
 
 
 # ---------------------------------------------------------------- productos y comprobantes
-def _producto(codigo, nombre, cuenta_clave):
+def _detraccion(obra):
+    """(código, parámetro del %) de la detracción según el tipo de proyecto (SRV-07): los servicios profesionales
+    (arquitectura, ingeniería, consultoría) van con el 022; los contratos de construcción con el 030."""
+    if obra is not None and obra.tipo == 'SERVICIO':
+        return '022', 'SRV_DETRACCION_PCT'
+    return '030', 'OBR_DETRACCION_PCT'
+
+
+def _producto(codigo, nombre, cuenta_clave, obra=None):
     from contabilidad.models import CuentaDefecto
     from core.models import Producto
     p = Producto.objects.filter(codigo=codigo).first()
     if p is None:
+        cod_det, param = _detraccion(obra)
         p = Producto(codigo=codigo, nombre=nombre, clase='SERVICIO', unidad='ZZ', puede_comprarse=False)
         p.cuenta_venta = CuentaDefecto.mapa().get(cuenta_clave)
-        p.detraccion_pct = _parametro('OBR_DETRACCION_PCT')
-        p.detraccion_codigo = '030'
+        p.detraccion_pct = _parametro(param)
+        p.detraccion_codigo = cod_det
         p.save()
     return p
 
 
-def producto_adelanto():
-    """Servicio «Adelanto de obra»: su cuenta de ventas es la de anticipos de clientes (122)."""
+def producto_adelanto(obra=None):
+    """Servicio «Adelanto de obra» (o «de servicios» en un proyecto de servicios): su cuenta de ventas es la de
+    anticipos de clientes (122)."""
+    if obra is not None and obra.tipo == 'SERVICIO':
+        return _producto('ANTSRV', 'Adelanto de servicios profesionales', 'mov_ANTICIPO_INGRESO', obra)
     return _producto('ANTOBRA', 'Adelanto de obra', 'mov_ANTICIPO_INGRESO')
 
 
-def producto_valorizacion():
+def producto_valorizacion(obra=None):
+    if obra is not None and obra.tipo == 'SERVICIO':
+        return _producto('VALSRV', 'Valorización de servicios profesionales', 'ventas_servicios', obra)
     return _producto('VALOBRA', 'Valorización de obra', 'ventas_servicios')
 
 
@@ -156,7 +170,7 @@ def registrar_adelanto(obra, tipo, monto, fecha, usuario, glosa=''):
     _validar_periodo(fecha)
     texto = (f'{dict(AdelantoObra.TIPOS)[tipo]} de la obra {obra.nombre}'
              + (f' – contrato {obra.contrato}' if obra.contrato else ''))
-    comp = _factura(obra, fecha, glosa or texto, [(producto_adelanto(), texto, monto, None)])
+    comp = _factura(obra, fecha, glosa or texto, [(producto_adelanto(obra), texto, monto, None)])
     return AdelantoObra.objects.create(obra=obra, tipo=tipo, fecha=fecha, monto=monto, factura=comp,
                                        glosa=(glosa or texto)[:250], creado_por=_usuario(usuario))
 
@@ -181,7 +195,7 @@ def reclasificar(venta, obra, tipo, usuario, motivo=''):
         raise ErrorValorizacion('Elija el tipo de adelanto.')
     _validar_periodo(venta.fecha_emision)
     antes = {i.pk: (i.producto.codigo if i.producto_id else '') for i in venta.items.select_related('producto')}
-    producto = producto_adelanto()
+    producto = producto_adelanto(obra)
     venta.items.update(producto=producto)
     if venta.centro_costo_id != obra.centro_costo_id:
         venta.centro_costo = obra.centro_costo
@@ -567,7 +581,7 @@ def facturar(v, usuario, fecha=None):
     fecha = fecha or timezone.localdate()
     _validar_periodo(fecha)
     obra, mes = v.obra, f'{v.periodo[4:]}/{v.periodo[:4]}'
-    prod_val, prod_ant = producto_valorizacion(), producto_adelanto()
+    prod_val, prod_ant = producto_valorizacion(obra), producto_adelanto(obra)
     lineas = [(prod_val, f'Valorización N° {v.numero} ({mes}) – {obra.nombre}', v.subtotal, None)]
     if v.reintegro - v.deduccion_reintegro:
         lineas.append((prod_val, f'Reintegro de la valorización N° {v.numero} (fórmula polinómica, K = {v.k}) neto de '
@@ -647,8 +661,13 @@ def resumen(obra):
     vigentes = list(obra.valorizaciones.filter(estado__in=VIGENTES))
     valorizado = sum((v.subtotal for v in vigentes), D0)
     retenido, devuelto, saldo_g = garantia(obra)
+    if p is None or not p.subtotal:  # SRV-12: sin presupuesto contractual (servicios), el monto contratado sin IGV
+        from .servicios import contrato_sin_igv
+        contrato = contrato_sin_igv(obra)
+    else:
+        contrato = p.subtotal
     return {
-        'presupuesto': p, 'contrato': p.subtotal if p else D0,
+        'presupuesto': p, 'contrato': contrato,
         'valorizado': valorizado, 'avance_pct': (valorizado / p.subtotal * 100).quantize(Decimal('0.1'))
         if p and p.subtotal else D0,
         'facturado': sum((v.total_factura for v in vigentes if v.estado == 'FACTURADA'), D0),

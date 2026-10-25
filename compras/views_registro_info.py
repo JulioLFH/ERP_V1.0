@@ -17,8 +17,11 @@ class RegistroInfoForm(BootstrapMixin, forms.ModelForm):
         model = RegistroInfo
         fields = ['producto', 'proveedor', 'codigo_proveedor', 'moneda', 'precio', 'vigente_hasta', 'plazo_entrega',
                   'cantidad_minima', 'preferido', 'fijo_desde', 'fijo_hasta', 'homologado', 'bloqueado',
-                  'motivo_bloqueo', 'activo', 'observaciones']
-        widgets = {'vigente_hasta': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d')}
+                  'motivo_bloqueo', 'calificacion', 'cuestionario', 'auditoria_fecha', 'muestras_aprobadas',
+                  'calificado_hasta', 'nivel_inspeccion', 'activo', 'observaciones']
+        widgets = {'vigente_hasta': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+                   'auditoria_fecha': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+                   'calificado_hasta': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d')}
 
     def clean(self):
         d = super().clean()

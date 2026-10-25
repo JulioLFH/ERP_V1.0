@@ -16,7 +16,8 @@ from core.validacion import Validable
 
 D0 = Decimal('0')
 NORMAS = [('', '—'), ('ISO9001', 'ISO 9001 (calidad)'), ('ISO14001', 'ISO 14001 (ambiental)'),
-          ('ISO45001', 'ISO 45001 (SST)'), ('LEY29783', 'Ley 29783 (SST)'), ('OTRA', 'Otra')]
+          ('ISO45001', 'ISO 45001 (SST)'), ('LEY29783', 'Ley 29783 (SST)'),
+          ('BPM_DIGEMID', 'BPM DIGEMID (DS 021-2018-SA)'), ('OTRA', 'Otra')]
 
 
 def _anio():
@@ -76,7 +77,7 @@ class Auditoria(Validable):
     ESTADOS = [('PROGRAMADA', 'Programada'), ('REALIZADA', 'Realizada'), ('CERRADA', 'Cerrada')]
     codigo = models.CharField('Código', max_length=12, blank=True, editable=False)
     anio = models.PositiveSmallIntegerField('Programa (año)', default=_anio)
-    norma = models.CharField(max_length=10, choices=NORMAS, default='ISO9001')
+    norma = models.CharField(max_length=11, choices=NORMAS, default='ISO9001')
     tipo = models.CharField(max_length=8, choices=TIPOS, default='INTERNA')
     fecha = models.DateField('Fecha')
     area = models.ForeignKey('planillas.UnidadOrganizativa', on_delete=models.SET_NULL, null=True, blank=True,
@@ -120,7 +121,7 @@ class NoConformidad(Validable):
     codigo = models.CharField('Código', max_length=12, blank=True, editable=False)
     fecha = models.DateField(default=timezone.localdate)
     origen = models.CharField(max_length=15, choices=ORIGENES, default='OTRO')
-    norma = models.CharField(max_length=10, choices=NORMAS, blank=True)
+    norma = models.CharField(max_length=11, choices=NORMAS, blank=True)
     descripcion = models.TextField('Descripción')
     area = models.ForeignKey('planillas.UnidadOrganizativa', on_delete=models.SET_NULL, null=True, blank=True,
                              related_name='+', verbose_name='Área')
@@ -175,12 +176,22 @@ class DocumentoControlado(Validable):
     codigo = models.CharField('Código', max_length=30, help_text='Ej. PR-SST-01')
     titulo = models.CharField('Título', max_length=200)
     tipo = models.CharField(max_length=13, choices=TIPOS, default='PROCEDIMIENTO')
-    norma = models.CharField(max_length=10, choices=NORMAS, blank=True)
+    norma = models.CharField(max_length=11, choices=NORMAS, blank=True)
     area = models.ForeignKey('planillas.UnidadOrganizativa', on_delete=models.SET_NULL, null=True, blank=True,
                              related_name='+', verbose_name='Área')
     elaborado_por = models.CharField('Elaborado por', max_length=120, blank=True)
     proxima_revision = models.DateField('Próxima revisión', null=True, blank=True)
     resumen = models.TextField('Resumen / cambios de esta versión', blank=True)
+    # v1.84 (CAL-09): revisión y aprobación con firma electrónica, vigencia, distribución y lectura obligatoria
+    revisado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False)
+    revisado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False)
+    fecha_vigencia = models.DateField('Vigente desde', null=True, blank=True)
+    puestos = models.ManyToManyField('planillas.Puesto', blank=True, related_name='documentos_controlados',
+                                     verbose_name='Distribución (puestos que lo deben leer)')
+    lectura_obligatoria = models.BooleanField('Lectura obligatoria con constancia', default=False)
 
     class Meta:
         ordering = ['codigo', '-version']
@@ -298,3 +309,19 @@ class Sugerencia(models.Model):
 
     def get_absolute_url(self):
         return reverse('calidad:registro', args=['sugerencias', self.pk])
+
+
+class LecturaDocumento(models.Model):
+    """CAL-09: constancia de que el trabajador leyó (o fue capacitado en) la versión vigente del documento."""
+    documento = models.ForeignKey(DocumentoControlado, on_delete=models.CASCADE, related_name='lecturas')
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    trabajador = models.ForeignKey('planillas.Trabajador', on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+')
+    fecha = models.DateTimeField(auto_now_add=True)
+    capacitacion = models.CharField('Capacitación / evidencia', max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['-fecha']
+        unique_together = [('documento', 'usuario')]
+        verbose_name = 'lectura de documento'
+        verbose_name_plural = 'lecturas de documentos'

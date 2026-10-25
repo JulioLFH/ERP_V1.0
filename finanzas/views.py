@@ -524,10 +524,11 @@ def flujo_proyectado(request):
         semanas = min(max(int(request.GET.get('semanas', 12)), 4), 26)
     except ValueError:
         semanas = 12
-    p = proyectar(semanas, cuentas=cuentas_permitidas(request.user))
+    moneda = request.GET.get('moneda') if request.GET.get('moneda') in ('PEN', 'USD') else ''
+    p = proyectar(semanas, cuentas=cuentas_permitidas(request.user), moneda=moneda or None)
     if request.GET.get('formato') == 'excel':
         encabezado = ['Concepto', 'Tipo'] + [f'{d:%d/%m}-{h:%d/%m}' for d, h in p['semanas']] + ['Total']
-        filas = [['Saldo inicial de caja y bancos', ''] + [''] * semanas + [p['saldo_inicial']]]
+        filas = [['Saldo inicial de caja y bancos', ''] + p['saldos_iniciales'] + [p['saldo_inicial']]]
         filas += [[f['concepto'], f['tipo'].capitalize()] + f['valores'] + [f['total']] for f in p['filas']]
         filas += [['Total ingresos', ''] + p['ingresos'] + [sum(p['ingresos'], D0)],
                   ['Total egresos', ''] + p['egresos'] + [sum(p['egresos'], D0)],
@@ -535,7 +536,7 @@ def flujo_proyectado(request):
         return excel_response('Flujo_proyectado', 'FLUJO DE CAJA PROYECTADO (S/)', encabezado, filas)
     from ventas.crm_reportes import pronostico_semanal  # CRM-16: lo que viene del embudo (referencial)
     crm = pronostico_semanal(p['semanas'])
-    return render(request, 'finanzas/flujo_proyectado.html', {'p': p, 'semanas_n': semanas,
+    return render(request, 'finanzas/flujo_proyectado.html', {'p': p, 'semanas_n': semanas, 'moneda': moneda,
                                                               'opciones_semanas': [4, 8, 12, 16, 26],
                                                               'crm_pronostico': crm if any(crm) else None})
 

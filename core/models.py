@@ -62,6 +62,11 @@ class Empresa(models.Model):
     telefono = models.CharField('Teléfono', max_length=50, blank=True)
     email = models.EmailField(blank=True)
     igv_tasa = models.DecimalField('Tasa IGV %', max_digits=5, decimal_places=2, default=Decimal('18.00'))
+    regla_salida = models.CharField('Regla de salida de lotes', max_length=6, default='FEFO',
+                                    choices=[('FEFO', 'FEFO: sale primero lo que vence primero'),
+                                             ('FIFO', 'FIFO: sale primero lo que ingresó primero'),
+                                             ('MANUAL', 'Manual: se indica el lote en cada salida')],
+                                    help_text='La de los productos que no indican otra (INV-29)')
     ubigeo = models.CharField(max_length=6, blank=True, help_text='Ubigeo del domicilio fiscal (6 dígitos)')
     registro_mtc = models.CharField('Registro MTC', max_length=20, blank=True,
                                     help_text='Solo si emite guías como transportista')
@@ -237,6 +242,17 @@ class Tercero(models.Model):
     dias_credito = models.PositiveIntegerField('Días de crédito', default=0)
     limite_credito = models.DecimalField('Límite de crédito S/', max_digits=14, decimal_places=2, default=D0,
                                          help_text='Deuda máxima permitida en ventas al crédito. 0 = sin límite')
+    # FIN-03 y FIN-04: cobranza y programación de pagos
+    gestor_cobranza = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='+', verbose_name='Gestor de cobranza')
+    bloqueado_mora = models.BooleanField('Bloqueado por mora', default=False, editable=False,
+                                         help_text='Lo marca la cobranza al superar los días de mora del parámetro')
+    proveedor_critico = models.BooleanField('Proveedor crítico', default=False,
+                                            help_text='Se paga primero en la propuesta de pagos')
+    descuento_pronto_pago_pct = models.DecimalField('Descuento por pronto pago %', max_digits=5, decimal_places=2,
+                                                    default=D0, help_text='Proveedor: descuento si se paga a tiempo')
+    dias_pronto_pago = models.PositiveSmallIntegerField('Días para el pronto pago', default=0,
+                                                        help_text='Desde la emisión de la factura')
     lista_precios = models.ForeignKey('ventas.ListaPrecios', on_delete=models.SET_NULL, null=True, blank=True,
                                       related_name='clientes', verbose_name='Lista de precios',
                                       help_text='Precios especiales del cliente (mayorista, distribuidor…)')
@@ -402,6 +418,25 @@ class Producto(models.Model):
                                choices=[('', 'Sin lote ni serie'), ('LOTE', 'Por lote (con vencimiento)'),
                                         ('SERIE', 'Por número de serie (unidad por unidad)')],
                                help_text='Farmacia y alimentos: por lote. Equipos: por número de serie')
+    # ---- lotes y vencimientos (INV-28, INV-29)
+    exige_vencimiento = models.BooleanField('Lote con vencimiento obligatorio', default=True,
+                                            help_text='Por lote: no ingresa un lote sin vencimiento')
+    regla_salida = models.CharField('Regla de salida de lotes', max_length=6, blank=True, default='',
+                                    choices=[('', 'La de la empresa (Ajustes › Empresa)'),
+                                             ('FEFO', 'FEFO: sale primero lo que vence primero'),
+                                             ('FIFO', 'FIFO: sale primero lo que ingresó primero'),
+                                             ('MANUAL', 'Manual: se indica el lote en cada salida')])
+    vida_util_dias = models.PositiveIntegerField('Vida útil (días)', default=0,
+                                                 help_text='Vencimiento = fabricación + vida útil (0 = no se calcula)')
+    vencimiento_mes = models.BooleanField('Vence por mes', default=False,
+                                          help_text='El vencimiento es el último día del mes (MM/AAAA)')
+    vida_remanente_recepcion = models.PositiveIntegerField(
+        'Vida remanente mínima para recibir (días)', default=0, help_text='0 = sin mínimo')
+    vida_remanente_despacho = models.PositiveIntegerField(
+        'Vida remanente mínima para despachar (días)', default=0, help_text='0 = sin mínimo')
+    exige_proveedor_calificado = models.BooleanField(
+        'Solo de proveedores calificados', default=False,
+        help_text='CAL-10: la orden de compra y la recepción exigen un proveedor aprobado y vigente para el producto')
     afectacion_igv = models.CharField('Afectación del IGV', max_length=10, choices=AFECTACION_LINEA, blank=True,
                                       default='', help_text='Ej. libros (exonerados) o productos agrarios '
                                                             '(inafectos). Vacío = según el comprobante')
@@ -557,12 +592,13 @@ class Producto(models.Model):
             'cantidad', flat=True).first() or D0
 
     def mover_stock(self, cantidad, referencia, costo=None, fecha=None, almacen=None, origen='', concepto='',
-                    codigo_sunat='', lotes=None, lotes_de=None, centro_costo=None, cuenta_contra=None):
+                    codigo_sunat='', lotes=None, lotes_de=None, centro_costo=None, cuenta_contra=None, destino=None):
         """cantidad > 0 entrada, < 0 salida. Actualiza costo promedio en entradas y el stock del almacén.
 
-        Productos con lote o serie: `lotes` = [(código, cantidad, vencimiento)] indica los lotes; `lotes_de` = la
-        referencia de un movimiento que se revierte (vuelven a los mismos lotes). Sin ninguno, las salidas toman
-        primero lo que vence primero (FEFO).
+        Productos con lote o serie: `lotes` = [(código, cantidad, vencimiento[, fabricación])] indica los lotes;
+        `lotes_de` = la referencia de un movimiento que se revierte (vuelven a los mismos lotes). Sin ninguno, las
+        salidas siguen la regla de salida (FEFO, FIFO o manual) sobre el stock libre (inventario/estados.py).
+        `destino`: almacén al que va un traslado (un lote no libre solo se traslada a calidad o cuarentena).
 
         Una salida con `costo` (reversión de una entrada) sale a ese costo y no al promedio: el promedio se recalcula
         para que el valor del inventario quede como antes de la entrada (INV-16)."""
@@ -575,6 +611,10 @@ class Producto(models.Model):
         almacen.validar_operacion(origen, concepto, referencia)  # operaciones permitidas del almacén
         from inventario.fisico import validar_movimiento
         validar_movimiento(self, almacen)  # producto en un inventario físico con bloqueo
+        categoria = categoria_movimiento(origen, concepto)
+        if cantidad < 0 and not lotes_de:  # INV-26: lo que está en calidad o bloqueado solo sale trasladándolo
+            from inventario.estados import validar_almacen_origen
+            validar_almacen_origen(self, almacen, categoria, concepto, origen, destino)
         with transaction.atomic():
             # se relee y bloquea el producto: dos líneas del mismo producto no deben pisarse
             actual = Producto.objects.select_for_update().get(pk=self.pk)
@@ -593,8 +633,8 @@ class Producto(models.Model):
             sa.save(update_fields=['cantidad'])
             signo = 1 if cantidad > 0 else -1
             saldo = saldo_inicial
-            venta = signo < 0 and categoria_movimiento(origen, concepto) == 'VENTAS'
-            for lote, parte in self._repartir_lotes(abs(cantidad), signo, almacen, lotes, lotes_de, venta):
+            for lote, parte in self._repartir_lotes(abs(cantidad), signo, almacen, lotes, lotes_de, categoria,
+                                                    concepto, origen, destino, fecha):
                 if lote is not None:
                     sl, _ = StockLote.objects.select_for_update().get_or_create(lote=lote, almacen=almacen)
                     sl.cantidad += signo * parte
@@ -614,27 +654,37 @@ class Producto(models.Model):
         return apps.get_model('produccion', 'PlantillaCertificado').objects.filter(
             producto=self, requiere_liberacion=True).exists()
 
-    def _repartir_lotes(self, cantidad, signo, almacen, lotes, lotes_de, venta=False):
-        """[(Lote o None, cantidad)] del movimiento. Sin control de lotes: una sola parte sin lote. En una venta no
-        sale un lote en cuarentena o rechazado por Calidad."""
+    def _repartir_lotes(self, cantidad, signo, almacen, lotes, lotes_de, categoria=None, concepto='', origen='',
+                        destino=None, fecha=None):
+        """[(Lote o None, cantidad)] del movimiento. Sin control de lotes: una sola parte sin lote. Un lote en
+        cuarentena, rechazado, bloqueado o vencido no sale salvo las excepciones de inventario/estados.py; la salida
+        sin lote indicado sigue la regla de salida sobre el stock libre."""
         if not self.control:
             return [(None, cantidad)]
-        from inventario.cierre import KardexCerrado
+        from inventario import estados
         partes, restante = [], cantidad
         if lotes:
-            for codigo, cant, vence in lotes:
-                lote, creado = Lote.objects.get_or_create(producto=self, codigo=str(codigo).strip().upper()[:60],
-                                                          defaults={'vencimiento': vence})
-                if creado and signo > 0 and self._requiere_liberacion():
-                    lote.estado_calidad = 'CUARENTENA'  # entra bloqueado hasta que Calidad apruebe su certificado
-                    lote.save(update_fields=['estado_calidad'])
-                if venta and lote.bloqueado:
-                    raise KardexCerrado(f'El lote {lote.codigo} de {self.nombre} está '
-                                        f'{lote.get_estado_calidad_display().lower()}: no se vende hasta que Calidad '
-                                        f'apruebe su certificado de análisis.')
-                if vence and not lote.vencimiento:
-                    lote.vencimiento = vence
-                    lote.save(update_fields=['vencimiento'])
+            for datos in lotes:
+                codigo, cant, vence = datos[0], datos[1], datos[2] if len(datos) > 2 else None
+                fabricacion = datos[3] if len(datos) > 3 else None
+                lote, creado = Lote.objects.get_or_create(producto=self, codigo=str(codigo).strip().upper()[:60])
+                if signo > 0:
+                    vence = estados.validar_ingreso(self, lote, creado, vence, fabricacion, categoria, fecha,
+                                                    inicial=concepto in ('INICIAL', 'SALDO_INI'))
+                    cambios = []
+                    if vence and lote.vencimiento != vence:
+                        lote.vencimiento = vence
+                        cambios.append('vencimiento')
+                    if fabricacion and not lote.fabricacion:
+                        lote.fabricacion = fabricacion
+                        cambios.append('fabricacion')
+                    if creado and (self._requiere_liberacion() or getattr(self, '_ingreso_a_calidad', False)):
+                        lote.estado_calidad = 'CUARENTENA'  # entra en calidad hasta que Calidad lo libere
+                        cambios.append('estado_calidad')
+                    if cambios:
+                        lote.save(update_fields=cambios)
+                else:
+                    estados.validar_salida_lote(self, lote, categoria, concepto, origen, destino, fecha)
                 partes.append((lote, Decimal(cant)))
                 restante -= Decimal(cant)
         elif lotes_de:
@@ -650,28 +700,34 @@ class Producto(models.Model):
                 partes.append((Lote.objects.get(pk=fila['lote']), parte))
                 restante -= parte
         if restante > 0 and signo < 0:
-            # FEFO: sale primero lo que vence primero (sin vencimiento al final)
+            regla = estados.regla_de(self)
+            excepcion = estados.salida_permitida(None, categoria, concepto, origen, destino)
+            if regla == 'MANUAL' and not excepcion and not lotes_de:
+                raise estados.ErrorLote(f'{self.nombre} sale con lote indicado (regla de salida manual): indique el '
+                                        f'lote.')
             usados = {}
             for lote, parte in partes:
                 usados[lote.pk] = usados.get(lote.pk, D0) + parte
-            disponibles = (StockLote.objects.filter(lote__producto=self, almacen=almacen, cantidad__gt=0)
-                           .select_related('lote').order_by(models.F('lote__vencimiento').asc(nulls_last=True),
-                                                            'lote__creado', 'lote__codigo'))
-            bloqueados = []
+            disponibles = estados.orden_salida(
+                StockLote.objects.filter(lote__producto=self, almacen=almacen, cantidad__gt=0).select_related('lote'),
+                regla)
+            saltados = []
             for sl in disponibles:
                 if restante <= 0:
                     break
-                if venta and sl.lote.bloqueado:
-                    bloqueados.append(sl.lote.codigo)
+                # INV-27: la salida automática solo toma lotes libres y vigentes (salvo destrucción o devolución)
+                if not excepcion and not estados.utilizable(self, sl.lote, categoria, fecha):
+                    saltados.append(sl.lote)
                     continue
                 parte = min(sl.cantidad - usados.get(sl.lote_id, D0), restante)
                 if parte > 0:
                     partes.append((sl.lote, parte))
                     restante -= parte
-            if restante > 0 and bloqueados:
-                raise KardexCerrado(f'No hay stock liberado de {self.nombre} en {almacen}: el lote '
-                                    f'{", ".join(bloqueados)} está en cuarentena o rechazado; Calidad debe aprobar su '
-                                    f'certificado de análisis antes de venderlo.')
+            if restante > 0 and saltados:
+                detalle = ', '.join(f'{lt.codigo} ({"vencido" if lt.vencimiento and lt.vencimiento < (fecha or timezone.localdate()) else lt.get_estado_calidad_display().lower()})'
+                                    for lt in saltados[:5])
+                raise estados.ErrorLote(f'No hay stock libre suficiente de {self.nombre} en {almacen}: faltan '
+                                        f'{restante.normalize():f}; no se toman los lotes {detalle}.')
         elif restante > 0:
             lote, _ = Lote.objects.get_or_create(producto=self, codigo='S/L')  # ingreso sin lote indicado
             partes.append((lote, restante))
@@ -723,6 +779,7 @@ class Almacen(models.Model):
     codigo_sunat = models.CharField('Cód. establecimiento SUNAT', max_length=4, default='0000')
     es_principal = models.BooleanField('Principal', default=False)
     USOS = [('', 'Almacén normal'), ('TRANSITO', 'Mercadería en tránsito'),
+            ('CALIDAD', 'En control de calidad (no libre)'), ('BLOQUEO', 'Stock bloqueado (no libre)'),
             ('DESTRUCCION', 'Cuarentena / por destruir'), ('TERCEROS', 'En poder de terceros (maquila)')]
     uso = models.CharField('Uso', max_length=12, choices=USOS, blank=True)
     tercero = models.ForeignKey('Tercero', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
@@ -1507,9 +1564,11 @@ class Lote(models.Model):
     fabricacion = models.DateField('Fabricación', null=True, blank=True)
     # liberación por Calidad (certificado de análisis): en cuarentena o rechazado no se vende
     ESTADOS_CALIDAD = [('LIBRE', 'Sin control de calidad'), ('CUARENTENA', 'En cuarentena'),
-                       ('LIBERADO', 'Liberado por Calidad'), ('RECHAZADO', 'Rechazado por Calidad')]
-    BLOQUEADOS = ('CUARENTENA', 'RECHAZADO')
+                       ('LIBERADO', 'Liberado por Calidad'), ('RECHAZADO', 'Rechazado por Calidad'),
+                       ('BLOQUEADO', 'Bloqueado')]
+    BLOQUEADOS = ('CUARENTENA', 'RECHAZADO', 'BLOQUEADO')
     estado_calidad = models.CharField('Calidad', max_length=10, choices=ESTADOS_CALIDAD, default='LIBRE')
+    motivo_estado = models.CharField('Motivo del estado', max_length=250, blank=True)
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1519,6 +1578,12 @@ class Lote(models.Model):
     @property
     def bloqueado(self):
         return self.estado_calidad in self.BLOQUEADOS
+
+    @property
+    def estado_stock(self):
+        """Libre, En calidad o Bloqueado (INV-26)."""
+        from inventario.estados import estado_de_lote
+        return {'LIBRE': 'Libre', 'CALIDAD': 'En calidad', 'BLOQUEADO': 'Bloqueado'}[estado_de_lote(self)]
 
     def __str__(self):
         return f'{self.codigo}' + (f' (vence {self.vencimiento:%d/%m/%Y})' if self.vencimiento else '')
@@ -2139,3 +2204,25 @@ class ConsultaRUC(models.Model):
     @property
     def alerta(self):
         return (self.estado not in ('', 'ACTIVO')) or (self.condicion not in ('', 'HABIDO'))
+
+
+class FirmaElectronica(models.Model):
+    """Firma electrónica (v1.84, CAL-03): el usuario vuelve a escribir su contraseña al firmar; queda su nombre, la
+    fecha y hora, el significado («Liberado por QA», «Revisado», «Aprobado») y el registro firmado (21 CFR 11 /
+    Anexo 11 de las BPM)."""
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    nombre = models.CharField(max_length=150)
+    significado = models.CharField(max_length=120)
+    modelo = models.CharField(max_length=100)
+    objeto_id = models.CharField(max_length=40)
+    objeto = models.CharField(max_length=200)
+    ip = models.CharField(max_length=45, blank=True)
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'firma electrónica'
+        verbose_name_plural = 'firmas electrónicas'
+
+    def __str__(self):
+        return f'{self.nombre} · {self.significado} · {timezone.localtime(self.fecha):%d/%m/%Y %H:%M}'

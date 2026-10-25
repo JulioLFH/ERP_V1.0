@@ -1,0 +1,33 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Cobranza · {{ t.nombre }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title mb-0">{{ t.nombre }} {% if t.bloqueado_mora %}<span class="badge text-bg-danger fs-6 align-middle">Bloqueado por mora</span>{% endif %}</h1>
+    <div class="small text-muted">{{ t.numero_doc }} · {{ t.email|default:'sin correo' }} · {{ t.telefono|default:'sin teléfono' }} · crédito {{ t.dias_credito }} días{% if t.limite_credito %} · límite S/ {{ t.limite_credito|money }}{% endif %}</div></div>
+  <a href="{% url 'finanzas:cobranza_gestion' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Cartera</a>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2"><div class="small text-muted">Saldo por cobrar</div><div class="fs-5 fw-semibold">S/ {{ saldo|money }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2"><div class="small text-muted">DSO (90 días)</div><div class="fs-5 fw-semibold">{{ dso|default:'—' }} días</div></div></div></div>
+  <div class="col-md-6"><div class="card h-100"><form method="post" class="card-body py-2 d-flex gap-2 align-items-end small">{% csrf_token %}<input type="hidden" name="accion" value="gestor">
+    <div class="flex-grow-1"><label class="form-label mb-1">Gestor de cobranza</label><select name="gestor" class="form-select form-select-sm"><option value="">Sin asignar</option>{% for u in usuarios %}<option value="{{ u.pk }}"{% if u.pk == t.gestor_cobranza_id %} selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select></div>
+    {% if puede.finanzas_cobranza %}<button class="btn btn-sm btn-outline-primary">Asignar</button>{% endif %}</form></div></div>
+</div>
+<div class="card mb-3"><div class="card-header small fw-semibold">Comprobantes pendientes</div><div class="table-responsive"><table class="table table-sm mb-0 small align-middle">
+  <thead><tr><th>Comprobante</th><th>Emisión</th><th>Vence</th><th class="num">Saldo</th><th class="num">Mora</th><th>Vendedor</th><th></th></tr></thead>
+  <tbody>{% for d in docs %}<tr{% if d.dias_mora > 30 %} class="table-danger"{% elif d.dias_mora %} class="table-warning"{% endif %}><td>{{ d }}</td><td>{{ d.fecha_emision|date:'d/m/Y' }}</td><td>{{ d.fecha_vencimiento|date:'d/m/Y' }}</td><td class="num">{{ d.moneda }} {{ d.saldo|money }}</td><td class="num">{{ d.dias_mora }} d</td><td>{{ d.vendedor }}</td><td>{% if d.whatsapp %}<a href="{{ d.whatsapp }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success py-0"><i class="bi bi-whatsapp"></i> Recordar</a>{% endif %}</td></tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-3">Sin deuda pendiente.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<div class="row g-3">
+  <div class="col-lg-5">{% if puede.finanzas_cobranza %}<form method="post" class="card">{% csrf_token %}<input type="hidden" name="accion" value="gestion">
+    <div class="card-header small fw-semibold">Registrar gestión</div><div class="card-body row g-2 small">
+      <div class="col-6"><label class="form-label mb-1">Tipo</label><select name="tipo" class="form-select form-select-sm">{% for v, n in tipos %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>
+      <div class="col-6"><label class="form-label mb-1">Comprobante</label><select name="venta" class="form-select form-select-sm"><option value="">Toda la deuda</option>{% for d in docs %}<option value="{{ d.pk }}">{{ d }}</option>{% endfor %}</select></div>
+      <div class="col-12"><label class="form-label mb-1">Resultado</label><input name="resultado" minlength="5" required class="form-control form-control-sm" placeholder="Ej. habló con tesorería, paga el viernes"></div>
+      <div class="col-6"><label class="form-label mb-1">Promete pagar el</label><input type="date" name="promesa_fecha" min="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+      <div class="col-6"><label class="form-label mb-1">Monto prometido</label><input name="promesa_monto" inputmode="decimal" class="form-control form-control-sm"></div>
+      <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> Registrar</button></div></div></form>{% endif %}</div>
+  <div class="col-lg-7"><div class="card"><div class="card-header small fw-semibold">Historial de gestiones</div><ul class="list-group list-group-flush small">
+    {% for g in gestiones %}<li class="list-group-item"><b>{{ g.fecha|date:'d/m/Y' }} · {{ g.get_tipo_display }}</b>{% if g.venta %} · {{ g.venta }}{% endif %} — {{ g.resultado }}{% if g.promesa_fecha %}<div class="{% if g.estado_promesa == 'INCUMPLIDA' %}text-danger{% elif g.estado_promesa == 'CUMPLIDA' %}text-success{% endif %}">Promesa: {{ g.promesa_fecha|date:'d/m/Y' }}{% if g.promesa_monto %} por S/ {{ g.promesa_monto|money }}{% endif %} · {{ g.get_estado_promesa_display }}</div>{% endif %}<div class="text-muted">{{ g.usuario|default:'' }}</div></li>{% empty %}<li class="list-group-item text-muted">Sin gestiones.</li>{% endfor %}
+  </ul></div></div>
+</div>
+{% endblock %}

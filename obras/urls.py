@@ -51,6 +51,7 @@ urlpatterns = [
     # servicios profesionales por proyecto (EMP-02, SRV-01 a 06)
     path('<int:pk>/entregables/', srv.entregables, name='entregables'),
     path('<int:pk>/horas/', srv.horas, name='horas'),
+    path('<int:pk>/presupuesto-proyecto/', srv.presupuesto, name='presupuesto_proyecto'),
     path('partes-horas/', srv.partes_horas, name='partes_horas'),
     path('partes-horas/por-aprobar/', srv.partes_aprobar, name='partes_aprobar'),
     path('garantias/', srv.garantias, name='garantias'),

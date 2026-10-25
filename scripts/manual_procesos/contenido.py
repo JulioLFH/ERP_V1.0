@@ -361,6 +361,8 @@ M['inventario'] = {
         'Kardex': 'Movimientos valorizados de un producto con saldo y costo promedio.',
         'Kardex del sistema anterior': 'Consulta del kardex migrado del sistema anterior.',
         'Lotes, series y vencimientos': 'Stock por lote o serie y productos por vencer.',
+        'Estado del stock (libre, en calidad, bloqueado)': 'Stock por estado y cambios de estado con motivo y permiso.',
+        'Trazabilidad por lote': 'De qué lotes de insumos salió un lote y a qué clientes llegó.',
         'Inventario permanente SUNAT 12.1 / 13.1': 'Libros de inventario permanente en unidades y valorizado.',
         'Valorización al cierre': 'Valor del inventario al cierre de un periodo.',
         'Cierre de kardex': 'Cerrar el periodo del kardex.',
@@ -462,50 +464,102 @@ M['planificacion'] = {
 }
 
 M['control_calidad'] = {
-    'intro': ('Control de calidad de la producción y las recepciones: planes de calidad por producto, inspecciones, '
-              'certificados de análisis y liberación de lotes en cuarentena. Se asigna por usuario, separado de '
-              'Manufactura (las no conformidades y auditorías del sistema de gestión están en Excelencia organizacional).'),
+    'intro': ('Control de calidad de la producción y las recepciones con el nivel de las BPM de DIGEMID (DS '
+              '021-2018-SA) y la integridad de datos de 21 CFR 11 / Anexo 11: especificaciones versionadas y aprobadas '
+              'por QA, inspecciones con rastro de auditoría, investigaciones OOS, liberación con firma electrónica y '
+              'segregación de funciones, expediente de lote, desviaciones, control de cambios, quejas, retiros, '
+              'contramuestras, estabilidad, calibración y proveedores calificados. Se asigna por usuario, separado de '
+              'Manufactura.'),
     'procesos': [
-        ('Planes e inspecciones', [
-            'Defina los <b>Planes de calidad por producto</b> (características, límites, muestreo).',
-            'Registre las <b>Inspecciones de calidad</b> en recepción, proceso o producto terminado (permiso «inspecciones»); un rechazo pone el lote en cuarentena.',
-        ], 'Cada lote con su resultado de calidad.'),
-        ('Certificado y liberación de lotes', [
-            'Emita el <b>Certificado de análisis</b> con los resultados de la inspección.',
-            'Apruébelo y libere el lote en cuarentena (permiso «liberar_lotes»).',
-        ], 'Solo se despachan lotes liberados.'),
+        ('Especificaciones e inspecciones', [
+            'Defina el <b>Plan de calidad</b> del producto (característica, método, referencia de farmacopea, límites) y apruebe la versión con su firma (permiso «especificaciones»); la inspección guarda la versión usada.',
+            'Registre la <b>Nueva inspección</b>: el lote se elige de los que tienen stock, la cantidad no supera el stock y el instrumento debe tener la calibración vigente.',
+            'Cada valor queda en el rastro de auditoría; una corrección exige motivo y el valor original no se borra. Una inspección decidida solo la reabre QA con motivo y firma (permiso «reabrir»).',
+        ], 'Resultados confiables y trazables por lote.'),
+        ('Fuera de especificación (OOS)', [
+            'Un valor fuera del rango deja la inspección «En investigación» y abre la <b>Investigación OOS</b>.',
+            'Fase I (error de laboratorio) con reanálisis o fase II (proceso); la cierra QA con su firma (permiso «aprobar_oos»). Confirmado, el lote queda rechazado.',
+        ], 'Ningún OOS se aprueba ni se libera sin investigación cerrada.'),
+        ('Liberación del lote', [
+            'Emita el <b>Certificado de análisis</b> (solo lotes con stock y vigentes).',
+            'La revisión de QA bloquea si hay desviaciones, OOS, cambios abiertos o el expediente de lote incompleto.',
+            'Libere con <b>firma electrónica</b> (su contraseña, significado «Liberado por QA»): quien analizó no puede liberar.',
+        ], 'Solo se despachan lotes liberados con firma.'),
+        ('Sistema de calidad farmacéutico', [
+            'Registre <b>Desviaciones</b> (crítica, mayor, menor), <b>Control de cambios</b>, <b>Quejas por lote</b> y <b>Retiros de mercado y simulacros</b> con la lista de clientes del lote.',
+            'Controle las <b>Contramuestras</b>, los <b>Estudios de estabilidad</b> y la <b>Revisión anual de producto (PQR)</b>.',
+            'Califique a los <b>Proveedores</b> por material: sin calificación vigente no se aprueba la OC ni se recibe; la inspección es completa o reducida según su historial.',
+            'Mantenga la <b>Calibración y calificación</b> de instrumentos y equipos y el paquete de <b>Validación del sistema (CSV)</b>.',
+        ], 'Evidencia para la inspección de DIGEMID.'),
     ],
     'pantallas': {
         'Inspecciones de calidad': 'Inspecciones registradas con sus resultados.',
-        'Nueva inspección': 'Registrar una inspección.',
-        'Planes de calidad por producto': 'Características a controlar y sus límites.',
-        'Certificados de análisis y liberación de lotes': 'Certificados y liberación de lotes en cuarentena.',
+        'Nueva inspección': 'Registrar una inspección con lote, cantidad e instrumento validados.',
+        'Investigaciones OOS': 'Resultados fuera de especificación con su fase I / II, reanálisis y cierre de QA.',
+        'Planes de calidad y versiones': 'Especificaciones por producto con método, referencia, versión y aprobación de QA.',
+        'Contramuestras': 'Muestras de retención con su ubicación y vencimiento.',
+        'Estudios de estabilidad': 'Programa de estabilidad por lote con sus tiempos y resultados.',
+        'Certificados de análisis y liberación de lotes': 'Certificados, revisión de QA y liberación con firma electrónica.',
+        'Estado del stock (cuarentena, bloqueado)': 'Stock libre, en calidad y bloqueado; cambios de estado con motivo.',
+        'Trazabilidad por lote': 'Hacia atrás y hacia adelante: insumos, producción, clientes.',
+        'Desviaciones': 'Desviaciones con criticidad, impacto, causa raíz y cierre de QA.',
+        'Control de cambios': 'Cambios con evaluación de impacto y aprobación de QA.',
+        'Quejas por lote': 'Quejas de clientes vinculadas a su lote.',
+        'Retiros de mercado y simulacros': 'Retiros reales o simulados con la lista de clientes del lote.',
+        'Revisión anual de producto (PQR)': 'Resumen anual por producto: lotes, OOS, desviaciones, quejas y cambios.',
+        'Proveedores calificados': 'Calificación del proveedor por material con auditoría, muestras y vigencia.',
+        'Calibración y calificación': 'Calibración de instrumentos (certificado y vencimiento) y calificación IQ/OQ/PQ.',
+        'Validación del sistema (CSV)': 'Requisitos, pruebas y trazabilidad de Ceiba para el cliente farmacéutico.',
     },
-    'integra': [('Manufactura e Inventario', 'Lotes producidos y recibidos; cuarentena y liberación.'),
-                ('Excelencia organizacional', 'Los rechazos pueden abrir una no conformidad.')],
+    'integra': [('Manufactura e Inventario', 'Lotes producidos y recibidos; cuarentena, bloqueo y liberación.'),
+                ('Compras', 'Proveedores calificados en la OC y la recepción.'),
+                ('Mantenimiento', 'Órdenes de calibración e instrumentos.'),
+                ('Excelencia organizacional', 'Documentos controlados con firmas y lectura obligatoria.')],
 }
 
 M['mantenimiento'] = {
-    'intro': ('Mantenimiento de equipos y máquinas: equipos con planes preventivos por tiempo u horómetro, órdenes de '
-              'mantenimiento preventivas y correctivas con repuestos y horas, lecturas diarias y documentos por vencer. '
-              'Comparte el maestro de equipos con la flota de Logística. Se asigna por usuario, separado de Manufactura.'),
+    'intro': ('Mantenimiento de equipos y máquinas: avisos del operador que se aprueban y pasan a orden, planes '
+              'preventivos por tiempo, por contador o por condición con hoja de tareas y materiales, órdenes con '
+              'técnicos, horas, repuestos reservados, permiso de trabajo y LOTO, calendario semanal con ventanas de '
+              'parada, la página del técnico en el celular, historial técnico con códigos de falla y el tablero de '
+              'indicadores (MTBF, MTTR, disponibilidad, cumplimiento, backlog y Pareto). Comparte el maestro de '
+              'equipos con la flota de Logística. Se asigna por usuario, separado de Manufactura.'),
     'procesos': [
-        ('Equipos y planes preventivos', [
-            'Registre los <b>Equipos y planes preventivos</b> por tiempo u horómetro (permiso «registrar»).',
-            'Registre las lecturas en el <b>Parte diario de horómetros / odómetros</b>.',
-            'Controle los <b>Documentos de equipos por vencer</b> (también salen en Inicio).',
+        ('Equipos y planes', [
+            'Registre los <b>Equipos y planes preventivos</b> con su criticidad, ubicación técnica, garantía, valor de reposición y presupuesto anual.',
+            'El plan puede ser por días, por horómetro u odómetro (lo que ocurra primero) o por condición (variable con umbral); en la tarea del plan cargue la <b>hoja de tareas</b> y los <b>materiales</b>.',
+            'Registre las <b>Lecturas de condición</b>: fuera del umbral se genera la orden predictiva.',
         ], 'Equipos con su plan y sus lecturas al día.'),
-        ('Órdenes de mantenimiento', [
-            'Programe los preventivos de los próximos días desde <b>Órdenes de mantenimiento</b> o cree una correctiva en <b>Nueva orden de mantenimiento</b>.',
-            'Registre repuestos (salen del almacén) y horas; cierre la orden con su costo.',
-        ], 'Equipos disponibles y costo de mantenimiento por equipo.'),
+        ('Del aviso a la orden', [
+            'El operador usa <b>Avisar una falla</b> desde el celular: síntoma, prioridad, equipo parado y foto.',
+            'Mantenimiento lo aprueba en <b>Avisos de mantenimiento</b> (permiso «avisos») y se crea la orden con su prioridad.',
+        ], 'Ninguna falla queda sin atender.'),
+        ('Ejecución y cierre', [
+            'Programe los preventivos (con la anticipación del plan) y asigne técnico y horas estimadas; vea la carga en el <b>Calendario semanal</b> junto a las ventanas de parada acordadas con producción.',
+            'Si la orden requiere permiso de trabajo o LOTO, vincule el permiso validado por SST y registre quién aplicó el bloqueo: sin eso no se inicia.',
+            'El técnico, desde <b>Mis órdenes</b>, marca el checklist, registra sus horas (costo hora de la planilla), sube fotos y anota la lectura y la conformidad.',
+            'Al cerrar: sin negativos, parada coherente con el inicio y fin, códigos de falla en el correctivo; la orden de calibración registra el certificado del instrumento.',
+        ], 'Costo real por orden y equipo disponible.'),
+        ('Indicadores', [
+            'Revise el <b>Tablero de mantenimiento</b>: MTBF, MTTR, disponibilidad, cumplimiento del preventivo, backlog, % preventivo, costo vs valor de reposición, presupuesto y Pareto de fallas (con Excel).',
+            'Controle los <b>Repuestos críticos</b> con su stock mínimo y lo reservado en órdenes.',
+        ], 'Decisiones de reemplazo y presupuesto con datos.'),
     ],
     'pantallas': {
-        'Órdenes de mantenimiento': 'Órdenes preventivas y correctivas con su costo.',
-        'Nueva orden de mantenimiento': 'Crear una orden de mantenimiento.',
-        'Equipos y planes preventivos': 'Equipos con sus planes por tiempo u horómetro.',
+        'Avisos de mantenimiento': 'Avisos del operador por aprobar, convertidos o rechazados.',
+        'Avisar una falla': 'Registrar un aviso con síntoma, prioridad, equipo parado y foto.',
+        'Órdenes de mantenimiento': 'Órdenes preventivas, correctivas, predictivas, de mejora, inspección y calibración.',
+        'Nueva orden de mantenimiento': 'Crear una orden con prioridad, técnico, horas y costo planificado.',
+        'Mis órdenes (técnico)': 'Órdenes abiertas asignadas al técnico (para el celular).',
+        'Calendario semanal y ventanas de parada': 'Órdenes por día, carga por técnico y ventanas de parada.',
+        'Lecturas de condición': 'Temperatura, vibración o presión; fuera del umbral genera la orden.',
+        'Equipos y planes preventivos': 'Equipos con sus planes por tiempo, contador o condición.',
+        'Ubicaciones técnicas': 'Árbol planta › área › línea de los equipos.',
+        'Repuestos críticos': 'Repuestos por equipo con stock mínimo, reservado y alerta.',
         'Parte diario de horómetros / odómetros': 'Lecturas diarias de los equipos.',
         'Documentos de equipos por vencer': 'Certificados y documentos de equipos por vencer.',
+        'Tablero de mantenimiento': 'MTBF, MTTR, disponibilidad, cumplimiento, backlog, costos y Pareto de fallas.',
+        'Códigos de falla': 'Catálogo de síntomas, modos, causas y acciones.',
     },
     'integra': [('Manufactura', 'Paradas de planta y equipos de producción.'),
                 ('Logística', 'Mismo maestro de equipos y flota.'), ('Inventario', 'Repuestos del almacén.')],
@@ -1008,7 +1062,9 @@ M['tesoreria'] = {
         'Cobranza múltiple (varios clientes)': 'Un depósito aplicado a facturas de varios clientes.',
         'Pagos': 'Pagos a proveedores.',
         'Pago múltiple (varios proveedores)': 'Un pago que cancela facturas de varios proveedores.',
+        'Propuestas de pago (con aprobación)': 'Propuesta semanal de pagos que aprueba la gerencia antes del archivo del banco.',
         'Pagos masivos a bancos': 'Archivo de pagos para el banco.',
+        'Presupuesto de caja (mensual)': 'Caja mensual con escenarios, partidas manuales, tributos y beneficios.',
         'Depósito masivo de detracciones': 'Lote de detracciones para SUNAT con sus constancias.',
         'Constancias de detracción de clientes (SUNAT)': 'Constancias de los depósitos de los clientes.',
         'Conciliación automática (extracto)': 'Cruce automático del extracto con los movimientos.',
@@ -1025,10 +1081,35 @@ M['tesoreria'] = {
 }
 
 M['finanzas'] = {
-    'intro': ('Gestiona los instrumentos financieros: anticipos de clientes y a proveedores con su aplicación, '
-              'letras por cobrar y por pagar, canje de facturas por letras, préstamos y leasing con su cronograma, '
-              'y el flujo de caja proyectado.'),
+    'intro': ('El área del gerente financiero: tablero de indicadores con semáforos y análisis vertical y horizontal, '
+              'flujo de caja semanal y presupuesto de caja mensual con escenarios, gestión de cobranza (gestiones, '
+              'promesas, recordatorios, bloqueo por mora, DSO y provisión NIIF 9), propuesta de pagos con aprobación, '
+              'anticipos, letras y canjes, préstamos (francés, alemán, gracia, cuotas dobles, prepago, devengo) y '
+              'arrendamientos NIIF 16, líneas de crédito, cartas fianza, depósitos a plazo, factoring y la posición en '
+              'moneda extranjera con forwards.'),
     'procesos': [
+        ('Planeamiento de caja', [
+            'Revise el <b>Flujo de caja proyectado (semanal)</b>: los pedidos se cobran en la entrega + la condición de pago, netos de detracción y anticipos; las cotizaciones van aparte, ponderadas.',
+            'En el <b>Presupuesto de caja (mensual, escenarios)</b> elija el escenario, agregue las partidas manuales (aporte de capital, préstamo nuevo, utilidades) y guarde la proyección cada mes para ver el real vs proyectado. Incluye IGV, renta, gratificaciones y CTS en sus meses.',
+        ], 'Caja anticipada con meses de holgura o de financiamiento.'),
+        ('Crédito y cobranza', [
+            'En <b>Gestión de cobranza</b> vea la cartera por cliente con antigüedad, mora y DSO; asigne el gestor y registre cada gestión con su promesa de pago.',
+            'La tarea diaria «cobranza_diaria» envía los <b>Recordatorios</b> (−3, 0, +7, +15 y +30 días), revisa las promesas y bloquea a los clientes con mora sobre el parámetro (sus pedidos y ventas a crédito no pasan).',
+            'Al cierre registre la <b>Provisión de cobranza dudosa</b> por tramos de antigüedad (NIIF 9).',
+        ], 'Cartera controlada y provisionada.'),
+        ('Pagos', [
+            'Tesorería arma la <b>Propuesta de pagos</b>: vencimientos, proveedores críticos, descuentos por pronto pago y caja disponible.',
+            'La gerencia la aprueba (permiso «aprobar_pagos», no quien la armó) y se genera el pago masivo con el archivo del banco.',
+        ], 'Pagos priorizados y aprobados antes de ir al banco.'),
+        ('Financiamiento', [
+            'Registre las <b>Líneas de crédito</b>: los préstamos, cartas fianza y factoring descuentan su disponible.',
+            'En <b>Préstamos al cierre</b> registre el devengo de intereses y vea la deuda corriente y no corriente; en el préstamo registre prepagos o cambios de tasa.',
+            'Registre los <b>Arrendamientos (NIIF 16)</b> (derecho de uso y pasivo) y su asiento mensual en el libro NIIF, los <b>Depósitos a plazo</b> con su devengo y el <b>Factoring</b> de facturas.',
+        ], 'Deuda e inversiones al día y contabilizadas.'),
+        ('Riesgo e indicadores', [
+            'La <b>Posición en moneda extranjera</b> muestra los US$ por plazo, la exposición con forwards y la sensibilidad a ±5 % y ±10 % del tipo de cambio.',
+            'El <b>Tablero financiero</b> da liquidez, prueba ácida, DSO, DPO, DIO, ciclo de caja, endeudamiento, cobertura, EBITDA, márgenes, ROE y ROA con su tendencia; Excel y PDF para el directorio.',
+        ], 'Información para decidir y reportar.'),
         ('Anticipos', [
             'Registre el anticipo recibido o entregado en <b>Anticipos</b>.',
             'Aplíquelo a la factura cuando se emita o se reciba (permiso «registrar»).',
@@ -1046,7 +1127,24 @@ M['finanzas'] = {
         'Anticipos': 'Anticipos de clientes y a proveedores con su saldo.',
         'Letras por cobrar y pagar': 'Letras con vencimiento y estado.',
         'Canje de facturas por letras': 'Convertir facturas en letras.',
-        'Préstamos y leasing': 'Préstamos con cronograma de cuotas.',
+        'Préstamos y leasing': 'Préstamos con cronograma francés o alemán, gracia, cuotas dobles, prepago y cambio de tasa.',
+        'Tablero financiero': 'Indicadores financieros del mes con semáforo y tendencia de 12 meses.',
+        'Análisis vertical y horizontal': 'Estados de resultados y de situación comparativos con % y variación.',
+        'Flujo de caja proyectado (semanal)': 'Cobros y pagos esperados por semana con el saldo inicial de cada semana.',
+        'Presupuesto de caja (mensual, escenarios)': 'Caja mensual con escenarios, partidas manuales, tributos y beneficios.',
+        'Gestión de cobranza': 'Cartera por cliente y vendedor con antigüedad, mora, DSO, gestor y promesas.',
+        'Recordatorios de cobranza': 'Recordatorios del día por correo o WhatsApp y su historial.',
+        'Provisión de cobranza dudosa': 'Pérdida esperada por tramo (NIIF 9) y su asiento del mes.',
+        'Propuestas de pago': 'Propuestas de pago por aprobar, aprobadas y generadas.',
+        'Descuentos por pronto pago': 'Descuentos ganados, perdidos y disponibles por proveedor.',
+        'Facturas negociables y factoring': 'Anotación en CAVALI y cesión de facturas con su costo.',
+        'Préstamos al cierre (devengo y corriente)': 'Devengo de intereses del mes y deuda corriente / no corriente.',
+        'Arrendamientos (NIIF 16)': 'Derecho de uso, pasivo por arrendamiento y su asiento mensual NIIF.',
+        'Líneas de crédito': 'Límite, uso y disponible por banco.',
+        'Cartas fianza': 'Cartas fianza de la empresa y de las obras con alerta de vencimiento.',
+        'Depósitos a plazo': 'Depósitos e inversiones con su devengo de intereses.',
+        'Posición en moneda extranjera': 'US$ por rubro y plazo, exposición neta y sensibilidad.',
+        'Forwards de moneda': 'Coberturas de compra o venta de US$ con su tipo de cambio pactado.',
     },
     'integra': [
         ('Tesorería', 'Cobro y pago de letras y cuotas.'),
@@ -1568,6 +1666,7 @@ M['actividades'] = {
         'Encargadas por mí': 'Actividades encargadas a otros usuarios y su estado.',
         'Nueva actividad': 'Registrar o encargar una actividad.',
         'Aprobaciones pendientes': 'Documentos que esperan la aprobación del usuario.',
+        'Documentos por leer': 'Documentos controlados vigentes que el usuario debe leer y confirmar.',
     },
     'integra': [('Proyectos y CRM', 'Tareas y actividades del usuario.'),
                 ('Aprobaciones', 'Bandeja de documentos por aprobar.'), ('Calendario', 'Actividades con fecha.')],

@@ -135,14 +135,16 @@ class OperacionForm(BootstrapMixin, forms.ModelForm):
 class OperacionItemForm(forms.ModelForm):
     class Meta:
         model = OperacionItem
-        fields = ['producto', 'cantidad', 'costo_unitario', 'rol', 'lote', 'vencimiento', 'observacion']
-        widgets = {'vencimiento': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d')}
+        fields = ['producto', 'cantidad', 'costo_unitario', 'rol', 'lote', 'vencimiento', 'fabricacion', 'observacion']
+        widgets = {'vencimiento': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+                   'fabricacion': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d')}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['lote'].widget.attrs.update({'class': 'form-control form-control-sm js-lote',
                                                  'placeholder': 'Lote / series'})
         self.fields['vencimiento'].widget.attrs['class'] = 'form-control form-control-sm js-vence'
+        self.fields['fabricacion'].widget.attrs.update({'class': 'form-control form-control-sm', 'title': 'Fabricación'})
         self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, tipo='BIEN')
         self.fields['producto'].widget.attrs['class'] = 'form-select form-select-sm js-producto'
         remoto(self.fields['producto'], 'productos_bienes')

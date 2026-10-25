@@ -736,6 +736,17 @@ class Prestamo(models.Model):
                                      help_text='Ej. la obra o el proyecto inmobiliario que financia: en un proyecto '
                                                'inmobiliario los intereses se activan al costo hasta su terminación '
                                                '(NIC 23)')
+    # FIN-06: tipos de cronograma
+    SISTEMAS = [('FRANCES', 'Cuota fija (francés)'), ('ALEMAN', 'Amortización constante (alemán)')]
+    GRACIAS = [('', 'Sin gracia'), ('TOTAL', 'Gracia total (los intereses se capitalizan)'),
+               ('PARCIAL', 'Gracia parcial (solo se pagan intereses)')]
+    sistema = models.CharField('Cronograma', max_length=7, choices=SISTEMAS, default='FRANCES')
+    meses_gracia = models.PositiveSmallIntegerField('Cuotas de gracia', default=0,
+                                                    help_text='Las primeras cuotas no amortizan capital')
+    tipo_gracia = models.CharField('Tipo de gracia', max_length=7, choices=GRACIAS, blank=True)
+    cuotas_dobles = models.BooleanField('Cuotas dobles en julio y diciembre', default=False)
+    linea = models.ForeignKey('LineaCredito', on_delete=models.SET_NULL, null=True, blank=True,
+                              related_name='prestamos', verbose_name='Línea de crédito')
     estado = models.CharField(max_length=10, choices=ESTADOS, default='VIGENTE')
     creado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, related_name='+',
                                    editable=False)
@@ -758,8 +769,12 @@ class Prestamo(models.Model):
 
     @property
     def saldo_capital(self):
-        pagado = sum((c.capital for c in self.cuotas_pagadas()), D0)
-        return self.monto - pagado
+        """Capital por pagar: el saldo antes de la primera cuota impaga (incluye los intereses capitalizados de la
+        gracia total y los prepagos)."""
+        pendiente = self.cuotas.exclude(pagos__estado='VIGENTE').order_by('numero').first()
+        if pendiente is None:
+            return D0 if self.cuotas.exists() else self.monto
+        return pendiente.saldo + pendiente.capital
 
     @property
     def desembolso(self):
@@ -798,6 +813,10 @@ class CuotaPrestamo(models.Model):
         return not self.pagada and self.fecha < timezone.localdate()
 
 
+from .models_planeamiento import (Arrendamiento, CartaFianza, CesionFactura, CuotaArrendamiento,  # noqa: E402,F401
+                                  DepositoPlazo, DevengoPrestamo, Forward, GestionCobranza, LineaCredito,
+                                  LineaPropuestaPago, PartidaCaja, PropuestaPago, ProvisionCobranza,
+                                  ProyeccionGuardada, RecordatorioCobranza)
 from .models_rendicion import (CategoriaCuentaHistorial, CategoriaGasto, ConfigRendicion,  # noqa: E402,F401
                                DistribucionLinea, EnvioERP, EnvioERPDetalle, HistorialRendicion, IndicadorImpuesto,
                                LineaGasto, MapeoCuentaERP, MotivoObservacion, MovimientoTarjeta, ObservacionLinea,

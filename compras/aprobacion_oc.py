@@ -64,6 +64,11 @@ def aprobar(oc, user, comentario=''):
     error = error_aprobacion(user, oc)
     if error:
         raise ErrorAprobacionOC(error)
+    from obras.presupuesto_proyecto import ErrorPresupuesto, autorizar_exceso
+    try:  # SRV-11: la OC que excede el disponible del rubro del proyecto pide la aprobación adicional con motivo
+        autorizar_exceso(oc, user, comentario)
+    except ErrorPresupuesto as exc:
+        raise ErrorAprobacionOC(f'No se aprueba: {exc}') from exc
     if not por_niveles(oc):
         from core.permisos import perfil_de, puede_aprobar as por_tope
         monto = _monto(oc)

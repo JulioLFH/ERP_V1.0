@@ -793,8 +793,9 @@ def trazabilidad(f):
         lotes = lotes.filter(producto_id=f.producto)
     for lote in lotes[:20]:
         info = {'lote': lote, 'orden': None, 'insumos': [], 'ventas': [], 'usado_en': []}
-        # hacia atrás: la orden que fabricó el lote (el lote del producto terminado es el número de la orden)
-        orden = OrdenProduccion.objects.filter(numero=lote.codigo, producto=lote.producto).select_related(
+        # hacia atrás: la orden que fabricó el lote (su lote producido o, en las antiguas, el número de la orden)
+        orden = OrdenProduccion.objects.filter(Q(lote_producido=lote.codigo) | Q(numero=lote.codigo, lote_producido=''),
+                                               producto=lote.producto).select_related(
             'operacion__tipo').first()
         if orden and orden.operacion_id:
             info['orden'] = orden

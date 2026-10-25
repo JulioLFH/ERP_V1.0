@@ -1,5 +1,6 @@
 """Préstamos bancarios y leasing."""
 from datetime import date
+from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -33,8 +34,7 @@ def prestamo_nuevo(request):
     if request.method == 'POST' and form.is_valid():
         p = form.save(commit=False)
         if request.POST.get('accion') == 'simular':
-            simulacion = srv.cronograma(p.monto, p.tasa_anual, p.plazo, p.meses_entre_cuotas, p.primera_cuota,
-                                        p.opcion_compra, p.tipo == 'LEASING')
+            simulacion = srv._cronograma_de(p)
             for f in simulacion:
                 f['cuota'] = f['capital'] + f['interes'] + f['igv']
         else:
@@ -63,7 +63,17 @@ def prestamo(request, pk):
             elif accion == 'anular':
                 srv.anular(p, request.POST.get('motivo', ''), request.user)
                 messages.success(request, f'{p} anulado.')
-        except (ErrorTesoreria, ValueError) as exc:
+            elif accion == 'prepagar':  # FIN-06
+                fecha = date.fromisoformat(request.POST.get('fecha') or timezone.localdate().isoformat())
+                mov = srv.prepagar(p, Decimal(request.POST.get('monto') or '0'), fecha, request.user,
+                                   request.POST.get('modo', 'PLAZO'), request.POST.get('numero_operacion', ''))
+                messages.success(request, f'Prepago registrado ({mov.voucher}): cronograma recalculado.')
+            elif accion == 'reprogramar':
+                cuotas = int(request.POST.get('cuotas') or 0) or None
+                srv.reprogramar(p, Decimal(request.POST.get('tea') or '-1'), request.POST.get('motivo', ''),
+                                request.user, cuotas)
+                messages.success(request, f'{p}: cuotas pendientes recalculadas con TEA {p.tasa_anual:g} %.')
+        except (ErrorTesoreria, ValueError, ArithmeticError) as exc:
             messages.error(request, str(exc))
         return redirect('finanzas:prestamo', pk)
     cuotas = list(p.cuotas.prefetch_related('pagos'))

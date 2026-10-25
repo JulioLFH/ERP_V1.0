@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
   <div><h1 class="page-title">{{ objeto }}</h1>
     <div class="text-muted small">{{ objeto.donde|default:'' }}{% if objeto.version %} · versión {{ objeto.version }}{% if not objeto.vigente %} (anterior){% endif %}{% endif %}</div></div>
-  <a href="{% url app|add:':registros' %}?tipo={{ tipo.slug }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> {{ tipo.titulo }}</a>
+  <div class="d-flex gap-2">{% if tipo.slug == 'documentos' %}<a href="{% url 'calidad:documento_flujo' objeto.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pen"></i> Revisión, aprobación y lecturas</a>{% endif %}<a href="{% url app|add:':registros' %}?tipo={{ tipo.slug }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> {{ tipo.titulo }}</a></div>
 </div>
 <div class="row g-3">
   <div class="col-lg-7"><div class="card"><div class="card-body">

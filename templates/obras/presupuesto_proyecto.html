@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Presupuesto del proyecto {{ o.codigo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title mb-0">Presupuesto del proyecto</h1><div class="small text-muted">{{ o.codigo }} · {{ o.nombre }}{% if o.centro_costo %} · centro {{ o.centro_costo.codigo }}{% endif %}</div></div>
+  <div class="d-flex gap-2"><a href="{% url 'obras:entregables' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-check"></i> Entregables</a><a href="{% url 'obras:horas' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-clock-history"></i> Horas</a><a href="{% url 'obras:obra' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Proyecto</a></div>
+</div>
+{% if not o.centro_costo %}<div class="alert alert-warning small">El proyecto aún no tiene centro de costo: lo comprometido y lo gastado se toman del centro del proyecto.</div>{% endif %}
+<form method="post">{% csrf_token %}
+<div class="table-responsive"><table class="table table-sm align-middle">
+  <thead><tr><th>Rubro</th><th style="width:150px">Presupuesto S/</th><th style="width:150px">Cuentas del gasto</th><th class="text-end">Comprometido</th><th class="text-end">Gastado</th><th class="text-end">Disponible</th><th class="text-end">Uso</th></tr></thead>
+  <tbody>{% for f in c.filas %}<tr{% if f.excedido %} class="table-danger"{% endif %}>
+    <td>{{ f.nombre }}</td>
+    <td><input name="monto_{{ f.rubro }}" value="{{ f.presupuesto|floatformat:2 }}" inputmode="decimal" class="form-control form-control-sm text-end" aria-label="Presupuesto {{ f.nombre }}"{% if not puede.obras_presupuestar %} disabled{% endif %}></td>
+    <td>{% if f.rubro == 'HORAS' %}<span class="small text-muted">Partes aprobados</span>{% else %}<input name="cuentas_{{ f.rubro }}" value="{{ f.cuentas }}" placeholder="{% if f.rubro == 'OTROS' %}resto de la clase 6{% endif %}" class="form-control form-control-sm" aria-label="Cuentas {{ f.nombre }}"{% if not puede.obras_presupuestar %} disabled{% endif %}>{% endif %}</td>
+    <td class="text-end">{{ f.comprometido|floatformat:2|intcomma }}</td>
+    <td class="text-end">{{ f.gastado|floatformat:2|intcomma }}</td>
+    <td class="text-end fw-semibold{% if f.disponible < 0 %} text-danger{% endif %}">{{ f.disponible|floatformat:2|intcomma }}</td>
+    <td class="text-end">{% if f.pct is not None %}{{ f.pct }} %{% else %}—{% endif %}</td>
+  </tr>{% endfor %}</tbody>
+  <tfoot><tr class="fw-semibold"><td>Total</td><td class="text-end">{{ c.total.presupuesto|floatformat:2|intcomma }}</td><td></td><td class="text-end">{{ c.total.comprometido|floatformat:2|intcomma }}</td><td class="text-end">{{ c.total.gastado|floatformat:2|intcomma }}</td><td class="text-end{% if c.total.disponible < 0 %} text-danger{% endif %}">{{ c.total.disponible|floatformat:2|intcomma }}</td><td></td></tr></tfoot>
+</table></div>
+{% if puede.obras_presupuestar %}<button class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> Guardar presupuesto</button>{% endif %}
+</form>
+<div class="card mt-3"><div class="card-header small fw-semibold">Órdenes de compra y de servicio del proyecto</div><ul class="list-group list-group-flush small">
+  {% for oc in ordenes %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'compras:oc_detalle' oc.pk %}">{{ oc.numero }} · {{ oc.tercero.nombre }}</a><span>{{ oc.get_rubro_proyecto_display|default:'Otros gastos' }} · {{ oc.get_estado_display }} · S/ {{ oc.total|floatformat:2|intcomma }}{% if oc.exceso_autorizado_por %} · <span class="text-warning">exceso autorizado</span>{% endif %}</span></li>{% empty %}<li class="list-group-item text-muted">Sin órdenes con el centro de costo del proyecto.</li>{% endfor %}
+</ul></div>
+<p class="small text-muted mt-2">Comprometido: OC/OS aprobadas sin factura (sin IGV) del rubro y horas aprobadas de independientes aún sin recibo. Gastado: horas aprobadas del personal en planilla y lo contabilizado en el centro del proyecto en las cuentas del rubro (facturas, recibos por honorarios, rendiciones, reparto). Una OC que excede el disponible pide la aprobación adicional de quien aprueba en Obras, con motivo. Cuentas por defecto: especialistas {{ defecto.ESPECIALISTAS }}, viajes {{ defecto.VIAJES }}, oficina {{ defecto.OFICINA }}.</p>
+{% endblock %}

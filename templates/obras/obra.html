@@ -6,7 +6,7 @@
     <div class="text-muted small">{{ o.codigo }} · {{ o.get_tipo_display }} · {{ o.get_sistema_display }} · <span class="badge text-bg-light border">{{ o.get_estado_display }}</span></div></div>
   <div class="d-flex flex-wrap gap-2">
     {% if licitacion or o.estado == 'LICITACION' and o.tipo != 'INMOBILIARIA' %}<a href="{% url 'obras:licitacion' o.pk %}" class="btn btn-sm btn-outline-warning"><i class="bi bi-trophy"></i> Licitación{% if licitacion %} · {{ licitacion.get_resultado_display }}{% endif %}</a>{% endif %}
-    {% if o.tipo == 'SERVICIO' %}<a href="{% url 'obras:entregables' o.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-list-check"></i> Entregables</a><a href="{% url 'obras:horas' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-clock-history"></i> Horas</a>{% endif %}
+    {% if o.tipo == 'SERVICIO' %}<a href="{% url 'obras:entregables' o.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-list-check"></i> Entregables</a><a href="{% url 'obras:horas' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-clock-history"></i> Horas</a><a href="{% url 'obras:presupuesto_proyecto' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-cash-coin"></i> Presupuesto por rubro</a>{% endif %}
     {% if o.tipo == 'INMOBILIARIA' %}<a href="{% url 'obras:unidades' o.pk %}" class="btn btn-sm btn-outline-success"><i class="bi bi-buildings"></i> Unidades y ventas</a>{% elif o.tipo == 'SERVICIO' %}{% else %}<a href="{% url 'obras:ejecucion' o.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-cone-striped"></i> Ejecución</a>{% endif %}
     <a href="{% url 'obras:versiones' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-layers"></i> Versiones (S10)</a>
     <a href="{% url 'obras:obra_editar' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
@@ -26,7 +26,7 @@
       <tr><td class="text-muted">Supervisor</td><td>{{ o.supervisor|default:'—' }}</td></tr>
       <tr><td class="text-muted">GG · utilidad</td><td>{{ o.gastos_generales_pct }}% · {{ o.utilidad_pct }}%</td></tr>
       <tr><td class="text-muted">Centro de costo</td><td>{{ o.centro_costo }}</td></tr>
-      <tr><td class="text-muted">Almacén de obra</td><td>{{ o.almacen }}</td></tr>
+      <tr><td class="text-muted">Almacén de obra</td><td>{% if o.almacen %}{{ o.almacen }}{% elif o.tipo == 'SERVICIO' %}Sin almacén (proyecto de servicios){% else %}—{% endif %}</td></tr>
       {% if o.tipo == 'INMOBILIARIA' %}
       <tr><td class="text-muted">Terreno en el precio</td><td>{{ o.terreno_pct }}% (no gravado con IGV)</td></tr>
       <tr><td class="text-muted">Costo de cada unidad</td><td>{{ o.get_prorrateo_display }}</td></tr>

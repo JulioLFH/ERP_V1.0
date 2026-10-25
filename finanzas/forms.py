@@ -327,8 +327,8 @@ class PrestamoForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Prestamo
         fields = ['tipo', 'entidad', 'descripcion', 'referencia', 'moneda', 'monto', 'tasa_anual', 'plazo',
-                  'meses_entre_cuotas', 'fecha_desembolso', 'primera_cuota', 'opcion_compra', 'cuenta',
-                  'cuenta_activo', 'centro_costo']
+                  'meses_entre_cuotas', 'fecha_desembolso', 'primera_cuota', 'sistema', 'meses_gracia',
+                  'tipo_gracia', 'cuotas_dobles', 'linea', 'opcion_compra', 'cuenta', 'cuenta_activo', 'centro_costo']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Trazabilidad por lote{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2">Trazabilidad por lote</h1>
+<form method="get" class="d-flex gap-2 mb-3" style="max-width: 520px">
+  <input name="lote" value="{{ lote }}" class="form-control" placeholder="Código del lote (producto terminado o insumo)" autofocus aria-label="Lote">
+  <button class="btn btn-primary"><i class="bi bi-search"></i> Buscar</button>
+</form>
+{% for a in d.avisos %}<div class="alert alert-warning py-2 small">{{ a }}</div>{% endfor %}
+{% include 'produccion/_trazabilidad_lotes.html' %}
+<p class="small text-muted">Hacia atrás: la orden que fabricó el lote y el lote de cada insumo que consumió. Hacia adelante: las órdenes que usaron el lote y los clientes a los que se vendió (para un retiro de mercado).</p>
+{% endblock %}

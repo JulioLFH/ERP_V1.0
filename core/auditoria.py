@@ -90,7 +90,16 @@ def _valor(v):
         return v.isoformat()
     if hasattr(v, 'pk'):
         return str(v)
+    if isinstance(v, (dict, list)):
+        return v  # se compara tal cual y se muestra resumido (_mostrar)
     return v if isinstance(v, (int, float, bool, str, type(None))) else str(v)
+
+
+def _mostrar(v):
+    """INV-30: un detalle interno (JSON) no se muestra en crudo en el historial."""
+    if isinstance(v, (dict, list)):
+        return f'{len(v)} dato(s)' if v else '—'
+    return v
 
 
 def _campos(obj):
@@ -106,6 +115,18 @@ def _campos(obj):
             valor = getattr(obj, f'get_{f.name}_display')()
         datos[str(f.verbose_name)] = _valor(valor)
     return datos
+
+
+def _iguales(a, b):
+    """AUD-01: «0.00» y «0» (o 0) son el mismo importe: no es un cambio."""
+    if a == b:
+        return True
+    if isinstance(a, bool) or isinstance(b, bool) or a is None or b is None:
+        return False
+    try:
+        return Decimal(str(a)) == Decimal(str(b))
+    except (ArithmeticError, ValueError):
+        return False
 
 
 def registrar(accion, obj, cambios=None, motivo=''):
@@ -133,7 +154,7 @@ def _post_save(sender, instance, created, **kwargs):
         registrar('CREAR', instance)
         return
     antes = getattr(instance, '_audit_antes', None) or {}
-    cambios = {k: [antes.get(k), v] for k, v in ahora.items() if antes.get(k) != v}
+    cambios = {k: [_mostrar(antes.get(k)), _mostrar(v)] for k, v in ahora.items() if not _iguales(antes.get(k), v)}
     if not cambios:
         return
     accion = 'ANULAR' if any(str(v[1]).startswith('Anulad') for k, v in cambios.items() if k.lower() == 'estado') \
@@ -148,7 +169,7 @@ def _post_save(sender, instance, created, **kwargs):
 def _post_delete(sender, instance, **kwargs):
     if sender.__name__ in SOLO_SI and not SOLO_SI[sender.__name__](instance):
         return
-    registrar('ELIMINAR', instance, _campos(instance))
+    registrar('ELIMINAR', instance, {k: _mostrar(v) for k, v in _campos(instance).items()})
 
 
 def conectar():

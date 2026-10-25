@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block title %}Documentos por leer{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Documentos por leer</h1>
+{% if not trabajador %}<div class="alert alert-info">Su usuario no está vinculado a una ficha de trabajador (Empleados › Trabajadores).</div>{% endif %}
+<div class="list-group" style="max-width: 760px">{% for d in docs %}<a href="{% url 'calidad:documento_flujo' d.pk %}" class="list-group-item list-group-item-action">{{ d }}{% if d.fecha_vigencia %} · vigente desde {{ d.fecha_vigencia|date:'d/m/Y' }}{% endif %}</a>{% empty %}<div class="list-group-item text-muted">No tiene documentos pendientes de lectura.</div>{% endfor %}</div>
+{% endblock %}

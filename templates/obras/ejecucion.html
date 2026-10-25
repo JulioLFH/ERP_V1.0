@@ -2,18 +2,21 @@
 {% block title %}Ejecución {{ o.codigo }}{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
-  <div><h1 class="page-title"><i class="bi bi-cone-striped"></i> Ejecución · {{ o.nombre }}</h1>
+  <div><h1 class="page-title"><i class="bi bi-{% if o.tipo == 'SERVICIO' %}briefcase{% else %}cone-striped{% endif %}"></i> Ejecución · {{ o.nombre }}</h1>
     <div class="text-muted small">{{ o.codigo }} · {{ o.cliente.nombre|default:'sin cliente' }} · contrato {{ o.contrato|default:'—' }} · <span class="badge text-bg-light border">{{ o.get_estado_display }}</span>{% if r.presupuesto %} · valoriza sobre <a href="{% url 'obras:presupuesto' r.presupuesto.pk %}">{{ r.presupuesto }}</a>{% endif %}</div></div>
-  <div class="d-flex flex-wrap gap-2"><a href="{% url 'obras:obra' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Obra</a></div>
+  <div class="d-flex flex-wrap gap-2"><a href="{% url 'obras:obra' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> {% if o.tipo == 'SERVICIO' %}Proyecto{% else %}Obra{% endif %}</a></div>
 </div>
 <div class="d-flex flex-wrap gap-2 mb-3">
   <a href="{% url 'obras:avance' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-rulers"></i> Avance físico</a>
   <a href="{% url 'obras:cronograma' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-graph-up"></i> Cronograma y curva S</a>
+  {% if o.tipo == 'SERVICIO' %}<a href="{% url 'obras:entregables' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-list-check"></i> Entregables</a>
+  <a href="{% url 'obras:horas' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-clock-history"></i> Horas del proyecto</a>
+  <a href="{% url 'obras:presupuesto_proyecto' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-cash-coin"></i> Presupuesto por rubro</a>{% else %}
   <a href="{% url 'obras:tareo' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-person-lines-fill"></i> Tareo</a>
   <a href="{% url 'obras:planillas_civil' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-cash-stack"></i> Planilla de construcción civil</a>
   <a href="{% url 'obras:partes' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-truck-front"></i> Partes de equipo</a>
   <a href="{% url 'obras:subcontratos' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-people"></i> Subcontratos</a>
-  <a href="{% url 'obras:formula' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-calculator"></i> Fórmula polinómica</a>
+  <a href="{% url 'obras:formula' o.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-calculator"></i> Fórmula polinómica</a>{% endif %}
   <a href="{% url 'obras:reporte_partidas' o.pk %}" class="btn btn-sm btn-outline-success"><i class="bi bi-table"></i> Control por partida</a>
   <a href="{% url 'obras:versiones' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-layers"></i> Versiones (S10)</a>
 </div>
@@ -62,10 +65,10 @@
         <div class="col-12"><button class="btn btn-sm btn-outline-success w-100">Registrar la devolución del fondo</button></div></form>{% endif %}
       <div class="text-muted">Retención: {{ o.retencion_garantia_pct }} % del total de cada factura de valorización (Editar obra).</div>
     </div></div>
-    <div class="card mb-3"><div class="card-header d-flex justify-content-between"><span class="fw-semibold">Fórmula polinómica</span><a href="{% url 'obras:indices' %}" class="small">Índices INEI</a></div><div class="card-body small">
+    {% if o.tipo != 'SERVICIO' %}    <div class="card mb-3"><div class="card-header d-flex justify-content-between"><span class="fw-semibold">Fórmula polinómica</span><a href="{% url 'obras:indices' %}" class="small">Índices INEI</a></div><div class="card-body small">
       {% for f in formulas %}<div><b>{{ f }}</b>{% if f.subpresupuesto %} · subpresupuesto {{ f.subpresupuesto }}{% endif %} · base {{ f.periodo_base }} · área {{ f.area }}<div class="text-muted">K = {% for m in f.monomios.all %}{{ m.coeficiente }}·IU{{ m.indice }}{% if not forloop.last %} + {% endif %}{% endfor %}</div></div>
       {% empty %}<span class="text-muted">Sin reajuste. <a href="{% url 'obras:formula' o.pk %}">Importe la fórmula del S10</a> si el contrato tiene reajuste.</span>{% endfor %}
-    </div></div>
+    </div></div>{% endif %}
     <div class="card"><div class="card-header d-flex justify-content-between"><span class="fw-semibold">Subcontratos</span><a href="{% url 'obras:subcontratos' o.pk %}" class="small">Todos</a></div>
       <ul class="list-group list-group-flush small">{% for s in subcontratos %}<li class="list-group-item"><a href="{% url 'obras:subcontrato' s.pk %}">{{ s.numero }}</a> {{ s.proveedor.nombre|truncatechars:30 }} · {{ s.get_estado_display }}</li>{% empty %}<li class="list-group-item text-muted">Sin subcontratos.</li>{% endfor %}</ul></div>
   </div>

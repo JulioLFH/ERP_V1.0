@@ -1,10 +1,12 @@
 from django.urls import path
 
-from . import views, views_almacen, views_fisico
+from . import views, views_almacen, views_estado, views_fisico, views_trazabilidad
 
 app_name = 'inventario'
 
 urlpatterns = [
+    path('estado-stock/', views_estado.estado_stock, name='estado_stock'),
+    path('trazabilidad/', views_trazabilidad.trazabilidad, name='trazabilidad'),
     path('fisico/', views_fisico.lista, name='fisico_lista'),
     path('fisico/nuevo/', views_fisico.nuevo, name='fisico_nuevo'),
     path('fisico/indicadores/', views_fisico.indicadores, name='fisico_indicadores'),

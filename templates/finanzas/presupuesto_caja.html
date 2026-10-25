@@ -1,0 +1,43 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Presupuesto de caja{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title"><i class="bi bi-calendar3"></i> Presupuesto de caja mensual</h1>
+  <form class="d-flex flex-wrap gap-2 align-items-center" method="get">
+    <select name="escenario" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()" aria-label="Escenario">{% for v, t in escenarios %}<option value="{{ v }}"{% if v == escenario %} selected{% endif %}>Escenario {{ t|lower }}</option>{% endfor %}</select>
+    <select name="moneda" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()" aria-label="Moneda"><option value="">Todo en S/</option><option value="PEN"{% if moneda == 'PEN' %} selected{% endif %}>Solo soles</option><option value="USD"{% if moneda == 'USD' %} selected{% endif %}>Solo US$</option></select>
+    <select name="meses" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()" aria-label="Meses">{% for n in opciones_meses %}<option value="{{ n }}"{% if n == meses_n %} selected{% endif %}>{{ n }} meses</option>{% endfor %}</select>
+    <a href="?escenario={{ escenario }}&moneda={{ moneda }}&meses={{ meses_n }}&formato=excel" class="btn btn-sm btn-outline-success" title="Excel"><i class="bi bi-file-earmark-excel"></i></a>
+    <a href="{% url 'finanzas:flujo_proyectado' %}" class="btn btn-sm btn-outline-secondary">Semanal</a>
+  </form>
+</div>
+<p class="small text-muted">Cobros y pagos conocidos (comprobantes, letras, pedidos netos de detracción y anticipos, órdenes de compra, préstamos, alquileres y planilla) más el IGV y el pago a cuenta de la renta en su vencimiento de SUNAT, las gratificaciones (julio y diciembre), la CTS (mayo y noviembre) y las partidas manuales. El escenario optimista o pesimista ajusta las cobranzas según Ajustes › Parámetros › Finanzas. {% if p.moneda == 'USD' %}Solo documentos y cuentas en US$.{% else %}En soles al T.C. de hoy ({{ p.tc }}).{% endif %}</p>
+{% if p.mes_negativo %}<div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-triangle"></i> El saldo proyectado queda en negativo en {{ p.mes_negativo|date:'F Y' }}: prevea financiamiento o reprograme pagos.</div>{% endif %}
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0 small">
+  <thead><tr><th style="min-width:220px">Concepto</th>{% for m in p.meses %}<th class="num text-nowrap">{{ m|date:'M Y' }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
+  <tbody>
+    <tr class="table-light"><th>Saldo inicial</th>{% for v in p.saldos_iniciales %}<th class="num{% if v < 0 %} text-danger{% endif %}">{{ v|money }}</th>{% endfor %}<td></td></tr>
+    {% for f in p.filas %}<tr><td>{% if f.tipo == 'INGRESO' %}<i class="bi bi-arrow-down-left text-success"></i>{% else %}<i class="bi bi-arrow-up-right text-danger"></i>{% endif %} {{ f.concepto }}</td>
+      {% for v in f.valores %}<td class="num{% if f.tipo == 'EGRESO' and v %} text-danger{% endif %}">{% if v %}{% if f.tipo == 'EGRESO' %}-{% endif %}{{ v|money }}{% endif %}</td>{% endfor %}
+      <td class="num fw-semibold">{% if f.tipo == 'EGRESO' %}-{% endif %}{{ f.total|money }}</td></tr>
+    {% empty %}<tr><td colspan="{{ p.meses|length|add:2 }}" class="text-center text-muted py-4">No hay cobros ni pagos previstos.</td></tr>{% endfor %}
+  </tbody>
+  <tfoot>
+    <tr><th>Total ingresos</th>{% for v in p.ingresos %}<td class="num text-success">{{ v|money }}</td>{% endfor %}<td></td></tr>
+    <tr><th>Total egresos</th>{% for v in p.egresos %}<td class="num text-danger">{{ v|money }}</td>{% endfor %}<td></td></tr>
+    <tr class="table-light"><th>Saldo final del mes</th>{% for v in p.saldos %}<th class="num{% if v < 0 %} text-danger{% endif %}">{{ v|money }}</th>{% endfor %}<td></td></tr>
+    {% for f in p.referenciales %}<tr class="text-muted"><td>{{ f.concepto }} — referencial</td>{% for v in f.valores %}<td class="num fst-italic">{% if v %}{{ v|money }}{% endif %}</td>{% endfor %}<td class="num fst-italic">{{ f.total|money }}</td></tr>{% endfor %}
+  </tfoot>
+</table></div></div>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="card-header small fw-semibold">Partidas manuales (aporte de capital, venta de activo, préstamo nuevo, utilidades…)</div>
+    {% if puede.finanzas_planeamiento %}<form method="post" class="card-body row g-2 small border-bottom">{% csrf_token %}<input type="hidden" name="accion" value="partida">
+      {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1">{{ e }}</div>{% endfor %}
+      {% for field in form %}<div class="col-md-3">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Agregar partida</button></div></form>{% endif %}
+    <ul class="list-group list-group-flush small">{% for x in partidas %}<li class="list-group-item d-flex justify-content-between align-items-center"><span>{{ x.fecha|date:'d/m/Y' }} · {{ x.get_tipo_display }} · {{ x.concepto }} · {{ x.moneda }} {{ x.monto|money }}{% if x.repetir_meses > 1 %} × {{ x.repetir_meses }} meses{% endif %} · {{ x.get_escenario_display }}</span>{% if puede.finanzas_planeamiento %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="borrar"><input type="hidden" name="pk" value="{{ x.pk }}"><button class="btn btn-sm btn-outline-danger py-0" data-confirm="¿Quitar la partida?" aria-label="Quitar"><i class="bi bi-x"></i></button></form>{% endif %}</li>{% empty %}<li class="list-group-item text-muted">Sin partidas manuales.</li>{% endfor %}</ul></div></div>
+  <div class="col-lg-5"><div class="card"><div class="card-header small fw-semibold d-flex justify-content-between align-items-center">Real vs proyectado
+    {% if puede.finanzas_planeamiento %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="guardar"><button class="btn btn-sm btn-outline-primary py-0">Guardar esta proyección</button></form>{% endif %}</div>
+    <ul class="list-group list-group-flush small">{% for g in guardadas %}<li class="list-group-item"><a href="{% url 'finanzas:real_vs_proyectado' g.pk %}">{{ g }}</a> · {{ g.creado_por|default:'' }}</li>{% empty %}<li class="list-group-item text-muted">Guarde la proyección al inicio de cada mes para compararla con lo real.</li>{% endfor %}</ul></div></div>
+</div>
+{% endblock %}

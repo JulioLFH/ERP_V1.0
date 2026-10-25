@@ -28,27 +28,59 @@ def _fecha(texto):
 
 
 class EntregableForm(BootstrapMixin, forms.ModelForm):
+    autorizar_exceso = forms.BooleanField(label='Autorizo exceder el contrato', required=False,
+                                          help_text='Solo quien aprueba en Obras, con el motivo')
+    motivo_exceso = forms.CharField(label='Motivo del exceso', max_length=200, required=False)
+
     class Meta:
         model = EntregableProyecto
         fields = ['nombre', 'porcentaje', 'monto', 'fecha_comprometida', 'horas_presupuestadas',
                   'penalidad_diaria_pct', 'penalidad_maxima_pct']
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['monto'].required = False  # SRV-14: vacío = el % del monto contratado
+
+    def datos(self):
+        d = dict(self.cleaned_data)
+        return d.pop('autorizar_exceso', False), d.pop('motivo_exceso', ''), d
+
+
+def _avisar(request, e):
+    for aviso in getattr(e, 'avisos', []):
+        messages.warning(request, aviso)
+
 
 @login_required
 def entregables(request, pk):
     obra = get_object_or_404(Obra, pk=pk)
-    form = EntregableForm(request.POST if request.POST.get('accion') == 'nuevo' else None)
+    accion = request.POST.get('accion')
+    editando = None
+    if (request.GET.get('editar') or request.POST.get('entregable') or '').isdigit() and accion in (None, 'editar'):
+        editando = obra.entregables.filter(pk=request.GET.get('editar') or request.POST.get('entregable'),
+                                           estado__in=['PENDIENTE', 'OBSERVADO']).first()
+    form = EntregableForm(request.POST if accion in ('nuevo', 'editar') else None, instance=editando,
+                          prefix='e' if editando else None)
     if request.method == 'POST':
-        accion = request.POST.get('accion')
         try:
-            if accion == 'nuevo':
+            if accion in ('nuevo', 'editar'):
                 if form.is_valid():
-                    e = srv.nuevo_entregable(obra, **form.cleaned_data)
-                    messages.success(request, f'Entregable {e} registrado.')
+                    autorizar, motivo, datos = form.datos()
+                    if accion == 'editar' and editando is not None:
+                        e = srv.editar_entregable(EntregableProyecto.objects.get(pk=editando.pk), datos, autorizar,
+                                                  request.user, motivo)
+                        messages.success(request, f'Entregable {e} actualizado.')
+                    else:
+                        e = srv.nuevo_entregable(obra, autorizar, request.user, motivo, **datos)
+                        messages.success(request, f'Entregable {e} registrado.')
+                    _avisar(request, e)
                     return redirect('obras:entregables', pk)
             else:
                 e = get_object_or_404(EntregableProyecto, pk=request.POST.get('entregable') or 0, obra=obra)
-                if accion == 'entregar':
+                if accion == 'anular':
+                    srv.anular_entregable(e, request.POST.get('motivo'))
+                    messages.success(request, f'{e} anulado; sus horas quedan en el proyecto sin entregable.')
+                elif accion == 'entregar':
                     srv.entregar(e, _fecha(request.POST.get('fecha')))
                     messages.success(request, f'{e} entregado.' + (f' Atraso de {e.dias_atraso} día(s): penalidad '
                                                                    f'S/ {e.penalidad:,.2f}.' if e.penalidad else ''))
@@ -56,12 +88,19 @@ def entregables(request, pk):
                     srv.observar(e, request.POST.get('observacion'))
                     messages.warning(request, f'{e} observado por el cliente: corríjalo y vuelva a entregarlo.')
                 elif accion == 'conformidad':
-                    srv.conformidad(e, request.POST.get('por'), _fecha(request.POST.get('fecha')))
                     archivo = request.FILES.get('sustento')
+                    # SRV-14: el acta firmada es el sustento de la factura; sin ella se registra solo si se marca
+                    if archivo is None and request.POST.get('sin_acta') != '1':
+                        raise srv.ErrorServicio('Adjunte el acta de conformidad firmada por el cliente (o marque «La '
+                                                'adjunto después»).')
+                    srv.conformidad(e, request.POST.get('por'), _fecha(request.POST.get('fecha')))
                     if archivo:
                         from core.sustentos import adjuntar
                         adjuntar(e, archivo, request.user, f'Conformidad del entregable {e}')
-                    messages.success(request, f'{e}: conformidad registrada; ya se puede facturar.')
+                        messages.success(request, f'{e}: conformidad registrada con su acta; ya se puede facturar.')
+                    else:
+                        messages.warning(request, f'{e}: conformidad registrada sin el acta. Adjúntela en el '
+                                                  f'entregable antes de facturar.')
                 elif accion == 'facturar':
                     from core.permisos import puede
                     if not puede(request.user, 'obras.facturar'):
@@ -73,14 +112,17 @@ def entregables(request, pk):
             messages.error(request, str(exc))
             return redirect('obras:entregables', pk)
     lista = list(obra.entregables.select_related('factura'))
-    total = sum((e.valor for e in lista), D0)
+    total = sum((e.valor for e in lista if e.estado != 'ANULADO'), D0)
     from core import sustentos
     for e in lista:
         e.sustentos = sustentos.de(e)
         e.penalidad_actual = e.penalidad or srv.penalidad(e)
+    contrato = srv.contrato_sin_igv(obra) if obra.monto_contratado else None
     return render(request, 'obras/entregables.html', {
         'o': obra, 'entregables': lista, 'form': form, 'total': total, 'hoy': timezone.localdate(),
-        'horas': srv.horas_proyecto(obra)})
+        'horas': srv.horas_proyecto(obra), 'editando': editando, 'contrato': contrato,
+        'pct_total': sum((e.porcentaje for e in lista if e.estado != 'ANULADO'), D0),
+        'excede': contrato is not None and total > contrato, 'fin_plazo': srv.fin_de_plazo(obra)})
 
 
 class ParteForm(BootstrapMixin, forms.Form):
@@ -181,6 +223,27 @@ def horas(request, pk):
               f'{h["avance_horas"] if h["avance_horas"] is not None else "—"} %.')
 
 
+@login_required
+def presupuesto(request, pk):
+    """SRV-11: presupuesto del proyecto por rubro frente a lo comprometido, gastado y disponible."""
+    from . import presupuesto_proyecto as pp
+    obra = get_object_or_404(Obra, pk=pk)
+    if request.method == 'POST':
+        try:
+            total = pp.guardar(obra, {k: (request.POST.get(f'monto_{k}') or '0').replace(',', '')
+                                      for k, _ in pp.RUBROS_PROYECTO},
+                               {k: request.POST.get(f'cuentas_{k}', '') for k, _ in pp.RUBROS_PROYECTO})
+            messages.success(request, f'Presupuesto del proyecto guardado: S/ {total:,.2f}.')
+        except (pp.ErrorPresupuesto, ArithmeticError, ValueError) as exc:
+            messages.error(request, str(exc) if isinstance(exc, pp.ErrorPresupuesto) else 'Revise los montos.')
+        return redirect('obras:presupuesto_proyecto', pk)
+    from compras.models import OrdenCompra
+    ordenes = (OrdenCompra.objects.filter(centro_costo_id=obra.centro_costo_id, estado__in=['PENDIENTE', 'APROBADO'])
+               .select_related('tercero').order_by('-fecha') if obra.centro_costo_id else [])
+    return render(request, 'obras/presupuesto_proyecto.html', {
+        'o': obra, 'c': pp.control(obra), 'ordenes': ordenes, 'defecto': pp.CUENTAS})
+
+
 class GarantiaForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = GarantiaContrato
@@ -223,27 +286,46 @@ def servicios_proceso(request):
         periodo = hoy.strftime('%Y%m')
     if request.method == 'POST':
         try:
+            if request.POST.get('accion') == 'distribuir':
+                a = srv.distribuir_horas(request.POST.get('periodo') or periodo, request.user)
+                messages.success(request, f'Asiento {a.numero or a.pk}: el costo de las horas del personal pasó a los '
+                                          f'centros de costo de los proyectos.')
+                return redirect(f"{reverse('obras:servicios_proceso')}?periodo={periodo}")
             a = srv.registrar_cierre(request.POST.get('periodo') or periodo, request.user)
             messages.success(request, f'Asiento {a.numero or a.pk} registrado con el servicio en proceso y el ingreso '
                                       f'por avance.')
         except srv.ErrorServicio as exc:
             messages.error(request, str(exc))
         return redirect(f"{reverse('obras:servicios_proceso')}?periodo={periodo}")
-    filas = []
+    filas, detalle = [], []
     for obra in srv.proyectos_de_servicio():
         s = srv.situacion(obra, periodo)
         filas.append([{'texto': f'{obra.codigo} {obra.nombre}', 'url': reverse('obras:entregables', args=[obra.pk])},
                       s['contrato'], s['costo'], s['presupuesto'], f'{s["avance"]} %' if s['avance'] is not None else '—',
                       s['facturado'], s['costo_proceso'], s['ingreso_devengado']])
+        # SRV-13: el detalle por entregable (lo cargado a un entregable queda en proceso hasta facturarlo)
+        for d in s['detalle']:
+            detalle.append([obra.codigo, str(d['entregable']), d['entregable'].get_estado_display(), d['costo'],
+                            d['en_proceso']])
+        if s['costo_general']:
+            detalle.append([obra.codigo, 'Sin entregable (horas generales y compras): según el % facturado',
+                            '', s['costo_general'], s['general_en_proceso']])
     return responder(request, f'Servicios en proceso al cierre de {periodo[4:]}/{periodo[:4]}', [{
         'columnas': ['Proyecto', 'Contrato S/ (sin IGV)', 'Costo acumulado', 'Costo presupuestado', 'Avance por costo',
                      'Facturado', 'Costo sin facturar (en proceso)', 'Ingreso por avance no facturado (NIIF 15)'],
-        'filas': filas}], textos=[('periodo', 'Mes (AAAAMM)', periodo)],
-        form=_CierreForm(initial={'periodo': periodo}), form_titulo='Registrar el asiento del mes',
-        ayuda='Costo acumulado = horas aprobadas × costo hora + compras con el centro de costo del proyecto. El asiento '
+        'filas': filas}, {'titulo': 'Detalle por entregable', 'columnas': [
+            'Proyecto', 'Entregable', 'Estado', 'Costo cargado', 'En proceso'], 'filas': detalle}],
+        textos=[('periodo', 'Mes (AAAAMM)', periodo)],
+        form=_CierreForm(initial={'periodo': periodo}), form_titulo='Registrar los asientos del mes',
+        ayuda='Costo acumulado = horas aprobadas × costo hora + compras con el centro de costo del proyecto. Las horas '
+              'cargadas a un entregable quedan en proceso hasta que ese entregable se factura; lo que no tiene '
+              'entregable se reparte por el % facturado del contrato. El asiento '
               'registra la diferencia con el mes anterior (servicio en proceso 2351 / variación 7152 e ingreso por '
               'avance: facturas por emitir 1211 / ventas de servicios). Confirme el criterio NIIF 15 con su contador.')
 
 
 class _CierreForm(BootstrapMixin, forms.Form):
     periodo = forms.CharField(label='Mes (AAAAMM)', max_length=6)
+    accion = forms.ChoiceField(label='Asiento', choices=[
+        ('distribuir', '1. Llevar el costo de las horas del personal a cada proyecto'),
+        ('cierre', '2. Servicio en proceso e ingreso por avance del mes')], initial='distribuir')

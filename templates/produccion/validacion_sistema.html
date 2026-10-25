@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Validación del sistema{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Paquete de validación del sistema (CSV)</h1>
+  <button onclick="window.print()" class="btn btn-sm btn-outline-secondary d-print-none"><i class="bi bi-printer"></i> Imprimir / PDF</button>
+</div>
+<div class="card doc-print"><div class="card-body small">
+  <p><b>Sistema:</b> Ceiba ERP v{{ version }} · <b>Fecha:</b> {{ hoy|date:'d/m/Y' }} · <b>Empresa:</b> {{ empresa.razon_social }} (RUC {{ empresa.ruc }})</p>
+  <p>Documento base para la validación del sistema informatizado según las BPM de DIGEMID (DS 021-2018-SA), el Anexo 11 de la GMP europea y la 21 CFR Parte 11 (registros y firmas electrónicas). La validación la ejecuta la empresa en su instalación (IQ, OQ y PQ) con este documento como requisitos y matriz de trazabilidad.</p>
+  <h2 class="h6 mt-3">1. Requisitos de usuario (URS) y cómo los cumple Ceiba</h2>
+  <table class="table table-sm table-bordered">
+    <thead><tr><th>N°</th><th>Requisito</th><th>Función en Ceiba</th><th>Prueba automática</th></tr></thead>
+    <tbody>
+      <tr><td>R-01</td><td>Rastro de auditoría de los datos de calidad (valor anterior, nuevo, usuario, fecha y motivo); el original no se borra</td><td>Calidad › Inspecciones: rastro de auditoría de los resultados; Ajustes › Auditoría de todo el sistema</td><td>core.tests_v184 · CalidadFarmaTest (CAL-01)</td></tr>
+      <tr><td>R-02</td><td>Registros decididos bloqueados; reapertura solo con motivo y permiso de QA</td><td>Inspección decidida no editable; «Reabrir (QA)» con firma</td><td>CalidadFarmaTest (CAL-01)</td></tr>
+      <tr><td>R-03</td><td>Resultado fuera de especificación: investigación (fase I y II) y aprobación de QA antes de decidir</td><td>Investigaciones OOS</td><td>CalidadFarmaTest (CAL-02)</td></tr>
+      <tr><td>R-04</td><td>Firma electrónica con contraseña en el momento, nombre, fecha, hora y significado, impresa en el registro</td><td>Liberación del lote, cierre de OOS, desviaciones, cambios, especificaciones, documentos</td><td>CalidadFarmaTest (CAL-03)</td></tr>
+      <tr><td>R-05</td><td>Segregación: quien analiza no libera</td><td>Validación en el servidor al liberar</td><td>CalidadFarmaTest (CAL-03)</td></tr>
+      <tr><td>R-06</td><td>Un lote en cuarentena, bloqueado o vencido no sale por ninguna operación</td><td>Estado del stock y política de lotes</td><td>CuarentenaTest, FefoVencimientosTest (INV-25, INV-27)</td></tr>
+      <tr><td>R-07</td><td>Especificaciones versionadas y aprobadas; la inspección guarda la versión usada</td><td>Planes de calidad › versiones</td><td>CalidadFarmaTest (CAL-05)</td></tr>
+      <tr><td>R-08</td><td>Revisión de QA antes de liberar: sin OOS, desviaciones o cambios abiertos y registro de lote completo</td><td>Certificado › Revisión de QA</td><td>CalidadFarmaTest (CAL-06, CAL-07)</td></tr>
+      <tr><td>R-09</td><td>Instrumentos calibrados: uno vencido no se acepta</td><td>Calibraciones; instrumento en la inspección</td><td>CalidadFarmaTest (CAL-08)</td></tr>
+      <tr><td>R-10</td><td>Trazabilidad lote de materia prima → lote producido → clientes; retiro de mercado</td><td>Trazabilidad por lote; Retiros</td><td>LoteProducidoTest (INV-30), CalidadFarmaTest (CAL-07)</td></tr>
+      <tr><td>R-11</td><td>Control de acceso por usuario, módulo y acción; contraseñas, doble factor y bloqueo por intentos</td><td>Ajustes › Usuarios, perfiles, segregación y políticas</td><td>core.tests_permisos, core.tests_seguridad_v143</td></tr>
+      <tr><td>R-12</td><td>Respaldo y recuperación de los datos</td><td>Respaldo diario de la base (pg_dump) y Ajustes › Respaldo</td><td>Procedimiento de la empresa (configuración manual)</td></tr>
+    </tbody>
+  </table>
+  <h2 class="h6 mt-3">2. Calificación en la instalación del cliente (configuración manual)</h2>
+  <ul>
+    <li><b>IQ:</b> servidor, versión de Ceiba (v{{ version }}), PostgreSQL, respaldos programados, usuarios y perfiles cargados según la matriz de roles.</li>
+    <li><b>OQ:</b> ejecutar los casos de la sección 1 con datos de prueba y guardar la evidencia (capturas o el PDF de cada registro).</li>
+    <li><b>PQ:</b> operación real controlada de un producto (recepción con cuarentena, análisis, OOS de prueba, liberación firmada, despacho y retiro simulado).</li>
+    <li>Control de cambios de cada actualización de Ceiba: Novedades por versión (Ajustes › Manuales) y las pruebas automáticas de la versión.</li>
+  </ul>
+  <div class="row mt-5 text-center"><div class="col-4"><div class="border-top pt-1 mx-3">Elaboró</div></div><div class="col-4"><div class="border-top pt-1 mx-3">Revisó (TI)</div></div><div class="col-4"><div class="border-top pt-1 mx-3">Aprobó (QA)</div></div></div>
+</div></div>
+{% endblock %}

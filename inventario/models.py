@@ -220,6 +220,8 @@ class OperacionItem(models.Model):
                             help_text='Productos con lote: el código del lote. Con serie: los números separados por '
                                       'coma. Vacío en salidas = sale lo que vence primero')
     vencimiento = models.DateField('Vence', null=True, blank=True)
+    fabricacion = models.DateField('Fabricación', null=True, blank=True,
+                                   help_text='Con vida útil en el producto, el vencimiento se calcula si se deja vacío')
     observacion = models.CharField(max_length=120, blank=True)
 
     class Meta:
@@ -231,12 +233,12 @@ class OperacionItem(models.Model):
         return [c.strip().upper() for c in re.split(r'[,;\n]+', self.lote or '') if c.strip()]
 
     def lotes_para(self, cantidad):
-        """[(código, cantidad, vencimiento)] para mover_stock, o None si la línea no indica lotes."""
+        """[(código, cantidad, vencimiento, fabricación)] para mover_stock, o None si la línea no indica lotes."""
         if not self.producto.control or not self.codigos_lote:
             return None
         if self.producto.control == 'SERIE':
-            return [(c, Decimal('1'), self.vencimiento) for c in self.codigos_lote]
-        return [(self.codigos_lote[0], abs(cantidad), self.vencimiento)]
+            return [(c, Decimal('1'), self.vencimiento, self.fabricacion) for c in self.codigos_lote]
+        return [(self.codigos_lote[0], abs(cantidad), self.vencimiento, self.fabricacion)]
 
     @property
     def valor(self):
@@ -496,3 +498,25 @@ class RequerimientoItem(models.Model):
     @property
     def pendiente(self):
         return max(self.cantidad - self.cantidad_atendida, D0)
+
+
+class CambioEstadoStock(models.Model):
+    """Cambio de estado del stock (INV-26): un lote o una cantidad sin lote pasa entre libre, en control de calidad
+    y bloqueado, con su motivo, usuario y fecha (como los movimientos 321/322, 343/344 y 349/350 de SAP)."""
+    ESTADOS = [('LIBRE', 'Libre'), ('LIBERADO', 'Liberado por Calidad'), ('CUARENTENA', 'En control de calidad'),
+               ('RECHAZADO', 'Rechazado'), ('BLOQUEADO', 'Bloqueado')]
+    lote = models.ForeignKey('core.Lote', on_delete=models.CASCADE, null=True, blank=True, related_name='cambios_estado')
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='+')
+    almacen = models.ForeignKey(Almacen, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    estado_anterior = models.CharField(max_length=10, choices=ESTADOS)
+    estado_nuevo = models.CharField(max_length=10, choices=ESTADOS)
+    motivo = models.CharField(max_length=250)
+    operacion = models.ForeignKey('Operacion', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado', '-id']
+        verbose_name = 'cambio de estado del stock'
+        verbose_name_plural = 'cambios de estado del stock'
