@@ -53,7 +53,15 @@ def datos(periodo):
     intereses = _neto(flujos, ('67',))
     depreciacion = _neto(flujos, ('681', '682', '683'))
     compras = _neto(flujos, ('60',)) or costo
+    # FIN-09: rotaciones con el promedio de los saldos comerciales al inicio y al cierre de los 12 meses: por cobrar
+    # solo facturas y letras (121, 123), sin los anticipos de clientes (122); por pagar 421 y 423
+    inicio = sumas_por_cuenta('190001', _menos_meses(periodo, 12))
+    cxc_com = lambda s: max(_neto(s, ('121', '123')), D0)
+    cxp_com = lambda s: max(-_neto(s, ('421', '423')), D0)
+    inv = lambda s: max(_neto(s, ('20', '21', '22', '23', '24', '25', '26', '27', '28', '29')), D0)
     return {'periodo': periodo, 'caja': caja, 'cxc': cxc, 'inventarios': inventarios,
+            'cxc_prom': (cxc_com(saldo) + cxc_com(inicio)) / 2, 'cxp_prom': (cxp_com(saldo) + cxp_com(inicio)) / 2,
+            'inv_prom': (inv(saldo) + inv(inicio)) / 2,
             'activo_corriente': activo_corriente, 'activo_total': activo_total, 'cxp': cxp,
             'pasivo_corriente': pasivo_corriente, 'pasivo_total': pasivo_total, 'patrimonio': patrimonio,
             'deuda_financiera': deuda_financiera, 'ventas': ventas, 'costo': costo, 'bruta': bruta,
@@ -69,7 +77,7 @@ def _porcion_no_corriente(periodo, deuda):
     from .prestamos import deuda_corriente
     a, m = int(periodo[:4]), int(periodo[4:])
     fin = date(a, m, calendar.monthrange(a, m)[1])
-    no_corriente = sum((f['no_corriente'] for f in deuda_corriente(fin)), D0)
+    no_corriente = sum((f['no_corriente'] for f in deuda_corriente(fin, consultar=False)), D0)
     return min(no_corriente, max(deuda, D0))
 
 
@@ -95,15 +103,16 @@ INDICADORES = [
 
 
 def calcular(d):
-    dso = _div(d['cxc'], d['ventas'], 365)
-    dpo = _div(d['cxp'], d['compras'], 365)
-    dio = _div(d['inventarios'], d['costo'], 365)
+    # FIN-09: sin ventas, compras o costo en los 12 meses (o sin saldo) el indicador no aplica: «—»
+    dso = _div(d['cxc_prom'], d['ventas'], 365) if d['ventas'] > 0 else None
+    dpo = _div(d['cxp_prom'], d['compras'], 365) if d['compras'] > 0 else None
+    dio = _div(d['inv_prom'], d['costo'], 365) if d['costo'] > 0 and d['inv_prom'] > 0 else None
     return {
         'liquidez': _div(d['activo_corriente'], d['pasivo_corriente']),
         'acida': _div(d['activo_corriente'] - d['inventarios'], d['pasivo_corriente']),
         'capital_trabajo': d['activo_corriente'] - d['pasivo_corriente'],
         'dso': dso, 'dpo': dpo, 'dio': dio,
-        'ccc': (dso or D0) + (dio or D0) - (dpo or D0) if dso is not None else None,
+        'ccc': dso + (dio or D0) - (dpo or D0) if dso is not None else None,
         'endeudamiento': _div(d['pasivo_total'], d['activo_total'], 100),
         'deuda_ebitda': _div(d['deuda_financiera'], d['ebitda']) if d['ebitda'] > 0 else None,
         'cobertura': _div(d['operativa'], d['intereses']),
@@ -130,11 +139,12 @@ def semaforo(clave, valor, fecha=None):
 def tablero(periodo, meses=12):
     """Indicadores del mes con su semáforo y la tendencia mensual."""
     columnas = meses_entre(_menos_meses(periodo, meses - 1), periodo)
-    por_mes = [calcular(datos(p)) for p in columnas]
+    base = [datos(p) for p in columnas]
+    por_mes = [calcular(d) for d in base]
     actual = por_mes[-1]
     filas = [{'clave': k, 'nombre': n, 'unidad': u, 'valor': actual[k], 'semaforo': semaforo(k, actual[k]),
               'tendencia': [m[k] for m in por_mes]} for k, n, u, _ in INDICADORES]
-    return {'periodo': periodo, 'meses': columnas, 'filas': filas, 'datos': datos(periodo)}
+    return {'periodo': periodo, 'meses': columnas, 'filas': filas, 'datos': base[-1]}
 
 
 # ---------------------------------------------------------------- análisis vertical y horizontal

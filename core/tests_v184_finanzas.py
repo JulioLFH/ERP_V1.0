@@ -328,7 +328,22 @@ class RiesgoEIndicadoresTest(FinanzasBase):
         self.assertGreaterEqual(d['activo_corriente'], D('5000'))
         despues = ind.calcular(d)
         self.assertEqual(despues['capital_trabajo'] - antes['capital_trabajo'], D('3000'))
-        r = self.client.get(reverse('finanzas:tablero_financiero'))
+        # FIN-09: el anticipo de un cliente (122) no vuelve negativo el DSO; promedio inicio-cierre de 121/123
+        cta = lambda c, n: CuentaContable.objects.get_or_create(codigo=c, defaults={'nombre': n, 'imputable': True})[0]
+        v = Asiento.objects.create(fecha=HOY, glosa='Venta y anticipo')
+        AsientoLinea.objects.create(asiento=v, cuenta=cta('121299', 'Facturas'), debe=D('1180'))
+        AsientoLinea.objects.create(asiento=v, cuenta=cta('701199', 'Ventas'), haber=D('1000'))
+        AsientoLinea.objects.create(asiento=v, cuenta=cta('401199', 'IGV'), haber=D('180'))
+        AsientoLinea.objects.create(asiento=v, cuenta=caja, debe=D('20000'))
+        AsientoLinea.objects.create(asiento=v, cuenta=cta('122199', 'Anticipos de clientes'), haber=D('20000'))
+        d = ind.datos(PERIODO)
+        dso = ind.calcular(d)['dso']
+        self.assertIsNotNone(dso)
+        self.assertGreaterEqual(dso, 0)
+        self.assertEqual(dso, (d['cxc_prom'] * 365 / d['ventas']).quantize(D('0.01')))
+        with patch('core.tipo_cambio._consultar') as remoto:  # v1.84.1: el tablero no consulta SUNAT por cada mes
+            r = self.client.get(reverse('finanzas:tablero_financiero'))
+        remoto.assert_not_called()
         self.assertContains(r, 'Liquidez corriente')
         self.assertIn('spreadsheetml', self.client.get(reverse('finanzas:tablero_financiero') + '?formato=excel')[
             'Content-Type'])

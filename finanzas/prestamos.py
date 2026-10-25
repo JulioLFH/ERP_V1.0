@@ -330,15 +330,17 @@ def devengar(periodo, usuario):
     return asiento
 
 
-def deuda_corriente(hoy=None):
+def deuda_corriente(hoy=None, consultar=True):
     """Reclasificación al cierre: por préstamo, capital que vence en los próximos 12 meses (corriente) y después (no
-    corriente), en soles."""
+    corriente), en soles. consultar=False usa el tipo de cambio ya registrado (sin ir a SUNAT): el tablero financiero
+    lo pide para cada uno de 12 cierres."""
     from core.tipo_cambio import venta_del_dia
     hoy = hoy or timezone.localdate()
     limite = _sumar_meses(hoy, 12)
-    tc = venta_del_dia(hoy)
+    prestamos = Prestamo.objects.filter(estado='VIGENTE')
+    tc = venta_del_dia(hoy, consultar) if prestamos.filter(moneda='USD').exists() else Decimal('1')
     filas = []
-    for p in Prestamo.objects.filter(estado='VIGENTE').select_related('entidad'):
+    for p in prestamos.select_related('entidad'):
         pendientes = p.cuotas.exclude(pagos__estado='VIGENTE')
         corriente = sum((c.capital for c in pendientes if c.fecha <= limite), D0)
         no_corriente = sum((c.capital for c in pendientes if c.fecha > limite), D0)
