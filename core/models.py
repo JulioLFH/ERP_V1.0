@@ -176,7 +176,9 @@ class Empresa(models.Model):
     # ---- giro y régimen (asistente «Giro y régimen tributario»; se cambian allí y quedan en la auditoría)
     GIROS = [('COMERCIAL', 'Comercializadora'), ('MANUFACTURA', 'Manufactura'),
              ('CONSTRUCCION', 'Construcción por contrato'), ('INMOBILIARIA', 'Inmobiliaria (venta de inmuebles)'),
-             ('SERVICIOS', 'Servicios')]
+             ('SERVICIOS', 'Servicios'),
+             ('SERVICIOS_PROYECTO', 'Servicios profesionales por proyecto (arquitectura, ingeniería, consultoría, '
+                                    'supervisión)')]
     REGIMENES = [('GENERAL', 'Régimen General'), ('MYPE', 'Régimen MYPE Tributario'),
                  ('RER', 'Régimen Especial (RER)'), ('NRUS', 'Nuevo RUS')]
     COSTEOS = [('NATURALEZA', 'Sin costeo: gasto directo por naturaleza (sin clase 9)'),

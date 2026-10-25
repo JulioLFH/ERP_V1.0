@@ -13,8 +13,8 @@
 <div class="row g-3 mb-3">
   <div class="col-md-3"><div class="kpi"><div class="label">En negociación (abierto)</div><div class="value">S/ {{ total_abierto|money }}</div></div></div>
   <div class="col-md-3"><div class="kpi"><div class="label">Pronóstico ponderado</div><div class="value">S/ {{ total_ponderado|money }}</div></div></div>
-  <div class="col-md-6"><div class="kpi"><div class="label">Actividades vencidas o para hoy</div>
-    {% for a in pendientes %}<div class="small"><a href="{% url 'crm:oportunidad' a.oportunidad_id %}">{{ a.get_tipo_display }}: {{ a.descripcion|truncatechars:50 }}</a> <span class="text-muted">{{ a.fecha|date:'d/m' }} · {{ a.oportunidad }}</span></div>{% empty %}<div class="small text-muted">Al día.</div>{% endfor %}</div></div>
+  <div class="col-md-6"><div class="kpi"><div class="label">Actividades vencidas o para hoy <a href="{% url 'crm:actividades' %}" class="small">ver todas</a>{% if estancadas %} · <span class="text-danger">{{ estancadas }} oportunidad(es) sin movimiento hace más de {{ dias_estancada }} días</span>{% endif %}</div>
+    {% for a in pendientes %}<div class="small">{% if a.oportunidad_id %}<a href="{% url 'crm:oportunidad' a.oportunidad_id %}">{% else %}<a href="{% url 'crm:visitas' %}">{% endif %}{{ a.get_tipo_display }}: {{ a.descripcion|truncatechars:50 }}</a> <span class="text-muted">{{ a.fecha|date:'d/m' }} · {{ a.cliente }}</span></div>{% empty %}<div class="small text-muted">Al día.</div>{% endfor %}</div></div>
 </div>
 <div class="d-flex gap-2 overflow-auto pb-2" style="min-height:60vh">
   {% for c in columnas %}
@@ -23,11 +23,12 @@
       <div class="card-header py-2"><div class="fw-semibold small">{{ c.nombre }} <span class="badge text-bg-light">{{ c.tarjetas|length }}</span></div><div class="small text-muted">S/ {{ c.monto|money }}</div></div>
       <div class="card-body p-2 js-columna" data-etapa="{{ c.etapa }}" style="min-height:120px">
         {% for o in c.tarjetas %}
-        <div class="card mb-2 js-tarjeta" draggable="true" data-id="{{ o.pk }}" data-url="{% url 'crm:etapa' o.pk %}" style="cursor:grab">
+        <div class="card mb-2 js-tarjeta{% if o.estancada %} border-danger{% endif %}" draggable="true" data-id="{{ o.pk }}" data-url="{% url 'crm:etapa' o.pk %}" style="cursor:grab"{% if o.estancada %} title="Sin movimiento hace más de {{ dias_estancada }} días"{% endif %}>
           <div class="card-body p-2 small"><a href="{% url 'crm:oportunidad' o.pk %}" class="fw-semibold">{{ o.nombre|truncatechars:40 }}</a>
             <div class="text-muted">{{ o.cliente|truncatechars:30 }}</div>
             <div class="d-flex justify-content-between"><span>S/ {{ o.monto|money }}</span><span class="text-muted">{{ o.prob }}%</span></div>
-            {% if o.fecha_cierre %}<div class="text-muted">Cierre {{ o.fecha_cierre|date:'d/m/Y' }}</div>{% endif %}</div>
+            {% if o.fecha_cierre %}<div class="text-muted">Cierre {{ o.fecha_cierre|date:'d/m/Y' }}</div>{% endif %}
+            {% if o.estancada %}<div class="text-danger"><i class="bi bi-hourglass-bottom"></i> Sin movimiento</div>{% endif %}</div>
         </div>
         {% endfor %}
       </div>

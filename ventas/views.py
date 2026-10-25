@@ -47,6 +47,9 @@ class VentasViews(ComprobanteViews):
         if not cot_id:
             return super().initial_desde(request)
         cot = get_object_or_404(Cotizacion, pk=cot_id)
+        from .aprobacion_pedido import bloqueo
+        if bloqueo(cot):
+            messages.error(request, bloqueo(cot))
         initial = {'cotizacion': cot.pk, 'tercero': cot.tercero_id, 'moneda': cot.moneda, 'vendedor': cot.vendedor,
                    'tipo_cambio': cot.tipo_cambio, 'tipo_operacion': cot.tipo_operacion,
                    'tipo_comprobante': '01' if cot.tercero.tipo_doc == '6' else '03'}
@@ -83,6 +86,9 @@ class VentasViews(ComprobanteViews):
         if usuario is None or not usuario.is_authenticated:
             return []
         errores = []
+        from .aprobacion_pedido import bloqueo
+        if bloqueo(datos.get('cotizacion')) and not doc.pk:  # VEN-12: también si se entra con /ventas/nuevo/?cot=N
+            errores.append(bloqueo(datos['cotizacion']))
         tipo = datos.get('tipo_comprobante')
         if tipo in ('07',) and datos.get('motivo_nota') in ('06', '07') and not puede(usuario, 'ventas.devoluciones'):
             errores.append('Su usuario no emite notas de crédito por devolución (06 / 07): pida a quien tenga '
@@ -293,9 +299,29 @@ def _cot_ctx(titulo, doc=None):
 
 @login_required
 def cot_nuevo(request):
+    from . import crm_servicios as srv
+    from .models import Oportunidad
+    inicial = {'tipo': request.GET.get('tipo', 'COT')}
+    oportunidad = None
+    if (request.GET.get('oportunidad') or '').isdigit():  # CRM-03: desde la oportunidad (cliente, vendedor y nombre)
+        oportunidad = Oportunidad.objects.filter(pk=request.GET['oportunidad']).select_related('responsable').first()
+        if oportunidad is not None and srv.puede_ver(request.user, oportunidad):
+            u = oportunidad.responsable or request.user
+            inicial.update(tercero=oportunidad.tercero_id, vendedor=(u.get_full_name() or u.username)[:80],
+                           glosa=f'Oportunidad: {oportunidad.nombre}')
+        else:
+            oportunidad = None
+
+    def al_guardar(doc):
+        if oportunidad is not None:
+            srv.vincular_cotizacion(doc, oportunidad)
+        else:  # CRM-14: desde el monto del parámetro, la cotización sin oportunidad crea la suya
+            nueva = srv.asegurar_oportunidad(doc, request.user)
+            if nueva is not None:
+                messages.info(request, f'Se creó la oportunidad «{nueva.nombre}» en el CRM para esta cotización.')
     return guardar_documento(request, CotizacionForm, item_formset(Cotizacion, CotizacionItem), Cotizacion(),
                              'core/comprobante_form.html', _cot_ctx('Nueva cotización / pedido'),
-                             initial={'tipo': request.GET.get('tipo', 'COT')})
+                             initial=inicial, al_guardar=al_guardar)
 
 
 @login_required
@@ -332,10 +358,12 @@ def cot_editar(request, pk):
 @login_required
 def cot_detalle(request, pk):
     from core.aprobaciones import historial, pendiente
-    from .aprobacion_pedido import estado_aprobacion, motivos
+    from .aprobacion_pedido import bloqueo, estado_aprobacion, motivos
     cot = get_object_or_404(Cotizacion, pk=pk)
     ruta, enviar, espera = estado_aprobacion(cot, request.user) if cot.tipo == 'PED' else ([], False, '')
+    from .crm_servicios import credito
     return render(request, 'core/documento_detalle.html', {
+        'bloqueo_convertir': bloqueo(cot), 'credito_cliente': credito(cot.tercero) if cot.estado == 'PENDIENTE' else None,
         'pedido_ruta': ruta, 'pedido_enviar': enviar, 'pedido_espera': espera,
         'pedido_historial': historial('PEDIDO', cot) if cot.tipo == 'PED' else [],
         'pedido_motivos': motivos(cot)[1] if cot.estado == 'PENDIENTE' else [],

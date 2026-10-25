@@ -266,24 +266,46 @@ def registrar_avance(obra, partida, fecha, metrado, usuario, foto=None, nota='')
     if partida.presupuesto.obra_id != obra.pk or partida.es_titulo:
         raise ErrorEjecucion('Elija una partida del presupuesto de la obra.')
     metrado = Decimal(metrado or 0)
-    if not metrado:
-        raise ErrorEjecucion('Indique el metrado ejecutado.')
+    if metrado <= 0:  # OBR-23: un registro errado se anula con su motivo, no se corrige con negativos
+        raise ErrorEjecucion('El metrado ejecutado debe ser mayor que cero. Para corregir un avance mal registrado, '
+                             'anúlelo en la lista de avances con su motivo.')
     fecha = fecha or timezone.localdate()
     if fecha > timezone.localdate():
         raise ErrorEjecucion('La fecha del avance no puede ser futura.')
     acumulado = (AvancePartida.objects.filter(obra=obra, partida=partida).aggregate(s=Sum('metrado'))['s'] or D0)
-    if acumulado + metrado < 0:
-        raise ErrorEjecucion('La corrección deja el avance acumulado en negativo.')
+    if acumulado + metrado > partida.metrado:
+        raise ErrorEjecucion(f'El avance acumulado de {partida.item} ({acumulado + metrado:,.2f}) superaría el metrado '
+                             f'de la partida ({partida.metrado:,.2f}; ya ejecutado {acumulado:,.2f}). Si hay mayores '
+                             f'metrados, apruebe primero el adicional (Obras › Versiones).')
     a = AvancePartida.objects.create(obra=obra, partida=partida, fecha=fecha, metrado=metrado, nota=nota[:250],
                                      responsable=usuario if usuario and usuario.is_authenticated else None)
     if foto:
         from core.sustentos import adjuntar
         adjuntar(a, foto, usuario, f'Foto del avance {partida.item} {fecha:%d/%m/%Y}')
-    aviso = ''
-    if acumulado + metrado > partida.metrado:
-        aviso = (f'El avance acumulado ({acumulado + metrado:,.2f}) supera el metrado de la partida '
-                 f'({partida.metrado:,.2f}): corresponde un adicional (mayores metrados).')
-    return a, aviso
+    return a, ''
+
+
+@transaction.atomic
+def anular_avance(avance, usuario, motivo):
+    """OBR-23: anula un avance mal registrado (queda en la lista, ya no cuenta). No si ya está en una valorización
+    aprobada o facturada del mes del avance."""
+    motivo = (motivo or '').strip()
+    if avance.anulado:
+        raise ErrorEjecucion('El avance ya está anulado.')
+    if len(motivo) < 5:
+        raise ErrorEjecucion('Indique el motivo de la anulación.')
+    from .models import Valorizacion
+    periodo = avance.fecha.strftime('%Y%m')
+    cerrada = Valorizacion.objects.filter(obra=avance.obra, periodo=periodo,
+                                          estado__in=['APROBADA', 'FACTURADA']).first()
+    if cerrada is not None:
+        raise ErrorEjecucion(f'El avance ya se valorizó en la valorización N° {cerrada.numero} '
+                             f'({cerrada.get_estado_display().lower()}): corríjalo en la valorización del mes siguiente.')
+    avance.anulado, avance.motivo_anulacion = True, motivo[:250]
+    avance.anulado_por = usuario if usuario and usuario.is_authenticated else None
+    avance.anulado_en = timezone.now()
+    avance.save(update_fields=['anulado', 'motivo_anulacion', 'anulado_por', 'anulado_en'])
+    return avance
 
 
 # ---------------------------------------------------------------- curva S y atrasos

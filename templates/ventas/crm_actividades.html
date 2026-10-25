@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Mis actividades{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title">{% if ver == 'equipo' %}Actividades del equipo{% else %}Mis actividades{% endif %}</h1>
+  <div class="d-flex gap-2"><a href="?{% if ver != 'equipo' %}ver=equipo{% endif %}" class="btn btn-sm btn-outline-secondary">{% if ver == 'equipo' %}Solo las mías{% else %}Ver mi equipo{% endif %}</a><a href="{% url 'crm:visitas' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-geo-alt"></i> Plan de visitas</a></div>
+</div>
+<div class="row g-3">
+  {% for titulo, color, lista in grupos %}
+  <div class="col-lg-4"><div class="card border-{{ color }}"><div class="card-header fw-semibold">{{ titulo }} <span class="badge text-bg-{{ color }}">{{ lista|length }}</span></div>
+    <ul class="list-group list-group-flush small">{% for a in lista %}<li class="list-group-item">
+      <div><b>{{ a.fecha|date:'d/m' }}{% if a.hora %} {{ a.hora|time:'H:i' }}{% endif %}</b> <span class="badge text-bg-light">{{ a.get_tipo_display }}</span> {{ a.descripcion }}</div>
+      <div class="text-muted">{% if a.oportunidad_id %}<a href="{% url 'crm:oportunidad' a.oportunidad_id %}">{{ a.oportunidad }}</a>{% endif %} {{ a.cliente }}{% if ver == 'equipo' %} · {{ a.a_cargo }}{% endif %}</div>
+      <form method="post" action="{% url 'crm:actividad_hecha' a.pk %}" class="d-flex gap-1 mt-1">{% csrf_token %}<input type="hidden" name="volver" value="{{ request.get_full_path }}"><input name="resultado" class="form-control form-control-sm" placeholder="Resultado"><button class="btn btn-sm btn-outline-success py-0" title="Realizada"><i class="bi bi-check2"></i></button></form>
+    </li>{% empty %}<li class="list-group-item text-muted">Nada.</li>{% endfor %}</ul></div></div>
+  {% endfor %}
+</div>
+{% if sin_paso %}<div class="card mt-3 border-danger"><div class="card-header fw-semibold text-danger">Oportunidades abiertas sin siguiente paso ({{ sin_paso|length }})</div>
+  <ul class="list-group list-group-flush small">{% for o in sin_paso %}<li class="list-group-item"><a href="{% url 'crm:oportunidad' o.pk %}">{{ o.nombre }}</a> · {{ o.cliente }}</li>{% endfor %}</ul></div>{% endif %}
+<p class="small text-muted mt-2">Las actividades con «Recordarme» salen en la campana de Inicio el día que tocan (y por correo si está configurado el envío diario).</p>
+{% endblock %}

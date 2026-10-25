@@ -25,10 +25,20 @@ GIROS = {
                      {'crm', 'obras', 'ventas', 'compras', 'tesoreria', 'finanzas', 'contabilidad'},
                      '2341 inmuebles en construcción, 2141 terminados, 7134 variación, 7024 ventas y 6924 costo',
                      'ORDENES'),
+    # EMP-02: oficinas de arquitectura, ingeniería, consultoría o supervisión: lo de Obras sin almacén ni materiales
+    'SERVICIOS_PROYECTO': ('Servicios profesionales por proyecto: contratos con entregables, horas del personal y '
+                           'costeo por proyecto (arquitectura, ingeniería, consultoría, supervisión)',
+                           {'crm', 'obras', 'ventas', 'compras', 'tesoreria', 'finanzas', 'contabilidad', 'planillas'},
+                           'Cada proyecto con su centro de costo y la clase 9; servicio en proceso 2351 y su variación '
+                           '7152; ingreso 7041 por entregable (o por avance, NIIF 15); detracción 022 (12 %); recibos '
+                           'por honorarios con retención de 4ta; cartas fianza', 'ORDENES'),
     'SERVICIOS': ('Presta servicios (sin inventario propio relevante)',
                   {'crm', 'ventas', 'compras', 'tesoreria', 'finanzas', 'contabilidad', 'planillas'},
                   'Sin existencias: gastos por naturaleza; 70 servicios', 'NATURALEZA'),
 }
+# CIIU de servicios profesionales por proyecto: arquitectura e ingeniería, consultoría de gestión, ensayos y
+# análisis técnicos y otras actividades profesionales (sugieren el subgiro)
+CIIU_SERVICIOS_PROYECTO = {'7110', '7020', '7120', '7490'}
 # módulos que no dependen del giro (siempre visibles; SST es obligatorio para todo empleador)
 SIEMPRE = {'tablero', 'ajustes', 'contactos', 'cliente', 'sst', 'calidad'}
 

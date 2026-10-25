@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contáctenos · {{ empresa }}</title>
+<style>
+  body { font-family: system-ui, 'Segoe UI', Arial, sans-serif; margin: 0; background: #F4F6F2; color: #1d2b25; }
+  .caja { max-width: 520px; margin: 24px auto; background: #fff; border-radius: 10px; padding: 22px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+  h1 { font-size: 20px; margin: 0 0 4px; color: #0F3D2E; }
+  label { display: block; font-size: 13px; margin: 12px 0 4px; }
+  input, textarea { width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid #cfd8d3; border-radius: 6px; font: inherit; }
+  .chk { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; margin-top: 14px; }
+  .chk input { width: auto; margin-top: 2px; }
+  button { margin-top: 16px; width: 100%; padding: 11px; border: 0; border-radius: 6px; background: #1F7A52; color: #fff; font-size: 15px; cursor: pointer; }
+  .error { background: #fbe4e1; color: #a23a2c; padding: 8px 10px; border-radius: 6px; font-size: 13px; margin-top: 10px; }
+  .trampa { position: absolute; left: -5000px; }
+</style></head>
+<body><div class="caja">
+  <h1>{{ empresa }}</h1>
+  {% if gracias %}
+    <p>¡Gracias! Recibimos su consulta y un asesor se comunicará con usted hoy.</p>
+  {% else %}
+    <p style="font-size:13px;color:#5f6f67">Déjenos sus datos y le responderemos a la brevedad.</p>
+    {% for e in errores %}<div class="error">{{ e }}</div>{% endfor %}
+    <form method="post">
+      <input type="hidden" name="t" value="{{ t }}">
+      <div class="trampa"><label>No llenar <input name="sitio_web" tabindex="-1" autocomplete="off"></label></div>
+      <label>Nombre *<input name="nombre" maxlength="120" required value="{{ d.nombre }}"></label>
+      <label>Empresa<input name="empresa" maxlength="150" value="{{ d.empresa }}"></label>
+      <label>Teléfono / celular<input name="telefono" maxlength="40" inputmode="tel" value="{{ d.telefono }}"></label>
+      <label>Correo<input type="email" name="email" maxlength="254" value="{{ d.email }}"></label>
+      <label>¿En qué podemos ayudarle?<textarea name="mensaje" rows="4" maxlength="1500">{{ d.mensaje }}</textarea></label>
+      <div class="chk"><input type="checkbox" name="consentimiento" value="1" id="c" required><label for="c" style="margin:0">Autorizo a {{ empresa }} a usar mis datos personales para: {{ finalidad }} (Ley 29733 de Protección de Datos Personales). Puedo pedir la baja o la supresión de mis datos cuando lo desee.</label></div>
+      <button>Enviar consulta</button>
+    </form>
+  {% endif %}
+</div></body></html>

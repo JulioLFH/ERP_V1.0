@@ -30,6 +30,7 @@
     <tr><th>Total ingresos</th>{% for v in p.ingresos %}<td class="num text-success">{{ v|money }}</td>{% endfor %}<td></td></tr>
     <tr><th>Total egresos</th>{% for v in p.egresos %}<td class="num text-danger">{{ v|money }}</td>{% endfor %}<td></td></tr>
     <tr class="table-light"><th>Saldo al final de la semana</th>{% for v in p.saldos %}<th class="num {% if v < 0 %}text-danger{% endif %}">{{ v|money }}</th>{% endfor %}<td></td></tr>
+    {% if crm_pronostico %}<tr class="text-muted"><td title="Monto × probabilidad de las oportunidades abiertas del CRM por su fecha estimada de cierre: no se suma al saldo">Ventas por cerrar del CRM (ponderado, referencial)</td>{% for v in crm_pronostico %}<td class="num fst-italic">{{ v|money }}</td>{% endfor %}<td></td></tr>{% endif %}
   </tfoot>
 </table></div></div>
 {% endblock %}

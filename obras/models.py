@@ -12,7 +12,8 @@ MONEDAS = [('PEN', 'Soles'), ('USD', 'Dólares')]
 
 class Obra(models.Model):
     TIPOS = [('PRIVADA', 'Obra privada'), ('PUBLICA', 'Obra pública'),
-             ('INMOBILIARIA', 'Proyecto inmobiliario (venta de unidades)')]
+             ('INMOBILIARIA', 'Proyecto inmobiliario (venta de unidades)'),
+             ('SERVICIO', 'Proyecto de servicios (arquitectura, ingeniería, consultoría, supervisión)')]
     SISTEMAS = [('SUMA_ALZADA', 'Suma alzada'), ('PRECIOS_UNITARIOS', 'Precios unitarios'),
                 ('LLAVE_EN_MANO', 'Llave en mano'), ('MIXTO', 'Mixto')]
     ESTADOS = [('LICITACION', 'Propuesta / licitación'), ('ADJUDICADA', 'Adjudicada'), ('EJECUCION', 'En ejecución'),
@@ -65,6 +66,11 @@ class Obra(models.Model):
         verbose_name='Cuenta recaudadora del proyecto', help_text='Cuenta del banco que financia o del fideicomiso: los '
                                                                  'cobros de los compradores van a ella')
     banco_financiador = models.CharField('Banco que financia / supervisa', max_length=120, blank=True)
+    # proyecto de servicios (EMP-02, SRV-02, SRV-06): presupuesto de horas y gastos; el residente es el jefe de proyecto
+    horas_presupuestadas = models.DecimalField('Horas presupuestadas', max_digits=10, decimal_places=2, default=D0,
+                                               blank=True)
+    gastos_presupuestados = models.DecimalField('Gastos presupuestados S/ (sin personal)', max_digits=14,
+                                                decimal_places=2, default=D0, blank=True)
     centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.PROTECT, null=True, blank=True,
                                      related_name='+', editable=False, verbose_name='Centro de costo')
     almacen = models.ForeignKey('core.Almacen', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
@@ -90,7 +96,7 @@ class Obra(models.Model):
             _, numero = Serie.siguiente('OBR', 'OB')  # Serie.tipo admite 3 caracteres
             self.codigo = f'OB{int(numero):04d}'
         super().save(*args, **kwargs)
-        if not self.centro_costo_id or not self.almacen_id:
+        if not self.centro_costo_id or (not self.almacen_id and self.tipo != 'SERVICIO'):
             self._crear_centro_y_almacen()
 
     def _crear_centro_y_almacen(self):
@@ -107,7 +113,7 @@ class Obra(models.Model):
                 codigo = f'{self.codigo[:7]}-{n}'[:10]
             cambios['centro_costo'] = CentroCosto.objects.create(
                 codigo=codigo, nombre=f'Obra {self.nombre}'[:100], tipo='PRODUCCION', padre=padre)
-        if not self.almacen_id:
+        if not self.almacen_id and self.tipo != 'SERVICIO':  # un proyecto de servicios no tiene almacén (EMP-02)
             codigo, n = f'AO{self.codigo[2:]}'[:10], 1
             while Almacen.objects.filter(codigo=codigo).exists():
                 n += 1
@@ -831,9 +837,16 @@ class ProgramacionPartida(models.Model):
         unique_together = [('partida', 'periodo')]
 
 
+class AvancesVigentes(models.Manager):
+    """Los avances anulados no cuentan en el acumulado, la curva S ni las valorizaciones (OBR-23)."""
+
+    def get_queryset(self):
+        return super().get_queryset().filter(anulado=False)
+
+
 class AvancePartida(models.Model):
     """Avance físico (metrado ejecutado) de una partida en una fecha, con foto y responsable: alimenta la
-    valorización."""
+    valorización. No se borra ni se corrige con negativos: se anula con su motivo."""
     obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='avances')
     partida = models.ForeignKey(Partida, on_delete=models.PROTECT, related_name='avances')
     fecha = models.DateField(default=timezone.localdate)
@@ -842,6 +855,14 @@ class AvancePartida(models.Model):
                                     related_name='+')
     nota = models.CharField(max_length=250, blank=True)
     creado = models.DateTimeField(auto_now_add=True)
+    anulado = models.BooleanField(default=False, editable=False)
+    motivo_anulacion = models.CharField('Motivo de la anulación', max_length=250, blank=True, editable=False)
+    anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+', editable=False)
+    anulado_en = models.DateTimeField(null=True, blank=True, editable=False)
+
+    objects = AvancesVigentes()
+    todos = models.Manager()
 
     class Meta:
         ordering = ['-fecha', '-id']
@@ -1102,3 +1123,134 @@ class LineaValSubcontrato(models.Model):
 
     class Meta:
         ordering = ['valorizacion', 'id']
+
+# ---------------------------------------------------------------- servicios profesionales por proyecto (SRV-01 a 06)
+class EntregableProyecto(models.Model):
+    """Entregable del contrato de servicios (anteproyecto, proyecto, expediente, supervisión mensual): se entrega, el
+    cliente da su conformidad y recién entonces se factura (con la amortización del adelanto). El atraso calcula la
+    penalidad."""
+    ESTADOS = [('PENDIENTE', 'Pendiente'), ('ENTREGADO', 'Entregado al cliente'), ('OBSERVADO', 'Observado por el cliente'),
+               ('CONFORME', 'Conforme (aprobado por el cliente)'), ('FACTURADO', 'Facturado')]
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='entregables', verbose_name='Proyecto')
+    numero = models.PositiveSmallIntegerField('N°', default=1)
+    nombre = models.CharField(max_length=150, help_text='Ej. Anteproyecto, Expediente técnico, Supervisión de marzo')
+    porcentaje = models.DecimalField('% del contrato', max_digits=5, decimal_places=2, default=D0)
+    monto = models.DecimalField('Monto sin IGV', max_digits=14, decimal_places=2, default=D0,
+                                help_text='Vacío o 0 = el % del monto contratado')
+    fecha_comprometida = models.DateField('Fecha comprometida')
+    horas_presupuestadas = models.DecimalField(max_digits=10, decimal_places=2, default=D0)
+    penalidad_diaria_pct = models.DecimalField('Penalidad por día de atraso (% del monto)', max_digits=6,
+                                               decimal_places=3, default=Decimal('0.100'))
+    penalidad_maxima_pct = models.DecimalField('Penalidad máxima (% del monto)', max_digits=5, decimal_places=2,
+                                               default=Decimal('10'))
+    estado = models.CharField(max_length=9, choices=ESTADOS, default='PENDIENTE', editable=False)
+    fecha_entrega = models.DateField(null=True, blank=True, editable=False)
+    conformidad_fecha = models.DateField(null=True, blank=True, editable=False)
+    conformidad_por = models.CharField('Conformidad de', max_length=150, blank=True, editable=False)
+    observacion = models.CharField(max_length=250, blank=True, editable=False)
+    penalidad = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    factura = models.ForeignKey('ventas.Venta', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                editable=False)
+
+    class Meta:
+        ordering = ['obra', 'numero']
+        verbose_name = 'entregable del proyecto'
+        verbose_name_plural = 'entregables del proyecto'
+
+    def __str__(self):
+        return f'{self.numero}. {self.nombre}'
+
+    @property
+    def valor(self):
+        """Monto sin IGV del entregable (el propio o el % del contratado sin IGV)."""
+        if self.monto:
+            return self.monto
+        from core.models import Empresa
+        base = self.obra.monto_contratado / (1 + Empresa.actual().igv_tasa / 100) if self.obra.monto_contratado else D0
+        return (base * self.porcentaje / 100).quantize(Decimal('0.01'))
+
+    @property
+    def dias_atraso(self):
+        fin = self.fecha_entrega or (timezone.localdate() if self.estado == 'PENDIENTE' else None)
+        return max((fin - self.fecha_comprometida).days, 0) if fin else 0
+
+
+class ParteHoras(models.Model):
+    """Horas de una persona en un proyecto en la semana (y entregable): las aprueba el jefe de proyecto (el residente
+    de la obra) y se costean con el costo hora de la persona."""
+    ESTADOS = [('BORRADOR', 'Borrador'), ('ENVIADO', 'Enviado'), ('APROBADO', 'Aprobado'), ('RECHAZADO', 'Rechazado')]
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='partes_horas', verbose_name='Proyecto')
+    entregable = models.ForeignKey(EntregableProyecto, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='partes')
+    semana = models.DateField('Semana (lunes)')
+    trabajador = models.ForeignKey('planillas.Trabajador', on_delete=models.PROTECT, null=True, blank=True,
+                                   related_name='+', help_text='Personal en planilla')
+    persona = models.CharField('o independiente', max_length=120, blank=True,
+                               help_text='Especialista con recibo por honorarios')
+    horas = models.DecimalField(max_digits=6, decimal_places=2)
+    descripcion = models.CharField('Qué se hizo', max_length=250, blank=True)
+    costo_hora = models.DecimalField('Costo hora S/', max_digits=10, decimal_places=2, default=D0)
+    estado = models.CharField(max_length=9, choices=ESTADOS, default='BORRADOR', editable=False)
+    motivo_rechazo = models.CharField(max_length=200, blank=True, editable=False)
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False)
+    aprobado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-semana', 'obra', 'id']
+        verbose_name = 'parte de horas'
+        verbose_name_plural = 'partes de horas'
+
+    @property
+    def nombre_persona(self):
+        return str(self.trabajador) if self.trabajador_id else self.persona
+
+    @property
+    def costo(self):
+        return (self.horas * self.costo_hora).quantize(Decimal('0.01'))
+
+
+class GarantiaContrato(models.Model):
+    """Carta fianza o póliza del contrato (fiel cumplimiento, adelanto, seriedad de oferta) con su vencimiento."""
+    TIPOS = [('FIEL_CUMPLIMIENTO', 'Fiel cumplimiento'), ('ADELANTO', 'Por adelanto'), ('SERIEDAD', 'Seriedad de oferta'),
+             ('OTRA', 'Otra')]
+    ESTADOS = [('VIGENTE', 'Vigente'), ('RENOVADA', 'Renovada'), ('DEVUELTA', 'Devuelta'), ('EJECUTADA', 'Ejecutada')]
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='garantias', verbose_name='Obra o proyecto')
+    tipo = models.CharField(max_length=17, choices=TIPOS, default='FIEL_CUMPLIMIENTO')
+    entidad = models.CharField('Banco o aseguradora', max_length=120)
+    numero = models.CharField('N° de carta / póliza', max_length=60, blank=True)
+    monto = models.DecimalField(max_digits=14, decimal_places=2)
+    emision = models.DateField('Emisión')
+    vencimiento = models.DateField()
+    estado = models.CharField(max_length=9, choices=ESTADOS, default='VIGENTE')
+    notas = models.CharField(max_length=250, blank=True)
+
+    class Meta:
+        ordering = ['vencimiento']
+        verbose_name = 'garantía del contrato'
+        verbose_name_plural = 'garantías y cartas fianza'
+
+    @property
+    def por_vencer(self):
+        from datetime import timedelta
+        return self.estado == 'VIGENTE' and self.vencimiento <= timezone.localdate() + timedelta(days=15)
+
+
+class CierreServicioProyecto(models.Model):
+    """Servicio en proceso y el ingreso por avance (NIIF 15) del proyecto al cierre de un mes (SRV-06): el asiento
+    registra la diferencia con el mes anterior."""
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='cierres_servicio')
+    periodo = models.CharField('Mes (AAAAMM)', max_length=6)
+    costo_proceso = models.DecimalField('Costo en proceso (sin facturar)', max_digits=14, decimal_places=2, default=D0)
+    ingreso_devengado = models.DecimalField('Ingreso por avance no facturado', max_digits=14, decimal_places=2,
+                                            default=D0)
+    asiento = models.ForeignKey('contabilidad.Asiento', on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-periodo', 'obra']
+        unique_together = [('obra', 'periodo')]

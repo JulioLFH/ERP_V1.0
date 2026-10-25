@@ -2,40 +2,77 @@
 {% block title %}{{ o }}{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-  <h1 class="page-title">{{ o.nombre }} <span class="badge text-bg-light">{{ o.get_etapa_display }}</span></h1>
-  <div class="d-flex gap-2">
-    {% if o.tercero and not o.cotizacion and puede.ventas_emitir %}<a href="{% url 'ventas:cot_nuevo' %}?tercero={{ o.tercero_id }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text"></i> Crear cotización</a>{% endif %}
-    {% if o.cotizacion %}<a href="{% url 'ventas:cot_detalle' o.cotizacion_id %}" class="btn btn-sm btn-outline-secondary">{{ o.cotizacion }}</a>{% endif %}
+  <h1 class="page-title">{{ o.nombre }} <span class="badge text-bg-light">{{ nombre_etapa }}</span>{% if estancada %} <span class="badge text-bg-danger">Sin movimiento</span>{% endif %}</h1>
+  <div class="d-flex flex-wrap gap-2">
+    {% if not o.tercero and o.prospecto %}<a href="{% url 'crm:convertir' o.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-person-check"></i> Convertir en cliente</a>{% endif %}
+    {% if o.tercero and con_ventas and puede.ventas_emitir %}<a href="{% url 'ventas:cot_nuevo' %}?oportunidad={{ o.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text"></i> Crear cotización</a>{% endif %}
+    {% if whatsapp %}<a href="{% url 'crm:whatsapp' o.pk %}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success"><i class="bi bi-whatsapp"></i> WhatsApp</a>{% endif %}
+    {% if o.unidad %}<a href="{% url 'crm:proforma' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-ruled"></i> Proforma</a>{% if con_obras and o.tercero %}<a href="{% url 'obras:separar' o.unidad.obra_id %}?unidad={{ o.unidad_id }}&oportunidad={{ o.pk }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-bookmark-check"></i> Separar unidad</a>{% endif %}{% endif %}
     {% if licitacion %}<a href="{% url 'obras:licitacion' licitacion.obra_id %}" class="btn btn-sm btn-outline-warning"><i class="bi bi-trophy"></i> Licitación {{ licitacion.obra.codigo }}</a>
     {% elif con_obras and puede.obras_licitar and o.tercero and o.etapa != 'GANADA' and o.etapa != 'PERDIDA' %}
       <form method="post" action="{% url 'obras:desde_oportunidad' o.pk %}">{% csrf_token %}
         <button class="btn btn-sm btn-outline-warning" onclick="return confirm('Se creará la obra en «Propuesta / licitación» con su licitación, vinculada a esta oportunidad. ¿Continuar?')"><i class="bi bi-cone-striped"></i> Convertir en obra / licitación</button></form>{% endif %}
+    {% if o.tercero %}<a href="{% url 'crm:cliente' o.tercero_id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person-vcard"></i> Ficha del cliente</a>{% endif %}
     <a href="{% url 'crm:embudo' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-kanban"></i> Embudo</a>
   </div>
 </div>
+{% for d in duplicados %}{% if forloop.first %}<div class="alert alert-warning py-2 small"><i class="bi bi-files"></i> <b>Posible duplicado:</b>{% endif %} <a href="{% url 'crm:oportunidad' d.pk %}">{{ d.nombre }}</a> ({{ d.cliente }}, {{ d.responsable|default:'sin responsable' }}){% if not forloop.last %} ·{% else %}</div>{% endif %}{% endfor %}
+{% if sin_siguiente %}<div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-triangle"></i> Esta oportunidad abierta no tiene próxima actividad: agende el siguiente paso.</div>{% endif %}
+{% if credito and credito.en_mora %}<div class="alert alert-danger py-2 small"><i class="bi bi-cash-coin"></i> <b>Cliente en mora:</b> {{ credito.documentos_vencidos }} comprobante(s) vencido(s) por S/ {{ credito.vencida|money }}. Revíselo con Cobranzas antes de enviar la propuesta.</div>{% endif %}
 <div class="row g-3 mb-3">
-  <div class="col-md-4"><div class="kpi"><div class="label">Cliente / prospecto</div><div class="fw-semibold">{{ o.cliente }}</div><div class="small text-muted">{{ o.contacto }} {{ o.telefono }} {{ o.email }}</div></div></div>
-  <div class="col-md-3"><div class="kpi"><div class="label">Monto estimado</div><div class="value">S/ {{ o.monto|money }}</div></div></div>
-  <div class="col-md-2"><div class="kpi"><div class="label">Probabilidad</div><div class="value">{{ o.prob }}%</div></div></div>
-  <div class="col-md-3"><div class="kpi"><div class="label">Ponderado</div><div class="value">S/ {{ o.ponderado|money }}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Cliente / prospecto</div><div class="fw-semibold">{{ o.cliente }}</div><div class="small text-muted">{{ o.contacto }} {{ o.telefono }} {{ o.email }}</div></div></div>
+  <div class="col-md-2"><div class="kpi"><div class="label">Monto estimado</div><div class="value">S/ {{ o.monto|money }}</div></div></div>
+  <div class="col-md-2"><div class="kpi"><div class="label">Probabilidad · ponderado</div><div class="value">{{ o.prob }}%</div><div class="small text-muted">S/ {{ o.ponderado|money }}</div></div></div>
+  <div class="col-md-5"><div class="kpi"><div class="label">Crédito del cliente</div>
+    {% if credito %}<div class="small">Límite: <b>{% if credito.limite %}S/ {{ credito.limite|money }}{% else %}sin límite{% endif %}</b> · Deuda: <b>S/ {{ credito.deuda|money }}</b>{% if credito.vencida %} · <span class="text-danger">vencida S/ {{ credito.vencida|money }}</span>{% endif %}</div>
+      <div class="small">{% if credito.disponible is not None %}Disponible: S/ {{ credito.disponible|money }} · {% endif %}Paga en promedio a {% if credito.dias_pago is not None %}<b>{{ credito.dias_pago }} días</b>{% else %}— (sin historial){% endif %}</div>
+    {% else %}<div class="small text-muted">Prospecto: aún no es cliente.</div>{% endif %}</div></div>
 </div>
 <div class="row g-3">
-  <div class="col-lg-6"><div class="card"><div class="card-header">Datos</div><div class="card-body">
-    <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="datos">
-      {% for field in form %}<div class="{% if field.name == 'notas' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
-      <div class="col-12"><button class="btn btn-sm btn-success"><i class="bi bi-save"></i> Guardar</button></div>
-    </form>
-  </div></div></div>
-  <div class="col-lg-6"><div class="card"><div class="card-header">Actividades de seguimiento</div>
-    <ul class="list-group list-group-flush">
-      {% for a in actividades %}<li class="list-group-item d-flex justify-content-between align-items-start {% if a.hecha %}text-muted{% endif %}">
-        <div><span class="badge text-bg-light">{{ a.get_tipo_display }}</span> {{ a.fecha|date:'d/m/Y' }} — {{ a.descripcion }}<div class="small text-muted">{{ a.usuario|default:'' }}</div></div>
-        {% if not a.hecha %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="hecha"><button name="actividad" value="{{ a.pk }}" class="btn btn-sm btn-outline-success py-0" title="Marcar como realizada"><i class="bi bi-check2"></i></button></form>{% else %}<i class="bi bi-check2-circle text-success"></i>{% endif %}</li>
-      {% empty %}<li class="list-group-item text-muted">Sin actividades.</li>{% endfor %}
-    </ul>
-    <div class="card-body border-top"><form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="actividad">
-      {% for field in actividad %}<div class="{% if field.name == 'descripcion' %}col-12{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
-      <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar actividad</button></div></form></div>
-  </div></div>
+  <div class="col-lg-6">
+    <div class="card mb-3"><div class="card-header">Datos</div><div class="card-body">
+      <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="datos">
+        {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1 small">{{ e }}</div>{% endfor %}
+        {% for field in form %}<div class="{% if field.name == 'notas' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+        <div class="col-12"><button class="btn btn-sm btn-success"><i class="bi bi-save"></i> Guardar</button></div>
+      </form></div></div>
+    <div class="card mb-3"><div class="card-header">Cotizaciones de la oportunidad</div>
+      <ul class="list-group list-group-flush small">{% for c in cotizaciones %}<li class="list-group-item d-flex justify-content-between"><span>{% if con_ventas %}<a href="{% url 'ventas:cot_detalle' c.pk %}">{{ c.numero }}</a>{% else %}{{ c.numero }}{% endif %} · {{ c.fecha|date:'d/m/Y' }} · {{ c.get_estado_display }}</span><span>{{ c.moneda }} {{ c.total|money }}</span></li>
+      {% empty %}<li class="list-group-item text-muted">Sin cotizaciones: use «Crear cotización».</li>{% endfor %}
+      {% if entrega %}<li class="list-group-item"><i class="bi bi-truck"></i> <b>Entrega factible: {{ entrega.0|date:'d/m/Y' }}</b>{% for d in entrega.1 %}<div class="text-muted">{{ d }}</div>{% endfor %}</li>{% endif %}</ul></div>
+    {% if puede_reasignar %}<div class="card mb-3"><div class="card-header">Responsable</div><div class="card-body">
+      <form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="reasignar">
+        <div class="col-md-5"><select name="responsable" class="form-select form-select-sm">{% for u in usuarios %}<option value="{{ u.pk }}" {% if u.pk == o.responsable_id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select></div>
+        <div class="col-md-5"><input name="motivo" class="form-control form-control-sm" placeholder="Motivo"></div>
+        <div class="col-md-2"><button class="btn btn-sm btn-outline-primary">Reasignar</button></div></form></div></div>{% endif %}
+  </div>
+  <div class="col-lg-6">
+    <div class="card mb-3"><div class="card-header">Actividades de seguimiento</div>
+      <ul class="list-group list-group-flush small">
+        {% for a in actividades %}<li class="list-group-item {% if a.hecha %}text-muted{% endif %}">
+          <div class="d-flex justify-content-between gap-2"><div><span class="badge text-bg-light">{{ a.get_tipo_display }}</span> {{ a.fecha|date:'d/m/Y' }}{% if a.hora %} {{ a.hora|time:'H:i' }}{% endif %} — {{ a.descripcion }}
+            <div class="text-muted">{% if a.responsable %}A cargo de {{ a.responsable.get_full_name|default:a.responsable.username }}{% else %}{{ a.usuario|default:'' }}{% endif %}{% if a.resultado %} · Resultado: {{ a.resultado }}{% endif %}</div></div>
+            {% if a.hecha %}<i class="bi bi-check2-circle text-success"></i>{% else %}<button type="button" class="btn btn-sm btn-outline-success py-0" data-bs-toggle="collapse" data-bs-target="#hecha-{{ a.pk }}" title="Marcar como realizada"><i class="bi bi-check2"></i></button>{% endif %}</div>
+          {% if not a.hecha %}<form method="post" id="hecha-{{ a.pk }}" class="collapse mt-2 border-top pt-2 row g-1">{% csrf_token %}<input type="hidden" name="accion" value="hecha"><input type="hidden" name="actividad" value="{{ a.pk }}">
+            <div class="col-12"><input name="resultado" class="form-control form-control-sm" placeholder="Resultado (qué pasó)"></div>
+            <div class="col-12 small text-muted">Siguiente paso{% if o.abierta %} (obligatorio si es la última pendiente){% endif %}:</div>
+            <div class="col-4"><select name="sig_tipo" class="form-select form-select-sm">{% for v, t in tipos_actividad %}<option value="{{ v }}">{{ t }}</option>{% endfor %}</select></div>
+            <div class="col-4"><input type="date" name="sig_fecha" class="form-control form-control-sm"></div>
+            <div class="col-4"><input name="sig_descripcion" class="form-control form-control-sm" placeholder="Qué hacer"></div>
+            <div class="col-12"><button class="btn btn-sm btn-success">Marcar realizada</button></div></form>{% endif %}
+        </li>{% empty %}<li class="list-group-item text-muted">Sin actividades.</li>{% endfor %}
+      </ul>
+      <div class="card-body border-top"><form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="actividad">
+        {% for field in actividad %}<div class="{% if field.name == 'descripcion' %}col-12{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+        <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar actividad</button></div></form></div>
+    </div>
+    {% if contactos %}<div class="card mb-3"><div class="card-header">Contactos del cliente</div><ul class="list-group list-group-flush small">{% for c in contactos %}<li class="list-group-item"><b>{{ c.nombre }}</b> · {{ c.get_rol_display }}{% if c.cargo %} · {{ c.cargo }}{% endif %} <span class="text-muted">{{ c.telefono }} {{ c.email }}</span>{% if c.telefono %} <a href="{% url 'crm:whatsapp' o.pk %}?numero={{ c.telefono|urlencode }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp text-success"></i></a>{% endif %}</li>{% endfor %}</ul></div>{% endif %}
+    <div class="card mb-3"><div class="card-header">Datos personales (Ley 29733)</div><div class="card-body small">
+      {% for c in consentimientos %}<div>{{ c.get_estado_display }} · {{ c.titular }} · {{ c.get_canal_display }} · {{ c.fecha|date:'d/m/Y' }}</div>{% empty %}<div class="text-muted mb-1">Sin consentimiento registrado.</div>{% endfor %}
+      <form method="post" class="d-flex gap-2 mt-2">{% csrf_token %}<input type="hidden" name="accion" value="consentimiento"><select name="canal" class="form-select form-select-sm" style="max-width:16rem">{% for v, t in canales %}<option value="{{ v }}">{{ t }}</option>{% endfor %}</select><button class="btn btn-sm btn-outline-secondary">Registrar consentimiento</button></form></div></div>
+    {% if casos %}<div class="card mb-3"><div class="card-header">Postventa</div><ul class="list-group list-group-flush small">{% for c in casos %}<li class="list-group-item"><a href="{% url 'crm:caso' c.pk %}">{{ c.numero }}</a> {{ c.asunto }} · {{ c.get_estado_display }}</li>{% endfor %}</ul></div>{% endif %}
+    {% if o.etapa == 'GANADA' %}<a href="{% url 'crm:caso_nuevo' %}?tercero={{ o.tercero_id|default:'' }}&oportunidad={{ o.pk }}" class="btn btn-sm btn-outline-secondary mb-3"><i class="bi bi-life-preserver"></i> Nuevo caso de postventa</a>{% endif %}
+    <div class="card"><div class="card-header">Historial de etapas</div><ul class="list-group list-group-flush small">{% for h in historial %}<li class="list-group-item">{{ h.fecha|date:'d/m/Y H:i' }} · {% if h.de %}{{ etapas_nombres|get_item:h.de }} → {% endif %}<b>{{ etapas_nombres|get_item:h.a }}</b> · {{ h.usuario|default:'Sistema' }}</li>{% empty %}<li class="list-group-item text-muted">Sin cambios registrados.</li>{% endfor %}</ul></div>
+  </div>
 </div>
 {% endblock %}

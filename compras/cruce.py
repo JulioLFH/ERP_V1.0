@@ -115,6 +115,34 @@ def fuera_de_precio(compra):
     return salida
 
 
+def diferencias_cantidad(compra):
+    """[texto] de los productos de la orden de la factura con más facturado que recibido (p. ej. tras anular una
+    recepción), con la tolerancia de cantidad."""
+    oc = compra.orden_compra
+    if oc is None or compra.tipo_comprobante in ('07', '08'):
+        return []
+    from core.models import Producto
+    recibido, facturado = recibido_oc(oc), facturado_oc(oc)
+    exceso = {k: v for k, v in facturado.items()
+              if v > recibido.get(k, D0) + permitida(oc.tercero, 'cantidad', recibido.get(k, D0))}
+    nombres = dict(Producto.objects.filter(pk__in=exceso).values_list('pk', 'nombre'))
+    return [f'{nombres[k]}: facturado {v:,.2f} y recibido {recibido.get(k, D0):,.2f}' for k, v in exceso.items()]
+
+
+def motivos_retencion(compra):
+    """ALM-14: todas las condiciones que impiden pagar la factura, cada una por separado: [(tipo, texto)]. La de
+    precio la puede liberar Compras con su motivo; la de cantidad no (nota de crédito o reingreso)."""
+    motivos = [('PRECIO', f'Precio fuera de la tolerancia: {t}') for t in fuera_de_precio(compra)]
+    motivos += [('CANTIDAD', f'Recibido menor que lo facturado: {t}') for t in diferencias_cantidad(compra)]
+    return motivos
+
+
+def cantidad_sugerida(oc):
+    """ALM-14: {producto: cantidad recibida y aún no facturada} de la orden (en unidad de almacén)."""
+    recibido, facturado = recibido_oc(oc), facturado_oc(oc)
+    return {k: v - facturado.get(k, D0) for k, v in recibido.items() if v > facturado.get(k, D0)}
+
+
 def retener_si_corresponde(compra):
     """Fuera de la tolerancia de precio: la factura queda retenida para pago hasta que Compras la libere."""
     from .tolerancias import bloquear_pago, texto

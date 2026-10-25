@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Configuración del CRM{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Configuración del CRM</h1>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="card-body">
+    <form method="post" class="row g-3">{% csrf_token %}
+      {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1 small">{{ e }}</div>{% endfor %}
+      {% for field in form %}<div class="{% if field.name == 'nombres' or field.name == 'avisar_ganadas' or field.name == 'finalidad_datos' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button></div>
+    </form></div></div>
+    <p class="small text-muted mt-2">Probabilidades de cada etapa, días para marcar una oportunidad sin movimiento, clientes sin compras, monto desde el que una cotización nace en una oportunidad y comisión: <a href="{{ parametros }}">Ajustes › Parámetros (grupo CRM)</a>, con vigencia.</p></div>
+  <div class="col-lg-5"><div class="card"><div class="card-header fw-semibold"><i class="bi bi-globe"></i> Formulario de la página web</div><div class="card-body small">
+    {% if not cfg.web_activo %}<div class="alert alert-warning py-1">Inactivo: márquelo como activo para recibir consultas.</div>{% endif %}
+    <p>Enlace del formulario (para un botón «Contáctenos» o dentro de un <code>iframe</code> en su página):</p>
+    <input class="form-control form-control-sm mb-2" readonly value="{{ url_web }}" onclick="this.select()">
+    <p>O desde el formulario propio de su página (envíe por POST a ese mismo enlace los campos <code>nombre</code>, <code>empresa</code>, <code>telefono</code>, <code>email</code>, <code>mensaje</code> y <code>consentimiento=1</code>; con <code>Accept: application/json</code> responde en JSON).</p>
+    <p>Cada consulta crea la oportunidad con origen «Web», la asigna según la regla, agenda «Llamar hoy», avisa posibles duplicados y registra el consentimiento de datos personales. Un campo trampa y un tiempo mínimo filtran a los robots.</p>
+    <form method="post" data-confirm="Las páginas con el enlace anterior dejarán de enviar consultas. ¿Continuar?">{% csrf_token %}<input type="hidden" name="accion" value="nueva_clave"><button class="btn btn-sm btn-outline-danger">Cambiar la clave del enlace</button></form>
+    <hr><p class="mb-1"><b>Configuración manual (fuera de Ceiba):</b></p>
+    <ul class="mb-0"><li>WhatsApp: el botón de la oportunidad abre el chat (click-to-chat) y deja la actividad; la conexión a la API oficial de WhatsApp de Meta (número de la empresa, plantillas aprobadas) requiere contratar la cuenta con Meta.</li>
+      <li>Formularios de anuncios de Facebook / Instagram: se conectan enviando sus datos al enlace del formulario (con una herramienta de integración o la API de Meta).</li>
+      <li>Recordatorios por correo: configure el correo saliente (Ajustes › Correo saliente) y programe la tarea diaria <code>python manage.py recordatorios_crm</code>.</li>
+      <li>Correo a oportunidad: complete el buzón comercial (IMAP) en esta pantalla y programe cada pocos minutos <code>python manage.py leer_correo_crm</code>: cada correo nuevo crea su oportunidad con origen «Correo».</li></ul>
+  </div></div></div>
+</div>
+{% endblock %}

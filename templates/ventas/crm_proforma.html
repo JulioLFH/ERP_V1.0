@@ -1,0 +1,26 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Proforma {{ u }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3 d-print-none">
+  <a href="{% url 'crm:oportunidad' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Oportunidad</a>
+  <form method="get" class="d-flex flex-wrap gap-2 small align-items-end">
+    <div><label class="d-block">Precio S/</label><input name="precio" value="{{ precio }}" class="form-control form-control-sm" style="width:8rem"></div>
+    <div><label class="d-block">Separación S/</label><input name="separacion" value="{{ separacion }}" class="form-control form-control-sm" style="width:7rem"></div>
+    <div><label class="d-block">Inicial %</label><input name="inicial" value="{{ inicial_pct }}" class="form-control form-control-sm" style="width:5rem"></div>
+    <div><label class="d-block">Cuotas (0 = crédito hipotecario)</label><input name="cuotas" value="{{ cuotas }}" class="form-control form-control-sm" style="width:6rem"></div>
+    <button class="btn btn-sm btn-outline-primary">Recalcular</button><button type="button" onclick="window.print()" class="btn btn-sm btn-primary"><i class="bi bi-printer"></i> Imprimir / PDF</button>
+  </form>
+</div>
+<div class="card" style="max-width:820px;margin:auto"><div class="card-body">
+  <h2 class="h4 mb-1">Proforma · {{ u.obra.nombre }}</h2>
+  <div class="text-muted mb-3">{{ hoy|date:'d/m/Y' }} · válida hasta el {{ validez|date:'d/m/Y' }}</div>
+  <div class="row mb-3 small">
+    <div class="col-md-6"><b>Cliente:</b> {{ o.cliente }}<br><b>Asesor:</b> {{ o.responsable.get_full_name|default:o.responsable.username|default:'—' }}</div>
+    <div class="col-md-6"><b>Unidad:</b> {{ u }}{% if u.piso %} · piso {{ u.piso }}{% endif %}<br><b>Área techada:</b> {{ u.area_techada }} m²{% if u.area_libre %} · libre {{ u.area_libre }} m²{% endif %}{% if u.dormitorios %} · {{ u.dormitorios }} dormitorios{% endif %}{% if u.vista %} · vista {{ u.vista }}{% endif %}</div>
+  </div>
+  <table class="table table-sm small"><thead><tr><th>Concepto</th><th>Vence</th><th class="num">Monto S/</th></tr></thead><tbody>
+    {% for concepto, fecha, monto in filas %}<tr><td>{{ concepto }}</td><td>{{ fecha|date:'d/m/Y' }}</td><td class="num">{{ monto|money }}</td></tr>{% endfor %}
+    <tr class="fw-semibold"><td colspan="2">Precio de venta (incluye IGV cuando corresponde)</td><td class="num">{{ precio|money }}</td></tr></tbody></table>
+  <p class="small text-muted">Cronograma referencial. La separación y las cuotas se documentan con su comprobante al registrar la venta. Precios sujetos a disponibilidad de la unidad.</p>
+</div></div>
+{% endblock %}

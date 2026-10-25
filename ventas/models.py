@@ -47,6 +47,9 @@ class Cotizacion(DocumentoBase):
     niveles = models.JSONField(default=list, blank=True, editable=False)
     nivel_aprobado = models.PositiveSmallIntegerField(default=0, editable=False)
     motivo_aprobacion = models.CharField('Por qué requiere aprobación', max_length=300, blank=True, editable=False)
+    # CRM-03: la cotización nace de una oportunidad (o la crea, CRM-14) y vuelve a ella
+    oportunidad = models.ForeignKey('ventas.Oportunidad', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='cotizaciones', verbose_name='Oportunidad (CRM)')
 
     class Meta(DocumentoBase.Meta):
         verbose_name = 'cotización / pedido'
@@ -134,7 +137,13 @@ class Oportunidad(models.Model):
                     'PERDIDA': 0}
     ORIGENES = [('', '---'), ('REFERIDO', 'Referido'), ('WEB', 'Web / redes'), ('LLAMADA', 'Llamada'),
                 ('VISITA', 'Visita'), ('FERIA', 'Feria / evento'), ('CARTERA', 'Cliente de la cartera'),
-                ('OTRO', 'Otro')]
+                ('CORREO', 'Correo'), ('WHATSAPP', 'WhatsApp'), ('COTIZACION', 'Cotización sin oportunidad'),
+                ('RENOVACION', 'Renovación de contrato'), ('OTRO', 'Otro')]
+    # CRM-07: motivos de pérdida en catálogo (con el competidor)
+    MOTIVOS_PERDIDA = [('', '---'), ('PRECIO', 'Precio'), ('PLAZO', 'Plazo de entrega / ejecución'),
+                       ('COMPETIDOR', 'Eligió a un competidor'), ('SIN_PRESUPUESTO', 'Sin presupuesto'),
+                       ('REQUISITOS', 'No cumplimos requisitos / experiencia'), ('DESISTIO', 'El cliente desistió'),
+                       ('SIN_RESPUESTA', 'Sin respuesta del cliente'), ('OTRO', 'Otro')]
     nombre = models.CharField('Oportunidad', max_length=150)
     tercero = models.ForeignKey('core.Tercero', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
                                 verbose_name='Cliente')
@@ -151,7 +160,16 @@ class Oportunidad(models.Model):
     responsable = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
                                     verbose_name='Vendedor responsable')
     cotizacion = models.ForeignKey(Cotizacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
-    motivo_perdida = models.CharField('Motivo de pérdida', max_length=200, blank=True)
+    motivo_perdida_tipo = models.CharField('Motivo de pérdida', max_length=15, choices=MOTIVOS_PERDIDA, blank=True)
+    motivo_perdida = models.CharField('Detalle del motivo de pérdida', max_length=200, blank=True)
+    competidor = models.CharField('Competidor que ganó', max_length=120, blank=True)
+    campana = models.ForeignKey('ventas.Campana', on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='oportunidades', verbose_name='Campaña')
+    unidad = models.ForeignKey('obras.Unidad', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                               verbose_name='Unidad inmobiliaria de interés')
+    fecha_inicio = models.DateField('Inicio probable (para operaciones)', null=True, blank=True,
+                                   help_text='Cuándo empezaría la obra, la producción o el servicio')
+    cerrada_en = models.DateField('Cerrada el', null=True, blank=True, editable=False)
     notas = models.TextField(blank=True)
     creado = models.DateTimeField(auto_now_add=True)
     actualizado = models.DateTimeField(auto_now=True)
@@ -170,7 +188,14 @@ class Oportunidad(models.Model):
 
     @property
     def prob(self):
-        return self.probabilidad if self.probabilidad is not None else self.PROBABILIDAD[self.etapa]
+        if self.probabilidad is not None:
+            return self.probabilidad
+        from .crm_servicios import probabilidad_de
+        return probabilidad_de(self.etapa)
+
+    @property
+    def abierta(self):
+        return self.etapa in self.ABIERTAS
 
     @property
     def ponderado(self):
@@ -180,13 +205,44 @@ class Oportunidad(models.Model):
 class ActividadCRM(models.Model):
     TIPOS = [('LLAMADA', 'Llamada'), ('REUNION', 'Reunión'), ('VISITA', 'Visita'), ('CORREO', 'Correo / WhatsApp'),
              ('TAREA', 'Tarea'), ('NOTA', 'Nota')]
-    oportunidad = models.ForeignKey(Oportunidad, on_delete=models.CASCADE, related_name='actividades')
+    # una visita de cartera puede no tener oportunidad (CRM-12): va al cliente
+    oportunidad = models.ForeignKey(Oportunidad, on_delete=models.CASCADE, related_name='actividades', null=True,
+                                    blank=True)
+    tercero = models.ForeignKey('core.Tercero', on_delete=models.CASCADE, null=True, blank=True,
+                                related_name='actividades_crm', verbose_name='Cliente')
     tipo = models.CharField(max_length=8, choices=TIPOS, default='LLAMADA')
     fecha = models.DateField()
+    hora = models.TimeField(null=True, blank=True)
     descripcion = models.CharField('Descripción', max_length=250)
+    responsable = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                    verbose_name='Responsable', help_text='Vacío = quien la registra')
+    recordatorio = models.BooleanField('Recordarme', default=True,
+                                       help_text='Aparece en Inicio (campana) y se avisa por correo el día')
     hecha = models.BooleanField('Realizada', default=False)
+    resultado = models.CharField('Resultado', max_length=250, blank=True)
+    latitud = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, editable=False)
+    longitud = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, editable=False)
+    avisada = models.BooleanField(default=False, editable=False)
     usuario = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, related_name='+')
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['hecha', 'fecha', 'id']
+        ordering = ['hecha', 'fecha', 'hora', 'id']
+
+    def __str__(self):
+        return f'{self.get_tipo_display()} {self.fecha:%d/%m/%Y}: {self.descripcion}'
+
+    @property
+    def a_cargo(self):
+        return self.responsable or self.usuario
+
+    @property
+    def cliente(self):
+        if self.tercero_id:
+            return self.tercero.nombre
+        return self.oportunidad.cliente if self.oportunidad_id else ''
+
+
+from .models_crm import (  # noqa: E402,F401
+    CambioEtapa, Campana, CarteraCliente, CasoPostventa, ConfigCRM, ConsentimientoDatos, ContactoCliente,
+    ContratoServicio, EncuestaSatisfaccion, EquipoVenta, MetaVenta, Reasignacion)

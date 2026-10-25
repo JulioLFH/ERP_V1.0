@@ -64,41 +64,88 @@ M['tablero'] = {
 }
 
 M['crm'] = {
-    'intro': ('Módulo propio para la gestión comercial antes de la venta: registra las oportunidades de negocio '
-              '(cliente o prospecto, monto, probabilidad y fecha de cierre), las mueve por las etapas del embudo, '
-              'agenda las actividades de seguimiento y mide lo ganado y lo perdido. En constructoras, la oportunidad '
-              'se convierte en la obra y su licitación. Desde v1.80.0 está separado de Ventas: se asigna por usuario.'),
+    'intro': ('Módulo propio para la gestión comercial: oportunidades de negocio con su embudo, actividades de '
+              'seguimiento con recordatorio, ficha 360 del cliente con sus contactos y su crédito, cotizaciones unidas '
+              'a la oportunidad, equipos y metas, campañas, formulario web, WhatsApp, trabajo de campo desde el '
+              'celular, postventa y encuestas, contratos con renovación y protección de datos personales (Ley 29733). '
+              'Cada vendedor ve lo suyo, el jefe su equipo y la gerencia todo.'),
     'procesos': [
-        ('Registrar la oportunidad', [
-            'En <b>CRM › Oportunidades › Nueva oportunidad</b> ingrese el nombre, el cliente (o el prospecto con su contacto, teléfono y correo), la etapa, el monto estimado, la probabilidad, la fecha probable de cierre, el origen y el responsable.',
-            'Si el cliente no existe, créelo en <b>CRM › Clientes</b> con su RUC o DNI (los datos se completan en línea).',
-        ], 'Oportunidad abierta con su valor ponderado (monto × probabilidad).'),
-        ('Seguimiento en el embudo', [
-            'Abra el <b>Embudo de oportunidades</b>: una columna por etapa (Prospecto, Calificado, Propuesta / cotización, Negociación, Ganada, Perdida) con el monto y el ponderado.',
-            'Arrastre la tarjeta para cambiar de etapa (permiso «crm.registrar»). Para «Perdida» se pide el motivo en la ficha.',
-            'En la ficha registre las actividades (llamada, reunión, visita, correo / WhatsApp, tarea o nota) con su fecha y márquelas como realizadas; el embudo muestra las pendientes vencidas.',
-            'Use <b>Mis oportunidades</b> para ver solo las suyas y <b>Todas las oportunidades</b> para filtrar por etapa y descargar a Excel.',
-        ], 'Cartera comercial al día con el siguiente paso de cada oportunidad.'),
-        ('De la oportunidad a la venta', [
-            'Cuando el cliente pide precio, use <b>Crear cotización</b> en la ficha (requiere el módulo Ventas y su permiso de emitir): abre la cotización con el cliente; luego elíjala en el campo «Cotización» de la oportunidad.',
-            'Al cerrar, marque la oportunidad como <b>Ganada</b> o <b>Perdida</b> (con motivo) para medir la tasa de éxito.',
-        ], 'Venta con su origen comercial y motivo de las pérdidas.'),
-        ('Licitaciones de obra (constructoras)', [
-            'En la ficha de la oportunidad use <b>Convertir en obra / licitación</b> (requiere el módulo Obras y el permiso de licitar): se crea la obra en «Propuesta / licitación» unida a la oportunidad.',
-            'El resultado (buena pro o pérdida) se registra en <b>Obras › Licitaciones</b> y la oportunidad se actualiza sola.',
-        ], 'La oportunidad ganada se convierte en la obra adjudicada.'),
+        ('Captar la oportunidad', [
+            'Regístrela en <b>CRM › Oportunidades › Nueva oportunidad</b>: cliente o prospecto (contacto, celular, correo), monto (mayor que cero), cierre estimado (no anterior a hoy), inicio probable, origen, campaña y responsable. Marque si el prospecto autorizó el uso de sus datos.',
+            'Ceiba avisa si parece repetida (mismo cliente, prospecto, teléfono, correo o nombre).',
+            'Las consultas de la página web llegan solas por el <b>formulario web</b>: crean la oportunidad con origen «Web», la asignan (responsable fijo o rotativo) y agendan «Llamar hoy».',
+            'Una cotización desde el monto del parámetro CRM_EXIGIR_OPORTUNIDAD_DESDE que se haga sin oportunidad crea la suya.',
+        ], 'Toda venta importante entra al embudo con su origen y su campaña.'),
+        ('Seguimiento y siguiente paso', [
+            'En la ficha agende actividades (llamada, reunión, visita, correo / WhatsApp, tarea) con fecha, hora, responsable y recordatorio; aparecen en la campana de Inicio y en <b>Mis actividades</b> (vencidas, hoy, próximas).',
+            'Al marcar como realizada la última actividad pendiente, Ceiba pide la siguiente: ninguna oportunidad abierta queda sin próximo paso.',
+            'El embudo marca en rojo las oportunidades sin movimiento más días que el parámetro CRM_DIAS_ESTANCADA.',
+            'Use el botón <b>WhatsApp</b> para escribir al contacto: la conversación queda registrada como actividad.',
+        ], 'Cartera comercial al día, con el siguiente paso de cada oportunidad.'),
+        ('Del prospecto a la venta', [
+            'Con <b>Convertir en cliente</b> ingrese su RUC o DNI: con RUC se traen la razón social y la dirección de SUNAT y el prospecto se reemplaza por el cliente.',
+            'Revise el <b>crédito del cliente</b> en la ficha (límite, deuda, vencida y días promedio de pago): si está en mora, coordine con Cobranzas antes de enviar la propuesta.',
+            'Use <b>Crear cotización</b>: lleva el cliente, el vendedor y la referencia; la cotización vuelve a la oportunidad, su monto pasa a la oportunidad y la etapa pasa a Propuesta. La ficha muestra la <b>fecha de entrega factible</b> de lo cotizado (stock, receta e insumos con su plazo).',
+            'Al aprobarse la cotización, confirmarse el pedido o emitirse el comprobante, la oportunidad pasa sola a <b>Ganada</b> y se avisa a operaciones. Si se pierde, elija el motivo del catálogo (y el competidor).',
+        ], 'Venta trazada desde el primer contacto hasta la factura.'),
+        ('Clientes, visitas y renovaciones', [
+            'La <b>ficha 360</b> reúne oportunidades, cotizaciones, comprobantes, deuda, actividades, contactos (con cargo y rol), casos, encuestas y contratos del cliente, y su vendedor de cartera.',
+            'Agende las visitas en el <b>Plan de visitas</b> y regístrelas en campo con <b>En el celular</b> (ubicación y foto; funciona sin señal y se envía al volver).',
+            'Revise <b>Clientes sin compras</b> (parámetro CRM_DIAS_CLIENTE_INACTIVO) para visitarlos.',
+            'En <b>Contratos y renovaciones</b> registre los contratos con su fecha de término: Ceiba avisa con anticipación y crea la oportunidad de renovación.',
+        ], 'Clientes atendidos antes de que se vayan.'),
+        ('Postventa y satisfacción', [
+            'Registre reclamos, garantías y consultas en <b>Casos</b> con responsable y plazo (vencidos salen en Inicio); al cerrar se exige la solución.',
+            'Registre la <b>encuesta de satisfacción</b> al cerrar la obra, la entrega o el caso: Ceiba calcula el índice de recomendación (NPS).',
+        ], 'La relación sigue después de la venta.'),
+        ('Equipos, metas, comisiones y reportes', [
+            'Arme los <b>Equipos de ventas</b> con su jefe (ve y reasigna las oportunidades de su equipo) y registre las <b>Metas</b> mensuales por vendedor o equipo; el avance compara lo ganado y lo facturado.',
+            'Revise los <b>Reportes del embudo</b>: conversión por etapa, perdidas por motivo y competidor, por origen y por vendedor, ciclo de venta, pronóstico por mes de cierre y estancadas (cada tabla a Excel).',
+            'Calcule las <b>Comisiones</b> sobre las ventas que nacieron en una oportunidad (parámetro CRM_COMISION_PCT).',
+            'Mida las <b>Campañas</b>: costo por oportunidad y por venta ganada, y exporte <b>segmentos</b> de contactos que dieron su consentimiento.',
+        ], 'Gestión comercial con números.'),
+        ('Licitaciones e inmobiliario', [
+            'Constructoras: <b>Convertir en obra / licitación</b> crea la obra en «Propuesta / licitación»; su resultado se registra en Obras › Licitaciones y actualiza la oportunidad.',
+            'Inmobiliarias: elija la <b>unidad de interés</b>, emita la <b>Proforma</b> con su cronograma de pagos y use <b>Separar unidad</b> para registrar la separación en Obras.',
+            'Operaciones (obras, producción, logística) ve <b>Lo que viene</b>: oportunidades en negociación y ganadas recientes con su inicio probable.',
+        ], 'Lo comercial conectado con la ejecución.'),
+        ('Visibilidad, cartera y datos personales', [
+            'El vendedor ve sus oportunidades; el jefe, las de su equipo; con el permiso «ver todas», toda la empresa.',
+            'Al desactivar a un vendedor con cartera abierta, Ajustes › Usuarios pide a quién pasarla; también se reasigna en <b>Reasignar cartera</b> (con historial).',
+            'En <b>Datos personales</b> se ven los consentimientos (canal, finalidad, fecha) y se registra la baja de comunicaciones, se exportan los datos de una persona o se suprimen (anonimizan).',
+        ], 'Cumplimiento de la Ley 29733 y continuidad cuando cambia el equipo.'),
     ],
     'pantallas': {
-        'Embudo de oportunidades': 'Tablero por etapa con montos, ponderado y actividades vencidas; se arrastran las tarjetas.',
-        'Todas las oportunidades': 'Lista con filtros por etapa y búsqueda, y descarga a Excel.',
+        'Embudo de oportunidades': 'Tablero por etapa con montos, ponderado, actividades vencidas y oportunidades sin movimiento; se arrastran las tarjetas.',
+        'Todas las oportunidades': 'Lista con filtros por etapa, vendedor y campaña, búsqueda y Excel; en rojo las estancadas.',
         'Mis oportunidades': 'Las oportunidades de las que el usuario es responsable.',
-        'Nueva oportunidad': 'Registrar una oportunidad con su cliente o prospecto.',
-        'Clientes': 'Maestro de clientes (el mismo de Ventas y Contactos) con consulta de RUC y DNI.',
+        'Nueva oportunidad': 'Registrar una oportunidad con aviso de posibles duplicados.',
+        'Lo que viene (operaciones)': 'Oportunidades en negociación y ganadas recientes con su inicio probable, para obras, producción y logística.',
+        'Mis actividades': 'Actividades vencidas, de hoy y próximas (propias o del equipo) y oportunidades sin siguiente paso.',
+        'Plan de visitas': 'Visitas a clientes por semana con su responsable; agendar una visita.',
+        'En el celular (campo)': 'Registrar visitas con ubicación y foto y oportunidades desde el celular, aun sin señal.',
+        'Clientes (ficha 360)': 'Clientes con vendedor, oportunidades abiertas y última compra; entrada a la ficha 360.',
+        'Contactos': 'Personas de cada cliente con cargo, rol, teléfono y correo.',
+        'Clientes sin compras': 'Clientes que no compran hace más de los días del parámetro, para visitarlos.',
+        'Contratos y renovaciones': 'Contratos con su término y aviso; crear la oportunidad de renovación.',
+        'Casos (reclamos y garantías)': 'Casos de postventa con responsable, plazo y solución.',
+        'Encuestas de satisfacción': 'Encuestas con satisfacción e índice de recomendación (NPS).',
+        'Campañas': 'Campañas con costo, oportunidades, ganadas, costo por oportunidad y por venta y retorno.',
+        'Segmentos de clientes': 'Contactos con consentimiento vigente por rol, zona o días sin compra, para comunicaciones.',
+        'Reportes del embudo': 'Conversión, motivos de pérdida, origen, vendedor, ciclo, pronóstico y estancadas; cada tabla a Excel.',
+        'Metas y avance': 'Meta mensual por vendedor o equipo frente a lo ganado y lo facturado.',
+        'Comisiones': 'Comisión por vendedor sobre las ventas nacidas en una oportunidad.',
+        'Equipos de ventas': 'Equipos con su jefe y sus miembros (visibilidad por nivel).',
+        'Reasignar cartera': 'Pasar oportunidades, actividades y clientes de un vendedor a otro, con historial.',
+        'Datos personales (Ley 29733)': 'Consentimientos; baja de comunicaciones, exportar y suprimir los datos de una persona.',
+        'Configuración y formulario web': 'Formulario web (enlace, clave, asignación), avisos a operaciones, nombres de etapas y finalidad de los datos.',
     },
     'integra': [
-        ('Ventas', 'Cotizaciones creadas desde la oportunidad.'),
-        ('Obras', 'Licitaciones y obras nacidas de una oportunidad; su resultado actualiza la oportunidad.'),
-        ('Contactos', 'Mismo maestro de clientes.'),
+        ('Ventas', 'Cotizaciones desde la oportunidad; la cotización aprobada o facturada gana la oportunidad; comisiones.'),
+        ('Tesorería', 'Crédito y deuda del cliente; pronóstico ponderado en el flujo de caja proyectado.'),
+        ('Obras', 'Licitaciones, separación de unidades inmobiliarias y aviso al ganar; casos de garantía de obra.'),
+        ('Contactos', 'Mismo maestro de clientes, con contactos y cartera.'),
+        ('Ajustes', 'Usuarios (reasignación al desactivar), permisos y parámetros del CRM.'),
     ],
 }
 
@@ -510,7 +557,7 @@ M['obras'] = {
         ], 'Compras ajustadas a lo presupuestado.'),
         ('Ejecución: cronograma, avance y curva S', [
             'Cargue el <b>Cronograma</b> desde Excel (meses o inicio/fin) o desde MS Project (XML).',
-            'Registre el <b>Avance</b> físico por partida con foto y responsable (también desde el celular).',
+            'Registre el <b>Avance</b> físico por partida con foto y responsable (también desde el celular). No se acepta más que el metrado de la partida (los mayores metrados van por un adicional en Versiones) ni negativos: un registro errado se anula con su motivo en la lista de avances de la partida.',
             'Revise la curva S (programado vs ejecutado vs valorizado) y las partidas atrasadas.',
         ], 'Avance real que alimenta la valorización.'),
         ('Adelantos', [
@@ -535,6 +582,14 @@ M['obras'] = {
             'Revise el <b>Resultado por obra</b> con los gastos generales asignados (los anticipos no cuentan como ventas).',
             'Al terminar, liquide la obra: cierra su almacén y su centro de costo. Reabrirla exige el permiso «reabrir».',
         ], 'Resultado real de la obra.'),
+        ('Servicios profesionales por proyecto (arquitectura, ingeniería, consultoría, supervisión)', [
+            'Cree el proyecto con tipo «Proyecto de servicios»: tiene centro de costo pero no almacén; registre el jefe de proyecto (residente), las horas y los gastos presupuestados.',
+            'Defina los <b>Entregables</b> (anteproyecto, expediente, supervisión mensual) con su % o monto, fecha comprometida, horas y penalidad por atraso.',
+            'El personal registra sus <b>Partes de horas</b> semanales por proyecto y entregable (los independientes con su tarifa); el jefe de proyecto los aprueba en <b>Partes por aprobar</b>.',
+            'Marque el entregable como entregado (se calcula la penalidad si hay atraso), observado o conforme con el acta del cliente; recién conforme se <b>factura</b>, con la deducción proporcional del adelanto y la detracción 022.',
+            'Registre las <b>cartas fianza</b> (fiel cumplimiento, adelanto) con su vencimiento.',
+            'Al cierre del mes, en <b>Servicios en proceso</b>, revise el costo acumulado, el avance y el ingreso por avance no facturado, y registre el asiento del mes (confirme el criterio NIIF 15 con su contador).',
+        ], 'Proyectos de servicios costeados por horas y facturados por entregable.'),
         ('Proyecto inmobiliario', [
             'Registre las <b>Unidades</b> del proyecto (departamentos, estacionamientos) con área y precio.',
             'Registre la separación y la venta con su cronograma de pagos (permiso «vender»), arras y garantías.',
@@ -556,6 +611,10 @@ M['obras'] = {
         'Índices unificados (INEI)': 'Índices mensuales por área para la fórmula polinómica.',
         'Plantilla de importación (Excel)': 'Plantilla para cargar presupuestos desde Excel.',
         'Resultado por obra (con gastos generales asignados)': 'Ingresos, costos y gastos asignados por obra.',
+        'Partes de horas': 'Horas semanales por persona, proyecto y entregable, con su costo hora.',
+        'Partes por aprobar': 'Partes de horas que espera el jefe de proyecto (aprobar o rechazar).',
+        'Servicios en proceso (cierre del mes)': 'Costo acumulado, avance e ingreso por avance de los proyectos de servicios; asiento del mes.',
+        'Garantías y cartas fianza': 'Cartas fianza y pólizas del contrato con su vencimiento.',
     },
     'extra': [('Pantallas dentro de cada obra', [
         ('Presupuesto y APU', 'Partidas, análisis de precios unitarios, precios, relación de insumos y reporte de análisis.'),
@@ -571,6 +630,7 @@ M['obras'] = {
         ('Partes de equipo', 'Parte diario de equipos con horómetro y combustible.'),
         ('Subcontratos', 'Subcontratos con valorizaciones, adelanto, garantía y HES.'),
         ('Unidades / Separar / Venta', 'Unidades inmobiliarias, separación, venta, cuotas y entrega.'),
+        ('Entregables / Horas (proyectos de servicios)', 'Entregables con conformidad y factura, y horas presupuestadas frente a reales.'),
     ])],
     'integra': [
         ('Compras e Inventario', 'Solicitudes desde la Meta, almacén de obra, traslados y consumos.'),
@@ -1082,7 +1142,7 @@ M['ajustes'] = {
     ],
     'pantallas': {
         'Datos de la empresa': 'RUC, razón social, dirección, logo y módulos visibles.',
-        'Giro y régimen tributario': 'Actividad y régimen (General, MYPE, RER) de la empresa.',
+        'Giro y régimen tributario': 'Giros (comercializadora, manufactura, construcción, inmobiliaria, servicios y servicios profesionales por proyecto), régimen, costeo y módulos que usa la empresa.',
         'Parámetros tributarios (UIT, tasas, umbrales)': 'Valores con vigencia que usan los cálculos.',
         'Usuarios': 'Usuarios con módulos, acciones, perfiles y estado.',
         'Perfiles de acceso (roles)': 'Plantillas de módulos y acciones.',

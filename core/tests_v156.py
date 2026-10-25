@@ -21,5 +21,4 @@ class NovedadesTest(TestCase):
         self.assertContains(r, 'Motor único de aprobación')  # v1.42
         self.assertNotContains(r, 'v1.39.0')  # se pidió desde la 1.41
         self.assertIn(self.client.get(reverse('manuales')).status_code, (403, 404))  # los PDF siguen siendo de admin
-        nombres = [p.name for p in _manuales()]
-        self.assertEqual(nombres[-1], '10. Novedades por versión.pdf')  # 1, 2… 9, 10 (no alfabético)
+        self.assertIn('Novedades por versión.pdf', [p.name for p in _manuales()])  # v1.80.1: PDF del CHANGELOG

@@ -22,8 +22,10 @@ class ModuloCRMTest(Base):
 
     def test_menu_propio_y_ventas_sin_crm(self):
         etiquetas = [h['etiqueta'] for i in menu_de(POR_CLAVE['crm']) for h in (i.get('hijos') or [i])]
-        self.assertEqual(etiquetas[:5], ['Embudo de oportunidades', 'Todas las oportunidades', 'Mis oportunidades',
-                                         'Nueva oportunidad', 'Clientes'])
+        self.assertEqual(etiquetas[:4], ['Embudo de oportunidades', 'Todas las oportunidades', 'Mis oportunidades',
+                                         'Nueva oportunidad'])
+        for nombre in ('Mis actividades', 'Clientes (ficha 360)', 'Reportes del embudo', 'Campañas'):
+            self.assertIn(nombre, etiquetas)
         ventas = [h['url'] for i in menu_de(POR_CLAVE['ventas']) for h in (i.get('hijos') or [i])]
         self.assertFalse(any('/crm/' in u for u in ventas))
         self.assertTrue(all('crm' in modulos for _, modulos, *_ in GIROS.values()))

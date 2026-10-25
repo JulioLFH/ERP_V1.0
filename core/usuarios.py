@@ -66,6 +66,9 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
                                              help_text='Ninguna marcada = todas')
     vendedor = forms.CharField(label='Solo las ventas del vendedor', required=False, max_length=80,
                                help_text='Comprobantes y pedidos con este vendedor. Vacío = todos')
+    reasignar_crm = forms.ModelChoiceField(
+        label='Al desactivarlo, pasar su cartera del CRM a', required=False, queryset=None,
+        help_text='Oportunidades abiertas, actividades pendientes y clientes de su cartera (CRM)')
 
     CAMPOS_PROPIOS = ('modulos', 'es_admin', 'ver_costos', 'acciones', 'almacenes', 'series', 'limite_aprobacion',
                       'perfil_acceso', 'aplicar_perfil', 'ocultar_sueldos', 'ocultar_saldos', 'centros', 'cuentas',
@@ -99,6 +102,13 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         self.fields['trabajador'].queryset = Tercero.objects.filter(activo=True, tipo_doc__in=['1', '4', '7'])
         jefes = User.objects.filter(is_active=True, acceso_proveedor__isnull=True).order_by('username')
         self.fields['jefe'].queryset = jefes.exclude(pk=self.instance.pk) if self.instance.pk else jefes
+        self.fields['reasignar_crm'].queryset = self.fields['jefe'].queryset
+        self.cartera_crm = {}
+        if self.instance.pk:
+            from ventas.crm_servicios import cartera_abierta
+            self.cartera_crm = cartera_abierta(self.instance)
+        if not any(self.cartera_crm.values()):
+            self.fields.pop('reasignar_crm')
         from planillas.models import Trabajador
         libres = Trabajador.objects.filter(fecha_ingreso__isnull=False).exclude(fecha_cese__lt=timezone.localdate())
         self.fields['trabajador_planilla'].queryset = (
@@ -156,6 +166,13 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
                 self.add_error('es_admin', 'No puede quitarse a sí mismo el rol de administrador.')
         if not data.get('es_admin') and not data.get('modulos') and not self._perfil_a_aplicar(data):
             self.add_error('modulos', 'Asigne al menos un módulo (o un perfil de acceso).')
+        # CRM-15: al desactivar a un vendedor con cartera abierta se pide a quién pasarla
+        if 'reasignar_crm' in self.fields and self.instance.pk and not data.get('is_active') and \
+                not data.get('reasignar_crm'):
+            c = self.cartera_crm
+            self.add_error('reasignar_crm', f'Tiene {c["oportunidades"]} oportunidad(es) abiertas, '
+                                            f'{c["actividades"]} actividad(es) pendientes y {c["clientes"]} cliente(s) '
+                                            f'en su cartera del CRM: elija a quién pasarlas.')
         return data
 
     def _perfil_a_aplicar(self, data):
@@ -212,6 +229,10 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         Trabajador.objects.filter(usuario=user).exclude(pk=t.pk if t else 0).update(usuario=None)
         if t is not None and t.usuario_id != user.pk:
             Trabajador.objects.filter(pk=t.pk).update(usuario=user)
+        destino = self.cleaned_data.get('reasignar_crm')
+        if destino is not None and not user.is_active:
+            from ventas.crm_servicios import reasignar
+            reasignar(user, destino, self.editor, 'Usuario desactivado')
         return user
 
 

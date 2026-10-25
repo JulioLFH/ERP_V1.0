@@ -38,7 +38,8 @@ class AlmacenAvanzadoTest(TestCase):
         self.p2 = Producto.objects.filter(tipo='BIEN').exclude(pk=self.p1.pk).first()
 
     def _pedido(self, numero, lineas):
-        ped = Cotizacion.objects.create(tipo='PED', numero=numero, tercero=self.cliente)
+        # aprobado: un pedido bajo la tarifa sin aprobar no entra a una ola (VEN-12)
+        ped = Cotizacion.objects.create(tipo='PED', numero=numero, tercero=self.cliente, estado='APROBADO')
         for prod, cant in lineas:
             ped.items.create(producto=prod, descripcion=prod.nombre, cantidad=D(cant), precio_unitario=D('1'))
         return ped

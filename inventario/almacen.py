@@ -27,10 +27,14 @@ def _numero(tipo, serie):
 
 # ---------------------------------------------------------------- picking por olas
 def pedidos_pendientes():
-    """Órdenes de pedido de venta pendientes o aprobadas que aún no están en una ola abierta o preparada."""
+    """Órdenes de pedido de venta pendientes o aprobadas que aún no están en una ola abierta o preparada (sin las que
+    esperan aprobación: VEN-12)."""
+    from ventas.aprobacion_pedido import bloqueo
     from ventas.models import Cotizacion
-    return (Cotizacion.objects.filter(tipo='PED', estado__in=['PENDIENTE', 'APROBADO'])
-            .exclude(olas__estado__in=['ABIERTA', 'PREPARADA']).select_related('tercero').order_by('fecha', 'id'))
+    qs = (Cotizacion.objects.filter(tipo='PED', estado__in=['PENDIENTE', 'APROBADO'])
+          .exclude(olas__estado__in=['ABIERTA', 'PREPARADA']).select_related('tercero').order_by('fecha', 'id'))
+    bloqueados = [c.pk for c in qs.filter(estado='PENDIENTE') if bloqueo(c)]
+    return qs.exclude(pk__in=bloqueados)
 
 
 @transaction.atomic

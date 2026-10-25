@@ -309,8 +309,13 @@ def separar(request, pk):
         messages.error(request, 'La obra no es un proyecto inmobiliario.')
         return redirect('obras:obra', pk)
     hoy = timezone.localdate()
-    form = SepararForm(request.POST or None, obra=obra, initial={
-        'fecha': hoy, 'vence_separacion': hoy + timedelta(days=15), 'unidades': request.GET.getlist('unidad')})
+    inicial = {'fecha': hoy, 'vence_separacion': hoy + timedelta(days=15), 'unidades': request.GET.getlist('unidad')}
+    if (request.GET.get('oportunidad') or '').isdigit():  # CRM-11: desde la oportunidad del CRM
+        from ventas.models import Oportunidad
+        o = Oportunidad.objects.filter(pk=request.GET['oportunidad']).first()
+        if o is not None:
+            inicial.update(oportunidad=o.pk, cliente=o.tercero_id)
+    form = SepararForm(request.POST or None, obra=obra, initial=inicial)
     if request.method == 'POST' and form.is_valid():
         d = form.cleaned_data
         unidades_ = list(d['unidades'])

@@ -35,14 +35,29 @@ class ComprasViews(ComprobanteViews):
                    'tipo_cambio': oc.tipo_cambio, 'tipo_operacion': oc.tipo_operacion,
                    'centro_costo': oc.centro_costo_id, 'forma_pago': 'CREDITO' if oc.dias_credito else 'CONTADO',
                    'clasificacion': Compra.clasificacion_de(oc.items.select_related('producto'))}
-        if tiene_recepciones(orden=oc):
+        recibida = tiene_recepciones(orden=oc)
+        if recibida:
             initial['ingresar_almacen'] = False  # ya se recibió en Inventario
         from obras.models import Obra
         obra = Obra.de_centro(oc.centro_costo_id)
         if obra is not None and obra.almacen_id:
             initial['almacen'] = obra.almacen_id  # compra de una obra: ingresa a su almacén de obra
-        items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,
-                  'precio_unitario': i.precio_unitario, 'descuento_pct': i.descuento_pct} for i in oc.items.all()]
+        sugerida = {}
+        if recibida:  # ALM-14: se propone lo recibido y aún no facturado (en la unidad de compra)
+            from .cruce import cantidad_sugerida
+            sugerida = cantidad_sugerida(oc)
+        items = []
+        for i in oc.items.select_related('producto'):
+            cantidad = i.cantidad
+            if recibida and i.producto_id and i.producto.es_inventariable:
+                en_stock = sugerida.pop(i.producto_id, None)
+                if en_stock is None:
+                    continue  # nada recibido pendiente de facturar
+                from decimal import Decimal
+                factor = i.producto.a_stock(Decimal('1')) or Decimal('1')
+                cantidad = min(i.cantidad, en_stock / factor)
+            items.append({'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': cantidad,
+                          'precio_unitario': i.precio_unitario, 'descuento_pct': i.descuento_pct})
         return initial, items
 
     def anotar_lista(self, qs, request):
@@ -338,6 +353,9 @@ def liberar_pago(request, pk):
     from .tolerancias import liberar_pago as liberar
     compra = get_object_or_404(Compra, pk=pk)
     if request.method == 'POST':
+        from .cruce import motivos_retencion
+        for _, texto in motivos_retencion(compra):  # ALM-14: cada condición por separado
+            messages.info(request, texto)
         try:
             liberar(compra, request.user, request.POST.get('comentario', ''))
             messages.success(request, f'Pago de {compra} liberado: Finanzas ya puede pagarla.')

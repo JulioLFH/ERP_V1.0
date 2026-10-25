@@ -49,6 +49,11 @@ def liberar_pago(compra, usuario, comentario):
         raise ValueError('El pago de esta factura no está bloqueado.')
     if len((comentario or '').strip()) < 10:
         raise ValueError('Indique por qué se libera el pago (mínimo 10 caracteres).')
+    from .cruce import motivos_retencion
+    cantidad = [t for tipo, t in motivos_retencion(compra) if tipo == 'CANTIDAD']
+    if cantidad:  # ALM-14: se vuelven a revisar todas las condiciones al liberar
+        raise ValueError('No se puede liberar el pago: ' + ' · '.join(cantidad) + '. Registre la recepción que falta '
+                         'o la nota de crédito del proveedor.')
     nombre = (usuario.get_full_name() or usuario.username) if usuario else ''
     compra.pago_bloqueado = False
     compra.motivo_bloqueo_pago = (f'Liberado por {nombre} el {timezone.localtime():%d/%m/%Y %H:%M}: '

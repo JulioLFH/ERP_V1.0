@@ -29,7 +29,7 @@ class SelectRemoto(forms.Select):
         self.fuente, self.perezoso = fuente, perezoso
 
     def optgroups(self, name, value, attrs=None):
-        elegidos = [v for v in value if v not in ('', None)]
+        elegidos = list(dict.fromkeys(v for v in value if v not in ('', None)))  # sin repetidos (CRM-13)
         opciones = [('', '---------')]
         completas = self.choices
         if elegidos and hasattr(completas, 'queryset'):

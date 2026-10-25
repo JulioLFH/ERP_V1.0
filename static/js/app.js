@@ -24,7 +24,11 @@
         sel.value = actual;
         if (sel.value !== actual && elegida) { sel.insertAdjacentHTML('beforeend', elegida); sel.value = actual; }
       }
-      if (sel.tomselect) sel.tomselect.sync();
+      const vistos = new Set();  // cada opción una sola vez (CRM-13)
+      [...sel.options].forEach((o) => { if (vistos.has(o.value)) o.remove(); else vistos.add(o.value); });
+      if (actual) sel.value = actual;
+      // CRM-13: sin limpiar, el buscador conservaba la opción elegida además de la de la lista (salía repetida)
+      if (sel.tomselect) { sel.tomselect.clearOptions(); sel.tomselect.sync(); }
     });
   }
   // buscador: escribir cualquier palabra (FRESA) lista todo lo que la contiene, en cualquier parte del texto;

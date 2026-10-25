@@ -470,9 +470,12 @@ def recepcion_anulada(op):
         nombres = dict(Producto.objects.filter(pk__in=exceso).values_list('pk', 'nombre'))
         detalle = ', '.join(f'{nombres[k]}: facturado {facturado[k]:,.2f}, recibido {recibido.get(k, D0):,.2f}'
                             for k in exceso)
-        for c in oc.compras.filter(estado='REGISTRADO', pago_bloqueado=False).exclude(tipo_comprobante__in=['07', '08']):
-            bloquear_pago(c, f'Con diferencia: se anuló la recepción {op.numero} ({detalle}). Emita la nota de crédito '
-                             f'o registre el reingreso.')
+        texto = (f'Con diferencia: se anuló la recepción {op.numero} ({detalle}). Emita la nota de crédito o registre '
+                 f'el reingreso.')
+        for c in oc.compras.filter(estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08']):
+            # ALM-14: si ya estaba retenida (p. ej. por precio) se agrega el motivo, no se pierde
+            bloquear_pago(c, f'{c.motivo_bloqueo_pago} · {texto}' if c.pago_bloqueado and c.motivo_bloqueo_pago
+                          else texto)
 
 
 def contrapartidas(op):

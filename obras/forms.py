@@ -18,7 +18,8 @@ class ObraForm(BootstrapMixin, forms.ModelForm):
                   'fecha_contrato', 'fecha_inicio', 'plazo_dias', 'direccion', 'ubigeo', 'area_m2', 'residente',
                   'supervisor', 'estado', 'gastos_generales_pct', 'utilidad_pct', 'adelanto_directo_pct',
                   'adelanto_materiales_pct', 'retencion_garantia_pct', 'terreno_pct', 'prorrateo',
-                  'prorrateo_area_pct', 'cuenta_recaudadora', 'banco_financiador']
+                  'prorrateo_area_pct', 'cuenta_recaudadora', 'banco_financiador', 'horas_presupuestadas',
+                  'gastos_presupuestados']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -29,6 +30,12 @@ class ObraForm(BootstrapMixin, forms.ModelForm):
         self.fields['cuenta_recaudadora'].queryset = Cuenta.objects.filter(activo=True, es_detracciones=False)
         if self.instance.pk:
             self.fields['codigo'].disabled = True
+        else:  # EMP-02: una oficina de servicios por proyecto crea proyectos de servicios (sin almacén)
+            from core.models import Empresa
+            giros = set(Empresa.actual().giros or [])
+            if 'SERVICIOS_PROYECTO' in giros and not giros & {'CONSTRUCCION', 'INMOBILIARIA'}:
+                self.fields['tipo'].initial = 'SERVICIO'
+        self.fields['residente'].label = 'Residente / jefe de proyecto'
         if self.instance.estado not in ('LIQUIDADA', 'CERRADA'):
             del self.fields['motivo_cambio']
 

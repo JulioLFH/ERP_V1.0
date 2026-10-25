@@ -29,6 +29,27 @@ class MultiempresaTest(TestCase):
         from django.core.cache import cache
         cache.clear()
 
+    def test_transaccion_en_la_base_de_la_empresa(self):
+        """ALM-11: en la segunda empresa un error dentro de atomic() deshace lo grabado en su base."""
+        from django.db import transaction
+        token = activar('empresa2')
+        try:
+            with self.assertRaises(ValueError):
+                with transaction.atomic():
+                    Tercero.objects.create(tipo='CLIENTE', tipo_doc='1', numero_doc='40000001', nombre='A MEDIAS')
+                    raise ValueError('falla a mitad de camino')
+
+            @transaction.atomic
+            def grabar_y_fallar():
+                Tercero.objects.create(tipo='CLIENTE', tipo_doc='1', numero_doc='40000002', nombre='DECORADO')
+                raise ValueError('falla')
+
+            with self.assertRaises(ValueError):
+                grabar_y_fallar()
+        finally:
+            restaurar(token)
+        self.assertFalse(Tercero.objects.using('empresa2').filter(nombre__in=['A MEDIAS', 'DECORADO']).exists())
+
     def test_usuarios_y_datos_separados(self):
         self.assertFalse(User.objects.filter(username='ana').exists())  # el usuario es de la otra empresa
         r = self.client.get(reverse('login'))

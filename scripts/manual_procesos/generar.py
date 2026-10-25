@@ -1,4 +1,5 @@
-"""Genera el manual de procesos por módulo: un PDF por módulo y uno completo (Ajustes › Manuales).
+"""Genera los manuales de Ajustes › Manuales: un PDF por módulo y uno completo (procesos por módulo) y las
+Novedades por versión (del CHANGELOG).
 
 Las pantallas salen del menú (core/modulos.py) y las acciones de core/permisos.py, así que siempre coinciden con la
 versión; los procesos e introducciones están en contenido.py (actualícelos cuando cambie un flujo). Imprime con
@@ -213,6 +214,27 @@ def imprimir(html_path, pdf_path):
                    check=True, capture_output=True, timeout=120)
 
 
+def novedades():
+    """«Novedades por versión.pdf» (Manuales): todas las versiones del CHANGELOG, la más reciente primero."""
+    from core.manuales import versiones
+    lista = versiones('1.0')
+    partes = [f"""
+<div class="portada">{ISOTIPO}
+  <div><div class="serie">Ceiba ERP</div><h1>Novedades por versión</h1>
+  <div class="desc">Qué cambió en el sistema en cada versión (de la más reciente a la primera).</div>
+  <div class="meta">Versión {VERSION} · {FECHA} · {len(lista)} versiones</div></div>
+</div>"""]
+    for v in lista:  # los textos ya vienen escapados por versiones() (solo <b>)
+        items = ''.join(f'<li>{i}</li>' for i in v['items'])
+        partes.append(f'<div class="proceso"><h3><span class="n" style="width:auto;border-radius:10px;padding:0 8px">'
+                      f'v{e(v["version"])}</span>{e(v["titulo"])} <small class="nota">· {e(v["fecha"])}</small></h3>'
+                      f'<ul>{items}</ul></div>')
+    h = TRABAJO / 'novedades.html'
+    h.write_text(documento('Novedades por versión — Ceiba ERP', ''.join(partes)), encoding='utf-8')
+    imprimir(h, RAIZ / 'Manuales' / 'Novedades por versión.pdf')
+    print('ok novedades')
+
+
 def main():
     if not CHROME:
         sys.exit('No se encontró Chrome ni Edge para imprimir los PDF.')
@@ -246,6 +268,7 @@ habilita a cada usuario además del acceso al módulo; las sensibles requieren m
     h.write_text(documento('Manual de procesos por módulo — Ceiba ERP', portada + ''.join(cuerpos)), encoding='utf-8')
     imprimir(h, SALIDA / '00. Manual completo (todos los módulos).pdf')
     print('ok completo')
+    novedades()
     shutil.rmtree(TRABAJO, ignore_errors=True)
     if SIN_DESCRIPCION:
         print('SIN DESCRIPCION:', *sorted(set(SIN_DESCRIPCION)), sep='\n  ')

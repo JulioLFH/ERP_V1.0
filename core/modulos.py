@@ -21,8 +21,26 @@ MODULOS = [
             ('Embudo de oportunidades', 'crm:embudo'),
             ('Oportunidades', [('Todas las oportunidades', 'crm:lista', 'bi-list-stars'),
                                ('Mis oportunidades', 'crm:lista?mias=1', 'bi-person-check'),
-                               ('Nueva oportunidad', 'crm:nueva', 'bi-plus-circle')]),
-            ('Clientes', 'terceros?tipo=CLIENTE'),
+                               ('Nueva oportunidad', 'crm:nueva', 'bi-plus-circle'),
+                               ('Lo que viene (operaciones)', 'crm:operaciones', 'bi-truck')]),
+            ('Seguimiento', [('Mis actividades', 'crm:actividades', 'bi-check2-square'),
+                             ('Plan de visitas', 'crm:visitas', 'bi-geo-alt'),
+                             ('En el celular (campo)', 'crm:movil', 'bi-phone')]),
+            ('Clientes', [('Clientes (ficha 360)', 'crm:clientes', 'bi-person-vcard'),
+                          ('Contactos', 'crm:contactos', 'bi-person-lines-fill'),
+                          ('Clientes sin compras', 'crm:inactivos', 'bi-hourglass-split'),
+                          ('Contratos y renovaciones', 'crm:contratos', 'bi-arrow-repeat')]),
+            ('Postventa', [('Casos (reclamos y garantías)', 'crm:casos', 'bi-life-preserver'),
+                           ('Encuestas de satisfacción', 'crm:encuestas', 'bi-emoji-smile')]),
+            ('Marketing', [('Campañas', 'crm:campanas', 'bi-megaphone'),
+                           ('Segmentos de clientes', 'crm:segmentos', 'bi-people')]),
+            ('Reportes', [('Reportes del embudo', 'crm:reportes', 'bi-bar-chart'),
+                          ('Metas y avance', 'crm:metas', 'bi-bullseye'),
+                          ('Comisiones', 'crm:comisiones', 'bi-cash-coin')]),
+            ('Configuración', [('Equipos de ventas', 'crm:equipos', 'bi-diagram-3'),
+                               ('Reasignar cartera', 'crm:reasignaciones', 'bi-arrow-left-right'),
+                               ('Datos personales (Ley 29733)', 'crm:datos_personales', 'bi-shield-lock'),
+                               ('Configuración y formulario web', 'crm:configuracion', 'bi-gear')]),
         ],
     },
     {
@@ -216,6 +234,11 @@ MODULOS = [
                               ('Biblioteca de partidas tipo', 'obras:biblioteca', 'bi-collection'),
                               ('Índices unificados (INEI)', 'obras:indices', 'bi-table'),
                               ('Plantilla de importación (Excel)', 'obras:plantilla', 'bi-file-earmark-excel')]),
+            ('Servicios por proyecto', [('Partes de horas', 'obras:partes_horas', 'bi-clock-history'),
+                                        ('Partes por aprobar', 'obras:partes_aprobar', 'bi-check2-square'),
+                                        ('Servicios en proceso (cierre del mes)', 'obras:servicios_proceso',
+                                         'bi-hourglass-split'),
+                                        ('Garantías y cartas fianza', 'obras:garantias', 'bi-shield-check')]),
             ('Reportes', [('Resultado por obra (con gastos generales asignados)', 'contabilidad:reparto_resultado',
                            'bi-bar-chart')]),
         ],
@@ -540,7 +563,8 @@ RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'c
                 'instalacion',  # solo existe mientras el sistema no tiene usuarios
                 # cada usuario ve y resuelve lo que le toca aprobar y delega sus aprobaciones (cada acción valida)
                 'aprobaciones_bandeja', 'aprobaciones_delegaciones',
-                'mi_portal', 'mi_boleta'}  # autoservicio: cada trabajador ve solo lo suyo
+                'mi_portal', 'mi_boleta',  # autoservicio: cada trabajador ve solo lo suyo
+                'crm_web'}  # formulario de la página web: público, protegido por la clave de la empresa (CRM-09)
 
 
 # Permiso especial: ver costos de inventario (costo promedio, valorizado, kardex valorizado)
@@ -608,7 +632,9 @@ RUTAS_COMPARTIDAS = {'contabilidad:reparto_resultado': ['contabilidad', 'obras']
                      # COM-13: el traslado lo piden, aprueban y reciben compras, almacén y las obras
                      'compras:traslados': ['compras', 'inventario', 'obras', 'requerimientos'],
                      'compras:traslado_nuevo': ['compras', 'inventario', 'obras', 'requerimientos'],
-                     'ventas:crm_antiguo': ['crm', 'ventas']}  # enlaces guardados de /ventas/crm/ (van a /crm/)
+                     'ventas:crm_antiguo': ['crm', 'ventas'],  # enlaces guardados de /ventas/crm/ (van a /crm/)
+                     # CRM-21: obras, producción y logística ven lo que viene del CRM
+                     'crm:operaciones': ['crm', 'obras', 'manufactura', 'logistica', 'inventario']}
 
 
 def modulos_de_ruta(match):

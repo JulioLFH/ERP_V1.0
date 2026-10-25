@@ -200,6 +200,9 @@ def calcular(user):
                                    reverse('planillas:trabajadores') + '?estado=sin_centro', n))
     if 'obras' in mods:
         alertas += _alertas_obras(hoy)
+        alertas += _alertas_servicios(user, hoy)
+    if 'crm' in mods or mods & {'obras', 'manufactura', 'logistica'}:
+        alertas += _alertas_crm(user, mods, hoy)
     if 'sst' in mods or 'calidad' in mods:
         alertas += _alertas_sst_calidad(user, mods)
     from .models import Empresa
@@ -228,6 +231,100 @@ def calcular(user):
         alertas += _alertas_seguridad()
     orden = {'danger': 0, 'warning': 1, 'info': 2}
     return sorted(alertas, key=lambda a: orden[a['nivel']])
+
+
+def _alertas_servicios(user, hoy):
+    """Servicios por proyecto: partes de horas por aprobar (jefe de proyecto), cartas fianza por vencer y entregables
+    atrasados."""
+    from obras.models import EntregableProyecto, GarantiaContrato, ParteHoras
+    salida = []
+    partes = ParteHoras.objects.filter(estado='ENVIADO')
+    if not (user.is_superuser or puede(user, 'obras.aprobar')):
+        partes = partes.filter(obra__residente=user)
+    if partes.exists():
+        salida.append(_alerta('warning', 'bi-clock-history', 'Partes de horas por aprobar',
+                              f'{partes.count()} parte(s) de horas esperan su aprobación.',
+                              reverse('obras:partes_aprobar'), partes.count()))
+    fianzas = GarantiaContrato.objects.filter(estado='VIGENTE', vencimiento__lte=hoy + timedelta(days=15)).count()
+    if fianzas:
+        salida.append(_alerta('danger', 'bi-shield-exclamation', 'Cartas fianza por vencer',
+                              f'{fianzas} garantía(s) del contrato vencen en 15 días o menos: renuévelas.',
+                              reverse('obras:garantias'), fianzas))
+    atrasados = EntregableProyecto.objects.filter(estado__in=['PENDIENTE', 'OBSERVADO'],
+                                                  fecha_comprometida__lt=hoy).count()
+    if atrasados:
+        salida.append(_alerta('warning', 'bi-calendar-x', 'Entregables atrasados',
+                              f'{atrasados} entregable(s) pasaron su fecha comprometida (corre la penalidad).',
+                              reverse('obras:lista'), atrasados))
+    return salida
+
+
+def _alertas_crm(user, mods, hoy):
+    """CRM (v1.81): actividades del día y vencidas, oportunidades sin siguiente paso o sin movimiento, cotizaciones
+    vencidas, clientes sin compras, contratos por renovar y casos de postventa vencidos; a operaciones, lo ganado."""
+    from django.db.models import Q
+    from ventas import crm_servicios as srv
+    from ventas.models import ActividadCRM, CasoPostventa, ContratoServicio, Oportunidad
+    salida = []
+    if 'crm' in mods:
+        mias = ActividadCRM.objects.filter(hecha=False, recordatorio=True, fecha__lte=hoy).filter(
+            Q(responsable=user) | Q(responsable__isnull=True, usuario=user))
+        vencidas, de_hoy = mias.filter(fecha__lt=hoy).count(), mias.filter(fecha=hoy).count()
+        if vencidas:
+            salida.append(_alerta('danger', 'bi-alarm', 'Actividades del CRM vencidas',
+                                  f'{vencidas} actividad(es) de seguimiento vencidas.', reverse('crm:actividades'),
+                                  vencidas))
+        if de_hoy:
+            salida.append(_alerta('warning', 'bi-calendar-check', 'Actividades del CRM para hoy',
+                                  f'{de_hoy} actividad(es) agendadas para hoy.', reverse('crm:actividades'), de_hoy))
+        abiertas = srv.visibles(user, Oportunidad.objects.filter(etapa__in=Oportunidad.ABIERTAS))
+        if not srv.ve_todo(user):
+            abiertas = abiertas.filter(responsable=user)
+        sin_paso = abiertas.exclude(actividades__hecha=False).count()
+        if sin_paso:
+            salida.append(_alerta('warning', 'bi-signpost', 'Oportunidades sin siguiente paso',
+                                  f'{sin_paso} oportunidad(es) abiertas sin próxima actividad.',
+                                  reverse('crm:actividades'), sin_paso))
+        limite = timezone.now() - timedelta(days=int(srv.parametro('CRM_DIAS_ESTANCADA')))
+        estancadas = abiertas.filter(actualizado__lt=limite).count()
+        if estancadas:
+            salida.append(_alerta('warning', 'bi-hourglass-bottom', 'Oportunidades sin movimiento',
+                                  f'{estancadas} oportunidad(es) sin movimiento hace más de '
+                                  f'{int(srv.parametro("CRM_DIAS_ESTANCADA"))} días.', reverse('crm:lista') + '?mias=1',
+                                  estancadas))
+        ids = None if srv.ve_todo(user) else {user.pk}
+        cot = srv.cotizaciones_por_vencer(ids)
+        if cot:
+            salida.append(_alerta('info', 'bi-file-earmark-x', 'Cotizaciones vencidas sin respuesta',
+                                  f'{len(cot)} cotización(es) de oportunidades abiertas pasaron su validez.',
+                                  reverse('crm:lista') + '?mias=1', len(cot)))
+        contratos = [c for c in ContratoServicio.objects.filter(estado='VIGENTE', oportunidad_renovacion__isnull=True)
+                     if c.por_renovar and (ids is None or c.responsable_id in ids)]
+        if contratos:
+            salida.append(_alerta('warning', 'bi-arrow-repeat', 'Contratos por renovar',
+                                  f'{len(contratos)} contrato(s) terminan pronto: cree la oportunidad de renovación.',
+                                  reverse('crm:contratos'), len(contratos)))
+        casos = CasoPostventa.objects.exclude(estado='CERRADO').filter(fecha_limite__lt=hoy)
+        if ids is not None:
+            casos = casos.filter(responsable=user)
+        if casos.exists():
+            salida.append(_alerta('danger', 'bi-life-preserver', 'Casos de postventa vencidos',
+                                  f'{casos.count()} caso(s) pasaron su plazo de respuesta.', reverse('crm:casos'),
+                                  casos.count()))
+        if int(srv.parametro('CRM_DIAS_CLIENTE_INACTIVO')) > 0 and ids is not None:
+            inactivos = srv.clientes_inactivos(usuario_ids=ids)
+            if inactivos:
+                salida.append(_alerta('info', 'bi-person-dash', 'Clientes de su cartera sin compras',
+                                      f'{len(inactivos)} cliente(s) no compran hace más de '
+                                      f'{int(srv.parametro("CRM_DIAS_CLIENTE_INACTIVO"))} días.',
+                                      reverse('crm:inactivos'), len(inactivos)))
+    if mods & {'obras', 'manufactura', 'logistica'}:  # CRM-21: operaciones se entera de lo ganado
+        ganadas = Oportunidad.objects.filter(etapa='GANADA', cerrada_en__gte=hoy - timedelta(days=7)).count()
+        if ganadas:
+            salida.append(_alerta('info', 'bi-trophy', 'Oportunidades ganadas esta semana',
+                                  f'{ganadas} oportunidad(es) ganadas: revise su inicio probable para planificar.',
+                                  reverse('crm:operaciones'), ganadas))
+    return salida
 
 
 def _alertas_obras(hoy):

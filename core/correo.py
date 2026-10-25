@@ -43,3 +43,8 @@ def enviar(destinatarios, asunto, plantilla, contexto, adjuntos=None):
     except Exception as exc:  # autenticación, servidor caído, puerto bloqueado...
         log.warning('No se pudo enviar el correo "%s": %s', asunto, exc)
         raise ErrorCorreo(f'No se pudo enviar el correo: {exc}') from exc
+
+
+def enviar_simple(destinatarios, asunto, texto):
+    """Aviso de texto (recordatorios y avisos del CRM) con la plantilla básica."""
+    return enviar(destinatarios, asunto, 'core/correo_simple.html', {'texto': texto, 'asunto': asunto})

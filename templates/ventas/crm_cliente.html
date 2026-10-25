@@ -1,0 +1,45 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}{{ t.nombre }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title mb-0">{{ t.nombre }}</h1><div class="small text-muted">{{ t.get_tipo_doc_display }} {{ t.numero_doc }} · {{ t.direccion }} · {{ t.telefono }} {{ t.email }}</div></div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'crm:nueva' %}?tercero={{ t.pk }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Oportunidad</a>
+    <a href="{% url 'crm:visitas' %}?tercero={{ t.pk }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-geo-alt"></i> Visita</a>
+    <a href="{% url 'crm:caso_nuevo' %}?tercero={{ t.pk }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-life-preserver"></i> Caso de postventa</a>
+    <a href="{% url 'crm:contrato_nuevo' %}?tercero={{ t.pk }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-repeat"></i> Contrato</a>
+    <a href="{% url 'tercero_editar' t.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i> Datos</a>
+  </div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-md-3"><div class="kpi"><div class="label">Deuda</div><div class="value">S/ {{ credito.deuda|money }}</div>{% if credito.vencida %}<div class="small text-danger">Vencida S/ {{ credito.vencida|money }}</div>{% endif %}</div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Límite de crédito</div><div class="value">{% if credito.limite %}S/ {{ credito.limite|money }}{% else %}Sin límite{% endif %}</div>{% if credito.disponible is not None %}<div class="small">Disponible S/ {{ credito.disponible|money }}</div>{% endif %}</div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Paga en promedio a</div><div class="value">{% if credito.dias_pago is not None %}{{ credito.dias_pago }} días{% else %}—{% endif %}</div></div></div>
+  <div class="col-md-3"><div class="kpi"><div class="label">Ganado en el CRM</div><div class="value">S/ {{ ganado|money }}</div>
+    <form method="post" class="d-flex gap-1 mt-1">{% csrf_token %}<input type="hidden" name="accion" value="cartera"><select name="responsable" class="form-select form-select-sm"><option value="">Sin vendedor</option>{% for u in usuarios %}<option value="{{ u.pk }}" {% if cartera.responsable_id == u.pk %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select><button class="btn btn-sm btn-outline-secondary" title="Vendedor de la cartera"><i class="bi bi-check2"></i></button></form></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card mb-3"><div class="card-header">Oportunidades</div><div class="table-responsive"><table class="table table-sm mb-0 small"><tbody>
+      {% for o in oportunidades %}<tr><td><a href="{% url 'crm:oportunidad' o.pk %}">{{ o.nombre }}</a></td><td>{{ etapas_nombres|get_item:o.etapa }}</td><td class="num">{{ o.monto|money }}</td><td>{{ o.responsable|default:'' }}</td></tr>{% empty %}<tr><td class="text-muted">Sin oportunidades.</td></tr>{% endfor %}</tbody></table></div></div>
+    <div class="card mb-3"><div class="card-header">Cotizaciones y comprobantes</div><div class="table-responsive"><table class="table table-sm mb-0 small"><tbody>
+      {% for c in cotizaciones %}<tr><td>{{ c.numero }}</td><td>{{ c.fecha|date:'d/m/Y' }}</td><td>{{ c.get_estado_display }}</td><td class="num">{{ c.moneda }} {{ c.total|money }}</td></tr>{% endfor %}
+      {% for v in ventas %}<tr><td>{{ v.numero_completo }}</td><td>{{ v.fecha_emision|date:'d/m/Y' }}</td><td>{{ v.get_tipo_comprobante_display }}</td><td class="num">{{ v.moneda }} {{ v.total|money }}</td></tr>{% endfor %}
+      {% if not cotizaciones and not ventas %}<tr><td class="text-muted">Sin documentos.</td></tr>{% endif %}</tbody></table></div></div>
+    <div class="card mb-3"><div class="card-header">Actividades</div><ul class="list-group list-group-flush small">{% for a in actividades %}<li class="list-group-item{% if a.hecha %} text-muted{% endif %}"><span class="badge text-bg-light">{{ a.get_tipo_display }}</span> {{ a.fecha|date:'d/m/Y' }} — {{ a.descripcion }}{% if a.oportunidad %} · <a href="{% url 'crm:oportunidad' a.oportunidad_id %}">{{ a.oportunidad }}</a>{% endif %}{% if a.resultado %} · {{ a.resultado }}{% endif %}</li>{% empty %}<li class="list-group-item text-muted">Sin actividades.</li>{% endfor %}</ul></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-header">Contactos</div>
+      <ul class="list-group list-group-flush small">{% for c in contactos %}<li class="list-group-item{% if not c.activo %} text-muted{% endif %}"><b>{{ c.nombre }}</b>{% if c.principal %} <span class="badge text-bg-success">principal</span>{% endif %} · {{ c.get_rol_display }}{% if c.cargo %} · {{ c.cargo }}{% endif %}<div class="text-muted">{{ c.telefono }} {{ c.email }}</div></li>{% empty %}<li class="list-group-item text-muted">Sin contactos.</li>{% endfor %}</ul>
+      <div class="card-body border-top"><form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="contacto">
+        {% for field in form %}<div class="{% if field.name == 'notas' or field.name == 'consentimiento' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+        <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar contacto</button></div></form></div></div>
+    <div class="card mb-3"><div class="card-header">Postventa y satisfacción</div><ul class="list-group list-group-flush small">
+      {% for c in casos %}<li class="list-group-item"><a href="{% url 'crm:caso' c.pk %}">{{ c.numero }}</a> {{ c.asunto }} · {{ c.get_estado_display }}</li>{% endfor %}
+      {% for e in encuestas %}<li class="list-group-item">Encuesta {{ e.fecha|date:'d/m/Y' }}: satisfacción {{ e.satisfaccion }}/5 · recomendaría {{ e.recomendaria }}/10</li>{% endfor %}
+      {% if not casos and not encuestas %}<li class="list-group-item text-muted">Sin casos ni encuestas.</li>{% endif %}</ul></div>
+    {% if contratos %}<div class="card mb-3"><div class="card-header">Contratos</div><ul class="list-group list-group-flush small">{% for c in contratos %}<li class="list-group-item{% if c.por_renovar %} text-danger{% endif %}"><a href="{% url 'crm:contrato' c.pk %}">{{ c.descripcion }}</a> · termina {{ c.fin|date:'d/m/Y' }} · {{ c.get_estado_display }}</li>{% endfor %}</ul></div>{% endif %}
+    <div class="card"><div class="card-header">Datos personales</div><ul class="list-group list-group-flush small">{% for c in consentimientos %}<li class="list-group-item">{{ c.titular }} · {{ c.get_estado_display }} · {{ c.get_canal_display }} · {{ c.fecha|date:'d/m/Y' }}</li>{% empty %}<li class="list-group-item text-muted">Sin consentimientos registrados.</li>{% endfor %}</ul></div>
+  </div>
+</div>
+{% endblock %}

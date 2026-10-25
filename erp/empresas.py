@@ -10,6 +10,7 @@
   y luego: python manage.py migrar_empresas (crea la base si falta, las tablas y el administrador en cada una).
 """
 import re
+from contextlib import ContextDecorator
 from contextvars import ContextVar
 from pathlib import Path
 
@@ -167,6 +168,53 @@ def clave_cache(key, key_prefix, version):
     if key.startswith('razon_social_'):
         return f'{key_prefix}:{version}:{key}'
     return f'{actual()}:{key_prefix}:{version}:{key}'
+
+
+class _AtomicEmpresa(ContextDecorator):
+    """transaction.atomic() sin `using`: en la base de la empresa activa (no siempre en la principal). Resuelve la
+    empresa al entrar (también cuando se usa como decorador) y crea un Atomic nuevo en cada uso (sin estado
+    compartido entre hilos)."""
+
+    def __init__(self, savepoint=True, durable=False):
+        self.savepoint, self.durable = savepoint, durable
+
+    def _recreate_cm(self):
+        return _AtomicEmpresa(self.savepoint, self.durable)
+
+    def __enter__(self):
+        self._cm = _ORIGINAL['atomic'](using=actual(), savepoint=self.savepoint, durable=self.durable)
+        return self._cm.__enter__()
+
+    def __exit__(self, *exc):
+        return self._cm.__exit__(*exc)
+
+
+_ORIGINAL = {}
+
+
+def parchar_transacciones():
+    """ALM-11: sin esto, en la segunda empresa un error a mitad de camino no deshacía lo ya grabado (el atomic()
+    protegía la base principal). atomic, on_commit y set_rollback sin `using` van a la base de la empresa activa."""
+    from django.db import transaction
+    if _ORIGINAL:
+        return
+    _ORIGINAL.update(atomic=transaction.atomic, on_commit=transaction.on_commit,
+                     set_rollback=transaction.set_rollback)
+
+    def atomic(using=None, savepoint=True, durable=False):
+        if callable(using):  # @transaction.atomic sin paréntesis
+            return _AtomicEmpresa(savepoint, durable)(using)
+        if using is None:
+            return _AtomicEmpresa(savepoint, durable)
+        return _ORIGINAL['atomic'](using, savepoint, durable)
+
+    def on_commit(func, using=None, robust=False):
+        return _ORIGINAL['on_commit'](func, using=using or actual(), robust=robust)
+
+    def set_rollback(rollback, using=None):
+        return _ORIGINAL['set_rollback'](rollback, using=using or actual())
+
+    transaction.atomic, transaction.on_commit, transaction.set_rollback = atomic, on_commit, set_rollback
 
 
 class EmpresaRouter:

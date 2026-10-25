@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from core.permisos import puede
@@ -321,11 +322,30 @@ def avance(request, pk):
         x.acumulado = acumulado.get(x.clave, Decimal('0'))
         x.pct = (x.acumulado / x.metrado * 100).quantize(Decimal('0.1')) if x.metrado else Decimal('0')
     from core import sustentos
-    ultimos = list(o.avances.select_related('partida', 'responsable')[:40])
+    from .models import AvancePartida
+    registros = AvancePartida.todos.filter(obra=o).select_related('partida', 'responsable', 'anulado_por')
+    filtro = request.GET.get('partida')
+    if filtro:  # OBR-23: lista de los avances de una partida (también los anulados)
+        registros = registros.filter(partida_id=filtro)
+    ultimos = list(registros[:200 if filtro else 40])
     for a in ultimos:
         a.fotos = sustentos.de(a)
     return render(request, 'obras/avance.html', {'o': o, 'p': p, 'partidas': partidas, 'ultimos': ultimos,
-                                                 'hoy': timezone.localdate()})
+                                                 'hoy': timezone.localdate(), 'filtro': filtro})
+
+
+@login_required
+def avance_anular(request, pk):
+    """OBR-23: anular un avance mal registrado, con su motivo."""
+    from .models import AvancePartida
+    a = get_object_or_404(AvancePartida.todos, pk=pk)
+    if request.method == 'POST':
+        try:
+            ej.anular_avance(a, request.user, request.POST.get('motivo', ''))
+            messages.success(request, f'Avance de {a.partida.item} del {a.fecha:%d/%m/%Y} anulado.')
+        except ej.ErrorEjecucion as exc:
+            messages.error(request, str(exc))
+    return redirect(f"{reverse('obras:avance', args=[a.obra_id])}?partida={a.partida_id}")
 
 
 # ---------------------------------------------------------------- reporte por partida y versiones

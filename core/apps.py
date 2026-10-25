@@ -13,6 +13,8 @@ class CoreConfig(AppConfig):
 
         from . import auditoria, monitoreo
         auditoria.conectar()
+        from ventas.crm_servicios import conectar as conectar_crm
+        conectar_crm()  # la cotización aprobada o facturada gana su oportunidad (CRM-03)
         got_request_exception.connect(monitoreo.registrar_error, dispatch_uid='monitoreo-errores')
 
         def acceso(sender, request, user, **kwargs):

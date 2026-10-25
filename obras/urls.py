@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_comercial as com, views_ejecucion as eje
+from . import views, views_comercial as com, views_ejecucion as eje, views_servicios as srv
 
 app_name = 'obras'
 
@@ -47,6 +47,16 @@ urlpatterns = [
     path('indices/', eje.indices, name='indices'),
     path('<int:pk>/cronograma/', eje.cronograma, name='cronograma'),
     path('<int:pk>/avance/', eje.avance, name='avance'),
+    path('avances/<int:pk>/anular/', eje.avance_anular, name='avance_anular'),
+    # servicios profesionales por proyecto (EMP-02, SRV-01 a 06)
+    path('<int:pk>/entregables/', srv.entregables, name='entregables'),
+    path('<int:pk>/horas/', srv.horas, name='horas'),
+    path('partes-horas/', srv.partes_horas, name='partes_horas'),
+    path('partes-horas/por-aprobar/', srv.partes_aprobar, name='partes_aprobar'),
+    path('garantias/', srv.garantias, name='garantias'),
+    path('garantias/nueva/', srv.garantia, name='garantia_nueva'),
+    path('garantias/<int:pk>/', srv.garantia, name='garantia'),
+    path('servicios-en-proceso/', srv.servicios_proceso, name='servicios_proceso'),
     path('<int:pk>/partidas/', eje.reporte_partidas, name='reporte_partidas'),
     path('<int:pk>/versiones/', eje.versiones, name='versiones'),
     path('<int:pk>/tareo/', eje.tareo, name='tareo'),

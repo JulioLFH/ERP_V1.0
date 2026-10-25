@@ -154,6 +154,22 @@ def enviado_a_aprobacion(cot):
     return bool(ultimo and ultimo.accion == 'ENVIADA')
 
 
+def bloqueo(cot):
+    """VEN-12: texto si desde el pedido aún no se puede emitir comprobante, preparar el despacho ni reservar stock
+    (está en aprobación o la requiere y no se envió); '' si se puede. Las cotizaciones no se bloquean."""
+    if cot is None or cot.tipo != 'PED' or cot.estado in ('APROBADO', 'ATENDIDO'):
+        return ''
+    if cot.estado != 'PENDIENTE':
+        return f'El pedido {cot.numero} está {cot.get_estado_display().lower()}: no se emite nada desde él.'
+    if not (enviado_a_aprobacion(cot) or motivos(cot)[1]):
+        return ''
+    n = aprobaciones.pendiente(cot.niveles, cot.nivel_aprobado)
+    espera = (f'espera el nivel {n["nivel"]}: {n["nombre"]}' if n else
+              'espera su aprobación' if enviado_a_aprobacion(cot) else 'requiere aprobación y aún no se envía')
+    return (f'El pedido {cot.numero} no está aprobado en todos sus niveles ({espera}): no se puede emitir el '
+            f'comprobante, la guía ni reservar su stock hasta que se apruebe.')
+
+
 def estado_aprobacion(cot, user):
     """Para la pantalla: (ruta, enviar, espera) — la ruta de niveles (prevista si aún no se envía), si el usuario debe
     enviarlo y a quién se espera si no le toca aprobar."""

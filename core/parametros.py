@@ -107,9 +107,36 @@ DEFECTOS = {
     'STOCK_RESERVA_META': ('Compras y almacén', 'El stock de una obra en ejecución solo está disponible por encima de '
                                                 'lo que su meta aún va a consumir (1 = sí, 0 = no)', '',
                            [('2000-01-01', '1')], 'Política de la empresa'),
+    # CRM (v1.81): políticas comerciales de la empresa
+    'CRM_PROB_PROSPECTO': ('CRM', 'Probabilidad de la etapa Prospecto', '%', [('2000-01-01', '10')],
+                           'Política de la empresa'),
+    'CRM_PROB_CALIFICADO': ('CRM', 'Probabilidad de la etapa Calificado', '%', [('2000-01-01', '25')],
+                            'Política de la empresa'),
+    'CRM_PROB_PROPUESTA': ('CRM', 'Probabilidad de la etapa Propuesta / cotización', '%', [('2000-01-01', '50')],
+                           'Política de la empresa'),
+    'CRM_PROB_NEGOCIACION': ('CRM', 'Probabilidad de la etapa Negociación', '%', [('2000-01-01', '75')],
+                             'Política de la empresa'),
+    'CRM_DIAS_ESTANCADA': ('CRM', 'Oportunidad abierta sin movimiento: en rojo a los (días)', 'días',
+                           [('2000-01-01', '15')], 'Política de la empresa'),
+    'CRM_DIAS_CLIENTE_INACTIVO': ('CRM', 'Cliente sin compras: avisar a los (días; 0 = no avisar)', 'días',
+                                  [('2000-01-01', '60')], 'Política de la empresa'),
+    'CRM_EXIGIR_OPORTUNIDAD_DESDE': ('CRM', 'Cotizaciones desde este monto nacen en una oportunidad (0 = no exigir; '
+                                            'sin oportunidad se crea sola)', 'S/', [('2000-01-01', '0')],
+                                     'Política de la empresa'),
+    'CRM_COMISION_PCT': ('CRM', 'Comisión del vendedor sobre ventas nacidas en una oportunidad', '%',
+                         [('2000-01-01', '0')], 'Política de la empresa'),
+    # servicios profesionales por proyecto (EMP-02, SRV-01 a 06)
+    'SRV_DETRACCION_PCT': ('Servicios por proyecto', 'Detracción de servicios empresariales (código 022)', '%',
+                           [('2015-01-01', '12')], 'Resolución de Superintendencia 183-2004/SUNAT, anexo 3'),
+    'SRV_HORAS_MES': ('Servicios por proyecto', 'Horas laborables al mes para el costo hora del personal', 'h',
+                      [('2000-01-01', '192')], '48 horas semanales (confirmar con el contador)'),
+    'SRV_FACTOR_CARGAS_PCT': ('Servicios por proyecto', 'Costo del trabajador sobre su sueldo (EsSalud, CTS, '
+                                                        'gratificaciones, vacaciones)', '%',
+                              [('2000-01-01', '145')], 'Estimado: confirmar con el contador'),
 }
 GRUPOS = ['Generales', 'Inmobiliario', 'Bancarización y lavado de activos', 'Renta y libros', 'IGV',
-          'Seguridad y salud en el trabajo', 'Obras', 'Construcción civil', 'Compras y almacén']
+          'Seguridad y salud en el trabajo', 'Obras', 'Construcción civil', 'Compras y almacén', 'CRM',
+          'Servicios por proyecto']
 
 
 def _fecha(f):

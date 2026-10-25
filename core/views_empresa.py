@@ -50,6 +50,10 @@ def empresa_giro(request):
             codigo = re.search(r'\b(\d{4,5})\b', actividad)
             inicial.update(actividad=actividad[:200], ciiu=codigo.group(1) if codigo else empresa.ciiu)
             messages.info(request, 'Actividad económica traída de SUNAT: revise y guarde.')
+            if (inicial['ciiu'] or '')[:4] in giro.CIIU_SERVICIOS_PROYECTO:  # EMP-02
+                inicial['giros'] = sorted(set(inicial.get('giros') or []) | {'SERVICIOS_PROYECTO'})
+                messages.info(request, f'El CIIU {inicial["ciiu"]} corresponde a servicios profesionales por '
+                                       f'proyecto: se marcó ese giro (pulse «Sugerir» para ver sus módulos).')
         except ErrorPadron as exc:
             messages.error(request, str(exc))
         form = GiroForm(initial=inicial)

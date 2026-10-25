@@ -533,8 +533,11 @@ def flujo_proyectado(request):
                   ['Total egresos', ''] + p['egresos'] + [sum(p['egresos'], D0)],
                   ['Saldo proyectado al final de la semana', ''] + p['saldos'] + ['']]
         return excel_response('Flujo_proyectado', 'FLUJO DE CAJA PROYECTADO (S/)', encabezado, filas)
+    from ventas.crm_reportes import pronostico_semanal  # CRM-16: lo que viene del embudo (referencial)
+    crm = pronostico_semanal(p['semanas'])
     return render(request, 'finanzas/flujo_proyectado.html', {'p': p, 'semanas_n': semanas,
-                                                              'opciones_semanas': [4, 8, 12, 16, 26]})
+                                                              'opciones_semanas': [4, 8, 12, 16, 26],
+                                                              'crm_pronostico': crm if any(crm) else None})
 
 
 @login_required

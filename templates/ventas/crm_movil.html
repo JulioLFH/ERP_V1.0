@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% block title %}CRM en el celular{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h1 class="page-title mb-0"><i class="bi bi-phone"></i> CRM en campo</h1>
+  <span id="estado-red" class="badge text-bg-success">En línea</span>
+</div>
+<div id="pendientes-aviso" class="alert alert-warning py-2 small d-none"><i class="bi bi-cloud-arrow-up"></i> <span id="pendientes-n">0</span> registro(s) guardados en el teléfono: se enviarán al volver la señal. <button type="button" class="btn btn-sm btn-outline-dark py-0 ms-1" id="btn-sync">Enviar ahora</button></div>
+<div id="mensaje" class="alert d-none py-2 small"></div>
+<ul class="nav nav-pills nav-fill mb-3 small" role="tablist">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#t-visita">Visita</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#t-oportunidad">Oportunidad</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#t-agenda">Agenda</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#t-cliente">Cliente</button></li>
+</ul>
+<div class="tab-content" style="max-width:560px">
+  <div class="tab-pane fade show active" id="t-visita"><form id="f-visita" class="card card-body gap-2">
+    <label class="small">Cliente<select name="cliente" class="form-select js-clientes" data-sin-buscador><option value="">—</option></select></label>
+    <label class="small">u oportunidad<select name="oportunidad" class="form-select js-oportunidades" data-sin-buscador><option value="">—</option></select></label>
+    <label class="small">Qué se hizo<input name="nota" class="form-control" maxlength="250" required placeholder="Ej. presenté el catálogo, revisamos el pedido"></label>
+    <label class="small">Resultado<input name="resultado" class="form-control" maxlength="250" placeholder="Ej. pedirá cotización el lunes"></label>
+    <label class="small">Foto<input type="file" accept="image/*" capture="environment" name="foto" class="form-control"></label>
+    <div class="small text-muted" id="ubicacion">Ubicación: se toma al guardar.</div>
+    <button class="btn btn-primary btn-lg"><i class="bi bi-geo-alt"></i> Registrar visita</button>
+  </form></div>
+  <div class="tab-pane fade" id="t-oportunidad"><form id="f-oportunidad" class="card card-body gap-2">
+    <label class="small">Oportunidad<input name="nombre" class="form-control" maxlength="150" required placeholder="Ej. Ampliación de almacén"></label>
+    <label class="small">Cliente<select name="cliente" class="form-select js-clientes" data-sin-buscador><option value="">—</option></select></label>
+    <label class="small">o prospecto (aún no es cliente)<input name="prospecto" class="form-control" maxlength="150"></label>
+    <label class="small">Celular<input name="telefono" class="form-control" inputmode="tel" maxlength="40"></label>
+    <label class="small">Monto estimado S/<input name="monto" class="form-control" inputmode="decimal" required></label>
+    <label class="small">Nota<input name="nota" class="form-control" maxlength="250"></label>
+    <button class="btn btn-primary btn-lg"><i class="bi bi-plus-lg"></i> Crear oportunidad</button>
+  </form></div>
+  <div class="tab-pane fade" id="t-agenda"><ul class="list-group" id="agenda"></ul></div>
+  <div class="tab-pane fade" id="t-cliente">
+    <input id="buscar-cliente" class="form-control mb-2" placeholder="Buscar cliente (nombre o RUC)">
+    <ul class="list-group" id="lista-clientes"></ul>
+  </div>
+</div>
+{{ datos|json_script:"crm-datos" }}
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const D = JSON.parse(document.getElementById('crm-datos').textContent);
+  const csrf = "{{ csrf_token }}";
+  const CLAVE = 'crm-movil-pendientes';
+  const $ = (id) => document.getElementById(id);
+  const esc = (t) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  try { localStorage.setItem('crm-movil-datos', JSON.stringify(D)); } catch (e) { /* sin almacenamiento */ }
+  document.querySelectorAll('.js-clientes').forEach((s) => D.clientes.forEach((c) => s.insertAdjacentHTML('beforeend', `<option value="${c.id}">${esc(c.nombre)}</option>`)));
+  document.querySelectorAll('.js-oportunidades').forEach((s) => D.oportunidades.forEach((o) => s.insertAdjacentHTML('beforeend', `<option value="${o.id}">${esc(o.nombre)} · ${esc(o.cliente)}</option>`)));
+  $('agenda').innerHTML = D.actividades.map((a) => `<li class="list-group-item small"><b>${a.fecha.slice(8)}/${a.fecha.slice(5, 7)} ${a.hora}</b> ${esc(a.tipo)} · ${esc(a.texto)}<div class="text-muted">${esc(a.cliente)}</div>${a.oportunidad ? `<a href="/crm/${a.oportunidad}/">Abrir</a>` : ''}</li>`).join('') || '<li class="list-group-item text-muted small">Sin actividades en los próximos 7 días.</li>';
+  $('buscar-cliente').addEventListener('input', (e) => {
+    const q = e.target.value.toUpperCase();
+    $('lista-clientes').innerHTML = q.length < 2 ? '' : D.clientes.filter((c) => (c.nombre + ' ' + c.doc).toUpperCase().includes(q)).slice(0, 30)
+      .map((c) => `<li class="list-group-item small"><a href="/crm/clientes/${c.id}/"><b>${esc(c.nombre)}</b></a> ${esc(c.doc)}${c.telefono ? ` · <a href="tel:${esc(c.telefono)}">${esc(c.telefono)}</a>` : ''}</li>`).join('');
+  });
+  const pendientes = () => { try { return JSON.parse(localStorage.getItem(CLAVE) || '[]'); } catch (e) { return []; } };
+  const guardar = (lista) => { try { localStorage.setItem(CLAVE, JSON.stringify(lista)); } catch (e) {} pintar(); };
+  function pintar() {
+    const n = pendientes().length;
+    $('pendientes-n').textContent = n;
+    $('pendientes-aviso').classList.toggle('d-none', !n);
+    $('estado-red').className = 'badge ' + (navigator.onLine ? 'text-bg-success' : 'text-bg-secondary');
+    $('estado-red').textContent = navigator.onLine ? 'En línea' : 'Sin señal';
+  }
+  function aviso(texto, tipo) { const m = $('mensaje'); m.className = `alert alert-${tipo} py-2 small`; m.textContent = texto; }
+  async function enviar() {
+    const lista = pendientes();
+    if (!lista.length || !navigator.onLine) return;
+    try {
+      const r = await fetch('{% url "crm:movil_sincronizar" %}', { method: 'POST', credentials: 'same-origin',
+        headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' }, body: JSON.stringify(lista) });
+      const d = await r.json();
+      const errores = [];
+      const quedan = lista.filter((i) => { const x = d.resultado[i.uid]; if (x && !x.ok) errores.push(x.error); return !x; });
+      guardar(quedan);
+      aviso(errores.length ? 'No se guardó: ' + errores.join(' ') : 'Enviado al CRM.', errores.length ? 'danger' : 'success');
+    } catch (e) { pintar(); }
+  }
+  const leerFoto = (input) => new Promise((ok) => {
+    const f = input.files && input.files[0];
+    if (!f) return ok('');
+    const img = new Image(); const lector = new FileReader();
+    lector.onload = () => { img.onload = () => {  // se reduce para que viaje con poca señal
+      const lado = 1280, k = Math.min(1, lado / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = img.width * k; c.height = img.height * k;
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); ok(c.toDataURL('image/jpeg', 0.7)); };
+      img.src = lector.result; };
+    lector.readAsDataURL(f);
+  });
+  const ubicacion = () => new Promise((ok) => {
+    if (!navigator.geolocation) return ok({});
+    navigator.geolocation.getCurrentPosition((p) => ok({ lat: p.coords.latitude.toFixed(6), lng: p.coords.longitude.toFixed(6) }),
+      () => ok({}), { timeout: 8000, maximumAge: 60000 });
+  });
+  async function registrar(form, tipo) {
+    const datos = Object.fromEntries(new FormData(form).entries());
+    delete datos.foto;
+    const item = { ...datos, tipo, uid: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+                   fecha: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10) };
+    if (tipo === 'visita') { Object.assign(item, await ubicacion()); item.foto = await leerFoto(form.foto);
+      $('ubicacion').textContent = item.lat ? `Ubicación: ${item.lat}, ${item.lng}` : 'Ubicación no disponible.'; }
+    guardar(pendientes().concat([item]));
+    form.reset();
+    aviso(navigator.onLine ? 'Enviando…' : 'Guardado en el teléfono: se enviará al volver la señal.', 'info');
+    enviar();
+  }
+  $('f-visita').addEventListener('submit', (e) => { e.preventDefault(); registrar(e.target, 'visita'); });
+  $('f-oportunidad').addEventListener('submit', (e) => { e.preventDefault(); registrar(e.target, 'oportunidad'); });
+  $('btn-sync').addEventListener('click', enviar);
+  window.addEventListener('online', () => { pintar(); enviar(); });
+  window.addEventListener('offline', pintar);
+  pintar(); enviar();
+})();
+</script>
+{% endblock %}
