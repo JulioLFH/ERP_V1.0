@@ -362,6 +362,19 @@ def _alertas_obras(hoy):
         salida.append(_alerta('warning', 'bi-house-dash', 'Separaciones por vencer',
                               ', '.join(f'{v.numero} {v.cliente.nombre[:30]} ({v.vence_separacion:%d/%m})'
                                         for v in separaciones[:3]), reverse('obras:inm_cobranza'), len(separaciones)))
+    # v1.86 (HR-07 y HR-14): costo de partidas sobre lo esperado y margen proyectado bajo la meta
+    from obras.gestion import alertas_proyectos
+    costo, margen = alertas_proyectos()
+    if costo:
+        salida.append(_alerta('warning', 'bi-cash-stack', 'Partidas con costo sobre lo esperado',
+                              ', '.join(f'{o.codigo}: {len(a)} partida(s)' for o, a in costo[:3]),
+                              reverse('obras:proyeccion', args=[costo[0][0].pk]) if len(costo) == 1
+                              else reverse('obras:cartera'), sum(len(a) for _, a in costo)))
+    if margen:
+        salida.append(_alerta('danger', 'bi-graph-down-arrow', 'Margen proyectado bajo la meta',
+                              ', '.join(f'{o.codigo} {m} % (meta {meta:g} %)' for o, m, meta in margen[:3]),
+                              reverse('obras:proyeccion', args=[margen[0][0].pk]) if len(margen) == 1
+                              else reverse('obras:cartera'), len(margen)))
     return salida
 
 

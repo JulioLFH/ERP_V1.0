@@ -228,6 +228,43 @@ def recordatorios(request):
 
 
 @login_required
+def prediccion_cobro(request):
+    """HR-16: fecha probable de cobro por el historial de pago de cada cliente."""
+    r = cob.prediccion_cobro()
+    clase = {'Alta': 'text-success', 'Media': 'text-warning', 'Baja': 'text-muted'}
+    docs = [[{'texto': v.tercero.nombre[:40], 'url': reverse('finanzas:cobranza_cliente', args=[v.tercero_id])},
+             {'texto': v.numero_completo, 'url': reverse('ventas:detalle', args=[v.pk])},
+             v.fecha_emision.strftime('%d/%m/%Y'),
+             (v.fecha_vencimiento or v.fecha_emision).strftime('%d/%m/%Y'), v.saldo_pen,
+             f'{v.prediccion_atraso:+d} días',
+             {'texto': v.prediccion_fecha.strftime('%d/%m/%Y'),
+              'clase': 'fw-semibold text-danger' if v.prediccion_atrasada else 'fw-semibold'},
+             {'texto': v.prediccion_confianza, 'clase': clase[v.prediccion_confianza]}, v.prediccion_base]
+            for v in r['docs']]
+    nombres = {t.pk: t.nombre for t in Tercero.objects.filter(pk__in=list(r['historial']))}
+    historial = [[nombres.get(pk, pk), h['docs'], f'{h["dias_pago"]} días', f'{h["atraso"]:+d} días',
+                  f'{h["tarde_pct"]} %', f'{h["max_atraso"]} días', f'± {h["desvio"]} días']
+                 for pk, h in sorted(r['historial'].items(), key=lambda kv: -kv[1]['atraso'])]
+    meses = [[f'{per[4:]}/{per[:4]}', monto] for per, monto in r['meses']]
+    return responder(request, 'Predicción de cobro', [
+        {'titulo': 'Cobro esperado por mes', 'columnas': ['Mes', 'Monto S/'], 'filas': meses},
+        {'titulo': 'Comprobantes por cobrar', 'columnas': ['Cliente', 'Comprobante', 'Emisión', 'Vencimiento',
+                                                           'Saldo S/', 'Atraso esperado', 'Cobro probable',
+                                                           'Confianza', 'Base'], 'filas': docs},
+        {'titulo': 'Historial de pago por cliente (2 años)', 'columnas': [
+            'Cliente', 'Comprobantes cobrados', 'Días de pago promedio', 'Atraso promedio', '% pagado tarde',
+            'Atraso máximo', 'Variación'], 'filas': historial}], por_seccion=True,
+        botones=[('Gestión de cobranza', reverse('finanzas:cobranza_gestion'), 'bi-arrow-left')],
+        kpis=[('Por cobrar', f'S/ {sum((v.saldo_pen for v in r["docs"]), D0):,.2f}', ''),
+              ('Atraso promedio de la cartera', f'{r["global"]:+d} días', ''),
+              ('Clientes con historial', len(r['historial']), '')],
+        ayuda=f'Cobro probable = vencimiento + el atraso promedio con que el cliente pagó sus comprobantes de los '
+              f'últimos 2 años (ponderado por importe). Con menos de {cob.MIN_HISTORIA_COBRO} comprobantes cobrados se '
+              f'usa el promedio de la cartera. En rojo: su fecha probable ya pasó (se muestra hoy). Confianza alta: 5 '
+              f'o más cobros con poca variación.')
+
+
+@login_required
 def provision(request):
     periodo = _periodo(request)
     if request.method == 'POST':

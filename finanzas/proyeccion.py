@@ -1,7 +1,8 @@
 """Flujo de caja proyectado por semana (FIN-01) y presupuesto de caja mensual con escenarios (FIN-02).
 
-Entradas: facturas de venta por cobrar, letras por cobrar y pedidos de venta aprobados aún no facturados (en la fecha
-de entrega + la condición de pago, netos de detracción y de los anticipos del cliente). Las cotizaciones vigentes van
+Entradas: facturas de venta por cobrar, letras por cobrar, pedidos de venta aprobados aún no facturados (en la fecha
+de entrega + la condición de pago, netos de detracción y de los anticipos del cliente) y las valorizaciones que faltan
+de las obras en ejecución según su cronograma (v1.86, HR-15). Las cotizaciones vigentes van
 aparte, ponderadas por su probabilidad, y no suman al saldo.
 Salidas: facturas de compra por pagar, letras por pagar, el saldo sin facturar de las órdenes de compra aprobadas,
 cuotas de préstamos, leasing y arrendamientos, y la planilla (neto a fin de mes y retenciones y aportes el 15 del mes
@@ -162,6 +163,17 @@ class _Motor:
                 self.sumar('Retenciones y aportes de planilla', 'EGRESO', pago + timedelta(days=15), t['d'] + t['a'])
                 mes = pago + timedelta(days=1)
 
+    def obras(self):
+        """HR-15: valorizaciones que faltan de las obras en ejecución según su cronograma, en su fecha probable de
+        cobro (con IGV, menos amortización de adelantos y fondo de garantía)."""
+        from obras.gestion import valorizaciones_proyectadas
+        from obras.models import Obra
+        for o in Obra.objects.filter(estado='EJECUCION').exclude(tipo__in=('SERVICIO', 'INMOBILIARIA')).select_related(
+                'cliente'):
+            for x in valorizaciones_proyectadas(o, self.hoy):
+                self.sumar('Valorizaciones de obra proyectadas (cronograma)', 'INGRESO', x['fecha_cobro'],
+                           self.monto(x['neto'], o.moneda), o)
+
     def partidas(self, escenario='BASE'):
         from .models import PartidaCaja
         for p in PartidaCaja.objects.filter(escenario__in=['', escenario]):
@@ -276,6 +288,7 @@ def proyectar(semanas=12, hoy=None, cuentas=None, moneda=None):
     m.documentos()
     m.pedidos()
     m.compromisos()
+    m.obras()
     m.partidas()
 
     def semana(fecha):
@@ -309,6 +322,7 @@ def presupuesto_caja(meses=12, hoy=None, escenario='BASE', moneda=None, cuentas=
     m.documentos()
     m.pedidos()
     m.compromisos()
+    m.obras()
     m.partidas(escenario)
     m.tributos_y_beneficios()
     factor = Decimal('1')

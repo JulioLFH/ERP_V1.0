@@ -81,7 +81,7 @@ class EquipoForm(BootstrapMixin, forms.ModelForm):
         fields = ['codigo', 'nombre', 'tipo', 'estado', 'placa', 'marca_modelo', 'serie', 'anio', 'combustible',
                   'medidor', 'rendimiento_esperado', 'centro', 'centro_costo', 'activo_fijo', 'responsable',
                   'ubicacion', 'aplica_prestamo', 'criticidad', 'ubicacion_tecnica', 'garantia_hasta',
-                  'valor_reposicion', 'presupuesto_anual', 'es_instrumento', 'rango_tolerancia', 'calibracion_dias',
+                  'valor_reposicion', 'presupuesto_anual', 'tarifa_alquiler', 'horas_mes', 'es_instrumento', 'rango_tolerancia', 'calibracion_dias',
                   'activo']
         widgets = {'garantia_hasta': forms.DateInput(attrs={'type': 'date'})}
 

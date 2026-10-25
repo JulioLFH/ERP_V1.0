@@ -20,6 +20,19 @@
   <a href="{% url 'obras:reporte_partidas' o.pk %}" class="btn btn-sm btn-outline-success"><i class="bi bi-table"></i> Control por partida</a>
   <a href="{% url 'obras:versiones' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-layers"></i> Versiones (S10)</a>
 </div>
+<div class="d-flex flex-wrap gap-2 mb-3 small align-items-center"><span class="text-muted fw-semibold">Gestión del proyecto:</span>
+  <a href="{% url 'obras:valor_ganado' o.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-graph-up"></i> Valor ganado</a>
+  <a href="{% url 'obras:proyeccion' o.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-bullseye"></i> Proyección al cierre</a>
+  <a href="{% url 'obras:flujo_proyecto' o.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-water"></i> Flujo de caja</a>
+  <a href="{% url 'obras:escenarios' o.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-diagram-2"></i> Escenarios del cronograma</a>
+  {% if o.tipo != 'SERVICIO' %}<a href="{% url 'obras:productividad' o.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-speedometer"></i> Productividad</a>
+  <a href="{% url 'obras:pronostico_compras' o.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-cart-check"></i> Pronóstico de compras</a>{% endif %}
+  <a href="{% url 'obras:adendas' o.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-file-earmark-plus"></i> Adendas</a>
+  <a href="{% url 'obras:eventos' o.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-exclamation-diamond"></i> Penalidades y observaciones</a>
+  {% if r.presupuesto %}<a href="{% url 'obras:sensibilidad' r.presupuesto.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-sliders"></i> Sensibilidad del margen</a>{% endif %}
+</div>
+{% if control %}{% if control.bajo_meta %}<div class="alert alert-danger py-2 small"><i class="bi bi-graph-down-arrow"></i> Margen proyectado al cierre {{ control.margen_pct }} %, por debajo de la meta de {{ control.margen_meta }} %. <a href="{% url 'obras:proyeccion' o.pk %}">Ver la proyección</a></div>{% endif %}
+{% if control.alertas %}<div class="alert alert-warning py-2 small"><i class="bi bi-cash-stack"></i> Partidas con costo sobre lo esperado (meta × avance + {{ control.tolerancia|floatformat:'-2' }} %): {% for f in control.alertas|slice:':5' %}{{ f.partida.item }} {{ f.partida.descripcion|truncatechars:30 }}{% if not forloop.last %}; {% endif %}{% endfor %}. <a href="{% url 'obras:proyeccion' o.pk %}">Ver</a></div>{% endif %}{% endif %}
 <div class="row g-3 mb-3 small">
   <div class="col-6 col-lg"><div class="kpi"><div class="label">Contrato (sin IGV)</div><div class="value">S/ {{ r.contrato|money }}</div></div></div>
   <div class="col-6 col-lg"><div class="kpi"><div class="label">Valorizado acumulado</div><div class="value">S/ {{ r.valorizado|money }} <span class="small text-muted">{{ r.avance_pct }} %</span></div></div></div>

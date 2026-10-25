@@ -35,4 +35,12 @@
   <input name="numero_operacion" class="form-control form-control-sm" style="max-width:160px" placeholder="N° de operación">
   <button class="btn btn-sm btn-outline-success" name="accion" value="devolver">Registrar la devolución</button></div></form>{% endif %}
 <p class="small text-muted mt-2">El adelanto al subcontratista se paga en Tesorería como anticipo a proveedores con el centro de costo de la obra; la factura del subcontratista se registra en Compras contra sus HES liberadas (con la detracción del contrato de construcción) y el fondo de garantía se retiene de ella (Debe 4212 / Haber 467) hasta su devolución.</p>
+{% if sc.estado == 'VIGENTE' or sc.estado == 'LIQUIDADO' %}
+<div class="card mb-3" style="max-width:820px"><div class="card-header fw-semibold d-flex justify-content-between"><span><i class="bi bi-star-half"></i> Evaluación del subcontratista</span><a href="{% url 'obras:subcontratistas' %}" class="small">Historial de subcontratistas</a></div>
+<form method="post" action="{% url 'obras:subcontrato_evaluar' sc.pk %}" class="card-body row g-2 align-items-end small">{% csrf_token %}
+  {% for campo, etiqueta, actual in criterios %}<div class="col-md-3"><label class="form-label mb-1">{{ etiqueta }}</label><select name="{{ campo }}" class="form-select form-select-sm">{% for v, t in notas %}<option value="{{ v }}" {% if v == actual %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>{% endfor %}
+  <div class="col-md-3"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-check2"></i> {% if evaluacion %}Actualizar{% else %}Guardar{% endif %} la evaluación</button></div>
+  <div class="col-12"><input name="comentario" value="{{ evaluacion.comentario|default:'' }}" maxlength="300" class="form-control form-control-sm" placeholder="Comentario (cumplimiento, reprocesos, incidentes de seguridad…)"></div>
+  {% if evaluacion %}<div class="col-12 text-muted">Evaluado el {{ evaluacion.fecha|date:'d/m/Y' }} por {{ evaluacion.evaluado_por|default:'—' }}: puntaje {{ evaluacion.puntaje }} de 5.</div>{% endif %}
+</form></div>{% endif %}
 {% endblock %}

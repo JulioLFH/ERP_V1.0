@@ -282,3 +282,83 @@ def registrar_provision(periodo, usuario):
         'calculada': calc['total'], 'anterior': anterior, 'asiento': asiento, 'creado_por': usuario,
         'detalle': [{**f, 'saldo': str(f['saldo']), 'pct': str(f['pct']), 'provision': str(f['provision'])}
                     for f in calc['filas']]})[0]
+
+# ---------------------------------------------------------------- predicción de cobro (HR-16)
+MIN_HISTORIA_COBRO = 2  # comprobantes cobrados del cliente para usar su propio historial
+
+
+def historial_pagos(terceros=None, dias=730, hoy=None):
+    """{tercero_id: {'docs', 'dias_pago', 'atraso', 'tarde_pct', 'max_atraso', 'desvio'}} de los comprobantes cobrados
+    por completo en los últimos «dias»: días desde la emisión hasta el último cobro y días de atraso frente al
+    vencimiento, promedios ponderados por el importe."""
+    from django.db.models import Max
+
+    from ventas.models import Venta
+
+    from .models import Aplicacion, Movimiento
+    hoy = hoy or timezone.localdate()
+    desde = hoy - timedelta(days=dias)
+    qs = (Venta.objects.con_saldos().cobrables().filter(estado='REGISTRADO', fecha_emision__gte=desde)
+          .exclude(tipo_comprobante='07'))
+    if terceros is not None:
+        qs = qs.filter(tercero_id__in=list(terceros))
+    ultimo = {}
+    for modelo, filtro in ((Movimiento, {'tipo': 'INGRESO'}), (Aplicacion, {})):
+        for vid, f in (modelo.objects.filter(venta__isnull=False, estado='VIGENTE', venta__fecha_emision__gte=desde,
+                                             **filtro).values('venta').annotate(f=Max('fecha')).values_list('venta', 'f')):
+            if f and (vid not in ultimo or f > ultimo[vid]):
+                ultimo[vid] = f
+    datos = {}
+    for v in qs:
+        pago = ultimo.get(v.pk)
+        if v.saldo > 0 or pago is None:
+            continue
+        peso = abs(v.total_pen or v.total or D0) or Decimal('1')
+        vence = v.fecha_vencimiento or v.fecha_emision
+        atraso = (pago - vence).days
+        d = datos.setdefault(v.tercero_id, {'docs': 0, 'peso': D0, 'dias': D0, 'atraso': D0, 'tarde': D0,
+                                            'max_atraso': 0, 'valores': []})
+        d['docs'] += 1
+        d['peso'] += peso
+        d['dias'] += peso * (pago - v.fecha_emision).days
+        d['atraso'] += peso * atraso
+        d['tarde'] += peso if atraso > 0 else D0
+        d['max_atraso'] = max(d['max_atraso'], atraso)
+        d['valores'].append(atraso)
+    salida = {}
+    for t, d in datos.items():
+        media = d['atraso'] / d['peso']
+        desvio = (sum((Decimal(x) - media) ** 2 for x in d['valores']) / len(d['valores'])).sqrt()
+        salida[t] = {'docs': d['docs'], 'dias_pago': int(round(d['dias'] / d['peso'])), 'atraso': int(round(media)),
+                     'tarde_pct': _r2(d['tarde'] * 100 / d['peso']), 'max_atraso': d['max_atraso'],
+                     'desvio': int(round(desvio))}
+    return salida
+
+
+def prediccion_cobro(hoy=None):
+    """Fecha probable de cobro de cada comprobante pendiente según el historial de pago de su cliente (vencimiento +
+    su atraso promedio); sin historial suficiente, el promedio de la cartera. {'docs', 'meses', 'global'}"""
+    hoy = hoy or timezone.localdate()
+    docs = pendientes()
+    hist = historial_pagos(hoy=hoy)
+    peso = sum((Decimal(h['docs']) for h in hist.values()), D0)
+    global_atraso = int(round(sum((Decimal(h['atraso'] * h['docs']) for h in hist.values()), D0) / peso)) if peso else 0
+    meses = {}
+    for v in docs:
+        h = hist.get(v.tercero_id)
+        vence = v.fecha_vencimiento or v.fecha_emision
+        if h and h['docs'] >= MIN_HISTORIA_COBRO:
+            atraso, base = h['atraso'], f'historial del cliente ({h["docs"]} comprobantes)'
+            confianza = 'Alta' if h['docs'] >= 5 and h['desvio'] <= 15 else 'Media'
+        elif hist:
+            atraso, base, confianza = global_atraso, 'promedio de la cartera (cliente sin historial)', 'Baja'
+        else:
+            atraso, base, confianza = 0, 'sin historial de cobros (vencimiento)', 'Baja'
+        fecha = vence + timedelta(days=atraso)
+        v.prediccion_atrasada = fecha < hoy  # ya pasó la fecha que su historial anticipaba
+        v.prediccion_fecha = max(fecha, hoy)
+        v.prediccion_atraso, v.prediccion_base, v.prediccion_confianza = atraso, base, confianza
+        clave = f'{v.prediccion_fecha:%Y%m}'
+        meses[clave] = meses.get(clave, D0) + v.saldo_pen
+    return {'docs': sorted(docs, key=lambda v: v.prediccion_fecha), 'meses': sorted(meses.items()),
+            'global': global_atraso, 'historial': hist}

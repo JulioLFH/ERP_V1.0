@@ -68,6 +68,13 @@ DEFECTOS = {
     # obras: valorizaciones y reajustes
     'OBR_DETRACCION_PCT': ('Obras', 'Detracción de los contratos de construcción (código 030)', '%',
                            [('2015-01-01', '4')], 'Resolución de Superintendencia 183-2004/SUNAT, anexo 3'),
+    # v1.86: gestión de proyectos (HR-07 y HR-14)
+    'OBR_MARGEN_META_PCT': ('Obras', 'Margen meta del proyecto: se alerta si el margen proyectado al cierre baja de '
+                                     'este % (cada obra puede tener el suyo)', '%', [('2000-01-01', '10')],
+                            'Política de la empresa'),
+    'OBR_TOLERANCIA_COSTO_PCT': ('Obras', 'Tolerancia del costo de la partida: se alerta si el costo real supera la '
+                                          'meta × avance en más de este %', '%', [('2000-01-01', '10')],
+                                 'Política de la empresa'),
     # construcción civil (convenio CAPECO – FTCCP): confirme las tasas con el especialista laboral
     'CC_JORNAL_OPERARIO': ('Construcción civil', 'Jornal básico diario: operario', 'S/', [('2026-01-01', '89.30')],
                            'Convención colectiva CAPECO – FTCCP 2026'),

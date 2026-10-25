@@ -55,7 +55,9 @@ def _partidas(presupuesto):
 def ejecucion(request, pk):
     o = get_object_or_404(Obra.objects.select_related('cliente', 'centro_costo', 'almacen'), pk=pk)
     from .ejecucion import atrasadas
+    from .gestion import control_partidas
     return render(request, 'obras/ejecucion.html', {
+        'control': control_partidas(o) if o.tipo != 'SERVICIO' and o.estado in ('EJECUCION', 'PARALIZADA') else None,
         'o': o, 'r': val.resumen(o), 'valorizaciones': o.valorizaciones.select_related('factura').order_by('-numero'),
         'adelantos': o.adelantos.select_related('factura'), 'tipos_adelanto': AdelantoObra.TIPOS,
         'atrasadas': atrasadas(o)[:5], 'hoy': timezone.localdate(),
@@ -604,9 +606,13 @@ def subcontrato(request, pk):
     compras = Compra.objects.filter(tercero=sc.proveedor, estado='REGISTRADO').exclude(
         aplicaciones__origen='GARANTIA').order_by('-fecha_emision')[:30]
     retenido, devuelto, saldo = sub.garantia(sc)
+    from .models import EvaluacionSubcontrato
+    evaluacion = EvaluacionSubcontrato.objects.filter(subcontrato=sc).select_related('evaluado_por').first()
     return render(request, 'obras/subcontrato.html', {
         'sc': sc, 'control': sub.control(sc), 'valorizaciones': sc.valorizaciones.prefetch_related('lineas__linea',
                                                                                                'lineas__hes'),
         'adelanto': sub.adelanto_entregado(sc), 'amortizado': sub.amortizado(sc), 'compras': compras,
         'garantia': {'retenido': retenido, 'devuelto': devuelto, 'saldo': saldo}, 'cuentas': _cuentas(),
-        'hoy': timezone.localdate()})
+        'hoy': timezone.localdate(), 'evaluacion': evaluacion, 'notas': EvaluacionSubcontrato.NOTAS,
+        'criterios': [(c, e, getattr(evaluacion, c) if evaluacion else 3) for c, e in (
+            ('plazo', 'Cumplimiento del plazo'), ('calidad', 'Calidad'), ('seguridad', 'Seguridad (SST)'))]})

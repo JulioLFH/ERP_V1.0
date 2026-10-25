@@ -22,7 +22,8 @@ class ObraForm(BootstrapMixin, forms.ModelForm):
         model = Obra
         fields = ['codigo', 'nombre', 'cliente', 'tipo', 'sistema', 'contrato', 'moneda', 'monto_contratado',
                   'fecha_contrato', 'fecha_inicio', 'plazo_dias', 'direccion', 'ubigeo', 'area_m2', 'residente',
-                  'supervisor', 'estado', 'gastos_generales_pct', 'utilidad_pct', 'adelanto_directo_pct',
+                  'supervisor', 'estado', 'gastos_generales_pct', 'utilidad_pct', 'margen_meta_pct',
+                  'adelanto_directo_pct',
                   'adelanto_materiales_pct', 'retencion_garantia_pct', 'terreno_pct', 'prorrateo',
                   'prorrateo_area_pct', 'cuenta_recaudadora', 'banco_financiador', 'horas_presupuestadas',
                   'gastos_presupuestados']

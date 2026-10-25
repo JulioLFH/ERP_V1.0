@@ -344,3 +344,18 @@ Ceiba no compite con el S10 en presupuestos: el presupuesto (oferta, contractual
 - Las partidas se unen entre versiones y entre contractual y meta por **subpresupuesto e ítem** (`Partida.clave`). Al aprobar una versión nueva, lo registrado contra la anterior pasa a la nueva (`obras/versiones.py`).
 - **Stock antes de comprar** (`compras/stock.py`): disponible = stock − requerimientos aprobados por atender − traslados por aprobar − lo que la meta de la obra dueña aún consume (parámetro STOCK_RESERVA_META); STOCK_CONTROL_COMPRA: 0 no controla, 1 pide justificación, 2 bloquea. El traslado usa «Traslado a tránsito» y «Recepción de tránsito» (no es gasto).
 - Tasas de construcción civil, detracción de construcción y control de stock: Ajustes › Parámetros (con vigencia). Confirmarlas con el especialista laboral y el contador.
+
+## Gestión del contrato y del proyecto (v1.86, HR-01 a HR-20)
+
+Cálculos en `obras/gestion.py`, pantallas en `obras/views_gestion.py` (tabla genérica con Excel), API en `obras/api.py`.
+
+| Tema | Cómo se calcula |
+|---|---|
+| Control por partida y proyección (HR-07, 12, 14) | BAC = parcial de la meta (o del contractual); EV = BAC × avance (hasta 100 %); AC = materiales, mano de obra, equipos y subcontratos de la partida; alerta si AC > EV × (1 + OBR_TOLERANCIA_COSTO_PCT); EAC = AC × BAC / EV (sin avance AC + BAC; terminada AC); margen proyectado = venta sin IGV − EAC − gastos generales del presupuesto, frente a `Obra.margen_meta_pct` o OBR_MARGEN_META_PCT |
+| Valor ganado (HR-05) | PV (cronograma), EV (avance) y AC por mes a precios de la meta; AC operativo (planillas, partes, subcontratos, salidas de almacén) o contable (clase 6 con el centro) si no hay; SPI, CPI, EAC = BAC / CPI, término = plazo / SPI |
+| Escenarios (HR-06) | `EscenarioCronograma.datos` = {clave: {AAAAMM: metrado}}; volver a uno guarda antes el vigente |
+| Adendas (HR-03) | `AdendaContrato`: al aprobar suma monto y plazo a la obra (guarda los anteriores); solo se anula la última aprobada; quien la registra no la aprueba |
+| Riesgo por cliente (HR-04) | Puntaje 0-100: penalidades / contrato × 4 (máx. 30), atraso promedio de pago / 2 (máx. 30), eventos abiertos y graves (máx. 20), vencido / contrato × 2 (máx. 20) |
+| Valorizaciones proyectadas (HR-15) | Programado sin valorizar × (subtotal / costo directo), hasta el saldo del contrato; menos amortización proporcional, con IGV y menos el fondo de garantía; cobro = fin de mes + 15 días + crédito del cliente. Entran a `finanzas/proyeccion._Motor.obras()` |
+| Predicción de cobro (HR-16) | `finanzas/cobranza.historial_pagos`: atraso de pago (último cobro − vencimiento) ponderado por importe de los cobrados en 2 años; cobro probable = vencimiento + atraso del cliente (o de la cartera) |
+| Predictivo (HR-20) | Promedio de sobrecosto y atraso de las obras terminadas del tipo (mínimo 3) mezclado con 1/CPI − 1 y 1/SPI − 1 según el avance |

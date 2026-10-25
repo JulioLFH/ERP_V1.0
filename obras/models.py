@@ -43,6 +43,10 @@ class Obra(models.Model):
     gastos_generales_pct = models.DecimalField('Gastos generales %', max_digits=6, decimal_places=2,
                                                default=Decimal('10'))
     utilidad_pct = models.DecimalField('Utilidad %', max_digits=6, decimal_places=2, default=Decimal('10'))
+    margen_meta_pct = models.DecimalField(
+        'Margen meta %', max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text='HR-14: se alerta si el margen proyectado al cierre baja de este %. Vacío = el parámetro '
+                  'OBR_MARGEN_META_PCT')
     adelanto_directo_pct = models.DecimalField('Adelanto directo %', max_digits=5, decimal_places=2, default=D0)
     adelanto_materiales_pct = models.DecimalField('Adelanto para materiales %', max_digits=5, decimal_places=2,
                                                   default=D0)
@@ -1281,3 +1285,115 @@ class CierreServicioProyecto(models.Model):
     class Meta:
         ordering = ['-periodo', 'obra']
         unique_together = [('obra', 'periodo')]
+
+
+# ---------------------------------------------------------------- gestión del contrato y del proyecto (v1.86)
+class AdendaContrato(models.Model):
+    """HR-03: adenda del contrato (monto y/o plazo) con su motivo y resolución. Al aprobarla cambia el monto
+    contratado y el plazo de la obra; la versión del presupuesto (adicional o deductivo) es la que se valoriza."""
+    TIPOS = [('MONTO', 'Monto (adicional o reducción)'), ('PLAZO', 'Ampliación de plazo'),
+             ('MONTO_PLAZO', 'Monto y plazo'), ('OTRO', 'Otra modificación (sin monto ni plazo)')]
+    ESTADOS = [('BORRADOR', 'Por aprobar'), ('APROBADA', 'Aprobada'), ('ANULADA', 'Anulada')]
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='adendas')
+    numero = models.PositiveSmallIntegerField('N°', editable=False)
+    fecha = models.DateField(default=timezone.localdate)
+    tipo = models.CharField(max_length=11, choices=TIPOS, default='MONTO')
+    monto = models.DecimalField('Variación del monto (con IGV)', max_digits=16, decimal_places=2, default=D0,
+                                help_text='Negativo = reducción o deductivo')
+    plazo_dias = models.IntegerField('Variación del plazo (días)', default=0)
+    motivo = models.CharField(max_length=300)
+    resolucion = models.CharField('Resolución / documento', max_length=120, blank=True)
+    fecha_resolucion = models.DateField('Fecha de la resolución', null=True, blank=True)
+    presupuesto = models.ForeignKey(Presupuesto, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                    verbose_name='Versión del presupuesto (adicional / deductivo)')
+    estado = models.CharField(max_length=8, choices=ESTADOS, default='BORRADOR', editable=False)
+    monto_anterior = models.DecimalField(max_digits=16, decimal_places=2, null=True, editable=False)
+    plazo_anterior = models.IntegerField(null=True, editable=False)
+    motivo_anulacion = models.CharField(max_length=250, blank=True, editable=False)
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False)
+    aprobado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['obra', 'numero']
+        unique_together = [('obra', 'numero')]
+        verbose_name = 'adenda del contrato'
+        verbose_name_plural = 'adendas del contrato'
+
+    def __str__(self):
+        return f'Adenda N° {self.numero} {self.obra.codigo}'
+
+    def save(self, *args, **kwargs):
+        if not self.numero:
+            ultimo = AdendaContrato.objects.filter(obra=self.obra).order_by('-numero').first()
+            self.numero = (ultimo.numero + 1) if ultimo else 1
+        super().save(*args, **kwargs)
+
+
+class EventoContrato(models.Model):
+    """HR-04: penalidades, observaciones, reclamos y controversias del contrato: con los atrasos de pago del cliente
+    forman su riesgo contractual."""
+    TIPOS = [('PENALIDAD', 'Penalidad aplicada'), ('OBSERVACION', 'Observación del cliente o la supervisión'),
+             ('RECLAMO', 'Reclamo'), ('CONTROVERSIA', 'Controversia / arbitraje'), ('OTRO', 'Otro')]
+    GRAVEDADES = [('BAJA', 'Baja'), ('MEDIA', 'Media'), ('ALTA', 'Alta')]
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='eventos_contrato')
+    fecha = models.DateField(default=timezone.localdate)
+    tipo = models.CharField(max_length=12, choices=TIPOS, default='OBSERVACION')
+    gravedad = models.CharField(max_length=5, choices=GRAVEDADES, default='MEDIA')
+    monto = models.DecimalField('Monto (penalidad o reclamo) S/', max_digits=14, decimal_places=2, default=D0)
+    descripcion = models.CharField('Descripción', max_length=300)
+    resuelto = models.BooleanField(default=False)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'evento del contrato'
+        verbose_name_plural = 'eventos del contrato'
+
+
+class EscenarioCronograma(models.Model):
+    """HR-06: foto del cronograma (metrado programado por partida y mes) para comparar alternativas y volver a una."""
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='escenarios')
+    presupuesto = models.ForeignKey(Presupuesto, on_delete=models.CASCADE, related_name='escenarios')
+    nombre = models.CharField(max_length=120)
+    descripcion = models.CharField('Descripción', max_length=250, blank=True)
+    datos = models.JSONField(default=dict, help_text='{clave de partida: {AAAAMM: metrado}}')
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['obra', '-creado', '-id']
+        verbose_name = 'escenario del cronograma'
+        verbose_name_plural = 'escenarios del cronograma'
+
+    def __str__(self):
+        return self.nombre
+
+
+class EvaluacionSubcontrato(models.Model):
+    """HR-11: evaluación del subcontratista al cerrar su subcontrato (plazo, calidad y seguridad de 1 a 5)."""
+    NOTAS = [(1, '1 · Deficiente'), (2, '2 · Regular'), (3, '3 · Bueno'), (4, '4 · Muy bueno'), (5, '5 · Excelente')]
+    subcontrato = models.OneToOneField(Subcontrato, on_delete=models.CASCADE, related_name='evaluacion')
+    fecha = models.DateField(default=timezone.localdate)
+    plazo = models.PositiveSmallIntegerField('Cumplimiento del plazo', choices=NOTAS, default=3)
+    calidad = models.PositiveSmallIntegerField(choices=NOTAS, default=3)
+    seguridad = models.PositiveSmallIntegerField('Seguridad (SST)', choices=NOTAS, default=3)
+    comentario = models.CharField(max_length=300, blank=True)
+    evaluado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'evaluación de subcontratista'
+        verbose_name_plural = 'evaluaciones de subcontratistas'
+
+    @property
+    def puntaje(self):
+        return (Decimal(self.plazo + self.calidad + self.seguridad) / 3).quantize(Decimal('0.1'))

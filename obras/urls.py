@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_comercial as com, views_ejecucion as eje, views_servicios as srv
+from . import views, views_comercial as com, views_ejecucion as eje, views_gestion as ges, views_servicios as srv
 
 app_name = 'obras'
 
@@ -66,4 +66,22 @@ urlpatterns = [
     path('<int:pk>/partes-equipo/', eje.partes, name='partes'),
     path('<int:pk>/subcontratos/', eje.subcontratos, name='subcontratos'),
     path('subcontratos/<int:pk>/', eje.subcontrato, name='subcontrato'),
+    # v1.86: gestión del contrato y del proyecto (HR-01 a HR-20)
+    path('cartera/', ges.cartera, name='cartera'),
+    path('tasa-exito/', ges.tasa_exito, name='tasa_exito'),
+    path('riesgo-clientes/', ges.riesgo_clientes, name='riesgo_clientes'),
+    path('rentabilidad/', ges.rentabilidad, name='rentabilidad'),
+    path('subcontratistas/', ges.subcontratistas, name='subcontratistas'),
+    path('comprar-alquilar/', ges.comprar_alquilar, name='comprar_alquilar'),
+    path('prediccion/', ges.prediccion, name='prediccion'),
+    path('presupuestos/<int:pk>/sensibilidad/', ges.sensibilidad, name='sensibilidad'),
+    path('<int:pk>/adendas/', ges.adendas, name='adendas'),
+    path('<int:pk>/eventos/', ges.eventos, name='eventos'),
+    path('<int:pk>/valor-ganado/', ges.valor_ganado, name='valor_ganado'),
+    path('<int:pk>/escenarios/', ges.escenarios, name='escenarios'),
+    path('<int:pk>/proyeccion/', ges.proyeccion, name='proyeccion'),
+    path('<int:pk>/productividad/', ges.productividad, name='productividad'),
+    path('<int:pk>/pronostico-compras/', ges.pronostico_compras, name='pronostico_compras'),
+    path('<int:pk>/flujo/', ges.flujo_proyecto, name='flujo_proyecto'),
+    path('subcontratos/<int:pk>/evaluar/', ges.subcontrato_evaluar, name='subcontrato_evaluar'),
 ]

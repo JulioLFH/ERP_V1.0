@@ -10,6 +10,7 @@
     <a href="{% url 'obras:apu_reporte' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-calculator"></i> Análisis (APU)</a>
     <a href="{% url 'obras:vincular' %}?presupuesto={{ p.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-link-45deg"></i> Vincular recursos</a>
     {% if p.tipo == 'META' %}<a href="{% url 'obras:control' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-clipboard-data"></i> Control y requerimientos</a>{% endif %}
+    <a href="{% url 'obras:sensibilidad' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-sliders"></i> Sensibilidad del margen</a>
     <a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
     <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i></button>
     <form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="accion" value="copiar">

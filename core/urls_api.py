@@ -1,6 +1,7 @@
 from django.urls import path
 
 from finanzas import api_rendicion as rendicion
+from obras import api as obras
 
 from . import api, api_datos as datos, views_api
 
@@ -11,6 +12,12 @@ urlpatterns = [
     path('rendiciones/categorias/', rendicion.categorias, name='rendicion_categorias'),
     path('rendiciones/<int:pk>/', rendicion.rendicion, name='rendicion'),
     path('rendiciones/<int:pk>/gastos/', rendicion.gasto, name='rendicion_gasto'),
+    path('obras/proyectos/', obras.proyectos, name='obras_proyectos'),
+    path('obras/proyectos/<int:pk>/', obras.proyecto, name='obras_proyecto'),
+    path('obras/partidas/', obras.partidas, name='obras_partidas'),
+    path('obras/costos/', obras.costos, name='obras_costos'),
+    path('obras/valorizaciones/', obras.valorizaciones, name='obras_valorizaciones'),
+    path('obras/cobranza/', obras.cobranza, name='obras_cobranza'),
     path('kardex/', datos.kardex, name='kardex'),
     path('cuentas-por-pagar/', datos.cuentas_por_pagar, name='cxp'),
     path('tesoreria/movimientos/', datos.movimientos_tesoreria, name='tesoreria'),

@@ -228,6 +228,15 @@ ENDPOINTS = [
     ('GET', '/api/v1/contabilidad/estado-resultados/', 'Estado de resultados por función o naturaleza, total o mes a '
                                                        'mes (desde, hasta, vista, mensual, libro)'),
     ('GET', '/api/v1/contabilidad/situacion-financiera/', 'Estado de situación financiera (hasta, libro)'),
+    ('GET', '/api/v1/obras/proyectos/', 'Proyectos de obra con avance, SPI, CPI, costo y margen proyectado (estado, '
+                                        'tipo, indicadores)'),
+    ('GET', '/api/v1/obras/proyectos/{id}/', 'Proyecto con sus indicadores y su flujo de caja real y proyectado'),
+    ('GET', '/api/v1/obras/partidas/', 'Partidas de la obra con avance, valor ganado, costo real y proyección al '
+                                       'cierre (obra)'),
+    ('GET', '/api/v1/obras/costos/', 'Costo real por obra y mes: materiales, mano de obra, equipos y subcontratos '
+                                     '(obra, desde, hasta)'),
+    ('GET', '/api/v1/obras/valorizaciones/', 'Valorizaciones de obra (obra, estado)'),
+    ('GET', '/api/v1/obras/cobranza/', 'Comprobantes de las obras con saldo por cobrar (obra)'),
     ('GET', '/api/v1/rendiciones/', 'Rendiciones de gastos (desde, hasta, estado, responsable)'),
     ('GET', '/api/v1/rendiciones/{id}/', 'Rendición con sus gastos e historial'),
     ('GET', '/api/v1/rendiciones/categorias/', 'Categorías de gasto'),

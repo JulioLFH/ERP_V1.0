@@ -357,6 +357,11 @@ RUTAS = {
     'obras:tareo': {'POST': 'obras.ejecutar'}, 'obras:planillas_civil': {'POST': 'obras.ejecutar'},
     'obras:planilla_civil': {'POST': 'obras.ejecutar'}, 'obras:partes': {'POST': 'obras.ejecutar'},
     'obras:subcontratos': {'POST': 'obras.ejecutar'}, 'obras:subcontrato': {'POST': 'obras.ejecutar'},
+    # v1.86: la adenda la registra la ejecución y la aprueba (o anula) quien aprueba presupuestos
+    'obras:adendas': lambda r: (None if r.method != 'POST' else 'obras.aprobar'
+                                if r.POST.get('accion') in ('aprobar', 'anular') else 'obras.ejecutar'),
+    'obras:eventos': {'POST': 'obras.ejecutar'}, 'obras:escenarios': {'POST': 'obras.ejecutar'},
+    'obras:subcontrato_evaluar': 'obras.ejecutar',
     'sst:registro_nuevo': 'sst.registrar', 'sst:registro': {'POST': 'sst.registrar'},
     'sst:indices': {'POST': 'sst.registrar'},
     'calidad:registro_nuevo': 'calidad.registrar', 'calidad:registro': {'POST': 'calidad.registrar'},

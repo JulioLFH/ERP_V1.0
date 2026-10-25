@@ -100,4 +100,4 @@ class ApiDatosTest(TestCase):
         ruta = self.get('/api/v1/openapi.json').json()['paths']['/api/v1/contabilidad/libro-diario/']['get']
         nombres = {p['name'] for p in ruta['parameters']}
         self.assertTrue({'desde', 'hasta', 'cuenta', 'formato', 'page_size'} <= nombres)
-        self.assertEqual(len(self.get('/api/v1/').json()['endpoints']), 28)  # + 4 de rendiciones (v1.28)
+        self.assertEqual(len(self.get('/api/v1/').json()['endpoints']), 34)  # + 4 de rendiciones (v1.28), + 6 de obras (v1.86)

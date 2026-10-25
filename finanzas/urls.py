@@ -12,6 +12,7 @@ urlpatterns = [
     path('cobranza/cliente/<int:pk>/', vg.cobranza_cliente, name='cobranza_cliente'),
     path('cobranza/recordatorios/', vg.recordatorios, name='recordatorios'),
     path('cobranza/provision/', vg.provision, name='provision'),
+    path('cobranza/prediccion/', vg.prediccion_cobro, name='prediccion_cobro'),
     path('propuestas-pago/', vg.propuestas, name='propuestas'),
     path('propuestas-pago/nueva/', vg.propuesta_nueva, name='propuesta_nueva'),
     path('propuestas-pago/<int:pk>/', vg.propuesta, name='propuesta'),

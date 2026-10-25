@@ -5,7 +5,21 @@
   <h1 class="page-title">{{ titulo }}</h1>
   <div class="d-flex flex-wrap gap-2">{% for texto, url, icono in botones %}<a href="{{ url }}" class="btn btn-sm {% if forloop.first %}btn-primary{% else %}btn-outline-secondary{% endif %}"><i class="bi {{ icono }}"></i> {{ texto }}</a>{% endfor %}</div>
 </div>
+{% if subtitulo %}<div class="text-muted small mb-2">{{ subtitulo }}</div>{% endif %}
 {% if ayuda %}<div class="alert alert-light border py-2 small"><i class="bi bi-info-circle"></i> {{ ayuda }}</div>{% endif %}
+{% for nivel, texto in avisos %}<div class="alert alert-{{ nivel }} py-2 small">{{ texto }}</div>{% endfor %}
+{% if kpis %}<div class="row g-3 mb-3 small">{% for etiqueta, valor, clase in kpis %}<div class="col-6 col-md-4 col-lg"><div class="kpi"><div class="label">{{ etiqueta }}</div><div class="value {{ clase }}">{{ valor }}</div></div></div>{% endfor %}</div>{% endif %}
+{% if grafico %}<div class="card mb-3"><div class="card-body" style="height:300px"><canvas id="grafico-tabla"></canvas></div></div>
+{{ grafico|json_script:'datos-grafico' }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>(function () {
+  const g = JSON.parse(document.getElementById('datos-grafico').textContent);
+  const colores = ['#3b5bdb', '#2f9e44', '#e8590c', '#868e96', '#ae3ec9'];
+  new Chart(document.getElementById('grafico-tabla'), {type: g.tipo || 'line', data: {labels: g.etiquetas,
+    datasets: g.series.map((s, i) => ({label: s.nombre, data: s.datos, type: s.tipo || undefined, borderColor: colores[i % 5],
+      backgroundColor: colores[i % 5] + '55', spanGaps: true, tension: 0.2}))},
+    options: {maintainAspectRatio: false, interaction: {mode: 'index', intersect: false}}});
+})();</script>{% endif %}
 {% if buscar or filtros or selects or textos or rango %}
 <form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3 small">
   {% if buscar %}<div><input type="search" name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Buscar"></div>{% endif %}
@@ -27,6 +41,7 @@
 <div class="card mb-3">
   {% if s.titulo or excel %}<div class="card-header d-flex justify-content-between align-items-center py-2"><span class="fw-semibold">{{ s.titulo }}</span>
     {% if excel %}<a href="?{% for k, v in request.GET.items %}{% if k != 'formato' and k != 'seccion' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}formato=excel{% if por_seccion %}&seccion={{ forloop.counter0 }}{% endif %}" class="btn btn-sm btn-success py-0"><i class="bi bi-file-earmark-excel"></i> Excel</a>{% endif %}</div>{% endif %}
+  {% if s.nota %}<div class="px-3 py-2 small text-muted border-bottom">{{ s.nota }}</div>{% endif %}
   <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">
     <thead><tr>{% for c in s.columnas %}<th>{{ c }}</th>{% endfor %}</tr></thead>
     <tbody>{% for fila in s.filas %}<tr>{% for celda in fila %}<td>{% include 'ventas/_crm_celda.html' %}</td>{% endfor %}</tr>

@@ -753,6 +753,11 @@ class Equipo(models.Model):
     valor_reposicion = models.DecimalField('Valor de reposición S/', max_digits=14, decimal_places=2, default=D0)
     presupuesto_anual = models.DecimalField('Presupuesto de mantenimiento anual S/', max_digits=14, decimal_places=2,
                                             default=D0)
+    # HR-10: comprar o alquilar (Obras): el costo hora propio frente a la tarifa de alquiler del mercado
+    tarifa_alquiler = models.DecimalField('Tarifa de alquiler del mercado S/ por hora (sin IGV)', max_digits=12,
+                                          decimal_places=2, default=D0)
+    horas_mes = models.PositiveIntegerField('Horas de uso esperadas al mes', default=0,
+                                            help_text='Para repartir la depreciación por hora si aún no hay partes')
     activo = models.BooleanField(default=True)
 
     class Meta:
