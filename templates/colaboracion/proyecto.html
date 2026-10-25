@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}{{ p.nombre }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <div><h1 class="page-title mb-0">{{ p.nombre }}</h1>
+    <div class="small text-muted">{{ p.cliente.nombre|default:'Proyecto interno' }}{% if p.obra %} · obra {{ p.obra }}{% endif %} · jefe {{ p.responsable.get_full_name|default:p.responsable.username|default:'—' }}{% if p.fecha_inicio %} · {{ p.fecha_inicio|date:'d/m/Y' }}{% endif %}{% if p.fecha_fin %} al {{ p.fecha_fin|date:'d/m/Y' }}{% endif %} · <span class="badge text-bg-light border">{{ p.get_estado_display }}</span></div></div>
+  <div class="d-flex gap-2">{% if editar %}<a href="{% url 'proyectos:editar' p.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}<a href="{% url 'proyectos:lista' %}" class="btn btn-sm btn-outline-secondary">Proyectos</a></div>
+</div>
+<div class="d-flex align-items-center gap-2 small mb-3"><div class="progress flex-grow-1" style="height: .5rem; max-width: 320px"><div class="progress-bar bg-success" style="width: {{ avance }}%"></div></div>{{ avance }} % de {{ total }} tarea(s) · {{ horas|floatformat:'-2' }} h estimadas{% if miembros %} · miembros: {% for u in miembros %}{{ u.get_full_name|default:u.username }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}</div>
+{% if p.descripcion %}<p class="small" style="white-space: pre-wrap">{{ p.descripcion }}</p>{% endif %}
+{% csrf_token %}
+<div class="row g-2 kanban" data-mover="{% url 'proyectos:tarea_mover' 0 %}">
+  {% for clave, nombre, tareas in columnas %}
+  <div class="col-md-6 col-xl-3"><div class="card h-100 bg-body-tertiary"><div class="card-header fw-semibold small d-flex justify-content-between">{{ nombre }} <span class="badge text-bg-secondary">{{ tareas|length }}</span></div>
+    <div class="card-body p-2 columna" data-etapa="{{ clave }}" style="min-height: 6rem">
+      {% for t in tareas %}<div class="card mb-2 tarjeta{% if t.vencida %} border-danger{% endif %}"{% if trabajar %} draggable="true"{% endif %} data-id="{{ t.pk }}"><div class="card-body p-2 small">
+        <div class="d-flex justify-content-between gap-1"><a href="{% url 'proyectos:tarea' t.pk %}" class="fw-semibold">{{ t.titulo }}</a>{% if t.prioridad != '0' %}<span class="badge text-bg-{% if t.prioridad == '2' %}danger{% else %}warning{% endif %}">{{ t.get_prioridad_display }}</span>{% endif %}</div>
+        <div class="text-muted">{{ t.responsable.get_full_name|default:t.responsable.username|default:'Sin responsable' }}{% if t.fecha_limite %} · <span class="{% if t.vencida %}text-danger fw-semibold{% endif %}">{{ t.fecha_limite|date:'d/m' }}</span>{% endif %}{% if t.n_comentarios %} · <i class="bi bi-chat"></i> {{ t.n_comentarios }}{% endif %}</div>
+        {% if trabajar %}<form method="post" action="{% url 'proyectos:tarea_mover' t.pk %}" class="d-flex gap-1 mt-1">{% csrf_token %}
+          {% for e, n in etapas %}{% if e != clave %}<button name="etapa" value="{{ e }}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Pasar a «{{ n }}»">{{ n|truncatechars:9 }}</button>{% endif %}{% endfor %}
+        </form>{% endif %}
+      </div></div>{% endfor %}
+    </div></div></div>
+  {% endfor %}
+</div>
+{% if form %}<div class="card mt-3"><div class="card-header fw-semibold">Nueva tarea</div><div class="card-body">
+  <form method="post" class="row g-2">{% csrf_token %}
+    {% for field in form %}<div class="{% if field.name == 'titulo' or field.name == 'descripcion' %}col-12{% else %}col-md-4 col-xl-2{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12"><button class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Agregar tarea</button></div>
+  </form>
+</div></div>{% endif %}
+{% if trabajar %}<p class="small text-muted mt-2">Arrastre las tarjetas entre columnas o use los botones de cada tarjeta para cambiar su etapa.</p>{% endif %}
+{% endblock %}
+{% block scripts %}{% if trabajar %}
+<script>
+(() => {
+  const tablero = document.querySelector('.kanban');
+  const token = document.querySelector('input[name=csrfmiddlewaretoken]').value;
+  let arrastrada = null;
+  tablero.querySelectorAll('.tarjeta').forEach(t => t.addEventListener('dragstart', () => { arrastrada = t; }));
+  tablero.querySelectorAll('.columna').forEach(col => {
+    col.addEventListener('dragover', e => e.preventDefault());
+    col.addEventListener('drop', async e => {
+      e.preventDefault();
+      if (!arrastrada) return;
+      const url = tablero.dataset.mover.replace('/0/', `/${arrastrada.dataset.id}/`);
+      const datos = new FormData(); datos.append('etapa', col.dataset.etapa);
+      const r = await fetch(url, {method: 'POST', body: datos, headers: {'X-CSRFToken': token, 'X-Requested-With': 'fetch'}});
+      if (r.ok) location.reload(); else alert((await r.json()).error || 'No se pudo mover la tarea.');
+    });
+  });
+})();
+</script>
+{% endif %}{% endblock %}

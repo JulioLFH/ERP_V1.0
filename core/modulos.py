@@ -4,6 +4,8 @@ Cada módulo corresponde a un grupo de Django con el mismo nombre. El superusuar
 Para un usuario normal, el middleware AccesoModulosMiddleware bloquea las pantallas de módulos
 que no tiene asignados.
 """
+from datetime import date, timedelta
+
 from django.urls import reverse
 
 # Menú: lista de (etiqueta, url) para enlace directo o (etiqueta, [(etiqueta, url, icono), ...]) para desplegable.
@@ -41,6 +43,15 @@ MODULOS = [
                                ('Reasignar cartera', 'crm:reasignaciones', 'bi-arrow-left-right'),
                                ('Datos personales (Ley 29733)', 'crm:datos_personales', 'bi-shield-lock'),
                                ('Configuración y formulario web', 'crm:configuracion', 'bi-gear')]),
+        ],
+    },
+    {
+        'clave': 'toma_pedido', 'nombre': 'TomaPedido', 'icono': 'bi-phone', 'color': '#0b7285',
+        'inicio': 'toma_pedido:lista', 'descripcion': 'Pedidos de los vendedores desde el celular, con precio y stock',
+        'menu': [
+            ('Nuevo pedido', 'toma_pedido:nuevo'),
+            ('Mis pedidos', 'toma_pedido:lista'),
+            ('Catálogo, precios y stock', 'toma_pedido:catalogo'),
         ],
     },
     {
@@ -91,9 +102,6 @@ MODULOS = [
                                 ('Contratos marco', 'compras:contratos', 'bi-file-earmark-text'),
                                 ('Proveedores por producto (registro info)', 'compras:registros_info',
                                  'bi-person-lines-fill')]),
-            ('Portal de proveedores', [('Tablero del portal', 'compras:portal_tablero', 'bi-speedometer2'),
-                                       ('Facturas por revisar', 'compras:portal_facturas', 'bi-inbox'),
-                                       ('Accesos de proveedores', 'compras:portal_accesos', 'bi-person-lock')]),
             ('Cuentas por pagar', 'compras:pendientes'),
             ('Sugerencia de compra', 'inv_reposicion'),
             ('Proveedores', 'terceros?tipo=PROVEEDOR'),
@@ -107,6 +115,16 @@ MODULOS = [
                           ('SIRE: propuesta de SUNAT (RCE)', 'sire_propuestas?libro=RCE', 'bi-cloud-download'),
                           ('Cruce con propuesta SIRE', 'compras:sire', 'bi-arrow-left-right'),
                           ('Importar desde Excel', 'compras:importar', 'bi-file-earmark-arrow-up')]),
+        ],
+    },
+    # v1.83: el portal de proveedores deja de ser una sección de Compras (las URL siguen en /compras/portal/…)
+    {
+        'clave': 'portal_proveedores', 'nombre': 'Portal de proveedores', 'icono': 'bi-shop', 'color': '#d9480f',
+        'inicio': 'compras:portal_tablero', 'descripcion': 'Facturas que suben los proveedores, revisión y accesos',
+        'menu': [
+            ('Tablero del portal', 'compras:portal_tablero'),
+            ('Facturas por revisar', 'compras:portal_facturas'),
+            ('Accesos de proveedores', 'compras:portal_accesos'),
         ],
     },
     {
@@ -144,6 +162,15 @@ MODULOS = [
                                ('Almacenes', 'almacenes', 'bi-house-gear'),
                                ('Ubicaciones en el almacén', 'ubicaciones', 'bi-grid-3x3'),
                                ('Tipos de operación', 'inventario:tipos', 'bi-ui-checks')]),
+        ],
+    },
+    {
+        'clave': 'codigo_barras', 'nombre': 'Código de barras', 'icono': 'bi-upc-scan', 'color': '#862e9c',
+        'inicio': 'codigo_barras:escanear', 'descripcion': 'Escanear productos, imprimir etiquetas y asignar códigos',
+        'menu': [
+            ('Escanear producto', 'codigo_barras:escanear'),
+            ('Imprimir etiquetas', 'codigo_barras:etiquetas'),
+            ('Productos sin código de barras', 'codigo_barras:asignar'),
         ],
     },
     {
@@ -226,6 +253,15 @@ MODULOS = [
             ('Valorización de inventario', 'inv_valorizacion'),
         ],
     },
+    # v1.83: los presupuestos salen de Contabilidad (las URL siguen en /contabilidad/presupuestos/…)
+    {
+        'clave': 'presupuestos', 'nombre': 'Presupuestos', 'icono': 'bi-clipboard-data', 'color': '#5c940d',
+        'inicio': 'contabilidad:presupuestos', 'descripcion': 'Presupuesto anual por cuenta y centro, y su ejecución',
+        'menu': [
+            ('Presupuestos y ejecución', 'contabilidad:presupuestos'),
+            ('Nuevo presupuesto', 'contabilidad:presupuesto_nuevo'),
+        ],
+    },
     {
         'clave': 'activos', 'nombre': 'Activos fijos', 'icono': 'bi-building-gear', 'color': '#7c5c2e',
         'inicio': 'activos:lista', 'descripcion': 'Registro de activos, depreciación y bajas',
@@ -262,6 +298,15 @@ MODULOS = [
                                         ('Garantías y cartas fianza', 'obras:garantias', 'bi-shield-check')]),
             ('Reportes', [('Resultado por obra (con gastos generales asignados)', 'contabilidad:reparto_resultado',
                            'bi-bar-chart')]),
+        ],
+    },
+    {
+        'clave': 'proyectos', 'nombre': 'Proyectos', 'icono': 'bi-list-check', 'color': '#2b8a3e',
+        'inicio': 'proyectos:lista', 'descripcion': 'Proyectos con tareas por etapas, responsables y plazos',
+        'menu': [
+            ('Proyectos', 'proyectos:lista'),
+            ('Mis tareas', 'proyectos:mis_tareas'),
+            ('Nuevo proyecto', 'proyectos:nuevo'),
         ],
     },
     {
@@ -306,18 +351,34 @@ MODULOS = [
                            ('Nueva planilla', 'planillas:nueva', 'bi-plus-circle'),
                            ('Liquidación de beneficios (ceses)', 'planillas:nueva?tipo=LIQUIDACION',
                             'bi-box-arrow-right')]),
-            ('Organización', [('Organigrama, unidades y puestos', 'planillas:organigrama', 'bi-diagram-3'),
-                              ('Movimientos de personal', 'planillas:movimientos', 'bi-arrow-left-right'),
-                              ('Solicitudes de vacaciones y permisos', 'planillas:solicitudes_personal',
-                               'bi-calendar-check')]),
+            ('Trabajadores', 'planillas:trabajadores'),
+            ('Reportes', [('Costo por centro de costo', 'planillas:costo_centros', 'bi-diagram-3')]),
+            ('Configuración', [('Parámetros, AFP y conceptos', 'planillas:configuracion', 'bi-gear')]),
+        ],
+    },
+    # v1.83: Empleados y Tiempo personal se separan de Planillas (las URL siguen en /planillas/…)
+    {
+        'clave': 'empleados', 'nombre': 'Empleados', 'icono': 'bi-person-vcard', 'color': '#7048e8',
+        'inicio': 'planillas:trabajadores', 'descripcion': 'Trabajadores, contratos, legajo, asistencia y organigrama',
+        'menu': [
             ('Personal', [('Trabajadores', 'planillas:trabajadores', 'bi-people'),
                           ('Contratos y legajo (vencimientos)', 'planillas:contratos', 'bi-file-earmark-person'),
-                          ('Vacaciones y récord vacacional', 'planillas:vacaciones', 'bi-sun'),
                           ('Asistencia y marcaciones', 'planillas:asistencia', 'bi-fingerprint'),
-                          ('Turnos de trabajo', 'planillas:turnos', 'bi-clock')]),
-            ('Reportes', [('Costo por centro de costo', 'planillas:costo_centros', 'bi-diagram-3'),
-                          ('Datos para el T-Registro (Excel)', 'planillas:t_registro', 'bi-file-earmark-excel')]),
-            ('Configuración', [('Parámetros, AFP y conceptos', 'planillas:configuracion', 'bi-gear')]),
+                          ('Turnos de trabajo', 'planillas:turnos', 'bi-clock'),
+                          ('Cargar trabajadores (Excel)', 'carga_masiva?tipo=trabajadores', 'bi-file-earmark-arrow-up')]),
+            ('Organización', [('Organigrama, unidades y puestos', 'planillas:organigrama', 'bi-diagram-3'),
+                              ('Movimientos de personal', 'planillas:movimientos', 'bi-arrow-left-right')]),
+            ('Reportes', [('Datos para el T-Registro (Excel)', 'planillas:t_registro', 'bi-file-earmark-excel')]),
+        ],
+    },
+    {
+        'clave': 'tiempo_personal', 'nombre': 'Tiempo personal', 'icono': 'bi-umbrella', 'color': '#e67700',
+        'inicio': 'planillas:solicitudes_personal', 'descripcion': 'Vacaciones, permisos y licencias del personal',
+        'menu': [
+            ('Solicitudes por aprobar', 'planillas:solicitudes_personal'),
+            ('Vacaciones y récord vacacional', 'planillas:vacaciones'),
+            ('Calendario de ausencias', 'calendario:mes?capa=ausencias'),
+            ('Mis vacaciones y permisos', 'mi_portal'),
         ],
     },
     {
@@ -371,18 +432,37 @@ MODULOS = [
                                    ('Nueva guía transportista', 'logistica:nueva?tipo=31', 'bi-plus-circle')]),
             ('Garita', [('Registro de garita', 'logistica:garita_lista', 'bi-sign-stop'),
                         ('Ingreso de vehículo', 'logistica:garita_nuevo', 'bi-plus-circle')]),
-            ('Flota', [('Equipos y vehículos', 'flota:equipos', 'bi-truck-flatbed'),
-                       ('Parte diario de odómetros / horómetros', 'flota:parte', 'bi-speedometer'),
-                       ('Lecturas por aprobar', 'flota:lecturas', 'bi-check2-square'),
-                       ('Combustible (vales y rendimiento)', 'flota:combustible', 'bi-fuel-pump'),
-                       ('Viajes', 'flota:viajes', 'bi-signpost-2'),
-                       ('Préstamos y comodato', 'flota:prestamos', 'bi-box-arrow-up-right'),
-                       ('Costo por equipo (km u hora)', 'flota:costos', 'bi-cash-stack'),
-                       ('Cargar equipos, componentes y lecturas (Excel)', 'carga_masiva?tipo=equipos',
-                        'bi-file-earmark-arrow-up'),
-                       ('Documentos por vencer (SOAT, revisión, licencias)', 'flota:documentos', 'bi-calendar-x')]),
             ('Configuración', [('Vehículos', 'logistica:vehiculos', 'bi-car-front'),
                                ('Conductores', 'logistica:conductores', 'bi-person-badge')]),
+        ],
+    },
+    {
+        'clave': 'distribucion', 'nombre': 'Distribución', 'icono': 'bi-geo-alt', 'color': '#0c8599',
+        'inicio': 'distribucion:lista', 'descripcion': 'Hojas de reparto por vehículo, entregas en ruta y efectividad',
+        'menu': [
+            ('Hojas de reparto', 'distribucion:lista'),
+            ('Nueva hoja de reparto', 'distribucion:nueva'),
+            ('Reparto en el celular (conductor)', 'distribucion:movil'),
+            ('Reportes', [('Efectividad de entregas', 'distribucion:reporte', 'bi-bar-chart')]),
+        ],
+    },
+    # v1.83: la flota sale de Logística (las URL siguen en /flota/…; Mantenimiento también la usa)
+    {
+        'clave': 'flota', 'nombre': 'Flota', 'icono': 'bi-car-front-fill', 'color': '#5f3dc4',
+        'inicio': 'flota:equipos', 'descripcion': 'Vehículos y equipos: lecturas, combustible, viajes y documentos',
+        'menu': [
+            ('Equipos y vehículos', 'flota:equipos'),
+            ('Operación', [('Parte diario de odómetros / horómetros', 'flota:parte', 'bi-speedometer'),
+                           ('Lecturas por aprobar', 'flota:lecturas', 'bi-check2-square'),
+                           ('Combustible (vales y rendimiento)', 'flota:combustible', 'bi-fuel-pump'),
+                           ('Viajes', 'flota:viajes', 'bi-signpost-2'),
+                           ('Préstamos y comodato', 'flota:prestamos', 'bi-box-arrow-up-right')]),
+            ('Reportes', [('Costo por equipo (km u hora)', 'flota:costos', 'bi-cash-stack'),
+                          ('Documentos por vencer (SOAT, revisión, licencias)', 'flota:documentos', 'bi-calendar-x')]),
+            ('Configuración', [('Vehículos (para las guías)', 'logistica:vehiculos', 'bi-car-front'),
+                               ('Conductores', 'logistica:conductores', 'bi-person-badge'),
+                               ('Cargar equipos, componentes y lecturas (Excel)', 'carga_masiva?tipo=equipos',
+                                'bi-file-earmark-arrow-up')]),
         ],
     },
     {
@@ -444,7 +524,6 @@ MODULOS = [
                           ('Gastos por centro de costo', 'contabilidad:centros_reporte', 'bi-diagram-3'),
                           ('Resultado por centro y obra (con gastos asignados)', 'contabilidad:reparto_resultado',
                            'bi-bar-chart'),
-                          ('Presupuestos y ejecución', 'contabilidad:presupuestos', 'bi-clipboard-data'),
                           ('Prorrata del crédito fiscal (IGV)', 'contabilidad:prorrata', 'bi-percent'),
                           ('Conciliación NIIF - tributaria', 'contabilidad:conciliacion_normas', 'bi-intersect'),
                           ('Estados consolidados del grupo', 'contabilidad:consolidacion', 'bi-buildings'),
@@ -464,6 +543,30 @@ MODULOS = [
                                ('Cuentas por tipo de producto', 'contabilidad:cuentas_tipo', 'bi-box-seam')]),
         ],
     },
+    # v1.83: lo que se presenta a SUNAT en un solo lugar (las pantallas siguen siendo de sus módulos)
+    {
+        'clave': 'sunat', 'nombre': 'SUNAT', 'icono': 'bi-bank2', 'color': '#c92a2a',
+        'inicio': 'sire_propuestas', 'descripcion': 'SIRE, registros y libros electrónicos, detracciones y consulta RUC',
+        'menu': [
+            ('SIRE', [('Propuesta de ventas (RVIE)', 'sire_propuestas?libro=RVIE', 'bi-cloud-download'),
+                      ('Propuesta de compras (RCE)', 'sire_propuestas?libro=RCE', 'bi-cloud-download'),
+                      ('Cruce de compras con la propuesta', 'compras:sire', 'bi-arrow-left-right')]),
+            ('Registros y libros (PLE)', [('Registro de ventas 14.1', 'ventas:registro', 'bi-journal-text'),
+                                          ('Registro de compras 8.1', 'compras:registro', 'bi-journal-text'),
+                                          ('Libro diario', 'contabilidad:diario', 'bi-journal-text'),
+                                          ('Libro mayor', 'contabilidad:mayor', 'bi-journal-bookmark'),
+                                          ('Inventarios y Balances (3.x)', 'contabilidad:libro_inventarios',
+                                           'bi-journal-richtext'),
+                                          ('Inventario permanente 12.1 / 13.1', 'inv_libro_sunat', 'bi-boxes'),
+                                          ('Registro de activos fijos 7.1', 'activos:registro', 'bi-building-gear')]),
+            ('Detracciones', [('Detracciones de ventas', 'ventas:detracciones', 'bi-bank'),
+                              ('Detracciones de compras', 'compras:detracciones', 'bi-bank'),
+                              ('Depósito masivo de detracciones', 'finanzas:detracciones_masivas', 'bi-send'),
+                              ('Constancias de detracción de clientes', 'finanzas:constancias_clientes',
+                               'bi-cloud-upload')]),
+            ('Consulta RUC', 'ruc_consulta'),
+        ],
+    },
     {
         'clave': 'cliente', 'nombre': 'Mi empresa', 'icono': 'bi-person-workspace', 'color': '#1098ad',
         'inicio': 'cliente_documentos',
@@ -476,6 +579,29 @@ MODULOS = [
         'inicio': 'terceros', 'descripcion': 'Clientes y proveedores',
         'menu': [('Clientes', 'terceros?tipo=CLIENTE'), ('Proveedores', 'terceros?tipo=PROVEEDOR'),
                  ('Todos', 'terceros')],
+    },
+    {
+        'clave': 'consulta_ruc', 'nombre': 'Consulta RUC', 'icono': 'bi-search', 'color': '#1864ab',
+        'inicio': 'ruc_consulta', 'descripcion': 'Padrón de SUNAT: estado, condición y domicilio de uno o varios RUC',
+        'menu': [('Consultar RUC', 'ruc_consulta'), ('Historial de consultas', 'ruc_historial')],
+    },
+    # v1.83: herramientas de todos los usuarios (no se asignan: las tiene quien tiene cualquier otro módulo)
+    {
+        'clave': 'conversaciones', 'nombre': 'Conversaciones', 'icono': 'bi-chat-dots', 'color': '#f76707',
+        'inicio': 'conversaciones:inicio', 'descripcion': 'Mensajes entre usuarios: canales por área y chats directos',
+        'menu': [('Canales y mensajes', 'conversaciones:inicio'), ('Nuevo canal', 'conversaciones:canal_nuevo')],
+    },
+    {
+        'clave': 'calendario', 'nombre': 'Calendario', 'icono': 'bi-calendar3', 'color': '#e64980',
+        'inicio': 'calendario:mes', 'descripcion': 'Reuniones y eventos, con actividades, tareas, ausencias y SUNAT',
+        'menu': [('Calendario del mes', 'calendario:mes'), ('Agenda de los próximos días', 'calendario:agenda'),
+                 ('Nuevo evento', 'calendario:evento_nuevo')],
+    },
+    {
+        'clave': 'actividades', 'nombre': 'Actividades pendientes', 'icono': 'bi-check2-square', 'color': '#0ca678',
+        'inicio': 'actividades:lista', 'descripcion': 'Lo que cada uno tiene por hacer: tareas, CRM y aprobaciones',
+        'menu': [('Mis pendientes', 'actividades:lista'), ('Encargadas por mí', 'actividades:lista?vista=encargadas'),
+                 ('Nueva actividad', 'actividades:nueva'), ('Aprobaciones pendientes', 'aprobaciones_bandeja')],
     },
     {
         'clave': 'ajustes', 'nombre': 'Ajustes', 'icono': 'bi-gear', 'color': '#495057',
@@ -508,9 +634,10 @@ MODULOS = [
 
 def _agregar_log_de_modificaciones():
     """«Log de modificaciones» (solo administradores) en cada módulo: en su grupo Reportes o en un grupo Control.
-    Manufactura tiene el suyo propio y Ajustes la auditoría de todo el sistema."""
+    Manufactura tiene el suyo propio y Ajustes la auditoría de todo el sistema. Las conversaciones son privadas y los
+    módulos que solo reúnen pantallas de otros (SUNAT, Consulta RUC) usan el log del módulo de cada pantalla."""
     for m in MODULOS:
-        if m['clave'] in ('manufactura', 'ajustes'):
+        if m['clave'] in ('manufactura', 'ajustes', 'conversaciones', 'sunat', 'consulta_ruc'):
             continue
         item = ('Log de modificaciones', f'modificaciones?modulo={m["clave"]}', 'bi-journal-text')
         grupo = next((d for e, d in m['menu'] if e == 'Reportes' and isinstance(d, list)), None)
@@ -523,14 +650,38 @@ def _agregar_log_de_modificaciones():
 _agregar_log_de_modificaciones()
 POR_CLAVE = {m['clave']: m for m in MODULOS}
 
+# Conversaciones, Calendario y Actividades pendientes: de todos los usuarios internos (no del cliente del estudio)
+PARA_TODOS = {'conversaciones', 'calendario', 'actividades'}
+# Módulos sin grupo propio: los tiene quien tiene alguno de sus módulos de origen (DERIVADOS)
+SIN_GRUPO = {'contactos', 'consulta_ruc'} | PARA_TODOS
+
 # Nombre de grupo de Django por módulo (lo que se asigna a cada usuario)
-GRUPOS = {m['clave']: m['nombre'] for m in MODULOS if m['clave'] != 'contactos'}
+GRUPOS = {m['clave']: m['nombre'] for m in MODULOS if m['clave'] not in SIN_GRUPO}
 
 # Contactos no tiene grupo propio: lo usan quienes venden, compran, cobran o despachan
 DERIVADOS = {'contactos': {'crm', 'ventas', 'compras', 'tesoreria', 'finanzas', 'logistica', 'contabilidad'},
              # el almacén atiende los requerimientos de las áreas; Compras ve y libera sus solicitudes de pedido
              'requerimientos': {'inventario', 'compras', 'obras'},  # la obra pide materiales y servicios
-             'rendiciones': {'tesoreria', 'finanzas', 'contabilidad'}}  # tesorería y contabilidad revisan las rendiciones
+             'rendiciones': {'tesoreria', 'finanzas', 'contabilidad'},  # tesorería y contabilidad revisan las rendiciones
+             'consulta_ruc': {'crm', 'toma_pedido', 'ventas', 'compras', 'portal_proveedores', 'tesoreria', 'finanzas',
+                              'logistica', 'contabilidad', 'sunat', 'ajustes'},
+             **{m: {g for g in GRUPOS if g != 'cliente'} for m in PARA_TODOS}}
+
+# Módulos nuevos: llevan un asterisco en Inicio durante DIAS_NUEVO días desde su publicación
+NUEVOS_DESDE = {
+    **dict.fromkeys(('planificacion', 'control_calidad', 'mantenimiento'), date(2026, 10, 24)),
+    **dict.fromkeys(('toma_pedido', 'portal_proveedores', 'codigo_barras', 'presupuestos', 'proyectos', 'empleados',
+                     'tiempo_personal', 'distribucion', 'flota', 'sunat', 'consulta_ruc', 'conversaciones',
+                     'calendario', 'actividades'), date(2026, 10, 25)),
+}
+DIAS_NUEVO = 7
+
+
+def nuevos(hoy=None):
+    """Claves de los módulos que aún se muestran como nuevos (asterisco en Inicio)."""
+    from django.utils import timezone
+    hoy = hoy or timezone.localdate()
+    return {c for c, desde in NUEVOS_DESDE.items() if desde <= hoy < desde + timedelta(days=DIAS_NUEVO)}
 
 # Rutas sin espacio de nombres (app core) -> módulos que pueden abrirlas (el primero es el principal)
 RUTAS_CORE = {
@@ -538,15 +689,20 @@ RUTAS_CORE = {
     'cliente_subir': ['cliente'], 'cliente_reportes': ['cliente'],
     'cliente_documentos': ['cliente', 'contabilidad'], 'cliente_archivo': ['cliente', 'contabilidad'],
     'empresa': ['ajustes'], 'empresa_giro': ['ajustes'], 'parametros': ['ajustes', 'contabilidad'],
-    'validacion_reglas': ['sst', 'calidad', 'ajustes'], 'consulta_ruc': ['ajustes', 'contactos', 'crm', 'ventas', 'compras'], 'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
+    'validacion_reglas': ['sst', 'calidad', 'ajustes'],
+    'consulta_ruc': ['ajustes', 'contactos', 'crm', 'ventas', 'compras', 'consulta_ruc'],  # datos para las fichas
+    'ruc_consulta': ['consulta_ruc'], 'ruc_historial': ['consulta_ruc'],
+    'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
     'auditoria': ['ajustes'], 'manuales': ['ajustes'], 'manual_pdf': ['ajustes'], 'manual_proceso_pdf': ['ajustes'],
     'incidencias': ['ajustes'], 'incidencia': ['ajustes'],
     'modificaciones': [m['clave'] for m in MODULOS],  # se ve dentro del módulo; la vista exige ser administrador
     'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'tesoreria', 'finanzas', 'contactos', 'manufactura',
-                     'logistica', 'contabilidad', 'planillas', 'rendiciones', 'activos'], 'usuarios': ['ajustes'],
+                     'logistica', 'contabilidad', 'planillas', 'rendiciones', 'activos', 'empleados', 'flota'],
+    'usuarios': ['ajustes'],
     'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'], 'segregacion': ['ajustes'],
-    'sire_propuestas': ['compras', 'ventas', 'contabilidad'], 'sire_propuesta': ['compras', 'ventas', 'contabilidad'],
+    'sire_propuestas': ['sunat', 'compras', 'ventas', 'contabilidad'],
+    'sire_propuesta': ['sunat', 'compras', 'ventas', 'contabilidad'],
     'perfiles_acceso': ['ajustes'], 'sso_lista': ['ajustes'], 'sso_nuevo': ['ajustes'], 'sso_editar': ['ajustes'], 'perfil_acceso_nuevo': ['ajustes'], 'perfil_acceso_editar': ['ajustes'],
     'aprobaciones_reglas': ['ajustes', 'compras', 'rendiciones', 'planillas'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
@@ -562,7 +718,8 @@ RUTAS_CORE = {
     'hist_posiciones': ['contabilidad'], 'hist_fabricacion': ['manufactura', 'costos'],
     'hist_orden': ['manufactura', 'costos'],
     'producto_variantes': ['inventario', 'ventas', 'compras', 'manufactura'],
-    'inv_stock': ['inventario'], 'inv_kardex': ['inventario'], 'inv_libro_sunat': ['inventario', 'contabilidad'],
+    'inv_stock': ['inventario'], 'inv_kardex': ['inventario'],
+    'inv_libro_sunat': ['inventario', 'contabilidad', 'sunat'],
     'inv_lotes': ['inventario', 'ventas', 'compras'], 'inv_lote': ['inventario', 'ventas', 'compras'], 'inv_ajuste': ['inventario'],
     'inv_valorizacion': ['inventario', 'costos'], 'inv_reposicion': ['inventario', 'compras'], 'almacenes': ['inventario'], 'almacen_nuevo': ['inventario'],
     'almacen_editar': ['inventario'], 'ubicaciones': ['inventario'],
@@ -630,7 +787,17 @@ def modulos_del_usuario(user):
 
 # espacios de nombres que no son un módulo pero se usan desde varios (el primero es el principal)
 NAMESPACES_COMPARTIDOS = {'solicitudes': ['requerimientos', 'compras', 'manufactura'],
-                          'flota': ['logistica', 'mantenimiento', 'manufactura']}  # maestro único de equipos y flota
+                          # maestro único de equipos y flota
+                          'flota': ['flota', 'logistica', 'mantenimiento', 'manufactura']}
+
+# Empleados y Tiempo personal comparten la app planillas (URL /planillas/…): módulos de cada pantalla (el primero es
+# el principal; Planillas también las consulta). Las demás quedan en Planillas.
+RUTAS_PLANILLAS = {
+    **{n: ['empleados', 'planillas'] for n in (
+        'trabajadores', 'trabajador_nuevo', 'trabajador_editar', 'legajo', 'contratos', 'asistencia', 'turnos', 'turno',
+        'organigrama', 'movimientos', 'movimiento_nuevo', 'movimiento', 't_registro')},
+    **{n: ['tiempo_personal', 'planillas'] for n in ('vacaciones', 'solicitudes_personal')},
+}
 
 # Manufactura, Planificación, Calidad y Mantenimiento comparten la app produccion (URL /manufactura/…): módulos de
 # cada pantalla (el primero es el principal; Manufactura también las consulta). Las demás quedan en Manufactura.
@@ -659,6 +826,9 @@ RUTAS_FINANZAS = {
     # el voucher se abre desde ambos; las aplicaciones se anulan desde anticipos y desde las entregas a rendir
     'voucher': ['tesoreria', 'finanzas'], 'aplicacion_anular': ['finanzas', 'tesoreria'],
     'flujo_proyectado': ['tesoreria', 'finanzas'],  # incluye las cuotas de préstamos y letras por vencer
+    # detracciones: también desde el módulo SUNAT (registrar sigue exigiendo la acción de Tesorería)
+    **{nombre: ['tesoreria', 'sunat'] for nombre in (
+        'detracciones_masivas', 'detracciones_masivas_nuevo', 'detraccion_masiva', 'constancias_clientes')},
 }
 # pantallas de un módulo que también abre otro (vista: módulos; el primero es el principal)
 RUTAS_COMPARTIDAS = {'contabilidad:reparto_resultado': ['contabilidad', 'obras'],
@@ -667,7 +837,24 @@ RUTAS_COMPARTIDAS = {'contabilidad:reparto_resultado': ['contabilidad', 'obras']
                      'compras:traslado_nuevo': ['compras', 'inventario', 'obras', 'requerimientos'],
                      'ventas:crm_antiguo': ['crm', 'ventas'],  # enlaces guardados de /ventas/crm/ (van a /crm/)
                      # CRM-21: obras, producción y logística ven lo que viene del CRM
-                     'crm:operaciones': ['crm', 'obras', 'manufactura', 'logistica', 'inventario']}
+                     'crm:operaciones': ['crm', 'obras', 'manufactura', 'logistica', 'inventario'],
+                     # v1.83: pantallas de otras apps que son de los módulos nuevos
+                     **{f'compras:{n}': ['portal_proveedores', 'compras'] for n in (
+                         'portal_tablero', 'portal_facturas', 'portal_factura', 'portal_factura_sunat',
+                         'portal_factura_archivo', 'portal_factura_aprobar', 'portal_factura_rechazar',
+                         'portal_accesos', 'portal_acceso_nuevo', 'portal_acceso_editar')},
+                     **{f'contabilidad:{n}': ['presupuestos', 'contabilidad'] for n in (
+                         'presupuestos', 'presupuesto_nuevo', 'presupuesto_ejecucion', 'presupuesto_editar',
+                         'presupuesto_generar')},
+                     **{f'logistica:{n}': ['logistica', 'flota'] for n in (
+                         'vehiculos', 'vehiculo_nuevo', 'vehiculo_editar', 'conductores', 'conductor_nuevo',
+                         'conductor_editar')},
+                     # registros, libros y detracciones: también desde el módulo SUNAT
+                     'ventas:registro': ['ventas', 'sunat'], 'ventas:detracciones': ['ventas', 'sunat'],
+                     'compras:registro': ['compras', 'sunat'], 'compras:detracciones': ['compras', 'sunat'],
+                     'compras:sire': ['compras', 'sunat'], 'activos:registro': ['activos', 'sunat'],
+                     **{f'contabilidad:{n}': ['contabilidad', 'sunat'] for n in (
+                         'diario', 'mayor', 'libro_inventarios')}}
 
 
 def modulos_de_ruta(match):
@@ -685,6 +872,8 @@ def modulos_de_ruta(match):
             return RUTAS_FINANZAS.get(match.url_name, ['finanzas'])
         if match.namespace == 'manufactura':
             return RUTAS_MANUFACTURA.get(match.url_name, ['manufactura'])
+        if match.namespace == 'planillas':
+            return RUTAS_PLANILLAS.get(match.url_name, ['planillas'])
         return [match.namespace] if match.namespace in POR_CLAVE else None
     if match.url_name in RUTAS_LIBRES:
         return None

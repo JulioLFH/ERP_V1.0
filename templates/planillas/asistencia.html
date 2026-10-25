@@ -16,7 +16,7 @@
 </table></div>
 {% if puede.planillas_calcular and filas %}<form method="post" class="card-body py-2">{% csrf_token %}<input type="hidden" name="periodo" value="{{ periodo }}"><button name="accion" value="planilla" class="btn btn-sm btn-success" data-confirm="¿Llevar las faltas y horas extra del mes a la planilla mensual? Reemplaza lo ingresado a mano."><i class="bi bi-box-arrow-in-right"></i> Pasar a la planilla del mes</button></form>{% endif %}
 </div>
-{% if puede.planillas_calcular %}
+{% if puede.empleados_registrar %}
 <div class="row g-3 mb-3">
   <div class="col-lg-7"><div class="card h-100"><div class="card-header">Registrar marcación</div><div class="card-body">
     <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="marcar"><input type="hidden" name="periodo" value="{{ periodo }}">

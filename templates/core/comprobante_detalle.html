@@ -80,7 +80,7 @@
 {% endif %}
 {% if app == 'compras' and doc.pago_bloqueado %}
 <div class="alert alert-danger py-2 d-flex flex-wrap gap-2 justify-content-between align-items-center"><div><i class="bi bi-lock"></i> <b>Pago bloqueado.</b> {{ doc.motivo_bloqueo_pago }} Finanzas no la paga hasta que Compras libere el pago.</div>
-  {% if puede.compras_portal %}<form method="post" action="{% url 'compras:liberar_pago' doc.pk %}" class="d-flex gap-2">{% csrf_token %}<input name="comentario" class="form-control form-control-sm" style="min-width:260px" placeholder="Motivo de la liberación (ej. precio acordado por correo)" required minlength="10"><button class="btn btn-sm btn-outline-danger text-nowrap"><i class="bi bi-unlock"></i> Liberar pago</button></form>{% endif %}</div>
+  {% if puede.portal_proveedores_aprobar %}<form method="post" action="{% url 'compras:liberar_pago' doc.pk %}" class="d-flex gap-2">{% csrf_token %}<input name="comentario" class="form-control form-control-sm" style="min-width:260px" placeholder="Motivo de la liberación (ej. precio acordado por correo)" required minlength="10"><button class="btn btn-sm btn-outline-danger text-nowrap"><i class="bi bi-unlock"></i> Liberar pago</button></form>{% endif %}</div>
 {% elif app == 'compras' and 'Liberado por' in doc.motivo_bloqueo_pago %}<div class="alert alert-secondary py-2 small"><i class="bi bi-unlock"></i> {{ doc.motivo_bloqueo_pago }}</div>{% endif %}
 {% if detraccion %}{% with situacion=detraccion.0 %}
 <div class="alert {% if situacion == 'SIN_DEPOSITO' %}alert-danger{% elif situacion == 'PENDIENTE' or situacion == 'SIN_CONSTANCIA' %}alert-warning{% else %}alert-success{% endif %} py-2 small">

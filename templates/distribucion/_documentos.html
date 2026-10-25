@@ -1,0 +1,14 @@
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header fw-semibold small">Guías de remisión emitidas sin reparto ({{ guias|length }})</div>
+    <div class="table-responsive" style="max-height: 320px"><table class="table table-sm mb-0 small">
+      <thead><tr><th><input type="checkbox" class="form-check-input" onclick="this.closest('table').querySelectorAll('input[name=guia]').forEach(c => c.checked = this.checked)" aria-label="Marcar todas"></th><th>Guía</th><th>Traslado</th><th>Destinatario</th><th>Llegada</th></tr></thead>
+      <tbody>{% for g in guias %}<tr><td><input type="checkbox" class="form-check-input" name="guia" value="{{ g.pk }}"></td><td>{{ g.numero_completo }}</td><td>{{ g.fecha_traslado|date:'d/m' }}</td><td>{{ g.destinatario.nombre|truncatechars:28 }}</td><td>{{ g.llegada_direccion|truncatechars:32 }}</td></tr>
+      {% empty %}<tr><td colspan="5" class="text-muted">No hay guías pendientes de reparto.</td></tr>{% endfor %}</tbody>
+    </table></div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header fw-semibold small">Pedidos aprobados sin reparto ({{ pedidos|length }})</div>
+    <div class="table-responsive" style="max-height: 320px"><table class="table table-sm mb-0 small">
+      <thead><tr><th><input type="checkbox" class="form-check-input" onclick="this.closest('table').querySelectorAll('input[name=pedido]').forEach(c => c.checked = this.checked)" aria-label="Marcar todos"></th><th>Pedido</th><th>Fecha</th><th>Cliente</th><th class="num">Total</th></tr></thead>
+      <tbody>{% for p in pedidos %}<tr><td><input type="checkbox" class="form-check-input" name="pedido" value="{{ p.pk }}"></td><td>{{ p.numero }}</td><td>{{ p.fecha|date:'d/m' }}</td><td>{{ p.tercero.nombre|truncatechars:28 }}</td><td class="num">{{ p.simbolo }} {{ p.total|floatformat:2 }}</td></tr>
+      {% empty %}<tr><td colspan="5" class="text-muted">No hay pedidos aprobados pendientes de reparto.</td></tr>{% endfor %}</tbody>
+    </table></div></div></div>
+</div>

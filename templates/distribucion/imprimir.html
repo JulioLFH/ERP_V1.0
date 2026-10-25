@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ h.numero }} · Hoja de reparto</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { border: 1px solid #999; padding: 4px; vertical-align: top; text-align: left; }
+  th { background: #eee; }
+  .num { text-align: right; }
+  .firma { height: 34px; }
+  .pie { margin-top: 28px; display: flex; gap: 60px; }
+  .pie div { border-top: 1px solid #333; padding-top: 4px; min-width: 200px; text-align: center; }
+  @media print { .no-imprimir { display: none; } body { margin: 0; } }
+</style></head>
+<body>
+<button class="no-imprimir" onclick="window.print()">Imprimir</button>
+<h1>{{ empresa.razon_social }} · Hoja de reparto {{ h.numero }}</h1>
+<div>Fecha: {{ h.fecha|date:'d/m/Y' }} · Vehículo: {{ h.vehiculo|default:'—' }} · Conductor: {{ h.conductor|default:'—' }}{% if h.ayudante %} · Ayudante: {{ h.ayudante }}{% endif %}{% if h.zona %} · Zona: {{ h.zona }}{% endif %}{% if h.almacen %} · Sale de: {{ h.almacen }}{% endif %}</div>
+{% if h.observaciones %}<div>Observaciones: {{ h.observaciones }}</div>{% endif %}
+<table>
+  <thead><tr><th>#</th><th>Cliente / contacto</th><th>Dirección</th><th>Documento</th><th class="num">Bultos</th><th class="num">Peso kg</th><th class="num">Cobrar</th><th>Recibí conforme (nombre, DNI, firma y hora)</th></tr></thead>
+  <tbody>{% for p in paradas %}<tr>
+    <td>{{ p.orden }}</td><td>{{ p.cliente.nombre }}{% if p.contacto %}<br>{{ p.contacto }}{% endif %}</td><td>{{ p.direccion }}</td>
+    <td>{% if p.guia %}{{ p.guia.numero_completo }}{% elif p.pedido %}{{ p.pedido.numero }}{% endif %}</td>
+    <td class="num">{{ p.bultos }}</td><td class="num">{{ p.peso|floatformat:2 }}</td><td class="num">{% if p.cobrar %}{{ p.cobrar|floatformat:2 }}{% endif %}</td>
+    <td class="firma">{% if p.estado != 'PENDIENTE' %}{{ p.get_estado_display }} {{ p.recibido_por }} {{ p.entregado_en|date:'H:i' }}{% endif %}</td>
+  </tr>{% endfor %}</tbody>
+</table>
+<div class="pie"><div>Despachó</div><div>Conductor</div><div>Recepción de retorno</div></div>
+</body></html>

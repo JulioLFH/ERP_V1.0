@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Etiquetas de código de barras{% endblock %}
+{% block content %}
+<style>
+  .hoja-etiquetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.3cm, 1fr)); gap: .2cm; }
+  .etiqueta { border: 1px dashed #bbb; padding: .15cm; text-align: center; overflow: hidden; break-inside: avoid; background: #fff; color: #000; }
+  .etiqueta svg { max-width: 100%; height: auto; }
+  .etiqueta .nombre { font-size: 10px; line-height: 1.1; max-height: 2.3em; overflow: hidden; }
+  @media print {
+    body * { visibility: hidden; }
+    .hoja-etiquetas, .hoja-etiquetas * { visibility: visible; }
+    .hoja-etiquetas { position: absolute; left: 0; top: 0; width: 100%; }
+    .etiqueta { border-color: transparent; }
+  }
+</style>
+<h1 class="page-title mb-2">Etiquetas de código de barras</h1>
+<form method="get" class="card mb-3" style="max-width: 860px"><div class="card-body">
+  <div id="filas">{% for p in elegidos %}<div class="row g-2 mb-2 fila"><div class="col-8"><select name="producto" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'productos' %}" aria-label="Producto"><option value="{{ p.pk }}" selected>{{ p.codigo }} {{ p.nombre }}</option></select></div><div class="col-3"><input name="cantidad" type="number" min="1" max="500" value="1" class="form-control form-control-sm" aria-label="Cantidad"></div></div>{% endfor %}
+    <div class="row g-2 mb-2 fila"><div class="col-8"><select name="producto" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'productos' %}" aria-label="Producto"><option value="">Elija un producto…</option></select></div><div class="col-3"><input name="cantidad" type="number" min="1" max="500" value="1" class="form-control form-control-sm" aria-label="Cantidad"></div></div>
+  </div>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="otra"><i class="bi bi-plus"></i> Otro producto</button>
+    <label class="form-check-label small"><input type="checkbox" name="precio" value="1" class="form-check-input"{% if con_precio %} checked{% endif %}> Con precio de venta</label>
+    <button class="btn btn-sm btn-primary">Ver etiquetas</button>
+    {% if etiquetas %}<button type="button" class="btn btn-sm btn-success" onclick="window.print()"><i class="bi bi-printer"></i> Imprimir</button>{% endif %}
+  </div>
+  <div class="form-text">Los productos sin código de barras usan su código interno. Para imprimir en hojas de etiquetas ajuste los márgenes de la impresora a «ninguno».</div>
+</div></form>
+<div class="hoja-etiquetas">{% for e in etiquetas %}<div class="etiqueta"><div class="nombre">{{ e.p.nombre }}</div>{{ e.svg }}{% if con_precio %}<div class="fw-bold">S/ {{ e.p.precio_venta|floatformat:2 }}</div>{% endif %}</div>{% endfor %}</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('otra').addEventListener('click', () => {
+  const filas = document.getElementById('filas');
+  const nueva = document.createElement('div');
+  nueva.className = 'row g-2 mb-2 fila';
+  nueva.innerHTML = `<div class="col-8"><select name="producto" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'productos' %}" aria-label="Producto"><option value="">Elija un producto…</option></select></div><div class="col-3"><input name="cantidad" type="number" min="1" max="500" value="1" class="form-control form-control-sm" aria-label="Cantidad"></div>`;
+  filas.appendChild(nueva);
+});
+</script>
+{% endblock %}

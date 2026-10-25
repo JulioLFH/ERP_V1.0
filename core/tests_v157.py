@@ -86,7 +86,8 @@ class PantallasNuevasTest(Base):
         from planillas.models import Trabajador
         r = self.client.get(reverse('planillas:contratos'))
         self.assertContains(r, 'Contratos y legajo')
-        self.assertContains(self.client.get(reverse('planillas:lista')), 'Contratos y legajo (vencimientos)')
+        # v1.83: el menú de contratos y legajo está en el módulo Empleados
+        self.assertContains(self.client.get(reverse('planillas:trabajadores')), 'Contratos y legajo (vencimientos)')
         p = Producto.objects.create(codigo='NEG-157', nombre='NEGATIVO', tipo='BIEN', unidad='NIU')
         p.mover_stock(D('5'), 'ingreso', costo=D('1'))
         from core.models import Kardex

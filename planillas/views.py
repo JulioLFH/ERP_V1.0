@@ -24,7 +24,7 @@ def trabajadores(request):
     vigentes = Q(fecha_cese__isnull=True) | Q(fecha_cese__gte=hoy)
     if request.method == 'POST' and request.POST.get('accion') == 'asignar_centro':
         # asignación masiva del centro de costo (destino del gasto de planilla)
-        if not puede(request.user, 'planillas.calcular'):
+        if not puede(request.user, 'empleados.registrar'):
             messages.error(request, 'Su usuario no edita trabajadores.')
         else:
             centro = CentroCosto.objects.filter(pk=request.POST.get('centro_costo') or 0, activo=True).first()

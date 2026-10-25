@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}{{ h.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <div><h1 class="page-title mb-0">Hoja de reparto {{ h.numero }} <span class="badge text-bg-{% if h.estado == 'EN_RUTA' %}primary{% elif h.estado == 'CERRADA' %}success{% elif h.estado == 'ANULADA' %}secondary{% else %}warning{% endif %} fs-6 align-middle">{{ h.get_estado_display }}</span></h1>
+    <div class="small text-muted">{{ h.fecha|date:'d/m/Y' }} · {{ h.vehiculo|default:'sin vehículo' }} · {{ h.conductor|default:'sin conductor' }}{% if h.zona %} · {{ h.zona }}{% endif %}{% if h.almacen %} · sale de {{ h.almacen }}{% endif %}{% if h.salida %} · salió {{ h.salida|date:'H:i' }}{% endif %}{% if h.retorno %} · volvió {{ h.retorno|date:'d/m H:i' }}{% endif %}</div></div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'distribucion:imprimir' h.pk %}" class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"><i class="bi bi-printer"></i> Imprimir</a>
+    {% if activa and programar %}
+      {% if h.estado == 'PROGRAMADA' %}<form method="post">{% csrf_token %}<button name="accion" value="iniciar" class="btn btn-sm btn-primary"><i class="bi bi-truck"></i> Salió a ruta</button></form>{% endif %}
+      <form method="post" data-confirm="¿Cerrar la hoja? Las paradas pendientes pasan a «No entregado» y vuelven a estar disponibles.">{% csrf_token %}<button name="accion" value="cerrar" class="btn btn-sm btn-success"><i class="bi bi-flag"></i> Cerrar (volvió)</button></form>
+      <form method="post" data-confirm="¿Anular la hoja?">{% csrf_token %}<button name="accion" value="anular" class="btn btn-sm btn-outline-danger">Anular</button></form>
+    {% endif %}
+  </div>
+</div>
+<p class="small mb-3">{{ resumen.total }} parada(s): {{ resumen.entregadas }} entregadas, {{ resumen.parciales }} parciales, {{ resumen.no }} no entregadas, {{ resumen.pendientes }} pendientes{% if resumen.total %} · efectividad {{ resumen.efectividad }} %{% endif %}</p>
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0 small align-middle" id="paradas">
+  <thead><tr><th>#</th><th>Cliente</th><th>Dirección</th><th>Documento</th><th class="num">Bultos</th><th class="num">Cobrar</th><th>Resultado</th>{% if activa and programar %}<th></th>{% endif %}</tr></thead>
+  <tbody>{% for p in paradas %}<tr data-id="{{ p.pk }}">
+    <td>{% if activa and programar %}<button type="button" class="btn btn-sm btn-link py-0 px-1 js-subir" title="Subir"><i class="bi bi-arrow-up"></i></button>{% endif %}{{ p.orden }}</td>
+    <td>{{ p.cliente.nombre }}{% if p.contacto %}<div class="text-muted">{{ p.contacto }}</div>{% endif %}</td>
+    <td>{{ p.direccion }}</td>
+    <td>{% if p.guia %}<a href="{% url 'logistica:detalle' p.guia_id %}">{{ p.guia.numero_completo }}</a>{% elif p.pedido %}{{ p.pedido.numero }}{% endif %}</td>
+    <td class="num">{{ p.bultos }}</td><td class="num">{% if p.cobrar %}{{ p.cobrar|floatformat:2 }}{% endif %}</td>
+    <td><span class="badge text-bg-{% if p.estado == 'ENTREGADO' %}success{% elif p.estado == 'PARCIAL' %}info{% elif p.estado == 'NO_ENTREGADO' %}danger{% else %}secondary{% endif %}">{{ p.get_estado_display }}</span>{% if p.motivo %} {{ p.get_motivo_display }}{% endif %}{% if p.recibido_por %}<div class="text-muted">Recibió {{ p.recibido_por }} {{ p.entregado_en|date:'H:i' }}{% if p.cobrado %} · cobró {{ p.cobrado|floatformat:2 }}{% endif %}</div>{% endif %}{% if p.observacion %}<div class="text-muted">{{ p.observacion }}</div>{% endif %}</td>
+    {% if activa and programar %}<td class="text-nowrap">{% if p.estado == 'PENDIENTE' %}
+      <details><summary class="small text-primary">Registrar</summary>
+        <form method="post" class="d-grid gap-1 mt-1" style="min-width: 220px">{% csrf_token %}<input type="hidden" name="accion" value="entrega"><input type="hidden" name="parada" value="{{ p.pk }}">
+          <select name="estado" class="form-select form-select-sm" required><option value="">Resultado…</option><option value="ENTREGADO">Entregado</option><option value="PARCIAL">Entrega parcial</option><option value="NO_ENTREGADO">No entregado</option></select>
+          <select name="motivo" class="form-select form-select-sm"><option value="">Motivo (si no se entregó)</option>{% for v, n in motivos %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select>
+          <input name="recibido_por" class="form-control form-control-sm" placeholder="Recibió (nombre)">
+          <input name="cobrado" class="form-control form-control-sm" inputmode="decimal" placeholder="Cobrado">
+          <input name="observacion" class="form-control form-control-sm" placeholder="Observación">
+          <button class="btn btn-sm btn-primary">Guardar</button>
+        </form></details>
+      <form method="post" data-confirm="¿Quitar la parada de la hoja?">{% csrf_token %}<input type="hidden" name="accion" value="quitar"><input type="hidden" name="parada" value="{{ p.pk }}"><button class="btn btn-sm btn-link text-danger py-0">Quitar</button></form>
+    {% endif %}</td>{% endif %}
+  </tr>{% empty %}<tr><td colspan="8" class="text-muted">La hoja no tiene paradas.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if activa and programar %}
+<form method="post" id="form-orden">{% csrf_token %}<input type="hidden" name="accion" value="orden"><input type="hidden" name="orden"></form>
+<details class="mb-3"><summary class="fw-semibold">Agregar guías o pedidos</summary>
+  <form method="post" class="mt-2">{% csrf_token %}<input type="hidden" name="accion" value="agregar">
+    {% include 'distribucion/_documentos.html' %}
+    <button class="btn btn-sm btn-primary mt-2"><i class="bi bi-plus-lg"></i> Agregar a la hoja</button>
+  </form></details>
+{% endif %}
+{% endblock %}
+{% block scripts %}{% if activa and programar %}
+<script>
+document.querySelectorAll('.js-subir').forEach(b => b.addEventListener('click', () => {
+  const fila = b.closest('tr'), anterior = fila.previousElementSibling;
+  if (!anterior) return;
+  fila.parentNode.insertBefore(fila, anterior);
+  const form = document.getElementById('form-orden');
+  form.orden.value = [...document.querySelectorAll('#paradas tbody tr[data-id]')].map(f => f.dataset.id).join(',');
+  form.submit();
+}));
+</script>
+{% endif %}{% endblock %}

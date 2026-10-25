@@ -34,7 +34,7 @@
     {% endif %}
   </div>
   <div class="col-lg-4">
-    {% if puede.planillas_calcular %}
+    {% if puede.tiempo_personal_registrar %}
     <div class="card mb-3"><div class="card-header">Registrar vacaciones</div><div class="card-body">
       <form method="post" class="row g-2">{% csrf_token %}
         {% for field in form %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endfor %}
@@ -45,7 +45,7 @@
     <div class="card"><div class="card-header">Últimos registros</div>
       <ul class="list-group list-group-flush small">
       {% for v in registros %}<li class="list-group-item d-flex justify-content-between align-items-center"><span>{{ v.trabajador.nombre_completo }}<br><span class="text-muted">{{ v.get_tipo_display }} · {{ v.fecha_inicio|date:'d/m/Y' }} – {{ v.fecha_fin|date:'d/m/Y' }} ({{ v.dias }} d)</span></span>
-        {% if puede.planillas_calcular %}<form method="post">{% csrf_token %}<button name="eliminar" value="{{ v.pk }}" class="btn btn-sm btn-link text-danger" data-confirm="¿Eliminar este registro de vacaciones?"><i class="bi bi-trash"></i></button></form>{% endif %}</li>
+        {% if puede.tiempo_personal_registrar %}<form method="post">{% csrf_token %}<button name="eliminar" value="{{ v.pk }}" class="btn btn-sm btn-link text-danger" data-confirm="¿Eliminar este registro de vacaciones?"><i class="bi bi-trash"></i></button></form>{% endif %}</li>
       {% empty %}<li class="list-group-item text-muted">Sin registros.</li>{% endfor %}
       </ul>
     </div>

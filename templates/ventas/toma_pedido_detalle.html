@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Pedido {{ ped.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2" style="max-width: 720px">
+  <h1 class="page-title mb-0">Pedido {{ ped.numero }}</h1>
+  <a href="{% url 'toma_pedido:nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Otro pedido</a>
+</div>
+<div class="card mb-2" style="max-width: 720px"><div class="card-body small">
+  <div class="d-flex justify-content-between"><b>{{ ped.tercero.nombre }}</b><span class="badge text-bg-{% if ped.estado == 'APROBADO' %}success{% elif ped.estado == 'ATENDIDO' %}primary{% elif ped.estado == 'ANULADO' %}secondary{% else %}warning{% endif %}">{% if ped.estado == 'PENDIENTE' and not por_enviar %}En aprobación{% else %}{{ ped.get_estado_display }}{% endif %}</span></div>
+  <div class="text-muted">{{ ped.fecha|date:'d/m/Y' }} · {{ ped.condicion_pago }} · {{ ped.vendedor }}</div>
+  {% if ped.motivo_aprobacion %}<div class="text-warning mt-1">Requiere aprobación: {{ ped.motivo_aprobacion }}</div>{% endif %}
+  {% if ped.glosa %}<div class="mt-1">{{ ped.glosa }}</div>{% endif %}
+</div>
+<ul class="list-group list-group-flush small">{% for i in items %}<li class="list-group-item d-flex justify-content-between"><span>{{ i.descripcion }}<div class="text-muted">{{ i.cantidad|floatformat:'-2' }} × {{ i.precio_unitario|floatformat:2 }}{% if i.descuento_pct %} − {{ i.descuento_pct|floatformat:'-2' }} %{% endif %}</div></span><span>{{ i.subtotal|floatformat:2 }}</span></li>{% endfor %}</ul>
+<div class="card-body py-2 small text-end">Valor de venta {{ ped.base_imponible|floatformat:2 }} · IGV {{ ped.igv|floatformat:2 }} · <b class="fs-6">Total {{ ped.simbolo }} {{ ped.total|floatformat:2 }}</b></div></div>
+{% if por_enviar %}<div style="max-width: 720px">
+  {% if motivos %}<div class="alert alert-warning small py-2">Irá a aprobación: {{ motivos|join:'; ' }}</div>{% endif %}
+  <form method="post">{% csrf_token %}<button class="btn btn-primary btn-lg w-100"><i class="bi bi-send"></i> Enviar a aprobación</button></form>
+</div>{% endif %}
+{% if ver_completo %}<p class="small mt-2"><a href="{% url 'ventas:cot_detalle' ped.pk %}">Ver el pedido completo en Ventas</a> (ruta de aprobación, emisión y guía).</p>{% endif %}
+{% endblock %}
+{% block scripts %}{% if request.GET.nuevo %}<script>try { localStorage.removeItem('ceiba-tomapedido'); } catch (e) { /* sin almacenamiento */ }</script>{% endif %}{% endblock %}

@@ -9,7 +9,7 @@
     <button class="btn btn-sm btn-primary">Ver</button>
     <button name="formato" value="excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></button>
     <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary" title="Imprimir o guardar como PDF"><i class="bi bi-file-earmark-pdf"></i></button>
-    {% if puede.contabilidad_presupuesto %}<a href="{% url 'contabilidad:presupuesto_editar' pres.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
+    {% if puede.presupuestos_elaborar %}<a href="{% url 'contabilidad:presupuesto_editar' pres.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
   </form>
 </div>
 <div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0">

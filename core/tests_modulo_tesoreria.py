@@ -37,7 +37,7 @@ class ModuloTesoreriaTest(Base):
         nombres = {n for n in get_resolver().namespace_dict['finanzas'][1].reverse_dict if isinstance(n, str)}
         self.assertEqual(nombres - set(RUTAS_FINANZAS), set())
         for modulos in RUTAS_FINANZAS.values():
-            self.assertTrue(set(modulos) <= {'tesoreria', 'finanzas'})
+            self.assertTrue(set(modulos) <= {'tesoreria', 'finanzas', 'sunat'})  # v1.83: detracciones desde SUNAT
         acciones = {a.split('.')[0] for a in TODAS}
         self.assertIn('tesoreria', acciones)
         self.assertNotIn('finanzas.transferir', TODAS)  # las transferencias son de Tesorería

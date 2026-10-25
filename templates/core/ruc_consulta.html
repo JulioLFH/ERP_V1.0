@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Consulta RUC{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Consulta RUC</h1>
+  <a href="{% url 'ruc_historial' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-clock-history"></i> Historial</a>
+</div>
+<form method="post" class="card mb-3" style="max-width: 860px">{% csrf_token %}<div class="card-body">
+  <label class="form-label small" for="rucs">RUC a consultar (uno o varios, hasta {{ maximo }}: puede pegar una columna de Excel)</label>
+  <textarea name="rucs" id="rucs" class="form-control" rows="3" placeholder="20100070970&#10;20601234567" autofocus>{{ texto }}</textarea>
+  <button class="btn btn-primary mt-2"><i class="bi bi-search"></i> Consultar en SUNAT</button>
+  <div class="form-text">Usa el token de Decolecta de Ajustes › Empresa (el mismo del tipo de cambio). Cada RUC consultado queda en el historial.</div>
+</div></form>
+{% if resultados %}
+{% if con_alerta %}<div class="alert alert-danger small py-2"><i class="bi bi-exclamation-triangle"></i> {{ con_alerta }} RUC con estado o condición observada (no activo o no habido): revise antes de comprarle o venderle a crédito.</div>{% endif %}
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0 small align-middle">
+  <thead><tr><th>RUC</th><th>Razón social</th><th>Estado</th><th>Condición</th><th>Domicilio fiscal</th><th>En el sistema</th></tr></thead>
+  <tbody>{% for r in resultados %}{% if r.error %}
+    <tr class="table-warning"><td>{{ r.ruc }}</td><td colspan="4">{{ r.error }}</td><td>{% if r.tercero %}<a href="{% url 'tercero_editar' r.tercero.pk %}">{{ r.tercero.nombre }}</a>{% endif %}</td></tr>
+  {% else %}
+    <tr{% if r.c.alerta %} class="table-danger"{% endif %}><td>{{ r.c.ruc }}</td>
+      <td>{{ r.c.razon_social }}<div class="text-muted">{{ r.datos.tipo }}{% if r.datos.actividad_economica %} · {{ r.datos.actividad_economica|truncatechars:60 }}{% endif %}</div>
+        <div>{% if r.datos.agente_retencion %}<span class="badge text-bg-warning">Agente de retención</span> {% endif %}{% if r.datos.buen_contribuyente %}<span class="badge text-bg-success">Buen contribuyente</span> {% endif %}{% if r.datos.tipo_facturacion %}<span class="badge text-bg-light border">{{ r.datos.tipo_facturacion }}</span>{% endif %}</div></td>
+      <td><span class="badge text-bg-{% if r.c.estado == 'ACTIVO' %}success{% else %}danger{% endif %}">{{ r.c.estado|default:'—' }}</span></td>
+      <td><span class="badge text-bg-{% if r.c.condicion == 'HABIDO' %}success{% else %}danger{% endif %}">{{ r.c.condicion|default:'—' }}</span></td>
+      <td>{{ r.c.direccion }}{% if r.datos.distrito %}<div class="text-muted">{{ r.datos.distrito }} · {{ r.datos.provincia }} · {{ r.datos.departamento }}</div>{% endif %}{% if r.datos.n_locales %}<div class="text-muted">{{ r.datos.n_locales }} local(es) anexo(s)</div>{% endif %}</td>
+      <td>{% if r.tercero %}<a href="{% url 'tercero_editar' r.tercero.pk %}">{{ r.tercero.get_tipo_display }}</a>{% elif 'contactos' in mods %}<a href="{% url 'tercero_nuevo' %}?ruc={{ r.c.ruc }}&tipo=CLIENTE" class="btn btn-sm btn-outline-primary py-0">Registrar cliente</a> <a href="{% url 'tercero_nuevo' %}?ruc={{ r.c.ruc }}&tipo=PROVEEDOR" class="btn btn-sm btn-outline-primary py-0">Registrar proveedor</a>{% else %}No registrado{% endif %}</td></tr>
+  {% endif %}{% endfor %}</tbody>
+</table></div></div>
+{% endif %}
+{% endblock %}

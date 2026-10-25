@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Historial de consultas RUC{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Historial de consultas RUC</h1>
+  <form method="get" class="d-flex gap-2 align-items-center small">
+    <input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="RUC o razón social">
+    <label class="form-check-label text-nowrap"><input type="checkbox" name="todas" value="1" class="form-check-input"{% if todas %} checked{% endif %}> De todos los usuarios</label>
+    <button class="btn btn-sm btn-outline-primary">Buscar</button>
+  </form>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+  <thead><tr><th>Fecha</th><th>RUC</th><th>Razón social</th><th>Estado</th><th>Condición</th>{% if todas %}<th>Usuario</th>{% endif %}<th></th></tr></thead>
+  <tbody>{% for c in consultas %}<tr{% if c.alerta %} class="table-danger"{% endif %}>
+    <td>{{ c.creado|date:'d/m/Y H:i' }}</td><td>{{ c.ruc }}</td><td>{{ c.razon_social|default:c.error }}</td><td>{{ c.estado }}</td><td>{{ c.condicion }}</td>
+    {% if todas %}<td>{{ c.usuario.get_full_name|default:c.usuario.username|default:'—' }}</td>{% endif %}
+    <td><a href="{% url 'ruc_consulta' %}?ruc={{ c.ruc }}" class="btn btn-sm btn-link py-0" title="Consultar otra vez"><i class="bi bi-arrow-repeat"></i></a></td>
+  </tr>{% empty %}<tr><td colspan="7" class="text-muted">Sin consultas.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

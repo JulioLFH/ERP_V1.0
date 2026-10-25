@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title"><i class="bi bi-arrow-left-right"></i> Movimientos de personal</h1>
-  {% if puede.planillas_calcular %}<a href="{% url 'planillas:movimiento_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo movimiento</a>{% endif %}
+  {% if puede.empleados_registrar %}<a href="{% url 'planillas:movimiento_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo movimiento</a>{% endif %}
 </div>
 {% if por_aprobar %}<div class="alert alert-warning py-2 small">{{ por_aprobar|length }} movimiento(s) esperan su aprobación.</div>{% endif %}
 <div class="card">

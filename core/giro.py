@@ -41,7 +41,12 @@ GIROS = {
 # análisis técnicos y otras actividades profesionales (sugieren el subgiro)
 CIIU_SERVICIOS_PROYECTO = {'7110', '7020', '7120', '7490'}
 # módulos que no dependen del giro (siempre visibles; SST es obligatorio para todo empleador)
-SIEMPRE = {'tablero', 'ajustes', 'contactos', 'cliente', 'sst', 'calidad'}
+SIEMPRE = {'tablero', 'ajustes', 'contactos', 'cliente', 'sst', 'calidad', 'sunat', 'consulta_ruc', 'presupuestos',
+           'conversaciones', 'calendario', 'actividades'}
+# v1.83: módulos que acompañan a otro (se usan si el giro usa el módulo del que salieron)
+ACOMPANAN = {'ventas': {'toma_pedido'}, 'compras': {'portal_proveedores'}, 'inventario': {'codigo_barras'},
+             'logistica': {'distribucion', 'flota'}, 'mantenimiento': {'flota'}, 'obras': {'proyectos'},
+             'planillas': {'empleados', 'tiempo_personal'}}
 
 
 def obligaciones(regimen, ingresos_uit=None, fecha=None):
@@ -94,6 +99,7 @@ def sugerir_ocultos(giros):
     """Módulos que ninguno de los giros usa (sugeridos para ocultar)."""
     from .modulos import MODULOS
     usados = set().union(*(GIROS[g][1] for g in giros if g in GIROS)) if giros else {m['clave'] for m in MODULOS}
+    usados |= set().union(*(ACOMPANAN.get(m, set()) for m in usados))
     return sorted(m['clave'] for m in MODULOS if m['clave'] not in usados | SIEMPRE)
 
 

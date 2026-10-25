@@ -31,15 +31,15 @@ def _fecha(texto):
 
 
 def puede_flota(user):
-    """Registra en la flota quien tiene la acción de Logística o la de Mantenimiento."""
-    return puede(user, 'logistica.flota') or puede(user, 'mantenimiento.registrar')
+    """Registra en la flota quien tiene la acción de Flota o la de Mantenimiento."""
+    return puede(user, 'flota.registrar') or puede(user, 'mantenimiento.registrar')
 
 
 def accion_flota(request):
     """Acción exigida a las rutas de flota (core/permisos.RUTAS)."""
     if request.method != 'POST':
         return None
-    return 'logistica.flota' if 'logistica' in modulos_del_usuario(request.user) else 'mantenimiento.registrar'
+    return 'flota.registrar' if 'flota' in modulos_del_usuario(request.user) else 'mantenimiento.registrar'
 
 
 def _ns(request):
@@ -241,7 +241,7 @@ def parte(request):
 def lecturas(request):
     """Lecturas por aprobar (y el historial): el supervisor aprueba o rechaza el parte."""
     from .lecturas import resolver
-    puede_aprobar = puede(request.user, 'logistica.aprobar_lecturas')
+    puede_aprobar = puede(request.user, 'flota.aprobar_lecturas')
     if request.method == 'POST':
         if not puede_aprobar:
             messages.error(request, 'Su usuario no aprueba lecturas.')

@@ -29,7 +29,8 @@ class ModulosTest(TestCase):
         self.client.force_login(self.vendedor)
         r = self.client.get(reverse('home'))
         claves = [a['clave'] for a in r.context['apps']]
-        self.assertEqual(claves, ['ventas', 'contactos'])
+        # v1.83: Consulta RUC acompaña a Ventas; Conversaciones, Calendario y Actividades son de todos
+        self.assertEqual(claves, ['ventas', 'contactos', 'consulta_ruc', 'conversaciones', 'calendario', 'actividades'])
         self.client.force_login(self.admin)
         r = self.client.get(reverse('home'))
         self.assertIn('contabilidad', [a['clave'] for a in r.context['apps']])

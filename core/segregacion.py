@@ -22,7 +22,7 @@ REGLAS = [
     ('contabilidad.asientos', 'contabilidad.periodos', 'MEDIO', 'Registra asientos manuales y cierra periodos'),
     ('activos.registrar', 'activos.baja', 'MEDIO', 'Registra activos y los da de baja'),
     ('manufactura.recetas', 'manufactura.aprobar_cambios', 'MEDIO', 'Propone y aprueba cambios de recetas'),
-    ('compras.registrar', 'compras.portal', 'BAJO', 'Registra facturas y aprueba las del portal de proveedores'),
+    ('compras.registrar', 'portal_proveedores.aprobar', 'BAJO', 'Registra facturas y aprueba las del portal de proveedores'),
     ('rendiciones.aprobar', 'rendiciones.tesoreria', 'ALTO', 'Aprueba rendiciones de gastos y paga sus reembolsos'),
     ('rendiciones.rendir', 'rendiciones.contabilizar', 'MEDIO', 'Rinde gastos y contabiliza las rendiciones'),
 ]

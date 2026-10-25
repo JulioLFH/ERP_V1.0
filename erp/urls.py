@@ -26,6 +26,13 @@ urlpatterns += [
     path('compras/', include('compras.urls')),
     path('ventas/', include('ventas.urls')),
     path('crm/', include('ventas.urls_crm')),
+    path('toma-pedido/', include('ventas.urls_toma_pedido')),
+    path('codigo-barras/', include('inventario.urls_barras')),
+    path('distribucion/', include('distribucion.urls')),
+    path('conversaciones/', include('colaboracion.urls_conversaciones')),
+    path('calendario/', include('colaboracion.urls_calendario')),
+    path('actividades/', include('colaboracion.urls_actividades')),
+    path('proyectos/', include('colaboracion.urls_proyectos')),
     path('crm-web/<str:alias>/<str:clave>/', crm_web.formulario, name='crm_web'),  # formulario público (CRM-09)
     path('finanzas/', include('finanzas.urls')),
     path('logistica/', include('logistica.urls')),

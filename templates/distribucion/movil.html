@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Reparto en el celular{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2"><i class="bi bi-phone"></i> Reparto</h1>
+{% if hojas|length > 1 %}<form method="get" class="mb-2"><select name="hoja" class="form-select" onchange="this.form.submit()" aria-label="Hoja de reparto">{% for h in hojas %}<option value="{{ h.pk }}"{% if h == actual %} selected{% endif %}>{{ h.numero }} · {{ h.fecha|date:'d/m' }} · {{ h.vehiculo|default:'' }} {{ h.zona }}</option>{% endfor %}</select></form>{% endif %}
+{% if actual %}
+<p class="small text-muted mb-2">{{ actual.numero }} · {{ actual.conductor|default:'' }} · {{ resumen.entregadas|add:resumen.parciales }} de {{ resumen.total }} entregadas · {{ resumen.pendientes }} pendientes</p>
+{% for p in paradas %}<div class="card mb-2{% if p.estado == 'ENTREGADO' %} border-success{% elif p.estado == 'NO_ENTREGADO' %} border-danger{% endif %}"><div class="card-body py-2">
+  <div class="d-flex justify-content-between"><b>{{ p.orden }}. {{ p.cliente.nombre }}</b><span class="badge text-bg-{% if p.estado == 'ENTREGADO' %}success{% elif p.estado == 'PARCIAL' %}info{% elif p.estado == 'NO_ENTREGADO' %}danger{% else %}secondary{% endif %}">{{ p.get_estado_display }}</span></div>
+  <div class="small">{{ p.direccion }} <a href="https://www.google.com/maps/search/?api=1&query={{ p.direccion|urlencode }}" target="_blank" rel="noopener" class="ms-1"><i class="bi bi-map"></i> Mapa</a></div>
+  <div class="small text-muted">{% if p.contacto %}<a href="tel:{{ p.contacto }}">{{ p.contacto }}</a> · {% endif %}{% if p.guia %}{{ p.guia.numero_completo }}{% elif p.pedido %}{{ p.pedido.numero }}{% endif %} · {{ p.bultos }} bulto(s){% if p.cobrar %} · <b>cobrar {{ p.cobrar|floatformat:2 }}</b>{% endif %}</div>
+  {% if p.estado == 'PENDIENTE' %}
+  <form method="post" class="mt-2 js-entrega">{% csrf_token %}<input type="hidden" name="parada" value="{{ p.pk }}"><input type="hidden" name="latitud"><input type="hidden" name="longitud">
+    <div class="btn-group w-100 mb-2" role="group">
+      <input type="radio" class="btn-check" name="estado" value="ENTREGADO" id="e{{ p.pk }}" required><label class="btn btn-outline-success" for="e{{ p.pk }}">Entregado</label>
+      <input type="radio" class="btn-check" name="estado" value="PARCIAL" id="pa{{ p.pk }}"><label class="btn btn-outline-info" for="pa{{ p.pk }}">Parcial</label>
+      <input type="radio" class="btn-check" name="estado" value="NO_ENTREGADO" id="n{{ p.pk }}"><label class="btn btn-outline-danger" for="n{{ p.pk }}">No</label>
+    </div>
+    <input name="recibido_por" class="form-control mb-1" placeholder="Recibió (nombre)">
+    <select name="motivo" class="form-select mb-1"><option value="">Motivo si no se entregó</option>{% for v, n in motivos %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select>
+    {% if p.cobrar %}<input name="cobrado" class="form-control mb-1" inputmode="decimal" placeholder="Monto cobrado" value="{{ p.cobrar|floatformat:2 }}">{% endif %}
+    <input name="observacion" class="form-control mb-1" placeholder="Observación (en parcial: qué faltó)">
+    <button class="btn btn-primary w-100">Guardar</button>
+  </form>
+  {% elif p.recibido_por or p.motivo %}<div class="small mt-1">{% if p.recibido_por %}Recibió {{ p.recibido_por }} {{ p.entregado_en|date:'H:i' }}{% endif %}{% if p.motivo %}{{ p.get_motivo_display }}{% endif %}</div>{% endif %}
+</div></div>{% endfor %}
+{% else %}<div class="alert alert-info">No tiene hojas de reparto activas. El conductor ve aquí las hojas donde figura (su usuario debe estar vinculado a su ficha de trabajador).</div>{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(pos => {
+    document.querySelectorAll('.js-entrega').forEach(f => {
+      f.latitud.value = pos.coords.latitude.toFixed(6);
+      f.longitud.value = pos.coords.longitude.toFixed(6);
+    });
+  }, () => {}, {enableHighAccuracy: true, timeout: 8000});
+}
+</script>
+{% endblock %}

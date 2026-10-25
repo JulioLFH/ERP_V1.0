@@ -4,7 +4,7 @@ from django.urls import path, reverse_lazy
 
 from . import (alertas, inventario, listas, libros_inventario, lotes, manuales, monitoreo, opciones, sustentos, usuarios,
                instalacion, sso, validacion, views, views_api, views_aprobaciones, views_cliente, views_empresa,
-               views_grupo, views_sire)
+               views_grupo, views_ruc, views_sire)
 
 
 class CambiarClave(SuccessMessageMixin, auth_views.PasswordChangeView):
@@ -49,6 +49,8 @@ urlpatterns = [
     path('validacion/<int:ct_id>/<int:obj_id>/', validacion.accion, name='validacion_accion'),
     path('validacion/reglas/', validacion.reglas, name='validacion_reglas'),
     path('consulta-ruc/', views.consulta_ruc, name='consulta_ruc'),
+    path('ruc/', views_ruc.consulta, name='ruc_consulta'),
+    path('ruc/historial/', views_ruc.historial, name='ruc_historial'),
     path('mi-empresa/documentos/', views_cliente.documentos, name='cliente_documentos'),
     path('mi-empresa/documentos/<int:pk>/archivo/', views_cliente.archivo, name='cliente_archivo'),
     path('mi-empresa/subir/', views_cliente.subir, name='cliente_subir'),

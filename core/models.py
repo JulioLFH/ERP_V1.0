@@ -2112,3 +2112,30 @@ class PreferenciaLista(models.Model):
         unique_together = [('usuario', 'lista')]
         verbose_name = 'preferencia de lista'
         verbose_name_plural = 'preferencias de listas'
+
+
+class ConsultaRUC(models.Model):
+    """Consulta al padrón RUC de SUNAT hecha desde el módulo Consulta RUC (v1.83): historial y datos para registrar
+    al cliente o proveedor sin volver a consultar."""
+    ruc = models.CharField('RUC', max_length=11, db_index=True)
+    razon_social = models.CharField('Razón social', max_length=250, blank=True)
+    estado = models.CharField(max_length=30, blank=True)
+    condicion = models.CharField('Condición', max_length=30, blank=True)
+    direccion = models.CharField('Dirección', max_length=300, blank=True)
+    ubigeo = models.CharField(max_length=6, blank=True)
+    datos = models.JSONField(default=dict, blank=True)
+    error = models.CharField(max_length=250, blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-id']
+        verbose_name = 'consulta RUC'
+        verbose_name_plural = 'consultas RUC'
+
+    def __str__(self):
+        return f'{self.ruc} {self.razon_social}'.strip()
+
+    @property
+    def alerta(self):
+        return (self.estado not in ('', 'ACTIVO')) or (self.condicion not in ('', 'HABIDO'))

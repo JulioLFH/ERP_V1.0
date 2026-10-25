@@ -262,14 +262,14 @@ class AprobacionesTest(Base):
         from django.contrib.auth.models import Group
         from .modulos import GRUPOS
         planillero = User.objects.create_user('planillero', password='x')
-        planillero.groups.add(Group.objects.get_or_create(name=GRUPOS['planillas'])[0])
-        PerfilUsuario.objects.create(usuario=planillero, acciones=['planillas.aprobar_movimientos'])
+        planillero.groups.add(Group.objects.get_or_create(name=GRUPOS['empleados'])[0])  # v1.83: módulo Empleados
+        PerfilUsuario.objects.create(usuario=planillero, acciones=['empleados.aprobar_movimientos'])
         m = SimpleNamespace(niveles=[{'nivel': 1, 'usuario': None, 'nombre': 'Aprobador de movimientos de personal'}],
                             nivel_aprobado=0, solicitante_id=self.admin.pk)
         nombres = quien_aprueba(m)
         self.assertIn('planillero', nombres)
         self.assertNotIn('admin', nombres)
-        self.assertEqual(motor.PERMISOS['MOVIMIENTO'], 'planillas.aprobar_movimientos')
+        self.assertEqual(motor.PERMISOS['MOVIMIENTO'], 'empleados.aprobar_movimientos')
 
     def test_usuario_nuevo_sin_acciones(self):
         """SEG-05: mínimo privilegio y aviso de acciones de módulos no asignados."""

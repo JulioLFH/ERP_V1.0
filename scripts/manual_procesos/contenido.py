@@ -800,23 +800,15 @@ M['calidad'] = {
 }
 
 M['planillas'] = {
-    'intro': ('Administra el personal y sus remuneraciones: organigrama y puestos, trabajadores, contratos y legajo, '
-              'asistencia y turnos, vacaciones y permisos, movimientos de personal con aprobación, cálculo de la '
-              'planilla mensual con gratificaciones, CTS y provisiones, liquidaciones por cese, PLAME y T-Registro.'),
+    'intro': ('Calcula las remuneraciones: planilla mensual con gratificaciones, CTS y provisiones, liquidaciones por '
+              'cese, PLAME y costo por centro de costo. Desde la v1.83 el personal (trabajadores, contratos, asistencia, '
+              'organigrama y movimientos) está en Empleados, y las vacaciones y permisos en Tiempo personal; Planillas '
+              'los consulta.'),
     'procesos': [
-        ('Organización y personal', [
-            'Arme el <b>Organigrama, unidades y puestos</b> (define quién es jefe de quién).',
-            'Registre los <b>Trabajadores</b>: régimen, sistema de pensiones (AFP/ONP), cuenta de sueldo, centro de costo y puesto.',
-            'Controle <b>Contratos y legajo</b> con sus vencimientos.',
-        ], 'Base de personal para planillas, aprobaciones y SST.'),
-        ('Asistencia, vacaciones y permisos', [
-            'Defina los <b>Turnos de trabajo</b> e importe las <b>Marcaciones</b>.',
-            'El trabajador pide vacaciones o permisos; el jefe aprueba. El <b>Récord vacacional</b> se actualiza solo.',
-        ], 'Asistencia lista para el cálculo.'),
-        ('Movimientos de personal', [
-            'Registre el alta, cambio de puesto o sueldo, o el cese en <b>Movimientos de personal</b>.',
-            'Lo aprueba el jefe del trabajador o quien tiene «aprobar_movimientos» (o según reglas); el movimiento dice quién puede aprobarlo.',
-        ], 'Cambios del personal autorizados antes de calcular.'),
+        ('Datos del personal', [
+            'Los <b>Trabajadores</b>, su asistencia y sus movimientos se registran en el módulo Empleados; las vacaciones y permisos en Tiempo personal.',
+            'Pase las faltas y horas extra del mes a la planilla desde Empleados › Asistencia (permiso «calcular» de Planillas).',
+        ], 'Base de personal lista para el cálculo.'),
         ('Planilla mensual', [
             'Cree la planilla en <b>Nueva planilla</b> y calcule (permiso «calcular»): remuneración, horas extra, asignación familiar, AFP/ONP, renta de 5ta, EsSalud y descuentos.',
             'Revise, cierre la planilla (permiso «cerrar») y pague por Tesorería.',
@@ -935,9 +927,8 @@ M['rendiciones'] = {
 }
 
 M['logistica'] = {
-    'intro': ('Emite las guías de remisión electrónicas (remitente y transportista), controla la garita (ingreso y '
-              'salida de vehículos) y administra la flota: equipos y vehículos, lecturas de odómetro/horómetro, '
-              'combustible, viajes, préstamos, costo por km u hora y documentos por vencer.'),
+    'intro': ('Emite las guías de remisión electrónicas (remitente y transportista) y controla la garita (ingreso y '
+              'salida de vehículos). Desde la v1.83 la flota está en el módulo Flota y el reparto en Distribución.'),
     'procesos': [
         ('Guía de remisión remitente', [
             'Cree la guía en <b>Nueva guía remitente</b> (o desde la venta o el traslado): motivo, puntos de partida y llegada, vehículo y conductor.',
@@ -950,12 +941,6 @@ M['logistica'] = {
             'Registre el <b>Ingreso de vehículo</b>: placa, conductor, guía y orden de compra.',
             'Registre la salida. Los montos de la mercadería solo los ve quien tiene «ver_montos».',
         ], 'Control de lo que entra y sale de la planta.'),
-        ('Flota', [
-            'Registre los <b>Equipos y vehículos</b> con sus componentes y documentos (SOAT, revisión técnica, licencias).',
-            'Registre el <b>Parte diario de odómetros / horómetros</b>; se aprueban en <b>Lecturas por aprobar</b> (permiso «aprobar_lecturas»).',
-            'Registre <b>Combustible (vales y rendimiento)</b>, <b>Viajes</b> y <b>Préstamos y comodato</b>.',
-            'Revise el <b>Costo por equipo (km u hora)</b> y los <b>Documentos por vencer</b>.',
-        ], 'Flota controlada con su costo real.'),
     ],
     'pantallas': {
         'Guías remitente': 'Guías emitidas como remitente con su estado SUNAT.',
@@ -1225,4 +1210,365 @@ M['ajustes'] = {
         'Novedades por versión': 'Cambios de cada versión.',
     },
     'integra': [('Todos los módulos', 'Usuarios, permisos, reglas, parámetros y series.')],
+}
+
+# ---------------------------------------------------------------- v1.83: módulos nuevos
+M['toma_pedido'] = {
+    'intro': ('El vendedor toma el pedido del cliente en el celular: busca o escanea los productos, ve el precio de la '
+              'lista del cliente y el stock, y lo envía a aprobación. Es la misma orden de pedido de Ventas (ruta de '
+              'aprobación, emisión del comprobante y despacho). El pedido queda guardado en el celular hasta enviarlo.'),
+    'procesos': [
+        ('Tomar el pedido', [
+            'Abra <b>Nuevo pedido</b> en el celular y elija el cliente (su lista de precios define el precio).',
+            'Busque los productos por nombre o código, o escanee su código de barras: se agregan al pedido con su precio sin IGV y su stock.',
+            'Ajuste cantidades (y el precio si negocia), anote las observaciones y toque <b>Guardar y enviar a aprobación</b> (permiso «registrar»).',
+        ], 'Orden de pedido registrada en Ventas con el vendedor que la tomó.'),
+        ('Seguimiento', [
+            'En <b>Mis pedidos</b> vea el estado de cada pedido (pendiente, en aprobación, aprobado, facturado).',
+            'Si un pedido quedó solo guardado, ábralo y envíelo a aprobación; si baja el precio o excede el crédito, lo aprueba quien corresponda según las reglas.',
+        ], 'El vendedor sabe qué pedidos ya se pueden despachar.'),
+        ('Consultar precio y stock', [
+            'En <b>Catálogo, precios y stock</b> busque un producto con o sin cliente para ver su precio y el stock por almacén.',
+        ], 'Respuesta inmediata al cliente sin llamar a la oficina.'),
+    ],
+    'pantallas': {
+        'Nuevo pedido': 'Pedido en el celular con buscador, lector de código de barras, precio de la lista y stock.',
+        'Mis pedidos': 'Pedidos tomados por el vendedor con su estado.',
+        'Catálogo, precios y stock': 'Precio del cliente y stock por almacén de cada producto.',
+    },
+    'integra': [('Ventas', 'El pedido es una orden de pedido de Ventas con su ruta de aprobación.'),
+                ('CRM', 'Clientes y su lista de precios.'), ('Distribución', 'Los pedidos aprobados salen a reparto.')],
+}
+
+M['portal_proveedores'] = {
+    'intro': ('Portal donde los proveedores suben sus facturas (XML y PDF) contra la orden de compra y consultan su '
+              'estado de pago. Separado de Compras desde la v1.83: quien revisa las facturas del portal no necesita '
+              'registrar compras.'),
+    'procesos': [
+        ('Dar acceso al proveedor', [
+            'En <b>Accesos de proveedores</b> cree el usuario del proveedor (permiso «aprobar»).',
+        ], 'El proveedor ingresa con su propio usuario.'),
+        ('Revisar facturas', [
+            'Revise las <b>Facturas por revisar</b>: el sistema las cruza con la orden de compra, la recepción y SUNAT.',
+            'Apruebe o rechace con motivo; una factura aprobada pasa al registro de compras.',
+        ], 'Facturas de proveedores registradas sin digitar.'),
+    ],
+    'pantallas': {
+        'Tablero del portal': 'Contadores del portal: facturas por revisar, observadas y último ingreso.',
+        'Facturas por revisar': 'Facturas cargadas por los proveedores con su cruce y estado.',
+        'Accesos de proveedores': 'Usuarios de los proveedores en el portal.',
+    },
+    'integra': [('Compras', 'Orden de compra, recepción y registro de la factura.'),
+                ('Tesorería', 'Estado de pago que ve el proveedor.')],
+}
+
+M['codigo_barras'] = {
+    'intro': ('Trabaja con lector de códigos de barras (USB o el del celular): consulta un producto o lote al '
+              'escanearlo, imprime etiquetas Code 128 y asigna códigos a los productos que no tienen (el del '
+              'fabricante o un EAN-13 interno que empieza con 2).'),
+    'procesos': [
+        ('Asignar códigos', [
+            'En <b>Productos sin código de barras</b> escanee el código del fabricante en la casilla de cada producto o marque «Generar» para un EAN-13 interno (permiso «asignar»).',
+            'El sistema no deja repetir un código en dos productos.',
+        ], 'Cada producto con su código de barras.'),
+        ('Etiquetar', [
+            'En <b>Imprimir etiquetas</b> elija los productos y la cantidad de etiquetas (con o sin precio) e imprima en hojas de etiquetas.',
+        ], 'Productos y anaqueles etiquetados.'),
+        ('Consultar', [
+            'En <b>Escanear producto</b> lea el código: muestra el producto, su precio, el stock por almacén y los lotes (también al escanear un lote).',
+        ], 'Información del producto al instante en el almacén o la tienda.'),
+    ],
+    'pantallas': {
+        'Escanear producto': 'Producto o lote escaneado con precio, stock por almacén y lotes.',
+        'Imprimir etiquetas': 'Hoja de etiquetas Code 128 para imprimir.',
+        'Productos sin código de barras': 'Asignar el código del fabricante o generar un EAN-13 interno.',
+    },
+    'integra': [('Inventario', 'Mismos productos, stock y lotes; el conteo físico en el celular acepta el lector.'),
+                ('TomaPedido y Ventas', 'El pedido y el punto de venta agregan productos al escanearlos.')],
+}
+
+M['presupuestos'] = {
+    'intro': ('Presupuesto anual por cuenta contable y centro de costo, con su ejecución real mes a mes desde la '
+              'contabilidad. Separado de Contabilidad desde la v1.83 para darlo a las áreas que lo elaboran.'),
+    'procesos': [
+        ('Elaborar el presupuesto', [
+            'Cree el presupuesto del año en <b>Nuevo presupuesto</b> o genérelo desde el real del año anterior (permiso «elaborar»).',
+            'Ajuste los montos por cuenta, centro de costo y mes.',
+        ], 'Presupuesto aprobado del año.'),
+        ('Controlar la ejecución', [
+            'En <b>Presupuestos y ejecución</b> compare lo presupuestado con lo real y la variación de cada mes.',
+        ], 'Desviaciones detectadas a tiempo.'),
+    ],
+    'pantallas': {
+        'Presupuestos y ejecución': 'Presupuestos con su ejecución real y variación por mes.',
+        'Nuevo presupuesto': 'Crear un presupuesto anual.',
+    },
+    'integra': [('Contabilidad', 'El real sale de los asientos por cuenta y centro de costo.'),
+                ('Compras', 'Las solicitudes de pedido muestran el saldo del presupuesto.')],
+}
+
+M['proyectos'] = {
+    'intro': ('Organiza el trabajo en proyectos: jefe de proyecto, miembros y un tablero de tareas por etapas (por '
+              'hacer, en curso, en revisión, hecha) con responsable, fecha límite, prioridad, horas estimadas y '
+              'comentarios. Un proyecto puede vincularse a una obra o servicio de Obras.'),
+    'procesos': [
+        ('Crear el proyecto', [
+            'En <b>Nuevo proyecto</b> registre el nombre, el cliente, el jefe y los miembros (permiso «gestionar»).',
+        ], 'Proyecto visible para su equipo.'),
+        ('Trabajar las tareas', [
+            'En el tablero del proyecto agregue las tareas con su responsable y fecha límite.',
+            'Mueva cada tarjeta de etapa (arrastrándola o con sus botones) y deje comentarios de avance.',
+            'Cada responsable ve sus tareas en <b>Mis tareas</b>, en Actividades pendientes y en su Calendario.',
+        ], 'Avance del proyecto (% de tareas hechas) y tareas vencidas a la vista.'),
+    ],
+    'pantallas': {
+        'Proyectos': 'Proyectos con su avance, jefe y tareas vencidas.',
+        'Mis tareas': 'Tareas abiertas del usuario en todos sus proyectos.',
+        'Nuevo proyecto': 'Crear un proyecto con su equipo.',
+    },
+    'integra': [('Obras', 'Proyecto vinculado a una obra o servicio (costo y horas).'),
+                ('Actividades pendientes y Calendario', 'Las tareas aparecen a su responsable.')],
+}
+
+M['empleados'] = {
+    'intro': ('Datos del personal: trabajadores, contratos y legajo con vencimientos, asistencia y marcaciones, turnos, '
+              'organigrama (quién es jefe de quién) y movimientos de personal con aprobación. Separado de Planillas '
+              'desde la v1.83: el asistente de recursos humanos no necesita ver ni calcular la planilla.'),
+    'procesos': [
+        ('Organización', [
+            'Arme el <b>Organigrama, unidades y puestos</b> (permiso «configurar»): define las jefaturas que aprueban vacaciones y movimientos.',
+        ], 'Estructura de la empresa y jefes de cada trabajador.'),
+        ('Personal', [
+            'Registre los <b>Trabajadores</b> (o cárguelos desde Excel): régimen, pensiones, cuenta, centro de costo y puesto (permiso «registrar»).',
+            'Controle los <b>Contratos y legajo</b> con sus vencimientos.',
+            'Defina los <b>Turnos de trabajo</b> y registre o importe la <b>Asistencia y marcaciones</b>.',
+        ], 'Base de personal para la planilla, las aprobaciones y SST.'),
+        ('Movimientos de personal', [
+            'Registre el alta, cambio de puesto o sueldo, o el cese en <b>Movimientos de personal</b>.',
+            'Lo aprueba el jefe del trabajador o quien tiene «aprobar_movimientos» (o según las reglas de aprobación).',
+        ], 'Cambios del personal autorizados antes de calcular la planilla.'),
+    ],
+    'pantallas': {
+        'Trabajadores': 'Maestro de trabajadores.',
+        'Contratos y legajo (vencimientos)': 'Contratos, documentos del legajo y vencimientos.',
+        'Asistencia y marcaciones': 'Marcaciones y asistencia del mes.',
+        'Turnos de trabajo': 'Horarios y turnos.',
+        'Cargar trabajadores (Excel)': 'Carga masiva de trabajadores.',
+        'Organigrama, unidades y puestos': 'Estructura de la empresa y jefaturas.',
+        'Movimientos de personal': 'Altas, cambios y ceses con aprobación.',
+        'Datos para el T-Registro (Excel)': 'Datos de trabajadores en el formato del T-Registro.',
+    },
+    'integra': [('Planillas', 'Trabajadores y asistencia para el cálculo.'),
+                ('Tiempo personal', 'Jefaturas que aprueban vacaciones y permisos.'),
+                ('Seguridad y salud', 'Trabajadores, áreas y horas-hombre.')],
+}
+
+M['tiempo_personal'] = {
+    'intro': ('Vacaciones, permisos y licencias: solicitudes del personal con aprobación del jefe, registro de '
+              'vacaciones y récord vacacional, y calendario de ausencias del equipo. Separado de Planillas desde la '
+              'v1.83.'),
+    'procesos': [
+        ('Pedir y aprobar', [
+            'El trabajador pide sus vacaciones o permisos en <b>Mis vacaciones y permisos</b> (su autoservicio).',
+            'Su jefe las aprueba o rechaza en <b>Solicitudes por aprobar</b>; quien tiene «registrar» ve las de todos.',
+        ], 'Vacaciones aprobadas que entran a la planilla.'),
+        ('Registrar y controlar', [
+            'Registre vacaciones gozadas o vendidas y permisos en <b>Vacaciones y récord vacacional</b> (permiso «registrar»).',
+            'Vea quién falta cada día en el <b>Calendario de ausencias</b>.',
+        ], 'Récord vacacional al día y equipo planificado.'),
+    ],
+    'pantallas': {
+        'Solicitudes por aprobar': 'Pedidos de vacaciones y permisos por aprobar.',
+        'Vacaciones y récord vacacional': 'Días ganados, gozados y pendientes por trabajador.',
+        'Calendario de ausencias': 'Vacaciones y permisos aprobados en el calendario del mes.',
+        'Mis vacaciones y permisos': 'Autoservicio del trabajador: pedir vacaciones y ver sus boletas.',
+    },
+    'integra': [('Planillas', 'Las vacaciones aprobadas entran al cálculo.'),
+                ('Empleados', 'El organigrama define quién aprueba.'), ('Calendario', 'Ausencias del equipo.')],
+}
+
+M['distribucion'] = {
+    'intro': ('Reparto de la mercadería: hojas de reparto por vehículo y conductor con las guías y pedidos que aún no '
+              'salen, entregas registradas en ruta desde el celular del conductor y efectividad de entregas.'),
+    'procesos': [
+        ('Programar el reparto', [
+            'En <b>Nueva hoja de reparto</b> elija fecha, vehículo, conductor y zona, y marque las guías emitidas y los pedidos aprobados que salen (permiso «programar»).',
+            'Ordene las paradas en el orden de visita e imprima la hoja (con «recibí conforme»).',
+        ], 'Hoja de reparto lista para salir.'),
+        ('Entregar', [
+            'El conductor abre <b>Reparto en el celular</b> y por cada parada marca entregado, parcial o no entregado (con motivo), quién recibió y lo cobrado (permiso «entregar»); se guarda su ubicación si la permite.',
+            'Desde la oficina también se registra el resultado en la hoja.',
+        ], 'Estado de cada entrega en línea.'),
+        ('Cerrar y medir', [
+            'Al volver, cierre la hoja: lo pendiente pasa a «no entregado» y vuelve a estar disponible para otra hoja.',
+            'Revise la <b>Efectividad de entregas</b> por conductor, los motivos de no entrega y los clientes con más fallas.',
+        ], 'Reparto medido y nada se queda sin entregar sin saberlo.'),
+    ],
+    'pantallas': {
+        'Hojas de reparto': 'Hojas por fecha con su estado y efectividad.',
+        'Nueva hoja de reparto': 'Programar una hoja con guías y pedidos pendientes de reparto.',
+        'Reparto en el celular (conductor)': 'Entregas en ruta con resultado, receptor, cobro y ubicación.',
+        'Efectividad de entregas': 'Entregas, no entregas por motivo y cobros por conductor.',
+    },
+    'integra': [('Logística', 'Guías de remisión, vehículos y conductores.'),
+                ('Ventas y TomaPedido', 'Pedidos aprobados y cobro contra entrega.'), ('Flota', 'Vehículos.')],
+}
+
+M['flota'] = {
+    'intro': ('Administra la flota y los equipos: vehículos y maquinaria con componentes y documentos, lecturas de '
+              'odómetro u horómetro con aprobación, combustible y rendimiento, viajes, préstamos, costo por km u hora y '
+              'documentos por vencer. Separado de Logística desde la v1.83; Mantenimiento usa el mismo maestro.'),
+    'procesos': [
+        ('Maestro de la flota', [
+            'Registre los <b>Equipos y vehículos</b> con sus componentes y documentos (SOAT, revisión técnica, licencias) (permiso «registrar»).',
+            'Registre los vehículos y conductores que salen en las guías en <b>Vehículos (para las guías)</b> y <b>Conductores</b>.',
+        ], 'Flota completa con sus documentos.'),
+        ('Operación diaria', [
+            'Registre el <b>Parte diario de odómetros / horómetros</b>; se aprueban en <b>Lecturas por aprobar</b> (permiso «aprobar_lecturas»).',
+            'Registre <b>Combustible (vales y rendimiento)</b>, <b>Viajes</b> y <b>Préstamos y comodato</b>.',
+        ], 'Uso real de cada equipo.'),
+        ('Costo y vencimientos', [
+            'Revise el <b>Costo por equipo (km u hora)</b> y los <b>Documentos por vencer</b> (también salen en Inicio).',
+        ], 'Flota controlada con su costo real.'),
+    ],
+    'pantallas': {
+        'Equipos y vehículos': 'Maestro de la flota con componentes y documentos.',
+        'Parte diario de odómetros / horómetros': 'Lecturas diarias.',
+        'Lecturas por aprobar': 'Lecturas pendientes de aprobación.',
+        'Combustible (vales y rendimiento)': 'Vales de combustible y rendimiento por equipo.',
+        'Viajes': 'Viajes con ruta, conductor y kilometraje.',
+        'Préstamos y comodato': 'Equipos prestados o recibidos.',
+        'Costo por equipo (km u hora)': 'Costo de operación por km u hora.',
+        'Documentos por vencer (SOAT, revisión, licencias)': 'Vencimientos de la flota y conductores.',
+        'Vehículos (para las guías)': 'Vehículos que salen en las guías de remisión.',
+        'Conductores': 'Conductores con licencia.',
+        'Cargar equipos, componentes y lecturas (Excel)': 'Carga masiva de la flota.',
+    },
+    'integra': [('Mantenimiento', 'Mismo maestro de equipos; planes y órdenes de mantenimiento.'),
+                ('Logística y Distribución', 'Vehículos y conductores de guías y repartos.'),
+                ('Obras y Manufactura', 'Horómetros y costo de equipos.')],
+}
+
+M['sunat'] = {
+    'intro': ('Reúne en un solo lugar lo que se presenta a SUNAT: el SIRE (propuestas de ventas y compras y su cruce), '
+              'los registros y libros electrónicos, las detracciones y la consulta RUC. Las pantallas son las de sus '
+              'módulos (los permisos para registrar siguen siendo los de cada módulo).'),
+    'procesos': [
+        ('SIRE', [
+            'Descargue la <b>Propuesta de ventas (RVIE)</b> y la <b>Propuesta de compras (RCE)</b>.',
+            'Revise el <b>Cruce de compras con la propuesta</b> y corrija las diferencias antes de aceptar.',
+        ], 'Registros del SIRE aceptados sin diferencias.'),
+        ('Libros electrónicos', [
+            'Genere el <b>Registro de ventas 14.1</b>, el <b>Registro de compras 8.1</b>, el <b>Libro diario</b> y el <b>Libro mayor</b>, los de inventarios y activos, en TXT del PLE o Excel.',
+        ], 'Libros listos para el PLE.'),
+        ('Detracciones', [
+            'Revise las detracciones de ventas y compras, haga el <b>Depósito masivo de detracciones</b> y cargue las <b>Constancias de detracción de clientes</b>.',
+        ], 'Detracciones depositadas y conciliadas.'),
+    ],
+    'pantallas': {
+        'Propuesta de ventas (RVIE)': 'Propuesta del registro de ventas descargada de SUNAT.',
+        'Propuesta de compras (RCE)': 'Propuesta del registro de compras descargada de SUNAT.',
+        'Cruce de compras con la propuesta': 'Diferencias entre lo registrado y la propuesta de SUNAT.',
+        'Registro de ventas 14.1': 'Registro de ventas y su TXT del PLE.',
+        'Registro de compras 8.1': 'Registro de compras y su TXT del PLE.',
+        'Libro diario': 'Libro diario del periodo.',
+        'Libro mayor': 'Libro mayor por cuenta.',
+        'Inventarios y Balances (3.x)': 'Formatos del libro de inventarios y balances.',
+        'Inventario permanente 12.1 / 13.1': 'Registro de inventario permanente en unidades y valorizado.',
+        'Registro de activos fijos 7.1': 'Registro de activos fijos.',
+        'Detracciones de ventas': 'Detracciones de los comprobantes de venta.',
+        'Detracciones de compras': 'Detracciones por depositar a los proveedores.',
+        'Depósito masivo de detracciones': 'Archivo de depósito masivo para el Banco de la Nación.',
+        'Constancias de detracción de clientes': 'Constancias de los depósitos de los clientes.',
+        'Consulta RUC': 'Estado y condición de un RUC en SUNAT.',
+    },
+    'integra': [('Ventas, Compras y Contabilidad', 'Las pantallas y los datos son los de sus módulos.'),
+                ('Calendario', 'Vencimiento mensual según el último dígito del RUC.')],
+}
+
+M['consulta_ruc'] = {
+    'intro': ('Consulta en el padrón de SUNAT uno o varios RUC a la vez (pegados de Excel): razón social, estado, '
+              'condición, domicilio fiscal, agente de retención y buen contribuyente. Avisa si un RUC no está activo o '
+              'no está habido y si ya es cliente o proveedor. Lo tiene todo usuario que vende, compra, cobra o paga.'),
+    'procesos': [
+        ('Consultar', [
+            'En <b>Consultar RUC</b> escriba o pegue hasta 20 RUC y consulte.',
+            'Revise los marcados en rojo (no activos o no habidos) antes de comprarles o venderles a crédito.',
+            'Si no está registrado, regístrelo como cliente o proveedor con los datos ya consultados.',
+        ], 'Terceros verificados en SUNAT.'),
+        ('Historial', ['Vea en <b>Historial de consultas</b> lo consultado por usted o por todos.'],
+         'Constancia de cuándo se verificó cada RUC.'),
+    ],
+    'pantallas': {
+        'Consultar RUC': 'Padrón de SUNAT de uno o varios RUC con alertas.',
+        'Historial de consultas': 'Consultas hechas con su resultado.',
+    },
+    'integra': [('Contactos', 'Registrar el cliente o proveedor con los datos de SUNAT.'),
+                ('Ajustes', 'Usa el token de Decolecta de Ajustes › Empresa.')],
+}
+
+M['conversaciones'] = {
+    'intro': ('Mensajes entre los usuarios del sistema: canales abiertos (todos) o cerrados (solo sus miembros) por '
+              'área o tema, y mensajes directos. Los mensajes nuevos llegan solos y el ícono de Inicio muestra los no '
+              'leídos. Lo tiene todo usuario interno.'),
+    'procesos': [
+        ('Canales', [
+            'Cree un canal en <b>Nuevo canal</b> (abierto o cerrado) y elija sus miembros.',
+            'Escriba en <b>Canales y mensajes</b>; únase a un canal abierto para recibir el aviso de mensajes nuevos.',
+        ], 'Comunicación del equipo dentro del sistema.'),
+        ('Mensajes directos', ['Elija a un usuario en «Escribir a…» para conversar solo con él.'],
+         'Coordinación sin salir del ERP.'),
+    ],
+    'pantallas': {
+        'Canales y mensajes': 'Canales, mensajes directos y conversación con mensajes nuevos automáticos.',
+        'Nuevo canal': 'Crear un canal abierto o cerrado.',
+    },
+    'integra': [('Inicio', 'Mensajes sin leer en el ícono del módulo.')],
+}
+
+M['calendario'] = {
+    'intro': ('Calendario de cada usuario con sus eventos (propios, con invitados o de toda la empresa) y lo que ya '
+              'está en el sistema: actividades del CRM, tareas de proyectos, actividades pendientes, vacaciones y '
+              'permisos aprobados, y el vencimiento mensual de SUNAT según el RUC. Lo tiene todo usuario interno.'),
+    'procesos': [
+        ('Agendar', [
+            'En <b>Nuevo evento</b> (o tocando un día del calendario) registre la reunión con su hora, lugar e invitados.',
+            'Elija «Todos los usuarios» para publicar feriados, capacitaciones o cierres.',
+        ], 'Reuniones en el calendario de cada invitado.'),
+        ('Ver el mes y la agenda', [
+            'En <b>Calendario del mes</b> active o quite las capas (eventos, CRM, tareas, pendientes, ausencias, SUNAT).',
+            'En <b>Agenda de los próximos días</b> vea lo que viene en lista.',
+        ], 'Todo lo del usuario en un solo lugar.'),
+    ],
+    'pantallas': {
+        'Calendario del mes': 'Mes con eventos, actividades, tareas, ausencias y vencimientos.',
+        'Agenda de los próximos días': 'Lista de lo agendado en los próximos 14 días.',
+        'Nuevo evento': 'Agendar una reunión o evento.',
+    },
+    'integra': [('CRM, Proyectos y Actividades pendientes', 'Actividades y tareas con fecha.'),
+                ('Tiempo personal', 'Vacaciones y permisos aprobados.'), ('SUNAT', 'Vencimientos mensuales.')],
+}
+
+M['actividades'] = {
+    'intro': ('Todo lo que cada usuario tiene por hacer en un solo lugar: sus actividades (propias o encargadas por '
+              'otro usuario), sus tareas de proyectos y sus actividades del CRM, agrupadas en vencidas, hoy, próximos '
+              'días y más adelante, más los documentos que esperan su aprobación. Lo tiene todo usuario interno.'),
+    'procesos': [
+        ('Registrar y encargar', [
+            'En <b>Nueva actividad</b> registre qué hay que hacer, para cuándo y su prioridad; encárguela a otro usuario si corresponde (puede enlazar la pantalla del documento).',
+            'Siga lo encargado en <b>Encargadas por mí</b>.',
+        ], 'Pendientes del equipo con responsable y fecha.'),
+        ('Cumplir', [
+            'En <b>Mis pendientes</b> marque como hecha cada actividad con su resultado; las tareas y las del CRM se cierran en su pantalla.',
+            'Atienda las <b>Aprobaciones pendientes</b>.',
+        ], 'Nada se olvida: el ícono de Inicio muestra cuántas vencen hoy o están vencidas.'),
+    ],
+    'pantallas': {
+        'Mis pendientes': 'Actividades, tareas y actividades del CRM del usuario por vencimiento.',
+        'Encargadas por mí': 'Actividades encargadas a otros usuarios y su estado.',
+        'Nueva actividad': 'Registrar o encargar una actividad.',
+        'Aprobaciones pendientes': 'Documentos que esperan la aprobación del usuario.',
+    },
+    'integra': [('Proyectos y CRM', 'Tareas y actividades del usuario.'),
+                ('Aprobaciones', 'Bandeja de documentos por aprobar.'), ('Calendario', 'Actividades con fecha.')],
 }

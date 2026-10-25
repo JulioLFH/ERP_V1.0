@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Mis pedidos{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2" style="max-width: 720px">
+  <h1 class="page-title mb-0">Mis pedidos</h1>
+  {% if puede.toma_pedido_registrar %}<a href="{% url 'toma_pedido:nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo pedido</a>{% endif %}
+</div>
+<div class="list-group" style="max-width: 720px">{% for p in pedidos %}
+  <a href="{% url 'toma_pedido:pedido' p.pk %}" class="list-group-item list-group-item-action"><div class="d-flex justify-content-between"><b>{{ p.numero }} · {{ p.tercero.nombre|truncatechars:32 }}</b><span>{{ p.simbolo }} {{ p.total|floatformat:2 }}</span></div>
+    <div class="small text-muted d-flex justify-content-between"><span>{{ p.fecha|date:'d/m/Y' }}</span><span class="badge text-bg-{% if p.estado == 'APROBADO' %}success{% elif p.estado == 'ATENDIDO' %}primary{% elif p.estado == 'ANULADO' %}secondary{% else %}warning{% endif %}">{{ p.get_estado_display }}</span></div></a>
+{% empty %}<div class="list-group-item text-muted">Aún no ha tomado pedidos.</div>{% endfor %}</div>
+{% endblock %}

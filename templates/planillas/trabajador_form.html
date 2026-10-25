@@ -13,6 +13,6 @@
     {% for field in campos %}<div class="{% if field.name == 'direccion' or field.name == 'nombres' %}col-md-6{% else %}col-6 col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
   </div></div></div>
   {% endfor %}
-  {% if puede.planillas_calcular %}<button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>{% endif %}
+  {% if puede.empleados_registrar %}<button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>{% endif %}
 </form>
 {% endblock %}

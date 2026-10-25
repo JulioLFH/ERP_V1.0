@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Efectividad de entregas{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Efectividad de entregas</h1>
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3 small">
+  <div><label class="form-label mb-0">Desde</label><input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+  <div><label class="form-label mb-0">Hasta</label><input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+  <button class="btn btn-sm btn-outline-primary">Ver</button>
+</form>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="small text-muted">Hojas de reparto</div><div class="fs-4 fw-semibold">{{ hojas }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="small text-muted">Paradas</div><div class="fs-4 fw-semibold">{{ total }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="small text-muted">Efectividad</div><div class="fs-4 fw-semibold">{{ efectividad }} %</div></div></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8"><div class="card"><div class="card-header fw-semibold small">Por conductor</div><div class="table-responsive"><table class="table table-sm mb-0 small">
+    <thead><tr><th>Conductor</th><th class="num">Paradas</th><th class="num">Entregadas</th><th class="num">Parciales</th><th class="num">No entregadas</th><th class="num">Cobrado</th><th class="num">Efectividad</th></tr></thead>
+    <tbody>{% for f in filas %}<tr><td>{{ f.conductor }}</td><td class="num">{{ f.total }}</td><td class="num">{{ f.entregadas }}</td><td class="num">{{ f.parciales }}</td><td class="num">{{ f.no }}</td><td class="num">{{ f.cobrado|floatformat:2 }}</td><td class="num">{{ f.efectividad }} %</td></tr>
+    {% empty %}<tr><td colspan="7" class="text-muted">Sin repartos en estas fechas.</td></tr>{% endfor %}</tbody>
+  </table></div></div></div>
+  <div class="col-lg-4">
+    <div class="card mb-3"><div class="card-header fw-semibold small">Motivos de no entrega</div><ul class="list-group list-group-flush small">{% for m, n in motivos %}<li class="list-group-item d-flex justify-content-between"><span>{{ m }}</span><b>{{ n }}</b></li>{% empty %}<li class="list-group-item text-muted">Ninguno.</li>{% endfor %}</ul></div>
+    <div class="card"><div class="card-header fw-semibold small">Clientes con más entregas fallidas</div><ul class="list-group list-group-flush small">{% for c, n in clientes %}<li class="list-group-item d-flex justify-content-between"><span>{{ c }}</span><b>{{ n }}</b></li>{% empty %}<li class="list-group-item text-muted">Ninguno.</li>{% endfor %}</ul></div>
+  </div>
+</div>
+{% endblock %}

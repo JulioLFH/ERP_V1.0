@@ -7,23 +7,19 @@
     <div class="text-muted small">{{ empresa.razon_social }} · RUC {{ empresa.ruc }}</div>
   </div>
   <div class="apps-grid">
-    {% for app in apps %}
-      <a href="{% url app.inicio %}" class="app-tile">
-        <span class="app-icon" style="background: {{ app.color }}"><i class="bi {{ app.icono }}"></i></span>
+    {% for app in tiles %}
+      <a href="{% url app.inicio %}" class="app-tile"{% if app.ayuda or app.nuevo %} title="{% if app.nuevo %}Módulo nuevo&#10;{% endif %}{{ app.ayuda }}"{% endif %}>
+        <span class="app-icon" style="background: {{ app.color }}"><i class="bi {{ app.icono }}"></i>
+          {% if app.nuevo %}<span class="app-nuevo" aria-label="Nuevo">*</span>{% endif %}
+          {% if app.insignia %}<span class="app-insignia badge rounded-pill text-bg-danger">{{ app.insignia }}</span>{% endif %}
+        </span>
         <span class="app-nombre">{{ app.nombre }}</span>
         <span class="app-desc">{{ app.descripcion }}</span>
       </a>
     {% empty %}
       <div class="alert alert-warning">Su usuario no tiene módulos asignados. Pida al administrador que le dé acceso en Ajustes &gt; Usuarios.</div>
     {% endfor %}
-    {% if portal %}
-      <a href="{% url 'compras:portal_tablero' %}" class="app-tile position-relative" title="{% for f in portal.filas %}{{ f.1 }}: {{ f.2 }}&#10;{% endfor %}{% if portal.ultimo %}Último ingreso de un proveedor: {{ portal.ultimo|date:'d/m/Y H:i' }}{% endif %}">
-        <span class="app-icon" style="background: #e8590c"><i class="bi bi-shop"></i></span>
-        {% if portal.pendientes %}<span class="position-absolute top-0 end-0 badge rounded-pill text-bg-danger">{{ portal.pendientes }}</span>{% endif %}
-        <span class="app-nombre">Portal de proveedores</span>
-        <span class="app-desc">{% for f in portal.filas|slice:":3" %}{{ f.2 }} {{ f.1|lower }}{% if not forloop.last %} · {% endif %}{% empty %}Sin pendientes{% endfor %}</span>
-      </a>
-    {% endif %}
   </div>
+  {% if hay_nuevos %}<p class="text-center small text-muted mt-4"><span class="app-nuevo-leyenda">*</span> Módulo nuevo (se marca durante una semana desde que se agregó).</p>{% endif %}
 </div>
 {% endblock %}

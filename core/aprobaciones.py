@@ -20,7 +20,8 @@ DOCUMENTOS = [('OC', 'Órdenes de compra'), ('SOLPED', 'Solicitudes de pedido'),
 # permiso que aprueba cada documento cuando no hay reglas (o en un nivel sin usuario)
 PERMISOS = {'OC': 'compras.aprobar_oc', 'SOLPED': 'requerimientos.liberar_solped',
             'REQUERIMIENTO': 'requerimientos.aprobar', 'RENDICION': 'rendiciones.aprobar',
-            'VACACION': 'planillas.calcular', 'MOVIMIENTO': 'planillas.aprobar_movimientos', 'PEDIDO': 'ventas.aprobar_pedidos',
+            'VACACION': 'tiempo_personal.registrar', 'MOVIMIENTO': 'empleados.aprobar_movimientos',
+            'PEDIDO': 'ventas.aprobar_pedidos',
             'HES': 'compras.liberar_hes'}
 
 

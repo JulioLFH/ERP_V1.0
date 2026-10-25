@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}Conversaciones{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Conversaciones</h1>
+  <a href="{% url 'conversaciones:canal_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo canal</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-3">
+    <div class="card mb-3"><div class="card-header fw-semibold small">Canales</div>
+      <div class="list-group list-group-flush small">{% for f in canales %}
+        <a href="?canal={{ f.canal.pk }}" class="list-group-item list-group-item-action d-flex justify-content-between{% if f.canal == actual %} active{% endif %}"><span>{{ f.titulo }}{% if not f.canal.publico %} <i class="bi bi-lock" title="Solo para sus miembros"></i>{% endif %}</span>{% if f.nuevos %}<span class="badge rounded-pill text-bg-danger">{{ f.nuevos }}</span>{% endif %}</a>
+      {% empty %}<div class="list-group-item text-muted">Aún no hay canales: cree el primero (por ejemplo «General» o uno por área).</div>{% endfor %}</div></div>
+    <div class="card"><div class="card-header fw-semibold small">Mensajes directos</div>
+      <div class="list-group list-group-flush small">{% for f in directos %}
+        <a href="?canal={{ f.canal.pk }}" class="list-group-item list-group-item-action d-flex justify-content-between{% if f.canal == actual %} active{% endif %}"><span><i class="bi bi-person"></i> {{ f.titulo }}</span>{% if f.nuevos %}<span class="badge rounded-pill text-bg-danger">{{ f.nuevos }}</span>{% endif %}</a>
+      {% endfor %}</div>
+      <form method="post" action="{% url 'conversaciones:directo' %}" class="card-body d-flex gap-1 py-2">{% csrf_token %}
+        <select name="usuario" class="form-select form-select-sm" required aria-label="Usuario"><option value="">Escribir a…</option>{% for u in usuarios %}<option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select>
+        <button class="btn btn-sm btn-outline-primary" title="Abrir chat"><i class="bi bi-chat"></i></button>
+      </form></div>
+  </div>
+  <div class="col-lg-9">
+    {% if actual %}
+    <div class="card">
+      <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+        <div><b>{{ titulo_actual }}</b>{% if actual.descripcion %} <span class="small text-muted">· {{ actual.descripcion }}</span>{% endif %}</div>
+        <div class="d-flex gap-1">
+          {% if not es_miembro and actual.tipo == 'CANAL' %}<form method="post" action="{% url 'conversaciones:unirse' actual.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary py-0">Unirme (avisos de mensajes nuevos)</button></form>{% endif %}
+          {% if actual.tipo == 'CANAL' and actual.creado_por_id == user.pk or actual.tipo == 'CANAL' and user.is_superuser %}<form method="post" action="{% url 'conversaciones:archivar' actual.pk %}" data-confirm="¿Archivar el canal? Deja de verse; los mensajes se conservan.">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary py-0" title="Archivar"><i class="bi bi-archive"></i></button></form>{% endif %}
+        </div>
+      </div>
+      <div id="mensajes" class="card-body" style="height: 55vh; overflow-y: auto" data-url="{% url 'conversaciones:nuevos' actual.pk %}" data-ultimo="{{ ultimo }}">
+        {% for m in mensajes %}<div class="mb-2 d-flex {% if m.autor_id == user.pk %}justify-content-end{% endif %}"><div class="px-3 py-2 rounded-3 {% if m.autor_id == user.pk %}text-bg-primary{% else %}bg-body-tertiary border{% endif %}" style="max-width: 75%"><div class="small fw-semibold">{{ m.autor.get_full_name|default:m.autor.username|default:'Usuario eliminado' }} <span class="fw-normal opacity-75">{{ m.creado|date:'d/m H:i' }}</span></div><div style="white-space: pre-wrap">{{ m.texto }}</div></div></div>
+        {% empty %}<p class="text-muted small" id="vacio">Todavía no hay mensajes. Escriba el primero.</p>{% endfor %}
+      </div>
+      <form method="post" class="card-footer d-flex gap-2">{% csrf_token %}
+        <textarea name="texto" id="texto" class="form-control" rows="2" maxlength="4000" placeholder="Escriba un mensaje (Enter envía, Shift+Enter cambia de línea)" required></textarea>
+        <button class="btn btn-primary"><i class="bi bi-send"></i></button>
+      </form>
+    </div>
+    {% else %}<div class="alert alert-info">Elija un canal o escriba a un usuario.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const caja = document.getElementById('mensajes');
+  if (!caja) return;
+  caja.scrollTop = caja.scrollHeight;
+  const texto = document.getElementById('texto');
+  texto.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (texto.value.trim()) texto.form.submit(); } });
+  texto.focus();
+  const burbuja = m => {
+    const fila = document.createElement('div');
+    fila.className = 'mb-2 d-flex' + (m.mio ? ' justify-content-end' : '');
+    const b = document.createElement('div');
+    b.className = 'px-3 py-2 rounded-3 ' + (m.mio ? 'text-bg-primary' : 'bg-body-tertiary border');
+    b.style.maxWidth = '75%';
+    const cab = document.createElement('div'); cab.className = 'small fw-semibold'; cab.textContent = m.autor + ' ';
+    const hora = document.createElement('span'); hora.className = 'fw-normal opacity-75'; hora.textContent = m.hora; cab.appendChild(hora);
+    const cuerpo = document.createElement('div'); cuerpo.style.whiteSpace = 'pre-wrap'; cuerpo.textContent = m.texto;
+    b.append(cab, cuerpo); fila.appendChild(b); return fila;
+  };
+  setInterval(async () => {
+    if (document.hidden) return;
+    try {
+      const r = await fetch(`${caja.dataset.url}?desde=${caja.dataset.ultimo}`, {headers: {'Accept': 'application/json'}});
+      if (!r.ok) return;
+      const datos = await r.json();
+      if (!datos.mensajes.length) return;
+      document.getElementById('vacio')?.remove();
+      const abajo = caja.scrollHeight - caja.scrollTop - caja.clientHeight < 60;
+      datos.mensajes.forEach(m => { caja.appendChild(burbuja(m)); caja.dataset.ultimo = m.id; });
+      if (abajo) caja.scrollTop = caja.scrollHeight;
+    } catch (e) { /* sin conexión: se reintenta en el siguiente ciclo */ }
+  }, 5000);
+})();
+</script>
+{% endblock %}

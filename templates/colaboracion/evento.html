@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}{{ e.titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0"><i class="bi bi-calendar-event"></i> {{ e.titulo }}</h1>
+  <a href="{% url 'calendario:mes' %}?mes={{ e.inicio|date:'Y-m' }}" class="btn btn-sm btn-outline-secondary">Volver al calendario</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-5"><div class="card"><div class="card-body small">
+    <p class="mb-1"><b>Cuándo:</b> {{ e.inicio|date:'l d/m/Y'|capfirst }}{% if not e.todo_el_dia %} {{ e.inicio|time:'H:i' }}{% endif %}{% if e.fin %} – {% if e.fin|date:'Y-m-d' != e.inicio|date:'Y-m-d' %}{{ e.fin|date:'d/m/Y' }} {% endif %}{% if not e.todo_el_dia %}{{ e.fin|time:'H:i' }}{% endif %}{% endif %}{% if e.todo_el_dia %} (todo el día){% endif %}</p>
+    {% if e.lugar %}<p class="mb-1"><b>Lugar:</b> {{ e.lugar }}</p>{% endif %}
+    <p class="mb-1"><b>Organiza:</b> {{ e.organizador.get_full_name|default:e.organizador.username|default:'—' }} · {{ e.get_visibilidad_display }}</p>
+    <p class="mb-1"><b>Invitados:</b> {% for u in invitados %}{{ u.get_full_name|default:u.username }}{% if not forloop.last %}, {% endif %}{% empty %}ninguno{% endfor %}</p>
+    {% if e.descripcion %}<p class="mb-0 mt-2" style="white-space: pre-wrap">{{ e.descripcion }}</p>{% endif %}
+  </div></div></div>
+  {% if form %}<div class="col-lg-7"><div class="card"><div class="card-header fw-semibold">Editar</div><div class="card-body">
+    <form method="post" class="row g-3">{% csrf_token %}
+      {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1 small">{{ e }}</div>{% endfor %}
+      {% for field in form %}<div class="{% if field.name == 'titulo' or field.name == 'invitados' or field.name == 'descripcion' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button></div>
+    </form>
+    <form method="post" class="mt-3" data-confirm="¿Eliminar el evento?">{% csrf_token %}<input type="hidden" name="accion" value="eliminar"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Eliminar</button></form>
+  </div></div></div>{% endif %}
+</div>
+{% endblock %}

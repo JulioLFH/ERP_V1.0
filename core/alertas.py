@@ -81,7 +81,7 @@ def calcular(user):
                 alertas.append(_alerta('info', 'bi-clipboard-check', 'Órdenes de compra por aprobar',
                                        f'{n} orden(es) de compra pendientes de aprobación.',
                                        reverse('compras:oc_lista'), n))
-        if puede(user, 'compras.portal'):
+        if puede(user, 'portal_proveedores.aprobar'):
             from proveedores.models import FacturaProveedor
             n = FacturaProveedor.objects.filter(estado='ENVIADA').count()
             if n:

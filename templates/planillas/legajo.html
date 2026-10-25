@@ -6,7 +6,7 @@
     <div class="text-muted small">{{ t.get_tipo_doc_display }} {{ t.numero_doc }} · {% if t.puesto %}{{ t.puesto.nombre }}{% else %}{{ t.cargo|default:'sin puesto' }}{% endif %}{% if jefe %} · jefe: {{ jefe.nombre_completo }}{% endif %}{% if t.usuario %} · usuario {{ t.usuario.username }}{% endif %} · ingreso {{ t.fecha_ingreso|date:'d/m/Y'|default:'—' }}{% if t.fecha_cese %} · cese {{ t.fecha_cese|date:'d/m/Y' }}{% endif %}</div></div>
   <div class="d-flex flex-wrap gap-2">
     <a href="{% url 'planillas:trabajador_editar' t.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person"></i> Ficha</a>
-    {% if puede.planillas_calcular %}<a href="{% url 'planillas:movimiento_nuevo' %}?trabajador={{ t.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-left-right"></i> Movimiento de personal</a>{% endif %}
+    {% if puede.empleados_registrar %}<a href="{% url 'planillas:movimiento_nuevo' %}?trabajador={{ t.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-left-right"></i> Movimiento de personal</a>{% endif %}
   </div>
 </div>
 <div class="row g-3">
@@ -24,7 +24,7 @@
     {% for m in movimientos %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'planillas:movimiento' m.pk %}">{{ m.get_tipo_display }} {{ m.numero }}</a><span>{{ m.fecha_efectiva|date:'d/m/Y' }} · {{ m.get_estado_display }}</span></li>{% empty %}<li class="list-group-item text-muted">Sin movimientos.</li>{% endfor %}
   </ul></div>
 </div>
-{% if puede.planillas_calcular %}<div class="col-lg-5">
+{% if puede.empleados_registrar %}<div class="col-lg-5">
   <div class="card mb-3"><div class="card-header">Nuevo contrato o renovación</div><div class="card-body"><form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="que" value="contrato">
     {% for field in fc %}<div class="{% if field.name == 'observaciones' %}col-12{% else %}col-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
     <div class="col-12"><button class="btn btn-sm btn-primary">Registrar contrato</button></div></form></div></div>

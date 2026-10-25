@@ -56,7 +56,7 @@ def organigrama(request):
     fu = UnidadForm(request.POST if request.POST.get('que') == 'unidad' else None, instance=unidad, prefix='u')
     fp = PuestoForm(request.POST if request.POST.get('que') == 'puesto' else None, instance=puesto, prefix='p')
     if request.method == 'POST':
-        if not puede(request.user, 'planillas.configurar'):
+        if not puede(request.user, 'empleados.configurar'):
             messages.error(request, 'Su usuario no configura la estructura organizativa.')
             return redirect('planillas:organigrama')
         form = fu if request.POST.get('que') == 'unidad' else fp
@@ -186,7 +186,7 @@ def legajo(request, pk):
     fd = DocumentoForm(request.POST if request.POST.get('que') == 'documento' else None,
                        request.FILES if request.POST.get('que') == 'documento' else None, prefix='d')
     if request.method == 'POST':
-        if not puede(request.user, 'planillas.calcular'):
+        if not puede(request.user, 'empleados.registrar'):
             messages.error(request, 'Su usuario no edita el legajo.')
             return redirect('planillas:legajo', pk)
         if request.POST.get('que') == 'contrato' and fc.is_valid():
@@ -296,7 +296,7 @@ def solicitudes_personal(request):
     pendientes = Vacacion.objects.filter(estado='SOLICITADA').select_related('trabajador', 'solicitado_por')
     return render(request, 'planillas/solicitudes_personal.html', {
         'mias': [v for v in pendientes if org.puede_aprobar_vacacion(request.user, v)],
-        'todas': pendientes if puede(request.user, 'planillas.calcular') else [],
+        'todas': pendientes if puede(request.user, 'tiempo_personal.registrar') else [],
         'recientes': Vacacion.objects.exclude(estado='SOLICITADA').exclude(solicitado_por=None).select_related(
             'trabajador')[:30]})
 

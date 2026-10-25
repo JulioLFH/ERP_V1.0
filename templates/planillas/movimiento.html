@@ -7,7 +7,7 @@
   <div class="d-flex flex-wrap gap-2">
     <a href="{% url 'planillas:movimientos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
     {% if m.estado == 'BORRADOR' %}<form method="post">{% csrf_token %}<button name="accion" value="enviar" class="btn btn-sm btn-primary"><i class="bi bi-send"></i> Enviar a aprobación</button></form>{% endif %}
-    {% if m.estado in 'BORRADOR ENVIADO APROBADO' and puede.planillas_calcular %}<form method="post" data-confirm="¿Anular el movimiento?">{% csrf_token %}<button name="accion" value="anular" class="btn btn-sm btn-outline-danger">Anular</button></form>{% endif %}
+    {% if m.estado in 'BORRADOR ENVIADO APROBADO' and puede.empleados_registrar %}<form method="post" data-confirm="¿Anular el movimiento?">{% csrf_token %}<button name="accion" value="anular" class="btn btn-sm btn-outline-danger">Anular</button></form>{% endif %}
   </div>
 </div>
 <div class="card mb-3"><table class="table table-sm mb-0">

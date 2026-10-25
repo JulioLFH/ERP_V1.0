@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Productos sin código de barras{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title mb-0">Productos sin código de barras <span class="badge text-bg-secondary">{{ total }}</span></h1>
+  <form method="get" class="d-flex gap-2"><input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Buscar"><button class="btn btn-sm btn-outline-primary">Buscar</button></form>
+</div>
+<p class="small text-muted">Escanee el código del fabricante en la casilla de cada producto (el lector pasa solo a la siguiente) o marque «Generar» para crear un EAN-13 interno (empieza con 2). Luego imprima las etiquetas.</p>
+<form method="post">{% csrf_token %}
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0 small align-middle">
+  <thead><tr><th>Código</th><th>Producto</th><th>Unidad</th><th style="min-width: 220px">Código de barras</th><th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=generar]').forEach(c => c.checked = this.checked)" aria-label="Generar todos"> Generar</th></tr></thead>
+  <tbody>{% for p in pagina %}<tr><td>{{ p.codigo }}</td><td>{{ p.nombre }}</td><td>{{ p.unidad }}</td>
+    <td><input name="codigo_{{ p.pk }}" class="form-control form-control-sm js-barras" maxlength="40" autocomplete="off" aria-label="Código de barras de {{ p.codigo }}"{% if not puede.codigo_barras_asignar %} disabled{% endif %}></td>
+    <td><input type="checkbox" name="generar" value="{{ p.pk }}" class="form-check-input" aria-label="Generar EAN-13 de {{ p.codigo }}"{% if not puede.codigo_barras_asignar %} disabled{% endif %}></td></tr>
+  {% empty %}<tr><td colspan="5" class="text-muted">Todos los productos tienen código de barras.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% if pagina.paginator.num_pages > 1 %}<div class="card-body py-2 small">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }} {% if pagina.has_previous %}<a href="?q={{ q|urlencode }}&page={{ pagina.previous_page_number }}">anterior</a>{% endif %} {% if pagina.has_next %}<a href="?q={{ q|urlencode }}&page={{ pagina.next_page_number }}">siguiente</a>{% endif %}</div>{% endif %}
+</div>
+{% if puede.codigo_barras_asignar and pagina %}<button class="btn btn-primary mt-2"><i class="bi bi-check-lg"></i> Guardar códigos</button>{% endif %}
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+// el lector termina con Enter: pasar a la casilla siguiente en vez de enviar el formulario
+const casillas = [...document.querySelectorAll('.js-barras')];
+casillas.forEach((c, i) => c.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); (casillas[i + 1] || c).focus(); }
+}));
+</script>
+{% endblock %}

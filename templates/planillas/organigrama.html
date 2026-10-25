@@ -8,7 +8,7 @@
   {% if arbol %}<ul class="list-unstyled mb-0">{% for n in arbol %}{% include 'planillas/_nodo_organigrama.html' %}{% endfor %}</ul>
   {% else %}<p class="text-muted mb-0">Aún no hay unidades: cree la gerencia general y luego sus áreas, secciones y puestos.</p>{% endif %}
 </div><div class="card-body border-top small text-muted">El jefe de un trabajador es quien ocupa el puesto superior al suyo (si está vacante, el siguiente hacia arriba). Las reglas de aprobación «Jefe del solicitante», «Ocupante de un puesto» y «Nivel N de la jerarquía» usan esta estructura.</div></div></div>
-{% if puede.planillas_configurar %}<div class="col-lg-5">
+{% if puede.empleados_configurar %}<div class="col-lg-5">
   <div class="card mb-3"><div class="card-header">{% if unidad %}Editar unidad{% else %}Nueva unidad organizativa{% endif %}</div><div class="card-body">
     <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="que" value="unidad">
       {% for field in fu %}<div class="col-6">{% include 'core/_campo.html' %}</div>{% endfor %}

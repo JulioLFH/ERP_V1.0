@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Proyectos{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Proyectos</h1>
+  <div class="d-flex gap-2">
+    <form method="get"><select name="estado" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Estado"><option value="todos">Todos</option>{% for v, n in estados %}<option value="{{ v }}"{% if v == estado %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></form>
+    <a href="{% url 'proyectos:mis_tareas' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person-check"></i> Mis tareas</a>
+    {% if puede.proyectos_gestionar %}<a href="{% url 'proyectos:nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo proyecto</a>{% endif %}
+  </div>
+</div>
+<div class="row g-3">
+{% for p in proyectos %}
+  <div class="col-md-6 col-xl-4"><a href="{% url 'proyectos:proyecto' p.pk %}" class="card h-100 text-decoration-none text-body"><div class="card-body">
+    <div class="d-flex justify-content-between"><h2 class="h6 mb-1">{{ p.nombre }}</h2><span class="badge text-bg-{% if p.estado == 'ACTIVO' %}success{% elif p.estado == 'PAUSADO' %}warning{% else %}secondary{% endif %}">{{ p.get_estado_display }}</span></div>
+    <div class="small text-muted mb-2">{{ p.cliente.nombre|default:'Interno' }}{% if p.responsable %} · {{ p.responsable.get_full_name|default:p.responsable.username }}{% endif %}{% if p.fecha_fin %} · fin {{ p.fecha_fin|date:'d/m/Y' }}{% endif %}</div>
+    <div class="progress mb-1" style="height: .5rem" role="progressbar" aria-valuenow="{{ p.avance }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar bg-success" style="width: {{ p.avance }}%"></div></div>
+    <div class="small">{{ p.n_hechas }} de {{ p.n_tareas }} tarea(s) hechas ({{ p.avance }} %){% if p.n_vencidas %} · <span class="text-danger">{{ p.n_vencidas }} vencida(s)</span>{% endif %}</div>
+  </div></a></div>
+{% empty %}<div class="col-12"><div class="alert alert-info">No hay proyectos{% if estado != 'todos' %} en este estado{% endif %}.{% if puede.proyectos_gestionar %} Cree el primero con «Nuevo proyecto».{% endif %}</div></div>{% endfor %}
+</div>
+{% endblock %}

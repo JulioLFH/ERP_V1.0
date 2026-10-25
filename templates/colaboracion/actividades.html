@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Actividades pendientes{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">{% if vista == 'encargadas' %}Actividades encargadas por mí{% else %}Mis actividades pendientes{% endif %}</h1>
+  <div class="d-flex gap-2">
+    <a href="{% if vista == 'encargadas' %}{% url 'actividades:lista' %}{% else %}?vista=encargadas{% endif %}" class="btn btn-sm btn-outline-secondary">{% if vista == 'encargadas' %}Mis pendientes{% else %}Encargadas por mí{% endif %}</a>
+    <a href="{% url 'actividades:nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva actividad</a>
+  </div>
+</div>
+{% if vista == 'encargadas' %}
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+  <thead><tr><th>Para el</th><th>Actividad</th><th>Encargada a</th><th>Estado</th><th></th></tr></thead>
+  <tbody>{% for p in encargadas %}<tr>
+    <td class="{% if not p.hecho and p.fecha < hoy %}text-danger fw-semibold{% endif %}">{{ p.fecha|date:'d/m/Y' }}</td>
+    <td>{{ p.titulo }}{% if p.resultado %}<div class="text-muted">{{ p.resultado }}</div>{% endif %}</td>
+    <td>{{ p.asignado_a.get_full_name|default:p.asignado_a.username }}</td>
+    <td>{% if p.hecho %}<span class="badge text-bg-success">Hecha {{ p.hecho_en|date:'d/m' }}</span>{% elif p.fecha < hoy %}<span class="badge text-bg-danger">Vencida</span>{% else %}<span class="badge text-bg-secondary">Pendiente</span>{% endif %}</td>
+    <td><a href="{% url 'actividades:editar' p.pk %}" class="btn btn-sm btn-link py-0" title="Editar"><i class="bi bi-pencil"></i></a></td>
+  </tr>{% empty %}<tr><td colspan="5" class="text-muted">No ha encargado actividades a otros usuarios.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% else %}
+{% if aprobaciones %}<div class="alert alert-warning d-flex justify-content-between align-items-center"><span><i class="bi bi-inbox"></i> Tiene <b>{{ aprobaciones }}</b> documento(s) esperando su aprobación.</span><a href="{% url 'aprobaciones_bandeja' %}" class="btn btn-sm btn-warning">Ir a aprobaciones</a></div>{% endif %}
+<div class="row g-3">
+  {% for titulo, color, filas in grupos %}
+  <div class="col-lg-6 col-xl-3"><div class="card border-{{ color }} h-100"><div class="card-header fw-semibold">{{ titulo }} <span class="badge text-bg-{{ color }}">{{ filas|length }}</span></div>
+    <ul class="list-group list-group-flush small">{% for f in filas %}<li class="list-group-item">
+      <div class="d-flex justify-content-between gap-2"><span><i class="bi {{ f.icono }}"></i> {% if f.url %}<a href="{{ f.url }}">{{ f.titulo }}</a>{% else %}{{ f.titulo }}{% endif %}{% if f.alta %} <span class="badge text-bg-danger">Alta</span>{% endif %}</span><span class="text-muted text-nowrap">{{ f.fecha|date:'d/m'|default:'—' }}</span></div>
+      <div class="text-muted">{{ f.origen }}{% if f.detalle %} · {{ f.detalle }}{% endif %}</div>
+      {% if f.pendiente %}<form method="post" action="{% url 'actividades:hecha' f.pk %}" class="d-flex gap-1 mt-1">{% csrf_token %}<input name="resultado" class="form-control form-control-sm" placeholder="Resultado (opcional)"><button class="btn btn-sm btn-outline-success py-0" title="Hecha"><i class="bi bi-check2"></i></button><a href="{% url 'actividades:editar' f.pk %}" class="btn btn-sm btn-link py-0" title="Editar"><i class="bi bi-pencil"></i></a></form>{% endif %}
+    </li>{% empty %}<li class="list-group-item text-muted">Nada.</li>{% endfor %}</ul></div></div>
+  {% endfor %}
+</div>
+{% if hechas %}<div class="card mt-3"><div class="card-header small fw-semibold">Hechas recientemente</div><ul class="list-group list-group-flush small">{% for p in hechas %}<li class="list-group-item d-flex justify-content-between"><span class="text-decoration-line-through text-muted">{{ p.titulo }}</span><form method="post" action="{% url 'actividades:hecha' p.pk %}">{% csrf_token %}<input type="hidden" name="deshacer" value="1"><button class="btn btn-sm btn-link py-0">Reabrir</button></form></li>{% endfor %}</ul></div>{% endif %}
+<p class="small text-muted mt-2">Aquí se juntan sus actividades (propias o encargadas por otros), sus tareas de Proyectos y sus actividades del CRM. Las tareas y las del CRM se cierran en su propia pantalla.</p>
+{% endif %}
+{% endblock %}

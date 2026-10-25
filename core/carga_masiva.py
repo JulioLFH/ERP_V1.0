@@ -244,7 +244,7 @@ DEFINICIONES = OrderedDict([
             ('fecha', 'Fecha', False, '', 'dd/mm/aaaa. Vacío = hoy'),
         ]}),
     ('trabajadores', {
-        'titulo': 'Trabajadores (planillas)', 'icono': 'bi-person-badge', 'modulos': ['planillas'],
+        'titulo': 'Trabajadores (planillas)', 'icono': 'bi-person-badge', 'modulos': ['empleados', 'planillas'],
         'descripcion': 'Datos laborales para la planilla. Si el documento ya existe se actualiza (marque '
                        '"Actualizar existentes").',
         'columnas': [

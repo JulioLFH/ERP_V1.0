@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Calendario{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <div class="d-flex align-items-center gap-2">
+    <a href="?mes={{ anterior }}{{ filtro }}" class="btn btn-sm btn-outline-secondary" title="Mes anterior"><i class="bi bi-chevron-left"></i></a>
+    <h1 class="page-title mb-0">{{ titulo }}</h1>
+    <a href="?mes={{ siguiente }}{{ filtro }}" class="btn btn-sm btn-outline-secondary" title="Mes siguiente"><i class="bi bi-chevron-right"></i></a>
+    <a href="?mes={{ actual }}{{ filtro }}" class="btn btn-sm btn-outline-secondary">Hoy</a>
+  </div>
+  <div class="d-flex gap-2"><a href="{% url 'calendario:agenda' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ul"></i> Agenda</a><a href="{% url 'calendario:evento_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo evento</a></div>
+</div>
+<form method="get" class="d-flex flex-wrap gap-3 small mb-2"><input type="hidden" name="mes" value="{{ mes_param }}">
+  {% for c, nombre, color, activa in capas %}<label class="form-check-label d-flex align-items-center gap-1"><input type="checkbox" class="form-check-input mt-0" name="capa" value="{{ c }}"{% if activa %} checked{% endif %} onchange="this.form.submit()"><span class="d-inline-block rounded-circle" style="width:.7rem;height:.7rem;background:{{ color }}"></span>{{ nombre }}</label>{% endfor %}
+</form>
+<div class="table-responsive"><table class="table table-bordered calendario mb-0" style="table-layout: fixed; min-width: 760px">
+  <thead><tr class="small text-center"><th>Lun</th><th>Mar</th><th>Mié</th><th>Jue</th><th>Vie</th><th>Sáb</th><th>Dom</th></tr></thead>
+  <tbody>{% for semana in semanas %}<tr>{% for dia in semana %}
+    <td class="p-1 align-top{% if dia.otro_mes %} bg-body-tertiary{% endif %}" style="height: 7.5rem">
+      <div class="d-flex justify-content-between small"><a href="{% url 'calendario:evento_nuevo' %}?fecha={{ dia.fecha|date:'Y-m-d' }}" class="text-decoration-none{% if dia.fecha == hoy %} badge rounded-pill text-bg-primary{% elif dia.otro_mes %} text-muted{% endif %}" title="Agendar un evento este día">{{ dia.fecha.day }}</a></div>
+      {% for it in dia.items|slice:":5" %}<a href="{{ it.url }}" class="d-block text-truncate small rounded px-1 mb-1 text-white text-decoration-none{% if it.hecho %} opacity-50 text-decoration-line-through{% endif %}" style="background: {{ it.color }}" title="{{ it.hora }} {{ it.titulo }}">{% if it.hora %}{{ it.hora }} {% endif %}{{ it.titulo }}</a>{% endfor %}
+      {% if dia.items|length > 5 %}<a href="{% url 'calendario:agenda' %}" class="small">+{{ dia.items|length|add:'-5' }} más</a>{% endif %}
+    </td>{% endfor %}</tr>{% endfor %}</tbody>
+</table></div>
+<p class="small text-muted mt-2">El calendario reúne sus eventos y los de la empresa, sus actividades del CRM y pendientes, sus tareas de proyectos{% if 'tiempo_personal' in mods or user.is_superuser %}, las vacaciones y permisos aprobados del personal{% else %}, sus vacaciones aprobadas{% endif %} y, para contabilidad, el vencimiento mensual de SUNAT según el RUC de la empresa.</p>
+{% endblock %}

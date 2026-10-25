@@ -50,6 +50,9 @@ class Cotizacion(DocumentoBase):
     # CRM-03: la cotización nace de una oportunidad (o la crea, CRM-14) y vuelve a ella
     oportunidad = models.ForeignKey('ventas.Oportunidad', on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='cotizaciones', verbose_name='Oportunidad (CRM)')
+    # v1.83: pedido tomado por el vendedor en TomaPedido (sus pedidos del celular)
+    tomado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, editable=False,
+                                   related_name='+', verbose_name='Tomado por (TomaPedido)')
 
     class Meta(DocumentoBase.Meta):
         verbose_name = 'cotización / pedido'

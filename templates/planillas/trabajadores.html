@@ -5,7 +5,7 @@
   <h1 class="page-title"><i class="bi bi-person-badge"></i> Trabajadores</h1>
   <div class="d-flex flex-wrap gap-2">
     <a href="?estado={{ estado }}&q={{ q }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
-    {% if puede.planillas_calcular %}<a href="{% url 'carga_masiva' %}?tipo=trabajadores" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-arrow-up"></i> Cargar desde Excel</a>
+    {% if puede.empleados_registrar %}<a href="{% url 'carga_masiva' %}?tipo=trabajadores" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-arrow-up"></i> Cargar desde Excel</a>
     <a href="{% url 'planillas:trabajador_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo trabajador</a>{% endif %}
   </div>
 </div>
@@ -20,9 +20,9 @@
 </form>
 <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="asignar_centro">
 <div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
-  <thead><tr>{% if puede.planillas_calcular %}<th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=trabajador]').forEach(c => c.checked = this.checked)"></th>{% endif %}<th>Documento</th><th>Apellidos y nombres</th><th>Cargo</th><th>Centro de costo</th><th>Ingreso</th><th>Pensiones</th>{% if ver_sueldos %}<th class="num">Sueldo</th>{% endif %}<th></th></tr></thead>
+  <thead><tr>{% if puede.empleados_registrar %}<th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=trabajador]').forEach(c => c.checked = this.checked)"></th>{% endif %}<th>Documento</th><th>Apellidos y nombres</th><th>Cargo</th><th>Centro de costo</th><th>Ingreso</th><th>Pensiones</th>{% if ver_sueldos %}<th class="num">Sueldo</th>{% endif %}<th></th></tr></thead>
   <tbody>{% for t in page_obj %}<tr class="{% if t.fecha_cese %}text-muted{% endif %}">
-    {% if puede.planillas_calcular %}<td><input type="checkbox" class="form-check-input" name="trabajador" value="{{ t.pk }}"></td>{% endif %}
+    {% if puede.empleados_registrar %}<td><input type="checkbox" class="form-check-input" name="trabajador" value="{{ t.pk }}"></td>{% endif %}
     <td>{{ t.numero_doc }}</td>
     <td><a href="{% url 'planillas:trabajador_editar' t.pk %}">{{ t.nombre_completo }}</a>{% if not t.datos_completos and not t.fecha_cese %} <span class="badge text-bg-warning">por completar</span>{% endif %}</td>
     <td class="small">{{ t.cargo }}</td><td class="small">{% if t.centro_costo %}{{ t.centro_costo }}{% else %}<span class="text-warning">sin centro</span>{% endif %}</td>
@@ -32,7 +32,7 @@
     <td class="text-end text-nowrap"><a href="{% url 'planillas:legajo' t.pk %}" class="btn btn-sm btn-outline-secondary py-0" title="Legajo, contratos y movimientos"><i class="bi bi-folder2-open"></i></a> <a href="{% url 'planillas:trabajador_editar' t.pk %}" class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-pencil"></i></a></td>
   </tr>{% empty %}<tr><td colspan="9" class="text-center text-muted py-4">Sin trabajadores.</td></tr>{% endfor %}</tbody>
 </table></div>
-{% if puede.planillas_calcular and page_obj %}<div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
+{% if puede.empleados_registrar and page_obj %}<div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
   <select name="centro_costo" class="form-select form-select-sm" style="width:auto"><option value="">Centro de costo…</option>{% for c in centros %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}</select>
   <button class="btn btn-sm btn-outline-primary"><i class="bi bi-diagram-3"></i> Asignar a los marcados</button>
   <span class="small text-muted">Define el destino del gasto de planilla: producción, administración o ventas.</span>

@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Catálogo, precios y stock{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2">Catálogo, precios y stock</h1>
+<form method="get" class="mb-3" style="max-width: 720px">
+  <select name="cliente" class="form-select mb-2" data-opciones="{% url 'opciones' 'clientes' %}" aria-label="Cliente (para su lista de precios)"><option value="">Precio general (sin cliente)</option>{% if cliente %}<option value="{{ cliente.pk }}" selected>{{ cliente.nombre }}</option>{% endif %}</select>
+  <div class="input-group"><input name="q" value="{{ q }}" class="form-control" placeholder="Nombre, código o código de barras" autofocus><button class="btn btn-primary"><i class="bi bi-search"></i></button></div>
+</form>
+<div class="list-group" style="max-width: 720px">{% for f in filas %}
+  <div class="list-group-item"><div class="d-flex justify-content-between"><b>{{ f.nombre }}</b><span>S/ {{ f.precio|floatformat:2 }}{% if f.descuento != '0' and f.descuento != '0.00' %} <span class="text-muted small">− {{ f.descuento }} %</span>{% endif %}</span></div>
+    <div class="small text-muted">{{ f.codigo }} · {{ f.unidad }}{% if f.stock != '' %} · stock total {{ f.stock }}{% endif %}</div>
+    {% if f.almacenes %}<div class="small">{% for s in f.almacenes %}<span class="badge text-bg-light border me-1">{{ s.almacen }}: {{ s.cantidad|floatformat:'-2' }}</span>{% endfor %}</div>{% endif %}</div>
+{% empty %}{% if q %}<div class="list-group-item text-muted">Sin resultados.</div>{% else %}<div class="list-group-item text-muted">Busque un producto para ver su precio (sin IGV) y su stock por almacén.</div>{% endif %}{% endfor %}</div>
+{% endblock %}

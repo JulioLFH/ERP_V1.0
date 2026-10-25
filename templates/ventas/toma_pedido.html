@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% block title %}Nuevo pedido{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h1 class="page-title mb-0"><i class="bi bi-phone"></i> Nuevo pedido</h1>
+  <a href="{% url 'toma_pedido:lista' %}" class="btn btn-sm btn-outline-secondary">Mis pedidos</a>
+</div>
+<form method="post" id="pedido" style="max-width: 720px">{% csrf_token %}
+  <label class="form-label small mb-1" for="cliente">Cliente <span class="text-danger">*</span></label>
+  <select name="cliente" id="cliente" class="form-select mb-2" data-opciones="{% url 'opciones' 'clientes' %}" required><option value="">---------</option></select>
+  <div class="input-group mb-2">
+    <input id="buscar" class="form-control" placeholder="Producto: nombre, código o escanee el código de barras" autocomplete="off">
+    <button type="button" id="btn-buscar" class="btn btn-outline-primary"><i class="bi bi-search"></i></button>
+  </div>
+  <div id="resultados" class="list-group mb-3"></div>
+  <div class="card mb-2"><div class="card-header fw-semibold small d-flex justify-content-between">Pedido <span id="n-lineas" class="badge text-bg-secondary">0</span></div>
+    <ul id="carrito" class="list-group list-group-flush"></ul>
+    <div class="card-body py-2 small text-end">Valor de venta S/ <b id="t-base">0.00</b> · IGV S/ <b id="t-igv">0.00</b> · <span class="fs-6">Total S/ <b id="t-total">0.00</b></span></div>
+  </div>
+  <textarea name="glosa" class="form-control mb-2" rows="2" placeholder="Observaciones (entrega, contacto, forma de pago…)"></textarea>
+  <div id="lineas"></div>
+  <div class="d-grid gap-2 d-sm-flex">
+    <button name="enviar" value="1" class="btn btn-primary btn-lg"><i class="bi bi-send"></i> Guardar y enviar a aprobación</button>
+    <button class="btn btn-outline-primary btn-lg">Solo guardar</button>
+  </div>
+  <p class="small text-muted mt-2">Precios sin IGV según la lista de precios del cliente. Si baja el precio o el cliente excede su crédito, el pedido va a aprobación según las reglas de la empresa. El pedido se guarda en este celular mientras no lo envíe.</p>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const IGV = {{ igv|stringformat:'s' }} / 100;
+  const CLAVE = 'ceiba-tomapedido';
+  const sel = document.getElementById('cliente'), buscar = document.getElementById('buscar');
+  const resultados = document.getElementById('resultados'), carrito = document.getElementById('carrito');
+  let lineas = [];
+  try { lineas = JSON.parse(localStorage.getItem(CLAVE) || '[]'); } catch (e) { lineas = []; }
+  const guardar = () => { try { localStorage.setItem(CLAVE, JSON.stringify(lineas)); } catch (e) { /* sin almacenamiento */ } };
+  const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? 0 : n; };
+  const dibujar = () => {
+    carrito.innerHTML = '';
+    let base = 0;
+    lineas.forEach((l, i) => {
+      const sub = num(l.cantidad) * num(l.precio) * (1 - num(l.descuento) / 100);
+      base += sub;
+      const li = document.createElement('li');
+      li.className = 'list-group-item py-2';
+      li.innerHTML = `<div class="d-flex justify-content-between gap-2"><b class="small"></b><button type="button" class="btn btn-sm btn-link text-danger py-0" title="Quitar"><i class="bi bi-x-lg"></i></button></div>
+        <div class="d-flex gap-2 align-items-center small">
+          <div class="input-group input-group-sm" style="max-width: 9rem"><button type="button" class="btn btn-outline-secondary js-menos">−</button><input class="form-control text-end js-cant" inputmode="decimal"><button type="button" class="btn btn-outline-secondary js-mas">+</button></div>
+          <span>×</span><input class="form-control form-control-sm text-end js-precio" inputmode="decimal" style="max-width: 6.5rem" title="Valor unitario sin IGV">
+          <span class="ms-auto">S/ <b class="js-sub"></b></span></div>
+        <div class="small text-muted js-info"></div>`;
+      li.querySelector('b').textContent = l.nombre;
+      li.querySelector('.js-cant').value = l.cantidad;
+      li.querySelector('.js-precio').value = l.precio;
+      li.querySelector('.js-sub').textContent = sub.toFixed(2);
+      li.querySelector('.js-info').textContent = `${l.codigo} · ${l.unidad}` + (l.stock !== '' ? ` · stock ${l.stock}` : '') + (num(l.descuento) ? ` · desc. ${l.descuento} %` : '');
+      li.querySelector('.btn-link').onclick = () => { lineas.splice(i, 1); guardar(); dibujar(); };
+      li.querySelector('.js-menos').onclick = () => { l.cantidad = Math.max(1, num(l.cantidad) - 1); guardar(); dibujar(); };
+      li.querySelector('.js-mas').onclick = () => { l.cantidad = num(l.cantidad) + 1; guardar(); dibujar(); };
+      li.querySelector('.js-cant').onchange = e => { l.cantidad = num(e.target.value) || 1; guardar(); dibujar(); };
+      li.querySelector('.js-precio').onchange = e => { l.precio = num(e.target.value); guardar(); dibujar(); };
+      carrito.appendChild(li);
+    });
+    const igv = base * IGV;
+    document.getElementById('t-base').textContent = base.toFixed(2);
+    document.getElementById('t-igv').textContent = igv.toFixed(2);
+    document.getElementById('t-total').textContent = (base + igv).toFixed(2);
+    document.getElementById('n-lineas').textContent = lineas.length;
+  };
+  const agregar = p => {
+    const ya = lineas.find(l => l.id === p.id);
+    if (ya) ya.cantidad = num(ya.cantidad) + 1;
+    else lineas.push({id: p.id, codigo: p.codigo, nombre: p.nombre, unidad: p.unidad, stock: p.stock, precio: p.precio, descuento: p.descuento, cantidad: 1});
+    guardar(); dibujar();
+  };
+  const consultar = async () => {
+    const q = buscar.value.trim();
+    if (!q) return;
+    const r = await fetch(`{% url 'toma_pedido:buscar' %}?q=${encodeURIComponent(q)}&cliente=${sel.value || ''}`);
+    if (!r.ok) return;
+    const {productos} = await r.json();
+    resultados.innerHTML = '';
+    const exacto = productos.find(p => p.barras === q || p.codigo.toLowerCase() === q.toLowerCase());
+    if (exacto) { agregar(exacto); buscar.value = ''; buscar.focus(); return; }  // lector de código de barras
+    if (!productos.length) { resultados.innerHTML = '<div class="list-group-item small text-muted">Sin resultados.</div>'; return; }
+    productos.forEach(p => {
+      const a = document.createElement('button');
+      a.type = 'button';
+      a.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+      a.innerHTML = '<span><span class="fw-semibold"></span><div class="small text-muted"></div></span><span class="text-nowrap small"></span>';
+      a.querySelector('.fw-semibold').textContent = p.nombre;
+      a.querySelector('.text-muted').textContent = `${p.codigo} · ${p.unidad}` + (p.stock !== '' ? ` · stock ${p.stock}` : '');
+      a.querySelector('.text-nowrap').textContent = `S/ ${num(p.precio).toFixed(2)} +`;
+      a.onclick = () => { agregar(p); resultados.innerHTML = ''; buscar.value = ''; buscar.focus(); };
+      resultados.appendChild(a);
+    });
+  };
+  buscar.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); consultar(); } });
+  document.getElementById('btn-buscar').onclick = consultar;
+  document.getElementById('pedido').addEventListener('submit', e => {
+    if (!lineas.length) { e.preventDefault(); alert('Agregue al menos un producto.'); return; }
+    const caja = document.getElementById('lineas');
+    caja.innerHTML = '';
+    lineas.forEach(l => ['producto', 'cantidad', 'precio', 'descuento'].forEach(c => {
+      const inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = c; inp.value = c === 'producto' ? l.id : l[c];
+      caja.appendChild(inp);
+    }));
+  });
+  dibujar();
+})();
+</script>
+{% endblock %}

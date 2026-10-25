@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Escanear producto{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2"><i class="bi bi-upc-scan"></i> Escanear producto</h1>
+<form method="get" class="mb-3" style="max-width: 720px">
+  <div class="input-group input-group-lg"><input name="codigo" value="" class="form-control" placeholder="Escanee o escriba el código (producto o lote)" autocomplete="off" autofocus aria-label="Código"><button class="btn btn-primary"><i class="bi bi-search"></i></button></div>
+  <div class="form-text">El lector de códigos de barras escribe el código y presiona Enter solo. También sirve el código interno del producto o el código del lote.</div>
+</form>
+{% if producto %}
+<div class="card" style="max-width: 720px"><div class="card-body">
+  <div class="d-flex flex-wrap justify-content-between gap-3">
+    <div><h2 class="h5 mb-1">{{ producto.nombre }}</h2>
+      <div class="small text-muted">{{ producto.codigo }} · {{ producto.get_unidad_display }}{% if producto.codigo_barras %} · código de barras {{ producto.codigo_barras }}{% else %} · <span class="text-warning">sin código de barras</span>{% endif %}</div>
+      {% if lote %}<div class="small mt-1"><span class="badge text-bg-info">Lote {{ lote.codigo }}</span>{% if lote.vencimiento %} vence {{ lote.vencimiento|date:'d/m/Y' }}{% endif %} · {{ lote.get_estado_calidad_display }} · stock del lote {{ lote.stock|floatformat:'-2' }}</div>{% endif %}
+      <div class="mt-2">Precio de venta: <b>S/ {{ producto.precio_venta|floatformat:2 }}</b> (sin IGV){% if ver_costos %} · costo promedio S/ {{ producto.costo_promedio|floatformat:4 }}{% endif %}</div>
+      <div>Stock total: <b>{{ producto.stock|floatformat:'-2' }}</b></div>
+    </div>
+    <div>{{ barras_svg }}</div>
+  </div>
+  {% if stocks %}<h3 class="h6 mt-3">Stock por almacén</h3><ul class="list-group list-group-flush small">{% for s in stocks %}<li class="list-group-item d-flex justify-content-between"><span>{{ s.almacen }}</span><b>{{ s.cantidad|floatformat:'-2' }}</b></li>{% endfor %}</ul>{% endif %}
+  {% if lotes %}<h3 class="h6 mt-3">Lotes con stock</h3><div class="small">{% for l in lotes %}<span class="badge text-bg-light border me-1 mb-1">{{ l }}{% if l.bloqueado %} · {{ l.get_estado_calidad_display }}{% endif %}</span>{% endfor %}</div>{% endif %}
+  <div class="d-flex flex-wrap gap-2 mt-3">
+    <a href="{% url 'codigo_barras:etiquetas' %}?producto={{ producto.pk }}&cantidad=1" class="btn btn-sm btn-outline-primary"><i class="bi bi-printer"></i> Imprimir etiquetas</a>
+    {% if 'inventario' in mods %}<a href="{% url 'inv_kardex' %}?producto={{ producto.pk }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-columns"></i> Kardex</a>{% endif %}
+  </div>
+</div></div>
+{% endif %}
+{% endblock %}

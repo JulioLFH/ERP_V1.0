@@ -12,6 +12,7 @@ ACCIONES = {
             ('postventa', 'Registrar casos de postventa, encuestas y contratos', False),
             ('configurar', 'Equipos, metas, campañas, formulario web y configuración del CRM', True),
             ('datos_personales', 'Dar de baja, exportar o suprimir datos personales (Ley 29733)', True)],
+    'toma_pedido': [('registrar', 'Tomar pedidos de clientes (en el celular) y enviarlos a aprobación', False)],
     'ventas': [('emitir', 'Emitir comprobantes y cotizaciones', False),
                ('notas', 'Emitir notas de crédito y débito', True),
                ('anular', 'Anular comprobantes', True),
@@ -25,24 +26,28 @@ ACCIONES = {
                 ('oc', 'Crear y editar órdenes de compra', False),
                 ('aprobar_oc', 'Aprobar órdenes de compra', True),
                 ('anular', 'Anular compras y órdenes de compra', True),
-                ('portal', 'Aprobar o rechazar facturas del portal', True),
                 ('convertir_solped', 'Convertir solicitudes de pedido en órdenes de compra o licitaciones', False),
                 ('hes', 'Registrar conformidades de servicio (HES) con sus adjuntos', False),
                 ('liberar_hes', 'Liberar conformidades de servicio (sin reglas de aprobación)', True),
                 ('hes_todas', 'Ver todas las conformidades de servicio', True),
                 ('grupos', 'Configurar grupos de compras y compradores', True)],
+    'portal_proveedores': [('aprobar', 'Aprobar o rechazar facturas del portal, liberar pagos y dar accesos a '
+                                       'proveedores', True)],
     'inventario': [('operar', 'Registrar y confirmar operaciones de almacén', False),
                    ('ajustar', 'Ajustes de inventario', True),
                    ('aprobar_mayor', 'Aprobar diferencias de inventario físico sobre el tope', True),
                    ('anular', 'Anular operaciones', True),
                    ('cerrar', 'Cerrar el kardex', True),
                    ('fecha_anterior', 'Fecha contable de un mes anterior en operaciones de almacén (con motivo)', True)],
+    'codigo_barras': [('asignar', 'Asignar o cambiar el código de barras de los productos', False)],
     'logistica': [('emitir', 'Emitir guías de remisión', False),
                   ('anular', 'Anular guías', True),
                   ('garita', 'Registrar ingresos y salidas en garita', False),
-                  ('flota', 'Registrar equipos, documentos, lecturas, combustible y viajes de la flota', False),
-                  ('aprobar_lecturas', 'Aprobar partes de odómetro / horómetro', True),
                   ('ver_montos', 'Ver montos de la mercadería en garita (OC, guías)', True)],
+    'distribucion': [('programar', 'Programar hojas de reparto (vehículo, conductor y paradas) y cerrarlas', False),
+                     ('entregar', 'Registrar las entregas en ruta (conductor)', False)],
+    'flota': [('registrar', 'Registrar equipos, documentos, lecturas, combustible y viajes de la flota', False),
+              ('aprobar_lecturas', 'Aprobar partes de odómetro / horómetro', True)],
     'tesoreria': [('registrar', 'Registrar cobros, pagos, depósitos de detracción y movimientos', False),
                   ('transferir', 'Transferencias entre cuentas', False),
                   ('anular', 'Anular movimientos, cheques y entregas a rendir', True),
@@ -54,8 +59,8 @@ ACCIONES = {
                      ('extornar', 'Extornar asientos', True),
                      ('periodos', 'Centralizar y cerrar periodos', True),
                      ('reabrir', 'Reabrir periodos cerrados (con motivo)', True),
-                     ('configurar', 'Plan de cuentas y configuración', True),
-                     ('presupuesto', 'Elaborar y modificar presupuestos', True)],
+                     ('configurar', 'Plan de cuentas y configuración', True)],
+    'presupuestos': [('elaborar', 'Elaborar y modificar presupuestos', True)],
     'manufactura': [('ordenes', 'Órdenes de producción, reporte de planta y paradas', False),
                     ('anular', 'Anular órdenes de producción', True),
                     ('recetas', 'Recetas, hojas de ruta, versiones, puestos y costo estándar', True),
@@ -69,11 +74,15 @@ ACCIONES = {
     'costos': [('liberar', 'Calcular y liberar el costo estándar', True),
                ('abc', 'Configurar actividades del costeo ABC', True),
                ('liquidar', 'Liquidar el costo real y registrar el valor neto realizable (cierre NIC 2)', True)],
-    'planillas': [('calcular', 'Registrar trabajadores y calcular planillas', False),
+    'planillas': [('calcular', 'Calcular planillas, gratificaciones, CTS y liquidaciones', False),
                   ('cerrar', 'Cerrar, reabrir y pagar planillas', True),
+                  ('configurar', 'Parámetros, AFP y conceptos de planilla', True)],
+    'empleados': [('registrar', 'Registrar trabajadores, contratos, legajo, asistencia y movimientos de personal', False),
                   ('aprobar_movimientos', 'Aprobar movimientos de personal (sin reglas de aprobación; también los aprueba '
                                           'el jefe del trabajador)', True),
-                  ('configurar', 'Parámetros, AFP y conceptos de planilla', True)],
+                  ('configurar', 'Organigrama (unidades y puestos) y turnos de trabajo', True)],
+    'tiempo_personal': [('registrar', 'Registrar vacaciones, permisos y licencias y ver las solicitudes de todos',
+                         False)],
     'requerimientos': [('solicitar', 'Pedir materiales al almacén', False),
                        ('aprobar', 'Aprobar o rechazar requerimientos', True),
                        ('solped', 'Registrar y enviar solicitudes de pedido (compras)', False),
@@ -96,6 +105,8 @@ ACCIONES = {
                            'subcontratos', False),
               ('facturar', 'Facturar adelantos y valorizaciones de obra, reclasificar facturas a anticipo y cobrar el fondo '
                            'de garantía', True)],
+    'proyectos': [('gestionar', 'Crear proyectos y elegir a sus miembros (jefe de proyecto)', False),
+                  ('ver_todos', 'Ver y editar todos los proyectos (gerencia / oficina de proyectos)', True)],
     'sst': [('registrar', 'Registrar exámenes, inspecciones, capacitaciones, IPERC, EPP, permisos y accidentes', False),
             ('validar', 'Validar registros de SST (especialista: jefe o supervisor de SST, médico ocupacional, comité)',
              True),
@@ -110,7 +121,7 @@ TODAS = {f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, _ in lista}
 EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar', 'manufactura.aprobar_cambios',
               'costos.liquidar', 'requerimientos.liberar_solped', 'inventario.aprobar_mayor', 'obras.aprobar',
               'obras.reabrir', 'sst.validar', 'calidad.validar', 'obras.facturar',
-              'inventario.fecha_anterior'}
+              'inventario.fecha_anterior', 'proyectos.ver_todos'}
 
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
@@ -148,9 +159,10 @@ RUTAS = {
     'compras:oc_nuevo': 'compras.oc', 'compras:oc_editar': 'compras.oc', 'compras:oc_enviar': 'compras.oc',
     'compras:oc_estado': lambda r: {'APROBADO': _aprobar_oc(), 'ANULADO': 'compras.anular'}.get(
         r.POST.get('estado'), 'compras.oc'),
-    'compras:portal_factura_aprobar': 'compras.portal', 'compras:portal_factura_rechazar': 'compras.portal',
-    'compras:liberar_pago': 'compras.portal',
-    'compras:portal_acceso_nuevo': 'compras.portal', 'compras:portal_acceso_editar': 'compras.portal',
+    'compras:portal_factura_aprobar': 'portal_proveedores.aprobar',
+    'compras:portal_factura_rechazar': 'portal_proveedores.aprobar', 'compras:liberar_pago': 'portal_proveedores.aprobar',
+    'compras:portal_acceso_nuevo': 'portal_proveedores.aprobar',
+    'compras:portal_acceso_editar': 'portal_proveedores.aprobar',
     'inventario:nueva': 'inventario.operar', 'inventario:editar': 'inventario.operar',
     'inventario:confirmar': 'inventario.operar', 'inventario:pendientes': 'inventario.operar',
     'inventario:eliminar': 'inventario.operar', 'inventario:anular': 'inventario.anular',
@@ -196,18 +208,20 @@ RUTAS = {
     'contabilidad:configuracion': {'POST': 'contabilidad.configurar'},
     'contabilidad:cuentas_tipo': {'POST': 'contabilidad.configurar'},
     'contabilidad:cc_nuevo': 'contabilidad.configurar', 'contabilidad:cc_editar': 'contabilidad.configurar',
-    'planillas:nueva': 'planillas.calcular', 'planillas:trabajador_nuevo': 'planillas.calcular',
-    'planillas:trabajador_editar': {'POST': 'planillas.calcular'},
+    'planillas:nueva': 'planillas.calcular', 'planillas:trabajador_nuevo': 'empleados.registrar',
+    'planillas:trabajador_editar': {'POST': 'empleados.registrar'},
     'planillas:detalle': lambda r: (None if r.method != 'POST' else 'planillas.cerrar'
                                     if r.POST.get('accion') in ('cerrar', 'reabrir', 'pagar') else 'planillas.calcular'),
     'planillas:configuracion': {'POST': 'planillas.configurar'},
-    'planillas:movimiento_nuevo': 'planillas.calcular',
-    'planillas:vacaciones': {'POST': 'planillas.calcular'},
-    'planillas:asistencia': {'POST': 'planillas.calcular'},
-    'planillas:turnos': {'POST': 'planillas.configurar'}, 'planillas:turno': {'POST': 'planillas.configurar'},
-    'contabilidad:presupuesto_nuevo': 'contabilidad.presupuesto',
-    'contabilidad:presupuesto_editar': 'contabilidad.presupuesto',
-    'contabilidad:presupuesto_generar': 'contabilidad.presupuesto',
+    'planillas:movimiento_nuevo': 'empleados.registrar',
+    'planillas:vacaciones': {'POST': 'tiempo_personal.registrar'},
+    # la asistencia la registra Empleados; pasarla a la planilla del mes es de Planillas
+    'planillas:asistencia': lambda r: (None if r.method != 'POST' else 'planillas.calcular'
+                                       if r.POST.get('accion') == 'planilla' else 'empleados.registrar'),
+    'planillas:turnos': {'POST': 'empleados.configurar'}, 'planillas:turno': {'POST': 'empleados.configurar'},
+    'contabilidad:presupuesto_nuevo': 'presupuestos.elaborar',
+    'contabilidad:presupuesto_editar': 'presupuestos.elaborar',
+    'contabilidad:presupuesto_generar': 'presupuestos.elaborar',
     'contabilidad:cb_nuevo': 'contabilidad.configurar', 'contabilidad:cb_editar': 'contabilidad.configurar',
     'contabilidad:reparto': {'POST': 'contabilidad.periodos'},
     'contabilidad:reparto_regla_nueva': 'contabilidad.configurar', 'contabilidad:reparto_regla': 'contabilidad.configurar',
@@ -224,7 +238,7 @@ RUTAS = {
     'manufactura:equipo': {'POST': 'mantenimiento.registrar'},
     'flota:equipo_nuevo': lambda r: _flota(r), 'flota:equipo': lambda r: _flota(r),
     'flota:documentos': lambda r: _flota(r), 'flota:parte': lambda r: _flota(r),
-    'flota:lecturas': {'POST': 'logistica.aprobar_lecturas'},
+    'flota:lecturas': {'POST': 'flota.aprobar_lecturas'},
     'flota:combustible': lambda r: _flota(r), 'flota:viajes': lambda r: _flota(r),
     'flota:prestamos': lambda r: _flota(r), 'flota:prestamo': lambda r: _flota(r),
     'manufactura:ordenes_mant': {'POST': 'mantenimiento.registrar'},
@@ -257,7 +271,14 @@ RUTAS = {
     'solicitudes:enviar': 'requerimientos.solped',
     'compras:solped_bandeja': {'POST': 'compras.convertir_solped'},
     'compras:solped_reglas': {'POST': 'compras.aprobar_oc'}, 'compras:conformidad': {'POST': 'compras.hes'},
-    'compras:portal_tablero': 'compras.portal',
+    'compras:portal_tablero': 'portal_proveedores.aprobar',
+    # v1.83: módulos nuevos
+    'toma_pedido:nuevo': 'toma_pedido.registrar',
+    'codigo_barras:asignar': {'POST': 'codigo_barras.asignar'},
+    'distribucion:nueva': 'distribucion.programar',
+    'distribucion:hoja': {'POST': 'distribucion.programar'},
+    'distribucion:movil': {'POST': 'distribucion.entregar'},
+    'proyectos:nuevo': 'proyectos.gestionar', 'proyectos:editar': 'proyectos.gestionar',
     'compras:grupo_nuevo': 'compras.grupos', 'compras:grupo': 'compras.grupos',
     'compras:hes': lambda r: (None if r.method != 'POST' else 'compras.hes'
                               if r.POST.get('accion') in ('adjuntar', 'enviar', 'anular') else None),
@@ -482,7 +503,11 @@ class Permisos:
         self.user = user
 
     def __getattr__(self, nombre):
-        modulo, _, accion = nombre.partition('_')
-        if not accion:
+        # el módulo puede llevar guion bajo (control_calidad_inspecciones): el nombre de módulo más largo que calce
+        modulo = next((m for m in _MODULOS_POR_LARGO if nombre.startswith(m + '_')), None)
+        if modulo is None:
             raise AttributeError(nombre)
-        return puede(self.user, f'{modulo}.{accion}')
+        return puede(self.user, f'{modulo}.{nombre[len(modulo) + 1:]}')
+
+
+_MODULOS_POR_LARGO = sorted(ACCIONES, key=len, reverse=True)

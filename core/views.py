@@ -97,13 +97,26 @@ def dashboard(request):
 def home(request):
     """Pantalla de aplicaciones (como el inicio de Odoo)."""
     request.session.pop('modulo', None)
-    portal = None
+    from .modulos import modulos_del_usuario
     from .permisos import puede
-    if puede(request.user, 'compras.portal'):  # ícono del portal de proveedores con sus contadores (PORT-08)
+    mods = modulos_del_usuario(request.user)
+    insignias, ayudas = {}, {}  # contador en el ícono del módulo y su detalle al pasar el mouse
+    if puede(request.user, 'portal_proveedores.aprobar'):  # portal de proveedores con sus contadores (PORT-08)
         from proveedores.tablero import pendientes, resumen
         filas, ultimo = resumen()
-        portal = {'filas': [f for f in filas if f[2]], 'pendientes': pendientes(filas), 'ultimo': ultimo}
-    return render(request, 'core/home.html', {'portal': portal})
+        insignias['portal_proveedores'] = pendientes(filas)
+        ayudas['portal_proveedores'] = '\n'.join([f'{f[1]}: {f[2]}' for f in filas if f[2]] + (
+            [f'Último ingreso de un proveedor: {timezone.localtime(ultimo):%d/%m/%Y %H:%M}'] if ultimo else []))
+    from colaboracion import servicios as colaboracion
+    if 'conversaciones' in mods:
+        insignias['conversaciones'] = sum(colaboracion.no_leidos(request.user).values())
+    if 'actividades' in mods:
+        insignias['actividades'] = colaboracion.vencidas_y_hoy(request.user)
+    from .modulos import MODULOS, nuevos
+    recientes = nuevos()
+    tiles = [{**m, 'insignia': insignias.get(m['clave']) or 0, 'ayuda': ayudas.get(m['clave'], ''),
+              'nuevo': m['clave'] in recientes} for m in MODULOS if m['clave'] in mods]
+    return render(request, 'core/home.html', {'tiles': tiles, 'hay_nuevos': any(t['nuevo'] for t in tiles)})
 
 
 @login_required
@@ -224,6 +237,20 @@ MODELOS_DEL_MODULO = {
     'contactos': ['core.Tercero'],
     'ajustes': ['core.Empresa', 'core.FacturacionConfig', 'core.CorreoConfig', 'core.PerfilUsuario', 'auth.User',
                 'core.Serie'],
+    # v1.83
+    'toma_pedido': ['ventas.Cotizacion'],
+    'portal_proveedores': ['proveedores.'],
+    'codigo_barras': ['core.Producto'],
+    'presupuestos': ['contabilidad.Presupuesto', 'contabilidad.PresupuestoLinea'],
+    'proyectos': ['colaboracion.Proyecto', 'colaboracion.Tarea'],
+    'empleados': ['planillas.Trabajador', 'planillas.Contrato', 'planillas.DocumentoLegajo',
+                  'planillas.MovimientoPersonal', 'planillas.Puesto', 'planillas.UnidadOrganizativa', 'planillas.Turno',
+                  'planillas.Marcacion'],
+    'tiempo_personal': ['planillas.Vacacion'],
+    'distribucion': ['distribucion.'],
+    'flota': ['flota.', 'logistica.Vehiculo', 'logistica.Conductor'],
+    'calendario': ['colaboracion.Evento'],
+    'actividades': ['colaboracion.Pendiente'],
 }
 
 
@@ -521,7 +548,15 @@ class TerceroNuevo(FormGenerico, CreateView):
     success_url = reverse_lazy('terceros')
 
     def get_initial(self):
-        return {'tipo': self.request.GET.get('tipo', 'CLIENTE')}
+        inicial = {'tipo': self.request.GET.get('tipo', 'CLIENTE')}
+        ruc = (self.request.GET.get('ruc') or '').strip()
+        if ruc.isdigit() and len(ruc) == 11:  # desde Consulta RUC: los datos del padrón que ya se consultaron
+            from .models import ConsultaRUC
+            inicial.update(tipo_doc='6', numero_doc=ruc)
+            c = ConsultaRUC.objects.filter(ruc=ruc).order_by('-id').first()
+            if c is not None:
+                inicial.update(nombre=c.razon_social[:200], direccion=c.direccion[:250], ubigeo=c.ubigeo)
+        return inicial
 
 
 class TerceroEditar(FormGenerico, UpdateView):
