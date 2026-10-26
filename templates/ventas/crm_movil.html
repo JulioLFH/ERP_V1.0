@@ -41,7 +41,7 @@
 {{ datos|json_script:"crm-datos" }}
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (() => {
   const D = JSON.parse(document.getElementById('crm-datos').textContent);
   const csrf = "{{ csrf_token }}";

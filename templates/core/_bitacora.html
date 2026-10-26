@@ -5,7 +5,7 @@
     <li class="list-group-item">
       <div class="d-flex justify-content-between"><span><b>{{ b.get_accion_display }}</b> · {% if b.usuario %}{{ b.usuario.get_full_name|default:b.usuario.username }}{% else %}Sistema{% endif %}</span><span class="text-muted">{{ b.fecha|date:'d/m/Y H:i' }}</span></div>
       {% if b.motivo %}<div>Motivo: {{ b.motivo }}</div>{% endif %}
-      {% if b.accion == 'MODIFICAR' or b.accion == 'ANULAR' %}{% for campo, valores in b.cambios.items %}<div class="text-muted">{{ campo }}: <s>{{ valores.0|default:'—' }}</s> → {{ valores.1|default:'—' }}</div>{% endfor %}{% endif %}
+      {% if b.accion == 'MODIFICAR' or b.accion == 'ANULAR' %}{% for campo, valores in b.cambios.items %}<div class="text-muted">{{ campo }}: <s>{{ valores.0|valor_historial|default:'—' }}</s> → {{ valores.1|valor_historial|default:'—' }}</div>{% endfor %}{% endif %}
       {% if b.accion == 'ADJUNTAR' %}<div class="text-muted">{{ b.cambios.archivo }}</div>{% endif %}
     </li>{% endfor %}</ul>
 </div>

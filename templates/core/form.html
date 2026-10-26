@@ -3,7 +3,8 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="page-title">{{ titulo }}</h1>
-  <a href="javascript:history.back()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+  <div class="d-flex gap-2">{% for url, icono, texto in enlaces %}<a href="{{ url }}" class="btn btn-sm btn-outline-primary"><i class="bi {{ icono }}"></i> {{ texto }}</a>{% endfor %}
+  <a href="#" data-volver class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a></div>
 </div>
 <div class="card" style="max-width: 900px">
   <div class="card-body">
@@ -20,7 +21,7 @@
       </div>
       <div class="mt-4 d-flex gap-2">
         <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
-        <a href="javascript:history.back()" class="btn btn-outline-secondary">Cancelar</a>
+        <a href="#" data-volver class="btn btn-outline-secondary">Cancelar</a>
       </div>
     </form>
   </div>

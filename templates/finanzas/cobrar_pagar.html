@@ -6,7 +6,7 @@
 <div class="card mb-3"><div class="card-body py-2">
   <form method="get" class="row g-2 align-items-center">
     <div class="col-auto"><label class="small">{{ cfg.etiqueta }}</label></div>
-    <div class="col-md-5"><select name="tercero" class="form-select form-select-sm" onchange="this.form.submit()" data-opciones="{% url 'opciones' fuente %}">
+    <div class="col-md-5"><select name="tercero" class="form-select form-select-sm" data-autoenvio data-opciones="{% url 'opciones' fuente %}">
       <option value="">— Seleccione —</option>
       {% if tercero %}<option value="{{ tercero.pk }}" selected>{{ tercero.numero_doc }} - {{ tercero.nombre }}</option>{% endif %}
     </select></div>
@@ -70,7 +70,7 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
   const total = () => {
     let t = 0; document.querySelectorAll('.js-monto').forEach(i => t += parseFloat(i.value) || 0);
     const el = document.getElementById('total-aplicar'); if (el) el.textContent = t.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});

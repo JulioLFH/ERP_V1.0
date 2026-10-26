@@ -10,7 +10,7 @@
   </form>
   {% if objeto.estado != 'CERRADA' and puede_registrar %}<form method="post" class="d-flex gap-2 mt-3 align-items-center">{% csrf_token %}<input type="hidden" name="accion" value="cerrar_nc">
     <select name="eficaz" class="form-select form-select-sm" style="width: auto"><option value="1">Tratamiento eficaz</option><option value="0">No eficaz</option></select>
-    <button class="btn btn-sm btn-success" onclick="return confirm('¿Cerrar la no conformidad?')"><i class="bi bi-check2-all"></i> Cerrar no conformidad</button></form>
+    <button class="btn btn-sm btn-success" data-confirm="¿Cerrar la no conformidad?"><i class="bi bi-check2-all"></i> Cerrar no conformidad</button></form>
   {% elif objeto.estado == 'CERRADA' %}<p class="small mt-3 mb-0">Cerrada el {{ objeto.fecha_cierre|date:'d/m/Y' }} · {% if objeto.eficaz %}tratamiento eficaz{% else %}tratamiento no eficaz{% endif %}.</p>{% endif %}
 </div></div>
 {% include 'calidad/_acciones.html' %}

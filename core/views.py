@@ -288,10 +288,11 @@ def consulta_bitacora(request, app=None, titulo='Bitácora de auditoría', volve
     if q:
         qs = qs.filter(Q(objeto__icontains=q) | Q(motivo__icontains=q) | Q(objeto_id=q))
     if f.get('formato') == 'excel':
+        from .auditoria import mostrar_valor as mv
         from .utils import excel_response
         filas = [[timezone.localtime(b.fecha).strftime('%d/%m/%Y %H:%M'),
                   b.usuario.username if b.usuario else 'Sistema', b.get_accion_display(), b.modelo_nombre, b.objeto,
-                  b.motivo, '; '.join(f'{k}: {v[0]} → {v[1]}' for k, v in b.cambios.items()
+                  b.motivo, '; '.join(f'{k}: {mv(v[0])} → {mv(v[1])}' for k, v in b.cambios.items()
                                       if isinstance(v, list) and len(v) == 2), b.ip] for b in qs[:20000]]
         return excel_response('Auditoria' if not prefijos else 'Log_de_modificaciones', titulo,
                               ['Fecha', 'Usuario', 'Acción', 'Tipo', 'Registro', 'Motivo', 'Cambios', 'IP'], filas)

@@ -6,10 +6,10 @@
   <form method="get" class="row g-2 align-items-center">
     <input type="hidden" name="tipo" value="{{ tipo }}">
     <div class="col-auto"><label class="small">{% if tipo == 'COBRAR' %}Cliente{% else %}Proveedor{% endif %}</label></div>
-    <div class="col-md-5"><select name="tercero" class="form-select form-select-sm" onchange="this.form.submit()" data-opciones="{% url 'opciones' fuente %}">
+    <div class="col-md-5"><select name="tercero" class="form-select form-select-sm" data-autoenvio data-opciones="{% url 'opciones' fuente %}">
       <option value="">— Seleccione —</option>{% if tercero %}<option value="{{ tercero.pk }}" selected>{{ tercero.numero_doc }} - {{ tercero.nombre }}</option>{% endif %}
     </select></div>
-    <div class="col-auto"><select name="moneda" class="form-select form-select-sm" onchange="this.form.submit()"><option value="PEN" {% if moneda == 'PEN' %}selected{% endif %}>Soles</option><option value="USD" {% if moneda == 'USD' %}selected{% endif %}>Dólares</option></select></div>
+    <div class="col-auto"><select name="moneda" class="form-select form-select-sm" data-autoenvio><option value="PEN" {% if moneda == 'PEN' %}selected{% endif %}>Soles</option><option value="USD" {% if moneda == 'USD' %}selected{% endif %}>Dólares</option></select></div>
   </form>
 </div></div>
 {% if tercero %}
@@ -49,7 +49,7 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (() => {
   const tb = document.getElementById('letras'); if (!tb) return;
   const suma = (sel) => [...document.querySelectorAll(sel)].reduce((t, i) => t + (parseFloat(i.value) || 0), 0);

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3 d-print-none">
   <a href="{% url 'flota:prestamos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Préstamos</a>
-  <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir acta</button>
+  <button data-imprimir class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir acta</button>
 </div>
 <div class="card doc-print mb-3"><div class="card-body">
   <div class="row align-items-center mb-3">

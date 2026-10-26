@@ -4,10 +4,10 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
   <h1 class="page-title"><i class="bi bi-graph-up-arrow"></i> Flujo de caja proyectado</h1>
   <form class="d-flex gap-2 align-items-center" method="get">
-    <select name="semanas" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+    <select name="semanas" class="form-select form-select-sm" style="width:auto" data-autoenvio>
       {% for n in opciones_semanas %}<option value="{{ n }}" {% if n == semanas_n %}selected{% endif %}>{{ n }} semanas</option>{% endfor %}
     </select>
-    <select name="moneda" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()" aria-label="Moneda">
+    <select name="moneda" class="form-select form-select-sm" style="width:auto" data-autoenvio aria-label="Moneda">
       <option value="">Todo en S/</option><option value="PEN"{% if moneda == 'PEN' %} selected{% endif %}>Solo soles</option><option value="USD"{% if moneda == 'USD' %} selected{% endif %}>Solo US$</option>
     </select>
     <a href="?semanas={{ semanas_n }}&moneda={{ moneda }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>

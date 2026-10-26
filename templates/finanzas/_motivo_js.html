@@ -1,4 +1,4 @@
-<script>
+<script nonce="{{ csp_nonce }}">
 // formularios que piden un motivo antes de enviarse (anular, rechazar…)
 document.querySelectorAll('form.js-motivo').forEach((f) => f.addEventListener('submit', (e) => {
   const motivo = prompt(f.dataset.pregunta || 'Motivo (mínimo 10 caracteres):');

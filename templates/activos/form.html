@@ -30,7 +30,7 @@
   <button class="btn btn-primary"><i class="bi bi-save"></i> Guardar</button>
 </form>
 {{ vidas|json_script:"vidas-data" }}
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   const vidas = JSON.parse(document.getElementById('vidas-data').textContent);
   const cat = document.getElementById('id_categoria'), vida = document.getElementById('id_vida_util_meses');

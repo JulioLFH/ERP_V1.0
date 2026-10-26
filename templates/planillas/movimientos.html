@@ -7,10 +7,10 @@
 </div>
 {% if por_aprobar %}<div class="alert alert-warning py-2 small">{{ por_aprobar|length }} movimiento(s) esperan su aprobación.</div>{% endif %}
 <div class="card">
-  <div class="card-body border-bottom py-2"><form method="get"><select name="estado" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="">Todos los estados</option>{% for v, t in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></form></div>
+  <div class="card-body border-bottom py-2"><form method="get"><select name="estado" class="form-select form-select-sm" style="width:auto" data-autoenvio><option value="">Todos los estados</option>{% for v, t in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></form></div>
   <div class="table-responsive"><table class="table table-hover mb-0">
     <thead><tr><th>Fecha efectiva</th><th>N°</th><th>Trabajador</th><th>Movimiento</th><th>Nuevo valor</th><th>Motivo</th><th>Estado</th></tr></thead>
-    <tbody>{% for m in movimientos %}<tr onclick="location.href='{% url 'planillas:movimiento' m.pk %}'" style="cursor:pointer">
+    <tbody>{% for m in movimientos %}<tr data-href="{% url 'planillas:movimiento' m.pk %}" style="cursor:pointer">
       <td>{{ m.fecha_efectiva|date:'d/m/Y' }}</td><td>{{ m.numero|default:'(borrador)' }}</td><td>{{ m.trabajador.nombre_completo }}</td><td>{{ m.get_tipo_display }}</td>
       <td class="small">{% if m.sueldo %}S/ {{ m.sueldo|money }} {% endif %}{% if m.puesto %}{{ m.puesto.nombre }} {% endif %}{% if m.centro_costo %}{{ m.centro_costo.codigo }}{% endif %}{% if m.tipo == 'CESE' %}{{ m.motivo_cese }}{% endif %}</td>
       <td class="small">{{ m.motivo|truncatechars:50 }}</td>

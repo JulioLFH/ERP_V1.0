@@ -21,6 +21,13 @@ def cant(valor, unidad=''):
 
 
 @register.filter
+def valor_historial(valor):
+    """INV-30: el historial no muestra detalles internos en crudo (también en registros antiguos guardados como texto)."""
+    from core.auditoria import mostrar_valor
+    return mostrar_valor(valor)
+
+
+@register.filter
 def campo_etiqueta(form, nombre):
     """Etiqueta de un campo del formulario (para listar sus errores)."""
     campo = getattr(form, 'fields', {}).get(nombre)

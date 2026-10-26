@@ -98,7 +98,7 @@
     <a href="{% url 'productos' %}" class="btn btn-outline-secondary">Cancelar</a>
   </div>
 </form>
-<script>
+<script nonce="{{ csp_nonce }}">
 // Activos fijos: son solo de compra, se muestra "Precio" (de compra) y no el precio de venta.
 // Servicios: sin datos de inventario.
 (function () {

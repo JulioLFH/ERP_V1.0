@@ -104,7 +104,8 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
-<script>window.ERP_TC_URL = "{% url 'tipo_cambio_api' %}"; window.ERP_PRODUCTO_URL = "{% url 'producto_datos' 0 %}";{% if user.is_authenticated %} window.ERP_LISTA_URL = "{% url 'lista_auto' %}"; window.ERP_SUGERENCIAS_URL = "{% url 'sugerencias' %}"; window.ERP_TERCERO_CREDITO_URL = "{% url 'tercero_credito' 0 %}";{% endif %}</script>
+<script nonce="{{ csp_nonce }}">window.ERP_TC_URL = "{% url 'tipo_cambio_api' %}"; window.ERP_PRODUCTO_URL = "{% url 'producto_datos' 0 %}";{% if user.is_authenticated %} window.ERP_LISTA_URL = "{% url 'lista_auto' %}"; window.ERP_SUGERENCIAS_URL = "{% url 'sugerencias' %}"; window.ERP_TERCERO_CREDITO_URL = "{% url 'tercero_credito' 0 %}";{% endif %}</script>
+<script src="{% static 'js/acciones.js' %}?v={{ erp_version }}"></script>
 <script src="{% static 'js/app.js' %}?v={{ erp_version }}"></script>
 {% block scripts %}{% endblock %}
 </body>

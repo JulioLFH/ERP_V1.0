@@ -523,6 +523,17 @@ document.querySelectorAll('form[data-confirm]').forEach((f) => {
 document.querySelectorAll('button[data-confirm]').forEach((b) => {
   b.addEventListener('click', (e) => { if (!confirm(b.dataset.confirm)) e.preventDefault(); });
 });
+// copiar al portapapeles el texto de otro elemento (enlaces para pegar en la página web, etc.)
+document.querySelectorAll('[data-copiar]').forEach((b) => {
+  b.addEventListener('click', () => {
+    const origen = document.querySelector(b.dataset.copiar);
+    if (!origen) return;
+    const texto = origen.value || origen.textContent.trim();
+    const listo = () => { const antes = b.innerHTML; b.textContent = 'Copiado'; setTimeout(() => { b.innerHTML = antes; }, 1500); };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(texto).then(listo);
+    else { const t = document.createElement('textarea'); t.value = texto; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); listo(); }
+  });
+});
 
 // aviso de carga: al abrir pantallas o enviar formularios (si el servidor tarda más de un instante) y bloqueo del
 // botón pulsado para no registrar dos veces lo mismo. Las descargas (Excel, PDF, plantillas) no lo muestran.
@@ -716,11 +727,16 @@ document.querySelectorAll('button[data-confirm]').forEach((b) => {
     }
     return div;
   }
+  // la barra se muestra de inmediato; las columnas ocultas y los filtros del usuario llegan después
+  const destino = tabla.closest('.table-responsive') || tabla;
+  let actual = barra();
+  destino.parentNode.insertBefore(actual, destino);
   fetch(`${window.ERP_LISTA_URL}?lista=${encodeURIComponent(clave)}`, { credentials: 'same-origin' })
     .then((r) => (r.ok ? r.json() : estado)).catch(() => estado).then((d) => {
       estado = { ocultas: d.ocultas || [], filtros: d.filtros || [] };
-      const destino = tabla.closest('.table-responsive') || tabla;
-      destino.parentNode.insertBefore(barra(), destino);
+      const nueva = barra();
+      actual.replaceWith(nueva);
+      actual = nueva;
       aplicar();
     });
 })();

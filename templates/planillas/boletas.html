@@ -1,4 +1,4 @@
-{% load erp_tags %}<!doctype html>
+{% load erp_tags static %}<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Boletas {{ planilla }}</title>
 <style>
@@ -15,7 +15,7 @@
   .barra { text-align: center; margin: 12px; } @media print { body { background: #fff; } .boleta { border: 0; margin: 0 auto; } .barra { display: none; } }
   @media (max-width: 600px) { .cols { grid-template-columns: 1fr; } .boleta { padding: 12px; } }
 </style></head><body>
-<div class="barra"><button onclick="window.print()">Imprimir / guardar PDF</button></div>
+<div class="barra"><button data-imprimir>Imprimir / guardar PDF</button></div>
 {% for f in filas %}{% with t=f.trabajador %}
 <div class="boleta">
   <h1>{{ empresa.razon_social }} · RUC {{ empresa.ruc }}</h1>
@@ -37,4 +37,4 @@
   <div class="firmas"><div>Empleador</div><div>Trabajador</div></div>
 </div>
 {% endwith %}{% endfor %}
-</body></html>
+<script src="{% static 'js/acciones.js' %}?v={{ erp_version }}"></script></body></html>

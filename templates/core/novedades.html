@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
   <h1 class="page-title"><i class="bi bi-stars"></i> Novedades por versión</h1>
   <form method="get" class="d-flex gap-2 align-items-center small"><label for="desde">Desde la versión</label>
-    <select id="desde" name="desde" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+    <select id="desde" name="desde" class="form-select form-select-sm" style="width:auto" data-autoenvio>
       {% for v in opciones %}<option value="{{ v }}" {% if desde == v %}selected{% endif %}>{{ v }}</option>{% endfor %}
     </select></form>
 </div>

@@ -1,4 +1,4 @@
-<script>
+<script nonce="{{ csp_nonce }}">
 // agregar filas a los detalles (botones .js-agregar con data-body y data-template)
 document.querySelectorAll('.js-agregar').forEach(btn => btn.addEventListener('click', () => {
   const body = document.getElementById(btn.dataset.body), prefix = body.dataset.prefix;

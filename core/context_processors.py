@@ -6,6 +6,11 @@ from .permisos import Permisos, rutas_sin_permiso
 from .politicas import nivel_pantalla, ocultas, ver_saldos, ver_sueldos
 
 
+def csp(request):
+    """SEG-09: nonce de la política de seguridad de contenido para los <script> propios de cada pantalla."""
+    return {'csp_nonce': getattr(request, 'csp_nonce', '')}
+
+
 def empresa(request):
     if not request.user.is_authenticated:
         return {'erp_version': settings.ERP_VERSION, 'erp_nombre': settings.ERP_NOMBRE,

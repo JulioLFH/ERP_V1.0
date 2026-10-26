@@ -99,7 +99,7 @@ button.sec{background:#e7f5f7;color:var(--c)}button.peq{padding:6px 10px;font-si
 </main>
 <div class="pie"><div><button class="ancho" id="guardar" type="button">Guardar gasto</button><button class="sec" id="sincronizar" type="button">Subir</button></div></div>
 {{ datos|json_script:"datos-app" }}
-<script>window.CSRF = '{{ csrf_token }}';</script>
+<script nonce="{{ csp_nonce }}">window.CSRF = '{{ csrf_token }}';</script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
 <script src="{% static 'js/rendicion_movil.js' %}?v={{ version }}" defer></script>
 </body></html>

@@ -56,7 +56,7 @@
 </div></div></div>
 {% endif %}
 </form>
-<script>
+<script nonce="{{ csp_nonce }}">
 document.querySelectorAll('.js-todo').forEach(t => t.addEventListener('change', () => {
   document.querySelectorAll('.' + t.dataset.grupo).forEach(c => { c.checked = t.checked; });
 }));

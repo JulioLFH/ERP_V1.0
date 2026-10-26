@@ -39,7 +39,7 @@
           {% if puede_editar and l.estado != 'RECHAZADA' %}<a href="#" class="d-block js-distribuir" data-linea="{{ l.pk }}" data-doc="{{ l.documento|default:l.glosa }}" data-reparto="{% for d in l.reparto %}{{ d.centro_costo_id }}:{{ d.porcentaje }}{% if not forloop.last %},{% endif %}{% endfor %}"><i class="bi bi-diagram-3"></i> {% if l.reparto %}cambiar{% else %}distribuir{% endif %}</a>{% endif %}{% if l.proyecto %}<br>{{ l.proyecto.codigo }}{% if l.sitio %} › {{ l.sitio.codigo }}{% endif %}{% endif %}{% if l.destino %}<br>→ {{ l.destino }}{% endif %}</td>
         <td class="num">{% if l.moneda != e.moneda %}<span class="small text-muted">{{ l.moneda }} {{ l.total|money }} × {{ l.tipo_cambio }}</span><br>{% endif %}{{ l.importe|money }}{% if l.tipo_comprobante == '01' %}<div class="small text-muted">IGV {{ l.igv|money }}</div>{% endif %}</td>
         <td class="small">{% for f in l.fotos %}<a href="{% url 'sustento_ver' f.pk %}" target="_blank" title="{{ f.archivo.nombre }}"><i class="bi bi-image"></i></a> {% empty %}<span class="text-muted">—</span>{% endfor %}
-          {% if puede_editar %}<form method="post" enctype="multipart/form-data" class="d-inline">{% csrf_token %}<input type="hidden" name="accion" value="foto"><input type="hidden" name="linea" value="{{ l.pk }}"><label class="btn btn-link btn-sm p-0" title="Agregar foto"><i class="bi bi-camera"></i><input type="file" name="fotos" accept="image/*,application/pdf" multiple hidden onchange="this.form.submit()"></label></form>{% endif %}</td>
+          {% if puede_editar %}<form method="post" enctype="multipart/form-data" class="d-inline">{% csrf_token %}<input type="hidden" name="accion" value="foto"><input type="hidden" name="linea" value="{{ l.pk }}"><label class="btn btn-link btn-sm p-0" title="Agregar foto"><i class="bi bi-camera"></i><input type="file" name="fotos" accept="image/*,application/pdf" multiple hidden data-autoenvio></label></form>{% endif %}</td>
         <td class="small"><span class="badge text-bg-light">{{ l.get_estado_display }}</span>{% if l.motivo %}<div class="text-danger fw-semibold">{{ l.motivo }}</div>{% endif %}{% if l.comentario %}<div class="text-danger">{{ l.comentario }}</div>{% endif %}</td>
         {% if puede_aprobar %}<td>{% if l.estado != 'RECHAZADA' %}<select name="decision_{{ l.pk }}" form="form-aprobar" class="form-select form-select-sm mb-1" data-sin-buscador><option value="APROBADA">Aprobar</option><option value="OBSERVADA">Observar</option><option value="RECHAZADA">Rechazar</option></select>
           <select name="motivo_{{ l.pk }}" form="form-aprobar" class="form-select form-select-sm mb-1" data-sin-buscador><option value="">Motivo (si observa o rechaza)</option>{% for m in motivos %}<option value="{{ m.pk }}">{{ m.nombre }}</option>{% endfor %}</select>
@@ -144,7 +144,7 @@
 {% include 'core/_bitacora.html' with objeto=r %}
 <a href="{% url 'rendiciones:lista' %}" class="btn btn-sm btn-link mt-2"><i class="bi bi-arrow-left"></i> Rendiciones</a>
 {{ sugerencias|json_script:"sugerencias-indicador" }}
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   // distribución de un gasto en varios centros de costo
   var formD = document.getElementById('form-distribuir');

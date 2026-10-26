@@ -69,7 +69,7 @@
 <p class="small text-muted mt-3">Mano de obra y equipos con cuadrilla: cantidad = cuadrilla × jornada / rendimiento. Herramientas manuales en unidad «%mo»: la cantidad es el porcentaje de la mano de obra. El precio de un recurso es uno solo para todo el presupuesto (Precios).</p>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
   (function () { const c = document.getElementById('precio-fijo'), caja = document.getElementById('caja-precio-fijo'); if (c && caja) c.addEventListener('change', () => { caja.hidden = !c.checked; }); })();
 </script>
 {% endblock %}

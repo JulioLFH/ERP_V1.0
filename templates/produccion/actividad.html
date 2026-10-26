@@ -19,4 +19,4 @@
   <a href="{% url 'costos:actividades' %}" class="btn btn-sm btn-link">Volver</a>
 </form>
 {% endblock %}
-{% block scripts %}<script>document.querySelectorAll('table input:not([type=checkbox])').forEach(i => i.classList.add('form-control', 'form-control-sm'));document.querySelectorAll('table select').forEach(i => i.classList.add('form-select', 'form-select-sm'));</script>{% endblock %}
+{% block scripts %}<script nonce="{{ csp_nonce }}">document.querySelectorAll('table input:not([type=checkbox])').forEach(i => i.classList.add('form-control', 'form-control-sm'));document.querySelectorAll('table select').forEach(i => i.classList.add('form-select', 'form-select-sm'));</script>{% endblock %}

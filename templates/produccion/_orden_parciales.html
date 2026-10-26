@@ -1,4 +1,4 @@
-{% load erp_tags %}
+{% load erp_tags static %}
 {# MAN-18 a MAN-21: declarar por turno, cierre técnico, liquidación y costos tardíos #}
 {% if puede_declarar %}
 <div class="card mb-3 border-primary" id="declarar"><div class="card-header"><i class="bi bi-box-arrow-in-down"></i> Declarar producción del turno</div>
@@ -10,7 +10,20 @@
     {% if o.producto.control == 'LOTE' %}<div class="col-md-3"><label class="form-label mb-1">Lote</label><input name="lote" maxlength="60" class="form-control form-control-sm" placeholder="Vacío = {{ o.numero }}-{{ declaraciones|length|add:1 }}"></div>
     <div class="col-md-3"><label class="form-label mb-1">Fabricación</label><input type="date" name="fabricacion" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
     <div class="col-md-3"><label class="form-label mb-1">Vencimiento</label><input type="date" name="vencimiento" class="form-control form-control-sm"><div class="form-text">Vacío = fabricación + vida útil</div></div>{% endif %}
-    {% for h in horas %}<div class="col-md-3"><label class="form-label mb-1">H. máquina · {{ h.centro }}</label><input name="dhora_{{ h.pk }}" class="form-control form-control-sm text-end" inputmode="decimal" placeholder="{{ h.horas_saldo|floatformat:2 }}"><div class="form-text">Vacío = las de la ruta para lo declarado</div></div>{% endfor %}
+    {% if filas_cargo %}
+    <div class="col-12">
+      {% for h in horas %}<input type="hidden" name="cargo-op-{{ h.pk }}" value="1">{% endfor %}
+      <label class="form-label mb-1">Horas y drivers del turno <span class="text-muted">(propuesta: la ruta × la cantidad declarada; cámbiela con lo real)</span></label>
+      <div class="table-responsive"><table class="table table-sm align-middle mb-1 js-cargos" data-siguiente="{{ filas_cargo|length }}">
+        <thead><tr><th>Operación</th><th>Driver</th><th class="num" style="width:110px">Cantidad</th><th>Unidad</th><th>Trabajador o rol (horas hombre)</th><th class="num" style="width:120px">Tarifa S/</th>{% if ver_costos %}<th class="num">Importe S/</th>{% endif %}<th></th></tr></thead>
+        <tbody>{% for f in filas_cargo %}{% include 'produccion/_fila_cargo.html' with i=f.indice %}{% endfor %}</tbody>
+      </table></div>
+      <template id="fila-cargo">{% include 'produccion/_fila_cargo.html' with i='__N__' f=None %}</template>
+      <button type="button" class="btn btn-sm btn-outline-secondary js-agregar-cargo"><i class="bi bi-plus-lg"></i> Agregar fila</button>
+      <script src="{% static 'js/declaracion.js' %}?v={{ erp_version }}" defer></script>
+      <span class="form-text ms-2">Varios trabajadores o roles: una fila de horas hombre por persona. El CIF por hora máquina del puesto se suma solo. {% if not puede.manufactura_editar_tarifas %}La tarifa la propone el puesto o el trabajador.{% endif %}</span>
+    </div>
+    {% else %}{% for h in horas %}<div class="col-md-3"><label class="form-label mb-1">H. máquina · {{ h.centro }}</label><input name="dhora_{{ h.pk }}" class="form-control form-control-sm text-end" inputmode="decimal" placeholder="{{ h.horas_saldo|floatformat:2 }}"><div class="form-text">Vacío = las de la ruta para lo declarado</div></div>{% endfor %}{% endif %}
     <div class="col-md-6"><label class="form-label mb-1">Nota</label><input name="nota" maxlength="250" class="form-control form-control-sm" placeholder="Turno, línea, observaciones"></div>
     {% if puede.manufactura_aprobar_consumo %}<div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="autorizar" value="1" id="autorizar"><label class="form-check-label" for="autorizar">Autorizo producir por encima de lo programado más la tolerancia</label></div></div>{% endif %}
     <div class="col-md-3"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-box-arrow-in-down"></i> Declarar</button></div>
@@ -35,8 +48,9 @@
 <div class="card mb-3"><div class="card-body small row g-2">
   <div class="col-md-3"><div class="text-muted">Cargado a la orden</div><b>S/ {{ acumulado.real|money }}</b><div class="text-muted">Mat. {{ acumulado.materiales|money }} · MO {{ acumulado.mo|money }} · Máq. {{ acumulado.maquina|money }} · CIF {{ acumulado.cif|money }}</div></div>
   <div class="col-md-3"><div class="text-muted">Declarado al estándar</div><b>S/ {{ acumulado.estandar|money }}</b></div>
-  <div class="col-md-3"><div class="text-muted">Diferencia (variación o en proceso)</div><b class="{% if acumulado.variacion > 0 %}text-danger{% else %}text-success{% endif %}">S/ {{ acumulado.variacion|money }}</b></div>
-  <div class="col-md-3 text-muted">A fin de mes lo cargado y no declarado queda como productos en proceso (23) y se revierte el mes siguiente.</div>
+  {% if acumulado.variacion >= 0 %}<div class="col-md-3"><div class="text-muted">Cargado y aún no declarado</div><b class="{% if acumulado.variacion > 0 %}text-danger{% endif %}">S/ {{ acumulado.variacion|money }}</b><div class="text-muted">En proceso a fin de mes; al liquidar, lo que quede es variación desfavorable.</div></div>
+  {% else %}<div class="col-md-3"><div class="text-muted">Variación favorable</div><b class="text-success">S/ {{ acumulado.variacion|money }}</b><div class="text-muted">Lo declarado al estándar supera lo cargado: no hay productos en proceso; al liquidar baja el costo de los lotes.</div></div>{% endif %}
+  <div class="col-md-3 text-muted">A fin de mes solo lo cargado y no declarado (si es positivo) queda como productos en proceso (23) y se revierte el mes siguiente.</div>
 </div></div>
 {% endif %}
 {% if o.estado == 'PARCIAL' and puede.manufactura_ordenes %}
@@ -48,7 +62,7 @@
     <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="devolver" value="1" id="devolver" checked><label class="form-check-label" for="devolver">Devolver al almacén el material entregado y no usado (si no, queda como merma en el costo)</label></div><input type="hidden" name="devolver" value="0" disabled id="devolver-no"></div>
     <div class="col-md-3"><button class="btn btn-sm btn-warning w-100"><i class="bi bi-lock"></i> Cerrar técnicamente</button></div>
   </form>
-  <script>document.getElementById('devolver').addEventListener('change', e => { document.getElementById('devolver-no').disabled = e.target.checked; });</script>
+  <script nonce="{{ csp_nonce }}">document.getElementById('devolver').addEventListener('change', e => { document.getElementById('devolver-no').disabled = e.target.checked; });</script>
 </div>
 {% endif %}
 {% if o.estado == 'CERRADA_TEC' %}
@@ -73,11 +87,13 @@
   </table></div>{% endif %}
   {% if puede.manufactura_ordenes %}
   <form method="post" action="{% url 'manufactura:orden_costo_tardio' o.pk %}" class="card-body row g-2 align-items-end small border-top">{% csrf_token %}
-    <div class="col-md-2"><label class="form-label mb-1">Tipo</label><select name="tipo" class="form-select form-select-sm">{% for v, t in tipos_tardio %}<option value="{{ v }}">{{ t }}</option>{% endfor %}</select></div>
-    <div class="col-md-3"><label class="form-label mb-1">Trabajador (horas hombre)</label><select name="trabajador" class="form-select form-select-sm"><option value="">—</option>{% for t in trabajadores_tardio %}<option value="{{ t.pk }}">{{ t.nombre_completo }}</option>{% endfor %}</select></div>
-    <div class="col-md-2"><label class="form-label mb-1">Puesto</label><select name="centro" class="form-select form-select-sm"><option value="">—</option>{% for p in puestos %}<option value="{{ p.pk }}">{{ p }}</option>{% endfor %}</select></div>
-    <div class="col-md-1"><label class="form-label mb-1">Horas</label><input name="horas" class="form-control form-control-sm text-end" inputmode="decimal"></div>
-    <div class="col-md-2"><label class="form-label mb-1">o importe S/</label><input name="importe" class="form-control form-control-sm text-end" inputmode="decimal"></div>
+    <div class="col-12"><div class="table-responsive"><table class="table table-sm align-middle mb-1">
+      <thead><tr><th>Tipo</th><th>Trabajador (horas hombre)</th><th>Puesto</th><th class="num" style="width:100px">Horas</th><th class="num" style="width:120px">o importe S/</th><th></th></tr></thead>
+      <tbody id="filas-tardio" data-siguiente="2">{% for i in '01' %}{% include 'produccion/_fila_tardio.html' %}{% endfor %}</tbody>
+    </table></div>
+    <template id="fila-tardio">{% include 'produccion/_fila_tardio.html' with i='__N__' %}</template>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-agregar-fila="#fila-tardio" data-destino="#filas-tardio"><i class="bi bi-plus-lg"></i> Agregar fila</button>
+    <span class="form-text ms-2">Varias horas o costos del mismo motivo en un solo registro; las filas vacías no se guardan.</span></div>
     <div class="col-md-2"><label class="form-label mb-1">Fecha contable</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" max="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
     {% if o.estado == 'TERMINADA' %}<div class="col-md-4"><label class="form-label mb-1">A otra orden abierta del producto</label><select name="orden_destino" class="form-select form-select-sm"><option value="">— ninguna: gasto del periodo —</option>{% for x in otras_ordenes %}<option value="{{ x.pk }}">{{ x.numero }} ({{ x.get_estado_display }})</option>{% endfor %}</select></div>{% endif %}
     <div class="col-md-6"><label class="form-label mb-1">Motivo <span class="text-danger">*</span></label><input name="motivo" minlength="10" maxlength="250" required class="form-control form-control-sm" placeholder="Ej. Parte de horas del turno noche que no se registró"></div>

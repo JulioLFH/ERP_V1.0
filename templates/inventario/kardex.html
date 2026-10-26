@@ -9,7 +9,7 @@
 <div class="card mb-3"><div class="card-body py-2">
   <form class="row g-2 align-items-end" method="get">
     <div class="col-md-4"><label class="form-label small mb-1">Producto</label>
-      <select name="producto" class="form-select form-select-sm" data-buscable aria-label="Producto" onchange="this.form.submit()"><option value="">— Seleccione —</option>
+      <select name="producto" class="form-select form-select-sm" data-buscable aria-label="Producto" data-autoenvio><option value="">— Seleccione —</option>
         {% for p in productos %}<option value="{{ p.pk }}" {% if producto and producto.pk == p.pk %}selected{% endif %}>{{ p.codigo }} - {{ p.nombre }}</option>{% endfor %}</select></div>
     <div class="col-md-2"><label class="form-label small mb-1">Almacén</label>
       <select name="almacen" class="form-select form-select-sm"><option value="">Todos</option>

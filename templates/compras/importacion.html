@@ -55,7 +55,7 @@
   </div>
   <div class="col-lg-6">
     <div class="card"><div class="card-header d-flex justify-content-between align-items-center">Prorrateo
-      {% if not ajustes and puede.compras_registrar %}<form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="accion" value="metodo"><select name="metodo" class="form-select form-select-sm" onchange="this.form.submit()">{% for v, n in metodos %}<option value="{{ v }}" {% if v == imp.metodo %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></form>{% else %}<span class="small">{{ imp.get_metodo_display }}</span>{% endif %}</div>
+      {% if not ajustes and puede.compras_registrar %}<form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="accion" value="metodo"><select name="metodo" class="form-select form-select-sm" data-autoenvio>{% for v, n in metodos %}<option value="{{ v }}" {% if v == imp.metodo %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></form>{% else %}<span class="small">{{ imp.get_metodo_display }}</span>{% endif %}</div>
       {% if error %}<div class="alert alert-warning m-2 py-2 small">{{ error }}</div>{% endif %}
       <div class="table-responsive"><table class="table table-sm mb-0 align-middle small">
         <thead><tr><th>Producto</th><th class="num">Cantidad</th><th class="num">FOB S/</th><th class="num">Peso kg</th><th class="num">Gasto asignado</th><th class="num">+ por unidad</th></tr></thead>

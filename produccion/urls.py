@@ -113,4 +113,5 @@ urlpatterns = [
     path('motivos-parada/<int:pk>/editar/', views.MotivoEditar.as_view(), name='motivo_parada_editar'),
     path('puestos/nuevo/', views.CentroNuevo.as_view(), name='centro_nuevo'),
     path('puestos/<int:pk>/editar/', views.CentroEditar.as_view(), name='centro_editar'),
+    path('puestos/<int:pk>/drivers/', views.centro_drivers, name='centro_drivers'),
 ]

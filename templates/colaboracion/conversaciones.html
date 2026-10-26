@@ -44,7 +44,7 @@
 </div>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (() => {
   const caja = document.getElementById('mensajes');
   if (!caja) return;

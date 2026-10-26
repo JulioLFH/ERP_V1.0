@@ -19,6 +19,6 @@
     </div>
   </div>
   {% if lista_agrupaciones %}<form method="get" class="d-flex gap-1">{% for k, v in request.GET.items %}{% if k != 'agrupar' and k != 'page' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
-    <select name="agrupar" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Sin agrupar</option>{% for v, t in lista_agrupaciones %}<option value="{{ v }}" {% if agrupar == v %}selected{% endif %}>Agrupar por {{ t|lower }}</option>{% endfor %}</select></form>{% endif %}
+    <select name="agrupar" class="form-select form-select-sm" data-autoenvio><option value="">Sin agrupar</option>{% for v, t in lista_agrupaciones %}<option value="{{ v }}" {% if agrupar == v %}selected{% endif %}>Agrupar por {{ t|lower }}</option>{% endfor %}</select></form>{% endif %}
   <a href="?{{ lista_query }}{% if lista_query %}&{% endif %}formato=excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel lo que se ve"><i class="bi bi-file-earmark-excel"></i></a>
 </div>

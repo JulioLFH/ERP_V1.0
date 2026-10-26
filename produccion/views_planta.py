@@ -74,6 +74,10 @@ def inspeccion(request, pk):
                 cf.reabrir(insp, request.user, request.POST.get('motivo', ''), request.POST.get('clave', ''),
                            ip_de(request))
                 messages.success(request, f'{insp} reabierta: corrija y vuelva a decidir.')
+            elif request.POST.get('accion') == 'liberar':  # CAL-13
+                cert = cf.liberar_desde_inspeccion(insp, request.user, request.POST.get('clave', ''),
+                                                   request.POST.get('comentario', '').strip(), ip_de(request))
+                messages.success(request, f'Lote {cert.lote.codigo} liberado por QA con {cert}.')
             else:
                 valores = {}
                 for r in insp.resultados.all():
@@ -98,7 +102,8 @@ def inspeccion(request, pk):
         'decidida': insp.resultado in cf.DECIDIDAS or cf.certificado_liberado(insp),
         'registrado': insp.resultados.exclude(valor__isnull=True, texto='').exists(),
         'cambios': CambioResultado.objects.filter(resultado__inspeccion=insp).select_related('resultado', 'usuario'),
-        'oos': insp.oos.all()})
+        'oos': insp.oos.all(), 'por_liberar': cf.liberable(insp), 'lote': cf.lote_de(insp),
+        'liberacion': insp.certificados.filter(estado='APROBADO').select_related('aprobado_por').first()})
 
 
 @login_required

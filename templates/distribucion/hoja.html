@@ -47,7 +47,7 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}{% if activa and programar %}
-<script>
+<script nonce="{{ csp_nonce }}">
 document.querySelectorAll('.js-subir').forEach(b => b.addEventListener('click', () => {
   const fila = b.closest('tr'), anterior = fila.previousElementSibling;
   if (!anterior) return;

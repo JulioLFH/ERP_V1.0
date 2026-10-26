@@ -7,7 +7,7 @@
 </div>
 <p class="small text-muted mb-3">Precios pactados con un proveedor por un periodo, con cantidades o monto máximos. Cada orden de compra emitida contra el contrato toma sus precios y descuenta su saldo; no se aprueba si los supera.</p>
 <div class="card">
-  <div class="card-body border-bottom py-2"><form class="d-flex gap-2" method="get"><select name="estado" class="form-select form-select-sm w-auto" onchange="this.form.submit()"><option value="">Todos</option>{% for v, n in estados %}<option value="{{ v }}" {% if estado == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></form></div>
+  <div class="card-body border-bottom py-2"><form class="d-flex gap-2" method="get"><select name="estado" class="form-select form-select-sm w-auto" data-autoenvio><option value="">Todos</option>{% for v, n in estados %}<option value="{{ v }}" {% if estado == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></form></div>
   <div class="table-responsive"><table class="table table-sm table-hover mb-0">
     <thead><tr><th>N°</th><th>Proveedor</th><th>Descripción</th><th>Vigencia</th><th class="num">Monto máximo</th><th>Estado</th></tr></thead>
     <tbody>{% for c in contratos %}<tr><td><a href="{% url 'compras:contrato' c.pk %}">{{ c.numero }}</a></td><td>{{ c.proveedor.nombre }}</td><td>{{ c.descripcion }}</td><td class="small">{{ c.fecha_inicio|date:'d/m/Y' }} – {{ c.fecha_fin|date:'d/m/Y' }}</td>

@@ -18,7 +18,7 @@
   <div class="table-responsive"><table class="table table-hover table-sm mb-0">
     <thead><tr><th>Orden</th><th>Término</th><th>Producto</th><th class="num">Producido</th><th class="num">Rend. %</th><th class="num">Costo real</th><th class="num">Estándar</th><th class="num">Variación</th>
       {% for t, nombre in tipos %}<th class="num small" title="{{ nombre }}">{{ nombre|truncatewords:2 }}</th>{% endfor %}</tr></thead>
-    <tbody>{% for f in filas %}<tr onclick="location.href='{% url 'manufactura:orden' f.o.pk %}'" style="cursor:pointer">
+    <tbody>{% for f in filas %}<tr data-href="{% url 'manufactura:orden' f.o.pk %}" style="cursor:pointer">
       <td>{{ f.o.numero }}{% if f.provisional %} <i class="bi bi-exclamation-circle text-warning" title="Estándar provisional (no había estándar liberado)"></i>{% endif %}</td><td>{{ f.o.fecha_fin|date:'d/m/Y' }}</td><td>{{ f.o.producto.nombre }}</td>
       <td class="num">{{ f.o.cantidad_producida|money }}</td><td class="num">{{ f.rendimiento|default_if_none:'' }}</td>
       <td class="num fw-semibold">{{ f.real|money }}</td><td class="num">{{ f.estandar|money }}</td>

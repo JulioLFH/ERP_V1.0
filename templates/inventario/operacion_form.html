@@ -59,7 +59,7 @@
 </form>
 {{ productos|json_script:"productos-data" }}
 {% if not op.pk %}
-<script>
+<script nonce="{{ csp_nonce }}">
 // al elegir el documento de origen se recarga con sus cantidades pendientes
 (function () {
   const params = {orden_compra: 'oc', compra: 'compra', venta: 'venta', envio: 'envio'};

@@ -58,19 +58,19 @@
       <div class="form-text">Las arras cobradas pasan a ser parte del precio: se emite su comprobante y se aplican.</div></div></div>{% endif %}
     {% if v.estado == 'VENDIDA' %}<div class="card mb-3"><div class="card-body">
       <form method="post" class="d-flex gap-2 align-items-end">{% csrf_token %}<div class="flex-grow-1"><label class="form-label small">Fecha de entrega</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
-        <button name="accion" value="entregar" class="btn btn-sm btn-success" {% if v.saldo %}disabled title="Falta cobrar S/ {{ v.saldo|money }}"{% endif %} onclick="return confirm('¿Entregar las unidades? Se reconoce el ingreso y el costo de la venta.')"><i class="bi bi-key"></i> Entregar</button></form>
+        <button name="accion" value="entregar" class="btn btn-sm btn-success" {% if v.saldo %}disabled title="Falta cobrar S/ {{ v.saldo|money }}"{% endif %} data-confirm="¿Entregar las unidades? Se reconoce el ingreso y el costo de la venta."><i class="bi bi-key"></i> Entregar</button></form>
       {% if v.saldo %}<div class="form-text">Se entrega pagada (incluido el desembolso del banco).</div>{% endif %}</div></div>{% endif %}
     {% if v.estado == 'SEPARADA' or v.estado == 'VENDIDA' %}
       {% if cobrado %}<div class="card border-danger-subtle"><div class="card-header fw-semibold small">Desistimiento del comprador</div><div class="card-body">
         <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="desistir">
           {% for e in desistimiento.non_field_errors %}<div class="col-12"><div class="alert alert-danger py-1 small mb-0">{{ e }}</div></div>{% endfor %}
           {% for field in desistimiento %}<div class="{% if field.name == 'motivo' %}col-12{% else %}col-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
-          <div class="col-12"><button class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Registrar el desistimiento? Se emiten las notas de crédito de lo que se devuelve y las unidades vuelven a estar disponibles.')"><i class="bi bi-arrow-counterclockwise"></i> Registrar desistimiento</button></div>
+          <div class="col-12"><button class="btn btn-sm btn-outline-danger" data-confirm="¿Registrar el desistimiento? Se emiten las notas de crédito de lo que se devuelve y las unidades vuelven a estar disponibles."><i class="bi bi-arrow-counterclockwise"></i> Registrar desistimiento</button></div>
         </form>
         <div class="form-text">Cobrado: S/ {{ cobrado|money }}. Se devuelve lo cobrado menos la penalidad (primero se retienen las arras) con nota de crédito de los anticipos; la penalidad no lleva IGV adicional.</div></div></div>
       {% else %}<div class="card"><div class="card-body">
         <form method="post" class="d-flex gap-2 align-items-end">{% csrf_token %}<div class="flex-grow-1"><label class="form-label small">Motivo de anulación</label><input name="motivo" maxlength="200" class="form-control form-control-sm" placeholder="Separación vencida…"></div>
-          <button name="accion" value="anular" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Anular la venta? Las unidades vuelven a estar disponibles.')"><i class="bi bi-x-circle"></i> Anular</button></form></div></div>{% endif %}
+          <button name="accion" value="anular" class="btn btn-sm btn-outline-danger" data-confirm="¿Anular la venta? Las unidades vuelven a estar disponibles."><i class="bi bi-x-circle"></i> Anular</button></form></div></div>{% endif %}
     {% endif %}
     {% endif %}
   </div>

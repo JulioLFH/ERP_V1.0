@@ -194,6 +194,28 @@ class OperacionItemForm(forms.ModelForm):
             raise forms.ValidationError('El costo no puede ser negativo (vacío = el costo promedio).')
         return costo or None
 
+    def clean(self):
+        datos = super().clean()
+        validar_unidad_y_lote(self, datos.get('producto'), datos.get('cantidad'), datos.get('lote'))
+        return datos
+
+
+# INV-33: unidades que no se fraccionan y largo de cada código de lote o serie
+UNIDADES_ENTERAS = {'NIU', 'UND', 'C62', 'SET', 'PR'}
+LARGO_LOTE = 30
+
+
+def validar_unidad_y_lote(form, producto, cantidad, lote, campo_cantidad='cantidad', campo_lote='lote'):
+    if producto is None:
+        return
+    if (cantidad is not None and (producto.unidad or '').upper() in UNIDADES_ENTERAS
+            and cantidad != cantidad.to_integral_value()):
+        form.add_error(campo_cantidad, f'{producto.get_unidad_display()}: la cantidad va en números enteros.')
+    largos = [c for c in (lote or '').replace(';', ',').split(',') if len(c.strip()) > LARGO_LOTE]
+    if largos:
+        form.add_error(campo_lote, f'Cada lote o serie tiene hasta {LARGO_LOTE} caracteres '
+                                   f'(«{largos[0].strip()[:12]}…» tiene {len(largos[0].strip())}).')
+
 
 def operacion_formset(extra=1):
     return inlineformset_factory(Operacion, OperacionItem, form=OperacionItemForm, extra=extra, can_delete=True,

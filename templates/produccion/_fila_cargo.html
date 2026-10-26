@@ -1,0 +1,13 @@
+{% load erp_tags %}<tr class="js-fila-cargo" data-por-unidad="{% if f %}{{ f.por_unidad|stringformat:'s' }}{% endif %}">
+  <td><select name="cargo-{{ i }}-hora" class="form-select form-select-sm js-hora">{% for h in horas %}<option value="{{ h.pk }}" {% if f and f.hora.pk == h.pk %}selected{% endif %}>{{ h.centro }}{% if h.descripcion %} · {{ h.descripcion|truncatechars:30 }}{% endif %}</option>{% endfor %}</select></td>
+  <td><select name="cargo-{{ i }}-tipo" class="form-select form-select-sm js-tipo">{% for v, n, h, u, t in opciones_cargo %}<option value="{{ v }}" data-hora="{{ h.pk }}" data-unidad="{{ u }}"{% if ver_costos %} data-tarifa="{{ t|stringformat:'s' }}"{% endif %}{% if f and f.tipo == v and f.hora.pk == h.pk %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></td>
+  <td><input name="cargo-{{ i }}-cantidad" value="{% if f %}{{ f.cantidad|editable }}{% endif %}" class="form-control form-control-sm text-end js-cantidad" inputmode="decimal"></td>
+  <td class="small js-unidad">{% if f %}{{ f.unidad }}{% else %}h{% endif %}</td>
+  <td><div class="d-flex gap-1 js-persona">
+    <select name="cargo-{{ i }}-rol" class="form-select form-select-sm" style="max-width:140px">{% for v, n in roles_cargo %}<option value="{{ v }}"{% if f.rol == v %} selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+    <select name="cargo-{{ i }}-trabajador" class="form-select form-select-sm js-trabajador"><option value="">— sin asignar (tarifa del puesto) —</option>{% for t in trabajadores_decl %}<option value="{{ t.pk }}">{{ t.nombre_completo }}</option>{% endfor %}</select>
+  </div></td>
+  <td><input name="cargo-{{ i }}-tarifa" class="form-control form-control-sm text-end js-tarifa" inputmode="decimal"{% if not puede.manufactura_editar_tarifas %} readonly tabindex="-1"{% endif %} placeholder="{% if ver_costos and f %}{{ f.tarifa_ref|money }}{% endif %}"></td>
+  {% if ver_costos %}<td class="num small js-importe"></td>{% endif %}
+  <td><button type="button" class="btn btn-sm btn-link text-danger p-0 js-quitar-cargo" title="Quitar la fila">&times;</button></td>
+</tr>

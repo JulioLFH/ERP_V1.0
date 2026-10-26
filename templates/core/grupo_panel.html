@@ -80,11 +80,11 @@
 {% endblock %}
 {% block scripts %}
 {% load static %}{% if puede_crear %}<script src="{% static 'js/consulta_ruc.js' %}?v={{ erp_version }}"></script>
-<script>
+<script nonce="{{ csp_nonce }}">
   consultaRuc({url: '{% url "consulta_ruc" %}', ruc: 'nueva_ruc', nombre: 'nueva_razon', direccion: 'nueva_direccion',
                ubigeo: 'nueva_ubigeo', contexto: 'empresa'});
 </script>{% endif %}
-{% if creando %}<script>
+{% if creando %}<script nonce="{{ csp_nonce }}">
   const revisar = () => fetch("{% url 'grupo_estado' %}").then(r => r.json()).then(d => {
     if (!Object.values(d).some(e => e.estado === 'CREANDO')) { window.location.reload(); } else { setTimeout(revisar, 4000); }
   }).catch(() => setTimeout(revisar, 8000));

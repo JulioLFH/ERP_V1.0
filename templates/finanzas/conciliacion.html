@@ -7,10 +7,10 @@
   <div class="card mb-3"><div class="card-body">
     <div class="row g-2 align-items-end">
       <div class="col-md-4"><label class="form-label small mb-1">Cuenta</label>
-        <select name="cuenta" class="form-select form-select-sm" onchange="location='?cuenta='+this.value+'&hasta={{ hasta }}'">{% for c in cuentas %}<option value="{{ c.pk }}" {% if cuenta and c.pk == cuenta.pk %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+        <select name="cuenta" class="form-select form-select-sm" data-ir-con="cuenta,hasta">{% for c in cuentas %}<option value="{{ c.pk }}" {% if cuenta and c.pk == cuenta.pk %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
       <div class="col-md-2"><label class="form-label small mb-1">Corte al</label><input type="date" name="hasta" value="{{ hasta }}" class="form-control form-control-sm"></div>
       <div class="col-md-3"><label class="form-label small mb-1">Saldo según estado de cuenta</label><input type="number" step="0.01" name="saldo_banco" value="{{ saldo_banco }}" class="form-control form-control-sm text-end"></div>
-      <div class="col-auto"><button type="button" class="btn btn-sm btn-outline-secondary" onclick="location='?cuenta={{ cuenta.pk }}&hasta='+this.form.hasta.value+'&saldo_banco='+this.form.saldo_banco.value">Actualizar</button></div>
+      <div class="col-auto"><button type="button" class="btn btn-sm btn-outline-secondary" data-ir-con="cuenta,hasta,saldo_banco">Actualizar</button></div>
     </div>
   </div></div>
 
@@ -26,7 +26,7 @@
       <span>Marque los movimientos que figuran en el estado de cuenta</span>
       <button class="btn btn-sm btn-primary"><i class="bi bi-check2-all"></i> Guardar conciliación</button></div>
     <div class="table-responsive"><table class="table table-sm table-hover mb-0">
-      <thead><tr><th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('.js-mov').forEach(c=>c.checked=this.checked)"></th><th>Fecha</th><th>Voucher</th><th>Concepto / glosa</th><th>N° op.</th><th class="num">Ingreso</th><th class="num">Egreso</th></tr></thead>
+      <thead><tr><th><input type="checkbox" class="form-check-input" data-marcar-todos=".js-mov"></th><th>Fecha</th><th>Voucher</th><th>Concepto / glosa</th><th>N° op.</th><th class="num">Ingreso</th><th class="num">Egreso</th></tr></thead>
       <tbody>
       {% for m in movs %}
         <tr><td><input type="checkbox" class="form-check-input js-mov" name="mov" value="{{ m.pk }}" {% if m.conciliado %}checked{% endif %}></td>

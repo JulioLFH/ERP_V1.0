@@ -18,7 +18,7 @@
   <div class="col-lg-8">{% if cifra %}
     <div class="card"><div class="card-header py-2 d-flex flex-wrap gap-2 justify-content-between align-items-center small">
       <span class="fw-semibold">{{ cifra }} · {{ periodo|slice:'4:' }}/{{ periodo|slice:':4' }}</span>
-      <form method="get" class="d-flex gap-2"><input type="hidden" name="cifra" value="{{ cifra.pk }}"><input type="month" name="mes" value="{{ mes }}" class="form-control form-control-sm" onchange="this.form.submit()"></form></div>
+      <form method="get" class="d-flex gap-2"><input type="hidden" name="cifra" value="{{ cifra.pk }}"><input type="month" name="mes" value="{{ mes }}" class="form-control form-control-sm" data-autoenvio></form></div>
       <form method="post">{% csrf_token %}<input type="hidden" name="cifra" value="{{ cifra.pk }}"><input type="hidden" name="periodo" value="{{ periodo }}">
       <div class="table-responsive" style="max-height:60vh"><table class="table table-sm mb-0 small align-middle">
         <thead><tr><th>Centro</th><th>Tipo</th><th class="num" style="width:170px">Valor {% if cifra.unidad %}({{ cifra.unidad }}){% endif %}</th><th>Vigente desde</th></tr></thead>

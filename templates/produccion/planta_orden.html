@@ -36,7 +36,7 @@
       <button type="button" class="btn btn-outline-secondary" id="pp-agregar"><i class="bi bi-person-plus"></i> Agregar trabajador</button>
       <div class="small text-muted mt-1">Se precargan como la cuadrilla real al terminar la orden; cada uno se valoriza al costo real de su hora.</div>
     </div>
-    <script>
+    <script nonce="{{ csp_nonce }}">
     document.getElementById('pp-agregar').addEventListener('click', () => {
       const cont = document.getElementById('pp-filas'), n = cont.querySelectorAll('.pp-fila').length;
       const fila = cont.querySelector('.pp-fila').cloneNode(true);
@@ -61,7 +61,7 @@
     <div class="col-6 col-md-1"><label class="form-label">Minutos</label><input name="minutos" class="form-control form-control-lg text-end" inputmode="numeric" required></div>
     <div class="col-6 col-md-1 d-flex align-items-end"><button class="btn btn-lg btn-warning w-100">Registrar</button></div>
     <div class="col-12 small text-muted">La parada termina ahora y empieza los minutos indicados antes. Solo aparecen los motivos del puesto; los que exigen equipo (averías) piden elegirlo si el puesto tiene varios. Las averías proponen una orden de mantenimiento.</div>
-    <script>
+    <script nonce="{{ csp_nonce }}">
     (function () {
       const hora = document.getElementById('parada-hora'), motivo = document.getElementById('parada-motivo');
       const equipo = document.getElementById('parada-equipo');

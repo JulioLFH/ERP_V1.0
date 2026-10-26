@@ -19,7 +19,7 @@
   {% empty %}<div class="alert alert-success">No queda nada por {% if recontar %}recontar{% else %}contar{% endif %}.</div>{% endfor %}
   {% if pendientes %}<button class="btn btn-primary btn-lg w-100 mb-3"><i class="bi bi-save"></i> Guardar lo contado</button>{% endif %}
 </form>
-<script>
+<script nonce="{{ csp_nonce }}">
 document.getElementById('buscar').addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
   e.preventDefault();

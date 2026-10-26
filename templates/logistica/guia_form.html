@@ -85,7 +85,7 @@
 </form>
 {{ productos|json_script:"productos-data" }}
 {{ productos_peso|json_script:"pesos-data" }}
-<script>
+<script nonce="{{ csp_nonce }}">
 // peso bruto = Σ cantidad × peso por unidad de cada producto (si los productos tienen peso registrado)
 (function () {
   const pesos = JSON.parse(document.getElementById('pesos-data').textContent);

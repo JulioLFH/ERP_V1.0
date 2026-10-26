@@ -12,7 +12,7 @@
       <div class="col-6 col-md-2"><label class="form-label small mb-0">Cantidad</label><input name="cantidad" value="1" class="form-control form-control-sm"></div>
       <div class="col-6 col-md-2"><label class="form-label small mb-0">Reponer en (días)</label><input name="reposicion_dias" value="0" class="form-control form-control-sm"></div>
       <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100"><i class="bi bi-plus-lg"></i> Agregar</button></div></form>
-    {% if lineas %}<form method="post" class="mt-2">{% csrf_token %}<button name="accion" value="entregar_epp" class="btn btn-sm btn-success" onclick="return confirm('¿Registrar la salida de almacén de estos EPP?')"><i class="bi bi-box-arrow-up"></i> Entregar (salida de almacén)</button></form>{% endif %}
+    {% if lineas %}<form method="post" class="mt-2">{% csrf_token %}<button name="accion" value="entregar_epp" class="btn btn-sm btn-success" data-confirm="¿Registrar la salida de almacén de estos EPP?"><i class="bi bi-box-arrow-up"></i> Entregar (salida de almacén)</button></form>{% endif %}
   </div>{% endif %}
   <div class="card-body small text-muted border-top">La salida va al gasto con el centro de costo del trabajador (o el de la obra). Adjunte el cargo de entrega firmado por el trabajador en los sustentos.</div>
 </div>

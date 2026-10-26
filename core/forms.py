@@ -115,7 +115,40 @@ class BootstrapMixin:
         if not getattr(self, '_almacenes_filtrados', False):
             self._almacenes_filtrados = True
             self._filtrar_almacenes()
+            self._filtrar_inactivos()
         return super().__getitem__(nombre)
+
+    # PLAT-16: centros, cuentas y rubros desactivados no se ofrecen (el valor ya guardado del registro se conserva)
+    SOLO_ACTIVOS = {'contabilidad.centrocosto', 'contabilidad.centrobeneficio', 'contabilidad.cuentacontable',
+                    'contabilidad.rubroflujo', 'finanzas.cuenta'}
+
+    def _filtrar_inactivos(self):
+        from django.db.models import Q
+        instancia = getattr(self, 'instance', None)
+        for nombre, field in self.fields.items():
+            qs = getattr(field, 'queryset', None)
+            if qs is None or qs.model._meta.label_lower not in self.SOLO_ACTIVOS:
+                continue
+            actual = getattr(instancia, f'{nombre}_id', None) if getattr(instancia, 'pk', None) else None
+            if isinstance(field, forms.ModelMultipleChoiceField):
+                actual = None
+            guardado = Q(pk=actual) if actual else Q(pk__in=[])
+            filtro = Q(activo=True)
+            if qs.model._meta.label_lower == 'contabilidad.cuentacontable':
+                try:  # la cuenta contable de una cuenta bancaria desactivada (salvo que otra activa la use)
+                    from finanzas.models import Cuenta
+                    inactivas = set(Cuenta.objects.filter(activo=False, cuenta_contable__isnull=False)
+                                    .values_list('cuenta_contable_id', flat=True)) - set(
+                        Cuenta.objects.filter(activo=True, cuenta_contable__isnull=False)
+                        .values_list('cuenta_contable_id', flat=True))
+                    if inactivas:
+                        filtro &= ~Q(pk__in=inactivas)
+                except LookupError:
+                    pass
+            try:
+                field.queryset = qs.filter(filtro | guardado)
+            except (TypeError, NotImplementedError):  # unión o lista recortada: se deja como está
+                pass
 
     def _filtrar_almacenes(self):
         from django.contrib.auth import get_user_model

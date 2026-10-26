@@ -34,7 +34,7 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
   const total = () => { let t = 0; document.querySelectorAll('.js-monto').forEach(i => t += parseFloat(i.value) || 0); document.getElementById('total').textContent = t.toFixed(2); };
   document.querySelectorAll('.js-monto').forEach(i => i.addEventListener('input', total));
   const b = document.getElementById('llenar');

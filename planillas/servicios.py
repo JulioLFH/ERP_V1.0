@@ -35,8 +35,11 @@ def centros_de_trabajadores(trabajadores, periodo):
             resultado[t.pk] = {}
             sin_centro.append(t.pk)
     if sin_centro:
-        for h in HoraHombre.objects.filter(trabajador_id__in=sin_centro, horas__gt=0, hora__orden__estado='TERMINADA',
-                                           hora__orden__fecha_fin__range=(desde, hasta)).select_related(
+        from django.db.models import Q
+        # órdenes terminadas en un paso (por su término) y declaraciones de producción del mes (MAN-18)
+        en_mes = (Q(declaracion__isnull=True, hora__orden__estado='TERMINADA', hora__orden__fecha_fin__range=(desde, hasta))
+                  | Q(declaracion__anulada=False, declaracion__fecha__range=(desde, hasta)))
+        for h in HoraHombre.objects.filter(en_mes, trabajador_id__in=sin_centro, horas__gt=0).select_related(
                 'hora__centro__centro_costo', 'hora__orden__centro_costo'):
             centro = h.hora.centro.centro_costo or h.hora.orden.centro_costo
             if centro is not None:

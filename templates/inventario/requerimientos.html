@@ -7,13 +7,13 @@
 </div>
 <div class="card">
   <div class="card-body border-bottom py-2">
-    <form method="get" class="d-flex gap-2"><select name="estado" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="">Todos los estados</option>
+    <form method="get" class="d-flex gap-2"><select name="estado" class="form-select form-select-sm" style="width:auto" data-autoenvio><option value="">Todos los estados</option>
       {% for v, e in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ e }}</option>{% endfor %}</select>
       {% if por_aprobar %}<span class="badge text-bg-warning align-self-center">{{ por_aprobar }} por aprobar</span>{% endif %}</form>
   </div>
   <div class="table-responsive"><table data-lista="{{ request.resolver_match.view_name }}" class="table table-hover mb-0">
     <thead><tr><th>Fecha</th><th>Número</th><th>Centro de costo</th><th>Para</th><th>Solicitante</th><th>Se necesita</th><th>Estado</th></tr></thead>
-    <tbody>{% for r in reqs %}<tr onclick="location.href='{% url 'requerimientos:detalle' r.pk %}'" style="cursor:pointer">
+    <tbody>{% for r in reqs %}<tr data-href="{% url 'requerimientos:detalle' r.pk %}" style="cursor:pointer">
       <td>{{ r.fecha|date:'d/m/Y' }}</td><td class="fw-semibold">{{ r.numero|default:'(borrador)' }}</td><td class="small">{{ r.centro_costo }}</td>
       <td class="small">{{ r.motivo|truncatechars:60 }}</td><td class="small">{{ r.solicitante.get_full_name|default:r.solicitante.username }}</td>
       <td>{{ r.fecha_requerida|date:'d/m/Y'|default:'—' }}</td>

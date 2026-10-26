@@ -38,7 +38,7 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
   const total = () => { let t = 0; document.querySelectorAll('.js-monto').forEach(i => t += parseFloat(i.value) || 0); const el = document.getElementById('total'); if (el) el.textContent = t.toLocaleString('en-US', {minimumFractionDigits: 2}); };
   document.querySelectorAll('.js-sel').forEach(c => c.addEventListener('change', () => { const i = c.closest('tr').querySelector('.js-monto'); i.value = c.checked ? parseFloat(c.dataset.saldo).toFixed(2) : ''; total(); }));
   document.querySelectorAll('.js-monto').forEach(i => i.addEventListener('input', total));

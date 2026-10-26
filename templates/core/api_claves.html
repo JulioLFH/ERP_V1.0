@@ -9,7 +9,7 @@
 <div class="alert alert-success">
   <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle"></i> Copie la clave ahora: no se volverá a mostrar.</div>
   <div class="input-group"><input id="clave-nueva" class="form-control font-monospace" value="{{ nueva }}" readonly>
-    <button type="button" class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('clave-nueva').value)"><i class="bi bi-clipboard"></i> Copiar</button></div>
+    <button type="button" class="btn btn-outline-secondary" data-copiar="#clave-nueva"><i class="bi bi-clipboard"></i> Copiar</button></div>
 </div>
 {% endif %}
 <div class="row g-3">

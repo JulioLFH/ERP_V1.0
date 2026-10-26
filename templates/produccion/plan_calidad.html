@@ -14,7 +14,7 @@
     </tbody>
   </table></div></div>
   <div class="card mb-3"><div class="card-header d-flex align-items-center gap-2">
-    <input type="hidden" name="con_certificado" value="0"><input type="checkbox" class="form-check-input mt-0" name="con_certificado" value="1" id="con_certificado" {% if con_certificado %}checked{% endif %} onchange="document.getElementById('plantilla-coa').classList.toggle('d-none', !this.checked)">
+    <input type="hidden" name="con_certificado" value="0"><input type="checkbox" class="form-check-input mt-0" name="con_certificado" value="1" id="con_certificado" {% if con_certificado %}checked{% endif %} data-alterna="#plantilla-coa">
     <label for="con_certificado" class="mb-0">Certificado de análisis (COA) por lote</label></div>
     <div class="card-body {% if not con_certificado %}d-none{% endif %}" id="plantilla-coa">
       <p class="small text-muted">Formato del certificado del producto: muestra las características marcadas «En certificado» con el resultado de la inspección del lote. Con «Lotes nuevos en cuarentena», cada lote que ingresa queda bloqueado para la venta hasta que Calidad apruebe su certificado.</p>
@@ -41,4 +41,4 @@
   </form>{% endif %}
 </div>
 {% endblock %}
-{% block scripts %}<script>document.querySelectorAll('table input:not([type=checkbox])').forEach(i => i.classList.add('form-control', 'form-control-sm'));</script>{% endblock %}
+{% block scripts %}<script nonce="{{ csp_nonce }}">document.querySelectorAll('table input:not([type=checkbox])').forEach(i => i.classList.add('form-control', 'form-control-sm'));</script>{% endblock %}

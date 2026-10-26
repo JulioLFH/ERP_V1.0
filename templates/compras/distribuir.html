@@ -23,7 +23,7 @@
 </form>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
   const tabla = document.getElementById('tabla-reparto');
   const suma = () => {
     const total = [...tabla.querySelectorAll('input[name=porcentaje]')].reduce((s, i) => s + (parseFloat(i.value.replace(',', '.')) || 0), 0);

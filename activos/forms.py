@@ -121,6 +121,15 @@ class ActivoForm(BootstrapMixin, forms.ModelForm):
                 self.add_error(campo, 'No puede ser futura.')
         if adq and uso and uso < adq:
             self.add_error('fecha_uso', 'No puede ser anterior a la adquisición.')
-        if (adq and not self.instance.pk and origen != 'SALDO_INICIAL'
+        nuevo = not self.instance.pk or 'fecha_adquisicion' in self.changed_data
+        if not (adq and nuevo and not self.fields['fecha_adquisicion'].disabled
                 and periodo_cerrado(adq.strftime('%Y%m'))):
-            self.add_error('fecha_adquisicion', f'El periodo contable {adq:%m/%Y} está cerrado.')
+            return
+        # v1.90: un saldo inicial solo entra a un periodo cerrado si es anterior al primer periodo del sistema
+        from contabilidad.models import PeriodoContable
+        primero = PeriodoContable.objects.order_by('periodo').values_list('periodo', flat=True).first()
+        if origen == 'SALDO_INICIAL' and primero and adq.strftime('%Y%m') < primero:
+            return
+        self.add_error('fecha_adquisicion', f'El periodo contable {adq:%m/%Y} está cerrado.' + (
+            f' Un activo de saldo inicial va con una fecha anterior a {primero[4:]}/{primero[:4]} (inicio del sistema).'
+            if origen == 'SALDO_INICIAL' and primero else ''))

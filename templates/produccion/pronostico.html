@@ -14,7 +14,7 @@
 <form method="post">{% csrf_token %}
 <div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0 small">
   <thead>
-    <tr><th rowspan="2"><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=producto]').forEach(c => c.checked = this.checked)"></th><th rowspan="2">Producto</th>
+    <tr><th rowspan="2"><input type="checkbox" class="form-check-input" data-marcar-todos="input[name=producto]"></th><th rowspan="2">Producto</th>
       <th colspan="{{ meses_historia|length }}" class="text-center border-start">Ventas reales</th><th rowspan="2" class="border-start">Método</th><th rowspan="2" class="num">Error</th>
       <th colspan="{{ meses_futuros|length }}" class="text-center border-start">Pronóstico</th></tr>
     <tr>{% for m in meses_historia %}<th class="num {% if forloop.first %}border-start{% endif %}">{{ m|date:'m/y' }}</th>{% endfor %}{% for m in meses_futuros %}<th class="num {% if forloop.first %}border-start{% endif %}">{{ m|date:'m/y' }}</th>{% endfor %}</tr>

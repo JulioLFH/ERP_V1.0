@@ -22,7 +22,7 @@
   </form>
 </div></div>
 {{ versiones|json_script:"versiones-data" }}
-<script>
+<script nonce="{{ csp_nonce }}">
 // la lista de versiones muestra solo las del producto elegido
 (function () {
   const versiones = JSON.parse(document.getElementById('versiones-data').textContent);

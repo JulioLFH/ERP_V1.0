@@ -50,7 +50,7 @@
 <p class="small text-muted mt-2">Los movimientos no se eliminan: se anulan con motivo y quedan registrados (filtro "Anulados").</p>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 document.querySelectorAll('form.js-anular').forEach((f) => f.addEventListener('submit', (e) => {
   const motivo = prompt(`Motivo de la anulación del movimiento ${f.dataset.voucher} (mínimo 10 caracteres):`);
   if (!motivo || motivo.trim().length < 10) { e.preventDefault(); if (motivo !== null) alert('Indique un motivo de al menos 10 caracteres.'); return; }

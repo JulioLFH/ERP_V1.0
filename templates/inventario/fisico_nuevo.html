@@ -20,7 +20,7 @@
   <div class="col-12 small text-muted">Al crear el documento se toma la <b>foto del stock</b> (cantidad y costo de cada producto o lote). Las diferencias mayores a la tolerancia exigen un reconteo por otro contador; quien cuenta no aprueba.</div>
   <div class="col-12"><button class="btn btn-primary"><i class="bi bi-camera"></i> Crear y tomar la foto del stock</button></div>
 </div></form>
-<script>
+<script nonce="{{ csp_nonce }}">
 const tipo = document.getElementById('tipo');
 function mostrar() { document.querySelectorAll('.js-tipo').forEach(e => { e.style.display = e.dataset.tipos.split(' ').includes(tipo.value) ? '' : 'none'; }); }
 tipo.addEventListener('change', mostrar); mostrar();

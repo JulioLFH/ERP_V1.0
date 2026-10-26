@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <div><h1 class="page-title">Análisis de precios unitarios</h1><div class="text-muted small">{{ p }} · {{ p.obra.nombre }} · precios al {{ p.fecha_precios|date:'d/m/Y' }}</div></div>
   <div class="d-flex gap-2 d-print-none"><a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
-    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i></button>
+    <button type="button" data-imprimir class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i></button>
     <a href="{% url 'obras:presupuesto' p.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Presupuesto</a></div>
 </div>
 {% for x, a in bloques %}

@@ -27,7 +27,7 @@
   </div>
   <div class="table-responsive"><table class="table table-hover mb-0">
     <thead><tr><th>Código</th><th>Descripción</th><th>Categoría</th><th>Ubicación / responsable</th><th>Inicio de uso</th><th class="num">Valor S/</th><th class="num">Dep. acumulada</th><th class="num">Valor neto</th><th>Estado</th></tr></thead>
-    <tbody>{% for a in activos %}<tr onclick="location.href='{% url 'activos:detalle' a.pk %}'" style="cursor:pointer">
+    <tbody>{% for a in activos %}<tr data-href="{% url 'activos:detalle' a.pk %}" style="cursor:pointer">
       <td class="fw-semibold">{{ a.codigo }}</td>
       <td>{{ a.nombre }}{% if a.serie %}<div class="small text-muted">{{ a.marca }} {{ a.modelo }} · {{ a.serie }}</div>{% endif %}</td>
       <td class="small">{{ a.categoria.nombre }}</td>

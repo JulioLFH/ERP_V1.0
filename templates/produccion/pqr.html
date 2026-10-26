@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title mb-0">Revisión anual de producto (PQR)</h1>
-  {% if d %}<button onclick="window.print()" class="btn btn-sm btn-outline-secondary d-print-none"><i class="bi bi-printer"></i> Imprimir / PDF</button>{% endif %}
+  {% if d %}<button data-imprimir class="btn btn-sm btn-outline-secondary d-print-none"><i class="bi bi-printer"></i> Imprimir / PDF</button>{% endif %}
 </div>
 <form method="get" class="d-flex flex-wrap gap-2 mb-3 d-print-none" style="max-width: 720px">
   <select name="producto" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'productos_bienes' %}" required aria-label="Producto"><option value="">Producto…</option>{% if producto %}<option value="{{ producto.pk }}" selected>{{ producto }}</option>{% endif %}</select>

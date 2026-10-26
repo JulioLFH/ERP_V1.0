@@ -8,7 +8,7 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.generic import CreateView, UpdateView
 
@@ -130,8 +130,9 @@ def orden_detalle(request, pk):
             h.filas_personal.append({'rol': 'AYUDANTE', 'horas': None})
         from planillas.models import Trabajador
         hoy = timezone.localdate()
-        trabajadores = [t for t in Trabajador.objects.select_related('centro_costo').filter(fecha_ingreso__isnull=False).exclude(
-            fecha_cese__lt=hoy).order_by('apellido_paterno', 'apellido_materno', 'nombres')]
+        trabajadores = [t for t in Trabajador.objects.select_related('centro_costo').filter(
+            fecha_ingreso__isnull=False, fecha_ingreso__lte=hoy).exclude(fecha_cese__lte=hoy)
+            .order_by('apellido_paterno', 'apellido_materno', 'nombres')]
         planta = [t for t in trabajadores if t.tipo == 'OBRERO' or (t.centro_costo_id and
                                                                      t.centro_costo.tipo == 'PRODUCCION')]
         trabajadores = planta or trabajadores
@@ -169,10 +170,17 @@ def orden_detalle(request, pk):
     # «Terminar» en un paso: solo si no se declaró producción por turnos
     ctx['terminable'] = orden.estado in ('CONFIRMADA', 'EN_PROCESO')
     ctx['saldo'] = max(orden.cantidad - orden.cantidad_producida, Decimal('0'))
+    if ctx['puede_declarar'] and horas:
+        ctx.update(_tabla_cargos(orden, horas, ctx['saldo'], trabajadores or _trabajadores_activos()))
     ctx['motivos_faltante'] = OrdenProduccion.MOTIVOS_FALTANTE[1:]
     ctx['costos_tardios'] = list(CostoTardio.objects.filter(Q(orden=orden) | Q(orden_destino=orden))
                                  .select_related('trabajador', 'centro', 'orden', 'orden_destino'))
     ctx['tipos_tardio'] = CostoTardio.TIPOS
+    if puede_ver_costos(request.user):
+        ctx['desglose_std'] = servicios.desglose_estandar(orden)
+    from inventario.models import Operacion
+    ctx['salidas_almacen'] =list(Operacion.objects.filter(orden_imputada=orden, estado='CONFIRMADO',
+                                                           tipo__codigo='SAL_OP').only('numero'))
     if orden.estado in ('PARCIAL', 'CERRADA_TEC', 'TERMINADA'):
         ctx['puestos'] = list({h.centro for h in horas})
         ctx['trabajadores_tardio'] = trabajadores or _trabajadores_activos()
@@ -190,9 +198,38 @@ def orden_detalle(request, pk):
     return render(request, 'produccion/orden_detalle.html', ctx)
 
 
+def _tabla_cargos(orden, horas, saldo, trabajadores):
+    """MAN-22: filas propuestas de la tabla de drivers de la declaración (la ruta × la cantidad a declarar) y las
+    opciones de driver por operación (horas máquina, preparación, horas hombre y los drivers de su puesto)."""
+    from .models import HoraHombre
+    filas, opciones = [], []
+    for h in horas:
+        c = h.centro
+        por_unidad = (h.horas_plan / orden.cantidad) if orden.cantidad else Decimal('0')
+        base = {'hora': h, 'por_unidad': por_unidad, 'unidad': 'h'}
+        filas.append({**base, 'tipo': 'MAQUINA', 'tarifa_ref': c.costo_hora_maquina})
+        for rol, n in (('MAQUINISTA', h.maquinistas), ('AYUDANTE', h.ayudantes)):
+            filas += [{**base, 'tipo': 'MO', 'rol': rol, 'tarifa_ref': c.costo_hora_mo}] * n
+        opciones += [('MAQUINA', 'Horas máquina', h, 'h', c.costo_hora_maquina),
+                     ('PREPARACION', 'Preparación (setup)', h, 'h', c.costo_hora_maquina),
+                     ('MO', 'Horas hombre', h, 'h', c.costo_hora_mo)]
+        for d in c.drivers_activos():
+            if d.por_hora:
+                filas.append({**base, 'tipo': f'D{d.pk}', 'por_unidad': por_unidad * d.por_hora, 'unidad': d.unidad,
+                              'tarifa_ref': d.tarifa})
+            opciones.append((f'D{d.pk}', d.nombre, h, d.unidad, d.tarifa))
+    for i, f in enumerate(filas):
+        f['indice'] = i
+        f['cantidad'] = (saldo * f['por_unidad']).quantize(Decimal('0.01'))
+    return {'filas_cargo': filas, 'opciones_cargo': opciones, 'roles_cargo': HoraHombre.ROLES,
+            'trabajadores_decl': trabajadores}
+
+
 def _trabajadores_activos():
+    """PLAT-16: con vínculo vigente (sin cese o con el cese aún por venir)."""
     from planillas.models import Trabajador
-    return list(Trabajador.objects.filter(fecha_ingreso__isnull=False).exclude(fecha_cese__lt=timezone.localdate())
+    return list(Trabajador.objects.filter(fecha_ingreso__isnull=False, fecha_ingreso__lte=timezone.localdate())
+                .exclude(fecha_cese__lte=timezone.localdate())
                 .order_by('apellido_paterno', 'apellido_materno', 'nombres'))
 
 
@@ -213,6 +250,35 @@ def _personal(request, orden):
     return personal
 
 
+def _cargos(request, orden):
+    """MAN-22: tabla de drivers de la declaración: filas cargo-N-(hora|tipo|cantidad|trabajador|rol|tarifa). Cada
+    operación marcada con cargo-op-<id> se declara solo con sus filas (horas máquina, preparación, drivers del puesto
+    y horas hombre); las demás, con la propuesta de la ruta. Devuelve (cargos, personal)."""
+    ids = {h.pk for h in orden.horas.all()}
+    marcadas = {int(k[9:]) for k in request.POST if k.startswith('cargo-op-') and k[9:].isdigit()} & ids
+    if not marcadas:
+        return None, None
+    cargos, personal = {h: [] for h in marcadas}, {h: [] for h in marcadas}
+    indices = sorted({int(k.split('-')[1]) for k in request.POST
+                      if k.startswith('cargo-') and k.endswith('-tipo') and k.split('-')[1].isdigit()})
+    for i in indices:
+        g = lambda c: (request.POST.get(f'cargo-{i}-{c}') or '').strip()  # noqa: E731
+        hora = int(g('hora')) if g('hora').isdigit() else None
+        if hora not in marcadas or not g('cantidad'):
+            continue
+        tipo = g('tipo')
+        if tipo == 'MO':
+            trab = g('trabajador')
+            personal[hora].append({'rol': g('rol') or 'OPERARIO', 'horas': g('cantidad'), 'tarifa': g('tarifa'),
+                                   'trabajador': int(trab) if trab.isdigit() else None})
+        elif tipo in ('MAQUINA', 'PREPARACION'):
+            cargos[hora].append({'tipo': tipo, 'cantidad': g('cantidad'), 'tarifa': g('tarifa')})
+        elif tipo.startswith('D') and tipo[1:].isdigit():
+            cargos[hora].append({'tipo': 'DRIVER', 'driver': int(tipo[1:]), 'cantidad': g('cantidad'),
+                                 'tarifa': g('tarifa')})
+    return cargos, personal
+
+
 def _dia_post(request, nombre):
     from datetime import date as _date
     try:
@@ -231,13 +297,17 @@ def orden_declarar(request, pk):
     if request.method == 'POST':
         horas = {h.pk: _decimal(request.POST.get(f'dhora_{h.pk}'), None) for h in orden.horas.all()
                  if (request.POST.get(f'dhora_{h.pk}') or '').strip()}
+        cargos, personal_tabla = _cargos(request, orden)
+        personal = _personal(request, orden)
+        if personal_tabla:
+            personal.update(personal_tabla)
         try:
             d = parciales.declarar(
                 orden, request.user, _decimal(request.POST.get('cantidad'), None),
                 fecha=request.POST.get('fecha') or None, fecha_contable=request.POST.get('fecha_contable') or None,
                 lote=request.POST.get('lote', ''), fabricacion=_dia_post(request, 'fabricacion'),
-                vencimiento=_dia_post(request, 'vencimiento'), horas=horas, personal=_personal(request, orden),
-                nota=request.POST.get('nota', ''),
+                vencimiento=_dia_post(request, 'vencimiento'), horas=horas, personal=personal,
+                nota=request.POST.get('nota', ''), cargos=cargos,
                 lotes_insumos={c.pk: request.POST.get(f'dlote_{c.pk}', '') for c in orden.consumos.all()},
                 autorizar=request.POST.get('autorizar') == '1' and puede(request.user, 'manufactura.aprobar_consumo'))
             orden.refresh_from_db()
@@ -300,19 +370,30 @@ def orden_costo_tardio(request, pk):
 
     from . import parciales
     from .models import CentroTrabajo
+    from django.db import transaction
     orden = get_object_or_404(OrdenProduccion, pk=pk)
     if request.method == 'POST':
+        # MAN-22: varias filas en un envío (tardio-N-tipo …); sin filas, los campos sueltos de siempre
+        indices = sorted({int(k.split('-')[1]) for k in request.POST if k.startswith('tardio-') and
+                          k.endswith('-tipo') and k.split('-')[1].isdigit()})
+        filas = [{c: request.POST.get(f'tardio-{i}-{c}', '') for c in ('tipo', 'trabajador', 'centro', 'horas',
+                                                                         'importe')} for i in indices] or [
+            {c: request.POST.get(c, '') for c in ('tipo', 'trabajador', 'centro', 'horas', 'importe')}]
+        filas = [f for f in filas if f['tipo'] and (f['horas'] or f['importe'])] or filas[:1]
+        destino = OrdenProduccion.objects.filter(pk=request.POST.get('orden_destino') or 0).first()
         try:
-            t = parciales.costo_tardio(
-                orden, request.user, request.POST.get('tipo', ''), request.POST.get('fecha') or '',
-                request.POST.get('motivo', ''), horas=_decimal(request.POST.get('horas'), None),
-                importe=_decimal(request.POST.get('importe'), None),
-                trabajador=Trabajador.objects.filter(pk=request.POST.get('trabajador') or 0).first(),
-                centro=CentroTrabajo.objects.filter(pk=request.POST.get('centro') or 0).first(),
-                orden_destino=OrdenProduccion.objects.filter(pk=request.POST.get('orden_destino') or 0).first())
-            messages.success(request, f'Costo tardío S/ {t.importe:,.2f} registrado: {t.get_destino_display().lower()}.')
+            with transaction.atomic():
+                hechos = [parciales.costo_tardio(
+                    orden, request.user, f['tipo'], request.POST.get('fecha') or '', request.POST.get('motivo', ''),
+                    horas=_decimal(f['horas'], None), importe=_decimal(f['importe'], None),
+                    trabajador=Trabajador.objects.filter(pk=f['trabajador'] or 0).first(),
+                    centro=CentroTrabajo.objects.filter(pk=f['centro'] or 0).first(), orden_destino=destino)
+                    for f in filas]
+            total = sum(t.importe for t in hechos)
+            messages.success(request, f'{len(hechos)} costo(s) tardío(s) por S/ {total:,.2f} registrado(s): '
+                                      f'{hechos[0].get_destino_display().lower()}.')
         except servicios.ErrorProduccion as exc:
-            messages.error(request, str(exc))
+            messages.error(request, f'No se registró ninguno: {exc}')
     return redirect('manufactura:orden', pk)
 
 
@@ -423,8 +504,13 @@ def orden_anular(request, pk):
     if request.method == 'POST':
         try:
             servicios.anular(orden, request.user, request.POST.get('motivo', ''))
+            revertidas = getattr(orden, 'salidas_revertidas', [])
+            creadas = getattr(orden, 'devoluciones_creadas', [])
             messages.success(request, f'{orden} anulada.' + (' Se revirtió el movimiento de almacén.'
-                                                            if orden.operacion_id else ''))
+                                                            if orden.operacion_id else '') + (
+                f' Salidas a la orden anuladas: {", ".join(s.numero for s in revertidas)}.' if revertidas else '') + (
+                f' Material entregado devuelto al almacén con {", ".join(d.numero for d in creadas)}.'
+                if creadas else ''))
         except servicios.ErrorProduccion as exc:
             messages.error(request, f'No se pudo anular: {exc}')
     return redirect('manufactura:orden', pk)
@@ -689,6 +775,42 @@ class CentroNuevo(FormGenerico, CreateView):
 class CentroEditar(FormGenerico, UpdateView):
     model, form_class, titulo = CentroTrabajo, CentroTrabajoForm, 'Editar puesto de trabajo'
     success_url = reverse_lazy('manufactura:centros')
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['enlaces'] = [(reverse('manufactura:centro_drivers', args=[self.object.pk]), 'bi-lightning-charge',
+                           'Drivers de costo (kWh, gas…)')]
+        return ctx
+
+
+@login_required
+def centro_drivers(request, pk):
+    """MAN-22: drivers de costo del puesto además de la hora máquina y la hora hombre (energía, gas, vapor,
+    servicios): tarifa y consumo estándar por hora máquina."""
+    from django.forms import inlineformset_factory
+
+    from .models import DriverPuesto
+    centro = get_object_or_404(CentroTrabajo, pk=pk)
+    Formset = inlineformset_factory(CentroTrabajo, DriverPuesto, fields=['nombre', 'tipo', 'unidad', 'tarifa',
+                                                                        'por_hora', 'activo'], extra=2, can_delete=True)
+    formset = Formset(request.POST or None, instance=centro, prefix='drv')
+    if request.method == 'POST' and formset.is_valid():
+        errores = [f'{f.cleaned_data.get("nombre")}: la tarifa y el consumo no pueden ser negativos.'
+                   for f in formset.forms if f.cleaned_data and not f.cleaned_data.get('DELETE')
+                   and ((f.cleaned_data.get('tarifa') or 0) < 0 or (f.cleaned_data.get('por_hora') or 0) < 0)]
+        if errores:
+            messages.error(request, ' '.join(errores))
+        else:
+            formset.save()
+            messages.success(request, f'Drivers de {centro} guardados: el costo estándar los incluye desde la '
+                                      f'próxima corrida de costeo.')
+            return redirect('manufactura:centro_drivers', pk)
+    for f in formset.forms:
+        for campo in f.fields.values():
+            tipo = getattr(campo.widget, 'input_type', '')
+            campo.widget.attrs.setdefault('class', {'checkbox': 'form-check-input', 'select': 'form-select form-select-sm'}
+                                          .get(tipo, 'form-control form-control-sm'))
+    return render(request, 'produccion/centro_drivers.html', {'centro': centro, 'formset': formset})
 
 
 @login_required

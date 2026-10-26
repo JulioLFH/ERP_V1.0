@@ -46,7 +46,7 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}
-{% if creando %}<script>
+{% if creando %}<script nonce="{{ csp_nonce }}">
   // mientras se crea una empresa, la página consulta su avance y se recarga al terminar
   const revisar = () => fetch("{% url 'grupo_estado' %}").then(r => r.json()).then(d => {
     if (!Object.values(d).some(e => e.estado === 'CREANDO')) { window.location.reload(); } else { setTimeout(revisar, 4000); }

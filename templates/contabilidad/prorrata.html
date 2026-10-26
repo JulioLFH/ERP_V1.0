@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <div><h1 class="page-title">Prorrata del crédito fiscal (IGV)</h1>
     <div class="text-muted small">Compras destinadas a operaciones gravadas y no gravadas: dan crédito en la proporción de las gravadas y exportaciones de los últimos 12 meses (Reglamento de la Ley del IGV, art. 6 num. 6.2).</div></div>
-  <form class="d-flex gap-2"><select name="anio" class="form-select form-select-sm" onchange="this.form.submit()">{% for a in anios %}<option {% if a == anio %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+  <form class="d-flex gap-2"><select name="anio" class="form-select form-select-sm" data-autoenvio>{% for a in anios %}<option {% if a == anio %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
     <a href="?anio={{ anio }}&formato=excel" class="btn btn-sm btn-outline-success text-nowrap"><i class="bi bi-file-earmark-excel"></i> Excel</a></form>
 </div>
 <div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle small">

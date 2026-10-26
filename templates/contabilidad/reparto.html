@@ -5,7 +5,7 @@
   <div><h1 class="page-title">Reparto de gastos entre centros de costo</h1>
     <div class="text-muted small">Gastos de los centros de apoyo (oficina central, logística, administración…) repartidos a las obras y centros según las reglas de la empresa</div></div>
   <div class="d-flex flex-wrap gap-2">
-    <form method="get" class="d-flex gap-2"><input type="month" name="mes" value="{{ mes }}" class="form-control form-control-sm" onchange="this.form.submit()"></form>
+    <form method="get" class="d-flex gap-2"><input type="month" name="mes" value="{{ mes }}" class="form-control form-control-sm" data-autoenvio></form>
     <a href="?mes={{ mes }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
     <a href="{% url 'contabilidad:reparto_cifras' %}?mes={{ mes }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-rulers"></i> Cifras de reparto</a>
     <a href="{% url 'contabilidad:reparto_regla_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva regla</a>

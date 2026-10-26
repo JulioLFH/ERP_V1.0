@@ -5,11 +5,11 @@
   <div><h1 class="page-title">Relación de insumos</h1><div class="text-muted small">{{ p }} · {{ p.obra.nombre }}{% if sub %} · subpresupuesto {{ sub }}{% endif %} · cantidad total = metrado × aporte; parcial = cantidad × precio</div></div>
   <div class="d-flex flex-wrap gap-2 d-print-none">
     <form method="get" class="d-flex gap-2 align-items-center">
-      {% if subs %}<select name="sub" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todos los subpresupuestos</option>{% for s in subs %}<option value="{{ s.pk }}" {% if sub and sub.pk == s.pk %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>{% endif %}
-      <div class="form-check form-switch text-nowrap small mb-0"><input type="hidden" name="explotar" value="0"><input class="form-check-input" type="checkbox" id="explotar" name="explotar" value="1" {% if explotar %}checked{% endif %} onchange="this.form.submit()"><label class="form-check-label" for="explotar">Explotar sub-análisis</label></div>
+      {% if subs %}<select name="sub" class="form-select form-select-sm" data-autoenvio><option value="">Todos los subpresupuestos</option>{% for s in subs %}<option value="{{ s.pk }}" {% if sub and sub.pk == s.pk %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>{% endif %}
+      <div class="form-check form-switch text-nowrap small mb-0"><input type="hidden" name="explotar" value="0"><input class="form-check-input" type="checkbox" id="explotar" name="explotar" value="1" {% if explotar %}checked{% endif %} data-autoenvio><label class="form-check-label" for="explotar">Explotar sub-análisis</label></div>
     </form>
     <a href="?formato=excel{% if sub %}&sub={{ sub.pk }}{% endif %}{% if not explotar %}&explotar=0{% endif %}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a>
-    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i></button>
+    <button type="button" data-imprimir class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i></button>
     <a href="{% url 'obras:presupuesto' p.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Presupuesto</a></div>
 </div>
 <div class="card mb-3" style="max-width:1100px"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">

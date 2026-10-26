@@ -11,7 +11,7 @@
 <div class="card">
   <div class="card-body border-bottom py-2">
     <form class="row g-2 align-items-center" method="get">
-      <div class="col-auto"><select name="estado" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todos los estados</option>
+      <div class="col-auto"><select name="estado" class="form-select form-select-sm" data-autoenvio><option value="">Todos los estados</option>
         {% for v, e in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ e }}</option>{% endfor %}</select></div>
       <div class="col-auto"><input type="date" name="desde" value="{{ desde }}" class="form-control form-control-sm"></div>
       <div class="col-auto"><input type="date" name="hasta" value="{{ hasta }}" class="form-control form-control-sm"></div>
@@ -23,7 +23,7 @@
     <thead><tr><th>Fecha</th><th>Número</th><th>Producto</th><th class="num">Programado</th><th class="num">Declarado</th><th class="num">Saldo</th><th class="num" title="Lotes declarados">Lotes</th>{% if ver_costos %}<th class="num">Estándar S/</th><th class="num">Real S/</th><th class="num">Variación S/</th>{% endif %}<th>Estado</th></tr></thead>
     <tbody>
     {% for o in page_obj %}
-      <tr onclick="location.href='{% url 'manufactura:orden' o.pk %}'" style="cursor:pointer">
+      <tr data-href="{% url 'manufactura:orden' o.pk %}" style="cursor:pointer">
         <td>{{ o.fecha|date:'d/m/Y' }}</td>
         <td class="fw-semibold">{{ o.numero|default:'(borrador)' }}</td>
         <td>{{ o.producto.nombre }}</td>

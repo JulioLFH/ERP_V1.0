@@ -36,7 +36,7 @@
     </span>
   </div>
   <div class="table-responsive"><table class="table table-sm table-hover mb-0">
-    <thead><tr><th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=propuesta]:not(:disabled)').forEach(c=>c.checked=this.checked)"></th><th>Nivel</th><th>Acción</th><th>Producto</th><th class="num">Cantidad</th><th>Iniciar / pedir</th><th>Se necesita</th><th>Versión / proveedor</th><th>Origen</th><th>Documento</th></tr></thead>
+    <thead><tr><th><input type="checkbox" class="form-check-input" data-marcar-todos="input[name=propuesta]:not(:disabled)"></th><th>Nivel</th><th>Acción</th><th>Producto</th><th class="num">Cantidad</th><th>Iniciar / pedir</th><th>Se necesita</th><th>Versión / proveedor</th><th>Origen</th><th>Documento</th></tr></thead>
     <tbody>{% for p in propuestas %}<tr class="{% if p.convertida %}text-muted{% endif %}">
       <td><input type="checkbox" class="form-check-input" name="propuesta" value="{{ p.pk }}" {% if p.convertida %}disabled{% endif %}></td>
       <td>{{ p.nivel }}</td>

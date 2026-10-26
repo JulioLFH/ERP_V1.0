@@ -11,7 +11,7 @@
   <div class="d-flex gap-2"><a href="{% url 'calendario:agenda' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ul"></i> Agenda</a><a href="{% url 'calendario:evento_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo evento</a></div>
 </div>
 <form method="get" class="d-flex flex-wrap gap-3 small mb-2"><input type="hidden" name="mes" value="{{ mes_param }}">
-  {% for c, nombre, color, activa in capas %}<label class="form-check-label d-flex align-items-center gap-1"><input type="checkbox" class="form-check-input mt-0" name="capa" value="{{ c }}"{% if activa %} checked{% endif %} onchange="this.form.submit()"><span class="d-inline-block rounded-circle" style="width:.7rem;height:.7rem;background:{{ color }}"></span>{{ nombre }}</label>{% endfor %}
+  {% for c, nombre, color, activa in capas %}<label class="form-check-label d-flex align-items-center gap-1"><input type="checkbox" class="form-check-input mt-0" name="capa" value="{{ c }}"{% if activa %} checked{% endif %} data-autoenvio><span class="d-inline-block rounded-circle" style="width:.7rem;height:.7rem;background:{{ color }}"></span>{{ nombre }}</label>{% endfor %}
 </form>
 <div class="table-responsive"><table class="table table-bordered calendario mb-0" style="table-layout: fixed; min-width: 760px">
   <thead><tr class="small text-center"><th>Lun</th><th>Mar</th><th>Mié</th><th>Jue</th><th>Vie</th><th>Sáb</th><th>Dom</th></tr></thead>

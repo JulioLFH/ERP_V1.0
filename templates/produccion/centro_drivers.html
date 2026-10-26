@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Drivers de {{ centro }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-lightning-charge"></i> Drivers de costo · {{ centro }}</h1>
+  <a href="{% url 'manufactura:centro_editar' centro.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Puesto</a>
+</div>
+<p class="small text-muted" style="max-width:900px">Además de la hora máquina (S/ {{ centro.costo_hora_maquina }} + CIF S/ {{ centro.costo_hora_cif }} por hora) y la hora hombre, el puesto puede consumir energía (kWh), gas, vapor o un servicio. Cada driver tiene su tarifa y su consumo estándar por hora máquina: al declarar producción se propone «horas máquina × consumo» (editable) y el costo estándar lo incluye en el CIF.</p>
+<form method="post" class="card" style="max-width:1000px">{% csrf_token %}{{ formset.management_form }}
+  {% for e in formset.non_form_errors %}<div class="alert alert-danger m-2 py-1 small">{{ e }}</div>{% endfor %}
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>Nombre</th><th>Tipo</th><th>Unidad</th><th class="num">Tarifa S/ por unidad</th><th class="num">Consumo por hora máquina</th><th>Activo</th><th>Quitar</th></tr></thead>
+    <tbody>{% for f in formset %}<tr>{% for h in f.hidden_fields %}{{ h }}{% endfor %}
+      <td>{{ f.nombre }}{% for e in f.nombre.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+      <td>{{ f.tipo }}</td><td style="width:110px">{{ f.unidad }}</td>
+      <td style="width:150px">{{ f.tarifa }}{% for e in f.tarifa.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+      <td style="width:150px">{{ f.por_hora }}</td><td>{{ f.activo }}</td><td>{% if f.instance.pk %}{{ f.DELETE }}{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% if not solo_lectura %}<div class="card-body"><button class="btn btn-primary btn-sm"><i class="bi bi-check-lg"></i> Guardar</button></div>{% endif %}
+</form>
+{% endblock %}

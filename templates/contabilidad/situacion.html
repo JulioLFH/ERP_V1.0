@@ -12,7 +12,7 @@
     </select>
     <button class="btn btn-sm btn-primary">Ver</button>
     <button name="formato" value="excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></button>
-    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary" title="Imprimir o guardar como PDF"><i class="bi bi-file-earmark-pdf"></i></button>
+    <button type="button" data-imprimir class="btn btn-sm btn-outline-secondary" title="Imprimir o guardar como PDF"><i class="bi bi-file-earmark-pdf"></i></button>
   </form>
 </div>
 {% if t.diferencia %}<div class="alert alert-warning small">Diferencia de S/ {{ t.diferencia|money }} entre activo y pasivo + patrimonio. Revise compras de mercadería sin destino 20/61, asientos manuales en clase 6 o 9 sin contrapartida, o centralice los periodos pendientes.</div>{% endif %}

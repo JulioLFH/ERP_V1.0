@@ -4,7 +4,7 @@
 <style>.sem-verde { background: #16a34a; } .sem-ambar { background: #f59e0b; } .sem-rojo { background: #dc2626; } .sem { display: inline-block; width: .8rem; height: .8rem; border-radius: 50%; }</style>
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <div><h1 class="page-title">Excelencia organizacional</h1><div class="text-muted small">Objetivos e indicadores por área (balanced scorecard / OKR) con semáforo frente a la meta.</div></div>
-  <form class="d-flex gap-2"><input type="month" name="mes" value="{{ mes }}" class="form-control form-control-sm" onchange="this.form.submit()">
+  <form class="d-flex gap-2"><input type="month" name="mes" value="{{ mes }}" class="form-control form-control-sm" data-autoenvio>
     <a href="{% url 'calidad:registro_nuevo' %}?tipo=indicadores" class="btn btn-sm btn-primary text-nowrap"><i class="bi bi-plus-lg"></i> Indicador</a></form>
 </div>
 <div class="row g-3 mb-3">

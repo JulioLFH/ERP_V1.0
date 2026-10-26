@@ -76,48 +76,141 @@ def por_descontar(orden, declarado):
     return salida
 
 
-def _costear_horas(orden, declaracion, cantidad, horas, personal, fecha):
-    """(mano de obra, máquina, CIF, {hora_id: horas}) del turno. Sin horas indicadas: las de la hoja de ruta en
-    proporción a lo declarado, con su cuadrilla."""
+def _dec(valor, nombre='valor'):
+    if valor in (None, ''):
+        return None
+    try:
+        return Decimal(str(valor).replace(',', '').strip())
+    except ArithmeticError:
+        raise ErrorProduccion(f'{nombre}: número no válido.')
+
+
+def _costear_horas(orden, declaracion, cantidad, horas, personal, fecha, cargos=None, usuario=None,
+                   autorizar=False):
+    """(mano de obra, máquina, CIF, {hora_id: horas}) del turno. Sin datos de una operación: las horas de la hoja de
+    ruta en proporción a lo declarado, con su cuadrilla y los drivers del puesto según su consumo por hora.
+
+    MAN-22: `cargos` = {hora_id: [{'tipo': 'MAQUINA' | 'PREPARACION' | 'DRIVER', 'driver': id, 'cantidad',
+    'tarifa'}]} y `personal` = {hora_id: [{'rol', 'trabajador', 'horas', 'tarifa'}]}: varias personas, roles y drivers
+    por operación. Cambiar una tarifa pide el permiso «editar tarifas»; con la política de consumo por tolerancia, las
+    horas por encima de lo propuesto más la tolerancia las autoriza quien tiene «Aprobar consumos»."""
+    from core.permisos import puede
     from planillas.models import Trabajador
-    horas, personal = horas or {}, personal or {}
+
+    from .consumo import politica
+    from .models import CargoDeclaracion, DriverPuesto
+    horas, personal, cargos = horas or {}, personal or {}, cargos or {}
     trabajadores = {t.pk: t for t in Trabajador.objects.filter(
         pk__in={p.get('trabajador') for filas in personal.values() for p in filas if p.get('trabajador')})}
+    puede_tarifa = usuario is not None and (usuario.is_superuser or puede(usuario, 'manufactura.editar_tarifas'))
+    modo, tol = politica(orden)
+    margen = 1 + max(tol, D0) / 100
+
+    def tarifa_de(fila, propuesta, que):
+        escrita = _dec(fila.get('tarifa'), f'Tarifa de {que}')
+        if escrita is None or escrita == propuesta:
+            return propuesta, False
+        if escrita < 0:
+            raise ErrorProduccion(f'La tarifa de {que} no puede ser negativa.')
+        if not puede_tarifa:
+            raise ErrorProduccion(f'Cambiar la tarifa de {que} requiere el permiso «Cambiar la tarifa al declarar».')
+        return escrita, True
+
     mo = maq = cif = D0
     registro = {}
-    for h in orden.horas.select_related('centro'):
-        if h.pk in horas and horas[h.pk] not in (None, ''):
-            hm = Decimal(str(horas[h.pk]))
+    for h in orden.horas.select_related('centro').prefetch_related('centro__drivers'):
+        c = h.centro
+        propuesta = (h.horas_plan * cantidad / orden.cantidad).quantize(D2) if orden.cantidad else D0
+        filas_cargo = cargos.get(h.pk)
+        prep = D0
+        if filas_cargo is not None:
+            hm = D0
+            for f in filas_cargo:
+                q = _dec(f.get('cantidad'), 'Cantidad') or D0
+                if q < 0:
+                    raise ErrorProduccion('Las cantidades de los drivers no pueden ser negativas.')
+                if not q:
+                    continue
+                if f.get('tipo') in ('MAQUINA', 'PREPARACION'):
+                    que = 'la hora máquina' if f['tipo'] == 'MAQUINA' else 'la preparación'
+                    tarifa, editada = tarifa_de(f, c.costo_hora_maquina, que)
+                    if f['tipo'] == 'MAQUINA':
+                        hm += q
+                    else:
+                        prep += q
+                    CargoDeclaracion.objects.create(declaracion=declaracion, hora=h, tipo=f['tipo'], cantidad=q,
+                                                    unidad='h', tarifa=tarifa, importe=r2(q * tarifa),
+                                                    tarifa_editada=editada)
+                    maq += r2(q * tarifa)
+                elif f.get('tipo') == 'DRIVER':
+                    d = DriverPuesto.objects.filter(pk=f.get('driver') or 0, centro=c, activo=True).first()
+                    if d is None:
+                        raise ErrorProduccion(f'{c}: el driver elegido no es del puesto.')
+                    tarifa, editada = tarifa_de(f, d.tarifa, d.nombre.lower())
+                    CargoDeclaracion.objects.create(declaracion=declaracion, hora=h, tipo='DRIVER', driver=d,
+                                                    cantidad=q, unidad=d.unidad, tarifa=tarifa,
+                                                    importe=r2(q * tarifa), tarifa_editada=editada)
+                    cif += r2(q * tarifa)
+                else:
+                    raise ErrorProduccion('Tipo de driver no válido.')
         else:
-            hm = (h.horas_plan * cantidad / orden.cantidad).quantize(D2) if orden.cantidad else D0
-        if hm < 0:
-            raise ErrorProduccion('Las horas no pueden ser negativas.')
+            if h.pk in horas and horas[h.pk] not in (None, ''):
+                hm = Decimal(str(horas[h.pk]))
+            else:
+                hm = propuesta
+            if hm < 0:
+                raise ErrorProduccion('Las horas no pueden ser negativas.')
+            if hm:
+                CargoDeclaracion.objects.create(declaracion=declaracion, hora=h, tipo='MAQUINA', cantidad=hm,
+                                                unidad='h', tarifa=c.costo_hora_maquina,
+                                                importe=r2(hm * c.costo_hora_maquina))
+            maq += r2(hm * c.costo_hora_maquina)
+            for d in c.drivers_activos():  # drivers del puesto según su consumo estándar por hora máquina
+                q = (hm * d.por_hora).quantize(Decimal('0.0001'))
+                if q:
+                    CargoDeclaracion.objects.create(declaracion=declaracion, hora=h, tipo='DRIVER', driver=d,
+                                                    cantidad=q, unidad=d.unidad, tarifa=d.tarifa,
+                                                    importe=r2(q * d.tarifa))
+                    cif += r2(q * d.tarifa)
+        maquina_total = hm + prep
+        if modo in ('TOLERANCIA', 'ESTRICTO') and not autorizar and maquina_total > (propuesta * margen) + D2:
+            raise ErrorProduccion(f'{c}: {maquina_total:,.2f} h máquina superan lo propuesto ({propuesta:,.2f} h) '
+                                  f'más la tolerancia: lo autoriza quien tiene «Aprobar consumos».')
+        cif += r2(maquina_total * c.costo_hora_cif)  # CIF por hora máquina del puesto
         filas = personal.get(h.pk)
         if filas is None:
-            filas = ([{'rol': 'MAQUINISTA', 'horas': hm}] * h.maquinistas +
-                     [{'rol': 'AYUDANTE', 'horas': hm}] * h.ayudantes)
+            filas = ([{'rol': 'MAQUINISTA', 'horas': maquina_total}] * h.maquinistas +
+                     [{'rol': 'AYUDANTE', 'horas': maquina_total}] * h.ayudantes)
+        horas_hombre = D0
         for p in filas:
             horas_h = Decimal(str(p.get('horas') or 0))
             if horas_h < 0:
                 raise ErrorProduccion('Las horas hombre no pueden ser negativas.')
             if not horas_h:
                 continue
+            horas_hombre += horas_h
             t = trabajadores.get(p.get('trabajador'))
-            tarifa = t.costo_hora(fecha) if t else h.centro.costo_hora_mo
+            if t is not None and not t.activo_en(fecha, fecha):
+                raise ErrorProduccion(f'{t.nombre_completo} no estaba en planilla el {fecha:%d/%m/%Y}.')
+            tarifa, _ = tarifa_de(p, t.costo_hora(fecha) if t else c.costo_hora_mo, 'la hora hombre')
             linea = HoraHombre.objects.create(
                 hora=h, declaracion=declaracion, trabajador=t, horas=horas_h, costo_hora=tarifa,
                 rol=p.get('rol') if p.get('rol') in dict(HoraHombre.ROLES) else 'MAQUINISTA',
                 costo=r2(horas_h * tarifa))
             mo += linea.costo
-        maq += r2(hm * h.centro.costo_hora_maquina)
-        cif += r2(hm * h.centro.costo_hora_cif)
-        registro[str(h.pk)] = str(hm)
+        cuadrilla = (h.maquinistas + h.ayudantes) or 1
+        if (modo in ('TOLERANCIA', 'ESTRICTO') and not autorizar and personal.get(h.pk) is not None
+                and horas_hombre > propuesta * cuadrilla * margen + D2):
+            raise ErrorProduccion(f'{c}: {horas_hombre:,.2f} horas hombre superan lo propuesto '
+                                  f'({propuesta * cuadrilla:,.2f} h) más la tolerancia: lo autoriza quien tiene '
+                                  f'«Aprobar consumos».')
+        registro[str(h.pk)] = str(maquina_total)
     return mo, maq, cif, registro
 
 
 @transaction.atomic
 def declarar(orden, usuario, cantidad, fecha=None, fecha_contable=None, lote='', fabricacion=None, vencimiento=None,
-             horas=None, personal=None, nota='', lotes_insumos=None, autorizar=False):
+             horas=None, personal=None, nota='', lotes_insumos=None, autorizar=False, cargos=None):
     """Declara la producción de un turno (ver el docstring del módulo). Devuelve la DeclaracionOrden."""
     from inventario.estados import vencimiento_propuesto
     from inventario.models import Operacion, TipoOperacion
@@ -176,7 +269,8 @@ def declarar(orden, usuario, cantidad, fecha=None, fecha_contable=None, lote='',
             consumos[str(c.pk)] = str(q)
         primera = primera or op
     # 2) horas del turno
-    mo, maq, cif, registro = _costear_horas(orden, decl, cantidad, horas, personal, fecha)
+    mo, maq, cif, registro = _costear_horas(orden, decl, cantidad, horas, personal, fecha, cargos=cargos,
+                                            usuario=usuario, autorizar=autorizar)
     # 3) el lote del producto entra al costo estándar fijado al confirmar (sin estándar: lo cargado en el turno)
     std = orden.costo_estandar_unit or ((materiales + mo + maq + cif) / cantidad).quantize(Decimal('0.0001'))
     p = orden.producto
@@ -346,11 +440,18 @@ def liquidar_orden(orden, usuario, fecha=None):
         valor = c.valor_despachado + c.valor_backflush
         c.costo_unitario = (valor / c.cantidad_real).quantize(Decimal('0.0001')) if c.cantidad_real else D0
         c.save(update_fields=['cantidad_real', 'costo_unitario'])
+    from .models import CargoDeclaracion
     for h in orden.horas.select_related('centro'):
         h.horas_real = sum((Decimal(d.horas.get(str(h.pk), '0')) for d in vigentes), D0)
         h.costo_mo = sum((p.costo for p in h.personal.filter(declaracion__anulada=False)), D0)
-        h.costo_maquina = r2(h.horas_real * h.centro.costo_hora_maquina)
-        h.costo_cif = r2(h.horas_real * h.centro.costo_hora_cif)
+        cargos = list(CargoDeclaracion.objects.filter(hora=h, declaracion__anulada=False))
+        if cargos:  # MAN-22: lo declarado por driver (tarifas del turno)
+            h.costo_maquina = sum((x.importe for x in cargos if x.tipo != 'DRIVER'), D0)
+            h.costo_cif = r2(h.horas_real * h.centro.costo_hora_cif) + sum(
+                (x.importe for x in cargos if x.tipo == 'DRIVER'), D0)
+        else:
+            h.costo_maquina = r2(h.horas_real * h.centro.costo_hora_maquina)
+            h.costo_cif = r2(h.horas_real * h.centro.costo_hora_cif)
         h.save(update_fields=['horas_real', 'costo_mo', 'costo_maquina', 'costo_cif'])
     materiales, mo, maq, cif = costo_real(orden)
     real = materiales + mo + maq + cif
@@ -404,11 +505,15 @@ def costo_tardio(orden, usuario, tipo, fecha, motivo, horas=None, importe=None, 
     horas = Decimal(str(horas or 0))
     if horas < 0:
         raise ErrorProduccion('Las horas no pueden ser negativas.')
+    dia = fecha or contable  # PLAT-16: el trabajador debe haber estado en planilla ese día
+    if trabajador is not None and not trabajador.activo_en(dia, dia):
+        raise ErrorProduccion(f'{trabajador.nombre_completo} no estaba en planilla el {dia:%d/%m/%Y}'
+                              + (f' (cese: {trabajador.fecha_cese:%d/%m/%Y}).' if trabajador.fecha_cese else '.'))
     if tipo == 'MO':
         tarifa = trabajador.costo_hora(contable) if trabajador else (centro.costo_hora_mo if centro else D0)
         importe = r2(horas * tarifa) if horas else Decimal(str(importe or 0))
     elif tipo == 'MAQUINA' and centro is not None and horas:
-        importe = r2(horas * (centro.costo_hora_maquina + centro.costo_hora_cif))
+        importe = r2(horas * (centro.costo_hora_maquina + centro.costo_hora_cif + centro.cif_drivers_hora))
     importe = Decimal(str(importe or 0))
     if importe <= 0:
         raise ErrorProduccion('Indique las horas (con el trabajador o el puesto) o el importe.')

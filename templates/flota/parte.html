@@ -6,7 +6,7 @@
   <a href="{% url 'flota:lecturas' %}" class="btn btn-sm btn-outline-secondary">Lecturas por aprobar</a>
 </div>
 <p class="small text-muted">Escriba la lectura de cada equipo (solo los que se usaron). No se acepta una lectura menor a la anterior; el parte queda por aprobar y, al aprobarse, actualiza la lectura del equipo y la proyección de sus mantenimientos por uso.</p>
-<form class="row g-2 mb-2"><div class="col-md-3"><select name="tipo" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todos los tipos</option>{% for v, n in tipos %}<option value="{{ v }}" {% if request.GET.tipo == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div></form>
+<form class="row g-2 mb-2"><div class="col-md-3"><select name="tipo" class="form-select form-select-sm" data-autoenvio><option value="">Todos los tipos</option>{% for v, n in tipos %}<option value="{{ v }}" {% if request.GET.tipo == v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div></form>
 <form method="post">{% csrf_token %}
   <div class="row g-2 align-items-end mb-2"><div class="col-md-3"><label class="form-label small mb-1">Fecha del parte</label><input type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}" class="form-control form-control-sm"></div></div>
   <div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">

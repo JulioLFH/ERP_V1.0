@@ -19,7 +19,7 @@
     <thead><tr><th>Número</th><th>Fecha</th><th>Libro</th><th>Origen</th><th>Glosa</th><th class="num">Importe</th></tr></thead>
     <tbody>
     {% for a in page_obj %}
-      <tr onclick="location.href='{% url 'contabilidad:asiento_detalle' a.pk %}'" style="cursor:pointer">
+      <tr data-href="{% url 'contabilidad:asiento_detalle' a.pk %}" style="cursor:pointer">
         <td class="fw-semibold">{{ a.numero }}</td><td>{{ a.fecha|date:'d/m/Y' }}</td><td class="small">{{ a.get_libro_display }}</td>
         <td><span class="badge {% if a.origen == 'MANUAL' %}text-bg-warning{% else %}text-bg-light{% endif %}">{{ a.get_origen_display }}</span></td>
         <td class="small">{{ a.glosa|truncatechars:70 }}</td><td class="num">{{ a.total|money }}</td>

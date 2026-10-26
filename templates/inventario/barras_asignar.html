@@ -8,7 +8,7 @@
 <p class="small text-muted">Escanee el código del fabricante en la casilla de cada producto (el lector pasa solo a la siguiente) o marque «Generar» para crear un EAN-13 interno (empieza con 2). Luego imprima las etiquetas.</p>
 <form method="post">{% csrf_token %}
 <div class="card"><div class="table-responsive"><table class="table table-sm mb-0 small align-middle">
-  <thead><tr><th>Código</th><th>Producto</th><th>Unidad</th><th style="min-width: 220px">Código de barras</th><th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=generar]').forEach(c => c.checked = this.checked)" aria-label="Generar todos"> Generar</th></tr></thead>
+  <thead><tr><th>Código</th><th>Producto</th><th>Unidad</th><th style="min-width: 220px">Código de barras</th><th><input type="checkbox" class="form-check-input" data-marcar-todos="input[name=generar]" aria-label="Generar todos"> Generar</th></tr></thead>
   <tbody>{% for p in pagina %}<tr><td>{{ p.codigo }}</td><td>{{ p.nombre }}</td><td>{{ p.unidad }}</td>
     <td><input name="codigo_{{ p.pk }}" class="form-control form-control-sm js-barras" maxlength="40" autocomplete="off" aria-label="Código de barras de {{ p.codigo }}"{% if not puede.codigo_barras_asignar %} disabled{% endif %}></td>
     <td><input type="checkbox" name="generar" value="{{ p.pk }}" class="form-check-input" aria-label="Generar EAN-13 de {{ p.codigo }}"{% if not puede.codigo_barras_asignar %} disabled{% endif %}></td></tr>
@@ -20,7 +20,7 @@
 </form>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 // el lector termina con Enter: pasar a la casilla siguiente en vez de enviar el formulario
 const casillas = [...document.querySelectorAll('.js-barras')];
 casillas.forEach((c, i) => c.addEventListener('keydown', e => {

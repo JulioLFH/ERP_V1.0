@@ -22,14 +22,14 @@
     <button type="button" class="btn btn-sm btn-outline-secondary" id="otra"><i class="bi bi-plus"></i> Otro producto</button>
     <label class="form-check-label small"><input type="checkbox" name="precio" value="1" class="form-check-input"{% if con_precio %} checked{% endif %}> Con precio de venta</label>
     <button class="btn btn-sm btn-primary">Ver etiquetas</button>
-    {% if etiquetas %}<button type="button" class="btn btn-sm btn-success" onclick="window.print()"><i class="bi bi-printer"></i> Imprimir</button>{% endif %}
+    {% if etiquetas %}<button type="button" class="btn btn-sm btn-success" data-imprimir><i class="bi bi-printer"></i> Imprimir</button>{% endif %}
   </div>
   <div class="form-text">Los productos sin código de barras usan su código interno. Para imprimir en hojas de etiquetas ajuste los márgenes de la impresora a «ninguno».</div>
 </div></form>
 <div class="hoja-etiquetas">{% for e in etiquetas %}<div class="etiqueta"><div class="nombre">{{ e.p.nombre }}</div>{{ e.svg }}{% if con_precio %}<div class="fw-bold">S/ {{ e.p.precio_venta|floatformat:2 }}</div>{% endif %}</div>{% endfor %}</div>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 document.getElementById('otra').addEventListener('click', () => {
   const filas = document.getElementById('filas');
   const nueva = document.createElement('div');

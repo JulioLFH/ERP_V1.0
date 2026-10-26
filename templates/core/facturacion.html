@@ -68,7 +68,7 @@
 </div>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
   const proveedor = document.getElementById('{{ form.proveedor.id_for_label }}');
   const entorno = document.getElementById('{{ form.entorno.id_for_label }}');
   const sync = () => {

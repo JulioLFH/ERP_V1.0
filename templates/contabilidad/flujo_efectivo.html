@@ -14,7 +14,7 @@
     </select>
     <button class="btn btn-sm btn-primary">Ver</button>
     <button name="formato" value="excel" class="btn btn-sm btn-outline-success" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></button>
-    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary" title="Imprimir o guardar como PDF"><i class="bi bi-file-earmark-pdf"></i></button>
+    <button type="button" data-imprimir class="btn btn-sm btn-outline-secondary" title="Imprimir o guardar como PDF"><i class="bi bi-file-earmark-pdf"></i></button>
     <a href="{% url 'contabilidad:flujo_configuracion' %}" class="btn btn-sm btn-outline-secondary" title="Rubros, reglas y políticas"><i class="bi bi-sliders"></i></a>
   </form>
 </div>

@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title">{{ r }} <span class="badge {% if r.en_planta %}text-bg-primary{% else %}text-bg-secondary{% endif %}">{% if r.en_planta %}En planta{% else %}Salió{% endif %}</span></h1>
   <div class="d-flex gap-2 d-print-none">
-    <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</button>
+    <button data-imprimir class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</button>
     {% if r.en_planta and puede.logistica_garita %}<form method="post">{% csrf_token %}<button name="accion" value="salida" class="btn btn-sm btn-success"><i class="bi bi-box-arrow-right"></i> Registrar salida</button></form>{% endif %}
   </div>
 </div>

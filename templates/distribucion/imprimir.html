@@ -1,4 +1,4 @@
-<!doctype html>
+{% load static %}<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ h.numero }} · Hoja de reparto</title>
 <style>
@@ -14,7 +14,7 @@
   @media print { .no-imprimir { display: none; } body { margin: 0; } }
 </style></head>
 <body>
-<button class="no-imprimir" onclick="window.print()">Imprimir</button>
+<button class="no-imprimir" data-imprimir>Imprimir</button>
 <h1>{{ empresa.razon_social }} · Hoja de reparto {{ h.numero }}</h1>
 <div>Fecha: {{ h.fecha|date:'d/m/Y' }} · Vehículo: {{ h.vehiculo|default:'—' }} · Conductor: {{ h.conductor|default:'—' }}{% if h.ayudante %} · Ayudante: {{ h.ayudante }}{% endif %}{% if h.zona %} · Zona: {{ h.zona }}{% endif %}{% if h.almacen %} · Sale de: {{ h.almacen }}{% endif %}</div>
 {% if h.observaciones %}<div>Observaciones: {{ h.observaciones }}</div>{% endif %}
@@ -28,4 +28,4 @@
   </tr>{% endfor %}</tbody>
 </table>
 <div class="pie"><div>Despachó</div><div>Conductor</div><div>Recepción de retorno</div></div>
-</body></html>
+<script src="{% static 'js/acciones.js' %}?v={{ erp_version }}"></script></body></html>

@@ -27,7 +27,7 @@
 </form>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (() => {
   const IGV = {{ igv|editable }} / 100;
   const CLAVE = 'ceiba-tomapedido';

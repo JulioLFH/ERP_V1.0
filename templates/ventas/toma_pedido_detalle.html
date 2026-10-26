@@ -19,4 +19,4 @@
 </div>{% endif %}
 {% if ver_completo %}<p class="small mt-2"><a href="{% url 'ventas:cot_detalle' ped.pk %}">Ver el pedido completo en Ventas</a> (ruta de aprobación, emisión y guía).</p>{% endif %}
 {% endblock %}
-{% block scripts %}{% if request.GET.nuevo %}<script>try { localStorage.removeItem('ceiba-tomapedido'); } catch (e) { /* sin almacenamiento */ }</script>{% endif %}{% endblock %}
+{% block scripts %}{% if request.GET.nuevo %}<script nonce="{{ csp_nonce }}">try { localStorage.removeItem('ceiba-tomapedido'); } catch (e) { /* sin almacenamiento */ }</script>{% endif %}{% endblock %}

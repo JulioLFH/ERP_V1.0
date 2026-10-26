@@ -102,6 +102,17 @@ def _mostrar(v):
     return v
 
 
+def mostrar_valor(v):
+    """Como _mostrar, también para lo que versiones anteriores guardaron como texto («{'a': 1}», «[]»)."""
+    if isinstance(v, str) and len(v) > 1 and (v[0], v[-1]) in (('{', '}'), ('[', ']')):
+        import ast
+        try:
+            v = ast.literal_eval(v)
+        except (ValueError, SyntaxError, MemoryError, RecursionError):
+            return 'detalle'
+    return _mostrar(v)
+
+
 def _campos(obj):
     datos = {}
     for f in obj._meta.concrete_fields:

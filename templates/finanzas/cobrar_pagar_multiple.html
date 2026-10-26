@@ -51,7 +51,7 @@
 </form>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   const filas = document.querySelectorAll('.js-fila');
   const total = () => {

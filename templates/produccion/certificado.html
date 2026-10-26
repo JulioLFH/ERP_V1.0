@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3 d-print-none">
   <div class="d-flex gap-2">
     <a href="{% url 'manufactura:certificados' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Certificados</a>
-    <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir / PDF</button>
+    <button data-imprimir class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir / PDF</button>
     {% if c.inspeccion %}<a href="{% url 'manufactura:inspeccion' c.inspeccion_id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-clipboard2-check"></i> {{ c.inspeccion.numero }}</a>{% endif %}
   </div>
   <span class="badge fs-6 {% if c.estado == 'APROBADO' %}text-bg-success{% elif c.estado == 'BORRADOR' %}text-bg-warning{% elif c.estado == 'RECHAZADO' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ c.get_estado_display }}</span>

@@ -99,7 +99,7 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
   const admin = document.getElementById('{{ form.es_admin.id_for_label }}');
   const lista = document.getElementById('lista-modulos');
   const permisos = document.getElementById('bloque-permisos');

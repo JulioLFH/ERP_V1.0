@@ -48,7 +48,7 @@
       <td class="num fw-semibold">{{ f.neto|money }}</td>
       <td class="text-end text-nowrap">{% if planilla.estado != 'BORRADOR' %}<a href="{% url 'planillas:boletas' planilla.pk %}?fila={{ f.pk }}" target="_blank" class="btn btn-sm btn-outline-secondary py-0" title="Boleta"><i class="bi bi-receipt"></i></a>{% endif %}
         {% if f.detalle_calculo %}<span class="btn btn-sm btn-outline-secondary py-0" title="{{ f.detalle_calculo }}"><i class="bi bi-info-circle"></i></span>{% endif %}
-        {% if formset and puede.planillas_calcular %}<button name="accion" value="quitar" onclick="this.form.fila.value='{{ f.pk }}'" class="btn btn-sm btn-outline-danger py-0" title="Quitar de la planilla" data-confirm="¿Quitar a {{ f.trabajador.nombre_completo }} de esta planilla?"><i class="bi bi-x"></i></button>{% endif %}</td>
+        {% if formset and puede.planillas_calcular %}<button name="accion" value="quitar" data-fijar-campo="fila" data-fijar-valor="{{ f.pk }}" class="btn btn-sm btn-outline-danger py-0" title="Quitar de la planilla" data-confirm="¿Quitar a {{ f.trabajador.nombre_completo }} de esta planilla?"><i class="bi bi-x"></i></button>{% endif %}</td>
     </tr>{% empty %}<tr><td colspan="20" class="text-center text-muted py-4">Sin trabajadores. Use «Actualizar trabajadores».</td></tr>{% endfor %}</tbody>
     {% if filas and conceptos %}<tfoot><tr class="fw-semibold table-light"><td>Totales</td>{% if formset %}<td colspan="{{ n_columnas }}"></td>{% endif %}{% for t in totales_concepto %}<td class="num">{{ t|money }}</td>{% endfor %}<td class="num">{{ totales.n|money }}</td><td></td></tr></tfoot>{% endif %}
   </table></div></div>

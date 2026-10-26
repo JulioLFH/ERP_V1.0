@@ -7,10 +7,10 @@
 </div>
 <div class="card mb-3"><div class="card-body py-2">
   <form class="row g-2 align-items-center" method="get">
-    <div class="col-auto"><select name="formato_sunat" class="form-select form-select-sm" onchange="this.form.submit()">
+    <div class="col-auto"><select name="formato_sunat" class="form-select form-select-sm" data-autoenvio>
       <option value="12.1">12.1 Unidades físicas</option>{% if puede_valorizado %}<option value="13.1" {% if valorizado %}selected{% endif %}>13.1 Valorizado</option>{% endif %}</select></div>
-    <div class="col-auto"><select name="mes" class="form-select form-select-sm" onchange="this.form.submit()">{% for v, e in meses %}<option value="{{ v }}" {% if mes == v %}selected{% endif %}>Mes {{ e }}</option>{% endfor %}<option value="anual" {% if mes == 'anual' %}selected{% endif %}>Año completo</option></select></div>
-    <div class="col-auto"><select name="anio" class="form-select form-select-sm" onchange="this.form.submit()">{% for y in anios %}<option value="{{ y }}" {% if y == anio %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></div>
+    <div class="col-auto"><select name="mes" class="form-select form-select-sm" data-autoenvio>{% for v, e in meses %}<option value="{{ v }}" {% if mes == v %}selected{% endif %}>Mes {{ e }}</option>{% endfor %}<option value="anual" {% if mes == 'anual' %}selected{% endif %}>Año completo</option></select></div>
+    <div class="col-auto"><select name="anio" class="form-select form-select-sm" data-autoenvio>{% for y in anios %}<option value="{{ y }}" {% if y == anio %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></div>
   </form>
 </div></div>
 {% for b in bloques %}

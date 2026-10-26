@@ -32,7 +32,7 @@
 </div>
 {% if o.estado != 'BORRADOR' and o.estado != 'ANULADA' %}
 <div class="collapse mb-3" id="form-anular"><div class="card border-danger"><div class="card-body">
-  <form method="post" action="{% url 'manufactura:orden_anular' o.pk %}" class="row g-2 align-items-end" data-confirm="¿Anular {{ o }}?{% if o.estado == 'TERMINADA' %} Se revertirá el movimiento de almacén (vuelven los insumos y sale el producto).{% endif %}">
+  <form method="post" action="{% url 'manufactura:orden_anular' o.pk %}" class="row g-2 align-items-end" data-confirm="¿Anular {{ o }}?{% if o.estado == 'TERMINADA' %} Se revertirá el movimiento de almacén (vuelven los insumos y sale el producto).{% endif %}{% if salidas_almacen %} También se anulan sus salidas de almacén ({% for s in salidas_almacen %}{{ s.numero }}{% if not forloop.last %}, {% endif %}{% endfor %}) o, si no se pueden anular, se devuelve el material.{% endif %}">
     {% csrf_token %}
     <div class="col-md-9"><label class="form-label small mb-1">Motivo de la anulación <span class="text-danger">*</span></label>
       <input name="motivo" class="form-control form-control-sm" minlength="10" maxlength="250" required placeholder="Ej. Producción registrada con cantidades erradas"></div>
@@ -77,7 +77,7 @@
             {% if c.motivo %}<div class="small text-muted">{{ c.motivo }}</div>{% endif %}
             {% if c.aprobacion == 'POR_APROBAR' and puede.manufactura_aprobar_consumo and abierta %}<div class="d-flex gap-1 mt-1"><button form="resolver-{{ c.pk }}" name="accion" value="aprobar" class="btn btn-sm btn-outline-success py-0">Aprobar</button><button form="resolver-{{ c.pk }}" name="accion" value="rechazar" class="btn btn-sm btn-outline-danger py-0">Rechazar</button></div>{% endif %}</td><td>{{ c.producto.unidad }}</td>
           <td class="num">{{ c.cantidad_plan|cant:c.producto.unidad }}</td>
-          {% if o.estado != 'TERMINADA' and o.estado != 'ANULADA' %}<td class="num {% if f.faltante > 0 %}text-danger fw-semibold{% endif %}">{{ f.libre|money }}{% if f.no_disponible %}<div class="small text-warning" title="En calidad, bloqueado o vencido: no sale a producción">+ {{ f.no_disponible|money }} retenido</div>{% endif %}</td>{% endif %}
+          {% if o.estado != 'TERMINADA' and o.estado != 'ANULADA' %}<td class="num {% if f.faltante > 0 %}text-danger fw-semibold{% endif %}">{{ f.libre|money }}{% if f.no_disponible %}<div class="small text-warning" title="En calidad, bloqueado, vencido o sin lote: no sale a producción">+ {{ f.no_disponible|money }} retenido</div>{% endif %}{% if f.sin_lote %}<div class="small text-danger" title="El producto se controla por lote: regularice este stock con un ajuste que indique el lote">{{ f.sin_lote|money }} sin lote</div>{% endif %}</td>{% endif %}
           <td class="num">{% if terminable %}<input name="consumo_{{ c.pk }}" value="{{ c.cantidad_real|editable }}" class="form-control form-control-sm text-end" inputmode="decimal" {% if c.adicional or politica.0 == 'ESTRICTO' %}readonly title="{% if c.adicional %}El material agregado cambia con su aprobación{% else %}Política estricta: se consume la receta{% endif %}"{% endif %}>{% if politica.0 == 'TOLERANCIA' and not c.adicional %}<input name="motivo_{{ c.pk }}" class="form-control form-control-sm mt-1" placeholder="Motivo si se aleja más del {{ politica.1|floatformat:'-2' }} %">{% endif %}{% if c.producto.control %}<select name="lote_{{ c.pk }}" class="form-select form-select-sm mt-1" title="Lote del insumo (vacío = regla de salida)"><option value="">Lote: por regla de salida</option>{% for sl in f.lotes %}<option value="{{ sl.lote.codigo }}">{{ sl.lote.codigo }}{% if sl.lote.vencimiento %} · vence {{ sl.lote.vencimiento|date:'d/m/Y' }}{% endif %} · {{ sl.cantidad|floatformat:'-2' }}</option>{% endfor %}</select>{% endif %}{% elif declaraciones and o.estado != 'TERMINADA' %}{{ c.entregado|cant:c.producto.unidad }}{% else %}{{ c.cantidad_real|cant:c.producto.unidad }}{% endif %}</td>
           {% if ver_costos and o.estado == 'TERMINADA' %}<td class="num">{{ c.costo_unitario|costo }}</td><td class="num">{{ c.valor|money }}</td>{% endif %}
         </tr>{% endwith %}{% endfor %}</tbody>
@@ -134,7 +134,7 @@
       <div class="col-12"><div class="form-check small"><input class="form-check-input" type="checkbox" name="merma_a_gasto" value="1" id="merma_a_gasto"><label class="form-check-label" for="merma_a_gasto">Llevar a gasto el consumo sobre la receta (merma anormal, NIC 2 párr. 16). Sin marcar, el producto lleva todo lo consumido ÷ todo lo producido.</label></div></div>
       <div class="col-12 small text-muted">Costo unitario = (insumos consumidos + mano de obra + máquina + CIF − lo asignado a subproductos) ÷ cantidad producida. Tabla 12 SUNAT: 10 salida a producción, 19 entrada de producción.</div>
     </div></div>
-    <script>
+    <script nonce="{{ csp_nonce }}">
     /* las horas hombre de la cuadrilla siguen a las horas máquina mientras no se cambien a mano */
     document.querySelectorAll('.js-hmaq').forEach(inp => inp.addEventListener('input', () => {
       document.querySelectorAll('.js-hh-' + inp.dataset.hora).forEach(hh => { if (!hh.dataset.editado) hh.value = inp.value; });
@@ -194,6 +194,9 @@
   <div class="col-lg-4">
     {% if ver_costos and o.costo_estandar_unit %}<div class="card mb-3"><div class="card-body">
       <div class="text-muted small">Costo estándar unitario</div><div class="fs-5 fw-semibold">S/ {{ o.costo_estandar_unit|costo }}</div>
+      {% if desglose_std %}<div class="small text-muted">Materiales {{ desglose_std.materiales|money }} · MO {{ desglose_std.mo|money }} · Máquina {{ desglose_std.maquina|money }} · CIF {{ desglose_std.cif|money }}{% if desglose_std.subproductos %} · − subproductos {{ desglose_std.subproductos|money }}{% endif %} por unidad</div>
+      <div class="small text-muted">Calculado para un lote de {{ desglose_std.lote|money }} {{ o.producto.unidad }}{% if desglose_std.provisional %} (provisional, con la cantidad de la orden){% endif %} · {{ desglose_std.horas_std|floatformat:4 }} h máquina por unidad</div>
+      {% if desglose_std.distinto %}<div class="small text-warning mt-1"><i class="bi bi-exclamation-triangle"></i> La orden planifica {{ desglose_std.horas_plan|floatformat:4 }} h por unidad para {{ o.cantidad|money }} {{ o.producto.unidad }}: la preparación se reparte distinto que en el lote de costeo y la diferencia sale como variación. Ajuste el «lote de costeo» de la versión de fabricación al lote habitual y vuelva a calcular el estándar.</div>{% endif %}{% endif %}
       {% if o.estado == 'TERMINADA' %}<div class="text-muted small mt-2">Costo real unitario</div><div class="fs-5 fw-semibold">S/ {{ o.costo_unitario|costo }}</div>
       <div class="small text-muted">Materiales {{ o.costo_materiales|money }} · MO {{ o.costo_mano_obra|money }} · Máquina {{ o.costo_maquina|money }} · CIF {{ o.costo_cif|money }}{% if o.costo_subproductos %} · − subproductos {{ o.costo_subproductos|money }}{% endif %} ÷ {{ o.cantidad_producida|money }} {{ o.producto.unidad }}</div>
       {% if o.merma_anormal %}<div class="small text-warning mt-1"><i class="bi bi-exclamation-triangle"></i> Merma anormal S/ {{ o.merma_anormal|money }}: consumo sobre la receta, llevado a gasto (NIC 2)</div>{% endif %}

@@ -10,13 +10,13 @@
 </div>
 <div class="card">
   <div class="card-body border-bottom py-2"><form method="get" class="d-flex flex-wrap gap-2">
-    <select name="almacen" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="">Todos los almacenes</option>{% for a in almacenes %}<option value="{{ a.pk }}" {% if request.GET.almacen == a.pk|stringformat:'s' %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
-    <select name="tipo" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="">Todos los tipos</option>{% for v, t in tipos %}<option value="{{ v }}" {% if request.GET.tipo == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
-    <select name="estado" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="">Todos los estados</option>{% for v, t in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+    <select name="almacen" class="form-select form-select-sm" style="width:auto" data-autoenvio><option value="">Todos los almacenes</option>{% for a in almacenes %}<option value="{{ a.pk }}" {% if request.GET.almacen == a.pk|stringformat:'s' %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+    <select name="tipo" class="form-select form-select-sm" style="width:auto" data-autoenvio><option value="">Todos los tipos</option>{% for v, t in tipos %}<option value="{{ v }}" {% if request.GET.tipo == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+    <select name="estado" class="form-select form-select-sm" style="width:auto" data-autoenvio><option value="">Todos los estados</option>{% for v, t in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
   </form></div>
   <div class="table-responsive"><table class="table table-hover mb-0">
     <thead><tr><th>Fecha</th><th>N°</th><th>Tipo</th><th>Almacén</th><th>Contador</th><th>Bloqueo</th><th>Estado</th></tr></thead>
-    <tbody>{% for d in docs %}<tr onclick="location.href='{% url 'inventario:fisico' d.pk %}'" style="cursor:pointer">
+    <tbody>{% for d in docs %}<tr data-href="{% url 'inventario:fisico' d.pk %}" style="cursor:pointer">
       <td>{{ d.fecha|date:'d/m/Y' }}</td><td class="fw-semibold">{{ d.numero }}</td><td class="small">{{ d.get_tipo_display }}</td><td class="small">{{ d.almacen }}</td>
       <td class="small">{% if d.contaron %}{{ d.contaron|join:', ' }}{% else %}{{ d.contador.username|default:'—' }}{% endif %}{% if d.antiguo %} <span class="badge text-bg-warning" title="Abierto hace más de una semana: el stock se sigue moviendo">{{ d.dias }} días</span>{% endif %}</td><td>{% if d.bloquear %}<i class="bi bi-lock-fill text-warning" title="Movimientos bloqueados"></i>{% endif %}</td>
       <td><span class="badge {% if d.estado == 'CERRADO' %}text-bg-success{% elif d.estado == 'APROBADO' %}text-bg-primary{% elif d.estado == 'CONTADO' %}text-bg-warning{% elif d.estado == 'ABIERTO' %}text-bg-info{% else %}badge-ANULADO{% endif %}">{{ d.get_estado_display }}</span></td>

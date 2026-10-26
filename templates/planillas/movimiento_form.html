@@ -11,7 +11,7 @@
   <div class="col-12 small text-muted">Aumento: nueva remuneración. Cambio de puesto: nuevo puesto (y, si cambia, cargo, centro de costo y remuneración). Cambio de centro de costo: el nuevo centro. Cese: motivo de cese (la fecha efectiva es el último día).</div>
   <div class="col-12 d-flex gap-2"><button name="accion" value="guardar" class="btn btn-outline-primary">Guardar borrador</button><button name="accion" value="enviar" class="btn btn-primary"><i class="bi bi-send"></i> Guardar y enviar a aprobación</button></div>
 </div></form>
-<script>
+<script nonce="{{ csp_nonce }}">
 const CAMPOS = {AUMENTO: ['sueldo'], CAMBIO_PUESTO: ['puesto', 'cargo', 'centro_costo', 'sueldo'], CAMBIO_CC: ['centro_costo'],
                 ALTA: ['puesto', 'cargo', 'centro_costo', 'sueldo'], CESE: ['motivo_cese']};
 const OPCIONALES = ['sueldo', 'puesto', 'cargo', 'centro_costo', 'motivo_cese'];

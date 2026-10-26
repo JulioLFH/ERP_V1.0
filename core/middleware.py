@@ -21,9 +21,12 @@ class SeguridadMiddleware:
             if (settings.ADMIN_IPS and ip not in settings.ADMIN_IPS) or (
                     usuario is not None and usuario.is_authenticated and not usuario.is_superuser):
                 raise Http404
+        import secrets
+        request.csp_nonce = secrets.token_urlsafe(16)  # SEG-09: un nonce por respuesta para los <script> propios
         response = self.get_response(request)
         if settings.CONTENT_SECURITY_POLICY and 'Content-Security-Policy' not in response:
-            response['Content-Security-Policy'] = settings.CONTENT_SECURITY_POLICY
+            response['Content-Security-Policy'] = settings.CONTENT_SECURITY_POLICY.replace('{nonce}',
+                                                                                         request.csp_nonce)
         if 'attachment' in response.get('Content-Disposition', ''):
             # descarga de un archivo: la pantalla no cambia, así que el aviso «Cargando…» se oculta con esta marca
             response.set_cookie('ceiba_descarga', '1', max_age=60, samesite='Lax', secure=request.is_secure())

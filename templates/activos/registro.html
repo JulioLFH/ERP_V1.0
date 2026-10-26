@@ -4,13 +4,13 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title">Registro de activos fijos · Formato 7.1</h1>
   <div class="d-flex gap-2">
-    <form method="get"><select name="anio" class="form-select form-select-sm" onchange="this.form.submit()">{% for y in anios %}<option value="{{ y }}" {% if y == anio %}selected{% endif %}>Ejercicio {{ y }}</option>{% endfor %}</select></form>
+    <form method="get"><select name="anio" class="form-select form-select-sm" data-autoenvio>{% for y in anios %}<option value="{{ y }}" {% if y == anio %}selected{% endif %}>Ejercicio {{ y }}</option>{% endfor %}</select></form>
     <a href="?anio={{ anio }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel (formato completo)</a>
   </div>
 </div>
 <div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
   <thead><tr><th>Código</th><th>Cuenta</th><th>Descripción</th><th class="num">Saldo inicial</th><th class="num">Adquisiciones</th><th class="num">Retiros / bajas</th><th class="num">Valor histórico 31.12</th><th>Adquisición</th><th>Inicio uso</th><th class="num">%</th><th class="num">Dep. acum. anterior</th><th class="num">Dep. ejercicio</th><th class="num">Dep. retiros</th><th class="num">Dep. acumulada</th></tr></thead>
-  <tbody>{% for f in filas %}<tr onclick="location.href='{% url 'activos:detalle' f.a.pk %}'" style="cursor:pointer">
+  <tbody>{% for f in filas %}<tr data-href="{% url 'activos:detalle' f.a.pk %}" style="cursor:pointer">
     <td>{{ f.a.codigo }}</td><td>{{ f.a.categoria.cuenta_activo.codigo }}</td><td>{{ f.a.nombre }}{% if f.a.serie %} <span class="text-muted">· {{ f.a.serie }}</span>{% endif %}</td>
     <td class="num">{{ f.saldo_inicial|money }}</td><td class="num">{{ f.adquisiciones|money }}</td><td class="num">{{ f.retiros|money }}</td><td class="num fw-semibold">{{ f.historico|money }}</td>
     <td>{{ f.a.fecha_adquisicion|date:'d/m/Y' }}</td><td>{{ f.a.fecha_uso|date:'d/m/Y' }}</td><td class="num">{{ f.a.tasa }}</td>

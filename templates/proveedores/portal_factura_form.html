@@ -38,7 +38,7 @@
 {{ xml_lineas|json_script:"xml-lineas" }}
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   const tasa = {% if oc.tipo_operacion == 'GRAVADA' %}{{ igv_tasa|editable }}{% else %}0{% endif %};
   const tolImporte = {{ tol_t|editable }}, tolPct = {{ tol_t_pct|editable }};

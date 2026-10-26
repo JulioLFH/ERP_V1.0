@@ -13,7 +13,11 @@
   <div class="col-lg-5"><div class="card"><div class="card-header fw-semibold"><i class="bi bi-globe"></i> Formulario de la página web</div><div class="card-body small">
     {% if not cfg.web_activo %}<div class="alert alert-warning py-1">Inactivo: márquelo como activo para recibir consultas.</div>{% endif %}
     <p>Enlace del formulario (para un botón «Contáctenos» o dentro de un <code>iframe</code> en su página):</p>
-    <input class="form-control form-control-sm mb-2" readonly value="{{ url_web }}" onclick="this.select()">
+    <div class="border rounded bg-body-tertiary p-2 mb-2 text-break"><code id="url-web">{{ url_web }}</code></div>
+    <div class="d-flex flex-wrap gap-2 mb-2">
+      {% if cfg.web_activo %}<a href="{{ url_web }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right"></i> Abrir el formulario (probar)</a>{% endif %}
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-copiar="#url-web"><i class="bi bi-clipboard"></i> Copiar el enlace</button>
+    </div>
     <p>O desde el formulario propio de su página (envíe por POST a ese mismo enlace los campos <code>nombre</code>, <code>empresa</code>, <code>telefono</code>, <code>email</code>, <code>mensaje</code> y <code>consentimiento=1</code>; con <code>Accept: application/json</code> responde en JSON).</p>
     <p>Cada consulta crea la oportunidad con origen «Web», la asigna según la regla, agenda «Llamar hoy», avisa posibles duplicados y registra el consentimiento de datos personales. Un campo trampa y un tiempo mínimo filtran a los robots.</p>
     <form method="post" data-confirm="Las páginas con el enlace anterior dejarán de enviar consultas. ¿Continuar?">{% csrf_token %}<input type="hidden" name="accion" value="nueva_clave"><button class="btn btn-sm btn-outline-danger">Cambiar la clave del enlace</button></form>

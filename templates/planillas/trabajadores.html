@@ -20,7 +20,7 @@
 </form>
 <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="asignar_centro">
 <div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
-  <thead><tr>{% if puede.empleados_registrar %}<th><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=trabajador]').forEach(c => c.checked = this.checked)"></th>{% endif %}<th>Documento</th><th>Apellidos y nombres</th><th>Cargo</th><th>Centro de costo</th><th>Ingreso</th><th>Pensiones</th>{% if ver_sueldos %}<th class="num">Sueldo</th>{% endif %}<th></th></tr></thead>
+  <thead><tr>{% if puede.empleados_registrar %}<th><input type="checkbox" class="form-check-input" data-marcar-todos="input[name=trabajador]"></th>{% endif %}<th>Documento</th><th>Apellidos y nombres</th><th>Cargo</th><th>Centro de costo</th><th>Ingreso</th><th>Pensiones</th>{% if ver_sueldos %}<th class="num">Sueldo</th>{% endif %}<th></th></tr></thead>
   <tbody>{% for t in page_obj %}<tr class="{% if t.fecha_cese %}text-muted{% endif %}">
     {% if puede.empleados_registrar %}<td><input type="checkbox" class="form-check-input" name="trabajador" value="{{ t.pk }}"></td>{% endif %}
     <td>{{ t.numero_doc }}</td>

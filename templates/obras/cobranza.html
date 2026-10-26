@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <div><h1 class="page-title">Cobranza inmobiliaria</h1><div class="text-muted small">Cuotas vencidas y por vencer de las ventas de unidades, y separaciones por vencer.</div></div>
-  <form class="d-flex gap-2"><select name="obra" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todos los proyectos</option>
+  <form class="d-flex gap-2"><select name="obra" class="form-select form-select-sm" data-autoenvio><option value="">Todos los proyectos</option>
     {% for ob in obras %}<option value="{{ ob.pk }}" {% if obra_id == ob.pk|stringformat:'s' %}selected{% endif %}>{{ ob.codigo }} {{ ob.nombre|truncatechars:40 }}</option>{% endfor %}</select>
     <a href="?formato=excel{% if obra_id %}&obra={{ obra_id }}{% endif %}" class="btn btn-sm btn-outline-success text-nowrap"><i class="bi bi-file-earmark-excel"></i> Excel</a></form>
 </div>

@@ -46,6 +46,18 @@
   <div class="small text-muted mt-2">Se traslada al almacén "Cuarentena / por destruir". Desde ahí se devuelve al proveedor o se da de baja.</div>
 </div></div>
 {% endif %}
+{% if por_liberar %}<div class="card border-success mb-3" style="max-width:720px"><div class="card-body">
+  <div class="fw-semibold mb-2"><i class="bi bi-shield-check"></i> El lote {{ por_liberar.codigo }} sigue «{{ por_liberar.get_estado_calidad_display }}»: no se consume ni se vende hasta que QA lo libere.</div>
+  {% if puede.control_calidad_liberar_lotes %}
+  <form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="liberar">
+    <div class="col-md-6"><label class="form-label small">Comentario (opcional)</label><input name="comentario" maxlength="250" class="form-control form-control-sm"></div>
+    <div class="col-md-3"><label class="form-label small">Su contraseña (firma)</label><input type="password" name="clave" class="form-control form-control-sm" autocomplete="current-password" required></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-success w-100"><i class="bi bi-unlock"></i> Liberar lote</button></div>
+  </form>
+  <div class="small text-muted mt-2">Emite el certificado de análisis con estos resultados y lo aprueba con su firma («Liberado por QA»). Quien registró el análisis no puede liberar: lo hace otra persona de QA.</div>
+  {% else %}<div class="small text-muted">Lo libera QA (permiso «liberar lotes»).</div>{% endif %}
+</div></div>{% elif liberacion %}<div class="alert alert-success py-2 small"><i class="bi bi-shield-check"></i> Lote {{ liberacion.lote.codigo }} liberado por {{ liberacion.aprobado_por.username|default:'—' }} el {{ liberacion.aprobado_en|date:'d/m/Y H:i' }} con <a href="{% url 'manufactura:certificado' liberacion.pk %}" class="alert-link">{{ liberacion }}</a>.</div>
+{% elif lote and i.resultado == 'APROBADO' %}<div class="small text-muted mb-3">Lote {{ lote.codigo }}: {{ lote.get_estado_calidad_display }}.</div>{% endif %}
 {% if decidida and puede.control_calidad_reabrir %}<div class="card border-warning mb-3" style="max-width:720px"><div class="card-body">
   <form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="reabrir">
     <div class="col-md-6"><label class="form-label small">Motivo de la reapertura</label><input name="motivo" class="form-control form-control-sm" required minlength="10"></div>

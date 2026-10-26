@@ -32,7 +32,7 @@
 {% if trabajar %}<p class="small text-muted mt-2">Arrastre las tarjetas entre columnas o use los botones de cada tarjeta para cambiar su etapa.</p>{% endif %}
 {% endblock %}
 {% block scripts %}{% if trabajar %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (() => {
   const tablero = document.querySelector('.kanban');
   const token = document.querySelector('input[name=csrfmiddlewaretoken]').value;

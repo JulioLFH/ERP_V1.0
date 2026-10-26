@@ -17,13 +17,13 @@
   <div class="card-body border-bottom py-2">
     <form method="get" class="d-flex flex-wrap gap-2"><input type="hidden" name="vista" value="{{ vista }}">
       <input name="q" value="{{ q }}" class="form-control form-control-sm" style="max-width:260px" placeholder="Número, motivo o ítem">
-      <select name="estado" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="">Todos los estados</option>
+      <select name="estado" class="form-select form-select-sm" style="width:auto" data-autoenvio><option value="">Todos los estados</option>
       {% for v, e in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ e }}</option>{% endfor %}</select>
       <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></form>
   </div>
   <div class="table-responsive"><table class="table table-hover mb-0">
     <thead><tr><th>Fecha</th><th>Número</th><th>Origen</th><th>Centro de costo</th><th>Para qué</th><th>Solicitante</th><th>Se necesita</th><th class="num">Monto S/</th><th>Estado</th></tr></thead>
-    <tbody>{% for s in solicitudes %}<tr onclick="location.href='{% url 'solicitudes:detalle' s.pk %}'" style="cursor:pointer">
+    <tbody>{% for s in solicitudes %}<tr data-href="{% url 'solicitudes:detalle' s.pk %}" style="cursor:pointer">
       <td>{{ s.fecha|date:'d/m/Y' }}</td><td class="fw-semibold">{{ s.numero|default:'(borrador)' }}{% if s.urgente %} <span class="badge text-bg-danger">Urgente</span>{% endif %}</td>
       <td class="small">{{ s.get_origen_display }}</td><td class="small">{{ s.centro_costo }}</td>
       <td class="small">{{ s.motivo|truncatechars:60 }}</td><td class="small">{{ s.solicitante.get_full_name|default:s.solicitante.username }}</td>

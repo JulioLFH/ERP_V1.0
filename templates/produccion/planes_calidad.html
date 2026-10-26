@@ -4,7 +4,7 @@
 <h1 class="page-title mb-3">Planes de calidad por producto</h1>
 <div class="card mb-3"><div class="card-body py-2">
   <form method="get" class="row g-2 align-items-center">
-    <div class="col-md-6"><select name="producto" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'productos_bienes' %}" onchange="this.form.submit()"><option value="">— Elegir producto para definir o editar su plan —</option></select></div>
+    <div class="col-md-6"><select name="producto" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'productos_bienes' %}" data-autoenvio><option value="">— Elegir producto para definir o editar su plan —</option></select></div>
   </form>
 </div></div>
 <div class="card"><div class="card-header">Productos con plan de calidad</div>

@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load erp_tags %}
 {% block title %}{{ titulo|default:'Auditoría' }}{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -27,7 +27,7 @@
       <td><span class="badge {% if b.accion == 'ANULAR' or b.accion == 'ELIMINAR' or b.accion == 'EXTORNAR' %}text-bg-danger{% elif b.accion == 'MODIFICAR' %}text-bg-warning{% elif b.accion == 'CREAR' %}text-bg-success{% else %}text-bg-light border{% endif %}">{{ b.get_accion_display }}</span></td>
       <td><span class="text-muted">{{ b.modelo_nombre|capfirst }}</span><br>{{ b.objeto }}</td>
       <td>{% if b.motivo %}<div><b>Motivo:</b> {{ b.motivo }}</div>{% endif %}
-        {% if b.accion == 'MODIFICAR' or b.accion == 'ANULAR' %}{% for campo, valores in b.cambios.items %}<div>{{ campo }}: <s class="text-muted">{{ valores.0|default:'—' }}</s> → {{ valores.1|default:'—' }}</div>{% endfor %}{% endif %}
+        {% if b.accion == 'MODIFICAR' or b.accion == 'ANULAR' %}{% for campo, valores in b.cambios.items %}<div>{{ campo }}: <s class="text-muted">{{ valores.0|valor_historial|default:'—' }}</s> → {{ valores.1|valor_historial|default:'—' }}</div>{% endfor %}{% endif %}
         {% if b.accion == 'ADJUNTAR' %}{{ b.cambios.archivo }}{% endif %}</td>
       <td class="text-muted">{{ b.ip }}</td></tr>
     {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Sin registros.</td></tr>{% endfor %}</tbody>

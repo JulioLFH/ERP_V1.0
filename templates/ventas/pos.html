@@ -44,7 +44,7 @@
 </div>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (() => {
   const urlProductos = "{% url 'ventas:pos_productos' %}";
   const csrf = "{{ csrf_token }}";

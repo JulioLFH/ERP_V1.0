@@ -12,7 +12,7 @@
 {% if grafico %}<div class="card mb-3"><div class="card-body" style="height:300px"><canvas id="grafico-tabla"></canvas></div></div>
 {{ grafico|json_script:'datos-grafico' }}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script>(function () {
+<script nonce="{{ csp_nonce }}">(function () {
   const g = JSON.parse(document.getElementById('datos-grafico').textContent);
   const colores = ['#3b5bdb', '#2f9e44', '#e8590c', '#868e96', '#ae3ec9'];
   new Chart(document.getElementById('grafico-tabla'), {type: g.tipo || 'line', data: {labels: g.etiquetas,
@@ -25,9 +25,9 @@
   {% if buscar %}<div><input type="search" name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Buscar"></div>{% endif %}
   {% if rango %}<div><label class="d-block">Desde</label><input type="date" name="desde" value="{{ rango.0|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
   <div><label class="d-block">Hasta</label><input type="date" name="hasta" value="{{ rango.1|date:'Y-m-d' }}" class="form-control form-control-sm"></div>{% endif %}
-  {% for nombre, etiqueta, opciones, actual in selects %}<div><label class="d-block">{{ etiqueta }}</label><select name="{{ nombre }}" class="form-select form-select-sm" onchange="this.form.submit()">{% for v, t in opciones %}<option value="{{ v }}" {% if v == actual %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>{% endfor %}
+  {% for nombre, etiqueta, opciones, actual in selects %}<div><label class="d-block">{{ etiqueta }}</label><select name="{{ nombre }}" class="form-select form-select-sm" data-autoenvio>{% for v, t in opciones %}<option value="{{ v }}" {% if v == actual %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>{% endfor %}
   {% for nombre, etiqueta, valor in textos %}<div><label class="d-block">{{ etiqueta }}</label><input name="{{ nombre }}" value="{{ valor }}" class="form-control form-control-sm" style="width:9rem"></div>{% endfor %}
-  {% for nombre, etiqueta, marcado in filtros %}<div class="form-check"><input type="checkbox" class="form-check-input" name="{{ nombre }}" value="1" id="f-{{ nombre }}" {% if marcado %}checked{% endif %} onchange="this.form.submit()"><label class="form-check-label" for="f-{{ nombre }}">{{ etiqueta }}</label></div>{% endfor %}
+  {% for nombre, etiqueta, marcado in filtros %}<div class="form-check"><input type="checkbox" class="form-check-input" name="{{ nombre }}" value="1" id="f-{{ nombre }}" {% if marcado %}checked{% endif %} data-autoenvio><label class="form-check-label" for="f-{{ nombre }}">{{ etiqueta }}</label></div>{% endfor %}
   <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i> Filtrar</button>
 </form>
 {% endif %}

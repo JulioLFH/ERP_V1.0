@@ -386,6 +386,8 @@ M['manufactura'] = {
         ('Ingeniería del producto', [
             'Defina la receta en <b>Ingeniería › Listas de materiales (recetas)</b>: insumos, cantidades y mermas.',
             'Defina la <b>Hoja de ruta</b> con las operaciones, los <b>Puestos de trabajo</b> y sus tiempos; combínelas en <b>Versiones de fabricación</b>.',
+            'En cada puesto, <b>Drivers de costo</b> (energía en kWh, gas, vapor, servicios) con su tarifa y su '
+            'consumo por hora máquina: entran al costo estándar y se proponen al declarar (desde v1.90).',
             'Los cambios se proponen como <b>Cambios de ingeniería</b> y los aprueba quien tiene «aprobar_cambios».',
         ], 'Estructura de producto con la que se calcula el costo estándar y el MRP.'),
         ('Orden de producción', [
@@ -393,7 +395,9 @@ M['manufactura'] = {
             'Genere el <b>Requerimiento de materiales</b>; el almacén despacha los insumos.',
             'En planta se reporta el avance, las mermas y las paradas desde las tablets (<b>Reporte de planta</b>).',
             'Cada turno, <b>Declarar producción</b>: el lote entra al almacén al costo estándar y se descuenta de la '
-            'receta solo lo que falte de lo ya entregado; la orden queda «Parcial» con su saldo (desde v1.88).',
+            'receta solo lo que falte de lo ya entregado; la orden queda «Parcial» con su saldo (desde v1.88). En la '
+            'tabla «Horas y drivers del turno» se cargan las horas máquina, la preparación, las horas hombre de cada '
+            'persona o rol y los kWh u otros drivers (desde v1.90).',
             'Cuando ya no se producirá más, <b>Cierre técnico</b>: motivo del faltante y devolución del material no '
             'usado; luego <b>Liquidar</b>: la variación (real − estándar) va a los lotes en stock, al costo de ventas '
             'o, con merma anormal, a gasto. Las horas olvidadas se registran como <b>Costos tardíos</b>.',

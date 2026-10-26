@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Versión visible en el menú del usuario; actualizarla junto con CHANGELOG.md y la etiqueta de git
 ERP_NOMBRE = 'Ceiba ERP'
-ERP_VERSION = '1.89.0'
+ERP_VERSION = '1.90.0'
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insegura-cambiar-en-produccion')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
@@ -90,6 +90,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.empresa',
+                'core.context_processors.csp',
             ],
         },
     },
@@ -187,10 +188,12 @@ elif os.environ.get('COOKIES_SEGURAS') == '1':
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = CSRF_COOKIE_SAMESITE = 'Lax'
 
-# Política de seguridad de contenido (CSP): solo recursos propios y los CDN que usan las pantallas
+# Política de seguridad de contenido (CSP): solo recursos propios y los CDN que usan las pantallas. SEG-09: sin
+# 'unsafe-inline' en los scripts: cada <script> propio lleva el nonce de la petición ({nonce}, core.middleware) y
+# las acciones de los botones van en static/js/app.js (atributos data-*, sin onclick)
 CONTENT_SECURITY_POLICY = '; '.join([
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
+    "script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
     "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com",
     "font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com",
     "img-src 'self' data: blob:",

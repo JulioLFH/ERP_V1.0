@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
   <h1 class="page-title">Inventario cíclico ABC</h1>
-  <form method="get" class="d-flex gap-2"><select name="almacen" class="form-select form-select-sm" onchange="this.form.submit()">{% for a in almacenes %}<option value="{{ a.pk }}" {% if a == almacen %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+  <form method="get" class="d-flex gap-2"><select name="almacen" class="form-select form-select-sm" data-autoenvio>{% for a in almacenes %}<option value="{{ a.pk }}" {% if a == almacen %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
     <a href="?almacen={{ almacen.pk }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a></form>
 </div>
 <p class="small text-muted mb-3">En vez de parar el almacén para un inventario general, se cuentan unos pocos productos cada vez. Clase A (los que suman el 80 % del valor que sale en el año) cada {{ frecuencia.A }} días, B (hasta el 95 %) cada {{ frecuencia.B }} y C cada {{ frecuencia.C }}.</p>

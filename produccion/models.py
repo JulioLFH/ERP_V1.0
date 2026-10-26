@@ -79,6 +79,36 @@ class CentroTrabajo(models.Model):
             d += timedelta(days=1)
         return self.capacidad_dia * dias
 
+    def drivers_activos(self):
+        return [d for d in self.drivers.all() if d.activo]
+
+    @property
+    def cif_drivers_hora(self):
+        """MAN-22: costo estándar de los drivers del puesto por hora máquina (consumo por hora × tarifa)."""
+        return sum((d.por_hora * d.tarifa for d in self.drivers_activos()), D0)
+
+
+class DriverPuesto(models.Model):
+    """MAN-22: otro driver de costo del puesto además de la hora máquina y la hora hombre (energía en kWh, gas,
+    vapor, un servicio…): su tarifa y su consumo estándar por hora máquina (propuesta al declarar y costo estándar)."""
+    TIPOS = [('ENERGIA', 'Energía / utilidades'), ('CIF', 'Otro costo indirecto'), ('SERVICIO', 'Servicio')]
+    centro = models.ForeignKey(CentroTrabajo, on_delete=models.CASCADE, related_name='drivers', verbose_name='Puesto')
+    nombre = models.CharField(max_length=60, help_text='Ej. Energía eléctrica, Gas natural, Vapor')
+    tipo = models.CharField(max_length=8, choices=TIPOS, default='ENERGIA')
+    unidad = models.CharField(max_length=12, default='kWh', help_text='Ej. kWh, m3, kg de vapor, servicio')
+    tarifa = models.DecimalField('Tarifa S/ por unidad', max_digits=12, decimal_places=4, default=D0)
+    por_hora = models.DecimalField('Consumo estándar por hora máquina', max_digits=12, decimal_places=4, default=D0,
+                                   help_text='Propuesta al declarar y base del costo estándar (0 = solo lo declarado)')
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['centro', 'nombre']
+        verbose_name = 'driver de costo del puesto'
+        verbose_name_plural = 'drivers de costo del puesto'
+
+    def __str__(self):
+        return f'{self.nombre} ({self.unidad})'
+
 
 class HojaRuta(models.Model):
     """Secuencia de operaciones para fabricar (reutilizable entre productos y recetas)."""
@@ -551,6 +581,31 @@ class DeclaracionOrden(models.Model):
         return self.materiales + self.costo_horas
 
 
+class CargoDeclaracion(models.Model):
+    """MAN-22: driver de costo declarado en el turno (como las actividades de la notificación de SAP): horas máquina,
+    preparación o un driver del puesto (kWh, gas, servicio) con su cantidad, tarifa e importe. Las horas hombre van en
+    HoraHombre (trabajador o rol)."""
+    TIPOS = [('MAQUINA', 'Horas máquina'), ('PREPARACION', 'Preparación (setup)'), ('DRIVER', 'Driver del puesto')]
+    declaracion = models.ForeignKey(DeclaracionOrden, on_delete=models.CASCADE, related_name='cargos')
+    hora = models.ForeignKey('HoraOrden', on_delete=models.CASCADE, related_name='cargos', verbose_name='Operación')
+    tipo = models.CharField(max_length=11, choices=TIPOS, default='MAQUINA')
+    driver = models.ForeignKey(DriverPuesto, on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    cantidad = models.DecimalField(max_digits=12, decimal_places=4, default=D0)
+    unidad = models.CharField(max_length=12, default='h')
+    tarifa = models.DecimalField('Tarifa S/', max_digits=12, decimal_places=4, default=D0)
+    importe = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    tarifa_editada = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['id']
+        verbose_name = 'cargo de la declaración'
+        verbose_name_plural = 'cargos de la declaración'
+
+    @property
+    def nombre(self):
+        return str(self.driver) if self.driver_id else self.get_tipo_display()
+
+
 class CostoTardio(models.Model):
     """MAN-21: horas o costos que llegan después de producir. En una orden cerrada técnicamente entran a su
     liquidación; en una liquidada van a otra orden abierta del mismo producto o quedan como gasto del periodo."""
@@ -669,7 +724,8 @@ class HoraOrden(models.Model):
 
 class HoraHombre(models.Model):
     """Horas hombre declaradas en una operación: quién (maquinista o ayudante) y cuánto costó su hora."""
-    ROLES = [('MAQUINISTA', 'Maquinista'), ('AYUDANTE', 'Ayudante')]
+    ROLES = [('MAQUINISTA', 'Maquinista'), ('AYUDANTE', 'Ayudante'), ('OPERARIO', 'Operario'),
+             ('SUPERVISOR', 'Supervisor'), ('TECNICO', 'Técnico / mantenimiento')]
     hora = models.ForeignKey(HoraOrden, on_delete=models.CASCADE, related_name='personal')
     rol = models.CharField(max_length=10, choices=ROLES, default='MAQUINISTA')
     trabajador = models.ForeignKey('planillas.Trabajador', on_delete=models.PROTECT, null=True, blank=True,

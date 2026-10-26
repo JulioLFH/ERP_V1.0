@@ -37,7 +37,7 @@
         <thead><tr><th>Fecha</th><th>Nota</th><th>Modifica a</th><th>{{ etiqueta_tercero }}</th><th>Motivo</th><th class="num">Total</th><th>Estado</th></tr></thead>
         <tbody>
         {% for n in page_obj %}
-          <tr onclick="location.href='{% url app|add:':detalle' n.pk %}'" style="cursor:pointer">
+          <tr data-href="{% url app|add:':detalle' n.pk %}" style="cursor:pointer">
             <td>{{ n.fecha_emision|date:'d/m/Y' }}</td>
             <td><span class="badge {% if n.tipo_comprobante == '07' %}text-bg-info{% else %}text-bg-warning{% endif %}">{% if n.tipo_comprobante == '07' %}NC{% else %}ND{% endif %}</span> {{ n.numero_completo }}</td>
             <td>{{ n.doc_referencia.numero_completo|default:'-' }}</td>

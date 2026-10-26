@@ -119,9 +119,10 @@ def hoja_costos(origen, visitados=None, cantidad=None, periodo=None, en_corrida=
         actividades = [(o.centro, None, o.descripcion, (o.horas * factor).quantize(Decimal('0.01')), 1, 0)
                        for o in lista.operaciones.select_related('centro')]
     for centro, secuencia, descripcion, h, maquinistas, ayudantes in actividades:
-        # máquina y CIF por hora máquina; mano de obra por hora hombre (horas máquina × personas)
+        # máquina y CIF por hora máquina (con los drivers del puesto: kWh × tarifa por hora, MAN-22); mano de obra
+        # por hora hombre (horas máquina × personas)
         mo = r2(h * (maquinistas + ayudantes) * centro.costo_hora_mo)
-        maq, cif = r2(h * centro.costo_hora_maquina), r2(h * centro.costo_hora_cif)
+        maq, cif = r2(h * centro.costo_hora_maquina), r2(h * (centro.costo_hora_cif + centro.cif_drivers_hora))
         horas.append({'centro': centro, 'secuencia': secuencia, 'descripcion': descripcion, 'horas': h, 'mo': mo,
                       'maquina': maq, 'cif': cif, 'total': mo + maq + cif, 'maquinistas': maquinistas,
                       'ayudantes': ayudantes})
@@ -161,7 +162,8 @@ def _detalle_unitario(hoja):
         'actividades': [{'centro': h['centro'].pk, 'nombre': str(h['centro']), 'secuencia': h['secuencia'],
                          'horas': str((h['horas'] / n).quantize(Decimal('0.000001'))),
                          'personas': h['maquinistas'] + h['ayudantes'], 'mo': str(h['centro'].costo_hora_mo),
-                         'maquina': str(h['centro'].costo_hora_maquina), 'cif': str(h['centro'].costo_hora_cif)}
+                         'maquina': str(h['centro'].costo_hora_maquina),
+                         'cif': str(h['centro'].costo_hora_cif + h['centro'].cif_drivers_hora)}
                         for h in hoja['horas']],
         'subproductos': str((hoja['tot_subproductos'] / n).quantize(D4)),
         'lote': str(n),
@@ -265,6 +267,9 @@ def explotar(orden):
 def disponibilidad(orden):
     """Por insumo: lo que aún pide al almacén (sin lo ya entregado), el stock libre de su almacén de consumo, lo que
     está en calidad, bloqueado o vencido (no sale: MAN-20) y el faltante frente al stock libre."""
+    from django.db.models import Sum
+
+    from core.models import StockLote
     from inventario.estados import no_libre, vencido
     abiertas = ('BORRADOR',) + OrdenProduccion.ABIERTAS
     retenido, vencidos = no_libre(), vencido()
@@ -273,10 +278,16 @@ def disponibilidad(orden):
         almacen = c.almacen or orden.almacen_insumos
         stock = c.producto.stock_en(almacen)
         calidad, bloqueado = retenido.get((c.producto_id, almacen.pk), (D0, D0))
-        no_disponible = min(calidad + bloqueado + vencidos.get((c.producto_id, almacen.pk), D0), max(stock, D0))
+        sin_lote = D0
+        if c.producto.control:  # MAN-20: en un producto con lote, lo que no tiene lote no sale (regularícelo)
+            en_lotes = (StockLote.objects.filter(lote__producto=c.producto, almacen=almacen, cantidad__gt=0)
+                        .aggregate(s=Sum('cantidad'))['s'] or D0)
+            sin_lote = max(stock - en_lotes, D0)
+        no_disponible = min(calidad + bloqueado + vencidos.get((c.producto_id, almacen.pk), D0) + sin_lote,
+                            max(stock, D0))
         libre = stock - no_disponible
         requerido = c.por_entregar if orden.estado in abiertas else c.cantidad_plan
-        filas.append({'consumo': c, 'requerido': requerido, 'stock': stock, 'libre': libre,
+        filas.append({'consumo': c, 'requerido': requerido, 'stock': stock, 'libre': libre, 'sin_lote': sin_lote,
                       'no_disponible': no_disponible, 'faltante': max(requerido - libre, D0)})
     return filas
 
@@ -295,8 +306,9 @@ def confirmar(orden, usuario=None):
         if liberado:
             orden.estandar, orden.costo_estandar_unit, orden.estandar_detalle = (liberado, liberado.unitario,
                                                                                   liberado.detalle)
-        else:
-            hoja = hoja_costos(orden.version or orden.lista, periodo=periodo_de(orden.fecha))
+        else:  # MAN-23: con la misma base que la planificación (la cantidad de la orden reparte la preparación)
+            hoja = hoja_costos(orden.version or orden.lista, cantidad=orden.cantidad or None,
+                               periodo=periodo_de(orden.fecha))
             orden.costo_estandar_unit = hoja['unitario']
             orden.estandar_detalle = {**_detalle_unitario(hoja), 'provisional': True}
         orden.estado = 'CONFIRMADA'
@@ -418,7 +430,8 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
                 costo_mo += linea.costo
             h.costo_mo = costo_mo
             h.costo_maquina = r2(h.horas_real * h.centro.costo_hora_maquina)
-            h.costo_cif = r2(h.horas_real * h.centro.costo_hora_cif)
+            # CIF por hora máquina con los drivers del puesto según su consumo por hora (MAN-22, como el estándar)
+            h.costo_cif = r2(h.horas_real * (h.centro.costo_hora_cif + h.centro.cif_drivers_hora))
             h.save(update_fields=['horas_real', 'costo_mo', 'costo_maquina', 'costo_cif'])
             mo += h.costo_mo
             maq += h.costo_maquina
@@ -591,7 +604,9 @@ def anular(orden, usuario, motivo):
         # la devolución se imputa como en una orden abierta (sin recostear un ingreso ya revertido)
         OrdenProduccion.objects.filter(pk=orden.pk).update(estado='EN_PROCESO')
         _devolver_entregado(orden, usuario, motivo)
+        revertidas, creadas = orden.salidas_revertidas, orden.devoluciones_creadas
         orden.refresh_from_db()
+        orden.salidas_revertidas, orden.devoluciones_creadas = revertidas, creadas
         orden.variaciones.all().delete()
         orden.estado, orden.motivo_anulacion = 'ANULADA', motivo.strip()[:250]
         orden.anulado_por = usuario if usuario and usuario.is_authenticated else None
@@ -601,10 +616,27 @@ def anular(orden, usuario, motivo):
 
 
 def _devolver_entregado(orden, usuario, motivo):
-    """MAN-20: al anular la orden, lo que el almacén le entregó (salida a orden de producción) vuelve al almacén con
-    una devolución de orden de producción, al costo con que salió."""
+    """MAN-20: al anular la orden se revierte lo que el almacén le entregó: cada «salida a orden de producción» se
+    anula (si su mes está abierto y no tiene devoluciones) y lo que no se pueda anular vuelve con una devolución de
+    orden de producción, al costo con que salió. Devuelve las operaciones anuladas y creadas (para avisarlas)."""
     from inventario import servicios as inv
     from inventario.models import Operacion, TipoOperacion
+    orden.salidas_revertidas, orden.devoluciones_creadas = [], []
+    imputadas = Operacion.objects.filter(orden_imputada=orden, estado='CONFIRMADO')
+    if not imputadas.filter(tipo__codigo='DEV_OP').exists():
+        for s in imputadas.filter(tipo__codigo='SAL_OP').select_related('tipo').prefetch_related('items__producto'):
+            from contabilidad.models import PeriodoContable
+            if inv.errores_anulacion(s) or PeriodoContable.esta_cerrado(s.fecha.strftime('%Y%m')):
+                continue
+            inv.anular(s, usuario, f'Anulación de {orden.numero}: {motivo}'[:250])
+            for i in s.items.all():  # lo anulado ya no está entregado a la orden
+                c = ConsumoOrden.objects.filter(orden=orden, producto=i.producto).order_by('adicional', 'id').first()
+                if c is not None:
+                    valor = (i.cantidad * (i.costo_unitario or i.producto.costo_promedio)).quantize(Decimal('0.01'))
+                    c.despachado = max(c.despachado - i.cantidad, D0)
+                    c.valor_despachado = max(c.valor_despachado - valor, D0)
+                    c.save(update_fields=['despachado', 'valor_despachado'])
+            orden.salidas_revertidas.append(s)
     lineas = [c for c in orden.consumos.select_related('producto', 'almacen') if c.despachado > 0]
     if not lineas:
         return None
@@ -625,8 +657,33 @@ def _devolver_entregado(orden, usuario, motivo):
             inv.confirmar(op, usuario)
         except inv.ErrorOperacion as exc:
             raise ErrorProduccion(f'Devolución del material entregado: {exc}') from exc
+        orden.devoluciones_creadas.append(op)
     ConsumoOrden.objects.filter(pk__in=[c.pk for c in lineas]).update(despachado=D0, valor_despachado=D0)
     return True
+
+
+def desglose_estandar(orden):
+    """MAN-23: de qué se compone el estándar unitario de la orden y con qué lote se calculó. Si el lote de costeo no es
+    la cantidad de la orden, las horas por unidad del estándar (preparación repartida en ese lote) no son las que
+    planifica la orden: la diferencia sale como variación de tamaño de lote."""
+    d = orden.estandar_detalle or {}
+    if not d or not orden.costo_estandar_unit:
+        return None
+    materiales = sum((Decimal(m['cantidad']) * Decimal(m['precio']) for m in d.get('materiales', [])), D0)
+    mo = maq = cif = horas_std = D0
+    for a in d.get('actividades', []):
+        h = Decimal(a['horas'])
+        horas_std += h
+        mo += h * Decimal(a.get('personas', 1)) * Decimal(a['mo'])
+        maq += h * Decimal(a.get('maquina', 0))
+        cif += h * Decimal(a['cif'])
+    lote = Decimal(d.get('lote') or 0)
+    horas_plan = (sum((h.horas_plan for h in orden.horas.all()), D0) / orden.cantidad) if orden.cantidad else D0
+    return {'materiales': r2(materiales), 'mo': r2(mo), 'maquina': r2(maq), 'cif': r2(cif),
+            'subproductos': Decimal(d.get('subproductos') or 0), 'lote': lote, 'provisional': bool(d.get('provisional')),
+            'horas_std': horas_std.quantize(D4), 'horas_plan': horas_plan.quantize(D4),
+            'distinto': bool(lote and orden.cantidad and lote != orden.cantidad
+                             and abs(horas_std - horas_plan) > Decimal('0.005'))}
 
 
 # ---------------------------------------------------------------- variaciones
@@ -747,11 +804,10 @@ def absorcion(periodo):
     desde, hasta = _rango(periodo)
     absorbido = defaultdict(lambda: [D0, D0])
     sin_centro = [D0, D0]
-    for h in HoraOrden.objects.filter(orden__estado='TERMINADA', orden__fecha_fin__range=[desde, hasta]) \
-            .select_related('centro'):
-        fila = absorbido[h.centro.centro_costo_id] if h.centro.centro_costo_id else sin_centro
-        fila[0] += h.costo_mo
-        fila[1] += h.costo_maquina + h.costo_cif
+    for centro, mo, maq, cif, _ in _absorbido_por_puesto(desde, hasta):
+        fila = absorbido[centro.centro_costo_id] if centro.centro_costo_id else sin_centro
+        fila[0] += mo
+        fila[1] += maq + cif
     centros = CentroCosto.objects.filter(Q(tipo__in=['PRODUCCION', 'SERVICIO']) | Q(pk__in=list(absorbido)))
     filas = []
     for cc in centros.order_by('codigo'):
@@ -769,21 +825,49 @@ def absorcion(periodo):
     return filas, sin_centro
 
 
+def _absorbido_por_puesto(desde, hasta):
+    """[(puesto, mano de obra, máquina, CIF, {horas, hh, orden})] absorbido por las órdenes en el rango: las
+    terminadas en un paso (por su fecha de término) y, MAN-09 con producción parcial, cada declaración vigente por su
+    fecha contable (horas hombre, horas máquina y drivers declarados)."""
+    from .models import CargoDeclaracion, DeclaracionOrden
+    salida = []
+    for h in (HoraOrden.objects.filter(orden__estado='TERMINADA', orden__fecha_fin__range=[desde, hasta])
+              .exclude(orden__declaraciones__isnull=False).distinct()
+              .select_related('centro__centro_costo').prefetch_related('personal')):
+        salida.append((h.centro, h.costo_mo, h.costo_maquina, h.costo_cif,
+                       {'horas': h.horas_real, 'hh': h.horas_hombre, 'orden': h.orden_id}))
+    for d in (DeclaracionOrden.objects.filter(anulada=False, fecha__range=[desde, hasta])
+              .prefetch_related('personal', 'cargos')):
+        for h in HoraOrden.objects.filter(orden_id=d.orden_id).select_related('centro__centro_costo'):
+            horas = Decimal(str((d.horas or {}).get(str(h.pk), '0')))
+            personal = [p for p in d.personal.all() if p.hora_id == h.pk]
+            cargos = [c for c in d.cargos.all() if c.hora_id == h.pk]
+            mo = sum((p.costo for p in personal), D0)
+            if cargos:
+                maq = sum((c.importe for c in cargos if c.tipo != 'DRIVER'), D0)
+                cif = r2(horas * h.centro.costo_hora_cif) + sum((c.importe for c in cargos if c.tipo == 'DRIVER'), D0)
+            else:
+                maq, cif = r2(horas * h.centro.costo_hora_maquina), r2(horas * h.centro.costo_hora_cif)
+            if horas or mo or maq or cif:
+                salida.append((h.centro, mo, maq, cif, {'horas': horas, 'hh': sum((p.horas for p in personal), D0),
+                                                        'orden': d.orden_id}))
+    return salida
+
+
 def absorcion_por_puesto(periodo):
     """Por puesto de trabajo: horas reales, mano de obra, máquina y CIF absorbidos en el periodo y la tarifa
     aplicada; el gasto real se compara por el centro de costo del puesto (absorcion)."""
     from contabilidad.centralizar import _rango
     desde, hasta = _rango(periodo)
     filas = defaultdict(lambda: {'horas': D0, 'hh': D0, 'mo': D0, 'maquina': D0, 'cif': D0, 'ordenes': set()})
-    for h in HoraOrden.objects.filter(orden__estado='TERMINADA', orden__fecha_fin__range=[desde, hasta]) \
-            .select_related('centro__centro_costo').prefetch_related('personal'):
-        f = filas[h.centro]
-        f['horas'] += h.horas_real
-        f['hh'] += h.horas_hombre
-        f['mo'] += h.costo_mo
-        f['maquina'] += h.costo_maquina
-        f['cif'] += h.costo_cif
-        f['ordenes'].add(h.orden_id)
+    for centro, mo, maq, cif, extra in _absorbido_por_puesto(desde, hasta):
+        f = filas[centro]
+        f['horas'] += extra['horas']
+        f['hh'] += extra['hh']
+        f['mo'] += mo
+        f['maquina'] += maq
+        f['cif'] += cif
+        f['ordenes'].add(extra['orden'])
     return sorted(({'puesto': c, **{k: v for k, v in f.items() if k != 'ordenes'}, 'ordenes': len(f['ordenes']),
                     'total': f['mo'] + f['maquina'] + f['cif']} for c, f in filas.items()),
                   key=lambda x: x['puesto'].codigo)

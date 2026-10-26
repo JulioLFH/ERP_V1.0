@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
   <h1 class="page-title">Asistencia y marcaciones</h1>
-  <form method="get" class="d-flex gap-2"><input type="month" name="periodo" value="{{ mes }}" class="form-control form-control-sm" onchange="this.form.submit()">
+  <form method="get" class="d-flex gap-2"><input type="month" name="periodo" value="{{ mes }}" class="form-control form-control-sm" data-autoenvio>
     <a href="?periodo={{ mes }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></a></form>
 </div>
 <p class="small text-muted mb-3">Faltas: días laborables del turno sin marcación (salvo vacaciones o justificación). Tardanza: entrada después de la hora del turno más la tolerancia. Horas extra: lo trabajado sobre la jornada; las 2 primeras del día al 25 % y las siguientes al 35 %.</p>

@@ -41,7 +41,7 @@
       </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script>new QRCode(document.getElementById('qr'), {text: '{{ uri|escapejs }}', width: 180, height: 180});</script>
+    <script nonce="{{ csp_nonce }}">new QRCode(document.getElementById('qr'), {text: '{{ uri|escapejs }}', width: 180, height: 180});</script>
   {% else %}
     <p class="small">Además de la contraseña, al ingresar se pedirá un código que cambia cada 30 segundos en su celular. Así, aunque alguien conozca su contraseña, no podrá entrar.</p>
     <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="iniciar"><button class="btn btn-sm btn-primary"><i class="bi bi-shield-plus"></i> Activar verificación en dos pasos</button></form>

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title">Ubicaciones dentro del almacén</h1>
-  <form method="get" class="d-flex gap-2"><select name="almacen" class="form-select form-select-sm" onchange="this.form.submit()">{% for a in almacenes %}<option value="{{ a.pk }}" {% if a.pk == almacen.pk %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></form>
+  <form method="get" class="d-flex gap-2"><select name="almacen" class="form-select form-select-sm" data-autoenvio>{% for a in almacenes %}<option value="{{ a.pk }}" {% if a.pk == almacen.pk %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></form>
 </div>
 <p class="small text-muted">Defina las ubicaciones (zona-rack-nivel) y la ubicación habitual de cada producto: aparece en las notas de salida, traslados e ingresos impresas (para el picking) y en la hoja de conteo físico.</p>
 <div class="row g-3">

@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3 d-print-none">
   <div class="d-flex gap-2">
     <a href="{% url 'compras:hes_lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Conformidades</a>
-    <button onclick="window.print()" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir acta</button>
+    <button data-imprimir class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir acta</button>
   </div>
   <span class="badge fs-6 {% if h.estado == 'LIBERADA' %}text-bg-success{% elif h.estado == 'POR_LIBERAR' %}text-bg-warning{% elif h.estado == 'OBSERVADA' %}text-bg-info{% elif h.estado == 'RECHAZADA' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ h.get_estado_display }}</span>
 </div>

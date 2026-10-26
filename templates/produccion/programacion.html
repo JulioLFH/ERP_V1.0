@@ -28,7 +28,7 @@
     <thead><tr><th style="width:110px">Prioridad</th><th>Orden</th><th>Producto</th><th class="num">Cantidad</th><th>Operaciones (puesto: inicio → fin)</th><th>Termina</th><th>Plazo</th></tr></thead>
     <tbody>{% for f in ordenes %}<tr {% if f.atrasada %}class="table-warning"{% endif %}>
       <td><form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="accion" value="prioridad"><input type="hidden" name="orden" value="{{ f.o.pk }}">
-        <select name="prioridad" class="form-select form-select-sm" onchange="this.form.submit()">{% for p in '123456789' %}<option value="{{ p }}" {% if f.o.prioridad|stringformat:'s' == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></form></td>
+        <select name="prioridad" class="form-select form-select-sm" data-autoenvio>{% for p in '123456789' %}<option value="{{ p }}" {% if f.o.prioridad|stringformat:'s' == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></form></td>
       <td><a href="{% url 'manufactura:orden' f.o.pk %}">{{ f.o.numero }}</a><div class="small text-muted">{{ f.o.get_estado_display }}</div></td>
       <td>{{ f.o.producto.nombre }}</td><td class="num">{{ f.o.cantidad|money }}</td>
       <td class="small">{% for op in f.ops %}<div>{% if op.sin_capacidad %}<span class="text-danger">{{ op.centro.codigo }}: sin capacidad</span>{% elif not op.tramos %}<span class="text-success">{{ op.centro.codigo }}: completa</span>{% else %}{{ op.centro.codigo }}: {{ op.inicio|date:'d/m' }} → {{ op.fin|date:'d/m' }} <span class="text-muted">({{ op.pendiente|floatformat:1 }} h)</span>{% endif %}</div>{% empty %}<span class="text-muted">Sin operaciones</span>{% endfor %}</td>

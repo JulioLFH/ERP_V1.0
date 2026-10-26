@@ -41,7 +41,7 @@
 </form>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   const tasa = {{ igv_tasa|editable }};
   const tolImporte = {{ tol_t|editable }}, tolPct = {{ tol_t_pct|editable }};

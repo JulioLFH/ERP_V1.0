@@ -298,6 +298,33 @@ def bloqueos_liberacion(lote, inspeccion=None, hoy=None):
     return bloqueos
 
 
+def liberable(insp):
+    """CAL-13: el lote de una inspección aprobada que sigue en cuarentena (se libera desde la misma inspección)."""
+    if insp.resultado not in ('APROBADO', 'OBSERVADO'):
+        return None
+    lote = lote_de(insp)
+    return lote if lote is not None and lote.estado_calidad in ('CUARENTENA', 'BLOQUEADO') else None
+
+
+@transaction.atomic
+def liberar_desde_inspeccion(insp, usuario, clave, comentario='', ip=''):
+    """CAL-13: QA libera el lote de la inspección aprobada con su firma: emite el certificado de análisis con los
+    resultados (o usa el que está por aprobar) y lo aprueba; queda quién y cuándo."""
+    from .planta import crear_certificado
+    if not (usuario.is_superuser or puede(usuario, 'control_calidad.liberar_lotes')):
+        raise ErrorPlanta('Libera lotes QA (permiso «liberar lotes»).')
+    lote = liberable(insp)
+    if lote is None:
+        raise ErrorPlanta('El lote no está en cuarentena o la inspección no está aprobada.')
+    cert = lote.certificados.filter(estado='BORRADOR').first()
+    if cert is None:
+        cert = crear_certificado(CertificadoAnalisis(lote=lote, inspeccion=insp, fecha=timezone.localdate()), usuario)
+    elif cert.inspeccion_id is None:
+        cert.inspeccion = insp
+        cert.save(update_fields=['inspeccion'])
+    return liberar(cert, usuario, clave, comentario, ip)
+
+
 @transaction.atomic
 def liberar(cert, usuario, clave, comentario='', ip=''):
     """CAL-03: quien analizó no libera; la liberación va con firma electrónica «Liberado por QA» y la revisión de QA

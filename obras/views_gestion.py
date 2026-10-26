@@ -731,9 +731,10 @@ class SocioForm(BootstrapMixin, forms.ModelForm):
         model = SocioConsorcio
         fields = ['tercero', 'nombre', 'ruc', 'participacion_pct', 'es_la_empresa', 'operador']
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, obra=None, **kwargs):
         super().__init__(*args, **kwargs)
         from core.forms import remoto
+        self.obra = obra
         remoto(self.fields['tercero'], 'terceros')
         self.fields['tercero'].required = False
 
@@ -741,8 +742,29 @@ class SocioForm(BootstrapMixin, forms.ModelForm):
         d = super().clean()
         if not d.get('tercero') and not (d.get('nombre') or '').strip():
             raise forms.ValidationError('Elija el socio en contactos o escriba su razón social.')
-        if d.get('participacion_pct') is not None and not 0 < d['participacion_pct'] <= 100:
+        pct = d.get('participacion_pct')
+        if pct is not None and not 0 < pct <= 100:
             self.add_error('participacion_pct', 'La participación va de 0 a 100 %.')
+        ruc = (d['tercero'].numero_doc if d.get('tercero') else (d.get('ruc') or '')).strip()
+        if not d.get('tercero') and ruc and not (ruc.isdigit() and len(ruc) == 11):
+            self.add_error('ruc', 'El RUC tiene 11 dígitos.')
+        if self.obra is None:
+            return d
+        # SRV-16: participaciones hasta 100 %, un RUC una sola vez, una sola «nuestra empresa» y un solo operador
+        otros = self.obra.socios.select_related('tercero')
+        suma = sum(s.participacion_pct for s in otros)
+        if pct is not None and 0 < pct <= 100 and suma + pct > 100:
+            self.add_error('participacion_pct', f'Los socios ya suman {suma:g} %: el máximo para este socio es '
+                                                f'{100 - suma:g} %.')
+        for s in otros:
+            if ruc and ruc == (s.tercero.numero_doc if s.tercero_id else s.ruc):
+                self.add_error('ruc' if not d.get('tercero') else 'tercero', f'El RUC {ruc} ya es socio ({s}).')
+            elif d.get('tercero') and s.tercero_id == d['tercero'].pk:
+                self.add_error('tercero', f'{s} ya es socio del consorcio.')
+        if d.get('es_la_empresa') and any(s.es_la_empresa for s in otros):
+            self.add_error('es_la_empresa', 'Ya hay un socio marcado como «nuestra empresa».')
+        if d.get('operador') and any(s.operador for s in otros):
+            self.add_error('operador', 'Ya hay un operador del consorcio.')
         return d
 
 
@@ -750,12 +772,12 @@ class SocioForm(BootstrapMixin, forms.ModelForm):
 def consorcio(request, pk):
     from .models import SocioConsorcio
     o = get_object_or_404(Obra.objects.select_related('cliente'), pk=pk)
-    form = SocioForm()
+    form = SocioForm(obra=o)
     if request.method == 'POST':
         if request.POST.get('accion') == 'quitar':
             SocioConsorcio.objects.filter(pk=request.POST.get('socio'), obra=o).delete()
             return redirect('obras:consorcio', pk)
-        form = SocioForm(request.POST)
+        form = SocioForm(request.POST, obra=o)
         if form.is_valid():
             s = form.save(commit=False)
             s.obra = o
@@ -767,6 +789,8 @@ def consorcio(request, pk):
     avisos = []
     if r['socios'] and r['suma'] != 100:
         avisos.append(('warning', f'Las participaciones suman {r["suma"]} %: deben sumar 100 %.'))
+    if r['socios'] and not any(s.es_la_empresa for s in r['socios']):
+        avisos.append(('warning', 'Marque cuál de los socios es nuestra empresa.'))
     lic = getattr(o, 'licitacion', None)
     if not r['socios'] and lic is not None and lic.consorcio:
         avisos.append(('info', f'La licitación se postuló en consorcio con «{lic.consorciados}» y nuestra participación '

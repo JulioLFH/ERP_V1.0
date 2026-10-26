@@ -4,7 +4,7 @@
 <h1 class="page-title mb-3">Libro de Inventarios y Balances</h1>
 <div class="card mb-3"><div class="card-body py-2">
   <form method="get" class="row g-2 align-items-end">
-    <div class="col-md-7"><label class="small">Formato</label><select name="formato" class="form-select form-select-sm" onchange="this.form.submit()">
+    <div class="col-md-7"><label class="small">Formato</label><select name="formato" class="form-select form-select-sm" data-autoenvio>
       {% for c, t, p, r in formatos %}<option value="{{ c }}" {% if c == formato %}selected{% endif %}>{{ c }} {{ t }}</option>{% endfor %}</select></div>
     <div class="col-auto"><label class="small">Al cierre de</label><input type="month" name="periodo" value="{{ mes }}" class="form-control form-control-sm"></div>
     <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i></button>

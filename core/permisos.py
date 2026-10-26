@@ -74,6 +74,8 @@ ACCIONES = {
                     ('aprobar_cambios', 'Aprobar o rechazar cambios de ingeniería', True),
                     ('consumo_adicional', 'Agregar material fuera de la receta a una orden en proceso', True),
                     ('aprobar_consumo', 'Aprobar consumos fuera de la tolerancia y material agregado a las órdenes',
+                     True),
+                    ('editar_tarifas', 'Cambiar la tarifa de las horas y drivers al declarar producción (MAN-22)',
                      True)],
     # v1.82: módulos separados de Manufactura
     'planificacion': [('planificar', 'Correr el MRP, pronóstico de demanda y programación de planta (genera órdenes '
@@ -310,6 +312,7 @@ RUTAS = {
     'manufactura:lista_nueva': 'manufactura.recetas', 'manufactura:lista_editar': 'manufactura.recetas',
     'manufactura:lista_version': 'manufactura.recetas', 'manufactura:centro_nuevo': 'manufactura.recetas',
     'manufactura:centro_editar': 'manufactura.recetas', 'manufactura:hoja_nueva': 'manufactura.recetas',
+    'manufactura:centro_drivers': {'POST': 'manufactura.recetas'},
     'manufactura:hoja_editar': 'manufactura.recetas', 'manufactura:hoja_obsoleta': 'manufactura.recetas',
     'manufactura:lista_obsoleta': 'manufactura.recetas', 'manufactura:version_nueva': 'manufactura.recetas',
     'manufactura:version_editar': 'manufactura.recetas', 'manufactura:mrp': {'POST': 'planificacion.planificar'},

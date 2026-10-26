@@ -45,7 +45,7 @@
 </form>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
   const lista = document.getElementById('lista-modulos');
   const sync = () => {
     const marcados = new Set([...lista.querySelectorAll('input[name=modulos]:checked')].map(i => i.value));

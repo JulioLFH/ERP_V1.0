@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="page-title">{{ titulo }}</h1>
-  <a href="{% if doc.pk %}javascript:history.back(){% elif volver %}{% url volver %}{% else %}{% url app|add:':lista' %}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+  <a {% if doc.pk %}data-volver {% endif %}href="{% if doc.pk %}#{% elif volver %}{% url volver %}{% else %}{% url app|add:':lista' %}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
 </div>
 <form method="post" novalidate>
   {% csrf_token %}
