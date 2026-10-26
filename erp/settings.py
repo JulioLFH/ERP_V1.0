@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Versión visible en el menú del usuario; actualizarla junto con CHANGELOG.md y la etiqueta de git
 ERP_NOMBRE = 'Ceiba ERP'
-ERP_VERSION = '1.88.0'
+ERP_VERSION = '1.88.1'
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insegura-cambiar-en-produccion')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
@@ -172,8 +172,8 @@ LOGOUT_REDIRECT_URL = 'login'
 
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    # COOKIES_SEGURAS=0 solo para un servidor propio sin certificado (http): si no, el inicio de sesión no funciona
+    SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = os.environ.get('COOKIES_SEGURAS', '1') == '1'
     # HSTS: el navegador solo usa HTTPS con el sistema durante un año
     SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', '1') == '1'
     SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '31536000'))
