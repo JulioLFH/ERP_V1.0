@@ -244,7 +244,7 @@ def explotar(orden):
     for c in lista.componentes.all():
         cant = (c.cantidad_con_merma * factor).quantize(D4)
         ConsumoOrden.objects.create(orden=orden, producto_id=c.producto_id, cantidad_plan=cant, cantidad_real=cant,
-                                    almacen_id=c.almacen_id, operacion=c.operacion)
+                                    almacen_id=c.almacen_id, operacion=c.operacion, modo=c.modo_consumo)
     for s in lista.subproductos.all():
         cant = (s.cantidad * factor).quantize(D4)
         SalidaOrden.objects.create(orden=orden, producto_id=s.producto_id, tipo=s.tipo, cantidad_plan=cant,
@@ -263,12 +263,21 @@ def explotar(orden):
 
 
 def disponibilidad(orden):
-    """Por insumo: requerido, stock en su almacén de consumo y faltante."""
+    """Por insumo: lo que aún pide al almacén (sin lo ya entregado), el stock libre de su almacén de consumo, lo que
+    está en calidad, bloqueado o vencido (no sale: MAN-20) y el faltante frente al stock libre."""
+    from inventario.estados import no_libre, vencido
+    abiertas = ('BORRADOR',) + OrdenProduccion.ABIERTAS
+    retenido, vencidos = no_libre(), vencido()
     filas = []
     for c in orden.consumos.select_related('producto', 'almacen'):
-        stock = c.producto.stock_en(c.almacen or orden.almacen_insumos)
-        requerido = c.cantidad_real if orden.estado in ('BORRADOR', 'CONFIRMADA', 'EN_PROCESO') else c.cantidad_plan
-        filas.append({'consumo': c, 'requerido': requerido, 'stock': stock, 'faltante': max(requerido - stock, D0)})
+        almacen = c.almacen or orden.almacen_insumos
+        stock = c.producto.stock_en(almacen)
+        calidad, bloqueado = retenido.get((c.producto_id, almacen.pk), (D0, D0))
+        no_disponible = min(calidad + bloqueado + vencidos.get((c.producto_id, almacen.pk), D0), max(stock, D0))
+        libre = stock - no_disponible
+        requerido = c.por_entregar if orden.estado in abiertas else c.cantidad_plan
+        filas.append({'consumo': c, 'requerido': requerido, 'stock': stock, 'libre': libre,
+                      'no_disponible': no_disponible, 'faltante': max(requerido - libre, D0)})
     return filas
 
 
@@ -568,18 +577,56 @@ def anular(orden, usuario, motivo):
                               'contabilidad migrados; no se anula en el ERP.')
     if len((motivo or '').strip()) < 10:
         raise ErrorProduccion('Indique el motivo de la anulación (mínimo 10 caracteres).')
+    if orden.liquidada_en:
+        raise ErrorProduccion('La orden ya se liquidó: corrija con un costo tardío (no se anula).')
     with transaction.atomic():
         if orden.operacion_id and orden.operacion.estado == 'CONFIRMADO':
             try:  # revierte el almacén: vuelven los insumos y sale el producto
                 inv.anular(orden.operacion, usuario, f'Anulación de {orden.numero}: {motivo}')
             except inv.ErrorOperacion as exc:
                 raise ErrorProduccion(str(exc)) from exc
+        from .parciales import anular_declaracion
+        for d in orden.declaraciones.filter(anulada=False).order_by('-numero'):
+            anular_declaracion(d, usuario, f'Anulación de la orden: {motivo}')
+        # la devolución se imputa como en una orden abierta (sin recostear un ingreso ya revertido)
+        OrdenProduccion.objects.filter(pk=orden.pk).update(estado='EN_PROCESO')
+        _devolver_entregado(orden, usuario, motivo)
+        orden.refresh_from_db()
         orden.variaciones.all().delete()
         orden.estado, orden.motivo_anulacion = 'ANULADA', motivo.strip()[:250]
         orden.anulado_por = usuario if usuario and usuario.is_authenticated else None
         orden.anulado_en = timezone.now()
         orden.save()
     return orden
+
+
+def _devolver_entregado(orden, usuario, motivo):
+    """MAN-20: al anular la orden, lo que el almacén le entregó (salida a orden de producción) vuelve al almacén con
+    una devolución de orden de producción, al costo con que salió."""
+    from inventario import servicios as inv
+    from inventario.models import Operacion, TipoOperacion
+    lineas = [c for c in orden.consumos.select_related('producto', 'almacen') if c.despachado > 0]
+    if not lineas:
+        return None
+    por_almacen = defaultdict(list)
+    for c in lineas:
+        por_almacen[c.almacen_id or orden.almacen_insumos_id].append(c)
+    tipo = TipoOperacion.objects.get(codigo='DEV_OP')
+    for almacen_id, filas in por_almacen.items():
+        op = Operacion.objects.create(
+            tipo=tipo, fecha=timezone.localdate(), almacen_destino_id=almacen_id, centro_costo=orden.centro_costo,
+            orden_imputada=orden, referencia=f'{orden.numero} anulada'[:60],
+            creado_por=usuario if usuario and usuario.is_authenticated else None,
+            glosa=f'Devolución por anulación de {orden.numero}: {motivo}'[:500])
+        for c in filas:
+            op.items.create(producto=c.producto, cantidad=r2(c.despachado),
+                            costo_unitario=(c.valor_despachado / c.despachado).quantize(D4))
+        try:
+            inv.confirmar(op, usuario)
+        except inv.ErrorOperacion as exc:
+            raise ErrorProduccion(f'Devolución del material entregado: {exc}') from exc
+    ConsumoOrden.objects.filter(pk__in=[c.pk for c in lineas]).update(despachado=D0, valor_despachado=D0)
+    return True
 
 
 # ---------------------------------------------------------------- variaciones
@@ -774,12 +821,14 @@ def ejecutar_mrp(horizonte, usuario=None):
     for p in PlanDemanda.objects.filter(fecha__lte=horizonte, producto__estrategia='MTS'):
         demanda[p.producto_id].append((max(p.fecha, hoy), p.cantidad,
                                        f'Plan: {p.nota}' if p.nota else f'Plan del {p.fecha:%d/%m/%Y}'))
-    for o in OrdenProduccion.objects.filter(estado__in=['BORRADOR', 'CONFIRMADA', 'EN_PROCESO']).prefetch_related(
+    for o in OrdenProduccion.objects.filter(estado__in=('BORRADOR',) + OrdenProduccion.ABIERTAS).prefetch_related(
             'consumos'):
         fecha = max(o.fecha, hoy)
-        entradas[o.producto_id].append((fecha, o.cantidad, f'OP {o.numero or "borrador"}'))
+        # MAN-18: una orden parcial aporta solo su saldo; sus insumos, lo que aún no salió del almacén
+        entradas[o.producto_id].append((fecha, max(o.cantidad - o.cantidad_producida, D0),
+                                        f'OP {o.numero or "borrador"}'))
         for c in o.consumos.all():
-            demanda[c.producto_id].append((fecha, c.cantidad_real, f'Insumo de OP {o.numero or "borrador"}'))
+            demanda[c.producto_id].append((fecha, c.por_entregar, f'Insumo de OP {o.numero or "borrador"}'))
     from inventario.servicios import pendientes
     from inventario.models import Operacion, TipoOperacion
     recepcion = TipoOperacion.objects.filter(origen='ORDEN_COMPRA', activo=True).first()
@@ -936,10 +985,11 @@ def requerimientos():
     from core.inventario import en_camino
     requerido = defaultdict(lambda: D0)
     ordenes = defaultdict(set)
-    for producto_id, cantidad, numero in (ConsumoOrden.objects.filter(orden__estado__in=['CONFIRMADA', 'EN_PROCESO'])
-                                          .values_list('producto_id', 'cantidad_real', 'orden__numero')):
-        requerido[producto_id] += cantidad
-        ordenes[producto_id].add(numero)
+    for c in (ConsumoOrden.objects.filter(orden__estado__in=OrdenProduccion.ABIERTAS)
+              .only('producto_id', 'cantidad_real', 'despachado', 'backflush', 'orden__numero').select_related('orden')):
+        if c.por_entregar:  # lo ya entregado a la orden (salidas y declaraciones) ya no se pide
+            requerido[c.producto_id] += c.por_entregar
+            ordenes[c.producto_id].add(c.orden.numero)
     camino = en_camino()
     from inventario.estados import no_libre_por_producto
     no_libre = no_libre_por_producto()
@@ -956,7 +1006,7 @@ def carga_capacidad(desde, hasta):
     """Horas planificadas por puesto (órdenes abiertas en el rango) frente a su capacidad según calendario."""
     from .models import CentroTrabajo
     carga = defaultdict(lambda: D0)
-    for h in HoraOrden.objects.filter(orden__estado__in=['BORRADOR', 'CONFIRMADA', 'EN_PROCESO'],
+    for h in HoraOrden.objects.filter(orden__estado__in=('BORRADOR',) + OrdenProduccion.ABIERTAS,
                                       orden__fecha__range=[desde, hasta]):
         carga[h.centro_id] += h.horas_plan
     filas = []

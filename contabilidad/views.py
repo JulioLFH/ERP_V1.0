@@ -131,7 +131,8 @@ def periodos(request):
     estado = {p.periodo: p for p in PeriodoContable.objects.all()}
     asientos = dict(Asiento.objects.values('periodo').annotate(n=Count('id')).values_list('periodo', 'n'))
     filas = []
-    for p in sorted((m for m in meses if m), reverse=True):
+    from .automatico import periodo_valido
+    for p in sorted((m for m in meses if periodo_valido(m)), reverse=True):  # CON-17: «202613» no tumba la pantalla
         filas.append({
             'periodo': p, 'estado': estado.get(p), 'asientos': asientos.get(p, 0),
             'compras': Compra.objects.filter(periodo=p, estado='REGISTRADO').count(),

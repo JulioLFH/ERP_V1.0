@@ -130,15 +130,16 @@ def restriccion_de_pantalla(request, match):
 
 # ---------------------------------------------------------------- datos sensibles y filtros por dato
 def ver_sueldos(user):
-    """SEG-08: sueldos, cuentas bancarias y la planilla los ve RR. HH. (calcula o cierra planillas, o tiene «Ver
-    sueldos»); el resto ve nombre, cargo y centro de costo. El perfil de acceso puede quitarlo también a RR. HH."""
+    """SEG-08: sueldos, cuentas bancarias y la planilla los ve RR. HH.: solo con el permiso explícito «Ver sueldos»
+    (no basta pertenecer al grupo Planillas); el resto ve nombre, cargo y centro de costo. El perfil de acceso puede
+    quitarlo también a RR. HH."""
     if getattr(user, 'is_superuser', False):
         return True
     perfil = perfil_de(user)
     if perfil is not None and not perfil.ver_sueldos:
         return False
     from .permisos import puede
-    return any(puede(user, f'planillas.{a}') for a in ('ver_sueldos', 'calcular', 'cerrar'))
+    return puede(user, 'planillas.ver_sueldos')
 
 
 def ver_saldos(user):

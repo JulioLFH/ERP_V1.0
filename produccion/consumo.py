@@ -49,7 +49,7 @@ def _otro_usuario(usuario):
 
 @transaction.atomic
 def agregar_material(orden, producto, cantidad, motivo, usuario, sustituye=None, almacen=None):
-    if orden.estado not in ('CONFIRMADA', 'EN_PROCESO'):
+    if orden.estado not in orden.ABIERTAS:
         raise ErrorConsumo('Solo se agrega material a una orden confirmada o en proceso.')
     if not producto or not cantidad or Decimal(cantidad) <= 0:
         raise ErrorConsumo('Elija el material y una cantidad mayor a cero.')
@@ -78,7 +78,7 @@ def resolver(consumo, usuario, aprobar, comentario=''):
     if c.solicitado_por_id == usuario.pk and _otro_usuario(usuario):
         raise ErrorConsumo('Quien pidió el consumo no lo aprueba: lo hace otro usuario (supervisor o jefe de '
                            'producción).')
-    if c.orden.estado not in ('CONFIRMADA', 'EN_PROCESO'):
+    if c.orden.estado not in c.orden.ABIERTAS:
         raise ErrorConsumo('La orden ya no está abierta.')
     c.aprobacion = 'APROBADO' if aprobar else 'RECHAZADO'
     c.aprobado_por, c.aprobado_en = usuario, timezone.now()
@@ -135,8 +135,11 @@ def error_imputacion(orden, fecha):
     from inventario.cierre import error_cierre
     if orden is None:
         return 'Elija la orden de producción.'
-    if orden.estado not in ('CONFIRMADA', 'EN_PROCESO', 'TERMINADA'):
+    if orden.estado not in ('CONFIRMADA', 'EN_PROCESO', 'PARCIAL', 'CERRADA_TEC', 'TERMINADA'):
         return f'La orden {orden.numero} no está confirmada, en proceso ni terminada.'
+    if orden.estado == 'TERMINADA' and orden.liquidada_en:
+        return (f'La orden {orden.numero} ya se liquidó: registre el material como costo tardío (a otra orden del '
+                f'producto o a gasto).')
     if orden.estado == 'TERMINADA':
         if orden.es_historica or not orden.operacion_id or not orden.fecha_fin:
             return f'La orden {orden.numero} no se puede recostear.'
@@ -171,7 +174,16 @@ def imputar(op, usuario):
                 aprobado_por=usuario, aprobado_en=timezone.now())
         c.despachado += signo * i.cantidad
         c.valor_despachado += signo * valor
-        c.cantidad_real += signo * i.cantidad
+        if c.despachado < 0:
+            raise ErrorConsumo(f'{i.producto.nombre}: se devolvería más de lo entregado a la orden.')
+        if orden.estado == 'TERMINADA':  # después de terminar, lo entregado es consumo adicional
+            c.cantidad_real += signo * i.cantidad
+        elif not c.adicional:
+            # MAN-19: lo entregado cuenta para la receta (no se suma encima): se consume la receta o lo entregado si
+            # fue más
+            c.cantidad_real = max(c.cantidad_plan, c.despachado)
+        else:
+            c.cantidad_real = max(c.solicitado or D0, c.despachado) if c.aprobacion == 'APROBADO' else c.despachado
         if c.cantidad_real < 0:
             raise ErrorConsumo(f'{i.producto.nombre}: se devolvería más de lo consumido en la orden.')
         c.save()

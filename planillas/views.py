@@ -143,6 +143,10 @@ def planilla_detalle(request, pk):
             elif accion == 'calcular':
                 calculo.calcular(planilla)
                 messages.success(request, 'Planilla calculada.')
+                negativos = planilla.filas.filter(neto__lt=0).count()
+                if negativos:
+                    messages.warning(request, f'{negativos} trabajador(es) con neto a pagar negativo: los descuentos '
+                                              f'superan los ingresos. No se podrá cerrar hasta corregirlo.')
             elif accion == 'guardar':
                 planilla.estado = 'BORRADOR' if planilla.estado == 'CALCULADA' else planilla.estado
                 planilla.save(update_fields=['estado'])
@@ -300,7 +304,8 @@ def costo_centros(request):
     """Costo de la planilla (ingresos + aportes del empleador) por centro de costo y mes."""
     from collections import defaultdict
     from datetime import date
-    anio = int(request.GET.get('anio') or timezone.localdate().year)
+    from core.utils import anio_param
+    anio = anio_param(request)
     filas = (FilaPlanilla.objects.filter(planilla__periodo__startswith=str(anio),
                                          planilla__estado__in=('CALCULADA', 'CERRADA', 'PAGADA'))
              .select_related('trabajador__centro_costo', 'planilla'))

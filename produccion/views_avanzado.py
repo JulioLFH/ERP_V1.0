@@ -31,7 +31,7 @@ def programacion(request):
             prioridad = max(1, min(9, int(request.POST.get('prioridad') or 5)))
         except ValueError:
             prioridad = 5
-        OrdenProduccion.objects.filter(pk=request.POST.get('orden'), estado__in=['CONFIRMADA', 'EN_PROCESO']) \
+        OrdenProduccion.objects.filter(pk=request.POST.get('orden'), estado__in=OrdenProduccion.ABIERTAS) \
             .update(prioridad=prioridad)
         return redirect('manufactura:programacion')
     hoy = timezone.localdate()
@@ -46,7 +46,7 @@ def programacion(request):
 # ---------------------------------------------------------------- reporte de planta (tablets)
 @login_required
 def planta(request):
-    qs = (OrdenProduccion.objects.filter(estado__in=['CONFIRMADA', 'EN_PROCESO'])
+    qs = (OrdenProduccion.objects.filter(estado__in=OrdenProduccion.ABIERTAS)
           .select_related('producto').annotate(n_avances=Count('avances')).order_by('prioridad', 'fecha', 'id'))
     centro = request.GET.get('centro')
     if centro:
@@ -101,7 +101,7 @@ def planta_orden(request, pk):
             r['horas'] += a.horas
     return render(request, 'produccion/planta_orden.html', {
         'o': orden, 'operaciones': [(h, reportado.get(h.pk)) for h in operaciones], 'resumen': resumen,
-        'activa': orden.estado in ('CONFIRMADA', 'EN_PROCESO'),
+        'activa': orden.estado in OrdenProduccion.ABIERTAS,
         'hora_sel': request.GET.get('hora') or (str(operaciones[0].pk) if operaciones else ''),
         'turnos': turnos, 'turno_actual': _turno_de(turnos), 'trabajadores': _obreros(),
         'motivos_parada': _motivos_con_puestos(), 'equipos': _equipos_de(operaciones)})

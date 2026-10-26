@@ -63,6 +63,11 @@ def cerrar(planilla):
         raise ErrorPlanilla(f'{len(sin_centro)} trabajador(es) sin centro de costo: {nombres}. El gasto de personal se '
                             f'contabiliza por centro: asígnelo en Planillas › Trabajadores (o registre sus horas en las '
                             f'órdenes de producción del mes).')
+    negativos = [f for f in planilla.filas.select_related('trabajador') if f.neto < 0]
+    if negativos:  # PLA-16: los descuentos (adelantos, préstamos) no superan lo que se paga
+        nombres = ', '.join(f'{f.trabajador.nombre_completo} (S/ {f.neto:,.2f})' for f in negativos[:5])
+        raise ErrorPlanilla(f'{len(negativos)} trabajador(es) con neto a pagar negativo: {nombres}. Los descuentos '
+                            f'superan los ingresos: corrija los adelantos u otros descuentos y vuelva a calcular.')
     planilla.estado = 'CERRADA'
     planilla.save(update_fields=['estado'])
     _marcar(planilla.periodo)

@@ -249,6 +249,19 @@ class GarantiaForm(BootstrapMixin, forms.ModelForm):
         model = GarantiaContrato
         fields = ['obra', 'tipo', 'entidad', 'numero', 'monto', 'emision', 'vencimiento', 'estado', 'notas']
 
+    def clean(self):
+        """OBR-30: monto mayor a cero, vence después de emitirse y un N° por banco o aseguradora."""
+        d = super().clean()
+        if d.get('monto') is not None and d['monto'] <= 0:
+            self.add_error('monto', 'Debe ser mayor a cero.')
+        if d.get('emision') and d.get('vencimiento') and d['vencimiento'] <= d['emision']:
+            self.add_error('vencimiento', 'Debe ser posterior a la emisión.')
+        numero, entidad = (d.get('numero') or '').strip(), (d.get('entidad') or '').strip()
+        if numero and entidad and GarantiaContrato.objects.filter(
+                numero__iexact=numero, entidad__iexact=entidad).exclude(pk=self.instance.pk).exists():
+            self.add_error('numero', f'{entidad} ya tiene registrada la carta o póliza N° {numero}.')
+        return d
+
 
 @login_required
 def garantias(request):

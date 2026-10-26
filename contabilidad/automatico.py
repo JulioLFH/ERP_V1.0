@@ -22,8 +22,14 @@ log = logging.getLogger(__name__)
 D0 = Decimal('0')
 
 
+def periodo_valido(periodo):
+    """CON-17: AAAAMM con mes 01 a 12 (un periodo «202613» o «abcdef» no se marca ni se centraliza)."""
+    p = str(periodo or '')
+    return len(p) == 6 and p.isdigit() and 1990 <= int(p[:4]) <= 2100 and 1 <= int(p[4:]) <= 12
+
+
 def marcar_pendiente(periodo, posteriores=True):
-    if not periodo or len(periodo) != 6:
+    if not periodo_valido(periodo):
         return
     PeriodoContable.objects.get_or_create(periodo=periodo, defaults={'pendiente': True})
     qs = PeriodoContable.objects.filter(periodo__gte=periodo) if posteriores else \
@@ -32,8 +38,8 @@ def marcar_pendiente(periodo, posteriores=True):
 
 
 def periodos_pendientes():
-    return list(PeriodoContable.objects.filter(pendiente=True, cerrado=False).order_by('periodo')
-                .values_list('periodo', flat=True))
+    return [p for p in PeriodoContable.objects.filter(pendiente=True, cerrado=False).order_by('periodo')
+            .values_list('periodo', flat=True) if periodo_valido(p)]
 
 
 def actualizar_pendientes(limite_segundos=None):
@@ -56,6 +62,9 @@ def actualizar_pendientes(limite_segundos=None):
             errores += resumen['errores']
         except ErrorContable as exc:
             errores.append(str(exc))
+        except Exception as exc:  # noqa: BLE001 - CON-17: un periodo con datos malos nunca tumba las pantallas
+            log.exception('Centralización automática del periodo %s', periodo)
+            errores.append(f'No se pudo centralizar {periodo}: {exc}')
     return errores
 
 

@@ -58,7 +58,40 @@ class ObraForm(BootstrapMixin, forms.ModelForm):
             self.add_error('terreno_pct', 'El Reglamento de la Ley del IGV (art. 5, num. 9) fija el terreno en el 50 % del '
                                           'valor de transferencia en la primera venta. Para usar otro %, marque la '
                                           'confirmación (con la aprobación del contador).')
+        self._validar_rangos(data)
         return data
+
+    PORCENTAJES = ('gastos_generales_pct', 'utilidad_pct', 'margen_meta_pct', 'adelanto_directo_pct',
+                   'adelanto_materiales_pct', 'retencion_garantia_pct', 'prorrateo_area_pct')
+    MONTOS = ('monto_contratado', 'area_m2', 'horas_presupuestadas', 'gastos_presupuestados', 'plazo_dias')
+
+    def _validar_rangos(self, data):
+        """OBR-29: montos y áreas no negativos, % entre 0 y 100, fechas coherentes, ubigeo de 6 dígitos y adelantos
+        según la Ley de Contrataciones del Estado (directo hasta 10 % y materiales hasta 20 % en obra pública)."""
+        for campo in self.MONTOS:
+            if campo in self.fields and (data.get(campo) or 0) < 0:
+                self.add_error(campo, 'No puede ser negativo.')
+        for campo in self.PORCENTAJES:
+            valor = data.get(campo)
+            if campo in self.fields and valor is not None and not 0 <= valor <= 100:
+                self.add_error(campo, 'Entre 0 y 100 %.')
+        contrato, inicio = data.get('fecha_contrato'), data.get('fecha_inicio')
+        for campo, fecha in (('fecha_contrato', contrato), ('fecha_inicio', inicio)):
+            if fecha and fecha.year < 2000:
+                self.add_error(campo, 'Fecha no válida (desde el 2000).')
+        if contrato and inicio and inicio < contrato:
+            self.add_error('fecha_inicio', 'El inicio de obra no puede ser anterior al contrato.')
+        ubigeo = (data.get('ubigeo') or '').strip()
+        if ubigeo and not (len(ubigeo) == 6 and ubigeo.isdigit()):
+            self.add_error('ubigeo', 'El ubigeo tiene 6 dígitos (INEI).')
+        directo, materiales = data.get('adelanto_directo_pct') or 0, data.get('adelanto_materiales_pct') or 0
+        if data.get('tipo') == 'PUBLICA':
+            if directo > 10:
+                self.add_error('adelanto_directo_pct', 'Obra pública: el adelanto directo es hasta el 10 % del contrato.')
+            if materiales > 20:
+                self.add_error('adelanto_materiales_pct', 'Obra pública: el adelanto de materiales es hasta el 20 %.')
+        elif directo + materiales > 100:
+            self.add_error('adelanto_materiales_pct', 'Los adelantos suman más del 100 % del contrato.')
 
 
 # ---------------------------------------------------------------- licitaciones (CRM de constructoras)
@@ -80,11 +113,36 @@ class LicitacionNuevaForm(BootstrapMixin, forms.Form):
         self.fields['cliente'].queryset = Tercero.objects.filter(activo=True, tipo__in=['CLIENTE', 'AMBOS'])
         remoto(self.fields['cliente'], 'clientes')
 
+    def clean(self):
+        data = super().clean()
+        validar_consorcio(self, data)
+        return data
+
+
+def validar_consorcio(form, data):
+    """OBR-30: participación mayor a 0; en consorcio, los consorciados y menos del 100 %; menos del 100 % es consorcio."""
+    pct, consorcio = data.get('participacion_pct'), data.get('consorcio')
+    if pct is not None and pct <= 0:
+        form.add_error('participacion_pct', 'Debe ser mayor a 0 %.')
+    elif consorcio and pct is not None and pct >= 100:
+        form.add_error('participacion_pct', 'En consorcio la participación es menor al 100 %.')
+    elif pct is not None and pct < 100 and not consorcio:
+        form.add_error('consorcio', f'Con {pct:g} % de participación marque «Se postula en consorcio».')
+    if consorcio and not (data.get('consorciados') or '').strip():
+        form.add_error('consorciados', 'Indique las empresas del consorcio.')
+
 
 class LicitacionForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Licitacion
         fields = ['procedimiento', 'numero', 'valor_referencial', 'consorcio', 'consorciados', 'participacion_pct']
+
+    def clean(self):
+        data = super().clean()
+        validar_consorcio(self, data)
+        if (data.get('valor_referencial') or 0) < 0:
+            self.add_error('valor_referencial', 'No puede ser negativo.')
+        return data
 
 
 class HitoForm(BootstrapMixin, forms.ModelForm):

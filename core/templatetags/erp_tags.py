@@ -28,6 +28,20 @@ def campo_etiqueta(form, nombre):
 
 
 @register.filter
+def errores_lineas(formset):
+    """«Línea 2 · Cantidad: …» por cada error de las líneas de un detalle (COM-20, INV-32: antes solo decía «Revise
+    las líneas» sin decir cuál ni por qué)."""
+    if not formset or not getattr(formset, 'is_bound', False):
+        return []
+    salida = []
+    for n, f in enumerate(formset.forms, 1):
+        for nombre, errores in (f.errors or {}).items():
+            etiqueta = '' if nombre == '__all__' else f'{campo_etiqueta(f, nombre)}: '
+            salida += [f'Línea {n} · {etiqueta}{e}' for e in errores]
+    return salida + list(formset.non_form_errors())
+
+
+@register.filter
 def editable(valor):
     """Número para una casilla editable sin ceros de más (PLAT-06): 0.927000 → 0.927."""
     from core.formato import editable as fmt

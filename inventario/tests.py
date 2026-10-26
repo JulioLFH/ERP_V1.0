@@ -66,7 +66,8 @@ class OperacionesTest(TestCase):
         codigos = set(TipoOperacion.objects.values_list('codigo', flat=True))
         self.assertEqual(codigos, {'SALDO_INI', 'REC_COMPRA', 'DEV_CLI', 'AJ_ING', 'SAL_VENTA', 'DEV_PROV', 'AJ_SAL',
                                    'CONS_INT', 'CONS_MANT', 'SAL_DESTR', 'TRAS_DESTR', 'TRAS_TRANS', 'REC_TRANS',
-                                   'MANUF', 'TRAS_ALM', 'CONS_REQ', 'EPP', 'SAL_OP', 'DEV_OP'})  # EPP: entrega al trabajador (SST); MAN-15: salida y devolución de orden de producción
+                                   'MANUF', 'TRAS_ALM', 'CONS_REQ', 'EPP', 'SAL_OP', 'DEV_OP', 'ENT_OP',
+                                   'CONS_OP'})  # EPP: entrega al trabajador (SST); MAN-15: salida y devolución de orden de producción; MAN-18: declaración parcial
         self.assertEqual(TipoOperacion.objects.get(codigo='CONS_INT').cuenta_contable.codigo, '6561')
         self.assertIsNone(TipoOperacion.objects.get(codigo='TRAS_TRANS').cuenta_contable)
 
@@ -245,7 +246,10 @@ class OperacionesTest(TestCase):
         self.assertEqual(self.client.get(reverse('inventario:nueva')).status_code, 200)
         r = self.client.get(reverse('inventario:nueva') + '?tipo=CONS_MANT')
         self.assertEqual(r.status_code, 200)
+        from contabilidad.models import CentroCosto  # INV-32: la salida al gasto lleva centro de costo
+        centro = CentroCosto.objects.create(codigo='MANT1', nombre='Mantenimiento')
         datos = {'fecha': HOY.isoformat(), 'almacen_origen': self.principal.pk, 'referencia': 'OT-15', 'glosa': '',
+                 'centro_costo': centro.pk,
                  'items-TOTAL_FORMS': '1', 'items-INITIAL_FORMS': '0', 'items-MIN_NUM_FORMS': '1',
                  'items-MAX_NUM_FORMS': '1000', 'items-0-producto': self.p3.pk, 'items-0-cantidad': '1',
                  'items-0-observacion': 'Reposición', 'accion': 'confirmar'}

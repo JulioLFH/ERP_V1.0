@@ -445,6 +445,8 @@ class Producto(models.Model):
     exige_proveedor_calificado = models.BooleanField(
         'Solo de proveedores calificados', default=False,
         help_text='CAL-10: la orden de compra y la recepción exigen un proveedor aprobado y vigente para el producto')
+    es_epp = models.BooleanField('Es EPP (equipo de protección personal)', default=False,
+                                 help_text='INV-32: solo estos productos se entregan en SST › Entrega de EPP')
     afectacion_igv = models.CharField('Afectación del IGV', max_length=10, choices=AFECTACION_LINEA, blank=True,
                                       default='', help_text='Ej. libros (exonerados) o productos agrarios '
                                                             '(inafectos). Vacío = según el comprobante')

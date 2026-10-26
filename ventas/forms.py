@@ -57,17 +57,24 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        data['cuotas'] = data.get('cuotas') or 1
-        data['dias_entre_cuotas'] = data.get('dias_entre_cuotas') or 30
-        if data['cuotas'] > 36:
+        # VEN-18: el número de cuotas en una variable (add_error quita el campo de cleaned_data: antes daba error 500)
+        escrito = data.get('cuotas')
+        cuotas = escrito or 1
+        dias_cuotas = data.get('dias_entre_cuotas') or 30
+        data['cuotas'], data['dias_entre_cuotas'] = cuotas, dias_cuotas
+        if escrito == 0 and data.get('forma_pago') == 'CREDITO':
+            self.add_error('cuotas', 'Una venta al crédito tiene al menos 1 cuota.')
+        elif cuotas > 36:
             self.add_error('cuotas', 'Máximo 36 cuotas.')
-        if data['cuotas'] > 1 and data.get('forma_pago') != 'CREDITO':
+        elif cuotas > 1 and data.get('forma_pago') != 'CREDITO':
             self.add_error('cuotas', 'Las cuotas son solo para ventas al crédito.')
+        if not 1 <= dias_cuotas <= 365:
+            self.add_error('dias_entre_cuotas', 'Entre 1 y 365 días.')
         emision, vence = data.get('fecha_emision'), data.get('fecha_vencimiento')
         if data.get('forma_pago') == 'CREDITO' and emision:
             if not vence:  # vacío: emisión + días de crédito del cliente (o los días entre cuotas)
                 from datetime import timedelta
-                dias = (data['tercero'].dias_credito if data.get('tercero') else 0) or data['dias_entre_cuotas']
+                dias = (data['tercero'].dias_credito if data.get('tercero') else 0) or dias_cuotas
                 data['fecha_vencimiento'] = emision + timedelta(days=dias)
                 self.instance.fecha_vencimiento = data['fecha_vencimiento']
             elif vence <= emision:

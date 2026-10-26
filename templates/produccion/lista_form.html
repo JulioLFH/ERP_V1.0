@@ -22,19 +22,19 @@
     {{ componentes.management_form }}
     {% for e in componentes.non_form_errors %}<div class="alert alert-danger m-3 py-2">{{ e }}</div>{% endfor %}
     <div class="table-responsive"><table class="table mb-0">
-      <thead><tr><th style="width:34%">Insumo</th><th class="num" style="width:13%">Cantidad</th><th class="num" style="width:10%">Merma %</th><th>U.M.</th><th class="num" style="width:9%" title="Operación de la hoja de ruta en que se consume">Op.</th><th style="width:20%">Almacén de consumo</th><th class="text-center" style="width:4%"><i class="bi bi-trash"></i></th></tr></thead>
+      <thead><tr><th style="width:34%">Insumo</th><th class="num" style="width:13%">Cantidad</th><th class="num" style="width:10%">Merma %</th><th>U.M.</th><th class="num" style="width:9%" title="Operación de la hoja de ruta en que se consume">Op.</th><th style="width:20%">Almacén de consumo</th><th style="width:14%" title="Automático: al declarar sale del almacén lo que falte según la receta. Solo por salida: lo que el almacén entregue a la orden">Consumo</th><th class="text-center" style="width:4%"><i class="bi bi-trash"></i></th></tr></thead>
       <tbody id="comp-body" data-prefix="{{ componentes.prefix }}">
         {% for f in componentes %}<tr>
           <td>{{ f.id }}{{ f.producto }}{% for e in f.producto.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}{% for e in f.non_field_errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
           <td>{{ f.cantidad }}{% for e in f.cantidad.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
           <td>{{ f.merma }}{% for e in f.merma.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
           <td class="small text-muted js-um"></td>
-          <td>{{ f.operacion }}</td><td>{{ f.almacen }}</td>
+          <td>{{ f.operacion }}</td><td>{{ f.almacen }}</td><td>{{ f.modo_consumo }}</td>
           <td class="text-center">{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td>
         </tr>{% endfor %}
       </tbody>
     </table></div>
-    <template id="comp-template"><tr><td>{{ componentes.empty_form.id }}{{ componentes.empty_form.producto }}</td><td>{{ componentes.empty_form.cantidad }}</td><td>{{ componentes.empty_form.merma }}</td><td class="small text-muted js-um"></td><td>{{ componentes.empty_form.operacion }}</td><td>{{ componentes.empty_form.almacen }}</td><td class="text-center">{{ componentes.empty_form.DELETE }}</td></tr></template>
+    <template id="comp-template"><tr><td>{{ componentes.empty_form.id }}{{ componentes.empty_form.producto }}</td><td>{{ componentes.empty_form.cantidad }}</td><td>{{ componentes.empty_form.merma }}</td><td class="small text-muted js-um"></td><td>{{ componentes.empty_form.operacion }}</td><td>{{ componentes.empty_form.almacen }}</td><td>{{ componentes.empty_form.modo_consumo }}</td><td class="text-center">{{ componentes.empty_form.DELETE }}</td></tr></template>
     <div class="card-body"><button type="button" class="btn btn-sm btn-outline-primary js-agregar" data-body="comp-body" data-template="comp-template"><i class="bi bi-plus-lg"></i> Agregar insumo</button>
       <span class="small text-muted ms-2">Las operaciones y sus horas se definen en la <a href="{% url 'manufactura:hojas' %}">hoja de ruta</a>; receta + hoja se unen en una <a href="{% url 'manufactura:versiones' %}">versión de fabricación</a>.</span></div>
   </div>

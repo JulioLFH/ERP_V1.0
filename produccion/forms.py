@@ -8,6 +8,7 @@ from .models import (DIAS, CentroTrabajo, ComponenteLista, ConfiguracionPlanta, 
                      MotivoParada, OperacionRuta, OrdenProduccion, PlanDemanda, SubproductoLista, VersionFabricacion)
 
 FABRICABLES = ['PRODUCTO_TERMINADO', 'SEMIELABORADO']
+MAXIMO_ORDEN = 99_999_999  # cantidad y consumo por orden que caben con holgura en los importes del kardex
 
 
 class MotivoParadaForm(BootstrapMixin, forms.ModelForm):
@@ -63,6 +64,25 @@ class CentroTrabajoForm(BootstrapMixin, forms.ModelForm):
             raise forms.ValidationError('Entre 1 y 200 %.')
         return valor
 
+    def clean(self):
+        """MAN-17: costos no negativos, al menos un turno, no más de 24 horas al día y algún día laborable."""
+        d = super().clean()
+        for campo in ('costo_hora_mo', 'costo_hora_maquina', 'costo_hora_cif'):
+            if (d.get(campo) or 0) < 0:
+                self.add_error(campo, 'No puede ser negativo.')
+        horas, turnos = d.get('horas_turno'), d.get('turnos')
+        if turnos is not None and turnos < 1:
+            self.add_error('turnos', 'Al menos 1 turno.')
+        if horas is not None and not 0 < horas <= 24:
+            self.add_error('horas_turno', 'Entre 0.5 y 24 horas.')
+        elif horas and turnos and horas * turnos > 24:
+            self.add_error('turnos', f'{horas:g} h × {turnos} turnos = {horas * turnos:g} h: un día tiene 24 horas.')
+        if (d.get('horas_normales_mes') or 0) < 0:
+            self.add_error('horas_normales_mes', 'No puede ser negativo.')
+        if not d.get('dias'):
+            self.add_error('dias', 'Marque al menos un día laborable.')
+        return d
+
     def save(self, commit=True):
         self.instance.dias_laborables = ''.join(sorted(self.cleaned_data.get('dias') or [])) or '123456'
         return super().save(commit)
@@ -93,6 +113,9 @@ class ListaMaterialesForm(BootstrapMixin, forms.ModelForm):
             self.add_error('vigente_hasta', 'No puede ser anterior al inicio de la vigencia.')
         if datos.get('lote_min') and datos.get('lote_max') and datos['lote_max'] < datos['lote_min']:
             self.add_error('lote_max', 'Debe ser mayor o igual al lote desde.')
+        tolerancia = datos.get('tolerancia_consumo_pct')
+        if tolerancia is not None and not 0 <= tolerancia <= 100:  # MAN-17
+            self.add_error('tolerancia_consumo_pct', 'Entre 0 y 100 %.')
         return datos
 
 
@@ -108,13 +131,17 @@ class _FilaForm(forms.ModelForm):
 class ComponenteForm(_FilaForm):
     class Meta:
         model = ComponenteLista
-        fields = ['producto', 'cantidad', 'merma', 'operacion', 'almacen']
+        fields = ['producto', 'cantidad', 'merma', 'operacion', 'almacen', 'modo_consumo']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['producto'].queryset = Producto.objects.filter(activo=True, es_plantilla=False, tipo='BIEN')
         remoto(self.fields['producto'], 'productos_bienes')
         self.fields['almacen'].queryset = Almacen.objects.filter(activo=True, uso='')
+        self.fields['modo_consumo'].required = False  # vacío = automático por receta
+
+    def clean_modo_consumo(self):
+        return self.cleaned_data.get('modo_consumo') or 'AUTO'
 
     def clean_cantidad(self):
         valor = self.cleaned_data['cantidad']
@@ -129,8 +156,24 @@ class ComponenteForm(_FilaForm):
         return valor
 
 
-ComponentesFormSet = inlineformset_factory(ListaMateriales, ComponenteLista, form=ComponenteForm, extra=0,
-                                           can_delete=True, min_num=1, validate_min=True)
+class _ComponentesBase(forms.BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        vistos = set()
+        for f in self.forms:
+            d = getattr(f, 'cleaned_data', None) or {}
+            if d.get('DELETE') or not d.get('producto'):
+                continue
+            clave = (d['producto'].pk, getattr(d.get('operacion'), 'pk', d.get('operacion')))
+            if clave in vistos:  # MAN-17: el mismo insumo dos veces (en la misma operación) duplica el consumo
+                raise forms.ValidationError(f'{d["producto"].nombre} se repite en la receta: súmelo en una sola '
+                                            f'línea.')
+            vistos.add(clave)
+
+
+ComponentesFormSet = inlineformset_factory(ListaMateriales, ComponenteLista, form=ComponenteForm,
+                                           formset=_ComponentesBase, extra=0, can_delete=True, min_num=1,
+                                           validate_min=True)
 
 
 class SubproductoForm(_FilaForm):
@@ -245,7 +288,15 @@ class OrdenProduccionForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['producto'].queryset = Producto.objects.filter(
             activo=True, clase__in=FABRICABLES, versiones_fabricacion__activa=True).distinct()
-        self.fields['version'].queryset = VersionFabricacion.objects.filter(activa=True).select_related('producto')
+        # MAN-20: solo versiones con receta (y ruta) aprobadas y no vencidas; la que la orden ya tiene se mantiene
+        from django.db.models import Q
+        from django.utils import timezone
+        hoy = timezone.localdate()
+        vigentes = (Q(activa=True, lista__estado='APROBADA') & (Q(hoja__isnull=True) | Q(hoja__estado='APROBADA'))
+                    & (Q(vigente_hasta__isnull=True) | Q(vigente_hasta__gte=hoy))
+                    & (Q(lista__vigente_hasta__isnull=True) | Q(lista__vigente_hasta__gte=hoy)))
+        self.fields['version'].queryset = VersionFabricacion.objects.filter(
+            vigentes | Q(pk=self.instance.version_id or 0)).select_related('producto')
         self.fields['version'].required = False
         self.fields['version'].help_text = 'Vacío = la versión vigente para la cantidad y la fecha'
         # la página filtra las versiones del producto elegido: lista corta, sin buscador
@@ -269,7 +320,20 @@ class OrdenProduccionForm(BootstrapMixin, forms.ModelForm):
         valor = self.cleaned_data['cantidad']
         if valor is not None and valor <= 0:
             raise forms.ValidationError('Debe ser mayor a cero.')
+        if valor is not None and valor > MAXIMO_ORDEN:
+            raise forms.ValidationError(f'Máximo {MAXIMO_ORDEN:,.0f} por orden: divida la producción en varias órdenes.')
         return valor
+
+    def _cabe_en_la_orden(self, version, cantidad):
+        """MAN-16: los consumos y horas de la receta para esa cantidad deben poder grabarse (antes la orden se grababa y
+        su ficha daba error 500 para siempre)."""
+        lista = version.lista
+        factor = cantidad / lista.cantidad_base if lista.cantidad_base else 1
+        for c in lista.componentes.select_related('producto'):
+            if c.cantidad_con_merma * factor > MAXIMO_ORDEN:
+                self.add_error('cantidad', f'La receta pediría {c.cantidad_con_merma * factor:,.0f} de '
+                                           f'{c.producto.nombre}: reduzca la cantidad de la orden.')
+                return
 
     def clean(self):
         from .servicios import version_para
@@ -282,6 +346,13 @@ class OrdenProduccionForm(BootstrapMixin, forms.ModelForm):
         validar_periodo_abierto(self, 'fecha')
         producto, version = datos.get('producto'), datos.get('version')
         cantidad, fecha = datos.get('cantidad'), datos.get('fecha')
+        from datetime import timedelta
+
+        from django.utils import timezone
+        if fecha and fecha > timezone.localdate() + timedelta(days=365):  # MAN-17
+            self.add_error('fecha', 'Máximo un año adelante.')
+        elif fecha and fecha.year < 2000:
+            self.add_error('fecha', 'Fecha no válida (desde el 2000).')
         if not (producto and cantidad and fecha):
             return datos
         if version is None:
@@ -296,6 +367,8 @@ class OrdenProduccionForm(BootstrapMixin, forms.ModelForm):
         elif not version.aplica(cantidad, fecha):
             self.add_error('version', 'La versión no está vigente para esa cantidad o fecha (rango de lote, vigencia '
                                       'o receta/ruta no aprobadas).')
+        if version is not None and not self.errors.get('version'):
+            self._cabe_en_la_orden(version, cantidad)
         return datos
 
     def save(self, commit=True):

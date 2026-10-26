@@ -215,6 +215,10 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
         datos = super().clean()
         if datos.get('fuente_tipo_cambio') == 'SBS' and not datos.get('token_tipo_cambio'):
             self.add_error('token_tipo_cambio', 'Para usar el tipo de cambio SBS indique el token de Decolecta.')
+        for nombre in self.fields:  # MAN-17: tolerancias y alertas en %
+            valor = datos.get(nombre)
+            if nombre.endswith('_pct') and valor is not None and not 0 <= valor <= 100:
+                self.add_error(nombre, 'Entre 0 y 100 %.')
         return datos
 
 
@@ -252,11 +256,17 @@ class TerceroForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
     def clean(self):
         data = super().clean()
         doc, num = data.get('tipo_doc'), (data.get('numero_doc') or '').strip()
+        if doc in ('6', '1'):  # K36: «20-123456789-0» o con espacios se guarda solo con los dígitos
+            num = num.replace('-', '').replace(' ', '').replace('.', '')
+            data['numero_doc'] = num
         sin_cambio = (self.instance.pk and doc == self.instance.tipo_doc and num == self.instance.numero_doc)
         if doc == '6' and error_ruc(num) and not sin_cambio:  # se valida al crear o al cambiar el número
             self.add_error('numero_doc', error_ruc(num))
         if doc == '1' and (len(num) != 8 or not num.isdigit()):
             self.add_error('numero_doc', 'El DNI debe tener 8 dígitos.')
+        if doc in ('4', '7') and not sin_cambio and not (9 <= len(num) <= 12 and num.isalnum()):
+            self.add_error('numero_doc', 'El carné de extranjería o pasaporte tiene de 9 a 12 letras o números.')
+        self._validar_formatos(data)
         # TER-01: un tipo + número de documento por empresa (los genéricos sin documento, como «varios», se repiten)
         if num and doc not in ('0', '-') and num.strip('0'):
             otro = Tercero.objects.filter(tipo_doc=doc, numero_doc=num).exclude(pk=self.instance.pk).first()
@@ -265,6 +275,44 @@ class TerceroForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
                                              f'también es proveedor o cliente, cámbiele el tipo a «Ambos»).')
         return data
 
+    def _validar_formatos(self, data):
+        """TER-02: teléfono, plazos, límites, porcentajes y cuentas bancarias con formato real (en un contacto antiguo,
+        solo lo que se cambia: sus otros datos se pueden seguir editando)."""
+        import re
+        data = {c: v for c, v in data.items() if not self.instance.pk or c in self.changed_data}
+        telefono = (data.get('telefono') or '').strip()
+        for parte in filter(None, re.split(r'[/,;]', telefono)):
+            digitos = re.sub(r'\D', '', parte)
+            if not re.fullmatch(r'[\d\s+()\-.]+', parte.strip()) or not 6 <= len(digitos) <= 15:
+                self.add_error('telefono', 'Teléfono de 6 a 15 dígitos (puede llevar +, espacios, guiones o '
+                                           'paréntesis; varios separados por «/»).')
+                break
+        if (data.get('dias_credito') or 0) > 365:
+            self.add_error('dias_credito', 'Máximo 365 días.')
+        if (data.get('dias_pronto_pago') or 0) > 365:
+            self.add_error('dias_pronto_pago', 'Máximo 365 días.')
+        if (data.get('limite_credito') or 0) < 0:
+            self.add_error('limite_credito', 'No puede ser negativo (0 = sin límite).')
+        for campo in ('descuento_pronto_pago_pct', 'tolerancia_precio_pct', 'tolerancia_total_pct'):
+            valor = data.get(campo)
+            if valor is not None and not 0 <= valor <= 100:
+                self.add_error(campo, 'Entre 0 y 100 %.')
+        for campo in ('tolerancia_precio', 'tolerancia_total'):
+            if (data.get(campo) or 0) < 0:
+                self.add_error(campo, 'No puede ser negativa.')
+        cci = (data.get('cci') or '').replace('-', '').replace(' ', '')
+        if cci and not (len(cci) == 20 and cci.isdigit()):
+            self.add_error('cci', 'El CCI tiene 20 dígitos.')
+        elif cci:
+            self.cleaned_data['cci'] = cci
+        cuenta = (data.get('cuenta_bancaria') or '').strip()
+        if cuenta and not re.fullmatch(r'[\d\-\s]{6,30}', cuenta):
+            self.add_error('cuenta_bancaria', 'Solo números y guiones.')
+        bn = (data.get('cuenta_detracciones') or '').replace('-', '').strip()
+        if bn and not (bn.isdigit() and 8 <= len(bn) <= 20):
+            self.add_error('cuenta_detracciones', 'La cuenta de detracciones del Banco de la Nación es numérica '
+                                                  '(00-000-000000).')
+
 
 class ProductoForm(BootstrapMixin, forms.ModelForm):
     # pestañas del formulario (estilo Odoo): (clave, título, icono, campos)
@@ -272,7 +320,7 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
         ('general', 'General', 'bi-info-circle',
          ['clase', 'codigo', 'nombre', 'unidad', 'marca', 'familia', 'codigo_barras', 'peso', 'peso_neto',
           'unidad_reporte', 'control', 'descripcion',
-          'imagen_archivo', 'quitar_imagen', 'activo']),
+          'imagen_archivo', 'quitar_imagen', 'es_epp', 'activo']),
         ('lotes', 'Lotes y vencimientos', 'bi-upc-scan',
          ['exige_vencimiento', 'regla_salida', 'vida_util_dias', 'vencimiento_mes', 'vida_remanente_recepcion',
           'vida_remanente_despacho']),

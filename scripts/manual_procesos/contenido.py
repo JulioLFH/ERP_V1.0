@@ -392,8 +392,14 @@ M['manufactura'] = {
             'Cree la orden en <b>Producción › Nueva orden de producción</b> (o desde el MRP del módulo Planificación).',
             'Genere el <b>Requerimiento de materiales</b>; el almacén despacha los insumos.',
             'En planta se reporta el avance, las mermas y las paradas desde las tablets (<b>Reporte de planta</b>).',
-            'Al terminar, ingresa el producto con su lote y se cierra la orden con su costo real.',
-        ], 'Producto terminado en stock con su costo.'),
+            'Cada turno, <b>Declarar producción</b>: el lote entra al almacén al costo estándar y se descuenta de la '
+            'receta solo lo que falte de lo ya entregado; la orden queda «Parcial» con su saldo (desde v1.88).',
+            'Cuando ya no se producirá más, <b>Cierre técnico</b>: motivo del faltante y devolución del material no '
+            'usado; luego <b>Liquidar</b>: la variación (real − estándar) va a los lotes en stock, al costo de ventas '
+            'o, con merma anormal, a gasto. Las horas olvidadas se registran como <b>Costos tardíos</b>.',
+            'Para una orden simple, <b>Terminar en un paso</b> ingresa el producto y cierra la orden con su costo '
+            'real.',
+        ], 'Producto terminado en stock con su costo; a fin de mes lo no declarado queda como productos en proceso.'),
     ],
     'pantallas': {
         'Órdenes de producción': 'Órdenes con su estado, avance y costo.',

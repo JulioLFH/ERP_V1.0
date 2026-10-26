@@ -230,7 +230,8 @@ class SalidaOrdenTest(BaseProduccion):
         self.assertEqual(c.aprobacion, 'APROBADO')  # política libre
         self._salida(o, self.masa, '3')
         masa = o.consumos.get(producto=self.masa)
-        self.assertEqual((masa.despachado, masa.cantidad_real), (D('3'), D('53')))
+        # MAN-19 (v1.88): lo entregado cuenta para la receta (50), no se suma encima
+        self.assertEqual((masa.despachado, masa.cantidad_real), (D('3'), D('50')))
         self.masa.refresh_from_db()
         antes = self.masa.stock
         self.terminar(o, masa='55')  # 55 en total: 3 ya salieron y salen 52

@@ -115,6 +115,10 @@ def _accion_extra(request, obj, accion):
             producto = None
         if producto is None or obj.operacion_id:
             messages.error(request, 'Elija el EPP y la cantidad (una entrega que ya salió del almacén no se cambia).')
+        elif not producto.es_epp:  # INV-32
+            messages.error(request, f'{producto.nombre} no está marcado como EPP (Productos › General › «Es EPP»).')
+        elif not 0 < cantidad <= 1000 or not 0 <= dias <= 3650:
+            messages.error(request, 'Cantidad entre 0.01 y 1,000; reposición entre 0 y 3,650 días.')
         else:
             LineaEPP.objects.create(entrega=obj, producto=producto, cantidad=cantidad, reposicion_dias=dias)
     elif accion == 'borrar_epp' and isinstance(obj, EntregaEPP) and not obj.operacion_id:
@@ -149,8 +153,8 @@ def registro(request, tipo, pk):
     if isinstance(obj, EntregaEPP):
         from core.models import Producto
         contexto['lineas'] = obj.lineas.select_related('producto')
-        contexto['productos'] = Producto.objects.filter(activo=True, tipo='BIEN', es_plantilla=False).order_by(
-            'nombre')[:500]
+        contexto['productos'] = Producto.objects.filter(activo=True, tipo='BIEN', es_plantilla=False,
+                                                        es_epp=True).order_by('nombre')[:500]
     if hasattr(obj, 'acciones'):
         from django.contrib.auth import get_user_model
         contexto['acciones'] = obj.acciones.select_related('responsable')

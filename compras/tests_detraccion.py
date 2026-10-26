@@ -26,12 +26,17 @@ class DetraccionTest(TestCase):
         cls.servicio.detraccion_codigo, cls.servicio.detraccion_pct = '18', D('12')
         cls.servicio.save()
         cls.prov = Tercero.objects.filter(tipo='PROVEEDOR', tipo_doc='6').first()
+        # una sola cuenta de detracciones activa: la impresión muestra la de la empresa (el demo trae otra)
+        Cuenta.objects.filter(es_detracciones=True).update(activo=False)
         cls.bn = Cuenta.objects.create(nombre='BN detracciones', banco='BN', es_detracciones=True,
                                        numero='00-068-123456', saldo_inicial=D('10000'))
 
     def setUp(self):
         Empresa.objects.update(exigir_orden_compra=False, bloquear_deuda_vencida=False)
         self.client.force_login(self.user)
+        plazo = patch('core.utils.DIAS_ENVIO_SUNAT', 3650)  # ventas con fechas fijas de octubre (VEN-20)
+        plazo.start()
+        self.addCleanup(plazo.stop)
         p = patch('core.tipo_cambio._consultar', return_value=(D('3.441'), D('3.450')))
         p.start()
         self.addCleanup(p.stop)

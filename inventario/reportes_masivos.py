@@ -80,9 +80,12 @@ def comprometido():
             'requerimiento'):
         if i.pendiente > 0:
             res[(i.producto_id, i.requerimiento.almacen_id)] += i.pendiente
-    for c in ConsumoOrden.objects.filter(orden__estado__in=['CONFIRMADA', 'EN_PROCESO']).values(
-            'producto_id', 'orden__almacen_insumos_id').annotate(s=Sum('cantidad_real')):
-        res[(c['producto_id'], c['orden__almacen_insumos_id'])] += c['s'] or D0
+    for c in ConsumoOrden.objects.filter(orden__estado__in=['CONFIRMADA', 'EN_PROCESO', 'PARCIAL']).values(
+            'producto_id', 'orden__almacen_insumos_id').annotate(s=Sum('cantidad_real'), d=Sum('despachado'),
+                                                                 b=Sum('backflush')):
+        # lo ya entregado a la orden ya salió del stock: solo se reserva lo que falta (MAN-18)
+        res[(c['producto_id'], c['orden__almacen_insumos_id'])] += max((c['s'] or D0) - (c['d'] or D0) -
+                                                                       (c['b'] or D0), D0)
     return res
 
 

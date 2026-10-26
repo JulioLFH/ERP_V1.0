@@ -13,6 +13,9 @@ class CoreConfig(AppConfig):
 
         from . import auditoria, monitoreo
         auditoria.conectar()
+        from django.forms.formsets import BaseFormSet
+        # C29, M26, R01: «envíe 1 formulario como mínimo» era el texto técnico de Django
+        BaseFormSet.default_error_messages['too_few_forms'] = 'Agregue al menos %(num)d línea al detalle.'
         from ventas.crm_servicios import conectar as conectar_crm
         conectar_crm()  # la cotización aprobada o facturada gana su oportunidad (CRM-03)
         got_request_exception.connect(monitoreo.registrar_error, dispatch_uid='monitoreo-errores')

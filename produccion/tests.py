@@ -226,6 +226,12 @@ class ManufacturaTest(TestCase):
         self.assertEqual(OrdenProduccion.objects.filter(cantidad=D('4')).last().version, self.version)
         o = OrdenProduccion.objects.get(lista=nueva)
         self.client.post(reverse('manufactura:orden_confirmar', args=[o.pk]))
+        o.refresh_from_db()
+        self.assertEqual(o.estado, 'BORRADOR')  # MAN-17: sin centro de costo no se confirma
+        from contabilidad.models import CentroCosto
+        OrdenProduccion.objects.filter(pk=o.pk).update(
+            centro_costo=CentroCosto.objects.create(codigo='PRD-T', nombre='Producción', tipo='PRODUCCION'))
+        self.client.post(reverse('manufactura:orden_confirmar', args=[o.pk]))
         c = o.consumos.get()
         self.client.post(reverse('manufactura:orden_terminar', args=[o.pk]),
                          {f'consumo_{c.pk}': '12', 'cantidad_producida': '12'})

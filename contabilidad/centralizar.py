@@ -566,9 +566,13 @@ def asiento_inventario(periodo, cta):
                 glosa = 'Producción almacenada' if k.tipo == 'ENTRADA' else 'Consumo de insumos en producción'
                 grupos[(ex, contra, glosa, linea)] += valor
                 continue
-            # MAN-15: salida a una orden de producción (y la devolución de su sobrante) = consumo en producción (61)
-            if k.concepto in ('SAL_OP', 'DEV_OP') and contra_manufactura(ex, False, p):
+            # MAN-15: salida a una orden de producción (y la devolución de su sobrante) = consumo en producción (61);
+            # MAN-18: lo descontado al declarar también, y el lote declarado = producción almacenada (71)
+            if k.concepto in ('SAL_OP', 'DEV_OP', 'CONS_OP') and contra_manufactura(ex, False, p):
                 grupos[(ex, contra_manufactura(ex, False, p), 'Consumo de insumos en producción', linea)] += valor
+                continue
+            if k.concepto == 'ENT_OP' and contra_manufactura(ex, True, p):
+                grupos[(ex, contra_manufactura(ex, True, p), 'Producción almacenada', linea)] += valor
                 continue
             if k.cuenta_contra_id:  # consumo con su propia cuenta de gasto y centro de costo (requerimientos)
                 grupos[(ex, k.cuenta_contra, f'Consumo: {k.cuenta_contra.nombre[:50]}', linea, k.centro_costo)] += valor
@@ -638,6 +642,21 @@ def asiento_inventario(periodo, cta):
             b.neto(ex, contra, lp.a_inventario, glosa=glosa, centro_beneficio=linea)
         if contra and lp.a_costo:
             b.neto(costo(p), contra, lp.a_costo, glosa=f'{glosa} (ya vendido)', centro_beneficio=linea)
+    # MAN-18: liquidación de la orden con declaraciones (costo real − estándar declarado): lo que sigue en stock al
+    # inventario y lo vendido al costo de ventas, contra la producción almacenada (71); la merma anormal queda en el
+    # gasto (no se capitaliza)
+    from produccion.models import OrdenProduccion
+    for o in OrdenProduccion.objects.filter(liquidada_en__isnull=False, fecha_fin__range=[desde, hasta]):
+        p = productos.get(o.producto_id)
+        ex = existencias(p)
+        contra = contra_manufactura(ex, True, p) or por_codigo.get('7111')
+        linea = p.centro_beneficio if p and p.centro_beneficio_id else None
+        if contra and o.variacion_inventario:
+            b.neto(ex, contra, o.variacion_inventario, documento=o.numero, glosa=f'Liquidación de {o.numero}',
+                   centro_beneficio=linea)
+        if contra and o.variacion_costo_ventas:
+            b.neto(costo(p), contra, o.variacion_costo_ventas, documento=o.numero,
+                   glosa=f'Liquidación de {o.numero} (ya vendido)', centro_beneficio=linea)
     # traslados entre cuentas de existencias (ej. manufactura: 2411 -> 2111); el redondeo va al ajuste final
     for ex, valor in sorted(sin_contra.items(), key=lambda x: x[0].codigo):
         b.add(ex, debe=valor, glosa='Traslados y manufactura')
@@ -651,7 +670,9 @@ def asiento_inventario(periodo, cta):
         objetivo[existencias(productos.get(fila['p'].pk))] += fila['valor']
     cuentas_ex = set(objetivo) | {merc_def} | {clave[0] for clave in grupos} | set(sin_contra)
     for ex in sorted(cuentas_ex, key=lambda c: c.codigo):
-        agg = AsientoLinea.objects.filter(cuenta=ex, asiento__fecha__lte=hasta).aggregate(d=Sum('debe'), h=Sum('haber'))
+        # sin los productos en proceso de fin de mes (MAN-18): se revierten al mes siguiente y no son del kardex
+        agg = (AsientoLinea.objects.filter(cuenta=ex, asiento__fecha__lte=hasta).exclude(asiento__origen='PROCESO')
+               .aggregate(d=Sum('debe'), h=Sum('haber')))
         libro = (agg['d'] or D0) - (agg['h'] or D0) + sum(l.debe - l.haber for l in b.lineas if l.cuenta_id == ex.pk)
         dif = r2(objetivo[ex] - libro)
         if dif > 0:
@@ -660,6 +681,39 @@ def asiento_inventario(periodo, cta):
             b.neto(ex, cta['inventario_merma'], dif, glosa='Ajuste por valuación (costo promedio)')
     b.agregar_destinos()
     return b.grabar()
+
+
+# ---------------------------------------------------------------- productos en proceso (MAN-18)
+def asiento_proceso(periodo, cta):
+    """Lo cargado a las órdenes abiertas y aún no declarado queda al cierre como productos en proceso (23) contra la
+    variación de la producción almacenada (71); el primer día del mes siguiente se revierte (la orden lo declara o
+    lo liquida después). Devuelve los asientos grabados."""
+    from datetime import timedelta
+
+    from produccion.parciales import en_proceso
+    from .models import CuentaContable
+    desde, hasta = _rango(periodo)
+    proceso = (CuentaContable.objects.filter(codigo=pcge.codigo('2311'), imputable=True).first()
+               or CuentaContable.objects.filter(codigo__startswith='231', imputable=True).order_by('codigo').first())
+    variacion = (CuentaContable.objects.filter(codigo=pcge.codigo('7131'), imputable=True).first()
+                 or CuentaContable.objects.filter(codigo__startswith='713', imputable=True).order_by('codigo').first())
+    if proceso is None or variacion is None:
+        return []
+    grabados = []
+    for fecha, filas, revertir in ((desde, en_proceso(desde - timedelta(days=1)), True), (hasta, en_proceso(hasta), False)):
+        if not filas:
+            continue
+        glosa = (f'Reversión de productos en proceso al {desde - timedelta(days=1):%d/%m/%Y}' if revertir
+                 else f'Productos en proceso al {hasta:%d/%m/%Y} (órdenes abiertas)')
+        b = Borrador(Asiento(fecha=fecha, libro='05', origen='PROCESO', glosa=glosa))
+        for orden, _, _, valor in filas:
+            importe = -valor if revertir else valor
+            b.neto(proceso, variacion, importe, documento=orden.numero, glosa=f'{orden.numero} {orden.producto.nombre}'[:100])
+        b.agregar_destinos()
+        asiento = b.grabar()
+        if asiento:
+            grabados.append(asiento)
+    return grabados
 
 
 # ---------------------------------------------------------------- activos fijos
@@ -786,6 +840,9 @@ def periodo_migrado(periodo):
 
 
 def centralizar_periodo(periodo):
+    from .automatico import periodo_valido
+    if not periodo_valido(periodo):
+        raise ErrorContable(f'Periodo inválido «{periodo}»: debe ser AAAAMM con mes 01 a 12.')
     if PeriodoContable.esta_cerrado(periodo):
         raise ErrorContable(f'El periodo {periodo} está cerrado.')
     if periodo_migrado(periodo):
@@ -866,6 +923,7 @@ def centralizar_periodo(periodo):
         try:
             if asiento_inventario(periodo, cta):
                 resumen['costo'] = 1
+            asiento_proceso(periodo, cta)
             asiento_activos(periodo, cta)
             from planillas.servicios import asiento_planillas
             asiento_planillas(periodo, cta)

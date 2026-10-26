@@ -446,8 +446,8 @@ def registro_lote(request, pk):
 @login_required
 def pqr(request):
     producto = Producto.objects.filter(pk=request.GET.get('producto') or 0).first()
-    anio = int(request.GET.get('anio') or timezone.localdate().year) if (request.GET.get('anio') or '0').isdigit() \
-        else timezone.localdate().year
+    from core.utils import anio_param
+    anio = anio_param(request)
     datos = cf.revision_anual(producto, anio) if producto else None
     return render(request, 'produccion/pqr.html', {'d': datos, 'producto': producto, 'anio': anio})
 

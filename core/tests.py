@@ -23,6 +23,9 @@ class SmokeTest(TestCase):
         from core.models import Empresa
         Empresa.objects.update(bloquear_deuda_vencida=False)  # los clientes demo tienen facturas vencidas
         self.client.force_login(self.user)
+        plazo = patch('core.utils.DIAS_ENVIO_SUNAT', 3650)  # ventas con fechas fijas de octubre (VEN-20)
+        plazo.start()
+        self.addCleanup(plazo.stop)
         p = patch('core.tipo_cambio._consultar', return_value=(Decimal('3.441'), Decimal('3.450')))
         p.start()
         self.addCleanup(p.stop)

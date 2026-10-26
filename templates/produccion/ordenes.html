@@ -20,7 +20,7 @@
     </form>
   </div>
   <div class="table-responsive"><table class="table table-hover mb-0">
-    <thead><tr><th>Fecha</th><th>Número</th><th>Producto</th><th class="num">A producir</th><th class="num">Producido</th>{% if ver_costos %}<th class="num">Costo unit. S/</th>{% endif %}<th>Estado</th></tr></thead>
+    <thead><tr><th>Fecha</th><th>Número</th><th>Producto</th><th class="num">Programado</th><th class="num">Declarado</th><th class="num">Saldo</th><th class="num" title="Lotes declarados">Lotes</th>{% if ver_costos %}<th class="num">Estándar S/</th><th class="num">Real S/</th><th class="num">Variación S/</th>{% endif %}<th>Estado</th></tr></thead>
     <tbody>
     {% for o in page_obj %}
       <tr onclick="location.href='{% url 'manufactura:orden' o.pk %}'" style="cursor:pointer">
@@ -28,11 +28,15 @@
         <td class="fw-semibold">{{ o.numero|default:'(borrador)' }}</td>
         <td>{{ o.producto.nombre }}</td>
         <td class="num">{{ o.cantidad|money }} {{ o.producto.unidad }}</td>
-        <td class="num">{% if o.estado == 'TERMINADA' %}{{ o.cantidad_producida|money }}{% endif %}</td>
-        {% if ver_costos %}<td class="num">{% if o.estado == 'TERMINADA' %}{{ o.costo_unitario|floatformat:4 }}{% elif o.costo_estandar_unit %}<span class="text-muted" title="Estándar">{{ o.costo_estandar_unit|floatformat:4 }}</span>{% endif %}</td>{% endif %}
+        <td class="num">{% if o.cantidad_producida %}{{ o.cantidad_producida|money }}{% endif %}</td>
+        <td class="num">{% if o.saldo %}{{ o.saldo|money }}{% endif %}</td>
+        <td class="num">{% if o.n_lotes %}{{ o.n_lotes }}{% endif %}</td>
+        {% if ver_costos %}<td class="num text-muted">{% if o.costo_estandar_unit %}{{ o.costo_estandar_unit|costo }}{% endif %}</td>
+        <td class="num">{% if o.estado == 'TERMINADA' %}{{ o.costo_unitario|costo }}{% endif %}</td>
+        <td class="num {% if o.variacion > 0 %}text-danger{% elif o.variacion < 0 %}text-success{% endif %}">{% if o.variacion is not None and o.costo_estandar_unit %}{{ o.variacion|money }}{% endif %}</td>{% endif %}
         <td>{% include 'produccion/_estado.html' with estado=o.estado texto=o.get_estado_display %}</td>
       </tr>
-    {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin órdenes en el rango.</td></tr>{% endfor %}
+    {% empty %}<tr><td colspan="11" class="text-center text-muted py-4">Sin órdenes en el rango.</td></tr>{% endfor %}
     </tbody>
   </table></div>
   {% include 'core/_paginacion.html' %}

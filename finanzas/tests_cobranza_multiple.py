@@ -38,6 +38,9 @@ class MultipleTest(TestCase):
     def setUp(self):
         Empresa.objects.update(exigir_orden_compra=False, bloquear_deuda_vencida=False)
         self.client.force_login(self.user)
+        plazo = patch('core.utils.DIAS_ENVIO_SUNAT', 3650)  # ventas con fechas fijas de octubre (VEN-20)
+        plazo.start()
+        self.addCleanup(plazo.stop)
         p = patch('core.tipo_cambio._consultar', return_value=(D('3.441'), D('3.450')))
         p.start()
         self.addCleanup(p.stop)

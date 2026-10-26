@@ -162,8 +162,11 @@ def libro(request):
     if valorizado and not puede_ver_costos(request.user):
         return _sin_permiso_costos(request)
     hoy = timezone.localdate()
-    anio = int(request.GET.get('anio') or hoy.year)
+    from .utils import anio_param
+    anio = anio_param(request)
     mes = request.GET.get('mes', str(hoy.month))
+    if mes != 'anual' and not (mes.isdigit() and 1 <= int(mes) <= 12):
+        mes = str(hoy.month)
     if mes == 'anual':
         desde, hasta = date(anio, 1, 1), date(anio, 12, 31)
     else:

@@ -145,7 +145,9 @@ EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar'
               'inventario.fecha_anterior', 'proyectos.ver_todos',
               # v1.84: aprobaciones de QA (BPM): solo a quien se le asignan
               'control_calidad.reabrir', 'control_calidad.aprobar_oos', 'control_calidad.especificaciones',
-              'control_calidad.aprobar_qa', 'tesoreria.aprobar_pagos'}
+              'control_calidad.aprobar_qa', 'tesoreria.aprobar_pagos',
+              # v1.88 (SEG-08): sueldos, cuentas y netos de planilla solo a RR. HH.
+              'planillas.ver_sueldos'}
 
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
@@ -266,6 +268,9 @@ RUTAS = {
     'manufactura:orden_nueva': 'manufactura.ordenes', 'manufactura:orden_editar': 'manufactura.ordenes',
     'manufactura:orden_confirmar': 'manufactura.ordenes', 'manufactura:orden_iniciar': 'manufactura.ordenes',
     'manufactura:orden_terminar': 'manufactura.ordenes', 'manufactura:orden_maquila': 'manufactura.ordenes',
+    'manufactura:orden_declarar': 'manufactura.ordenes', 'manufactura:declaracion_anular': 'manufactura.ordenes',
+    'manufactura:orden_cierre_tecnico': 'manufactura.ordenes', 'manufactura:orden_liquidar': 'manufactura.ordenes',
+    'manufactura:orden_costo_tardio': 'manufactura.ordenes',
     'manufactura:orden_material': 'manufactura.consumo_adicional',
     'manufactura:orden_consumo_resolver': 'manufactura.aprobar_consumo',
     'manufactura:inspeccion_nueva': 'control_calidad.inspecciones',
@@ -501,7 +506,8 @@ _COMPROBANTE = ('detalle', 'editar', 'imprimir', 'anular', 'eliminar', 'traslada
 RUTAS_DOCUMENTO = {
     'inventario': ('detalle', 'editar', 'pendientes', 'confirmar', 'anular', 'eliminar', 'imprimir', 'conformidad'),
     'manufactura': ('orden', 'orden_editar', 'orden_confirmar', 'orden_iniciar', 'orden_maquila', 'orden_terminar',
-                    'orden_anular', 'orden_eliminar', 'planta_orden'),
+                    'orden_anular', 'orden_eliminar', 'planta_orden', 'orden_declarar', 'orden_cierre_tecnico',
+                    'orden_liquidar', 'orden_costo_tardio'),
     'logistica': ('detalle', 'editar', 'imprimir', 'anular', 'enviar_sunat'),
     'ventas': _COMPROBANTE + ('enviar_sunat', 'enviar_correo', 'whatsapp'),
     'compras': _COMPROBANTE + ('ingresar_almacen',),

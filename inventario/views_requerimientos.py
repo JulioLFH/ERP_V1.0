@@ -33,6 +33,45 @@ class RequerimientoForm(BootstrapMixin, forms.ModelForm):
         if not self.instance.pk:
             self.initial.setdefault('almacen', Almacen.principal().pk)
 
+    def clean(self):
+        """REQ-04: el pedido es de hoy o de días recientes (no futuro, no de un periodo cerrado) y la fecha requerida
+        no es anterior al pedido."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from core.forms import validar_periodo_abierto
+        datos = super().clean()
+        hoy, fecha, requerida = timezone.localdate(), datos.get('fecha'), datos.get('fecha_requerida')
+        if fecha and fecha > hoy:
+            self.add_error('fecha', 'No puede ser futura.')
+        elif fecha and fecha < hoy - timedelta(days=DIAS_ATRAS):
+            self.add_error('fecha', f'Máximo {DIAS_ATRAS} días atrás: registre el pedido con la fecha de hoy.')
+        else:
+            validar_periodo_abierto(self, 'fecha')
+        if requerida and fecha and requerida < fecha:
+            self.add_error('fecha_requerida', 'No puede ser anterior a la fecha del pedido.')
+        elif requerida and requerida > hoy + timedelta(days=365):
+            self.add_error('fecha_requerida', 'Máximo un año adelante.')
+        return datos
+
+
+DIAS_ATRAS = 31
+MAXIMO_ITEM = Decimal('99999999')
+
+
+class _ItemsBase(forms.BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        vistos = set()
+        for f in self.forms:
+            d = getattr(f, 'cleaned_data', None) or {}
+            if d.get('DELETE') or not d.get('producto'):
+                continue
+            if d['producto'].pk in vistos:  # REQ-04
+                raise forms.ValidationError(f'{d["producto"].nombre} se repite: súmelo en una sola línea.')
+            vistos.add(d['producto'].pk)
+
 
 class ItemForm(forms.ModelForm):
     class Meta:
@@ -52,11 +91,13 @@ class ItemForm(forms.ModelForm):
         valor = self.cleaned_data['cantidad']
         if valor is not None and valor <= 0:
             raise forms.ValidationError('Debe ser mayor a cero.')
+        if valor is not None and valor > MAXIMO_ITEM:
+            raise forms.ValidationError(f'Máximo {MAXIMO_ITEM:,.0f} por línea.')
         return valor
 
 
-ItemsFormSet = inlineformset_factory(RequerimientoInterno, RequerimientoItem, form=ItemForm, extra=0,
-                                     can_delete=True, min_num=1, validate_min=True)
+ItemsFormSet = inlineformset_factory(RequerimientoInterno, RequerimientoItem, form=ItemForm, formset=_ItemsBase,
+                                     extra=0, can_delete=True, min_num=1, validate_min=True)
 
 
 def _puede_ver_todos(user):
@@ -92,6 +133,11 @@ def _guardar(request, req, titulo):
                 messages.success(request, f'{req} enviado para su aprobación.')
             else:
                 messages.success(request, 'Requerimiento guardado en borrador.')
+        sin_stock = [f'{i.producto.nombre} (pide {i.cantidad:,.2f}, hay {i.producto.stock_en(req.almacen):,.2f})'
+                     for i in req.items.select_related('producto') if i.cantidad > i.producto.stock_en(req.almacen)]
+        if sin_stock:  # REQ-04: aviso frente al stock del almacén
+            messages.warning(request, 'Más de lo que hay en stock: ' + '; '.join(sin_stock[:5]) +
+                             '. Lo que falte se pide a compras al aprobarlo.')
         return redirect('requerimientos:detalle', req.pk)
     return render(request, 'inventario/requerimiento_form.html', {'form': form, 'items': items, 'titulo': titulo,
                                                                   'req': req})
@@ -154,6 +200,9 @@ def accion(request, pk, que):
             srv.enviar(req, request.user)
             messages.success(request, f'{req} enviado para su aprobación.')
         elif que in ('aprobar', 'rechazar'):
+            if req.estado != 'ENVIADO':  # REQ-04: antes decía «No le corresponde aprobar» a un RQ ya atendido
+                raise srv.ErrorRequerimiento(f'{req} está «{req.get_estado_display()}»: solo se aprueba o rechaza '
+                                             f'un requerimiento enviado y pendiente.')
             if not srv.puede_aprobar(request.user, req):
                 raise srv.ErrorRequerimiento('No le corresponde aprobar este requerimiento (su nivel, su permiso o '
                                              'es suyo).')

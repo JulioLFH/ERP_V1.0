@@ -69,7 +69,7 @@ def crear(arr, usuario):
     filas, pasivo = cronograma(arr.cuota, arr.plazo, arr.tasa, arr.inicio, arr.pago_anticipado)
     arr.pasivo_inicial = pasivo
     arr.derecho_uso = pasivo + (arr.costos_directos or D0)
-    arr.numero = _siguiente('NIIF16', 'AR')
+    arr.numero = _siguiente('N16', 'AR')  # el tipo de la serie tiene 3 caracteres («NIIF16» fallaba en PostgreSQL)
     arr.save()
     filas, _ = cronograma(arr.cuota, arr.plazo, arr.tasa, arr.inicio, arr.pago_anticipado, arr.derecho_uso)
     for f in filas:

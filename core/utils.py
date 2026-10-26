@@ -211,6 +211,13 @@ def faltantes_stock(lineas, almacen, devolver=None, fecha=None):
     return mensajes
 
 
+def anio_param(request, nombre='anio'):
+    """Año de un filtro de la URL: ACT-01, «?anio=abc», «-1» o «99999» vuelven al año en curso (antes, error 500)."""
+    hoy = timezone.localdate().year
+    valor = (request.GET.get(nombre) or '').strip()
+    return int(valor) if valor.isdigit() and 2000 <= int(valor) <= hoy + 1 else hoy
+
+
 DIAS_ENVIO_SUNAT = 3  # días calendario que SUNAT admite para enviar un comprobante electrónico
 
 
@@ -245,13 +252,16 @@ def reglas_comprobante(form, formset):
     emision, vence = d.get('fecha_emision', doc.fecha_emision), d.get('fecha_vencimiento')
     if emision and vence and vence < emision:
         errores.append(f'El vencimiento ({vence:%d/%m/%Y}) no puede ser anterior a la emisión ({emision:%d/%m/%Y}).')
+    errores += _reglas_sunat(doc, d, emision, historico)
     if doc._meta.label_lower == 'ventas.venta' and emision and not historico:
         hoy = timezone.localdate()
         if emision > hoy:
             errores.append(f'La fecha de emisión ({emision:%d/%m/%Y}) no puede ser posterior a hoy.')
-        from .models import FacturacionConfig
         tipo = d.get('tipo_comprobante') or doc.tipo_comprobante
-        if (not doc.pk and tipo in ('01', '03', '07', '08') and FacturacionConfig.actual().activa
+        # VEN-20: toda serie electrónica (empieza con letra), con o sin facturación electrónica configurada en Ceiba;
+        # la serie física numérica (0001) puede registrarse después
+        electronica = (d.get('serie') or doc.serie or 'F')[:1].isalpha()
+        if (not doc.pk and tipo in ('01', '03', '07', '08') and electronica
                 and emision < hoy - timedelta(days=DIAS_ENVIO_SUNAT)):
             errores.append(f'SUNAT acepta comprobantes electrónicos hasta {DIAS_ENVIO_SUNAT} días después de su '
                            f'emisión: use una fecha desde el {hoy - timedelta(days=DIAS_ENVIO_SUNAT):%d/%m/%Y}.')
@@ -264,6 +274,91 @@ def reglas_comprobante(form, formset):
             errores.append(f'Su asiento {en_cerrado.numero} está en el periodo cerrado {en_cerrado.periodo[4:]}/'
                            f'{en_cerrado.periodo[:4]}: corríjalo con una nota de crédito o débito, no editándolo.')
     return errores
+
+
+import re as _re
+
+FECHA_MINIMA = date(2000, 1, 1)
+LARGO_GLOSA = 500
+SERIE_VALIDA = _re.compile(r'^([A-Z][A-Z0-9]{3}|\d{1,4})$')
+TIPOS_CON_SERIE = ('01', '03', '07', '08', '02', '04')  # factura, boleta, notas, RH y liquidación de compra
+PERCEPCION_TASAS = (Decimal('0'), Decimal('0.5'), Decimal('1'), Decimal('2'))
+
+
+def _reglas_sunat(doc, d, emision, historico):
+    """COM-20 y VEN-20: serie y número del comprobante, periodo de registro, fechas imposibles, tipo de cambio,
+    tasas de detracción, retención y percepción, recibo por honorarios a una persona natural, boleta de más de S/ 700
+    con el documento del cliente, nota del mismo cliente y moneda que el comprobante (VEN-19) y glosa con límite."""
+    from contabilidad.automatico import periodo_valido
+    errores = []
+    venta = doc._meta.label_lower == 'ventas.venta'
+    tipo = d.get('tipo_comprobante') or doc.tipo_comprobante
+    serie = (d.get('serie') or '').strip().upper()
+    numero = str(d.get('numero') or '').strip()
+    if tipo in TIPOS_CON_SERIE and not historico:
+        if serie and not SERIE_VALIDA.match(serie):
+            errores.append(f'Serie «{serie}» no válida: 4 caracteres que empiezan con letra (F001, B001, E001, FC01) '
+                           f'o numérica del comprobante físico (0001).')
+        if numero and not (numero.isdigit() and len(numero) <= 8):
+            errores.append(f'Número «{numero}» no válido: correlativo numérico de hasta 8 dígitos.')
+    if emision and emision < FECHA_MINIMA:
+        errores.append(f'La fecha de emisión {emision:%d/%m/%Y} no es válida (desde el {FECHA_MINIMA:%d/%m/%Y}).')
+    periodo = d.get('periodo')
+    if periodo:
+        if not periodo_valido(periodo):
+            errores.append(f'Periodo «{periodo}» no válido: AAAAMM con mes 01 a 12.')
+        elif emision and not venta:
+            meses = (int(periodo[:4]) - emision.year) * 12 + int(periodo[4:]) - emision.month
+            if meses < 0:
+                errores.append('El periodo de registro no puede ser anterior al mes de emisión.')
+            elif meses > 12:
+                errores.append('Fuera del plazo de anotación: el periodo de registro es hasta 12 meses después de la '
+                               'emisión (Ley del IGV, art. 19).')
+            from django.utils import timezone
+            if periodo > timezone.localdate().strftime('%Y%m'):
+                errores.append('El periodo de registro no puede ser futuro.')
+    tc = d.get('tipo_cambio')
+    if tc is not None and (tc < 0 or (tc == 0 and (d.get('moneda') or getattr(doc, 'moneda', 'PEN')) == 'PEN')):
+        errores.append('El tipo de cambio debe ser mayor a cero (vacío o 0 en dólares = el del día).')
+    if (d.get('detraccion_pct') or 0) < 0 or (d.get('detraccion_pct') or 0) > 15:
+        errores.append('Detracción entre 0 % y 15 % (tasas del anexo del SPOT).')
+    honorarios = tipo == '02'
+    retencion = d.get('retencion_pct') or Decimal('0')
+    permitidas = (Decimal('0'), Decimal('8')) if honorarios and not venta else (Decimal('0'), Decimal('3'))
+    if retencion not in permitidas:
+        errores.append('Retención: 0 % u 8 % (renta de 4ta categoría) en el recibo por honorarios.' if honorarios
+                       and not venta else 'Retención del IGV: 0 % o 3 %.')
+    if (d.get('percepcion_pct') or Decimal('0')) not in PERCEPCION_TASAS:
+        errores.append('Percepción del IGV: 0 %, 0.5 %, 1 % o 2 %.')
+    if (d.get('icbper') or 0) < 0:
+        errores.append('El ICBPER (impuesto a las bolsas) no puede ser negativo.')
+    tercero = d.get('tercero') or getattr(doc, 'tercero', None)
+    if honorarios and not venta and tercero is not None and not (
+            tercero.tipo_doc == '6' and tercero.numero_doc[:2] in ('10', '15', '17')):
+        errores.append(f'El recibo por honorarios lo emite una persona natural con RUC 10: {tercero.nombre} '
+                       f'({tercero.numero_doc}) no lo es.')
+    ref = d.get('doc_referencia')
+    if tipo in ('07', '08') and ref is not None and tercero is not None:
+        if ref.tercero_id != tercero.pk:
+            errores.append(f'La nota debe ser del mismo cliente o proveedor que {ref} ({ref.tercero.nombre}).')
+        moneda = d.get('moneda') or getattr(doc, 'moneda', '')
+        if moneda and ref.moneda != moneda:
+            errores.append(f'La nota debe estar en la misma moneda que {ref} ({ref.moneda}).')
+    if len(d.get('glosa') or '') > LARGO_GLOSA:
+        errores.append(f'La glosa tiene más de {LARGO_GLOSA} caracteres.')
+    return errores
+
+
+def _boleta_sin_documento(doc):
+    """VEN-20: SUNAT exige identificar al cliente (DNI) en boletas de más de S/ 700."""
+    if doc._meta.label_lower != 'ventas.venta' or doc.tipo_comprobante != '03' or doc.es_historico:
+        return ''
+    t = doc.tercero
+    sin_doc = t.tipo_doc == '0' or not (t.numero_doc or '').strip('0').strip('-').strip()
+    if sin_doc and (doc.total_pen or doc.total) > 700:
+        return (f'Una boleta de más de S/ 700 (S/ {doc.total:,.2f}) identifica al cliente con su DNI u otro '
+                f'documento: {t.nombre} no lo tiene.')
+    return ''
 
 
 def _nota_excede(doc):
@@ -333,7 +428,7 @@ def _guardar_documento(form, formset, instance, al_guardar):
         if nuevo and hasattr(doc, 'proponer_detraccion'):
             doc.proponer_detraccion()  # % de detracción del producto si la factura no trae otro
         doc.save()
-        excede = _nota_excede(doc) if hasattr(doc, 'doc_referencia_id') else ''
+        excede = (_nota_excede(doc) or _boleta_sin_documento(doc)) if hasattr(doc, 'doc_referencia_id') else ''
         if excede:
             raise _Rechazo(excede)  # deshace lo grabado (transacción)
         if referencia_anterior and referencia_anterior != str(doc):

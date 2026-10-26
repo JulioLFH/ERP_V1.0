@@ -8,7 +8,7 @@
 <form method="post" enctype="multipart/form-data" novalidate>
   {% csrf_token %}
   {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
-  {% if form.errors or formset.total_error_count %}<div class="alert alert-danger py-2">Revise los campos marcados.</div>{% endif %}
+  {% if form.errors and not form.non_field_errors or formset.total_error_count %}<div class="alert alert-danger py-2"><b>No se grabó. Revise:</b>{% for campo in form %}{% if campo.errors %}<div class="small">• {{ campo.label }}: {{ campo.errors|join:' ' }}</div>{% endif %}{% endfor %}{% for e in formset|errores_lineas %}<div class="small">• {{ e }}</div>{% endfor %}</div>{% endif %}
   <div class="card mb-3"><div class="card-body"><div class="row g-3">
     {% for field in form|campos:"fecha,fecha_documento,orden_compra,compra,venta,envio,orden_imputada,almacen_origen,almacen_destino,tercero,referencia,centro_costo" %}
       <div class="{% if field.name == 'fecha' or field.name == 'fecha_documento' %}col-6 col-md-2{% elif field.name in 'orden_compra,compra,venta,envio,tercero,orden_imputada' %}col-md-5{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>

@@ -83,11 +83,28 @@ class CentroCostoForm(BootstrapMixin, forms.ModelForm):
         self.fields['centro_beneficio'].queryset = CentroBeneficio.objects.filter(activo=True)
         self.fields['centro_beneficio'].help_text = 'Vacío = el del centro del que depende'
 
+    def clean_codigo(self):
+        codigo = self.cleaned_data['codigo']
+        return codigo if self.instance.pk and codigo == self.instance.codigo else codigo_simple(codigo)
+
 
 class CentroBeneficioForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = CentroBeneficio
         fields = ['codigo', 'nombre', 'responsable', 'activo']
+
+    def clean_codigo(self):
+        codigo = self.cleaned_data['codigo']
+        return codigo if self.instance.pk and codigo == self.instance.codigo else codigo_simple(codigo)
+
+
+def codigo_simple(codigo):
+    """CON-20: códigos de centros solo con letras, números, guion, punto o guion bajo (antes aceptaba «<b>X</b>»)."""
+    import re
+    codigo = (codigo or '').strip()
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', codigo):
+        raise forms.ValidationError('Solo letras, números y guion (sin espacios ni símbolos).')
+    return codigo
 
 
 class PresupuestoForm(BootstrapMixin, forms.ModelForm):
@@ -166,6 +183,7 @@ class AsientoForm(BootstrapMixin, forms.ModelForm):
         model = Asiento
         fields = ['fecha', 'libro', 'glosa', 'moneda', 'tipo_cambio', 'norma']
         widgets = {'moneda': forms.Select(choices=[('PEN', 'Soles'), ('USD', 'Dólares')])}
+        labels = {'libro': 'Libro (subdiario)', 'norma': 'Norma (NIIF / tributaria)'}  # CON-20: antes ambos «Libro»
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -173,6 +191,31 @@ class AsientoForm(BootstrapMixin, forms.ModelForm):
 
     def clean_norma(self):
         return self.cleaned_data.get('norma') or 'AMBOS'
+
+    def clean(self):
+        """CON-18 y CON-19: fecha en un periodo abierto, desde el 2000 y hasta el fin del mes en curso (provisiones de
+        cierre); T.C. mayor a cero en dólares."""
+        import calendar
+
+        from django.utils import timezone
+        data = super().clean()
+        fecha, hoy = data.get('fecha'), timezone.localdate()
+        fin_mes = hoy.replace(day=calendar.monthrange(hoy.year, hoy.month)[1])
+        if fecha and fecha.year < 2000:
+            self.add_error('fecha', 'Fecha no válida (desde el 2000).')
+        elif fecha and fecha > fin_mes:
+            self.add_error('fecha', f'No puede ser posterior al {fin_mes:%d/%m/%Y} (fin del mes en curso).')
+        elif fecha and PeriodoContable.esta_cerrado(fecha.strftime('%Y%m')):
+            self.add_error('fecha', f'El periodo {fecha:%m/%Y} está cerrado: registre el asiento en un periodo abierto.')
+        if self.instance.pk and self.instance.periodo and PeriodoContable.esta_cerrado(self.instance.periodo):
+            self.add_error(None, f'El asiento está en el periodo cerrado {self.instance.periodo[4:]}/'
+                                 f'{self.instance.periodo[:4]}: no se modifica (use un extorno).')
+        tc = data.get('tipo_cambio')
+        if data.get('moneda', 'PEN') != 'PEN' and not (tc and tc > 0):
+            self.add_error('tipo_cambio', 'En dólares indique el tipo de cambio (mayor a cero).')
+        elif tc is not None and tc < 0:
+            self.add_error('tipo_cambio', 'No puede ser negativo.')
+        return data
 
 
 class ExtornoForm(BootstrapMixin, forms.Form):

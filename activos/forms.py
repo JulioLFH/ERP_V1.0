@@ -8,6 +8,7 @@ from core.sustentos import SustentoField
 
 from .models import ActivoFijo, CategoriaActivo
 
+VIDA_MAXIMA = 600  # meses: 50 años (edificaciones al 2 % anual SUNAT)
 BLOQUEABLES = ['categoria', 'origen', 'fecha_adquisicion', 'fecha_uso', 'valor', 'valor_residual', 'vida_util_meses',
                'dep_inicial', 'dep_inicial_hasta']
 
@@ -22,6 +23,11 @@ class CategoriaForm(BootstrapMixin, forms.ModelForm):
         datos = super().clean()
         if datos.get('deprecia') and not (datos.get('cuenta_depreciacion') and datos.get('cuenta_gasto')):
             self.add_error('cuenta_depreciacion', 'Indique las cuentas de depreciación acumulada y de gasto.')
+        if datos.get('tasa_anual') is not None and not 0 <= datos['tasa_anual'] <= 100:
+            self.add_error('tasa_anual', 'Entre 0 y 100 %.')
+        vida = datos.get('vida_util_meses')
+        if vida is not None and not 0 <= vida <= VIDA_MAXIMA:
+            self.add_error('vida_util_meses', f'Entre 1 y {VIDA_MAXIMA} meses.')
         return datos
 
 
@@ -73,16 +79,21 @@ class ActivoForm(BootstrapMixin, forms.ModelForm):
         vida = datos.get('vida_util_meses')
         if valor is not None and valor <= 0:
             self.add_error('valor', 'Debe ser mayor a cero.')
-        if valor and (residual < 0 or residual >= valor):
+        if residual < 0:
+            self.add_error('valor_residual', 'El valor residual no puede ser negativo.')
+        elif valor and residual >= valor:
             self.add_error('valor_residual', 'Debe ser menor al valor de adquisición.')
         if cat and cat.deprecia and not vida:
             self.add_error('vida_util_meses', 'Indique la vida útil.')
+        elif vida is not None and not 1 <= vida <= VIDA_MAXIMA:
+            self.add_error('vida_util_meses', f'Entre 1 y {VIDA_MAXIMA} meses ({VIDA_MAXIMA // 12} años).')
         adq, uso = datos.get('fecha_adquisicion'), datos.get('fecha_uso')
-        if adq and uso and uso < adq:
-            self.add_error('fecha_uso', 'No puede ser anterior a la adquisición.')
-        dep, hasta = datos.get('dep_inicial') or Decimal('0'), datos.get('dep_inicial_hasta')
         origen = datos.get('origen')
-        if dep:
+        self._validar_fechas(adq, uso, origen)
+        dep, hasta = datos.get('dep_inicial') or Decimal('0'), datos.get('dep_inicial_hasta')
+        if dep < 0:
+            self.add_error('dep_inicial', 'La depreciación inicial no puede ser negativa.')
+        elif dep:
             if origen != 'SALDO_INICIAL':
                 self.add_error('dep_inicial', 'Solo para activos existentes (saldo inicial).')
             elif not hasta:
@@ -96,3 +107,20 @@ class ActivoForm(BootstrapMixin, forms.ModelForm):
         if not self.instance.pk and origen != 'COMPRA' and not datos.get('sustento'):
             self.add_error('sustento', 'Adjunte el documento que sustenta el activo (factura, contrato, acta).')
         return datos
+
+    def _validar_fechas(self, adq, uso, origen):
+        """ACT-01: fechas desde 1950 y no futuras; un activo nuevo (no saldo inicial) no entra a un periodo cerrado."""
+        from django.utils import timezone
+
+        from core.forms import periodo_cerrado
+        hoy = timezone.localdate()
+        for campo, fecha in (('fecha_adquisicion', adq), ('fecha_uso', uso)):
+            if fecha and fecha.year < 1950:
+                self.add_error(campo, 'Fecha no válida (desde 1950).')
+            elif fecha and fecha > hoy and not self.fields[campo].disabled:
+                self.add_error(campo, 'No puede ser futura.')
+        if adq and uso and uso < adq:
+            self.add_error('fecha_uso', 'No puede ser anterior a la adquisición.')
+        if (adq and not self.instance.pk and origen != 'SALDO_INICIAL'
+                and periodo_cerrado(adq.strftime('%Y%m'))):
+            self.add_error('fecha_adquisicion', f'El periodo contable {adq:%m/%Y} está cerrado.')

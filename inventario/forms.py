@@ -128,6 +128,8 @@ class OperacionForm(BootstrapMixin, forms.ModelForm):
         # contable (ALM-08, ALM-12)
         if fecha and fecha > hoy:
             self.add_error('fecha', 'La fecha contable no puede ser futura.')
+        elif fecha and fecha.year < 2000:  # I09
+            self.add_error('fecha', 'Fecha no válida (desde el 2000).')
         if doc and doc > hoy:
             self.add_error('fecha_documento', 'La fecha del documento no puede ser futura.')
         elif doc and fecha and doc > fecha:
@@ -140,6 +142,16 @@ class OperacionForm(BootstrapMixin, forms.ModelForm):
             self.add_error('compra', 'Elija solo uno: la orden de compra o la factura.')
         if datos.get('almacen_origen') and datos.get('almacen_origen') == datos.get('almacen_destino'):
             self.add_error('almacen_destino', 'Debe ser distinto del almacén de origen.')
+        from contabilidad.pcge import exige_centro
+        cuenta = self.tipo.cuenta_contable
+        if (self.tipo.clase == 'SALIDA' and 'centro_costo' in self.fields and cuenta is not None
+                and exige_centro(cuenta) and not datos.get('centro_costo')):  # INV-32: la salida va al gasto
+            self.add_error('centro_costo', f'Obligatorio: «{self.tipo.nombre}» va al gasto ({cuenta.codigo}).')
+        if self.tipo.codigo in ('ENT_OP', 'CONS_OP') and not self.instance.pk:  # MAN-18
+            self.add_error(None, 'Esta operación la genera la orden de producción al declarar la producción.')
+        if self.tipo.codigo == 'EPP' and not self.instance.pk:  # INV-32: con el trabajador y su cargo
+            self.add_error(None, 'La entrega de EPP se registra en SST › Entrega de EPP: con el trabajador, su '
+                                 'centro de costo y el cargo firmado (sale del almacén al confirmarla).')
         if self.tipo.codigo in ('SAL_OP', 'DEV_OP') and datos.get('orden_imputada') and fecha:
             from produccion.consumo import error_imputacion
             aviso = error_imputacion(datos['orden_imputada'], fecha)

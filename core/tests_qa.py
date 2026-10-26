@@ -43,6 +43,9 @@ class HallazgosQATest(TestCase):
         p = patch('core.tipo_cambio._consultar', return_value=TC)
         p.start()
         self.addCleanup(p.stop)
+        plazo = patch('core.utils.DIAS_ENVIO_SUNAT', 3650)  # ventas con fechas fijas de octubre (VEN-20)
+        plazo.start()
+        self.addCleanup(plazo.stop)
         self.cli = Tercero.objects.filter(tipo='CLIENTE', tipo_doc='6').first()
 
     def _venta(self, producto, cantidad, precio='100', **extra):

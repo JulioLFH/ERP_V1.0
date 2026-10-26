@@ -41,8 +41,11 @@ def ordenes(request):
         qs = qs.filter(Q(numero__icontains=q) | Q(producto__nombre__icontains=q) | Q(producto__codigo__icontains=q))
     desde, hasta = rango_por_defecto(request, qs)
     if not request.GET.get('todo'):
-        qs = qs.filter(Q(fecha__range=[desde, hasta]) | Q(estado__in=['BORRADOR', 'CONFIRMADA', 'EN_PROCESO']))
-    pendientes = OrdenProduccion.objects.filter(estado__in=['CONFIRMADA', 'EN_PROCESO']).count()
+        qs = qs.filter(Q(fecha__range=[desde, hasta]) |
+                       Q(estado__in=('BORRADOR', 'CERRADA_TEC') + OrdenProduccion.ABIERTAS))
+    from django.db.models import Count
+    qs = qs.annotate(n_lotes=Count('declaraciones', filter=Q(declaraciones__anulada=False)))
+    pendientes = OrdenProduccion.objects.filter(estado__in=OrdenProduccion.ABIERTAS).count()
     return render(request, 'produccion/ordenes.html', {
         'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'q': q, 'desde': desde, 'hasta': hasta,
         'estados': OrdenProduccion.ESTADOS, 'pendientes': pendientes})
@@ -103,10 +106,13 @@ def orden_detalle(request, pk):
     filas = servicios.disponibilidad(orden)
     from .avanzado import resumen_avance
     avance = resumen_avance(orden)
-    abierta = orden.estado in ('CONFIRMADA', 'EN_PROCESO')
+    abierta = orden.estado in OrdenProduccion.ABIERTAS
     horas = list(orden.horas.select_related('centro').prefetch_related('personal__trabajador'))
+    for h in horas:  # MAN-18: horas del saldo por producir (propuesta de la declaración del turno)
+        h.horas_saldo = ((h.horas_plan * (orden.cantidad - orden.cantidad_producida) / orden.cantidad)
+                         .quantize(Decimal('0.01')) if orden.cantidad else h.horas_plan)
     trabajadores = []
-    if abierta and horas:
+    if orden.estado in ('CONFIRMADA', 'EN_PROCESO') and horas:
         # lo que la planta declaró en la tablet (trabajador, rol y horas) o, si no, la cuadrilla prevista con las
         # horas máquina; más una fila libre para quien se sume
         from .models import AvancePersonal
@@ -155,10 +161,159 @@ def orden_detalle(request, pk):
            'faltan': any(f['faltante'] > 0 for f in filas) and orden.estado != 'TERMINADA',
            'hoy': timezone.localdate(), 'avance': avance,
            'a_producir': avance['producido'] if avance and avance['producido'] else orden.cantidad}
+    # MAN-18 a MAN-21: declaraciones por turno, cierre técnico, liquidación y costos tardíos
+    from . import parciales
+    from .models import CostoTardio
+    ctx['declaraciones'] = list(orden.declaraciones.select_related('ingreso', 'consumo', 'usuario'))
+    ctx['puede_declarar'] = abierta and not ctx['salidas'] and not orden.maquilador_id
+    # «Terminar» en un paso: solo si no se declaró producción por turnos
+    ctx['terminable'] = orden.estado in ('CONFIRMADA', 'EN_PROCESO')
+    ctx['saldo'] = max(orden.cantidad - orden.cantidad_producida, Decimal('0'))
+    ctx['motivos_faltante'] = OrdenProduccion.MOTIVOS_FALTANTE[1:]
+    ctx['costos_tardios'] = list(CostoTardio.objects.filter(Q(orden=orden) | Q(orden_destino=orden))
+                                 .select_related('trabajador', 'centro', 'orden', 'orden_destino'))
+    ctx['tipos_tardio'] = CostoTardio.TIPOS
+    if orden.estado in ('PARCIAL', 'CERRADA_TEC', 'TERMINADA'):
+        ctx['puestos'] = list({h.centro for h in horas})
+        ctx['trabajadores_tardio'] = trabajadores or _trabajadores_activos()
+        ctx['otras_ordenes'] = OrdenProduccion.objects.filter(
+            producto=orden.producto, estado__in=OrdenProduccion.ABIERTAS + ('CERRADA_TEC',)).exclude(pk=orden.pk)
+    if orden.estado in ('PARCIAL', 'CERRADA_TEC') and puede_ver_costos(request.user):
+        materiales, mo, maq, cif = parciales.costo_real(orden)
+        estandar = sum((d.valor_estandar for d in ctx['declaraciones'] if not d.anulada), Decimal('0'))
+        ctx['acumulado'] = {'materiales': materiales, 'mo': mo, 'maquina': maq, 'cif': cif,
+                            'real': materiales + mo + maq + cif, 'estandar': estandar,
+                            'variacion': materiales + mo + maq + cif - estandar}
     if orden.estado == 'TERMINADA' and not orden.es_historica and puede_ver_costos(request.user):
         ctx['variaciones'] = servicios.variaciones(orden)
         ctx['por_tipo'] = orden.variaciones.all()
     return render(request, 'produccion/orden_detalle.html', ctx)
+
+
+def _trabajadores_activos():
+    from planillas.models import Trabajador
+    return list(Trabajador.objects.filter(fecha_ingreso__isnull=False).exclude(fecha_cese__lt=timezone.localdate())
+                .order_by('apellido_paterno', 'apellido_materno', 'nombres'))
+
+
+def _personal(request, orden):
+    """Horas hombre del formulario: filas hh_<operación>_<n>_rol / _trab / _horas (solo las que traen horas)."""
+    personal = {}
+    for h in orden.horas.all():
+        filas, n = [], 0
+        while f'hh_{h.pk}_{n}_rol' in request.POST:
+            valor = _decimal(request.POST.get(f'hh_{h.pk}_{n}_horas'), None)
+            if valor:
+                trab = request.POST.get(f'hh_{h.pk}_{n}_trab')
+                filas.append({'rol': request.POST.get(f'hh_{h.pk}_{n}_rol'), 'horas': valor,
+                              'trabajador': int(trab) if trab and trab.isdigit() else None})
+            n += 1
+        if n:
+            personal[h.pk] = filas
+    return personal
+
+
+def _dia_post(request, nombre):
+    from datetime import date as _date
+    try:
+        return _date.fromisoformat(request.POST.get(nombre) or '')
+    except ValueError:
+        return None
+
+
+@login_required
+def orden_declarar(request, pk):
+    """MAN-18: declarar la producción del turno (la orden queda parcial)."""
+    from core.permisos import puede
+
+    from . import parciales
+    orden = get_object_or_404(OrdenProduccion, pk=pk)
+    if request.method == 'POST':
+        horas = {h.pk: _decimal(request.POST.get(f'dhora_{h.pk}'), None) for h in orden.horas.all()
+                 if (request.POST.get(f'dhora_{h.pk}') or '').strip()}
+        try:
+            d = parciales.declarar(
+                orden, request.user, _decimal(request.POST.get('cantidad'), None),
+                fecha=request.POST.get('fecha') or None, fecha_contable=request.POST.get('fecha_contable') or None,
+                lote=request.POST.get('lote', ''), fabricacion=_dia_post(request, 'fabricacion'),
+                vencimiento=_dia_post(request, 'vencimiento'), horas=horas, personal=_personal(request, orden),
+                nota=request.POST.get('nota', ''),
+                lotes_insumos={c.pk: request.POST.get(f'dlote_{c.pk}', '') for c in orden.consumos.all()},
+                autorizar=request.POST.get('autorizar') == '1' and puede(request.user, 'manufactura.aprobar_consumo'))
+            orden.refresh_from_db()
+            messages.success(request, f'Declaración {d.numero}: ingresaron {d.cantidad:,.2f} {orden.producto.unidad}'
+                                      f'{f" (lote {d.lote})" if d.lote else ""}. Saldo por producir: '
+                                      f'{max(orden.cantidad - orden.cantidad_producida, 0):,.2f}.')
+        except servicios.ErrorProduccion as exc:
+            messages.error(request, f'No se declaró: {exc}')
+    return redirect('manufactura:orden', pk)
+
+
+@login_required
+def declaracion_anular(request, pk):
+    from . import parciales
+    from .models import DeclaracionOrden
+    d = get_object_or_404(DeclaracionOrden.objects.select_related('orden'), pk=pk)
+    if request.method == 'POST':
+        try:
+            parciales.anular_declaracion(d, request.user, request.POST.get('motivo', ''))
+            messages.success(request, f'Declaración {d.numero} anulada: salió el lote y volvieron sus materiales.')
+        except servicios.ErrorProduccion as exc:
+            messages.error(request, str(exc))
+    return redirect('manufactura:orden', d.orden_id)
+
+
+@login_required
+def orden_cierre_tecnico(request, pk):
+    from . import parciales
+    orden = get_object_or_404(OrdenProduccion, pk=pk)
+    if request.method == 'POST':
+        try:
+            parciales.cierre_tecnico(orden, request.user, request.POST.get('motivo_faltante', ''),
+                                     request.POST.get('detalle', ''), devolver=request.POST.get('devolver') != '0')
+            messages.success(request, f'{orden.numero} cerrada técnicamente: ya no admite declaraciones. Liquídela '
+                                      'para llevar su variación a los lotes o al costo de ventas.')
+        except servicios.ErrorProduccion as exc:
+            messages.error(request, f'No se cerró: {exc}')
+    return redirect('manufactura:orden', pk)
+
+
+@login_required
+def orden_liquidar(request, pk):
+    from . import parciales
+    orden = get_object_or_404(OrdenProduccion, pk=pk)
+    if request.method == 'POST':
+        try:
+            o = parciales.liquidar_orden(orden, request.user, request.POST.get('fecha') or None)
+            messages.success(request, f'{o.numero} liquidada: variación a lotes en stock S/ {o.variacion_inventario:,.2f}, '
+                                      f'al costo de ventas S/ {o.variacion_costo_ventas:,.2f}, a gasto '
+                                      f'S/ {o.variacion_gasto:,.2f}.')
+        except servicios.ErrorProduccion as exc:
+            messages.error(request, f'No se liquidó: {exc}')
+    return redirect('manufactura:orden', pk)
+
+
+@login_required
+def orden_costo_tardio(request, pk):
+    """MAN-21: horas o costos registrados después de producir."""
+    from planillas.models import Trabajador
+
+    from . import parciales
+    from .models import CentroTrabajo
+    orden = get_object_or_404(OrdenProduccion, pk=pk)
+    if request.method == 'POST':
+        try:
+            t = parciales.costo_tardio(
+                orden, request.user, request.POST.get('tipo', ''), request.POST.get('fecha') or '',
+                request.POST.get('motivo', ''), horas=_decimal(request.POST.get('horas'), None),
+                importe=_decimal(request.POST.get('importe'), None),
+                trabajador=Trabajador.objects.filter(pk=request.POST.get('trabajador') or 0).first(),
+                centro=CentroTrabajo.objects.filter(pk=request.POST.get('centro') or 0).first(),
+                orden_destino=OrdenProduccion.objects.filter(pk=request.POST.get('orden_destino') or 0).first())
+            messages.success(request, f'Costo tardío S/ {t.importe:,.2f} registrado: {t.get_destino_display().lower()}.')
+        except servicios.ErrorProduccion as exc:
+            messages.error(request, str(exc))
+    return redirect('manufactura:orden', pk)
 
 
 def _accion(request, pk, funcion, exito):
@@ -174,8 +329,11 @@ def _accion(request, pk, funcion, exito):
 
 @login_required
 def orden_confirmar(request, pk):
-    return _accion(request, pk, lambda o: servicios.confirmar(o, request.user),
-                   'Orden {o.numero} confirmada con su costo estándar fijado.')
+    def confirmar(o):
+        if not o.centro_costo_id:  # MAN-17: el costo de la orden (y sus variaciones) se lleva por centro
+            raise servicios.ErrorProduccion('Indique el centro de costo de la orden (Editar) antes de confirmarla.')
+        servicios.confirmar(o, request.user)
+    return _accion(request, pk, confirmar, 'Orden {o.numero} confirmada con su costo estándar fijado.')
 
 
 @login_required
@@ -195,19 +353,7 @@ def orden_terminar(request, pk):
     if request.method == 'POST':
         consumos = {c.pk: _decimal(request.POST.get(f'consumo_{c.pk}'), c.cantidad_real) for c in orden.consumos.all()}
         horas = {h.pk: _decimal(request.POST.get(f'hora_{h.pk}'), h.horas_real) for h in orden.horas.all()}
-        # horas hombre: filas hh_<operación>_<n>_rol / _trab / _horas (solo las que traen horas)
-        personal = {}
-        for h in orden.horas.all():
-            filas, n = [], 0
-            while f'hh_{h.pk}_{n}_rol' in request.POST:
-                valor = _decimal(request.POST.get(f'hh_{h.pk}_{n}_horas'), None)
-                if valor:
-                    trab = request.POST.get(f'hh_{h.pk}_{n}_trab')
-                    filas.append({'rol': request.POST.get(f'hh_{h.pk}_{n}_rol'), 'horas': valor,
-                                  'trabajador': int(trab) if trab and trab.isdigit() else None})
-                n += 1
-            if n:
-                personal[h.pk] = filas
+        personal = _personal(request, orden)
         salidas = {s.pk: _decimal(request.POST.get(f'salida_{s.pk}'), s.cantidad_real) for s in orden.salidas.all()}
         cantidad = _decimal(request.POST.get('cantidad_producida'))
         fecha = request.POST.get('fecha') or None

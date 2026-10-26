@@ -32,7 +32,7 @@ def programar(desde=None):
     hoy = desde or timezone.localdate()
     usado = defaultdict(lambda: defaultdict(lambda: D0))  # puesto -> fecha -> horas ya ocupadas
     reportado = dict(AvanceOrden.objects.filter(hora__isnull=False).values_list('hora').annotate(s=Sum('horas')))
-    ordenes = (OrdenProduccion.objects.filter(estado__in=['CONFIRMADA', 'EN_PROCESO'])
+    ordenes = (OrdenProduccion.objects.filter(estado__in=OrdenProduccion.ABIERTAS)
                .select_related('producto', 'version').prefetch_related('horas__centro')
                .order_by('prioridad', 'fecha', 'id'))
     salida, por_centro = [], defaultdict(list)
@@ -166,7 +166,7 @@ def registrar_avance(orden, hora, buena, merma, horas, operario, nota, usuario, 
     personal: [{'trabajador': Trabajador, 'rol', 'horas'}] = horas hombre de quienes trabajaron."""
     from . import servicios
     from .models import AvancePersonal
-    if orden.estado not in ('CONFIRMADA', 'EN_PROCESO'):
+    if orden.estado not in OrdenProduccion.ABIERTAS:
         raise ErrorAvanzado('La orden no está en producción.')
     buena, merma, horas = buena or D0, merma or D0, horas or D0
     personal = [p for p in (personal or []) if p.get('trabajador') and p.get('horas')]

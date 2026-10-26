@@ -190,8 +190,10 @@ def errores_confirmacion(op):
         errores.append('Indique el traslado a tránsito que se recibe.')
     if tipo.clase == 'MANUFACTURA':
         roles = {i.rol for i in items}
-        if 'INSUMO' not in roles or 'PRODUCTO' not in roles:
+        # MAN-19: la orden cuyo material ya salió todo por almacén lleva solo el producto (su costo viene de la orden)
+        if 'PRODUCTO' not in roles or ('INSUMO' not in roles and not op.costo_adicional):
             errores.append('La manufactura necesita al menos un insumo y un producto terminado.')
+    errores += _reglas_ajustes(op, tipo, items)
     if tipo.requiere_costo:
         for i in items:
             if not i.costo_unitario and not i.producto.costo_promedio:
@@ -210,6 +212,25 @@ def errores_confirmacion(op):
         errores += faltantes_stock(salidas, almacen, fecha=op.fecha)  # sin negativos en su fecha ni después
     errores += errores_lotes(op, items)
     errores += errores_proveedor(op, items)
+    return errores
+
+
+def _reglas_ajustes(op, tipo, items):
+    """INV-32: la entrega de EPP es de productos marcados EPP; el saldo inicial es solo para productos sin
+    movimientos en ese almacén (el centro de costo de una salida al gasto lo exige el formulario)."""
+    errores = []
+    if tipo.codigo == 'EPP':
+        no_epp = [i.producto.nombre for i in items if not i.producto.es_epp]
+        if no_epp:
+            errores.append(f'No están marcados como EPP: {", ".join(no_epp[:5])} (Productos › General › «Es EPP»).')
+    if tipo.codigo == 'SALDO_INI' and op.almacen_destino_id:
+        from core.models import Kardex
+        con_movimientos = (Kardex.objects.filter(producto__in=[i.producto_id for i in items],
+                                                 almacen_id=op.almacen_destino_id)
+                           .values_list('producto__nombre', flat=True).distinct()[:5])
+        if con_movimientos:
+            errores.append(f'Ya tienen movimientos en {op.almacen_destino}: {", ".join(con_movimientos)}. El saldo '
+                           f'inicial es solo para productos nuevos; use un «Ajuste ingreso» (con sustento).')
     return errores
 
 
@@ -353,8 +374,8 @@ def confirmar(op, usuario=None):
                                  f'un almacén normal es liberarlo: lo hace Calidad o quien cambia el estado del stock.')
     entrada_cod = tipo.codigo_sunat_ingreso or '21'
     with transaction.atomic():
-        if tipo.codigo in ('SAL_OP', 'DEV_OP') and op.orden_imputada_id:  # el consumo va al centro de la orden
-            op.centro_costo_id = op.orden_imputada.centro_costo_id
+        if tipo.codigo in ('SAL_OP', 'DEV_OP', 'CONS_OP', 'ENT_OP') and op.orden_imputada_id:
+            op.centro_costo_id = op.orden_imputada.centro_costo_id  # el consumo va al centro de la orden
         prefijo = PREFIJOS[tipo.clase]
         serie, numero = Serie.siguiente(prefijo, f'{prefijo}01')
         op.numero = f'{serie}-{numero}'

@@ -174,6 +174,10 @@ def generar_filas(planilla):
 def calcular(planilla):
     if planilla.estado in ('CERRADA', 'PAGADA'):
         raise ErrorPlanilla('La planilla está cerrada: reábrala para recalcular.')
+    from core.forms import periodo_cerrado
+    if periodo_cerrado(planilla.periodo):  # PLA-16
+        raise ErrorPlanilla(f'El periodo contable {planilla.periodo[4:]}/{planilla.periodo[:4]} está cerrado: no se '
+                            f'calcula la planilla.')
     p = Parametro.del_anio(planilla.anio)
     conceptos = {c.clave: c for c in ConceptoPlanilla.objects.all()}
     faltan = {'BASICO', 'GRATIFICACION', 'CTS', 'ESSALUD', 'QUINTA'} - set(conceptos)

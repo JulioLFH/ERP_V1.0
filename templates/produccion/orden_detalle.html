@@ -19,9 +19,12 @@
     {% elif o.estado == 'CONFIRMADA' %}
       <form method="post" action="{% url 'manufactura:orden_iniciar' o.pk %}">{% csrf_token %}<button class="btn btn-sm btn-info"><i class="bi bi-play-circle"></i> Iniciar producción</button></form>
     {% endif %}
-    {% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}
-      <a href="#terminar" class="btn btn-sm btn-success"><i class="bi bi-flag"></i> Terminar</a>
+    {% if puede_declarar %}<a href="#declarar" class="btn btn-sm btn-primary"><i class="bi bi-box-arrow-in-down"></i> Declarar producción</a>{% endif %}
+    {% if terminable %}
+      <a href="#terminar" class="btn btn-sm btn-success"><i class="bi bi-flag"></i> Terminar en un paso</a>
     {% endif %}
+    {% if o.estado == 'PARCIAL' %}<a href="#cierre-tecnico" class="btn btn-sm btn-warning"><i class="bi bi-lock"></i> Cierre técnico</a>{% endif %}
+    {% if o.estado == 'CERRADA_TEC' %}<a href="#liquidar" class="btn btn-sm btn-success"><i class="bi bi-calculator"></i> Liquidar</a>{% endif %}
     {% if o.estado != 'BORRADOR' and o.estado != 'ANULADA' and not o.es_historica and puede.manufactura_anular %}
       <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular"><i class="bi bi-x-circle"></i> Anular</button>
     {% endif %}
@@ -45,7 +48,7 @@
   <div class="col-lg-8">
     <div class="card mb-3"><div class="card-body"><div class="row g-3 small">
       <div class="col-md-3"><div class="text-muted">Fecha planificada</div>{{ o.fecha|date:'d/m/Y' }}</div>
-      <div class="col-md-3"><div class="text-muted">A producir</div>{{ o.cantidad|money }} {{ o.producto.unidad }}</div>
+      <div class="col-md-3"><div class="text-muted">A producir</div>{{ o.cantidad|money }} {{ o.producto.unidad }}{% if declaraciones %}<div>Declarado <b>{{ o.cantidad_producida|money }}</b> · saldo <b>{{ saldo|money }}</b></div>{% endif %}</div>
       <div class="col-md-3"><div class="text-muted">Almacén de insumos</div>{{ o.almacen_insumos }}</div>
       {% if o.maquilador %}<div class="col-md-6"><div class="text-muted">Maquila (tercerizada)</div>{{ o.maquilador.nombre }}
         {% if o.costo_servicio %} · servicio S/ {{ o.costo_servicio|money }}{% endif %}{% if o.compra_servicio %} · <a href="{% url 'compras:detalle' o.compra_servicio_id %}">{{ o.compra_servicio }}</a>{% endif %}
@@ -64,16 +67,18 @@
     {% csrf_token %}
     <div class="card mb-3"><div class="card-header"><i class="bi bi-box-seam"></i> Insumos</div>
       <div class="table-responsive"><table class="table table-sm mb-0">
-        <thead><tr><th>Insumo</th><th>U.M.</th><th class="num">Planificado</th>{% if o.estado != 'TERMINADA' and o.estado != 'ANULADA' %}<th class="num">Stock</th>{% endif %}<th class="num" style="width:16%">Consumido</th>{% if ver_costos and o.estado == 'TERMINADA' %}<th class="num">Costo unit.</th><th class="num">Valor S/</th>{% endif %}</tr></thead>
+        <thead><tr><th>Insumo</th><th>U.M.</th><th class="num">Planificado</th>{% if o.estado != 'TERMINADA' and o.estado != 'ANULADA' %}<th class="num" title="Stock libre del almacén de consumo; aparte, lo que está en calidad, bloqueado o vencido (no sale)">Stock libre</th>{% endif %}<th class="num" style="width:16%">{% if terminable %}Consumido{% else %}Consumido / entregado{% endif %}</th>{% if ver_costos and o.estado == 'TERMINADA' %}<th class="num">Costo unit.</th><th class="num">Valor S/</th>{% endif %}</tr></thead>
         <tbody>{% for f in filas %}{% with c=f.consumo %}<tr>
           <td>{{ c.producto.codigo }} {{ c.producto.nombre }}{% if c.adicional %} <span class="badge text-bg-info">agregado</span>{% if c.sustituye %} <span class="small text-muted">sustituye a {{ c.sustituye.producto.nombre }}</span>{% endif %}{% endif %}
             {% if c.aprobacion == 'POR_APROBAR' %}<span class="badge text-bg-warning">por aprobar: {{ c.solicitado|cant:c.producto.unidad }}</span>{% elif c.aprobacion == 'RECHAZADO' %}<span class="badge text-bg-danger">rechazado</span>{% endif %}
             {% if c.despachado %}<div class="small text-muted">Salió del almacén a la orden: {{ c.despachado|cant:c.producto.unidad }}</div>{% endif %}
+            {% if c.backflush %}<div class="small text-muted">Descontado al declarar: {{ c.backflush|cant:c.producto.unidad }}</div>{% endif %}
+            {% if c.modo == 'SALIDA' %}<div class="small text-muted">Solo por salida de almacén</div>{% endif %}
             {% if c.motivo %}<div class="small text-muted">{{ c.motivo }}</div>{% endif %}
             {% if c.aprobacion == 'POR_APROBAR' and puede.manufactura_aprobar_consumo and abierta %}<div class="d-flex gap-1 mt-1"><button form="resolver-{{ c.pk }}" name="accion" value="aprobar" class="btn btn-sm btn-outline-success py-0">Aprobar</button><button form="resolver-{{ c.pk }}" name="accion" value="rechazar" class="btn btn-sm btn-outline-danger py-0">Rechazar</button></div>{% endif %}</td><td>{{ c.producto.unidad }}</td>
           <td class="num">{{ c.cantidad_plan|cant:c.producto.unidad }}</td>
-          {% if o.estado != 'TERMINADA' and o.estado != 'ANULADA' %}<td class="num {% if f.faltante > 0 %}text-danger fw-semibold{% endif %}">{{ f.stock|money }}</td>{% endif %}
-          <td class="num">{% if o.estado == 'CONFIRMADA' or o.estado == 'EN_PROCESO' %}<input name="consumo_{{ c.pk }}" value="{{ c.cantidad_real|editable }}" class="form-control form-control-sm text-end" inputmode="decimal" {% if c.adicional or politica.0 == 'ESTRICTO' %}readonly title="{% if c.adicional %}El material agregado cambia con su aprobación{% else %}Política estricta: se consume la receta{% endif %}"{% endif %}>{% if politica.0 == 'TOLERANCIA' and not c.adicional %}<input name="motivo_{{ c.pk }}" class="form-control form-control-sm mt-1" placeholder="Motivo si se aleja más del {{ politica.1|floatformat:'-2' }} %">{% endif %}{% if c.producto.control %}<select name="lote_{{ c.pk }}" class="form-select form-select-sm mt-1" title="Lote del insumo (vacío = regla de salida)"><option value="">Lote: por regla de salida</option>{% for sl in f.lotes %}<option value="{{ sl.lote.codigo }}">{{ sl.lote.codigo }}{% if sl.lote.vencimiento %} · vence {{ sl.lote.vencimiento|date:'d/m/Y' }}{% endif %} · {{ sl.cantidad|floatformat:'-2' }}</option>{% endfor %}</select>{% endif %}{% else %}{{ c.cantidad_real|cant:c.producto.unidad }}{% endif %}</td>
+          {% if o.estado != 'TERMINADA' and o.estado != 'ANULADA' %}<td class="num {% if f.faltante > 0 %}text-danger fw-semibold{% endif %}">{{ f.libre|money }}{% if f.no_disponible %}<div class="small text-warning" title="En calidad, bloqueado o vencido: no sale a producción">+ {{ f.no_disponible|money }} retenido</div>{% endif %}</td>{% endif %}
+          <td class="num">{% if terminable %}<input name="consumo_{{ c.pk }}" value="{{ c.cantidad_real|editable }}" class="form-control form-control-sm text-end" inputmode="decimal" {% if c.adicional or politica.0 == 'ESTRICTO' %}readonly title="{% if c.adicional %}El material agregado cambia con su aprobación{% else %}Política estricta: se consume la receta{% endif %}"{% endif %}>{% if politica.0 == 'TOLERANCIA' and not c.adicional %}<input name="motivo_{{ c.pk }}" class="form-control form-control-sm mt-1" placeholder="Motivo si se aleja más del {{ politica.1|floatformat:'-2' }} %">{% endif %}{% if c.producto.control %}<select name="lote_{{ c.pk }}" class="form-select form-select-sm mt-1" title="Lote del insumo (vacío = regla de salida)"><option value="">Lote: por regla de salida</option>{% for sl in f.lotes %}<option value="{{ sl.lote.codigo }}">{{ sl.lote.codigo }}{% if sl.lote.vencimiento %} · vence {{ sl.lote.vencimiento|date:'d/m/Y' }}{% endif %} · {{ sl.cantidad|floatformat:'-2' }}</option>{% endfor %}</select>{% endif %}{% elif declaraciones and o.estado != 'TERMINADA' %}{{ c.entregado|cant:c.producto.unidad }}{% else %}{{ c.cantidad_real|cant:c.producto.unidad }}{% endif %}</td>
           {% if ver_costos and o.estado == 'TERMINADA' %}<td class="num">{{ c.costo_unitario|costo }}</td><td class="num">{{ c.valor|money }}</td>{% endif %}
         </tr>{% endwith %}{% endfor %}</tbody>
       </table></div>
@@ -85,20 +90,20 @@
         <tbody>{% for h in horas %}<tr class="table-light">
           <td><b>{{ h.centro }}</b>{% if h.descripcion %} · {{ h.descripcion }}{% endif %}<div class="small text-muted">Cuadrilla: {{ h.maquinistas }} maquinista(s){% if h.ayudantes %}, {{ h.ayudantes }} ayudante(s){% endif %}</div></td>
           <td class="num">{{ h.horas_plan|floatformat:2 }}</td>
-          <td class="num">{% if abierta %}<input name="hora_{{ h.pk }}" value="{{ h.horas_real|editable }}" class="form-control form-control-sm text-end js-hmaq" data-hora="{{ h.pk }}" inputmode="decimal">{% else %}{{ h.horas_real|floatformat:2 }}{% endif %}</td>
+          <td class="num">{% if terminable %}<input name="hora_{{ h.pk }}" value="{{ h.horas_real|editable }}" class="form-control form-control-sm text-end js-hmaq" data-hora="{{ h.pk }}" inputmode="decimal">{% else %}{{ h.horas_real|floatformat:2 }}{% endif %}</td>
           {% if ver_costos %}<td class="num">{{ h.centro.costo_hora_maquina|money }}</td><td class="num">{{ h.centro.costo_hora_cif|money }}</td>{% endif %}
         </tr>
         <tr><td colspan="5" class="pt-0">
-          <table class="table table-sm table-borderless mb-1 small"><thead><tr class="text-muted"><th style="width:18%">Horas hombre</th><th>Trabajador</th><th class="num" style="width:14%">Horas</th>{% if ver_costos and not abierta %}<th class="num">S/ por hora</th><th class="num">Costo</th>{% endif %}</tr></thead>
+          <table class="table table-sm table-borderless mb-1 small"><thead><tr class="text-muted"><th style="width:18%">Horas hombre</th><th>Trabajador</th><th class="num" style="width:14%">Horas</th>{% if ver_costos and not terminable %}<th class="num">S/ por hora</th><th class="num">Costo</th>{% endif %}</tr></thead>
           <tbody id="hh-{{ h.pk }}">
-          {% if abierta %}{% for fila in h.filas_personal %}<tr>
+          {% if terminable %}{% for fila in h.filas_personal %}<tr>
             <td><select name="hh_{{ h.pk }}_{{ forloop.counter0 }}_rol" class="form-select form-select-sm"><option value="MAQUINISTA" {% if fila.rol == 'MAQUINISTA' %}selected{% endif %}>Maquinista</option><option value="AYUDANTE" {% if fila.rol == 'AYUDANTE' %}selected{% endif %}>Ayudante</option></select></td>
             <td><select name="hh_{{ h.pk }}_{{ forloop.counter0 }}_trab" class="form-select form-select-sm"><option value="">— Sin asignar (tarifa referencial del puesto) —</option>{% for t in trabajadores %}<option value="{{ t.pk }}" {% if fila.trabajador == t.pk %}selected{% endif %}>{{ t.nombre_completo }}{% if t.cargo %} · {{ t.cargo }}{% endif %}</option>{% endfor %}</select></td>
             <td><input name="hh_{{ h.pk }}_{{ forloop.counter0 }}_horas" value="{{ fila.horas|default_if_none:''|editable }}" class="form-control form-control-sm text-end{% if fila.horas is not None and not fila.trabajador %} js-hh-{{ h.pk }}{% endif %}" inputmode="decimal"></td>
           </tr>{% endfor %}
           {% else %}{% for p in h.personal.all %}<tr><td>{{ p.get_rol_display }}</td><td>{{ p.trabajador.nombre_completo|default:'Sin asignar (tarifa referencial)' }}</td><td class="num">{{ p.horas|floatformat:2 }}</td>{% if ver_costos %}<td class="num">{{ p.costo_hora|money }}</td><td class="num">{{ p.costo|money }}</td>{% endif %}</tr>{% empty %}<tr><td colspan="5" class="text-muted">Sin horas hombre registradas.</td></tr>{% endfor %}{% endif %}
           </tbody></table>
-          {% if abierta %}<button type="button" class="btn btn-sm btn-outline-secondary js-agregar-hh" data-hora="{{ h.pk }}"><i class="bi bi-person-plus"></i> Agregar persona</button>{% endif %}
+          {% if terminable %}<button type="button" class="btn btn-sm btn-outline-secondary js-agregar-hh" data-hora="{{ h.pk }}"><i class="bi bi-person-plus"></i> Agregar persona</button>{% endif %}
         </td></tr>{% empty %}<tr><td colspan="5" class="text-muted small">La receta no registra horas: el costo será solo de materiales.</td></tr>{% endfor %}</tbody>
       </table></div>
       <div class="card-body py-2 small text-muted">Máquina y CIF se reparten por las horas máquina reales. La mano de obra se valoriza por las horas hombre de cada maquinista y ayudante al costo real de su hora (sueldo, EsSalud, gratificaciones, CTS y vacaciones); sin trabajador asignado, a la tarifa referencial del puesto.</div>
@@ -110,13 +115,13 @@
         <tbody>{% for s in salidas %}<tr>
           <td>{{ s.producto.codigo }} {{ s.producto.nombre }}</td><td class="small">{% if s.tipo == 'COPRODUCTO' %}Coproducto · {{ s.participacion }} %{% else %}Subproducto · S/ {{ s.valor_unitario|costo }}{% endif %}</td>
           <td class="num">{{ s.cantidad_plan|cant:s.producto.unidad }}</td>
-          <td class="num">{% if abierta %}<input name="salida_{{ s.pk }}" value="{{ s.cantidad_real|editable }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ s.cantidad_real|cant:s.producto.unidad }}{% endif %}</td>
+          <td class="num">{% if terminable %}<input name="salida_{{ s.pk }}" value="{{ s.cantidad_real|editable }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ s.cantidad_real|cant:s.producto.unidad }}{% endif %}</td>
           {% if ver_costos and o.estado == 'TERMINADA' %}<td class="num">{{ s.costo_unitario|costo }}</td><td class="num">{{ s.costo|money }}</td>{% endif %}
         </tr>{% endfor %}</tbody>
       </table></div>
     </div>
     {% endif %}
-    {% if abierta %}
+    {% if terminable %}
     <div class="card mb-3 border-success"><div class="card-body row g-2 align-items-end">
       <div class="col-md-4"><label class="form-label small mb-1">Cantidad producida ({{ o.producto.unidad }}) <span class="text-danger">*</span></label>
         <input name="cantidad_producida" value="{{ a_producir|editable }}" class="form-control form-control-sm text-end" inputmode="decimal" required>{% if avance.producido %}<div class="form-text">Según el reporte de planta</div>{% endif %}</div>
@@ -151,6 +156,7 @@
     {% endif %}
     </form>
     {% for f in filas %}{% if f.consumo.aprobacion == 'POR_APROBAR' %}<form method="post" action="{% url 'manufactura:orden_consumo_resolver' f.consumo.pk %}" id="resolver-{{ f.consumo.pk }}" class="d-none">{% csrf_token %}</form>{% endif %}{% endfor %}
+    {% include 'produccion/_orden_parciales.html' %}
     {% if abierta and puede.manufactura_consumo_adicional %}
     <div class="card mb-3"><div class="card-header"><i class="bi bi-plus-square"></i> Agregar material (fuera de la receta)</div>
       <form method="post" action="{% url 'manufactura:orden_material' o.pk %}" class="card-body row g-2 align-items-end small">{% csrf_token %}

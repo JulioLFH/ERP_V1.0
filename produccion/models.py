@@ -185,6 +185,10 @@ class ComponenteLista(models.Model):
                                                  help_text='Secuencia de la hoja de ruta (10, 20…)')
     almacen = models.ForeignKey(Almacen, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
                                 verbose_name='Almacén de consumo', help_text='Vacío = el de insumos de la orden')
+    MODOS_CONSUMO = [('AUTO', 'Automático por receta'), ('SALIDA', 'Solo por salida de almacén')]
+    modo_consumo = models.CharField('Consumo', max_length=6, choices=MODOS_CONSUMO, default='AUTO',
+                                    help_text='MAN-19: automático = al declarar sale del almacén lo que falte según la '
+                                              'receta; solo por salida = lo que el almacén entregue a la orden')
 
     class Meta:
         ordering = ['id']
@@ -360,8 +364,14 @@ class PropuestaMRP(models.Model):
 
 
 class OrdenProduccion(models.Model):
+    # MAN-18: declaraciones parciales (PARCIAL), cierre técnico (CERRADA_TEC) y liquidación (TERMINADA)
     ESTADOS = [('BORRADOR', 'Borrador'), ('CONFIRMADA', 'Confirmada'), ('EN_PROCESO', 'En proceso'),
+               ('PARCIAL', 'Parcial (con producción declarada)'), ('CERRADA_TEC', 'Cerrada técnicamente'),
                ('TERMINADA', 'Terminada'), ('ANULADA', 'Anulada')]
+    ABIERTAS = ('CONFIRMADA', 'EN_PROCESO', 'PARCIAL')
+    MOTIVOS_FALTANTE = [('', '—'), ('MERMA_NORMAL', 'Merma normal del proceso (queda en el costo)'),
+                        ('MERMA_ANORMAL', 'Merma anormal (la variación va a gasto)'),
+                        ('CANCELADO', 'Saldo cancelado: no se producirá')]
 
     numero = models.CharField('Número', max_length=20, blank=True, editable=False)
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='ordenes_produccion',
@@ -389,9 +399,19 @@ class OrdenProduccion(models.Model):
                                                    'maquilador')
     compra_servicio = models.ForeignKey('compras.Compra', on_delete=models.SET_NULL, null=True, blank=True,
                                         related_name='+', verbose_name='Factura del maquilador')
-    estado = models.CharField(max_length=10, choices=ESTADOS, default='BORRADOR')
+    estado = models.CharField(max_length=12, choices=ESTADOS, default='BORRADOR')
     prioridad = models.PositiveSmallIntegerField(default=5, help_text='1 = la más urgente; ordena la programación '
                                                                       'de planta')
+    motivo_faltante = models.CharField('Motivo del faltante', max_length=14, choices=MOTIVOS_FALTANTE, blank=True)
+    detalle_cierre = models.CharField('Detalle del cierre técnico', max_length=250, blank=True)
+    cerrada_tec_en = models.DateTimeField('Cierre técnico', null=True, blank=True, editable=False)
+    cerrada_tec_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='+', editable=False)
+    liquidada_en = models.DateTimeField('Liquidación', null=True, blank=True, editable=False)
+    # liquidación de la orden con declaraciones: costo real − estándar declarado, repartido (NIC 2)
+    variacion_inventario = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    variacion_costo_ventas = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    variacion_gasto = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
     fecha_inicio = models.DateField(null=True, blank=True)
     fecha_fin = models.DateField('Fecha de término', null=True, blank=True,
                                  help_text='Fecha contable de la producción (kardex, costos y asientos); la fecha y '
@@ -468,6 +488,97 @@ class OrdenProduccion(models.Model):
     def editable(self):
         return self.estado in ('BORRADOR', 'CONFIRMADA')
 
+    @property
+    def saldo(self):
+        """Lo que falta producir (programado − declarado) mientras la orden está abierta."""
+        if self.estado not in self.ABIERTAS:
+            return D0
+        return max(self.cantidad - self.cantidad_producida, D0)
+
+    @property
+    def variacion(self):
+        """Costo real − estándar de lo producido (después de terminar o liquidar)."""
+        if self.estado != 'TERMINADA':
+            return None
+        return r2(self.costo_total - self.costo_estandar_total)
+
+
+class DeclaracionOrden(models.Model):
+    """MAN-18: producción declarada por turno: su lote entra al almacén al costo estándar, consume lo que pide la
+    receta (solo lo que falte de lo ya entregado por el almacén) y registra sus horas."""
+    orden = models.ForeignKey(OrdenProduccion, on_delete=models.CASCADE, related_name='declaraciones')
+    numero = models.PositiveSmallIntegerField('N°')
+    fecha = models.DateField('Fecha contable')
+    momento = models.DateTimeField('Fecha y hora real')
+    cantidad = models.DecimalField(max_digits=14, decimal_places=2)
+    lote = models.CharField(max_length=60, blank=True)
+    fabricacion = models.DateField(null=True, blank=True)
+    vencimiento = models.DateField(null=True, blank=True)
+    costo_unitario = models.DecimalField('Costo estándar', max_digits=14, decimal_places=4, default=D0)
+    materiales = models.DecimalField('Materiales descontados', max_digits=14, decimal_places=2, default=D0)
+    costo_mo = models.DecimalField('Mano de obra', max_digits=14, decimal_places=2, default=D0)
+    costo_maquina = models.DecimalField('Máquina', max_digits=14, decimal_places=2, default=D0)
+    costo_cif = models.DecimalField('CIF', max_digits=14, decimal_places=2, default=D0)
+    horas = models.JSONField(default=dict, blank=True, help_text='{hora_id: horas máquina del turno}')
+    ingreso = models.ForeignKey('inventario.Operacion', on_delete=models.PROTECT, null=True, blank=True,
+                                related_name='+', verbose_name='Ingreso del producto')
+    consumo = models.ForeignKey('inventario.Operacion', on_delete=models.PROTECT, null=True, blank=True,
+                                related_name='+', verbose_name='Consumo de materiales')
+    consumos = models.JSONField(default=dict, blank=True, help_text='{consumo_id: cantidad descontada}')
+    nota = models.CharField(max_length=250, blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    anulada = models.BooleanField(default=False)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['orden', 'numero']
+        verbose_name = 'declaración de producción'
+        verbose_name_plural = 'declaraciones de producción'
+
+    def __str__(self):
+        return f'{self.orden.numero} · declaración {self.numero}'
+
+    @property
+    def valor_estandar(self):
+        return r2(self.cantidad * self.costo_unitario)
+
+    @property
+    def costo_horas(self):
+        return self.costo_mo + self.costo_maquina + self.costo_cif
+
+    @property
+    def cargado(self):
+        return self.materiales + self.costo_horas
+
+
+class CostoTardio(models.Model):
+    """MAN-21: horas o costos que llegan después de producir. En una orden cerrada técnicamente entran a su
+    liquidación; en una liquidada van a otra orden abierta del mismo producto o quedan como gasto del periodo."""
+    TIPOS = [('MO', 'Horas hombre'), ('MAQUINA', 'Horas máquina'), ('MAQUILA', 'Servicio de maquila'),
+             ('OTRO', 'Otro costo')]
+    DESTINOS = [('ORDEN', 'A la liquidación de la orden'), ('OTRA_ORDEN', 'A otra orden abierta del producto'),
+                ('GASTO', 'Gasto del periodo (no se capitaliza)')]
+    orden = models.ForeignKey(OrdenProduccion, on_delete=models.CASCADE, related_name='costos_tardios')
+    tipo = models.CharField(max_length=8, choices=TIPOS, default='MO')
+    destino = models.CharField(max_length=10, choices=DESTINOS, default='ORDEN')
+    orden_destino = models.ForeignKey(OrdenProduccion, on_delete=models.SET_NULL, null=True, blank=True,
+                                      related_name='costos_recibidos')
+    trabajador = models.ForeignKey('planillas.Trabajador', on_delete=models.PROTECT, null=True, blank=True,
+                                   related_name='+')
+    centro = models.ForeignKey('CentroTrabajo', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                               verbose_name='Puesto')
+    horas = models.DecimalField(max_digits=10, decimal_places=2, default=D0)
+    importe = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    fecha = models.DateField('Fecha contable')
+    motivo = models.CharField(max_length=250)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+        verbose_name = 'costo tardío'
+        verbose_name_plural = 'costos tardíos'
+
 
 class ConsumoOrden(models.Model):
     """Insumo de la orden: lo planificado según la receta y lo realmente consumido."""
@@ -496,6 +607,11 @@ class ConsumoOrden(models.Model):
     despachado = models.DecimalField('Ya salió del almacén a la orden', max_digits=14, decimal_places=4, default=D0,
                                      editable=False)
     valor_despachado = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    modo = models.CharField('Consumo', max_length=6, choices=ComponenteLista.MODOS_CONSUMO, default='AUTO')
+    # MAN-18/19: lo que las declaraciones descontaron del almacén (además de lo despachado por salida a la orden)
+    backflush = models.DecimalField('Descontado al declarar', max_digits=14, decimal_places=4, default=D0,
+                                    editable=False)
+    valor_backflush = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
 
     class Meta:
         ordering = ['id']
@@ -503,6 +619,16 @@ class ConsumoOrden(models.Model):
     @property
     def valor(self):
         return r2(self.cantidad_real * self.costo_unitario)
+
+    @property
+    def entregado(self):
+        """Lo que ya salió del almacén para la orden: salidas a la orden y lo descontado al declarar."""
+        return self.despachado + self.backflush
+
+    @property
+    def por_entregar(self):
+        """Lo que la orden aún necesita del almacén (planificación y requerimiento de materiales)."""
+        return max(self.cantidad_real - self.entregado, D0)
 
 
 class VariacionOrden(models.Model):
@@ -551,6 +677,8 @@ class HoraHombre(models.Model):
     horas = models.DecimalField(max_digits=10, decimal_places=2, default=D0)
     costo_hora = models.DecimalField('S/ por hora', max_digits=12, decimal_places=4, default=D0)
     costo = models.DecimalField(max_digits=14, decimal_places=2, default=D0)
+    declaracion = models.ForeignKey(DeclaracionOrden, on_delete=models.CASCADE, null=True, blank=True,
+                                    related_name='personal')
 
     class Meta:
         ordering = ['id']

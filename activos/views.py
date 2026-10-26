@@ -219,7 +219,8 @@ def proceso_revertir(request, pk):
 # ---------------------------------------------------------------- reportes
 @login_required
 def registro(request):
-    anio = int(request.GET.get('anio') or timezone.localdate().year)
+    from core.utils import anio_param
+    anio = anio_param(request)
     filas, totales = servicios.registro(anio)
     if request.GET.get('formato') == 'excel':
         datos = [[f['a'].codigo, f['a'].categoria.cuenta_activo.codigo, f['a'].nombre, f['a'].marca, f['a'].modelo,

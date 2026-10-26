@@ -88,7 +88,7 @@ class SSTTest(TestCase):
 
     def test_entrega_de_epp_sale_del_almacen(self):
         almacen = Almacen.objects.create(codigo='ALM01', nombre='Almacén central', es_principal=True)
-        casco = Producto.objects.create(nombre='Casco de seguridad', clase='SUMINISTRO')
+        casco = Producto.objects.create(nombre='Casco de seguridad', clase='SUMINISTRO', es_epp=True)
         casco.mover_stock(D('10'), 'Inicial', costo=D('25'), almacen=almacen, origen='AJUSTE', concepto='INICIAL')
         self.client.post(reverse('sst:registro_nuevo') + '?tipo=epp', {
             'trabajador': self.t.pk, 'fecha': HOY, 'almacen': almacen.pk})

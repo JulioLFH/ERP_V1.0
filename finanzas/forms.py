@@ -22,6 +22,34 @@ def leer_sustento(archivo):
     return archivo.read(), archivo.name[:150], (archivo.content_type or '')[:100]
 
 
+CONFIRMAR_REPETIDO = 'confirmar_repetido'
+
+
+def confirmar_repetido_field():
+    return forms.BooleanField(label='Confirmo que el N° de operación se repite', required=False,
+                              help_text='Solo si el banco usó el mismo número en otra operación')
+
+
+def validar_tesoreria(form, cuenta_campo='cuenta', excluir=None):
+    """FIN-11: fecha desde el 2000 y no futura, y aviso del N° de operación ya usado en la misma cuenta (un voucher
+    registrado dos veces duplica el pago o la cobranza): se graba solo si el usuario lo confirma."""
+    from django.utils import timezone
+    d = form.cleaned_data
+    fecha = d.get('fecha')
+    if fecha and fecha > timezone.localdate():
+        form.add_error('fecha', 'No puede ser futura: registre la operación el día que ocurre.')
+    elif fecha and fecha.year < 2000:
+        form.add_error('fecha', 'Fecha no válida (desde el 2000).')
+    cuenta, numero = d.get(cuenta_campo), (d.get('numero_operacion') or '').strip()
+    if cuenta and numero and not d.get(CONFIRMAR_REPETIDO):
+        otro = (Movimiento.objects.filter(cuenta=cuenta, numero_operacion__iexact=numero, estado='VIGENTE')
+                .exclude(pk=getattr(excluir, 'pk', None)).first())
+        if otro is not None:
+            form.add_error('numero_operacion', f'El N° de operación {numero} ya está en el movimiento {otro.voucher} '
+                                               f'del {otro.fecha:%d/%m/%Y} (S/ {otro.monto:,.2f}). Si es correcto, '
+                                               f'marque «Confirmo que el N° de operación se repite».')
+
+
 class CuentaForm(BootstrapMixin, forms.ModelForm):
     """El saldo inicial se registra al crear la cuenta con su sustento; luego solo se regulariza (administrador)."""
     motivo_saldo = forms.CharField(label='Motivo / origen del saldo inicial', max_length=300, required=False,
@@ -48,6 +76,17 @@ class CuentaForm(BootstrapMixin, forms.ModelForm):
         admite = data.get('tipo') == 'BANCO' and data.get('permite_sobregiro')
         if inicial is not None and inicial < 0 and not admite:
             self.add_error('saldo_inicial', 'El saldo inicial no puede ser negativo.')
+        # FIN-11: número de cuenta único y CCI de 20 dígitos
+        numero = (data.get('numero') or '').strip()
+        if numero:
+            import re
+            if not re.fullmatch(r'[\d\-\s]{6,40}', numero):
+                self.add_error('numero', 'Solo números y guiones.')
+            elif Cuenta.objects.filter(numero=numero, banco=data.get('banco', '')).exclude(pk=self.instance.pk).exists():
+                self.add_error('numero', 'Ya existe una cuenta con este número en el mismo banco.')
+        cci = (data.get('cci') or '').replace('-', '').replace(' ', '')
+        if cci and not (len(cci) == 20 and cci.isdigit()):
+            self.add_error('cci', 'El CCI tiene 20 dígitos.')
         if not self.instance.pk and inicial:
             if len((data.get('motivo_saldo') or '').strip()) < 10:
                 self.add_error('motivo_saldo', 'Indique el motivo u origen del saldo inicial (mínimo 10 caracteres).')
@@ -137,6 +176,7 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
         remoto(self.fields['tercero'], 'terceros')
         self.fields['concepto'].choices = [c for c in Movimiento.CONCEPTOS if c[0] not in ('COBRANZA', 'PAGO',
                                                                                            'TRANSFERENCIA')]
+        self.fields[CONFIRMAR_REPETIDO] = confirmar_repetido_field()
 
     def clean_monto(self):
         monto = self.cleaned_data['monto']
@@ -158,6 +198,17 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
         if cuenta and exige_centro(cuenta) and not data.get('centro_costo'):
             self.add_error('centro_costo', f'Obligatorio: el movimiento va a la cuenta {cuenta.codigo}, que exige '
                                            f'centro de costo.')
+        validar_tesoreria(self, excluir=self.instance)
+        elegida = data.get('cuenta_contable')
+        if elegida and (elegida.codigo[:3] in ('101', '104')
+                        or Cuenta.objects.filter(cuenta_contable=elegida).exists()):  # FIN-11: entre cuentas propias
+            self.add_error('cuenta_contable', f'La {elegida.codigo} es caja o banco: para mover dinero entre sus '
+                                              f'cuentas use Tesorería › Transferencia.')
+        caja = data.get('cuenta')
+        if (caja and caja.es_detracciones and data.get('tipo') == 'EGRESO'
+                and data.get('concepto') not in ('TRIBUTOS', 'DETRACCION')):
+            self.add_error('concepto', 'La cuenta de detracciones del Banco de la Nación solo paga tributos a SUNAT '
+                                       '(o se libera a su banco con la solicitud de liberación).')
         return data
 
 
@@ -170,10 +221,12 @@ class OperacionForm(BootstrapMixin, forms.Form):
     es_detraccion = forms.BooleanField(label='Es depósito de detracción', required=False)
     glosa = forms.CharField(required=False)
     sustento = SustentoField(required=False, label='Sustento (voucher, constancia de detracción)')
+    confirmar_repetido = confirmar_repetido_field()
 
     def clean(self):
         data = super().clean()
         validar_periodo_abierto(self, 'fecha')
+        validar_tesoreria(self)
         return data
 
 
@@ -188,6 +241,7 @@ class OperacionMultipleForm(BootstrapMixin, forms.Form):
     numero_operacion = forms.CharField(label='N° operación (saldos)', required=False)
     glosa = forms.CharField(required=False)
     sustento = SustentoField(required=False, label='Sustento (voucher, constancias)')
+    confirmar_repetido = confirmar_repetido_field()
 
     def __init__(self, *args, modo='pago', **kwargs):
         super().__init__(*args, **kwargs)
@@ -202,6 +256,7 @@ class OperacionMultipleForm(BootstrapMixin, forms.Form):
     def clean(self):
         data = super().clean()
         validar_periodo_abierto(self, 'fecha')
+        validar_tesoreria(self)
         return data
 
 
@@ -213,6 +268,7 @@ class TransferenciaForm(BootstrapMixin, forms.Form):
     numero_operacion = forms.CharField(label='N° operación', required=False)
     glosa = forms.CharField(required=False)
     sustento = SustentoField(required=False, label='Sustento (voucher de la transferencia o depósito)')
+    confirmar_repetido = confirmar_repetido_field()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -227,6 +283,7 @@ class TransferenciaForm(BootstrapMixin, forms.Form):
             raise forms.ValidationError('Las cuentas deben ser de la misma moneda. Para cambiar soles a dólares '
                                         'registre un egreso y un ingreso con el tipo de cambio pactado.')
         validar_periodo_abierto(self, 'fecha')
+        validar_tesoreria(self, cuenta_campo='origen')
         if not data.get('numero_operacion') and not data.get('sustento'):
             self.add_error('numero_operacion', 'Indique el N° de operación o adjunte el voucher como sustento.')
         if data.get('origen') and data.get('monto'):

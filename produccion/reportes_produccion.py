@@ -695,7 +695,7 @@ def paradas_mantenimiento(f):
 
 # ---------------------------------------------------------------- 7. órdenes abiertas y atrasadas
 def abiertas(f):
-    qs = OrdenProduccion.objects.filter(estado__in=['BORRADOR', 'CONFIRMADA', 'EN_PROCESO'])
+    qs = OrdenProduccion.objects.filter(estado__in=('BORRADOR',) + OrdenProduccion.ABIERTAS)
     if f.estado:
         qs = qs.filter(estado=f.estado)
     if f.linea:
@@ -1016,7 +1016,7 @@ def diario(f):
         ('causas', 'Fuera de especificación', 'texto')]})
 
     # 6. órdenes programadas para el día que siguen abiertas
-    qs = OrdenProduccion.objects.filter(fecha=dia, estado__in=['BORRADOR', 'CONFIRMADA', 'EN_PROCESO'])
+    qs = OrdenProduccion.objects.filter(fecha=dia, estado__in=('BORRADOR',) + OrdenProduccion.ABIERTAS)
     qs = f.productos(qs)
     if f.linea:
         qs = qs.filter(pk__in=HoraOrden.objects.filter(centro_id=f.linea).values('orden_id'))

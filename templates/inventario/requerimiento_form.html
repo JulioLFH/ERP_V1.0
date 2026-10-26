@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load erp_tags %}
 {% block title %}{{ titulo }}{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -7,7 +7,7 @@
 </div>
 <form method="post" novalidate>
   {% csrf_token %}
-  {% if form.errors or items.total_error_count %}<div class="alert alert-danger py-2">Revise los campos marcados.</div>{% endif %}
+  {% if form.errors or items.total_error_count %}<div class="alert alert-danger py-2"><b>No se grabó. Revise:</b>{% for e in form.non_field_errors %}<div class="small">• {{ e }}</div>{% endfor %}{% for campo in form %}{% if campo.errors %}<div class="small">• {{ campo.label }}: {{ campo.errors|join:' ' }}</div>{% endif %}{% endfor %}{% for e in items|errores_lineas %}<div class="small">• {{ e }}</div>{% endfor %}</div>{% endif %}
   <div class="card mb-3"><div class="card-body"><div class="row g-3">
     {% for field in form %}<div class="{% if field.name == 'motivo' %}col-12{% elif field.name == 'centro_costo' or field.name == 'cuenta_gasto' %}col-md-6{% else %}col-6 col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
   </div></div></div>

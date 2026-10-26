@@ -332,19 +332,36 @@ class ComprobanteViews:
 
     def trasladar(self, request, pk):
         """Traslada el comprobante a otro periodo de registro."""
+        from contabilidad.automatico import marcar_pendiente
         doc = get_object_or_404(self.modelo, pk=pk)
-        nuevo = request.POST.get('periodo', '')
-        if request.method == 'POST' and (periodo_cerrado(doc.periodo) or periodo_cerrado(nuevo)):
-            messages.error(request, 'No se puede trasladar desde o hacia un periodo contable cerrado.')
-        elif request.method == 'POST' and len(nuevo) == 6 and nuevo.isdigit():
-            from contabilidad.automatico import marcar_pendiente
+        nuevo = request.POST.get('periodo', '').strip()
+        error = self._error_traslado(doc, nuevo) if request.method == 'POST' else 'Use el botón «Trasladar».'
+        if error:
+            messages.error(request, error)
+        else:
             marcar_pendiente(doc.periodo)
             doc.periodo = nuevo
             doc.save(update_fields=['periodo'])
             messages.success(request, f'Trasladado al periodo {nuevo}.')
-        else:
-            messages.error(request, 'Periodo inválido (formato AAAAMM).')
         return redirect(self._url('detalle', pk))
+
+    @staticmethod
+    def _error_traslado(doc, nuevo):
+        """CON-17 y COM-20: periodo AAAAMM real, desde el mes de emisión hasta 12 meses después (plazo de anotación),
+        ni anulados ni periodos cerrados."""
+        from contabilidad.automatico import periodo_valido
+        if doc.estado == 'ANULADO':
+            return 'Un comprobante anulado no se traslada de periodo.'
+        if not periodo_valido(nuevo):
+            return f'Periodo «{nuevo}» inválido: formato AAAAMM con mes 01 a 12.'
+        meses = (int(nuevo[:4]) - doc.fecha_emision.year) * 12 + int(nuevo[4:]) - doc.fecha_emision.month
+        if meses < 0:
+            return 'El periodo no puede ser anterior al mes de emisión del comprobante.'
+        if meses > 12:
+            return 'Fuera del plazo: el periodo de registro es hasta 12 meses después de la emisión.'
+        if periodo_cerrado(doc.periodo) or periodo_cerrado(nuevo):
+            return 'No se puede trasladar desde o hacia un periodo contable cerrado.'
+        return ''
 
     # ------------------------------------------------------------ notas de crédito / débito
     def notas(self, request):
