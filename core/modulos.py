@@ -679,7 +679,8 @@ MODULOS = [
                                      ('Segregación de funciones', 'segregacion', 'bi-shield-exclamation'),
                                      ('Reglas de aprobación (todos los documentos)', 'aprobaciones_reglas',
                                       'bi-diagram-3'),
-                                     ('Suplencias de aprobación', 'aprobaciones_delegaciones', 'bi-person-check')]),
+                                     ('Suplencias de aprobación', 'aprobaciones_delegaciones', 'bi-person-check'),
+                                     ('IP permitidas e intentos de ingreso', 'acceso_ip', 'bi-hdd-network')]),
             ('Control', [('Auditoría de todo el sistema', 'auditoria', 'bi-journal-text'),
                          ('Incidencias y errores', 'incidencias', 'bi-bug')]),
             ('Configuración', [('Correlativos / series', 'series', 'bi-123'),
@@ -757,7 +758,7 @@ RUTAS_CORE = {
     'ruc_consulta': ['consulta_ruc'], 'ruc_historial': ['consulta_ruc'],
     'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
     'auditoria': ['ajustes'], 'manuales': ['ajustes'], 'manual_pdf': ['ajustes'], 'manual_proceso_pdf': ['ajustes'],
-    'incidencias': ['ajustes'], 'incidencia': ['ajustes'],
+    'incidencias': ['ajustes'], 'incidencia': ['ajustes'], 'acceso_ip': ['ajustes'],
     'modificaciones': [m['clave'] for m in MODULOS],  # se ve dentro del módulo; la vista exige ser administrador
     'carga_masiva': ['ajustes', 'inventario', 'compras', 'ventas', 'tesoreria', 'finanzas', 'contactos', 'manufactura',
                      'logistica', 'contabilidad', 'planillas', 'rendiciones', 'activos', 'empleados', 'flota'],

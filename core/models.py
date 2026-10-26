@@ -1454,6 +1454,61 @@ class Incidencia(models.Model):
         return f'Incidencia {self.pk}: {self.descripcion[:60]}'
 
 
+class ControlIp(models.Model):
+    """Restricción del ingreso por IP (una sola fila, en la base principal: vale para todas las empresas)."""
+    activo = models.BooleanField('Solo las IP de la lista pueden usar el ERP', default=False)
+    modificado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='+')
+    modificado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'control de ingreso por IP'
+
+    @classmethod
+    def actual(cls):
+        return cls.objects.using('default').first() or cls(activo=False)
+
+
+class IpPermitida(models.Model):
+    """IP (o red, ej. 192.168.1.0/24) autorizada a usar el ERP cuando el control por IP está activo."""
+    ip = models.CharField('IP o red', max_length=50, unique=True,
+                          help_text='Una IP (190.12.34.56) o una red completa (192.168.1.0/24)')
+    descripcion = models.CharField('Descripción', max_length=120, blank=True,
+                                   help_text='Ej. Oficina Lima, casa del gerente, red interna')
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['ip']
+        verbose_name = 'IP permitida'
+        verbose_name_plural = 'IP permitidas'
+
+    def __str__(self):
+        return self.ip
+
+
+class AccesoIp(models.Model):
+    """IP desde la que alguien abrió el ERP: cuándo, cuántas veces, qué pidió y si se le dejó entrar."""
+    ip = models.CharField(max_length=45, unique=True)
+    primera_vez = models.DateTimeField(auto_now_add=True)
+    ultima_vez = models.DateTimeField()
+    veces = models.PositiveIntegerField(default=0)
+    bloqueos = models.PositiveIntegerField('Veces rechazada', default=0)
+    ultima_ruta = models.CharField('Última página', max_length=300, blank=True)
+    navegador = models.CharField(max_length=300, blank=True)
+    usuario = models.CharField('Último usuario', max_length=150, blank=True)
+    permitida = models.BooleanField('Entró', default=True)
+
+    class Meta:
+        ordering = ['-ultima_vez']
+        verbose_name = 'acceso por IP'
+        verbose_name_plural = 'accesos por IP'
+
+    def __str__(self):
+        return self.ip
+
+
 class ApiToken(models.Model):
     """Clave de acceso a la API (/api/v1/) de un usuario: actúa con sus módulos y permisos. Solo se guarda el hash
     SHA-256; la clave completa se muestra una sola vez al crearla."""

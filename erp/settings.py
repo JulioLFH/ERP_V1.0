@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Versión visible en el menú del usuario; actualizarla junto con CHANGELOG.md y la etiqueta de git
 ERP_NOMBRE = 'Ceiba ERP'
-ERP_VERSION = '1.88.1'
+ERP_VERSION = '1.89.0'
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insegura-cambiar-en-produccion')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
@@ -63,6 +63,7 @@ MIDDLEWARE = [
     'core.middleware.PaginasErrorMiddleware',  # 404 / 500 de Ceiba también con DEBUG (sin rutas ni datos técnicos)
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'core.acceso_ip.ControlIpMiddleware',  # solo las IP permitidas (si el control está activo) y registro de intentos
     'django.contrib.sessions.middleware.SessionMiddleware',
     'erp.empresas.EmpresaMiddleware',  # multiempresa: activa la base de la empresa de la sesión
     'django.middleware.common.CommonMiddleware',

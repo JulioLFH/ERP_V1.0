@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.89.0 — 26/10/2026 · IP permitidas e intentos de ingreso
+- **Control por IP (Ajustes › Usuarios y permisos › IP permitidas e intentos de ingreso)**: lista de IP o redes (ej. 192.168.1.0/24) que pueden usar el ERP, con agregar y eliminar, e interruptor para activar el control. Con el control activo, una IP que no está en la lista ve «Acceso no autorizado» con su IP. La PC del servidor (127.0.0.1) siempre entra, y no se puede activar el control ni quitar una IP si el administrador quedaría fuera. Vale para todas las empresas.
+- **Listado de intentos**: cada IP que abre el ERP (salvo la propia PC) queda registrada con su primera y última vez, visitas, rechazos, último usuario y página, aunque el control esté apagado. Las rechazadas se ven aparte y se autorizan con «Permitir».
+- **Arranque (iniciar.bat)**: modo normal, acceso desde otras computadoras e internet, clave secreta propia (.env.clave) y el puerto de cada copia (línea PUERTO=8030 en .env.postgres; sin ella, 8000). desplegar.bat publica solo en GitHub y corre las pruebas en PostgreSQL.
+
 ## v1.88.1 — 26/10/2026 · Servidor propio accesible desde afuera
 - **Servidor en la PC de la empresa**: con COOKIES_SEGURAS=0 el sistema funciona en modo normal (sin pantallas técnicas de error) por http, sin certificado, para abrirlo desde otras computadoras o desde internet con el puerto del router. Con HTTPS o en la nube no se usa (las cookies siguen siendo «Secure»).
 
