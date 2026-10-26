@@ -22,7 +22,7 @@
   <div class="col-lg-6"><div class="card h-100"><div class="card-header">Pago de la tarjeta al banco</div><div class="card-body">
     <form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="pagar">
       <div class="col-md-5"><select name="cuenta" class="form-select form-select-sm">{% for c in cuentas %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}</select></div>
-      <div class="col-md-3"><input name="monto" type="number" step="0.01" min="0" class="form-control form-control-sm" placeholder="Monto" value="{% if deuda > 0 %}{{ deuda|stringformat:'s' }}{% endif %}"></div>
+      <div class="col-md-3"><input name="monto" type="number" step="0.01" min="0" class="form-control form-control-sm" placeholder="Monto" value="{% if deuda > 0 %}{{ deuda|editable }}{% endif %}"></div>
       <div class="col-md-4"><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
       <div class="col-md-8"><input name="numero_operacion" class="form-control form-control-sm" placeholder="N° operación"></div>
       <div class="col-md-4"><button class="btn btn-sm btn-outline-primary w-100">Registrar pago</button></div>

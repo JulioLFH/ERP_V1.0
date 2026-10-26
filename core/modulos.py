@@ -794,7 +794,7 @@ RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'c
                 'login_2fa', 'recuperar', 'recuperar_confirmar', 'recuperar_listo', 'seguridad',
                 'sustento_subir', 'sustento_ver',  # los sustentos validan el módulo del documento
                 'validacion_accion',  # validación por especialista: valida el módulo y el permiso del registro
-                'lista_preferencias',  # columnas y filtros de las listas: preferencia de cada usuario
+                'lista_preferencias', 'lista_auto',  # columnas y filtros de las listas: preferencia de cada usuario
                 'api_claves',  # cada usuario administra sus claves de API (actúan con sus propios permisos)
                 'opciones',  # listas de los selectores (códigos y nombres, sin importes)
                 'producto_datos',  # precio y unidad del producto elegido (valida los módulos; el costo según permiso)

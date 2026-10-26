@@ -211,15 +211,104 @@ def faltantes_stock(lineas, almacen, devolver=None, fecha=None):
     return mensajes
 
 
+DIAS_ENVIO_SUNAT = 3  # días calendario que SUNAT admite para enviar un comprobante electrónico
+
+
+class _Rechazo(Exception):
+    pass
+
+
+def reglas_comprobante(form, formset):
+    """Reglas de compras y ventas en el servidor (pantallas y API, no solo el navegador): cantidad y precio mayores a
+    cero (valor 0 solo en operaciones gratuitas; las rebajas y devoluciones van con nota de crédito) (COM-18,
+    VEN-15); vencimiento no anterior a la emisión (COM-19); emisión de una venta no futura ni fuera del plazo de envío
+    a SUNAT (VEN-16); no se edita un documento con su asiento en un periodo cerrado (CON-15)."""
+    from django.utils import timezone
+
+    from .models import ComprobanteBase
+    doc = form.instance
+    if not isinstance(doc, ComprobanteBase):
+        return []
+    d = form.cleaned_data
+    errores = []
+    gratuita = (d.get('tipo_operacion') or getattr(doc, 'tipo_operacion', '')) == 'GRATUITA'
+    historico = getattr(doc, 'es_historico', False) or getattr(doc, 'es_saldo_inicial', False)
+    lineas = [f.cleaned_data for f in formset.forms
+              if getattr(f, 'cleaned_data', None) and not f.cleaned_data.get('DELETE')]
+    for n, l in enumerate(lineas, 1):
+        if l.get('cantidad') is not None and l['cantidad'] <= 0:
+            errores.append(f'Ítem {n}: la cantidad debe ser mayor a cero (las devoluciones y rebajas se registran con '
+                           f'una nota de crédito).')
+        precio = l.get('precio_unitario')
+        if precio is not None and (precio < 0 or (precio == 0 and not gratuita)):
+            errores.append(f'Ítem {n}: el precio debe ser mayor a cero (valor 0 solo en una operación gratuita).')
+    emision, vence = d.get('fecha_emision', doc.fecha_emision), d.get('fecha_vencimiento')
+    if emision and vence and vence < emision:
+        errores.append(f'El vencimiento ({vence:%d/%m/%Y}) no puede ser anterior a la emisión ({emision:%d/%m/%Y}).')
+    if doc._meta.label_lower == 'ventas.venta' and emision and not historico:
+        hoy = timezone.localdate()
+        if emision > hoy:
+            errores.append(f'La fecha de emisión ({emision:%d/%m/%Y}) no puede ser posterior a hoy.')
+        from .models import FacturacionConfig
+        tipo = d.get('tipo_comprobante') or doc.tipo_comprobante
+        if (not doc.pk and tipo in ('01', '03', '07', '08') and FacturacionConfig.actual().activa
+                and emision < hoy - timedelta(days=DIAS_ENVIO_SUNAT)):
+            errores.append(f'SUNAT acepta comprobantes electrónicos hasta {DIAS_ENVIO_SUNAT} días después de su '
+                           f'emisión: use una fecha desde el {hoy - timedelta(days=DIAS_ENVIO_SUNAT):%d/%m/%Y}.')
+    if doc.pk:
+        from contabilidad.models import Asiento, PeriodoContable
+        campo = 'venta' if doc._meta.label_lower == 'ventas.venta' else 'compra'
+        cerrados = set(PeriodoContable.objects.filter(cerrado=True).values_list('periodo', flat=True))
+        en_cerrado = Asiento.objects.filter(**{campo: doc}, periodo__in=cerrados).first()
+        if en_cerrado:
+            errores.append(f'Su asiento {en_cerrado.numero} está en el periodo cerrado {en_cerrado.periodo[4:]}/'
+                           f'{en_cerrado.periodo[:4]}: corríjalo con una nota de crédito o débito, no editándolo.')
+    return errores
+
+
+def _nota_excede(doc):
+    """VEN-17: el total de las notas de crédito de un comprobante no supera su total; la anulación (motivo 01 o 02)
+    es por el saldo completo."""
+    if doc.tipo_comprobante != '07' or not doc.doc_referencia_id:
+        return ''
+    ref = doc.doc_referencia
+    previas = sum((n.total for n in type(doc).objects.filter(doc_referencia=ref, tipo_comprobante='07',
+                                                             estado='REGISTRADO').exclude(pk=doc.pk)), Decimal('0'))
+    saldo = (ref.total or Decimal('0')) - previas
+    if doc.total > saldo:
+        return (f'La nota de crédito (S/ {doc.total:,.2f}) supera lo que queda de {ref} (total S/ {ref.total:,.2f}, '
+                f'notas anteriores S/ {previas:,.2f}): puede ser hasta S/ {saldo:,.2f}.')
+    if getattr(doc, 'motivo_nota', '') in ('01', '02') and doc.total != saldo:
+        return (f'Una nota de crédito por anulación (motivo {doc.motivo_nota}) es por el total pendiente de {ref}: '
+                f'S/ {saldo:,.2f}.')
+    return ''
+
+
 def procesar_documento(data, form_class, formset_class, instance, al_guardar=None, validar=None):
     """Valida y guarda cabecera + ítems (pantallas y API). Devuelve (doc o None si hay errores, form, formset)."""
     form = form_class(data, instance=instance)
     formset = formset_class(data, instance=form.instance)
-    if form.is_valid() and formset.is_valid() and validar:
-        for mensaje in validar(form, formset):
+    if form.is_valid() and formset.is_valid():
+        for mensaje in reglas_comprobante(form, formset) + (list(validar(form, formset)) if validar else []):
             form.add_error(None, mensaje)
     if not (form.is_valid() and formset.is_valid()):
         return None, form, formset
+    pk_original = instance.pk
+    try:
+        return _guardar_documento(form, formset, instance, al_guardar)
+    except _Rechazo as exc:
+        form.add_error(None, str(exc))
+        form.instance.pk = pk_original  # se deshizo: el formulario vuelve a ser el de antes
+        modelo_item = formset.model
+        existentes = set(modelo_item.objects.filter(pk__in=[f.instance.pk for f in formset.forms if f.instance.pk])
+                         .values_list('pk', flat=True))
+        for f in formset.forms:
+            if f.instance.pk not in existentes:
+                f.instance.pk = None
+        return None, form, formset
+
+
+def _guardar_documento(form, formset, instance, al_guardar):
     with transaction.atomic():
         referencia_anterior = None
         if instance.pk and getattr(instance, 'stock_aplicado', False):
@@ -244,6 +333,9 @@ def procesar_documento(data, form_class, formset_class, instance, al_guardar=Non
         if nuevo and hasattr(doc, 'proponer_detraccion'):
             doc.proponer_detraccion()  # % de detracción del producto si la factura no trae otro
         doc.save()
+        excede = _nota_excede(doc) if hasattr(doc, 'doc_referencia_id') else ''
+        if excede:
+            raise _Rechazo(excede)  # deshace lo grabado (transacción)
         if referencia_anterior and referencia_anterior != str(doc):
             # cambió el tipo o el número: el kardex sigue apuntando al documento (anulaciones y lotes lo buscan)
             from .models import Kardex

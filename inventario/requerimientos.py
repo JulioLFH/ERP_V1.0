@@ -58,25 +58,63 @@ def historial(req):
     return h('REQUERIMIENTO', req)
 
 
+def _propio(user, req):
+    """REQ-03: quien pidió el requerimiento no lo aprueba, rechaza ni atiende (tampoco el administrador), salvo que
+    sea el único usuario activo."""
+    from core.segregacion import _otro_usuario
+    return req.solicitante_id == user.pk and _otro_usuario(user)
+
+
 def puede_aprobar(user, req):
     from core import aprobaciones
     from core.permisos import puede
-    if req.estado != 'ENVIADO':
+    if req.estado != 'ENVIADO' or _propio(user, req):
         return False
     if req.niveles:
         return aprobaciones.puede_aprobar(user, 'REQUERIMIENTO', req.niveles, req.nivel_aprobado, req.solicitante_id)
-    return puede(user, 'requerimientos.aprobar') and (req.solicitante_id != user.pk or user.is_superuser)
+    return puede(user, 'requerimientos.aprobar')
+
+
+def en_lugar_de(user, req):
+    """El administrador que aprueba un nivel que no es suyo (ni su suplente): el titular de ese nivel (o None)."""
+    from core import aprobaciones
+    n = aprobaciones.pendiente(req.niveles, req.nivel_aprobado) if req.niveles else None
+    if not (n and n.get('usuario')) or not user.is_superuser:
+        return None
+    if user.pk in {u.pk for u in aprobaciones.aprobadores(n)}:
+        return None
+    return n
+
+
+def aprobadores_de(req):
+    """Quienes aprobaron el requerimiento (cualquier nivel)."""
+    ids = set(historial(req).filter(accion='APROBADO').values_list('usuario_id', flat=True))
+    if req.aprobado_por_id:
+        ids.add(req.aprobado_por_id)
+    return ids
+
+
+def puede_atender(user, req):
+    """REQ-02: la salida la registra el almacén (permiso de operar el inventario), nunca quien pidió el
+    requerimiento ni quien lo aprobó (salvo que sea el único usuario activo)."""
+    from core.permisos import puede
+    from core.segregacion import _otro_usuario
+    if not puede(user, 'inventario.operar'):
+        return False
+    return not ((req.solicitante_id == user.pk or user.pk in aprobadores_de(req)) and _otro_usuario(user))
 
 
 @transaction.atomic
-def aprobar(req, usuario):
+def aprobar(req, usuario, motivo=''):
     """Aprueba su nivel; en el último, el requerimiento queda aprobado y lo que el almacén no tiene pasa a una
-    solicitud de pedido (el área ve el avance)."""
+    solicitud de pedido (el área ve el avance). El administrador que aprueba en lugar del aprobador del nivel lo
+    hace como suplencia, con su motivo (queda en el historial)."""
     from core import aprobaciones
     if req.estado != 'ENVIADO':
         raise ErrorRequerimiento('Solo se aprueban requerimientos por aprobar.')
-    if req.solicitante_id == usuario.pk and not usuario.is_superuser:
-        raise ErrorRequerimiento('Un requerimiento no lo aprueba quien lo pidió.')
+    if _propio(usuario, req):
+        raise ErrorRequerimiento('Quien pidió el requerimiento no lo aprueba (tampoco el administrador): lo aprueba '
+                                 'otro usuario.')
     from core.segregacion import error_aprobacion
     if error_aprobacion(usuario, req):  # estricta: tampoco el administrador aprueba lo suyo
         raise ErrorRequerimiento(error_aprobacion(usuario, req))
@@ -84,8 +122,16 @@ def aprobar(req, usuario):
         if not puede_aprobar(usuario, req):
             n = aprobaciones.pendiente(req.niveles, req.nivel_aprobado)
             raise ErrorRequerimiento(f'Lo aprueba ahora el nivel {n["nivel"]}: {n["nombre"]}.')
+        comentario = ''
+        reemplazado = en_lugar_de(usuario, req)
+        if reemplazado is not None:
+            if len((motivo or '').strip()) < 10:
+                raise ErrorRequerimiento(f'El nivel {reemplazado["nivel"]} lo aprueba {reemplazado["nombre"]}: para '
+                                         f'aprobar en su lugar indique el motivo (mínimo 10 caracteres) o registre una '
+                                         f'suplencia en Ajustes › Suplencias.')
+            comentario = f'Suplencia del administrador en lugar de {reemplazado["nombre"]}: {motivo.strip()}'
         req.nivel_aprobado = aprobaciones.pendiente(req.niveles, req.nivel_aprobado)['nivel']
-        aprobaciones.registrar('REQUERIMIENTO', req, usuario, 'APROBADO', '', req.nivel_aprobado)
+        aprobaciones.registrar('REQUERIMIENTO', req, usuario, 'APROBADO', comentario, req.nivel_aprobado)
         if aprobaciones.pendiente(req.niveles, req.nivel_aprobado) is not None:
             aprobaciones.avanzar(req.niveles, req.nivel_aprobado)
             req.save(update_fields=['niveles', 'nivel_aprobado'])
@@ -112,7 +158,7 @@ def rechazar(req, usuario, motivo, anular=False):
     else:
         if req.estado != 'ENVIADO':
             raise ErrorRequerimiento('Solo se rechazan requerimientos por aprobar.')
-        if req.solicitante_id == usuario.pk and not usuario.is_superuser:
+        if _propio(usuario, req):
             raise ErrorRequerimiento('Un requerimiento no lo rechaza quien lo pidió.')
         if not puede_aprobar(usuario, req):
             raise ErrorRequerimiento('No le corresponde revisar este requerimiento.')
@@ -124,10 +170,16 @@ def rechazar(req, usuario, motivo, anular=False):
     return req
 
 
-def atender(req, usuario, cantidades, fecha=None):
-    """Despacha del almacén: cantidades = {item_id: cantidad a entregar}. Crea y confirma la salida."""
+def atender(req, usuario, cantidades, fecha=None, recibe=''):
+    """Despacha del almacén: cantidades = {item_id: cantidad a entregar}. Crea y confirma la salida (CONS_REQ) con
+    quien recibe."""
     if req.estado not in ('APROBADO', 'PARCIAL'):
         raise ErrorRequerimiento('Solo se atienden requerimientos aprobados.')
+    if not puede_atender(usuario, req):
+        raise ErrorRequerimiento('El solicitante no puede atender su propio requerimiento ni quien lo aprobó: la '
+                                 'entrega la registra el almacén.')
+    recibe = (recibe or '').strip() or (req.solicitante.get_full_name() or req.solicitante.username
+                                        if req.solicitante_id else '')
     items = {i.pk: i for i in req.items.select_related('producto')}
     lineas = [(items[pk], cant) for pk, cant in cantidades.items() if pk in items and cant and cant > 0]
     if not lineas:
@@ -141,7 +193,7 @@ def atender(req, usuario, cantidades, fecha=None):
             tipo=TipoOperacion.objects.get(codigo='CONS_REQ'), fecha=fecha or timezone.localdate(),
             almacen_origen=req.almacen, centro_costo=req.centro_costo, cuenta_gasto=req.cuenta_gasto,
             referencia=req.numero, requerimiento=req, creado_por=usuario,
-            glosa=f'Atención del requerimiento {req.numero}: {req.motivo}'[:500])
+            glosa=f'Atención del requerimiento {req.numero}: {req.motivo}. Recibió: {recibe}'[:500])
         for item, cant in lineas:
             op.items.create(producto=item.producto, cantidad=cant)
         try:

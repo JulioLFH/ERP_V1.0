@@ -771,6 +771,7 @@ M['obras'] = {
         ('Escenarios del cronograma', 'Guardar, comparar y volver a versiones del cronograma.'),
         ('Productividad / Pronóstico de compras', 'Rendimiento de cuadrillas frente al APU y materiales que pide el cronograma.'),
         ('Adendas / Penalidades y observaciones', 'Modificaciones del contrato (monto y plazo) y eventos del contrato con el cliente.'),
+        ('Consorcio', 'Socios del consorcio con su % y la atribución de ventas, compras, IGV y costo a cada uno.'),
         ('Sensibilidad del margen (presupuesto)', 'Margen si suben o bajan los insumos principales y el alza que lo anula.'),
     ])],
     'integra': [

@@ -10,7 +10,7 @@
   <tbody>{% for f in filas %}<tr>
     <td>{{ f.centro }}</td><td class="small">{{ f.centro.get_tipo_display }} · {{ f.centro.turnos }} turno(s) de {{ f.centro.horas_turno|floatformat:1 }} h · {{ f.centro.eficiencia|floatformat:0 }}%</td>
     <td class="num">{{ f.capacidad|money }}</td><td class="num">{{ f.carga|money }}</td>
-    <td>{% if f.uso is not None %}<div class="progress" style="height:14px"><div class="progress-bar {% if f.uso > 100 %}bg-danger{% elif f.uso > 85 %}bg-warning{% endif %}" style="width:{% if f.uso > 100 %}100{% else %}{{ f.uso|stringformat:'s' }}{% endif %}%"></div></div><span class="small">{{ f.uso }}%</span>{% endif %}</td>
+    <td>{% if f.uso is not None %}<div class="progress" style="height:14px"><div class="progress-bar {% if f.uso > 100 %}bg-danger{% elif f.uso > 85 %}bg-warning{% endif %}" style="width:{% if f.uso > 100 %}100{% else %}{{ f.uso|editable }}{% endif %}%"></div></div><span class="small">{{ f.uso }}%</span>{% endif %}</td>
   </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">Sin puestos de trabajo.</td></tr>{% endfor %}</tbody>
 </table></div>
 <div class="card-body py-2 small text-muted">Capacidad = horas por turno × turnos × eficiencia × días laborables del rango. Carga = horas planificadas de las órdenes en borrador, confirmadas o en proceso con fecha en el rango. Sobre 100 % el puesto no alcanza: reprograme o agregue turnos.</div></div>

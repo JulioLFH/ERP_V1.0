@@ -198,7 +198,12 @@
         const desc = tr.querySelector('.js-descripcion');
         if (desc) desc.value = p.nombre;
         const precio = tr.querySelector('.js-precio');
-        if (precio) precio.value = parseFloat(p[precioCampo] || 0).toFixed(2);
+        // INV-31: se propone el precio o costo del producto solo si la casilla está vacía o sigue con lo propuesto
+        // (la respuesta puede llegar después de que el usuario escribió el suyo)
+        if (precio && (!num(precio) || precio.dataset.propuesto === precio.value)) {
+          precio.value = parseFloat(p[precioCampo] || 0).toFixed(2);
+          precio.dataset.propuesto = precio.value;
+        }
         const unidad = tr.querySelector('.js-unidad');
         if (unidad && p.unidad) unidad.value = p.unidad;
         const afec = tr.querySelector('.js-afectacion');
@@ -583,4 +588,139 @@ document.querySelectorAll('button[data-confirm]').forEach((b) => {
       }, 0);
     }
   });
+})();
+
+// LIS-01: opciones comunes en cualquier lista (table[data-lista]): columnas que cada usuario muestra u oculta y
+// filtros guardados (en el servidor, por usuario), agrupar las filas con subtotales y exportar a Excel lo que se ve.
+(function () {
+  const tabla = document.querySelector('table[data-lista]');
+  if (!tabla || !tabla.tHead || !window.ERP_LISTA_URL) return;
+  const clave = tabla.dataset.lista;
+  const token = (document.querySelector('input[name=csrfmiddlewaretoken]') || {}).value || '';
+  const ths = [...tabla.tHead.rows[0].cells];
+  const titulos = ths.map((th) => th.textContent.trim().replace(/\s+/g, ' '));
+  const n = ths.length;
+  const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  let estado = { ocultas: [], filtros: [] };
+  const datos = () => [...tabla.tBodies].flatMap((b) => [...b.rows]).filter((tr) => tr.cells.length === n &&
+    !tr.dataset.grupoAuto);
+
+  function guardar(cuerpo) {
+    const f = new URLSearchParams(cuerpo);
+    f.set('lista', clave);
+    return fetch(window.ERP_LISTA_URL, { method: 'POST', credentials: 'same-origin', body: f,
+      headers: { 'X-CSRFToken': token } }).then((r) => (r.ok ? r.json() : estado)).then((d) => { estado = d; return d; });
+  }
+  function aplicar() {
+    const ocultas = new Set(estado.ocultas);
+    [...tabla.rows].forEach((tr) => {
+      if (tr.cells.length !== n) return;
+      [...tr.cells].forEach((td, i) => { td.hidden = !!titulos[i] && ocultas.has(titulos[i]); });
+    });
+  }
+  function numero(td) {
+    const t = (td.textContent || '').replace(/[^\d.,-]/g, '').replace(/,/g, '');
+    const v = parseFloat(t);
+    return Number.isFinite(v) ? v : 0;
+  }
+  function agrupar(i) {
+    tabla.querySelectorAll('tr[data-grupo-auto]').forEach((tr) => tr.remove());
+    const filas = datos();
+    if (i === '' || i === null) { filas.forEach((tr) => tr.parentNode.appendChild(tr)); return; }
+    const cuerpo = filas.length ? filas[0].parentNode : null;
+    if (!cuerpo) return;
+    const numericas = ths.map((th, k) => th.classList.contains('num') || (filas[0] && filas[0].cells[k] &&
+      filas[0].cells[k].classList.contains('num')));
+    const grupos = new Map();
+    filas.forEach((tr) => {
+      const k = (tr.cells[i].textContent || '').trim().replace(/\s+/g, ' ') || '—';
+      if (!grupos.has(k)) grupos.set(k, []);
+      grupos.get(k).push(tr);
+    });
+    [...grupos.keys()].sort((a, b) => a.localeCompare(b, 'es')).forEach((k) => {
+      const fs = grupos.get(k);
+      const subt = numericas.map((esNum, c) => (esNum && c !== i ? fs.reduce((s, tr) => s + numero(tr.cells[c]), 0) : null));
+      const cab = document.createElement('tr');
+      cab.dataset.grupoAuto = '1';
+      cab.className = 'table-light fw-semibold';
+      cab.innerHTML = `<td colspan="${n}">${esc(k)} · ${fs.length} fila(s)` + subt.map((s, c) => (s === null ? '' :
+        ` · ${esc(titulos[c])}: ${s.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`))
+        .join('') + '</td>';
+      cuerpo.appendChild(cab);
+      fs.forEach((tr) => cuerpo.appendChild(tr));
+    });
+  }
+  function excel() {
+    const visibles = ths.map((th, i) => !th.hidden);
+    const fila = (celdas, etiqueta) => '<tr>' + celdas.filter((_, i) => visibles[i] && titulos[i] !== '')
+      .map((c) => `<${etiqueta}>${esc((c.textContent || '').trim().replace(/\s+/g, ' '))}</${etiqueta}>`).join('') + '</tr>';
+    const html = '<html><head><meta charset="utf-8"></head><body><table>' + fila(ths, 'th') +
+      datos().map((tr) => fila([...tr.cells], 'td')).join('') + '</table></body></html>';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + html], { type: 'application/vnd.ms-excel' }));
+    a.download = `${(document.title || clave).replace(/[^\w\- áéíóúñÁÉÍÓÚÑ]/g, '').trim() || 'lista'}.xls`;
+    a.setAttribute('download', a.download);
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  function barra() {
+    const div = document.createElement('div');
+    div.className = 'd-flex flex-wrap gap-2 align-items-center px-2 py-2 small d-print-none';
+    const columnas = titulos.map((t, i) => (t ? `<label class="d-block"><input type="checkbox" class="form-check-input me-1" data-col="${esc(t)}" ${estado.ocultas.includes(t) ? '' : 'checked'}>${esc(t)}</label>` : '')).join('');
+    const filtros = estado.filtros.map((f) => `<div class="d-flex justify-content-between align-items-center gap-2"><a href="?${esc(f.query)}">${esc(f.nombre)}</a><button type="button" class="btn btn-sm btn-link text-danger p-0" data-borrar="${esc(f.nombre)}" title="Quitar">×</button></div>`).join('') || '<div class="text-muted">Sin filtros guardados.</div>';
+    const opciones = titulos.map((t, i) => (t ? `<option value="${i}">Agrupar por ${esc(t.toLowerCase())}</option>` : '')).join('');
+    const hayExcel = !!document.querySelector('a[href*="formato=excel"]');
+    div.innerHTML = `<div class="dropdown"><button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" type="button"><i class="bi bi-layout-three-columns"></i> Columnas</button><div class="dropdown-menu p-2" style="min-width:230px;max-height:60vh;overflow:auto">${columnas}<button type="button" class="btn btn-sm btn-link px-0" data-todas>Mostrar todas</button></div></div>` +
+      `<div class="dropdown"><button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" type="button"><i class="bi bi-star"></i> Filtros</button><div class="dropdown-menu p-2" style="min-width:260px">${filtros}<div class="d-flex gap-1 mt-2 border-top pt-2"><input class="form-control form-control-sm" maxlength="40" placeholder="Guardar el filtro actual como…" data-nombre><button type="button" class="btn btn-sm btn-outline-primary" data-guardar title="Guardar"><i class="bi bi-save"></i></button></div></div></div>` +
+      `<select class="form-select form-select-sm w-auto" data-agrupar><option value="">Sin agrupar</option>${opciones}</select>` +
+      `<button type="button" class="btn btn-sm btn-outline-success" data-excel title="Exportar a Excel las filas y columnas que se ven"><i class="bi bi-file-earmark-excel"></i>${hayExcel ? ' Lo que se ve' : ''}</button>`;
+    div.addEventListener('change', (e) => {
+      if (e.target.dataset.col !== undefined) {
+        const ocultas = [...div.querySelectorAll('[data-col]')].filter((c) => !c.checked).map((c) => c.dataset.col);
+        estado.ocultas = ocultas;
+        aplicar();
+        const f = new URLSearchParams({ accion: 'ocultas' });
+        ocultas.forEach((c) => f.append('col', c));
+        guardar(f);
+      } else if (e.target.dataset.agrupar !== undefined) {
+        try { localStorage.setItem(`agrupar:${clave}`, e.target.value); } catch (err) { /* sin almacenamiento */ }
+        agrupar(e.target.value === '' ? '' : parseInt(e.target.value, 10));
+      }
+    });
+    div.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.todas !== undefined) {
+        div.querySelectorAll('[data-col]').forEach((c) => { c.checked = true; });
+        estado.ocultas = [];
+        aplicar();
+        guardar({ accion: 'ocultas' });
+      } else if (b.dataset.guardar !== undefined) {
+        const nombre = div.querySelector('[data-nombre]').value.trim();
+        if (!nombre) return;
+        const q = new URLSearchParams(location.search);
+        q.delete('page');
+        guardar({ accion: 'guardar_filtro', nombre, query: q.toString() }).then(() => { div.replaceWith(barra()); });
+      } else if (b.dataset.borrar !== undefined) {
+        guardar({ accion: 'borrar_filtro', nombre: b.dataset.borrar }).then(() => { div.replaceWith(barra()); });
+      } else if (b.dataset.excel !== undefined) {
+        excel();
+      }
+    });
+    let previo = '';
+    try { previo = localStorage.getItem(`agrupar:${clave}`) || ''; } catch (err) { previo = ''; }
+    if (previo !== '' && titulos[parseInt(previo, 10)]) {
+      div.querySelector('[data-agrupar]').value = previo;
+      setTimeout(() => agrupar(parseInt(previo, 10)), 0);
+    }
+    return div;
+  }
+  fetch(`${window.ERP_LISTA_URL}?lista=${encodeURIComponent(clave)}`, { credentials: 'same-origin' })
+    .then((r) => (r.ok ? r.json() : estado)).catch(() => estado).then((d) => {
+      estado = { ocultas: d.ocultas || [], filtros: d.filtros || [] };
+      const destino = tabla.closest('.table-responsive') || tabla;
+      destino.parentNode.insertBefore(barra(), destino);
+      aplicar();
+    });
 })();

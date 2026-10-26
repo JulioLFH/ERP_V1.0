@@ -28,7 +28,7 @@ class OperacionForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Operacion
         fields = ['fecha', 'fecha_documento', 'almacen_origen', 'almacen_destino', 'tercero', 'orden_compra', 'compra',
-                  'venta', 'envio', 'referencia', 'centro_costo', 'glosa']
+                  'venta', 'envio', 'orden_imputada', 'referencia', 'centro_costo', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2}),
                    'fecha_documento': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d')}
 
@@ -84,6 +84,17 @@ class OperacionForm(BootstrapMixin, forms.ModelForm):
             self.fields['envio'].required = True
         else:
             quitar.append('envio')
+        if tipo.codigo in ('SAL_OP', 'DEV_OP'):  # MAN-15: la orden de producción a la que se imputa
+            from produccion.models import OrdenProduccion
+            self.fields['orden_imputada'].queryset = OrdenProduccion.objects.filter(
+                estado__in=['CONFIRMADA', 'EN_PROCESO', 'TERMINADA']).select_related('producto').order_by('-id')
+            self.fields['orden_imputada'].required = True
+            self.fields['orden_imputada'].help_text = ('En proceso, o terminada con su mes abierto (kardex y '
+                                                       'contabilidad): suma al costo real de la orden')
+            remoto(self.fields['orden_imputada'], 'ordenes_produccion')
+            quitar.append('centro_costo')
+        else:
+            quitar.append('orden_imputada')
         if tipo.origen or tipo.clase in ('TRASLADO', 'TRANSITO_ENVIO', 'TRANSITO_RECEPCION', 'MANUFACTURA'):
             quitar.append('tercero')  # el proveedor/cliente sale del documento de origen
         else:
@@ -129,6 +140,11 @@ class OperacionForm(BootstrapMixin, forms.ModelForm):
             self.add_error('compra', 'Elija solo uno: la orden de compra o la factura.')
         if datos.get('almacen_origen') and datos.get('almacen_origen') == datos.get('almacen_destino'):
             self.add_error('almacen_destino', 'Debe ser distinto del almacén de origen.')
+        if self.tipo.codigo in ('SAL_OP', 'DEV_OP') and datos.get('orden_imputada') and fecha:
+            from produccion.consumo import error_imputacion
+            aviso = error_imputacion(datos['orden_imputada'], fecha)
+            if aviso:
+                self.add_error('orden_imputada', aviso)
         return datos
 
 
@@ -158,6 +174,13 @@ class OperacionItemForm(forms.ModelForm):
         if cantidad is not None and cantidad <= 0:
             raise forms.ValidationError('Debe ser mayor a cero.')
         return cantidad
+
+    def clean_costo_unitario(self):
+        """INV-31: el costo escrito se usa tal cual; vacío o cero = el costo promedio del producto."""
+        costo = self.cleaned_data.get('costo_unitario')
+        if costo is not None and costo < 0:
+            raise forms.ValidationError('El costo no puede ser negativo (vacío = el costo promedio).')
+        return costo or None
 
 
 def operacion_formset(extra=1):

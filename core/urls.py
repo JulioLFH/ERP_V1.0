@@ -86,6 +86,7 @@ urlpatterns = [
     path('sustentos/<int:ct_id>/<int:obj_id>/subir/', sustentos.subir, name='sustento_subir'),
     path('sustentos/<int:pk>/', sustentos.ver, name='sustento_ver'),
     path('listas/preferencias/', listas.preferencias, name='lista_preferencias'),
+    path('listas/auto/', listas.lista_auto, name='lista_auto'),
     path('series/', views.SerieLista.as_view(), name='series'),
     path('series/nueva/', views.SerieNueva.as_view(), name='serie_nueva'),
     path('series/<int:pk>/', views.SerieEditar.as_view(), name='serie_editar'),

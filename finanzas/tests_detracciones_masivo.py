@@ -66,8 +66,8 @@ class DepositoMasivoTest(TestCase):
         c1, c2 = self.compra('1', '1000'), self.compra('2', '2000')  # 141.60 -> 142 y 283.20 -> 283
         url = reverse('finanzas:detracciones_masivas_nuevo') + f'?cuenta={self.banco.pk}&hasta=2026-12-31'
         r = self.client.get(url)
-        self.assertContains(r, 'data-importe="142"')
-        self.assertContains(r, 'data-importe="283"')
+        self.assertContains(r, 'data-importe="142.00"')  # PLAT-06: casillas con 2 decimales mínimo
+        self.assertContains(r, 'data-importe="283.00"')
         self.assertContains(r, '<option value="020" selected>')  # código del producto
         r = self.client.post(url, {'cuenta': self.banco.pk, 'fecha': '2026-10-05', f'codigo_{c1.pk}': '020',
                                    f'monto_{c1.pk}': '142', f'codigo_{c2.pk}': '020', f'monto_{c2.pk}': '283'})

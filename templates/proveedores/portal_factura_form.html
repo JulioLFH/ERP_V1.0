@@ -19,7 +19,7 @@
   <div class="card mb-3"><div class="card-header"><i class="bi bi-list-check"></i> 3. Cantidades y precios facturados</div>
     <div class="table-responsive"><table class="table items-table mb-0">
     <thead><tr><th>Descripción</th><th class="num">Ingresado al almacén / por facturar</th><th class="num">Precio orden</th><th class="num" style="width:15%">Cantidad facturada</th><th class="num" style="width:17%">Valor unit. (sin IGV)</th><th class="num">Subtotal</th></tr></thead>
-    <tbody id="lineas">{% for l in lineas %}<tr data-desc="{{ l.item.descripcion|lower }}" data-esperado="{{ l.esperado|stringformat:'s' }}">
+    <tbody id="lineas">{% for l in lineas %}<tr data-desc="{{ l.item.descripcion|lower }}" data-esperado="{{ l.esperado|editable }}">
       <td>{{ l.item.descripcion }}</td><td class="num">{{ l.esperado|money }}</td><td class="num">{{ l.precio|floatformat:4 }}</td>
       <td><input name="cant_{{ l.item.pk }}" value="{{ l.cant_txt }}" class="form-control form-control-sm text-end js-c" inputmode="decimal"></td>
       <td><input name="precio_{{ l.item.pk }}" value="{{ l.precio_txt }}" class="form-control form-control-sm text-end js-p" inputmode="decimal"></td>
@@ -40,8 +40,8 @@
 {% block scripts %}
 <script>
 (function () {
-  const tasa = {% if oc.tipo_operacion == 'GRAVADA' %}{{ igv_tasa|stringformat:'s' }}{% else %}0{% endif %};
-  const tolImporte = {{ tol_t|stringformat:'s' }}, tolPct = {{ tol_t_pct|stringformat:'s' }};
+  const tasa = {% if oc.tipo_operacion == 'GRAVADA' %}{{ igv_tasa|editable }}{% else %}0{% endif %};
+  const tolImporte = {{ tol_t|editable }}, tolPct = {{ tol_t_pct|editable }};
   // como compras.tolerancias.permitida: el importe y, si hay %, el más estricto de ambos
   const tolT = (base) => (tolPct ? (tolImporte ? Math.min(tolImporte, Math.abs(base) * tolPct / 100) : Math.abs(base) * tolPct / 100) : tolImporte);
   // como core.utils.leer_numero: 1,109.90 / 287,50 (coma decimal) / 1.109,90

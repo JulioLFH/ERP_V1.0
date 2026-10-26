@@ -15,7 +15,7 @@
       <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i></button></div>
     </form>
   </div>
-  <div class="table-responsive"><table class="table table-hover mb-0">
+  <div class="table-responsive"><table data-lista="{{ request.resolver_match.view_name }}" class="table table-hover mb-0">
     <thead><tr><th>Número</th><th>Fecha</th><th>Libro</th><th>Origen</th><th>Glosa</th><th class="num">Importe</th></tr></thead>
     <tbody>
     {% for a in page_obj %}

@@ -34,7 +34,8 @@ CODIGOS_SUNAT = [
     ('01', '01 Venta'), ('02', '02 Compra'), ('05', '05 Devolución recibida'), ('06', '06 Devolución entregada'),
     ('09', '09 Donación'), ('10', '10 Salida a producción'), ('11', '11 Transferencia entre almacenes'),
     ('12', '12 Retiro'), ('13', '13 Mermas'), ('14', '14 Desmedros'), ('15', '15 Destrucción'),
-    ('16', '16 Saldo inicial'), ('19', '19 Entrada de producción'), ('21', '21 Entrada por transferencia'),
+    ('16', '16 Saldo inicial'), ('19', '19 Entrada de producción'),
+    ('20', '20 Entrada por devolución de producción'), ('21', '21 Entrada por transferencia'),
     ('28', '28 Ajuste por diferencia de inventario'), ('99', '99 Otros'),
 ]
 PREFIJOS = {'INGRESO': 'NI', 'SALIDA': 'NS', 'TRASLADO': 'NT', 'TRANSITO_ENVIO': 'NT', 'TRANSITO_RECEPCION': 'NT',
@@ -126,6 +127,10 @@ class Operacion(models.Model):
                                      help_text='Vacío = la cuenta del tipo de operación')
     requerimiento = models.ForeignKey('RequerimientoInterno', on_delete=models.PROTECT, null=True, blank=True,
                                       related_name='atenciones', editable=False)
+    # MAN-15: salida a una orden de producción (o devolución de su sobrante)
+    orden_imputada = models.ForeignKey('produccion.OrdenProduccion', on_delete=models.PROTECT, null=True,
+                                         blank=True, related_name='salidas_almacen',
+                                         verbose_name='Orden de producción')
     glosa = models.TextField('Observaciones', blank=True)
     estado = models.CharField(max_length=10, choices=ESTADOS, default='BORRADOR')
     stock_aplicado = models.BooleanField(default=False, editable=False)

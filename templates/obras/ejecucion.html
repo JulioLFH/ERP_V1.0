@@ -29,6 +29,7 @@
   <a href="{% url 'obras:pronostico_compras' o.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-cart-check"></i> Pronóstico de compras</a>{% endif %}
   <a href="{% url 'obras:adendas' o.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-file-earmark-plus"></i> Adendas</a>
   <a href="{% url 'obras:eventos' o.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-exclamation-diamond"></i> Penalidades y observaciones</a>
+  <a href="{% url 'obras:consorcio' o.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-people"></i> Consorcio</a>
   {% if r.presupuesto %}<a href="{% url 'obras:sensibilidad' r.presupuesto.pk %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-sliders"></i> Sensibilidad del margen</a>{% endif %}
 </div>
 {% if control %}{% if control.bajo_meta %}<div class="alert alert-danger py-2 small"><i class="bi bi-graph-down-arrow"></i> Margen proyectado al cierre {{ control.margen_pct }} %, por debajo de la meta de {{ control.margen_meta }} %. <a href="{% url 'obras:proyeccion' o.pk %}">Ver la proyección</a></div>{% endif %}

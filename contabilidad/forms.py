@@ -220,11 +220,11 @@ class AsientoLineaForm(BootstrapMixin, forms.ModelForm):
         d, h = data.get('debe') or Decimal('0'), data.get('haber') or Decimal('0')
         data['debe'], data['haber'] = d, h
         if d < 0 or h < 0:
-            raise forms.ValidationError('Use importes positivos.')
+            raise forms.ValidationError('Los montos deben ser mayores a cero.')
         if d and h:
-            raise forms.ValidationError('Cada línea va al debe o al haber, no a ambos.')
+            raise forms.ValidationError('Una línea no puede tener debe y haber: use una línea para cada uno.')
         if data.get('cuenta') and not d and not h:
-            raise forms.ValidationError('Ingrese el importe de la línea.')
+            raise forms.ValidationError('Ingrese el importe de la línea (mayor a cero).')
         from .pcge import admite_centro, exige_centro
         cuenta = data.get('cuenta')
         if cuenta and exige_centro(cuenta) and not data.get('centro_costo'):
@@ -252,7 +252,8 @@ class LineasFormSet(BaseInlineFormSet):
         if n < 2:
             raise forms.ValidationError('El asiento necesita al menos dos líneas.')
         if d != h:
-            raise forms.ValidationError(f'El asiento no cuadra: debe {d:,.2f} / haber {h:,.2f}.')
+            raise forms.ValidationError(f'El asiento no cuadra: debe {d:,.2f} / haber {h:,.2f} (diferencia S/ '
+                                        f'{abs(d - h):,.2f}).')
 
 
 def lineas_formset(extra=2):

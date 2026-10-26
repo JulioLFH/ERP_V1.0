@@ -211,7 +211,7 @@ def _resolver(user, doc, pk, accion, comentario):
         from inventario.models import RequerimientoInterno
         r = get_object_or_404(RequerimientoInterno, pk=pk)
         if aprobar:
-            requerimientos.aprobar(r, user)
+            requerimientos.aprobar(r, user, comentario)  # el comentario es el motivo si aprueba en lugar de otro
         else:
             requerimientos.rechazar(r, user, comentario)
         return f'{r}: {r.get_estado_display().lower()}.'

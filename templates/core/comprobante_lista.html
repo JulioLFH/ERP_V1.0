@@ -22,7 +22,7 @@
   </div>
   {% if app == 'compras' %}<div class="px-3 py-1 small text-muted border-bottom"><span class="badge text-bg-danger">&nbsp;</span> En rojo: compras sin cuenta contable ni centro de costo; toda compra debe llevar al menos uno de los dos (no se marcan las anuladas ni las históricas migradas).</div>{% endif %}
   <div class="table-responsive">
-    <table class="table table-hover mb-0">
+    <table data-lista="{{ request.resolver_match.view_name }}" class="table table-hover mb-0">
       <thead><tr><th>Emisión</th><th>Venc.</th><th>Tipo</th><th>Número</th><th>{{ etiqueta_tercero }}</th><th>Mon.</th><th class="num">Total</th><th class="num">Saldo</th><th>Estado</th></tr></thead>
       <tbody>
       {% for d in page_obj %}

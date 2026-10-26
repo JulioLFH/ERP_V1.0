@@ -83,5 +83,6 @@ urlpatterns = [
     path('<int:pk>/productividad/', ges.productividad, name='productividad'),
     path('<int:pk>/pronostico-compras/', ges.pronostico_compras, name='pronostico_compras'),
     path('<int:pk>/flujo/', ges.flujo_proyecto, name='flujo_proyecto'),
+    path('<int:pk>/consorcio/', ges.consorcio, name='consorcio'),
     path('subcontratos/<int:pk>/evaluar/', ges.subcontrato_evaluar, name='subcontrato_evaluar'),
 ]

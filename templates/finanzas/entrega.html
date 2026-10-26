@@ -58,7 +58,7 @@
           {% if e.tipo == 'CAJA_CHICA' %}<option value="reponer" selected>Reposición del fondo (egreso por {{ e.por_reponer|money }})</option>{% endif %}
           <option value="ampliar">Entrega adicional (egreso)</option></select></div>
         <div class="col-12"><select name="cuenta" class="form-select form-select-sm">{% for c in cuentas %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}</select></div>
-        <div class="col-6"><input type="number" step="0.01" min="0" name="monto" class="form-control form-control-sm" placeholder="Monto" value="{% if e.tipo == 'CAJA_CHICA' and e.por_reponer %}{{ e.por_reponer|stringformat:'s' }}{% elif e.saldo > 0 %}{{ e.saldo|stringformat:'s' }}{% endif %}"></div>
+        <div class="col-6"><input type="number" step="0.01" min="0" name="monto" class="form-control form-control-sm" placeholder="Monto" value="{% if e.tipo == 'CAJA_CHICA' and e.por_reponer %}{{ e.por_reponer|editable }}{% elif e.saldo > 0 %}{{ e.saldo|editable }}{% endif %}"></div>
         <div class="col-6"><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
         <div class="col-12"><input name="numero_operacion" class="form-control form-control-sm" placeholder="N° operación (opcional)"></div>
         <div class="col-12"><button class="btn btn-sm btn-outline-primary">Registrar</button></div>

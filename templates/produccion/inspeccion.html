@@ -21,7 +21,7 @@
       {% for r in resultados %}
         <tr {% if r.conforme == False %}class="table-danger"{% endif %}><td>{{ r.caracteristica }} {% if r.unidad %}<span class="text-muted">({{ r.unidad }})</span>{% endif %}</td>
           <td class="small">{% if r.minimo is not None or r.maximo is not None %}{{ r.minimo|default_if_none:'—'|floatformat:-4 }} a {{ r.maximo|default_if_none:'—'|floatformat:-4 }}{% endif %} {{ r.especificacion }}</td>
-          <td><input type="number" step="any" name="valor_{{ r.pk }}" value="{{ r.valor|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end"></td>
+          <td><input type="number" step="any" name="valor_{{ r.pk }}" value="{{ r.valor|default_if_none:''|editable }}" class="form-control form-control-sm text-end"></td>
           <td><input name="texto_{{ r.pk }}" value="{{ r.texto }}" class="form-control form-control-sm"></td>
           <td><select name="conforme_{{ r.pk }}" class="form-select form-select-sm"><option value="">(según el rango)</option><option value="1" {% if r.conforme == True %}selected{% endif %}>Conforme</option><option value="0" {% if r.conforme == False %}selected{% endif %}>No conforme</option></select></td></tr>
       {% empty %}<tr><td colspan="5" class="text-muted text-center py-3">El producto no tiene plan de calidad: defínalo para que cada inspección traiga sus características.</td></tr>{% endfor %}
@@ -40,7 +40,7 @@
 {% if i.resultado == 'RECHAZADO' and not i.cuarentena_id and puede.control_calidad_inspecciones %}
 <div class="card border-danger" style="max-width:560px"><div class="card-body">
   <form method="post" class="d-flex gap-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="cuarentena">
-    <div><label class="form-label small">Cantidad a cuarentena</label><input type="number" step="0.01" min="0" name="cantidad" value="{{ i.cantidad|stringformat:'s' }}" class="form-control form-control-sm"></div>
+    <div><label class="form-label small">Cantidad a cuarentena</label><input type="number" step="0.01" min="0" name="cantidad" value="{{ i.cantidad|editable }}" class="form-control form-control-sm"></div>
     <button class="btn btn-sm btn-danger" data-confirm="¿Trasladar a cuarentena? Sale del stock disponible de {{ i.almacen }}."><i class="bi bi-shield-x"></i> Enviar a cuarentena</button>
   </form>
   <div class="small text-muted mt-2">Se traslada al almacén "Cuarentena / por destruir". Desde ahí se devuelve al proveedor o se da de baja.</div>

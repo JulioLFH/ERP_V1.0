@@ -73,7 +73,7 @@ class RequerimientosTest(TestCase):
         # el almacén entrega lo que hay (6 de 10)
         self.client.force_login(self.almacenero)
         item = req.items.get()
-        r = self.client.post(reverse('requerimientos:atender', args=[req.pk]), {f'entregar_{item.pk}': '6'})
+        r = self.client.post(reverse('requerimientos:atender', args=[req.pk]), {f'entregar_{item.pk}': '6', 'recibe': 'Jefe de mantenimiento'})
         req.refresh_from_db()
         item.refresh_from_db()
         self.assertEqual((req.estado, item.cantidad_atendida, item.pendiente), ('PARCIAL', D('6'), D('4')))

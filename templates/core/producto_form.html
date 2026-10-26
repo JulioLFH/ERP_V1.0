@@ -66,9 +66,9 @@
               {% for sl in f.lotes %}<div class="text-muted">Lote {{ sl.lote.codigo }}{% if sl.lote.vencimiento %} · vence {{ sl.lote.vencimiento|date:'d/m/Y' }}{% endif %}: {{ sl.cantidad|floatformat:2 }}</div>{% endfor %}</td>
             <td>{{ f.s.ubicacion.codigo|default:'—' }}</td>
             <td class="num">{{ f.cantidad|floatformat:2 }}</td><td class="num">{{ f.comprometido|floatformat:2 }}</td><td class="num">{{ f.bloqueado|floatformat:2 }}</td><td class="num fw-semibold">{{ f.disponible|floatformat:2 }}</td>
-            {% if f.editable %}<td><input name="alm_{{ f.a.pk }}_min" value="{{ f.s.stock_minimo|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal"></td>
-            <td><input name="alm_{{ f.a.pk }}_reorden" value="{{ f.s.punto_reorden|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal"></td>
-            <td><input name="alm_{{ f.a.pk }}_max" value="{{ f.s.stock_maximo|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal"></td>
+            {% if f.editable %}<td><input name="alm_{{ f.a.pk }}_min" value="{{ f.s.stock_minimo|default_if_none:''|editable }}" class="form-control form-control-sm text-end" inputmode="decimal"></td>
+            <td><input name="alm_{{ f.a.pk }}_reorden" value="{{ f.s.punto_reorden|default_if_none:''|editable }}" class="form-control form-control-sm text-end" inputmode="decimal"></td>
+            <td><input name="alm_{{ f.a.pk }}_max" value="{{ f.s.stock_maximo|default_if_none:''|editable }}" class="form-control form-control-sm text-end" inputmode="decimal"></td>
             {% else %}<td colspan="3" class="text-muted">—</td>{% endif %}
           </tr>{% endfor %}</tbody>
         </table></div>

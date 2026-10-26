@@ -40,11 +40,13 @@ class ErrorContable(Exception):
 class Borrador:
     """Acumula líneas de un asiento y las graba cuadradas."""
 
-    def __init__(self, asiento, moneda='PEN', tc=Decimal('1')):
+    def __init__(self, asiento, moneda='PEN', tc=Decimal('1'), en_periodo_cerrado=False):
         self.asiento = asiento
         self.lineas = []
         self.moneda = moneda
         self.tc = tc or Decimal('1')
+        # solo la migración del sistema anterior escribe a propósito en un periodo ya cerrado (su ajuste de corte)
+        self.en_periodo_cerrado = en_periodo_cerrado
 
     def add(self, cuenta, debe=D0, haber=D0, tercero=None, documento='', glosa='', centro_costo=None,
             importe_me=None, centro_beneficio=None):
@@ -105,6 +107,11 @@ class Borrador:
             raise ErrorContable(f'{self.asiento.glosa}: no cuadra (debe {d} / haber {h})')
         if not self.lineas:
             return None
+        # CON-14: la centralización nunca graba en un periodo cerrado
+        periodo = self.asiento.fecha.strftime('%Y%m')
+        if not self.en_periodo_cerrado and PeriodoContable.esta_cerrado(periodo):
+            raise ErrorContable(f'{self.asiento.glosa}: su fecha {self.asiento.fecha:%d/%m/%Y} cae en el periodo '
+                                f'{periodo[4:]}/{periodo[:4]}, que está cerrado.')
         self.asiento.save()
         for l in self.lineas:
             l.asiento, l.norma = self.asiento, self.asiento.norma
@@ -179,7 +186,7 @@ def asiento_saldo_inicial(d, cta, es_venta):
                 tipo_cambio=d.tc_efectivo, glosa=f'Saldo inicial {d.get_tipo_comprobante_display()} '
                                                  f'{d.numero_completo} {d.tercero.nombre}'[:250],
                 **({'venta': d} if es_venta else {'compra': d}))
-    b = Borrador(a, d.moneda, d.tc_efectivo)
+    b = Borrador(a, d.moneda, d.tc_efectivo, en_periodo_cerrado=True)  # apertura: como la migración
     doc = f'{d.tipo_comprobante} {d.numero_completo}'
     tercero_cta = cta['cliente'] if es_venta else (cta['honorarios_por_pagar'] if d.tipo_comprobante == '02'
                                                    else cta['proveedor'])
@@ -194,12 +201,26 @@ def asiento_saldo_inicial(d, cta, es_venta):
     return b.grabar()
 
 
+def fecha_contable(d):
+    """CON-14: fecha del asiento del comprobante dentro de su periodo de registro: la emisión si cae en él; si no (una
+    factura de setiembre registrada en octubre), la fecha en que se registró o, si tampoco cae, el último día del
+    periodo."""
+    periodo = d.periodo or d.fecha_emision.strftime('%Y%m')
+    if d.fecha_emision.strftime('%Y%m') == periodo:
+        return d.fecha_emision
+    creado = timezone.localtime(d.creado).date() if getattr(d, 'creado', None) else None
+    if creado and creado.strftime('%Y%m') == periodo:
+        return creado
+    desde, hasta = _rango(periodo)
+    return hasta if d.fecha_emision < desde else desde
+
+
 def asiento_venta(v, cta):
     if v.historico_cancelado:  # historial del sistema anterior: ya está en su contabilidad
         return None
     if v.es_saldo_inicial:
         return asiento_saldo_inicial(v, cta, es_venta=True)
-    a = Asiento(fecha=v.fecha_emision, libro='14', origen='VENTA', venta=v, moneda=v.moneda,
+    a = Asiento(fecha=fecha_contable(v), libro='14', origen='VENTA', venta=v, moneda=v.moneda,
                 tipo_cambio=v.tc_efectivo,
                 glosa=f'{v.get_tipo_comprobante_display()} {v.numero_completo} {v.tercero.nombre}'[:250])
     b = Borrador(a, v.moneda, v.tc_efectivo)
@@ -243,7 +264,7 @@ def asiento_compra(c, cta):
         return None
     if c.es_saldo_inicial:
         return asiento_saldo_inicial(c, cta, es_venta=False)
-    a = Asiento(fecha=c.fecha_emision, libro='08', origen='COMPRA', compra=c, moneda=c.moneda,
+    a = Asiento(fecha=fecha_contable(c), libro='08', origen='COMPRA', compra=c, moneda=c.moneda,
                 tipo_cambio=c.tc_efectivo,
                 glosa=f'{c.get_tipo_comprobante_display()} {c.numero_completo} {c.tercero.nombre}'[:250])
     b = Borrador(a, c.moneda, c.tc_efectivo)
@@ -254,7 +275,10 @@ def asiento_compra(c, cta):
     from .prorrata import partir_igv
     igv_credito, igv_costo = partir_igv(c)
     base = c.total_pen - c.igv_pen - ajuste + igv_costo
-    cuenta_gasto = c.cuenta_contable or cta.get(f'compra_{c.clasificacion}') or cta['compra_GASTO']
+    clasificacion = c.clasificacion
+    if honorarios and clasificacion in ('', 'GASTO'):  # SRV-15: el recibo por honorarios va a la 632 (especialistas)
+        clasificacion = 'HONORARIOS'
+    cuenta_gasto = c.cuenta_contable or cta.get(f'compra_{clasificacion}') or cta['compra_GASTO']
     # los productos de almacén (suministros, insumos, mercadería) van siempre a su cuenta de compra: ingresan a sus
     # existencias (20-25) y el gasto con su centro de costo nace al consumirlos (requerimiento); en lo demás manda la
     # cuenta elegida en el comprobante y, si no hay, la cuenta de compra de cada producto
@@ -542,6 +566,10 @@ def asiento_inventario(periodo, cta):
                 glosa = 'Producción almacenada' if k.tipo == 'ENTRADA' else 'Consumo de insumos en producción'
                 grupos[(ex, contra, glosa, linea)] += valor
                 continue
+            # MAN-15: salida a una orden de producción (y la devolución de su sobrante) = consumo en producción (61)
+            if k.concepto in ('SAL_OP', 'DEV_OP') and contra_manufactura(ex, False, p):
+                grupos[(ex, contra_manufactura(ex, False, p), 'Consumo de insumos en producción', linea)] += valor
+                continue
             if k.cuenta_contra_id:  # consumo con su propia cuenta de gasto y centro de costo (requerimientos)
                 grupos[(ex, k.cuenta_contra, f'Consumo: {k.cuenta_contra.nombre[:50]}', linea, k.centro_costo)] += valor
                 continue
@@ -781,11 +809,26 @@ def centralizar_periodo(periodo):
 
     desde, hasta = _rango(periodo)
     resumen = {'compras': 0, 'ventas': 0, 'tesoreria': 0, 'costo': 0, 'errores': []}
+    cerrados = set(PeriodoContable.objects.filter(cerrado=True).values_list('periodo', flat=True))
+
+    def otro_periodo(campo, doc):
+        """CON-15: el asiento del documento que quedó en otro periodo se reemplaza (nunca se duplica); si ese periodo
+        está cerrado no se toca y el documento no se vuelve a contabilizar."""
+        if doc.es_saldo_inicial:  # la apertura va en la fecha del documento (como en la migración)
+            return
+        viejos = Asiento.objects.filter(**{campo: doc}, origen=campo.upper()).exclude(periodo=periodo)
+        cerrado = viejos.filter(periodo__in=cerrados).first()
+        if cerrado:
+            raise ErrorContable(f'{doc}: ya tiene el asiento {cerrado.numero} en el periodo cerrado '
+                                f'{cerrado.periodo[4:]}/{cerrado.periodo[:4]}; corríjalo con una nota o un extorno.')
+        viejos.delete()
+
     with transaction.atomic():
         Asiento.objects.filter(periodo=periodo).exclude(origen__in=ORIGENES_FIJOS).delete()
         for c in (Compra.objects.filter(periodo=periodo, estado='REGISTRADO')
                   .select_related('tercero', 'cuenta_contable', 'centro_costo').order_by('fecha_emision', 'id')):
             try:
+                otro_periodo('compra', c)
                 if asiento_compra(c, cta):
                     resumen['compras'] += 1
             except ErrorContable as exc:
@@ -793,6 +836,7 @@ def centralizar_periodo(periodo):
         for v in (Venta.objects.filter(periodo=periodo, estado='REGISTRADO').select_related('tercero')
                   .order_by('fecha_emision', 'id')):
             try:
+                otro_periodo('venta', v)
                 if asiento_venta(v, cta):
                     resumen['ventas'] += 1
             except ErrorContable as exc:

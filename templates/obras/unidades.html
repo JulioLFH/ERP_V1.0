@@ -54,7 +54,7 @@
     <tbody>{% for u in t.unidades %}
       <tr><td class="fw-semibold">{{ u.codigo }}</td><td>{{ u.get_tipo_display }}</td><td>{{ u.piso }}</td><td class="num">{{ u.area_techada }}</td><td class="num">{{ u.area_libre }}</td><td class="num">{{ u.dormitorios|default:'' }}</td>
         <td class="num">{% if puede.obras_vender and u.estado == 'DISPONIBLE' %}<form method="post" class="d-flex gap-1 justify-content-end">{% csrf_token %}<input type="hidden" name="accion" value="precio"><input type="hidden" name="id" value="{{ u.pk }}">
-          <input name="precio_lista" value="{{ u.precio_lista|stringformat:'s' }}" class="form-control form-control-sm text-end" style="width: 9rem"><button class="btn btn-sm btn-outline-secondary py-0" title="Guardar precio"><i class="bi bi-check2"></i></button></form>{% else %}{{ u.precio_lista|money }}{% endif %}</td>
+          <input name="precio_lista" value="{{ u.precio_lista|editable }}" class="form-control form-control-sm text-end" style="width: 9rem"><button class="btn btn-sm btn-outline-secondary py-0" title="Guardar precio"><i class="bi bi-check2"></i></button></form>{% else %}{{ u.precio_lista|money }}{% endif %}</td>
         <td>{% if u.vendible %}<span class="unidad-chip u-{{ u.estado }}" style="min-width:auto">{{ u.get_estado_display }}</span>{% else %}<span class="unidad-chip u-COMUN" style="min-width:auto">Área común</span>{% endif %}</td>
         <td>{% if u.venta %}<a href="{% url 'obras:venta_inmueble' u.venta.pk %}">{{ u.venta.numero }}</a> {{ u.venta.cliente.nombre|truncatechars:25 }}{% endif %}</td>
         <td class="num">{{ u.valor|money }}</td><td class="num">{{ u.costo|money }}</td>

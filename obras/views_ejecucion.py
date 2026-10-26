@@ -289,7 +289,8 @@ def cronograma(request, pk):
         else:
             try:
                 n, faltan = ej.importar_cronograma(p, request.FILES['archivo'],
-                                                   en_porcentaje=request.POST.get('unidad') == 'PCT')
+                                                   en_porcentaje=request.POST.get('unidad') == 'PCT',
+                                                   forzar=bool(request.POST.get('forzar')))
                 messages.success(request, f'Cronograma cargado: {n} partidas programadas.')
                 if faltan:
                     messages.warning(request, f'{len(faltan)} fila(s) sin partida equivalente: ' + '; '.join(faltan[:6]))

@@ -227,6 +227,14 @@ class ComercialTest(Base186):
         lp = r['licitaciones']['procedimiento'][0]
         self.assertEqual((lp['presentadas'], lp['ganadas'], lp['tasa'], lp['motivo']), (2, 1, D('50.0'), 'Precio'))
         self.assertContains(self.client.get(reverse('obras:tasa_exito')), 'Licitación pública')
+        # el rango Desde / Hasta que la pantalla propone (el mes en curso) filtra también las oportunidades del CRM
+        from ventas.models import Oportunidad
+        Oportunidad.objects.create(nombre='Edificio', tercero=self.entidad, etapa='GANADA', monto=D('5000'),
+                                   cerrada_en=HOY)
+        r = self.client.get(reverse('obras:tasa_exito'), {'desde': HOY.replace(day=1).isoformat(),
+                                                          'hasta': HOY.isoformat()})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(g.tasa_exito(HOY.replace(day=1), HOY)['crm_total'][0]['ganadas'], 1)
 
     def test_riesgo_rentabilidad_cartera_y_prediccion(self):
         """HR-04, HR-13, HR-18 y HR-20."""

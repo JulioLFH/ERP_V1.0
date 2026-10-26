@@ -1376,6 +1376,26 @@ class EscenarioCronograma(models.Model):
         return self.nombre
 
 
+class SocioConsorcio(models.Model):
+    """SRV-05: socio del consorcio de la obra con su participación: a cada uno se le atribuyen ingresos, costos e IGV."""
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name='socios')
+    tercero = models.ForeignKey('core.Tercero', on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+                                verbose_name='Socio (contacto)')
+    nombre = models.CharField('Razón social', max_length=200, blank=True, help_text='Si no está en contactos')
+    ruc = models.CharField('RUC', max_length=11, blank=True)
+    participacion_pct = models.DecimalField('Participación %', max_digits=5, decimal_places=2)
+    es_la_empresa = models.BooleanField('Es nuestra empresa', default=False)
+    operador = models.BooleanField('Operador (lleva la contabilidad del consorcio)', default=False)
+
+    class Meta:
+        ordering = ['obra', '-es_la_empresa', '-participacion_pct', 'id']
+        verbose_name = 'socio del consorcio'
+        verbose_name_plural = 'socios del consorcio'
+
+    def __str__(self):
+        return self.tercero.nombre if self.tercero_id else self.nombre
+
+
 class EvaluacionSubcontrato(models.Model):
     """HR-11: evaluación del subcontratista al cerrar su subcontrato (plazo, calidad y seguridad de 1 a 5)."""
     NOTAS = [(1, '1 · Deficiente'), (2, '2 · Regular'), (3, '3 · Bueno'), (4, '4 · Muy bueno'), (5, '5 · Excelente')]

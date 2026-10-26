@@ -8,6 +8,11 @@
 <form method="post" enctype="multipart/form-data" novalidate>
   {% csrf_token %}
   {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+  {% if formset.total_error_count or form.errors %}<div class="alert alert-danger py-2 small"><b>No se grabó el asiento. Revise:</b>{# CON-16: todos los motivos arriba, también los de cada línea #}
+    {% for campo, errores in form.errors.items %}{% if campo != '__all__' %}{% for e in errores %}<div>• {{ form|campo_etiqueta:campo }}: {{ e }}</div>{% endfor %}{% endif %}{% endfor %}
+    {% for e in formset.non_form_errors %}<div>• {{ e }}</div>{% endfor %}
+    {% for f in formset %}{% with n=forloop.counter %}{% for campo, errores in f.errors.items %}{% for e in errores %}<div>• Línea {{ n }}{% if campo != '__all__' %} ({{ campo }}){% endif %}: {{ e }}</div>{% endfor %}{% endfor %}{% endwith %}{% endfor %}
+  </div>{% endif %}
   <div class="card mb-3"><div class="card-body"><div class="row g-3">
     {% for field in form|campos:"fecha,libro,glosa,moneda,tipo_cambio" %}<div class="{% if field.name == 'glosa' %}col-md-6{% else %}col-6 col-md{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
   </div>

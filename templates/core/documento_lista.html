@@ -18,7 +18,7 @@
     {% if lista_clave %}<div class="mt-2">{% include 'core/_lista_opciones.html' %}</div>{% endif %}
   </div>
   <div class="table-responsive">
-    <table class="table table-hover mb-0">
+    <table class="table table-hover mb-0"{% if not lista_clave %} data-lista="{{ request.resolver_match.view_name }}"{% endif %}>
       {% if lista_clave %}
       <thead><tr>{% if 'numero' in visibles %}<th>Número</th>{% endif %}{% if 'fecha' in visibles %}<th>Fecha</th>{% endif %}{% if 'tercero' in visibles %}<th>{{ etiqueta_tercero }}</th>{% endif %}{% if 'centro' in visibles %}<th>Centro de costo</th>{% endif %}{% if 'comprador' in visibles %}<th>Comprador</th>{% endif %}{% if 'entrega' in visibles %}<th>Entrega</th>{% endif %}{% if 'registro' in visibles %}<th>Registrado</th>{% endif %}{% if 'moneda' in visibles %}<th>Mon.</th>{% endif %}{% if 'total' in visibles %}<th class="num">Total</th>{% endif %}{% if 'estado' in visibles %}<th>Estado</th>{% endif %}</tr></thead>
       <tbody>

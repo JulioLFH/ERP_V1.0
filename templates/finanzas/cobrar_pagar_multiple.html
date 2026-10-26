@@ -26,7 +26,7 @@
       <thead><tr><th><input type="checkbox" class="form-check-input" id="todos"></th><th>{{ cfg.etiqueta }}</th><th>Comprobante</th><th>Venc.</th><th>Mon.</th><th class="num">Saldo</th><th class="num">Detracción por depositar</th><th class="text-center">Detracción</th><th style="width:130px" class="num">Monto</th><th style="width:150px">N° constancia</th></tr></thead>
       <tbody>
       {% for d in docs %}
-        <tr class="js-fila" data-saldo="{{ d.sugerido|stringformat:'s' }}" data-detr="{{ d.detr_pendiente|stringformat:'s' }}">
+        <tr class="js-fila" data-saldo="{{ d.sugerido|editable }}" data-detr="{{ d.detr_pendiente|editable }}">
           <td><input type="checkbox" class="form-check-input js-sel"></td>
           <td class="small">{{ d.tercero.nombre|truncatechars:32 }}<div class="text-muted">{{ d.tercero.numero_doc }}</div></td>
           <td class="small"><a href="{% if modo == 'cobranza' %}{% url 'ventas:detalle' d.pk %}{% else %}{% url 'compras:detalle' d.pk %}{% endif %}" target="_blank">{{ d.numero_completo }}</a>{% if d.pago_bloqueado %} <span class="badge text-bg-danger" title="{{ d.motivo_bloqueo_pago }}"><i class="bi bi-lock"></i></span>{% endif %}</td>

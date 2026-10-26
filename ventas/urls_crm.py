@@ -20,6 +20,7 @@ urlpatterns = [
     path('visitas/', crm.visitas, name='visitas'),
     path('movil/', movil.movil, name='movil'),
     path('movil/sincronizar/', movil.sincronizar, name='movil_sincronizar'),
+    path('movil/sw.js', movil.service_worker, name='movil_sw'),
     # clientes
     path('clientes/', crm.clientes, name='clientes'),
     path('clientes/<int:pk>/', crm.cliente, name='cliente'),

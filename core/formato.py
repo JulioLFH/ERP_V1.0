@@ -25,6 +25,17 @@ def cantidad(valor, unidad=''):
     return f'{d:,.2f}'
 
 
+def editable(valor):
+    """PLAT-06: número para una casilla editable, sin los ceros que sobran (5.0000 → 5.00; 0.927000 → 0.927) y sin
+    separador de miles; mínimo 2 decimales. Lo guardado no cambia."""
+    d = _dec(valor)
+    if d is None:
+        return '' if valor is None else valor
+    texto = f'{d.normalize():f}'
+    entero, _, dec = texto.partition('.')
+    return f'{entero}.{dec.ljust(2, "0")}'
+
+
 def importe(valor):
     d = _dec(valor)
     return f'{d:,.2f}' if d is not None else ('' if valor is None else valor)

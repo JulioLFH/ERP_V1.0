@@ -792,7 +792,13 @@ def trazabilidad(f):
     if f.producto:
         lotes = lotes.filter(producto_id=f.producto)
     for lote in lotes[:20]:
-        info = {'lote': lote, 'orden': None, 'insumos': [], 'ventas': [], 'usado_en': []}
+        info = {'lote': lote, 'orden': None, 'insumos': [], 'ventas': [], 'usado_en': [], 'movimientos': []}
+        # INV-30: todos los movimientos del lote (traslados entre almacenes, consumos internos, requerimientos, ajustes)
+        for k in Kardex.objects.filter(lote=lote).select_related('almacen', 'centro_costo').order_by('fecha', 'id'):
+            info['movimientos'].append({'fecha': k.fecha, 'almacen': k.almacen, 'concepto': k.concepto or k.origen,
+                                        'referencia': k.referencia.split('|')[-1].strip(),
+                                        'centro': k.centro_costo, 'cantidad': k.cantidad,
+                                        'entrada': k.tipo == 'ENTRADA'})
         # hacia atrás: la orden que fabricó el lote (su lote producido o, en las antiguas, el número de la orden)
         orden = OrdenProduccion.objects.filter(Q(lote_producido=lote.codigo) | Q(numero=lote.codigo, lote_producido=''),
                                                producto=lote.producto).select_related(

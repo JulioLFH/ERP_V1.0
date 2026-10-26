@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load erp_tags %}
 {% block title %}{{ titulo }}{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -36,7 +36,7 @@
     <div class="table-responsive">
       <table class="table items-table mb-0">
         <thead><tr><th style="width:22%">Producto / servicio</th><th>Descripción</th><th style="width:9%" class="num">Cantidad</th><th style="width:12%" class="num">Valor unit. (sin IGV)</th><th style="width:7%" class="num">Desc. %</th><th style="width:11%" title="Afectación del IGV de la línea">IGV</th><th style="width:10%" class="num">Subtotal</th><th class="text-center" style="width:4%"><i class="bi bi-trash"></i></th></tr></thead>
-        <tbody id="items-body" data-prefix="{{ formset.prefix }}" data-precio-campo="{{ precio_campo }}" data-igv="{{ igv_tasa|stringformat:'s' }}"{% if precio_url %} data-precio-url="{{ precio_url }}"{% endif %}>
+        <tbody id="items-body" data-prefix="{{ formset.prefix }}" data-precio-campo="{{ precio_campo }}" data-igv="{{ igv_tasa|editable }}"{% if precio_url %} data-precio-url="{{ precio_url }}"{% endif %}>
           {% for f in formset %}
             <tr class="item-row">
               <td>{{ f.id }}{{ f.producto }}{% for e in f.producto.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>

@@ -18,6 +18,13 @@ from ventas.models import Venta
 ITEMS = {'items-INITIAL_FORMS': '0', 'items-MIN_NUM_FORMS': '1', 'items-MAX_NUM_FORMS': '1000'}
 
 
+from datetime import timedelta  # noqa: E402
+
+from django.utils import timezone  # noqa: E402
+
+HOY = timezone.localdate()
+
+
 class RespuestaFalsa(io.BytesIO):
     def __enter__(self):
         return self
@@ -52,8 +59,8 @@ class NubefactTest(TestCase):
     def _venta(self, **extra):
         cli = Tercero.objects.filter(tipo='CLIENTE', tipo_doc='6').first()
         p = Producto.objects.get(codigo='P002')
-        data = {'tipo_comprobante': '01', 'serie': '', 'numero': '', 'tercero': cli.pk, 'fecha_emision': '2026-10-03',
-                'fecha_vencimiento': '2026-11-02', 'forma_pago': 'CREDITO', 'moneda': 'PEN', 'tipo_cambio': '1',
+        data = {'tipo_comprobante': '01', 'serie': '', 'numero': '', 'tercero': cli.pk, 'fecha_emision': (HOY - timedelta(days=1)).isoformat(),
+                'fecha_vencimiento': (HOY + timedelta(days=30)).isoformat(), 'forma_pago': 'CREDITO', 'moneda': 'PEN', 'tipo_cambio': '1',
                 'tipo_operacion': 'GRAVADA', 'detraccion_pct': '0', 'retencion_pct': '0', 'percepcion_pct': '0',
                 'icbper': '0', 'detraccion_codigo': '35', 'vendedor': '', 'descontar_stock': 'on', 'glosa': '',
                 'items-TOTAL_FORMS': '1', 'items-0-producto': p.pk, 'items-0-descripcion': p.nombre,
@@ -74,7 +81,7 @@ class NubefactTest(TestCase):
         self.assertEqual(p['total_igv'], 180.0)
         self.assertEqual(p['medio_de_pago'], 'credito')
         self.assertEqual(p['venta_al_credito'][0]['importe'], 1038.4)  # total - detracción
-        self.assertEqual(p['venta_al_credito'][0]['fecha_de_pago'], '02-11-2026')
+        self.assertEqual(p['venta_al_credito'][0]['fecha_de_pago'], f'{HOY + timedelta(days=30):%d-%m-%Y}')
         self.assertEqual(p['items'][0]['tipo_de_igv'], 1)
         self.assertEqual(p['items'][0]['precio_unitario'], 590.0)
 

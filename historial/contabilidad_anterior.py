@@ -191,7 +191,7 @@ def asiento_migracion(corte):
     Asiento.objects.filter(origen='MIGRACION').delete()
     a = Asiento(fecha=corte, libro='05', origen='MIGRACION',
                 glosa=f'Ajustes de migración al {corte:%d/%m/%Y}: saldos a las cuentas del ERP e inventario al kardex')
-    b = Borrador(a)
+    b = Borrador(a, en_periodo_cerrado=True)  # el ajuste del corte va en el último periodo migrado (cerrado)
     por_id = {c.pk: c for c in CuentaContable.objects.all()}
     # facturas por cobrar y por pagar: a la cuenta que usará el ERP para cobrarlas o pagarlas
     for prefijo, clave in RECLASIFICAR:

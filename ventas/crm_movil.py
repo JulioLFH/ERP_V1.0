@@ -22,6 +22,43 @@ from .models import ActividadCRM, CambioEtapa, Oportunidad
 
 LIMITE_FOTO = 4 * 1024 * 1024
 
+SW = """// Service worker del CRM en campo (Ceiba ERP {version}): la pantalla abre sin señal con su última copia
+const CACHE = 'crm-movil-{version}';
+self.addEventListener('install', e => {{ e.waitUntil(self.skipWaiting()); }});
+self.addEventListener('activate', e => {{
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('crm-movil-') && k !== CACHE)
+    .map(k => caches.delete(k)))).then(() => self.clients.claim()));
+}});
+self.addEventListener('fetch', e => {{
+  const url = new URL(e.request.url);
+  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  if (e.request.mode === 'navigate' && url.pathname === '{movil}') {{
+    // primero la red (datos al día); sin señal, la última copia guardada
+    e.respondWith(fetch(e.request).then(r => {{
+      if (r.ok && !r.redirected) {{ const copia = r.clone(); caches.open(CACHE).then(c => c.put('{movil}', copia)); }}
+      return r;
+    }}).catch(() => caches.match('{movil}')));
+    return;
+  }}
+  if (url.pathname.startsWith('/static/')) {{
+    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(resp => {{
+      const copia = resp.clone(); caches.open(CACHE).then(c => c.put(e.request, copia)); return resp;
+    }})));
+  }}
+}});
+"""
+
+
+def service_worker(request):
+    """CRM-19: service worker de /crm/movil/ (sin señal abre la última copia; lo registrado queda en el teléfono)."""
+    from django.conf import settings
+    from django.http import HttpResponse
+    from django.urls import reverse
+    resp = HttpResponse(SW.format(version=settings.ERP_VERSION, movil=reverse('crm:movil')),
+                        content_type='application/javascript')
+    resp['Cache-Control'] = 'no-cache'
+    return resp
+
 
 @login_required
 def movil(request):

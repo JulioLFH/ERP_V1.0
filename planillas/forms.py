@@ -35,8 +35,9 @@ class TrabajadorForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         from django.contrib.auth import get_user_model
         from .models import Puesto
-        if not ver_sueldos:  # sin el permiso «ve sueldos» el campo no se muestra ni se cambia
-            del self.fields['sueldo']
+        if not ver_sueldos:  # sin el permiso «ve sueldos» el campo no se muestra ni se cambia (SEG-08: ni sus cuentas)
+            for campo in ('sueldo', 'banco', 'cuenta_sueldo', 'banco_cts', 'cuenta_cts'):
+                self.fields.pop(campo, None)
         self.fields['afp'].queryset = AFP.objects.filter(activo=True)
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
         self.fields['puesto'].queryset = Puesto.objects.filter(activo=True)

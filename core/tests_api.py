@@ -69,11 +69,11 @@ class ApiTest(TestCase):
         r = self._post('/api/v1/terceros/', clave, {'tipo_doc': '1', 'numero_doc': '4567891', 'nombre': 'Ana'})
         self.assertEqual(r.status_code, 422)
         self.assertIn('numero_doc', r.json()['campos'])
-        r = self._post('/api/v1/terceros/', clave, {'tipo_doc': '1', 'numero_doc': '45678912', 'nombre': 'Ana Ruiz'})
+        r = self._post('/api/v1/terceros/', clave, {'tipo_doc': '1', 'numero_doc': '45678917', 'nombre': 'Ana Ruiz'})
         self.assertEqual(r.status_code, 201)
         p = Producto.objects.get(codigo='P002')
         r = self._post('/api/v1/ventas/', clave, {
-            'tipo_comprobante': '03', 'tercero_numero_doc': '45678912', 'descontar_stock': False,
+            'tipo_comprobante': '03', 'tercero_numero_doc': '45678917', 'descontar_stock': False,
             'items': [{'codigo': 'P002', 'cantidad': 2, 'descuento_pct': 10},
                       {'descripcion': 'Delivery', 'cantidad': 1, 'precio_unitario': '10.00'}]})
         self.assertEqual(r.status_code, 201, r.content)
@@ -86,7 +86,7 @@ class ApiTest(TestCase):
         self.assertEqual(self._get('/api/v1/cuentas-por-cobrar/', clave).status_code, 200)
         self.assertEqual(self._get('/api/v1/compras/', clave).status_code, 200)
         # validaciones de la pantalla: factura a un cliente sin RUC
-        r = self._post('/api/v1/ventas/', clave, {'tipo_comprobante': '01', 'tercero_numero_doc': '45678912',
+        r = self._post('/api/v1/ventas/', clave, {'tipo_comprobante': '01', 'tercero_numero_doc': '45678917',
                                                   'items': [{'codigo': 'P002', 'cantidad': 1}]})
         self.assertEqual(r.status_code, 422)
         self.assertIn('tercero', r.json()['campos'])

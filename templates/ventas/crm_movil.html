@@ -114,6 +114,10 @@
   window.addEventListener('online', () => { pintar(); enviar(); });
   window.addEventListener('offline', pintar);
   pintar(); enviar();
+  // CRM-19: la pantalla también abre sin señal (última copia guardada en el teléfono)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('{% url "crm:movil_sw" %}', { scope: '{% url "crm:movil" %}' }).catch(() => {});
+  }
 })();
 </script>
 {% endblock %}

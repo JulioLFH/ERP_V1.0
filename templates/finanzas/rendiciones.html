@@ -23,7 +23,7 @@
       <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i></button></div>
     </form>
   </div>
-  <div class="table-responsive"><table class="table table-sm table-hover mb-0 align-middle">
+  <div class="table-responsive"><table data-lista="{{ request.resolver_match.view_name }}" class="table table-sm table-hover mb-0 align-middle">
     <thead><tr><th>N°</th><th>Fecha</th><th>Responsable</th><th>Motivo</th><th>Entrega</th><th class="num">Total</th><th>Estado</th></tr></thead>
     <tbody>
     {% for r in page_obj %}

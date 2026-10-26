@@ -43,8 +43,8 @@
 {% block scripts %}
 <script>
 (function () {
-  const tasa = {{ igv_tasa|stringformat:'s' }};
-  const tolImporte = {{ tol_t|stringformat:'s' }}, tolPct = {{ tol_t_pct|stringformat:'s' }};
+  const tasa = {{ igv_tasa|editable }};
+  const tolImporte = {{ tol_t|editable }}, tolPct = {{ tol_t_pct|editable }};
   const tolT = (base) => (tolPct ? (tolImporte ? Math.min(tolImporte, Math.abs(base) * tolPct / 100) : Math.abs(base) * tolPct / 100) : tolImporte);
   const num = (v) => {
     let t = String(v || '0').replace(/\s/g, '');

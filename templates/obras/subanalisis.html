@@ -11,8 +11,8 @@
 </div>
 <form method="post">{% csrf_token %}
 <div class="card mb-3"><div class="card-body"><div class="row g-2 align-items-end">
-  <div class="col-md-3"><label class="form-label small mb-1">Rendimiento ({{ r.unidad }}/día)</label><input name="rendimiento" value="{{ r.rendimiento|stringformat:'s' }}" class="form-control form-control-sm text-end"></div>
-  <div class="col-md-2"><label class="form-label small mb-1">Jornada (h)</label><input name="jornada" value="{{ r.jornada|stringformat:'s' }}" class="form-control form-control-sm text-end"></div>
+  <div class="col-md-3"><label class="form-label small mb-1">Rendimiento ({{ r.unidad }}/día)</label><input name="rendimiento" value="{{ r.rendimiento|editable }}" class="form-control form-control-sm text-end"></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Jornada (h)</label><input name="jornada" value="{{ r.jornada|editable }}" class="form-control form-control-sm text-end"></div>
   <div class="col-md-7 text-end"><div class="small text-muted">Costo por {{ r.unidad }} con los precios referenciales</div><div class="fs-4 fw-bold">S/ {{ a.precio|money }}</div>
     <div class="small text-muted">En cada presupuesto se calcula con los precios de ese presupuesto.</div></div>
 </div></div></div>
@@ -20,8 +20,8 @@
   <thead><tr><th>Código</th><th>Recurso</th><th>Und.</th><th class="num" style="width:110px">Cuadrilla</th><th class="num" style="width:130px">Cantidad</th><th class="num">Precio ref. S/</th><th class="num">Parcial S/</th><th class="text-center">Quitar</th></tr></thead>
   <tbody>{% for f in a.lineas %}{% with l=f.linea %}
     <tr><td class="small">{{ l.recurso.codigo }}</td><td>{{ l.recurso.nombre }}{% if l.recurso.es_subanalisis %} <a href="{% url 'obras:subanalisis' l.recurso.pk %}" class="badge text-bg-light border text-decoration-none">sub-análisis</a>{% endif %}</td><td>{{ l.recurso.unidad }}</td>
-      <td>{% if l.recurso.tipo == 'MO' or l.recurso.tipo == 'EQ' %}<input name="cuadrilla_{{ l.pk }}" value="{{ l.cuadrilla|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end">{% endif %}</td>
-      <td><input name="cantidad_{{ l.pk }}" value="{{ f.aporte|stringformat:'s' }}" class="form-control form-control-sm text-end" {% if l.cuadrilla is not None and r.rendimiento %}readonly{% endif %}></td>
+      <td>{% if l.recurso.tipo == 'MO' or l.recurso.tipo == 'EQ' %}<input name="cuadrilla_{{ l.pk }}" value="{{ l.cuadrilla|default_if_none:''|editable }}" class="form-control form-control-sm text-end">{% endif %}</td>
+      <td><input name="cantidad_{{ l.pk }}" value="{{ f.aporte|editable }}" class="form-control form-control-sm text-end" {% if l.cuadrilla is not None and r.rendimiento %}readonly{% endif %}></td>
       <td class="num">{{ f.precio|money }}</td><td class="num">{{ f.parcial|money }}</td>
       <td class="text-center"><input type="checkbox" name="quitar_{{ l.pk }}" class="form-check-input"></td></tr>
   {% endwith %}{% empty %}<tr><td colspan="8" class="text-center text-muted py-3">Sin componentes: agregue el cemento, la arena, la piedra, el agua… abajo.</td></tr>{% endfor %}</tbody>

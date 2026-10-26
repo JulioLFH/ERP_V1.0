@@ -71,7 +71,10 @@ ACCIONES = {
     'manufactura': [('ordenes', 'Órdenes de producción, reporte de planta y paradas', False),
                     ('anular', 'Anular órdenes de producción', True),
                     ('recetas', 'Recetas, hojas de ruta, versiones, puestos y costo estándar', True),
-                    ('aprobar_cambios', 'Aprobar o rechazar cambios de ingeniería', True)],
+                    ('aprobar_cambios', 'Aprobar o rechazar cambios de ingeniería', True),
+                    ('consumo_adicional', 'Agregar material fuera de la receta a una orden en proceso', True),
+                    ('aprobar_consumo', 'Aprobar consumos fuera de la tolerancia y material agregado a las órdenes',
+                     True)],
     # v1.82: módulos separados de Manufactura
     'planificacion': [('planificar', 'Correr el MRP, pronóstico de demanda y programación de planta (genera órdenes '
                                      'y solicitudes)', False)],
@@ -93,7 +96,8 @@ ACCIONES = {
                ('liquidar', 'Liquidar el costo real y registrar el valor neto realizable (cierre NIC 2)', True)],
     'planillas': [('calcular', 'Calcular planillas, gratificaciones, CTS y liquidaciones', False),
                   ('cerrar', 'Cerrar, reabrir y pagar planillas', True),
-                  ('configurar', 'Parámetros, AFP y conceptos de planilla', True)],
+                  ('configurar', 'Parámetros, AFP y conceptos de planilla', True),
+                  ('ver_sueldos', 'Ver sueldos, cuentas bancarias y netos de la planilla (RR. HH.)', True)],
     'empleados': [('registrar', 'Registrar trabajadores, contratos, legajo, asistencia y movimientos de personal', False),
                   ('aprobar_movimientos', 'Aprobar movimientos de personal (sin reglas de aprobación; también los aprueba '
                                           'el jefe del trabajador)', True),
@@ -262,6 +266,8 @@ RUTAS = {
     'manufactura:orden_nueva': 'manufactura.ordenes', 'manufactura:orden_editar': 'manufactura.ordenes',
     'manufactura:orden_confirmar': 'manufactura.ordenes', 'manufactura:orden_iniciar': 'manufactura.ordenes',
     'manufactura:orden_terminar': 'manufactura.ordenes', 'manufactura:orden_maquila': 'manufactura.ordenes',
+    'manufactura:orden_material': 'manufactura.consumo_adicional',
+    'manufactura:orden_consumo_resolver': 'manufactura.aprobar_consumo',
     'manufactura:inspeccion_nueva': 'control_calidad.inspecciones',
     # v1.84: calidad farmacéutica (las aprobaciones de QA las valida cada servicio con su firma)
     **{f'manufactura:{n}': 'control_calidad.registros_gmp' for n in (
@@ -361,7 +367,7 @@ RUTAS = {
     'obras:adendas': lambda r: (None if r.method != 'POST' else 'obras.aprobar'
                                 if r.POST.get('accion') in ('aprobar', 'anular') else 'obras.ejecutar'),
     'obras:eventos': {'POST': 'obras.ejecutar'}, 'obras:escenarios': {'POST': 'obras.ejecutar'},
-    'obras:subcontrato_evaluar': 'obras.ejecutar',
+    'obras:subcontrato_evaluar': 'obras.ejecutar', 'obras:consorcio': {'POST': 'obras.licitar'},
     'sst:registro_nuevo': 'sst.registrar', 'sst:registro': {'POST': 'sst.registrar'},
     'sst:indices': {'POST': 'sst.registrar'},
     'calidad:registro_nuevo': 'calidad.registrar', 'calidad:registro': {'POST': 'calidad.registrar'},

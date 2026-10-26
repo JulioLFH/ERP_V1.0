@@ -128,7 +128,9 @@ def detalle(request, pk):
         'req': req, 'items': items, 'atenciones': req.atenciones.all(),
         'puede_aprobar': srv.puede_aprobar(request.user, req),
         'pendiente': srv.pendiente(req), 'historial': srv.historial(req),
-        'puede_atender': puede(request.user, 'inventario.operar'),
+        'puede_atender': srv.puede_atender(request.user, req),
+        'almacen_puede': puede(request.user, 'inventario.operar'),
+        'en_lugar_de': srv.en_lugar_de(request.user, req) if req.estado == 'ENVIADO' else None,
         'puede_comprar': puede(request.user, 'requerimientos.aprobar') or puede(request.user, 'inventario.operar'),
         'faltantes': srv.faltantes(req)})
 
@@ -156,7 +158,7 @@ def accion(request, pk, que):
                 raise srv.ErrorRequerimiento('No le corresponde aprobar este requerimiento (su nivel, su permiso o '
                                              'es suyo).')
             if que == 'aprobar':
-                srv.aprobar(req, request.user)
+                srv.aprobar(req, request.user, request.POST.get('motivo', ''))
                 if req.estado != 'APROBADO':
                     n = srv.pendiente(req)
                     messages.success(request, f'{req}: nivel {req.nivel_aprobado} aprobado; pasa a {n["nombre"]}.')
@@ -175,8 +177,10 @@ def accion(request, pk, que):
         elif que == 'atender':
             if not puede(request.user, 'inventario.operar'):
                 raise srv.ErrorRequerimiento('Solo el almacén atiende requerimientos.')
+            if not (request.POST.get('recibe') or '').strip():
+                raise srv.ErrorRequerimiento('Indique quién recibe los materiales.')
             cantidades = {i.pk: _decimal(request.POST.get(f'entregar_{i.pk}')) for i in req.items.all()}
-            op = srv.atender(req, request.user, cantidades)
+            op = srv.atender(req, request.user, cantidades, recibe=request.POST.get('recibe', ''))
             messages.success(request, f'Entrega registrada ({op.numero}). Estado: {req.get_estado_display()}.')
         elif que == 'comprar':
             if not (puede(request.user, 'requerimientos.aprobar') or puede(request.user, 'inventario.operar')):

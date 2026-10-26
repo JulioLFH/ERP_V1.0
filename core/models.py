@@ -174,6 +174,14 @@ class Empresa(models.Model):
         'Escalar aprobaciones a los (días)', default=3,
         help_text='Si un nivel de aprobación pasa estos días sin respuesta, también puede aprobarlo el jefe del '
                   'aprobador. 0 = no escalar')
+    # MAN-14: consumo de materiales de las órdenes de producción (cada receta puede tener la suya)
+    POLITICAS_CONSUMO = [('LIBRE', 'Libre: se registra lo consumido'),
+                         ('TOLERANCIA', 'Con tolerancia: fuera del ± % lo aprueba otro usuario, con motivo'),
+                         ('ESTRICTO', 'Estricta: se consume exactamente la receta')]
+    politica_consumo = models.CharField('Consumo en las órdenes de producción', max_length=10,
+                                        choices=POLITICAS_CONSUMO, default='LIBRE')
+    tolerancia_consumo_pct = models.DecimalField('Tolerancia del consumo ± %', max_digits=5, decimal_places=2,
+                                                 default=Decimal('5'))
     segregacion_estricta = models.BooleanField(
         'Segregación de funciones estricta', default=False,
         help_text='Nadie aprueba lo que registró (órdenes de compra, requerimientos, planillas), ni siquiera el '

@@ -34,7 +34,8 @@
   <div class="col-lg-6"><form method="post" enctype="multipart/form-data" class="card">{% csrf_token %}
     <div class="card-header fw-semibold">Importar el cronograma</div><div class="card-body d-grid gap-2">
       <input type="file" name="archivo" accept=".xls,.xlsx,.xml" class="form-control form-control-sm" required>
-      <div class="d-flex gap-3 small"><label><input type="radio" name="unidad" value="METRADO" checked> Valores en metrado</label><label><input type="radio" name="unidad" value="PCT"> Valores en % de la partida</label></div>
+      <div class="d-flex gap-3 small"><label><input type="radio" name="unidad" value="METRADO" checked> Valores en metrado</label><label><input type="radio" name="unidad" value="PCT"> Valores en % de la partida</label><label title="Las filas cuyo ítem está en varios subpresupuestos quedan sin programar"><input type="checkbox" name="forzar" value="1"> Importar igual si hay filas ambiguas</label></div>
+      <div class="form-text">El ítem se une por subpresupuesto + ítem: agregue la columna «Subpresupuesto» o escriba el ítem con su prefijo (001.01.01.01). Si el mismo ítem está en estructuras y en gastos generales, va a la partida de costo directo.</div>
       <button class="btn btn-sm btn-primary"><i class="bi bi-upload"></i> Importar</button>
       <div class="form-text">Excel con la columna «Ítem» y una columna por mes (Ene-26, 2026-01, 01/2026…) o con las columnas Inicio y Fin (se reparte por días); o el XML de MS Project (Archivo › Guardar como › XML): cada tarea se une a la partida por su EDT/WBS o número de esquema (01.02 = 1.2) o por su nombre. Reemplaza la programación de las partidas que trae.</div>
     </div></form></div>

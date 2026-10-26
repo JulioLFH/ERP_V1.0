@@ -8,7 +8,7 @@
 </div>
 {% if resumen %}<div class="card mb-3"><div class="card-body">
   <div class="d-flex justify-content-between"><span>Producido (última operación)</span><b>{{ resumen.producido|money }} / {{ o.cantidad|money }} {{ o.producto.unidad }}</b></div>
-  <div class="progress my-2" style="height:18px"><div class="progress-bar bg-success" style="width:{% if resumen.pct > 100 %}100{% else %}{{ resumen.pct|stringformat:'s' }}{% endif %}%">{{ resumen.pct }}%</div></div>
+  <div class="progress my-2" style="height:18px"><div class="progress-bar bg-success" style="width:{% if resumen.pct > 100 %}100{% else %}{{ resumen.pct|editable }}{% endif %}%">{{ resumen.pct }}%</div></div>
   <div class="small text-muted">Merma {{ resumen.merma|money }} · {{ resumen.horas|floatformat:2 }} h reportadas</div>
 </div></div>{% endif %}
 {% if activa %}

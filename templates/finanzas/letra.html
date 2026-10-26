@@ -37,7 +37,7 @@
     <div class="card"><div class="card-header">Renovar (refinanciar el saldo)</div><div class="card-body">
       <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="renovar">
         <div class="row g-2 mb-2"><div class="col-md-6"><label class="small">Fecha de renovación</label><input type="date" name="fecha" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div></div>
-        {% for i in '12' %}<div class="row g-2 mb-1"><div class="col-6"><input type="date" name="l_vencimiento" class="form-control form-control-sm"></div><div class="col-6"><input type="number" step="0.01" min="0" name="l_monto" class="form-control form-control-sm text-end" placeholder="Monto"{% if forloop.first %} value="{{ l.saldo|stringformat:'s' }}"{% endif %}></div></div>{% endfor %}
+        {% for i in '12' %}<div class="row g-2 mb-1"><div class="col-6"><input type="date" name="l_vencimiento" class="form-control form-control-sm"></div><div class="col-6"><input type="number" step="0.01" min="0" name="l_monto" class="form-control form-control-sm text-end" placeholder="Monto"{% if forloop.first %} value="{{ l.saldo|editable }}"{% endif %}></div></div>{% endfor %}
         <p class="small text-muted mb-2">Las nuevas letras deben sumar el saldo ({{ l.saldo|money }}). Los intereses de la renovación se facturan aparte (nota de débito).</p>
         <button class="btn btn-sm btn-outline-primary">Renovar letra</button>
       </form>

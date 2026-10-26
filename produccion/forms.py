@@ -72,7 +72,7 @@ class ListaMaterialesForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = ListaMateriales
         fields = ['producto', 'codigo', 'cantidad_base', 'estado', 'vigente_desde', 'vigente_hasta', 'lote_min',
-                  'lote_max', 'observaciones']
+                  'lote_max', 'politica_consumo', 'tolerancia_consumo_pct', 'observaciones']
         widgets = {'observaciones': forms.Textarea(attrs={'rows': 2})}
 
     def __init__(self, *args, **kwargs):

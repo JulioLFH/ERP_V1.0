@@ -10,7 +10,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
-from .ejecucion import (_meses, _periodo, costo_equipos, costo_mano_obra, costo_materiales, costo_subcontratos)
+from .ejecucion import _meses, _periodo
 from .models import (AdendaContrato, AvancePartida, EscenarioCronograma, EvaluacionSubcontrato, EventoContrato, Obra,
                      ProgramacionPartida)
 from .valorizaciones import (VIGENTES, avance_acumulado, partidas_de, presupuesto_contractual, presupuesto_ejecucion,
@@ -103,9 +103,9 @@ def tasa_exito(desde=None, hasta=None):
     motivos = dict(Licitacion.MOTIVOS)
     crm_qs = Oportunidad.objects.filter(etapa__in=['GANADA', 'PERDIDA']).select_related('tercero', 'responsable')
     if desde:
-        crm_qs = crm_qs.filter(cerrada_en__date__gte=desde)
+        crm_qs = crm_qs.filter(cerrada_en__gte=desde)
     if hasta:
-        crm_qs = crm_qs.filter(cerrada_en__date__lte=hasta)
+        crm_qs = crm_qs.filter(cerrada_en__lte=hasta)
     crm = {'origen': {}, 'cliente': {}, 'responsable': {}}
     crm_total = {}
     origenes = dict(Oportunidad._meta.get_field('origen').choices)
@@ -294,56 +294,106 @@ def riesgo_clientes():
 
 
 # ---------------------------------------------------------------- costos reales
-def _costos_por_clave(obra, meta, avance):
-    """{clave de partida: costo directo real} (materiales, mano de obra, equipos y subcontratos); None = sin partida."""
-    from .models import Partida
+def es_gg(partida):
+    """Partida del subpresupuesto de gastos generales detallados (no es costo directo)."""
+    return bool(partida.subpresupuesto_id and partida.subpresupuesto.es_gastos_generales)
+
+
+def directas(presupuesto):
+    """Partidas de costo directo del presupuesto (sin las del subpresupuesto de gastos generales, OBR-25)."""
+    return [x for x in partidas_de(presupuesto) if not es_gg(x)]
+
+
+def registros_costo(obra):
+    """Fuente única del costo real (OBR-27): [(periodo, clave de partida o None, tipo, monto)] de las planillas de
+    construcción civil cerradas (por las horas del tareo), los partes de equipo, las valorizaciones aprobadas de los
+    subcontratos y los materiales consumidos con el centro de la obra (repartidos entre las partidas que los usan
+    según su análisis). Sin ninguno de ellos, los gastos contables (clase 6) con el centro de costo, sin partida.
+    Devuelve (registros, fuente)."""
+    from core.models import Kardex
+
+    from .models import LineaPlanillaCivil, LineaValSubcontrato, ParteEquipo, Partida, RecursoAPU
+    registros, ids = [], set()
+    for hasta, costo, partidas in LineaPlanillaCivil.objects.filter(
+            planilla__obra=obra, planilla__estado__in=('CERRADA', 'PAGADA')).values_list(
+            'planilla__hasta', 'costo', 'partidas'):
+        horas = sum((Decimal(str(h)) for h in (partidas or {}).values()), D0)
+        if not horas:
+            registros.append((_periodo(hasta), None, 'mo', costo))
+            continue
+        for pid, h in partidas.items():
+            pid = int(pid) if pid not in ('', 'None') else None
+            ids.add(pid)
+            registros.append((_periodo(hasta), pid, 'mo', costo * Decimal(str(h)) / horas))
+    for fecha, pid, costo in ParteEquipo.objects.filter(obra=obra).values_list('fecha', 'partida_id', 'costo'):
+        ids.add(pid)
+        registros.append((_periodo(fecha), pid, 'eq', costo))
+    for per, pid, monto in LineaValSubcontrato.objects.filter(
+            valorizacion__subcontrato__obra=obra, valorizacion__estado='APROBADA').values_list(
+            'valorizacion__periodo', 'linea__partida_id', 'monto'):
+        ids.add(pid)
+        registros.append((per, pid, 'sub', monto))
+    claves = {x.pk: x.clave for x in Partida.objects.filter(pk__in=[i for i in ids if i]).select_related(
+        'subpresupuesto')}
+    registros = [(per, claves.get(pid) if pid else None, tipo, m) for per, pid, tipo, m in registros]
+    if obra.centro_costo_id:
+        meta = presupuesto_meta(obra)
+        avance = avance_acumulado(obra)
+        pesos = defaultdict(dict)  # producto -> {clave: peso}
+        if meta is not None:
+            for l in RecursoAPU.objects.filter(partida__presupuesto=meta, recurso__producto__isnull=False) \
+                    .select_related('recurso', 'partida__subpresupuesto'):
+                x = l.partida
+                base = avance.get(x.clave) or x.metrado
+                p = pesos[l.recurso.producto_id]
+                p[x.clave] = p.get(x.clave, D0) + l.cantidad * base
+        for fecha, producto, cantidad, costo in Kardex.objects.filter(
+                centro_costo_id=obra.centro_costo_id, tipo='SALIDA').values_list(
+                'fecha', 'producto_id', 'cantidad', 'costo_unitario'):
+            valor = cantidad * (costo or D0)
+            w = {k: v for k, v in pesos.get(producto, {}).items() if v > 0}
+            suma = sum(w.values(), D0)
+            if not suma:
+                registros.append((_periodo(fecha), None, 'mat', valor))
+                continue
+            for k, v in w.items():
+                registros.append((_periodo(fecha), k, 'mat', valor * v / suma))
+    if any(m for *_, m in registros) or not obra.centro_costo_id:
+        return registros, 'operativo'
+    from contabilidad.models import AsientoLinea
+    return [(per, None, 'mat', debe - haber) for per, debe, haber in AsientoLinea.objects.filter(
+        centro_costo_id=obra.centro_costo_id, es_destino=False, cuenta__codigo__startswith='6').values_list(
+        'asiento__periodo', 'debe', 'haber')], 'contable'
+
+
+def _costos_por_clave(obra, meta=None, avance=None):
+    """{clave de partida: costo real} (None = sin partida), de registros_costo."""
     salida = defaultdict(lambda: D0)
-    for costos in (costo_mano_obra(obra), costo_equipos(obra), costo_subcontratos(obra)):
-        ids = [k for k in costos if k]
-        claves = {x.pk: x.clave for x in Partida.objects.filter(pk__in=ids).select_related('subpresupuesto')}
-        for k, v in costos.items():
-            salida[claves.get(k) if k else None] += v
-    for k, v in costo_materiales(obra, meta, avance).items():
-        salida[k] += v
+    for _, clave, _, monto in registros_costo(obra)[0]:
+        salida[clave] += monto
     return salida
 
 
-def costos_por_mes(obra):
-    """({periodo: {'mo', 'eq', 'sub', 'mat', 'total'}}, fuente): planillas de construcción civil, partes de equipo,
-    valorizaciones de subcontratos y salidas del almacén con el centro de la obra; sin ellos, la contabilidad (clase 6
-    con el centro de costo)."""
-    from core.models import Kardex
-
-    from .models import LineaPlanillaCivil, LineaValSubcontrato, ParteEquipo
+def costos_por_mes(obra, excluir=()):
+    """({periodo: {'mo', 'eq', 'sub', 'mat', 'total'}}, fuente) de registros_costo; «excluir»: claves que no cuentan
+    (las partidas de gastos generales en el valor ganado)."""
+    registros, fuente = registros_costo(obra)
     meses = defaultdict(lambda: {'mo': D0, 'eq': D0, 'sub': D0, 'mat': D0})
-    for hasta, costo in LineaPlanillaCivil.objects.filter(
-            planilla__obra=obra, planilla__estado__in=('CERRADA', 'PAGADA')).values_list('planilla__hasta', 'costo'):
-        meses[_periodo(hasta)]['mo'] += costo
-    for fecha, costo in ParteEquipo.objects.filter(obra=obra).values_list('fecha', 'costo'):
-        meses[_periodo(fecha)]['eq'] += costo
-    for per, monto in LineaValSubcontrato.objects.filter(valorizacion__subcontrato__obra=obra,
-                                                         valorizacion__estado='APROBADA').values_list(
-            'valorizacion__periodo', 'monto'):
-        meses[per]['sub'] += monto
-    if obra.centro_costo_id:
-        for fecha, cantidad, costo in Kardex.objects.filter(centro_costo_id=obra.centro_costo_id,
-                                                           tipo='SALIDA').values_list('fecha', 'cantidad',
-                                                                                      'costo_unitario'):
-            meses[_periodo(fecha)]['mat'] += cantidad * (costo or D0)
-    fuente = 'operativo'
-    if not any(sum(m.values(), D0) for m in meses.values()) and obra.centro_costo_id:
-        from contabilidad.models import AsientoLinea
-        fuente = 'contable'
-        for per, debe, haber in AsientoLinea.objects.filter(
-                centro_costo_id=obra.centro_costo_id, es_destino=False, cuenta__codigo__startswith='6').values_list(
-                'asiento__periodo', 'debe', 'haber'):
-            meses[per]['mat'] += debe - haber
+    for per, clave, tipo, monto in registros:
+        if clave is not None and clave in excluir:
+            continue
+        meses[per][tipo] += monto
     salida = {}
     for per, m in meses.items():
         m = {k: r2(v) for k, v in m.items()}
         m['total'] = sum(m.values(), D0)
         salida[per] = m
     return dict(sorted(salida.items())), fuente
+
+
+def costo_real(obra):
+    """Costo real total de la obra (el mismo en la cartera, la rentabilidad, el valor ganado y la proyección)."""
+    return r2(sum((m for *_, m in registros_costo(obra)[0]), D0))
 
 
 # ---------------------------------------------------------------- HR-07, HR-12, HR-14: control por partida y proyección
@@ -361,10 +411,11 @@ def control_partidas(obra, tolerancia=None):
     meta = presupuesto_meta(obra)
     meta_por_clave = {x.clave: x for x in partidas_de(meta)} if meta is not None and meta.pk != p.pk else {}
     avance = avance_acumulado(obra)
-    costos = _costos_por_clave(obra, meta, avance)
+    costos = _costos_por_clave(obra)
     tol = _parametro('OBR_TOLERANCIA_COSTO_PCT') if tolerancia is None else Decimal(tolerancia)
     filas, t = [], defaultdict(lambda: D0)
-    for x in partidas_de(p):
+    claves_gg = {x.clave for x in partidas_de(p) if es_gg(x)} | {k for k, m in meta_por_clave.items() if es_gg(m)}
+    for x in directas(p):
         m = meta_por_clave.get(x.clave)
         bac = m.parcial if m is not None else x.parcial
         av = avance.get(x.clave, D0)
@@ -385,7 +436,8 @@ def control_partidas(obra, tolerancia=None):
         filas.append(f)
         for k in ('contractual', 'bac', 'ev', 'ac', 'eac', 'exceso'):
             t[k] += f[k]
-    sin_partida = r2(costos.get(None, D0))
+    sin_partida = r2(costos.get(None, D0) + sum((v for k, v in costos.items() if k is not None and k not in claves_gg
+                                                 and k not in {f['partida'].clave for f in filas}), D0))
     t['ac'] += sin_partida
     t['eac'] += sin_partida
     if p.subtotal:
@@ -393,15 +445,22 @@ def control_partidas(obra, tolerancia=None):
     else:
         from .servicios import contrato_sin_igv
         ingreso = contrato_sin_igv(obra)
+    # gastos generales: los del presupuesto (en % o su subpresupuesto detallado) y los reales cargados a sus partidas;
+    # no están en el costo directo (OBR-25), se proyectan por el mayor de los dos
     gg = p.gastos_generales
-    margen = ingreso - t['eac'] - gg
+    gg_real = r2(sum((v for k, v in costos.items() if k in claves_gg), D0))
+    gg_cierre = max(gg, gg_real)
+    margen = ingreso - t['eac'] - gg_cierre
     margen_pct = _pct(margen, ingreso)
     objetivo = margen_meta(obra)
     return {'presupuesto': p, 'meta': meta, 'filas': filas, 'totales': dict(t), 'sin_partida': sin_partida,
-            'tolerancia': tol, 'ingreso': ingreso, 'gg': gg, 'margen_presupuestado': ingreso - t['bac'] - gg,
+            'tolerancia': tol, 'ingreso': ingreso, 'gg': gg, 'gg_real': gg_real, 'gg_cierre': gg_cierre,
+            'costo_real': t['ac'] + gg_real, 'costo_cierre': t['eac'] + gg_cierre,
+            'margen_presupuestado': ingreso - t['bac'] - gg,
             'margen_presupuestado_pct': _pct(ingreso - t['bac'] - gg, ingreso), 'margen': margen,
             'margen_pct': margen_pct, 'margen_meta': objetivo, 'cpi': _div(t['ev'], t['ac']),
             'avance_pct': _pct(t['ev'], t['bac']), 'alertas': [f for f in filas if f['alerta']],
+            'claves_gg': claves_gg,
             'bajo_meta': margen_pct is not None and t['ac'] > 0 and margen_pct < objetivo}
 
 
@@ -441,13 +500,16 @@ def valor_ganado(obra, hoy=None):
         return None
     pv, ev = defaultdict(lambda: D0), defaultdict(lambda: D0)
     bac = D0
-    for x in partidas_de(p):
+    for x in directas(p):  # el valor ganado es del costo directo: sin el subpresupuesto de gastos generales
         bac += x.metrado * precios.get(x.clave, x.precio)
     for prog in ProgramacionPartida.objects.filter(partida__presupuesto=p).select_related('partida__subpresupuesto'):
-        pv[prog.periodo] += prog.metrado * precios.get(prog.partida.clave, prog.partida.precio)
+        if not es_gg(prog.partida):
+            pv[prog.periodo] += prog.metrado * precios.get(prog.partida.clave, prog.partida.precio)
     for a in AvancePartida.objects.filter(obra=obra).select_related('partida__subpresupuesto'):
-        ev[_periodo(a.fecha)] += a.metrado * precios.get(a.partida.clave, a.partida.precio)
-    ac, fuente = costos_por_mes(obra)
+        if not es_gg(a.partida):
+            ev[_periodo(a.fecha)] += a.metrado * precios.get(a.partida.clave, a.partida.precio)
+    control = control_partidas(obra)
+    ac, fuente = costos_por_mes(obra, excluir=control['claves_gg'] if control else ())
     actual = _periodo(hoy)
     periodos = sorted(set(pv) | set(ev) | set(ac))
     filas, acum = [], {'pv': D0, 'ev': D0, 'ac': D0}
@@ -469,11 +531,15 @@ def valor_ganado(obra, hoy=None):
     pv_hoy = sum((v for k, v in pv.items() if k <= actual), D0)
     ev_t, ac_t = sum(ev.values(), D0), sum((m['total'] for k, m in ac.items() if k <= actual), D0)
     spi, cpi = _div(ev_t, pv_hoy), _div(ev_t, ac_t)
-    eac = r2(bac / cpi) if cpi else None
+    # OBR-26: un solo EAC en todo el sistema, el de la proyección por partida; el del índice (BAC / CPI, con el CPI
+    # sin redondear) se muestra aparte como referencia
+    eac_indice = r2(bac * ac_t / ev_t) if ev_t else None
+    eac = control['totales'].get('eac') if control else eac_indice
     termino = None
-    if spi and obra.fecha_inicio and obra.plazo_dias:
-        termino = obra.fecha_inicio + timedelta(days=int(obra.plazo_dias / float(spi)))
+    if ev_t and pv_hoy and obra.fecha_inicio and obra.plazo_dias:
+        termino = obra.fecha_inicio + timedelta(days=int(obra.plazo_dias * float(pv_hoy / ev_t)))
     return {'presupuesto': p, 'filas': filas, 'bac': r2(bac), 'pv': r2(pv_hoy), 'ev': r2(ev_t), 'ac': r2(ac_t),
+            'gg_real': control['gg_real'] if control else D0, 'eac_indice': eac_indice,
             'spi': spi, 'cpi': cpi, 'sv': r2(ev_t - pv_hoy), 'cv': r2(ev_t - ac_t), 'eac': eac,
             'etc': r2(eac - ac_t) if eac is not None else None, 'vac': r2(bac - eac) if eac is not None else None,
             'tcpi': _div(bac - ev_t, bac - ac_t) if bac != ac_t else None, 'avance_pct': _pct(ev_t, bac),
@@ -580,20 +646,33 @@ def productividad(obra):
     from .models import LineaTareo
     meta = presupuesto_meta(obra)
     apu = hh_por_unidad(meta) if meta is not None else {}
-    horas = defaultdict(lambda: D0)  # (cuadrilla, clave, periodo)
-    total_horas = defaultdict(lambda: D0)  # (clave, periodo)
+    def semana(fecha):  # HR-08: avance y horas se cruzan por semana (lunes), no por mes
+        return fecha - timedelta(days=fecha.weekday())
+
+    horas_sem = defaultdict(lambda: D0)  # (cuadrilla, clave, semana)
+    total_horas = defaultdict(lambda: D0)  # (clave, semana)
     partidas = {}
     for l in LineaTareo.objects.filter(tareo__obra=obra, partida__isnull=False).select_related(
             'tareo', 'partida__subpresupuesto'):
         h = l.horas + l.horas_60 + l.horas_100
-        clave, per = l.partida.clave, _periodo(l.tareo.fecha)
+        clave, sem = l.partida.clave, semana(l.tareo.fecha)
         cuadrilla = (l.tareo.cuadrilla or 'Sin cuadrilla').strip()
-        horas[(cuadrilla, clave, per)] += h
-        total_horas[(clave, per)] += h
+        horas_sem[(cuadrilla, clave, sem)] += h
+        total_horas[(clave, sem)] += h
         partidas[clave] = l.partida
-    metrado = defaultdict(lambda: D0)
+    metrado_sem = defaultdict(lambda: D0)
     for a in AvancePartida.objects.filter(obra=obra).select_related('partida__subpresupuesto'):
-        metrado[(a.partida.clave, _periodo(a.fecha))] += a.metrado
+        metrado_sem[(a.partida.clave, semana(a.fecha))] += a.metrado
+        partidas.setdefault(a.partida.clave, a.partida)
+    # avance de semanas sin horas de tareo en la partida: lo hizo otra gente (subcontrato, equipo) o falta el tareo
+    sin_horas = [{'partida': partidas[k], 'semana': s, 'metrado': m} for (k, s), m in sorted(
+        metrado_sem.items(), key=lambda kv: (kv[0][1], kv[0][0])) if m and not total_horas.get((k, s))]
+    horas, metrado_parte = defaultdict(lambda: D0), defaultdict(lambda: D0)  # (cuadrilla, clave, periodo)
+    for (cuadrilla, clave, sem), h in horas_sem.items():
+        if h:
+            horas[(cuadrilla, clave, _periodo(sem))] += h
+            metrado_parte[(cuadrilla, clave, _periodo(sem))] += (metrado_sem.get((clave, sem), D0) * h
+                                                               / total_horas[(clave, sem)])
     detalle = []
     por_cuadrilla = defaultdict(lambda: {'horas': D0, 'ganadas': D0, 'metrado': D0})
     tendencia = defaultdict(lambda: defaultdict(lambda: {'horas': D0, 'ganadas': D0}))
@@ -601,7 +680,7 @@ def productividad(obra):
     for (cuadrilla, clave, per), h in sorted(horas.items()):
         if not h:
             continue
-        parte = metrado.get((clave, per), D0) * h / total_horas[(clave, per)]
+        parte = metrado_parte[(cuadrilla, clave, per)]
         ganadas = parte * apu.get(clave, D0)
         detalle.append({'cuadrilla': cuadrilla, 'partida': partidas[clave], 'periodo': per, 'horas': h,
                         'metrado': parte.quantize(Decimal('0.01')),
@@ -626,7 +705,7 @@ def productividad(obra):
         valores = [e for _, e in c['tendencia'] if e is not None]
         c['tendencia_texto'] = ('mejora' if valores[-1] > valores[0] else 'empeora' if valores[-1] < valores[0]
                                 else 'estable') if len(valores) >= 2 else '—'
-    return {'cuadrillas': cuadrillas, 'detalle': detalle, 'sin_apu': not apu,
+    return {'cuadrillas': cuadrillas, 'detalle': detalle, 'sin_apu': not apu, 'sin_horas': sin_horas,
             'partidas': [{'cuadrilla': c, 'partida': partidas[k], 'horas': v['horas'],
                           'metrado': v['metrado'].quantize(Decimal('0.01')),
                           'rendimiento': _div(v['metrado'], v['horas'], '0.001'),
@@ -848,12 +927,9 @@ def resultado_obra(obra):
         agg = AsientoLinea.objects.filter(centro_costo_id=obra.centro_costo_id, es_destino=False,
                                           cuenta__codigo__startswith='7').aggregate(d=Sum('debe'), h=Sum('haber'))
         ingreso = (agg['h'] or D0) - (agg['d'] or D0)
-    meses, _ = costos_por_mes(obra)
-    costo = sum((m['total'] for m in meses.values()), D0)
-    if obra.centro_costo_id:
-        contable = costo_contable(obra)
-        costo = max(costo, contable)  # el operativo y el contable miden lo mismo: se toma el mayor (el más completo)
-    return ingreso, costo
+    # OBR-27: el mismo costo real que el valor ganado y la proyección (registros_costo); el contable va aparte
+    obra.costo_contable_ = costo_contable(obra) if obra.centro_costo_id else D0
+    return ingreso, costo_real(obra)
 
 
 def rentabilidad(tipo=None, cliente=None):
@@ -868,7 +944,7 @@ def rentabilidad(tipo=None, cliente=None):
     for o in qs:
         ingreso, costo = resultado_obra(o)
         c = control_partidas(o) if o.tipo != 'SERVICIO' else None
-        f = {'obra': o, 'ingreso': ingreso, 'costo': costo, 'margen': ingreso - costo,
+        f = {'obra': o, 'ingreso': ingreso, 'costo': costo, 'margen': ingreso - costo, 'contable': o.costo_contable_,
              'margen_pct': _pct(ingreso - costo, ingreso), 'proyectado_pct': c['margen_pct'] if c else None}
         obras.append(f)
         for grupo, clave in ((por_cliente, o.cliente.nombre if o.cliente_id else 'Sin cliente'),
@@ -884,6 +960,45 @@ def rentabilidad(tipo=None, cliente=None):
     orden = lambda g: (g['margen_pct'] is None, -(g['margen_pct'] or 0))
     return {'obras': sorted(obras, key=lambda f: (f['margen_pct'] is None, -(f['margen_pct'] or 0))),
             'clientes': sorted(por_cliente.values(), key=orden), 'tipos': sorted(por_tipo.values(), key=orden)}
+
+
+# ---------------------------------------------------------------- SRV-05: consorcios
+def consorcio(obra, desde=None, hasta=None):
+    """Atribución por socio (participación %) de las ventas, compras e IGV con el centro de costo de la obra (y sus
+    facturas de valorizaciones y adelantos) y del costo real: base para la contabilidad o la declaración de cada
+    socio (confirme el tratamiento con su contador: contabilidad independiente o atribución)."""
+    from django.db.models import Sum
+
+    from compras.models import Compra
+    socios = list(obra.socios.select_related('tercero'))
+    ventas = _documentos_de_obra(obra).filter(estado='REGISTRADO')
+    compras = Compra.objects.filter(centro_costo_id=obra.centro_costo_id, estado='REGISTRADO') \
+        if obra.centro_costo_id else Compra.objects.none()
+    if desde:
+        ventas, compras = ventas.filter(fecha_emision__gte=desde), compras.filter(fecha_emision__gte=desde)
+    if hasta:
+        ventas, compras = ventas.filter(fecha_emision__lte=hasta), compras.filter(fecha_emision__lte=hasta)
+
+    def totales(qs):
+        signo = {}
+        for campo in ('base_pen', 'igv_pen', 'total_pen'):
+            mas = qs.exclude(tipo_comprobante='07').aggregate(s=Sum(campo))['s'] or D0
+            menos = qs.filter(tipo_comprobante='07').aggregate(s=Sum(campo))['s'] or D0
+            signo[campo] = mas - menos
+        return signo
+    v, c = totales(ventas), totales(compras)
+    costo = costo_real(obra)
+    suma = sum((s.participacion_pct for s in socios), D0)
+    filas = []
+    for s in socios:
+        f = s.participacion_pct / 100
+        filas.append({'socio': s, 'pct': s.participacion_pct, 'ventas': r2(v['base_pen'] * f),
+                      'igv_ventas': r2(v['igv_pen'] * f), 'compras': r2(c['base_pen'] * f),
+                      'igv_compras': r2(c['igv_pen'] * f), 'costo': r2(costo * f),
+                      'igv_neto': r2((v['igv_pen'] - c['igv_pen']) * f),
+                      'resultado': r2((v['base_pen'] - costo) * f)})
+    return {'socios': socios, 'filas': filas, 'suma': suma, 'ventas': v, 'compras': c, 'costo': costo,
+            'docs_ventas': ventas.count(), 'docs_compras': compras.count()}
 
 
 # ---------------------------------------------------------------- HR-15 y HR-17: valorizaciones proyectadas y flujo

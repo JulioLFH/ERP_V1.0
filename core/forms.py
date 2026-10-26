@@ -81,6 +81,10 @@ class BootstrapMixin:
             if isinstance(field, forms.DateField):
                 w.input_type = 'date'
                 w.format = '%Y-%m-%d'
+            if isinstance(field, forms.DecimalField):  # PLAT-06: 5.00 y 0.927 en la casilla, no 5.0000 ni 0.927000
+                from .formato import editable
+                w.format_value = (lambda v, _original=w.format_value:
+                                  _original(editable(v) if isinstance(v, Decimal) else v))
         # un campo con valor por defecto que el formulario (o la API, una pantalla antigua) no envía no es
         # obligatorio: Django guarda el valor por defecto del modelo (construct_instance lo omite)
         modelo = getattr(getattr(self, '_meta', None), 'model', None)
@@ -253,6 +257,12 @@ class TerceroForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
             self.add_error('numero_doc', error_ruc(num))
         if doc == '1' and (len(num) != 8 or not num.isdigit()):
             self.add_error('numero_doc', 'El DNI debe tener 8 dígitos.')
+        # TER-01: un tipo + número de documento por empresa (los genéricos sin documento, como «varios», se repiten)
+        if num and doc not in ('0', '-') and num.strip('0'):
+            otro = Tercero.objects.filter(tipo_doc=doc, numero_doc=num).exclude(pk=self.instance.pk).first()
+            if otro is not None:
+                self.add_error('numero_doc', f'Ya existe {otro.nombre} con este documento: ábralo en Contactos (si '
+                                             f'también es proveedor o cliente, cámbiele el tipo a «Ambos»).')
         return data
 
 

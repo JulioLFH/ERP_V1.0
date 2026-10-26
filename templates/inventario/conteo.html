@@ -20,7 +20,7 @@
   <tbody>{% for i in items %}<tr>
     <td class="fw-semibold">{{ i.ubicacion|default:'—' }}</td><td>{{ i.producto.codigo }} {{ i.producto.nombre }} <span class="text-muted small">{{ i.producto.unidad }}</span></td><td>{{ i.clase }}</td>
     {% if not ciego or c.estado != 'ABIERTO' %}<td class="num">{{ i.sistema|money }}</td>{% endif %}
-    <td class="num">{% if c.estado == 'ABIERTO' %}<input name="contado_{{ i.pk }}" value="{{ i.contado|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% elif i.contado is not None %}{{ i.contado|money }}{% else %}—{% endif %}</td>
+    <td class="num">{% if c.estado == 'ABIERTO' %}<input name="contado_{{ i.pk }}" value="{{ i.contado|default_if_none:''|editable }}" class="form-control form-control-sm text-end" inputmode="decimal">{% elif i.contado is not None %}{{ i.contado|money }}{% else %}—{% endif %}</td>
     {% if c.estado != 'ABIERTO' %}<td class="num {% if i.diferencia > 0 %}text-success{% elif i.diferencia < 0 %}text-danger{% endif %}">{% if i.diferencia is not None %}{{ i.diferencia|money }}{% endif %}</td>{% endif %}
   </tr>{% endfor %}</tbody>
 </table></div>

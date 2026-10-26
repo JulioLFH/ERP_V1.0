@@ -76,6 +76,33 @@ def preferencias(request):
     return redirect(vuelta)
 
 
+@login_required
+def lista_auto(request):
+    """LIS-01 en cualquier lista con table[data-lista] (static/js/app.js): columnas ocultas y filtros guardados del
+    usuario, en JSON. GET los devuelve; POST (accion: ocultas | guardar_filtro | borrar_filtro) los guarda."""
+    from django.http import JsonResponse
+    lista = ('auto:' + (request.GET.get('lista') or request.POST.get('lista') or '').strip())[:60]
+    if lista == 'auto:':
+        return JsonResponse({'error': 'Falta la lista.'}, status=400)
+    pref = PreferenciaLista.objects.filter(usuario=request.user, lista=lista).first()
+    if request.method == 'POST':
+        pref = pref or PreferenciaLista.objects.create(usuario=request.user, lista=lista)
+        accion = request.POST.get('accion')
+        if accion == 'ocultas':
+            pref.columnas = [c[:60] for c in request.POST.getlist('col')][:60]
+            pref.save(update_fields=['columnas'])
+        elif accion == 'guardar_filtro':
+            nombre = (request.POST.get('nombre') or '').strip()[:40]
+            if nombre:
+                pref.filtros = [f for f in pref.filtros if f.get('nombre') != nombre][-14:] + [
+                    {'nombre': nombre, 'query': (request.POST.get('query') or '').lstrip('?')[:500]}]
+                pref.save(update_fields=['filtros'])
+        elif accion == 'borrar_filtro':
+            pref.filtros = [f for f in pref.filtros if f.get('nombre') != request.POST.get('nombre')]
+            pref.save(update_fields=['filtros'])
+    return JsonResponse({'ocultas': pref.columnas if pref else [], 'filtros': pref.filtros if pref else []})
+
+
 def agrupar(filas, clave, valor=None):
     """[(grupo, filas, cantidad, subtotal)] de las filas por la función clave (y subtotal de la función valor)."""
     grupos = {}

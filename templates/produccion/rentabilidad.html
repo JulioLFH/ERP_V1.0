@@ -27,7 +27,7 @@
       <td class="num">{{ f.ventas|money }}</td><td class="num">{{ f.costo|money }}</td>
       <td class="num fw-semibold {% if f.margen < 0 %}text-danger{% endif %}">{{ f.margen|money }}</td>
       <td class="num {% if f.pct is not None and f.pct < 0 %}text-danger{% endif %}">{% if f.pct is not None %}{{ f.pct }}%{% endif %}</td>
-      <td>{% if f.pct is not None and f.pct > 0 %}<div class="progress" style="height:6px"><div class="progress-bar" style="width:{% if f.pct > 100 %}100{% else %}{{ f.pct|stringformat:'s' }}{% endif %}%"></div></div>{% endif %}</td>
+      <td>{% if f.pct is not None and f.pct > 0 %}<div class="progress" style="height:6px"><div class="progress-bar" style="width:{% if f.pct > 100 %}100{% else %}{{ f.pct|editable }}{% endif %}%"></div></div>{% endif %}</td>
     </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Sin ventas registradas en el rango.</td></tr>{% endfor %}</tbody>
   </table></div>
   <div class="card-body py-2 small text-muted">Importes en soles sin IGV. Las notas de crédito restan ventas y costo. El costo de ventas es el del kardex al momento del despacho (costo promedio); en las ventas del sistema anterior, el de su kardex para ese comprobante y producto. No incluye comprobantes de saldo inicial.{% if total.sin_costo %} <span class="text-warning-emphasis"><i class="bi bi-exclamation-triangle"></i> {{ total.sin_costo }} línea(s) del sistema anterior no tienen su salida en el kardex de ese sistema: van con costo cero.</span>{% endif %}</div>

@@ -24,7 +24,7 @@
     </form>
   </div>
   <div class="table-responsive">
-    <table class="table table-hover table-sm mb-0">
+    <table data-lista="{{ request.resolver_match.view_name }}" class="table table-hover table-sm mb-0">
       <thead><tr><th>Voucher</th><th>Fecha</th><th>Cuenta</th><th>Concepto</th><th>Tercero / documento</th><th>Glosa</th><th class="num">Ingreso</th><th class="num">Egreso</th><th></th><th></th></tr></thead>
       <tbody>
       {% for m in page_obj %}

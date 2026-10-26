@@ -153,6 +153,11 @@ def errores_confirmacion(op):
     from .cierre import error_cierre
     if error_cierre(op.fecha):
         errores.append(error_cierre(op.fecha))
+    if tipo.codigo in ('SAL_OP', 'DEV_OP'):  # MAN-15: imputada a una orden abierta o terminada en un mes abierto
+        from produccion.consumo import error_imputacion
+        aviso = error_imputacion(op.orden_imputada, op.fecha or timezone.localdate())
+        if aviso and aviso not in errores:
+            errores.append(aviso)
     if op.fecha and op.fecha > timezone.localdate():  # ALM-08: ni kardex ni contabilidad de un periodo futuro
         errores.append(f'La fecha contable ({op.fecha:%d/%m/%Y}) no puede ser futura.')
     from .fisico import ProductoEnConteo, validar_movimiento
@@ -348,6 +353,8 @@ def confirmar(op, usuario=None):
                                  f'un almacén normal es liberarlo: lo hace Calidad o quien cambia el estado del stock.')
     entrada_cod = tipo.codigo_sunat_ingreso or '21'
     with transaction.atomic():
+        if tipo.codigo in ('SAL_OP', 'DEV_OP') and op.orden_imputada_id:  # el consumo va al centro de la orden
+            op.centro_costo_id = op.orden_imputada.centro_costo_id
         prefijo = PREFIJOS[tipo.clase]
         serie, numero = Serie.siguiente(prefijo, f'{prefijo}01')
         op.numero = f'{serie}-{numero}'
@@ -408,6 +415,12 @@ def confirmar(op, usuario=None):
         op.confirmado_en = timezone.now()
         op.save()
         _actualizar_vencimientos(op)
+        if tipo.codigo in ('SAL_OP', 'DEV_OP') and op.orden_imputada_id:
+            from produccion.consumo import ErrorConsumo, imputar
+            try:
+                imputar(op, usuario)
+            except ErrorConsumo as exc:
+                raise ErrorOperacion(str(exc)) from exc
     return op
 
 

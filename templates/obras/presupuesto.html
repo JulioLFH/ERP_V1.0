@@ -31,7 +31,7 @@
       <td class="text-nowrap">{{ x.item }}</td>
       <td style="padding-left:{{ x.nivel|add:1 }}em">{% if x.es_titulo %}{{ x.descripcion }}{% else %}<a href="{% url 'obras:apu' x.pk %}" class="text-reset">{{ x.descripcion }}</a>{% if x.precio_fijo %} <span class="badge text-bg-light border">sin APU</span>{% endif %}{% endif %}</td>
       <td>{{ x.unidad }}</td>
-      <td class="num">{% if not x.es_titulo %}{% if p.editable %}<input name="metrado_{{ x.pk }}" value="{{ x.metrado|stringformat:'s' }}" class="form-control form-control-sm text-end d-print-none" style="min-width:110px" inputmode="decimal"><span class="d-none d-print-inline">{{ x.metrado|floatformat:2 }}</span>{% else %}{{ x.metrado|floatformat:2 }}{% endif %}{% endif %}</td>
+      <td class="num">{% if not x.es_titulo %}{% if p.editable %}<input name="metrado_{{ x.pk }}" value="{{ x.metrado|editable }}" class="form-control form-control-sm text-end d-print-none" style="min-width:110px" inputmode="decimal"><span class="d-none d-print-inline">{{ x.metrado|floatformat:2 }}</span>{% else %}{{ x.metrado|floatformat:2 }}{% endif %}{% endif %}</td>
       <td class="num">{% if not x.es_titulo %}{{ x.precio|money }}{% endif %}</td>
       <td class="num">{{ x.parcial|money }}</td>
       {% if p.editable %}<td class="d-print-none"><button name="eliminar" value="{{ x.pk }}" class="btn btn-sm btn-link text-danger p-0" data-confirm="¿Eliminar {{ x.item }}{% if x.es_titulo %} con todas sus partidas{% endif %}?" title="Eliminar"><i class="bi bi-trash"></i></button></td>{% endif %}

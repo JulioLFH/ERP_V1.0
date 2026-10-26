@@ -10,7 +10,7 @@
   <thead><tr><th>Tipo</th><th>Código</th><th>Recurso</th><th>Und.</th><th class="num" style="width:160px">Precio S/ (sin IGV)</th></tr></thead>
   <tbody>{% for f in filas %}
     <tr><td class="small">{{ tipos|get_item:f.recurso.tipo }}</td><td class="small">{{ f.recurso.codigo }}</td><td>{{ f.recurso.nombre }}</td><td>{{ f.recurso.unidad }}</td>
-      <td><input name="precio_{{ f.pk }}" value="{{ f.precio|stringformat:'s' }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></td></tr>
+      <td><input name="precio_{{ f.pk }}" value="{{ f.precio|editable }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></td></tr>
   {% empty %}<tr><td colspan="5" class="text-center text-muted py-3">Los recursos aparecen al agregarlos a los análisis.</td></tr>{% endfor %}</tbody>
 </table></div></div>
 {% if p.editable and filas %}<button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar y recalcular el presupuesto</button>{% endif %}

@@ -328,7 +328,7 @@ def _momento_termino(fecha):
 
 def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, personal=None, salidas=None,
              merma_a_gasto=False, fecha_contable=None, lote_producto='', fabricacion=None, vencimiento=None,
-             lotes_insumos=None):
+             lotes_insumos=None, motivos=None):
     """Registra la producción: salen los insumos realmente consumidos y entran el producto y sus subproductos.
 
     Costo de la orden = materiales consumidos + mano de obra + máquina + CIF (+ maquila):
@@ -367,6 +367,12 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
     documento = fecha if contable != fecha else None
     personal = personal or {}
     salidas = salidas or {}
+    # MAN-14: la política de consumo (estricta, con tolerancia o libre) antes de mover el almacén
+    from .consumo import ErrorConsumo, revisar_terminar
+    try:
+        consumos = revisar_terminar(orden, consumos, cantidad_producida, usuario, motivos)
+    except ErrorConsumo as exc:
+        raise ErrorProduccion(str(exc)) from exc
     with transaction.atomic():
         lineas = list(orden.consumos.select_related('producto', 'almacen'))
         for c in lineas:
@@ -420,8 +426,11 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
                 if c.cantidad_real > permitido:
                     merma += (c.cantidad_real - permitido) * c.producto.costo_promedio
         merma = r2(merma)
-        # costo de la orden con los mismos costos promedio con que saldrán los insumos
-        materiales_est = sum((c.cantidad_real * c.producto.costo_promedio for c in lineas), D0)
+        # costo de la orden con los mismos costos promedio con que saldrán los insumos (MAN-15: lo ya despachado a la
+        # orden desde el almacén, a su costo de salida)
+        materiales_est = sum(((c.cantidad_real - c.despachado) * c.producto.costo_promedio + c.valor_despachado
+                              for c in lineas), D0)
+        despachado = sum((c.valor_despachado for c in lineas), D0)
         conjunto = materiales_est + mo + maq + cif + orden.costo_servicio - merma
         lista_salidas = list(orden.salidas.select_related('producto'))
         for s in lista_salidas:
@@ -445,17 +454,17 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
         # insumos que se consumen en otro almacén: salen con su propia operación de consumo a producción
         por_almacen = defaultdict(list)
         for c in lineas:
-            if c.cantidad_real > 0:
+            if c.cantidad_real - c.despachado > 0:  # lo ya despachado a la orden no vuelve a salir
                 por_almacen[c.almacen_id or orden.almacen_insumos_id].append(c)
         principal = orden.almacen_insumos_id
         op = Operacion.objects.create(
             tipo=tipo, fecha=contable, fecha_documento=documento, almacen_origen_id=principal,
             almacen_destino=orden.almacen_destino, referencia=orden.numero, creado_por=usuario,
-            costo_adicional=mo + maq + cif + orden.costo_servicio - merma,
+            costo_adicional=mo + maq + cif + orden.costo_servicio - merma + despachado,
             glosa=f'Orden de producción {orden.numero}: {orden.producto.nombre}')
         lotes_insumos = lotes_insumos or {}
         for c in por_almacen.pop(principal, []):
-            op.items.create(producto=c.producto, cantidad=r2(c.cantidad_real), rol='INSUMO',
+            op.items.create(producto=c.producto, cantidad=r2(c.cantidad_real - c.despachado), rol='INSUMO',
                             lote=(lotes_insumos.get(c.pk) or '').strip()[:60] if c.producto.control else '')
         lote_pt = (lote_producto or '').strip().upper()[:60] or orden.numero
         op.items.create(producto=orden.producto, cantidad=cantidad_producida, rol='PRODUCTO',
@@ -475,8 +484,8 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
                 almacen_destino_id=principal, referencia=orden.numero, creado_por=usuario,
                 glosa=f'Abastecimiento de {orden.numero}')
             for c in filas:
-                traslado.items.create(producto=c.producto, cantidad=r2(c.cantidad_real))
-                op.items.create(producto=c.producto, cantidad=r2(c.cantidad_real), rol='INSUMO')
+                traslado.items.create(producto=c.producto, cantidad=r2(c.cantidad_real - c.despachado))
+                op.items.create(producto=c.producto, cantidad=r2(c.cantidad_real - c.despachado), rol='INSUMO')
             try:
                 inv.confirmar(traslado, usuario)
             except inv.ErrorOperacion as exc:
@@ -490,7 +499,9 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
             costos[i.producto_id] = i.costo_unitario
         materiales = D0
         for c in lineas:
-            c.costo_unitario = costos.get(c.producto_id, D0)
+            del_almacen = (c.cantidad_real - c.despachado) * costos.get(c.producto_id, D0)
+            c.costo_unitario = ((del_almacen + c.valor_despachado) / c.cantidad_real).quantize(D4) \
+                if c.cantidad_real else costos.get(c.producto_id, D0)
             c.save(update_fields=['costo_unitario'])
             materiales += c.valor
         orden.costo_materiales, orden.costo_mano_obra = materiales, mo

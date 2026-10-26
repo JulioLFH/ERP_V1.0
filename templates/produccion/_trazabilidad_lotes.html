@@ -16,5 +16,10 @@
       {% for v in x.ventas %}<tr><td>{{ v.fecha|date:'d/m/Y' }}</td><td><a href="{% url 'ventas:detalle' v.venta.pk %}">{{ v.venta }}</a></td><td>{{ v.cliente.nombre }}</td><td class="num">{{ v.cantidad|money }}</td></tr>{% empty %}<tr><td colspan="4" class="text-muted">Aún no se vendió.</td></tr>{% endfor %}</tbody></table>
     </div>
   </div>
+  {% if x.movimientos %}<div class="card-body border-top pt-2">
+    <h6><i class="bi bi-arrow-left-right"></i> Todos los movimientos del lote (traslados, consumos internos y ajustes)</h6>
+    <div class="table-responsive"><table class="table table-sm small mb-0"><thead><tr><th>Fecha</th><th>Movimiento</th><th>Almacén</th><th>Concepto</th><th>Documento</th><th>Centro de costo</th><th class="num">Cantidad</th></tr></thead><tbody>
+    {% for m in x.movimientos %}<tr><td>{{ m.fecha|date:'d/m/Y' }}</td><td>{% if m.entrada %}<span class="text-success">Entrada</span>{% else %}<span class="text-danger">Salida</span>{% endif %}</td><td>{{ m.almacen.codigo|default:'—' }}</td><td>{{ m.concepto|default:'—' }}</td><td>{{ m.referencia|default:'—' }}</td><td>{{ m.centro|default:'—' }}</td><td class="num">{{ m.cantidad|money }}</td></tr>{% endfor %}</tbody></table></div>
+  </div>{% endif %}
 </div>
 {% endfor %}

@@ -148,6 +148,12 @@ class ListaMateriales(models.Model):
     lote_max = models.DecimalField('Lote hasta', max_digits=14, decimal_places=2, null=True, blank=True)
     activa = models.BooleanField('Vigente', default=True, editable=False)  # = aprobada (compatibilidad)
     observaciones = models.TextField(blank=True)
+    politica_consumo = models.CharField('Consumo en las órdenes', max_length=10, blank=True,
+                                        choices=[('', 'El de la empresa')] + [
+                                            ('LIBRE', 'Libre'), ('TOLERANCIA', 'Con tolerancia'),
+                                            ('ESTRICTO', 'Estricta (exactamente la receta)')])
+    tolerancia_consumo_pct = models.DecimalField('Tolerancia ± %', max_digits=5, decimal_places=2, null=True,
+                                                 blank=True, help_text='Vacío = la de la empresa')
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -473,6 +479,23 @@ class ConsumoOrden(models.Model):
     almacen = models.ForeignKey(Almacen, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
                                 verbose_name='Almacén de consumo')
     operacion = models.PositiveSmallIntegerField(null=True, blank=True)
+    # MAN-14 y MAN-15: material que no está en la receta, desvíos fuera de la tolerancia y salidas imputadas a la orden
+    APROBACIONES = [('', '—'), ('POR_APROBAR', 'Por aprobar'), ('APROBADO', 'Aprobado'), ('RECHAZADO', 'Rechazado')]
+    adicional = models.BooleanField('Material agregado (fuera de la receta)', default=False, editable=False)
+    sustituye = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                  verbose_name='Sustituye a')
+    motivo = models.CharField(max_length=250, blank=True)
+    aprobacion = models.CharField(max_length=11, choices=APROBACIONES, blank=True, editable=False)
+    solicitado = models.DecimalField('Cantidad pedida', max_digits=14, decimal_places=4, null=True, blank=True,
+                                     editable=False)
+    solicitado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='+', editable=False)
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+', editable=False)
+    aprobado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    despachado = models.DecimalField('Ya salió del almacén a la orden', max_digits=14, decimal_places=4, default=D0,
+                                     editable=False)
+    valor_despachado = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
 
     class Meta:
         ordering = ['id']

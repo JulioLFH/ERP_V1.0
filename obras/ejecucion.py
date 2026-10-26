@@ -126,22 +126,45 @@ def _indice_partidas(presupuesto):
     return por_item, por_desc
 
 
-def _buscar(indices, item, descripcion, sub=''):
-    por_item, por_desc = indices
+def _mismo_sub(x, sub):
+    return bool(x.subpresupuesto_id) and clave_item(x.subpresupuesto.codigo) == clave_item(sub)
+
+
+def _candidatas(indices, item, sub=''):
+    """Partidas con ese ítem; con el subpresupuesto (columna o prefijo del ítem: 001.01.01.01) si viene."""
+    por_item, _ = indices
     candidatas = por_item.get(clave_item(item), []) if item else []
-    if sub and len(candidatas) > 1:
-        candidatas = [x for x in candidatas if x.subpresupuesto_id and x.subpresupuesto.codigo == sub] or candidatas
+    if sub:
+        return [x for x in candidatas if _mismo_sub(x, sub)]
+    if not candidatas and item and '.' in item:  # OBR-28: ítem con el código del subpresupuesto delante
+        prefijo, resto = item.split('.', 1)
+        return [x for x in por_item.get(clave_item(resto), []) if _mismo_sub(x, prefijo)]
+    return candidatas
+
+
+def _elegir(indices, item, descripcion, sub=''):
+    """(partida, ambigua): por subpresupuesto + ítem; si el ítem está en varios subpresupuestos, la de igual
+    descripción o la del costo directo (no la de gastos generales); sin ítem conocido, por descripción."""
+    _, por_desc = indices
+    desc = (descripcion or '').strip().lower()
+    candidatas = _candidatas(indices, item, sub)
+    if len(candidatas) > 1 and desc:
+        candidatas = [x for x in candidatas if x.descripcion.strip().lower() == desc] or candidatas
+    if len(candidatas) > 1:
+        directas = [x for x in candidatas if not (x.subpresupuesto_id and x.subpresupuesto.es_gastos_generales)]
+        candidatas = directas or candidatas
     if len(candidatas) == 1:
-        return candidatas[0]
-    if descripcion:
-        porde = por_desc.get(descripcion.strip().lower(), [])
-        if len(porde) == 1:
-            return porde[0]
-        if candidatas:
-            porde = [x for x in candidatas if x.descripcion.strip().lower() == descripcion.strip().lower()]
-            if len(porde) == 1:
-                return porde[0]
-    return candidatas[0] if len(candidatas) == 1 else None
+        return candidatas[0], False
+    if candidatas:
+        return None, True
+    porde = por_desc.get(desc, []) if desc else []
+    if len(porde) == 1:
+        return porde[0], False
+    return None, len(porde) > 1
+
+
+def _buscar(indices, item, descripcion, sub=''):
+    return _elegir(indices, item, descripcion, sub)[0]
 
 
 def leer_project_xml(contenido):
@@ -215,15 +238,23 @@ def leer_excel_cronograma(filas, en_porcentaje=False):
 
 
 @transaction.atomic
-def importar_cronograma(presupuesto, archivo, en_porcentaje=False):
+def importar_cronograma(presupuesto, archivo, en_porcentaje=False, forzar=False):
     """Carga el cronograma del presupuesto desde el Excel (meses o inicio y fin) o el XML de MS Project; reemplaza la
-    programación de las partidas que trae. Devuelve (partidas programadas, [filas sin partida])."""
+    programación de las partidas que trae. Devuelve (partidas programadas, [filas sin partida]). Si una fila puede ser
+    de varias partidas (el mismo ítem en dos subpresupuestos, OBR-28) no reemplaza nada hasta que se confirme
+    (forzar=True: esas filas quedan sin programar)."""
     indices = _indice_partidas(presupuesto)
-    programas, no_encontradas = {}, []
+    programas, no_encontradas, ambiguas = {}, [], []
+
+    def buscar(indices, item, desc, sub=''):  # como _buscar, y anota las filas ambiguas
+        p, dudosa = _elegir(indices, item, desc, sub)
+        if dudosa:
+            ambiguas.append(f'{item} {desc}'.strip())
+        return p
     archivo.seek(0)
     if archivo.name.lower().endswith('.xml'):
         for item, desc, inicio, fin, outline in leer_project_xml(archivo.read()):
-            p = _buscar(indices, item, desc) or (_buscar(indices, outline, desc) if outline else None)
+            p = buscar(indices, item, desc) or (buscar(indices, outline, desc) if outline else None)
             if p is None:
                 no_encontradas.append(f'{item} {desc}'.strip())
                 continue
@@ -241,9 +272,10 @@ def importar_cronograma(presupuesto, archivo, en_porcentaje=False):
             raise ErrorEjecucion('No se encontró el cronograma: una hoja con la columna «Ítem» y las columnas de cada '
                                  'mes (Ene-26, 2026-01…) o de Inicio y Fin.')
         for item, desc, sub, valores in leidas:
-            p = _buscar(indices, item, desc, sub)
+            p = buscar(indices, item, desc, sub)
             if p is None:
-                no_encontradas.append(f'{item} {desc}'.strip())
+                if f'{item} {desc}'.strip() not in ambiguas:
+                    no_encontradas.append(f'{item} {desc}'.strip())
                 continue
             if isinstance(valores, tuple):
                 programas[p] = repartir_lineal(p.metrado, *valores)
@@ -251,8 +283,14 @@ def importar_cronograma(presupuesto, archivo, en_porcentaje=False):
                 programas[p] = {per: (p.metrado * v / 100).quantize(Decimal('0.0001')) for per, v in valores.items()}
             else:
                 programas[p] = valores
+    if ambiguas and not forzar:
+        raise ErrorEjecucion(
+            f'No se reemplazó el cronograma: {len(ambiguas)} fila(s) pueden ser de más de una partida (el mismo ítem '
+            f'en varios subpresupuestos): {"; ".join(ambiguas[:6])}. Agregue la columna «Subpresupuesto» o escriba el '
+            f'ítem con su prefijo (001.01.01.01), o marque «Importar igual» (esas filas quedan sin programar).')
     if not programas:
         raise ErrorEjecucion('Ninguna fila coincide con las partidas del presupuesto (por ítem o descripción).')
+    no_encontradas += [f'{x} (ambigua)' for x in ambiguas]
     ProgramacionPartida.objects.filter(partida__in=list(programas)).delete()
     ProgramacionPartida.objects.bulk_create([ProgramacionPartida(partida=p, periodo=per, metrado=m)
                                              for p, meses in programas.items() for per, m in meses.items() if m])

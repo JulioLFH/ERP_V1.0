@@ -15,11 +15,11 @@
 <div class="card mb-3"><div class="card-body"><div class="row g-2 align-items-end">
   <div class="col-md-5"><label class="form-label small mb-1">Partida</label><input name="descripcion" value="{{ partida.descripcion }}" class="form-control form-control-sm" {% if not p.editable %}disabled{% endif %}></div>
   <div class="col-md-1"><label class="form-label small mb-1">Und.</label><input name="unidad" value="{{ partida.unidad }}" class="form-control form-control-sm" {% if not p.editable %}disabled{% endif %}></div>
-  <div class="col-md-2"><label class="form-label small mb-1">Metrado</label><input name="metrado" value="{{ partida.metrado|stringformat:'s' }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></div>
-  <div class="col-md-2"><label class="form-label small mb-1">Rendimiento ({{ partida.unidad }}/día)</label><input name="rendimiento" value="{{ partida.rendimiento|stringformat:'s' }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></div>
-  <div class="col-md-2"><label class="form-label small mb-1">Jornada (h)</label><input name="jornada" value="{{ partida.jornada|stringformat:'s' }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Metrado</label><input name="metrado" value="{{ partida.metrado|editable }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Rendimiento ({{ partida.unidad }}/día)</label><input name="rendimiento" value="{{ partida.rendimiento|editable }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></div>
+  <div class="col-md-2"><label class="form-label small mb-1">Jornada (h)</label><input name="jornada" value="{{ partida.jornada|editable }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></div>
   <div class="col-md-3"><div class="form-check"><input type="checkbox" name="precio_fijo" id="precio-fijo" class="form-check-input" {% if partida.precio_fijo %}checked{% endif %} {% if not p.editable %}disabled{% endif %}><label class="form-check-label small" for="precio-fijo">Precio sin análisis (partida global)</label></div></div>
-  <div class="col-md-2" id="caja-precio-fijo" {% if not partida.precio_fijo %}hidden{% endif %}><label class="form-label small mb-1">Precio sin análisis</label><input name="precio" value="{{ partida.precio|stringformat:'s' }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></div>
+  <div class="col-md-2" id="caja-precio-fijo" {% if not partida.precio_fijo %}hidden{% endif %}><label class="form-label small mb-1">Precio sin análisis</label><input name="precio" value="{{ partida.precio|editable }}" class="form-control form-control-sm text-end" {% if not p.editable %}disabled{% endif %}></div>
   <div class="col-md-7 text-end"><div class="small text-muted">Costo unitario directo por {{ partida.unidad }}</div><div class="fs-4 fw-bold">S/ {{ partida.precio|money }}</div></div>
 </div></div></div>
 
@@ -30,9 +30,9 @@
     <tr class="table-light fw-semibold small"><td colspan="{% if p.editable %}8{% else %}7{% endif %}">{{ g.grouper }}</td></tr>
     {% for f in g.list %}{% with l=f.linea %}
     <tr><td class="small">{{ l.recurso.codigo }}</td><td>{{ l.recurso.nombre }}</td><td>{{ l.recurso.unidad }}</td>
-      <td>{% if l.recurso.tipo == 'MO' or l.recurso.tipo == 'EQ' %}<input name="cuadrilla_{{ l.pk }}" value="{{ l.cuadrilla|default_if_none:''|stringformat:'s' }}" class="form-control form-control-sm text-end" style="min-width:90px" {% if not p.editable %}disabled{% endif %}>{% endif %}</td>
+      <td>{% if l.recurso.tipo == 'MO' or l.recurso.tipo == 'EQ' %}<input name="cuadrilla_{{ l.pk }}" value="{{ l.cuadrilla|default_if_none:''|editable }}" class="form-control form-control-sm text-end" style="min-width:90px" {% if not p.editable %}disabled{% endif %}>{% endif %}</td>
       <td><input name="cantidad_{{ l.pk }}" value="{{ f.aporte_txt }}" class="form-control form-control-sm text-end" style="min-width:100px" title="{% if l.cuadrilla is not None %}Con cuadrilla: cuadrilla × jornada / rendimiento{% else %}Aporte por {{ partida.unidad }}{% endif %}" {% if not p.editable or l.cuadrilla is not None and partida.rendimiento %}readonly{% endif %}></td>
-      <td>{% if l.recurso.es_porcentaje_mo %}<span class="small text-muted">{{ f.precio|money }} (MO)</span>{% else %}<input name="precio_{{ l.pk }}" value="{{ f.precio|stringformat:'s' }}" class="form-control form-control-sm text-end" style="min-width:100px" title="Precio del recurso en todo el presupuesto" {% if not p.editable %}disabled{% endif %}>{% endif %}</td>
+      <td>{% if l.recurso.es_porcentaje_mo %}<span class="small text-muted">{{ f.precio|money }} (MO)</span>{% else %}<input name="precio_{{ l.pk }}" value="{{ f.precio|editable }}" class="form-control form-control-sm text-end" style="min-width:100px" title="Precio del recurso en todo el presupuesto" {% if not p.editable %}disabled{% endif %}>{% endif %}</td>
       <td class="num">{{ f.parcial|money }}</td>
       {% if p.editable %}<td class="text-center"><input type="checkbox" name="quitar_{{ l.pk }}" class="form-check-input"></td>{% endif %}</tr>
     {% endwith %}{% endfor %}

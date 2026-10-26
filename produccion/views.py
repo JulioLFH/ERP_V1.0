@@ -143,7 +143,14 @@ def orden_detalle(request, pk):
         from inventario.estados import vencimiento_propuesto
         hoy_ = timezone.localdate()
         orden.vence_propuesto = vencimiento_propuesto(orden.producto, hoy_)
-    ctx = {'o': orden, 'filas': filas, 'horas': horas, 'abierta': abierta, 'trabajadores': trabajadores,
+    from core.models import Empresa
+
+    from .consumo import politica
+    modo, tol = politica(orden)
+    textos = dict(Empresa.POLITICAS_CONSUMO)
+    ctx = {'politica': (modo, tol), 'politica_texto': (textos.get(modo, modo).split(':')[0].lower() + (
+        f' (± {tol:g} %)' if modo == 'TOLERANCIA' else '')),
+           'o': orden, 'filas': filas, 'horas': horas, 'abierta': abierta, 'trabajadores': trabajadores,
            'salidas': list(orden.salidas.select_related('producto')), 'ahora': timezone.localtime(),
            'faltan': any(f['faltante'] > 0 for f in filas) and orden.estado != 'TERMINADA',
            'hoy': timezone.localdate(), 'avance': avance,
@@ -219,12 +226,49 @@ def orden_terminar(request, pk):
                                salidas=salidas, merma_a_gasto=request.POST.get('merma_a_gasto') == '1',
                                fecha_contable=request.POST.get('fecha_contable') or None,
                                lote_producto=request.POST.get('lote_producto', ''), fabricacion=_dia('fabricacion'),
-                               vencimiento=_dia('vencimiento'), lotes_insumos=lotes_insumos)
+                               vencimiento=_dia('vencimiento'), lotes_insumos=lotes_insumos,
+                               motivos={c.pk: request.POST.get(f'motivo_{c.pk}', '') for c in orden.consumos.all()})
             messages.success(request, f'Orden {orden.numero} terminada: ingresaron {orden.cantidad_producida:,.2f} '
                                       f'{orden.producto.unidad} de {orden.producto.nombre} al almacén.')
         except (servicios.ErrorProduccion, KardexCerrado) as exc:
             messages.error(request, f'No se pudo terminar: {exc}')
     return redirect('manufactura:orden', pk)
+
+
+@login_required
+def orden_material(request, pk):
+    """MAN-14: material fuera de la receta en una orden abierta (permiso, motivo y aprobación según la política)."""
+    from core.models import Producto
+
+    from . import consumo
+    from .models import ConsumoOrden
+    orden = get_object_or_404(OrdenProduccion, pk=pk)
+    if request.method == 'POST':
+        try:
+            c = consumo.agregar_material(
+                orden, Producto.objects.filter(pk=request.POST.get('producto') or 0).first(),
+                _decimal(request.POST.get('cantidad'), None), request.POST.get('motivo', ''), request.user,
+                sustituye=ConsumoOrden.objects.filter(pk=request.POST.get('sustituye') or 0, orden=orden).first())
+            messages.success(request, f'{c.producto.nombre} agregado a {orden.numero}' + (
+                '.' if c.aprobacion == 'APROBADO' else ': lo aprueba otro usuario antes de terminar.'))
+        except consumo.ErrorConsumo as exc:
+            messages.error(request, str(exc))
+    return redirect('manufactura:orden', pk)
+
+
+@login_required
+def orden_consumo_resolver(request, pk):
+    from . import consumo
+    from .models import ConsumoOrden
+    c = get_object_or_404(ConsumoOrden.objects.select_related('orden', 'producto'), pk=pk)
+    if request.method == 'POST':
+        try:
+            consumo.resolver(c, request.user, request.POST.get('accion') == 'aprobar', request.POST.get('motivo', ''))
+            messages.success(request, f'Consumo de {c.producto.nombre}: '
+                                      f'{"aprobado" if request.POST.get("accion") == "aprobar" else "rechazado"}.')
+        except consumo.ErrorConsumo as exc:
+            messages.error(request, str(exc))
+    return redirect('manufactura:orden', c.orden_id)
 
 
 @login_required

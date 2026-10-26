@@ -17,7 +17,7 @@
       <thead><tr><th><input type="checkbox" class="form-check-input" id="todos"></th><th>Proveedor</th><th>Comprobante</th><th>Emisión</th><th>Cuenta BN del proveedor</th><th style="min-width:230px">Bien o servicio</th><th class="num">Detracción</th><th style="width:130px" class="num">Depositar S/</th></tr></thead>
       <tbody>
       {% for c in compras %}
-        <tr><td><input type="checkbox" class="form-check-input js-sel" data-importe="{{ c.importe|stringformat:'s' }}"></td>
+        <tr><td><input type="checkbox" class="form-check-input js-sel" data-importe="{{ c.importe|editable }}"></td>
           <td class="small">{{ c.tercero.nombre|truncatechars:35 }}<div class="text-muted">{{ c.tercero.numero_doc }}</div></td>
           <td class="small"><a href="{% url 'compras:detalle' c.pk %}">{{ c.numero_completo }}</a></td><td class="small">{{ c.fecha_emision|date:'d/m/Y' }}</td>
           <td class="small">{% if c.cuenta_bn|length == 11 %}{{ c.cuenta_bn }}{% else %}<span class="text-danger">Falta (ficha del proveedor)</span>{% endif %}</td>

@@ -21,6 +21,22 @@ def cant(valor, unidad=''):
 
 
 @register.filter
+def campo_etiqueta(form, nombre):
+    """Etiqueta de un campo del formulario (para listar sus errores)."""
+    campo = getattr(form, 'fields', {}).get(nombre)
+    return campo.label if campo is not None and campo.label else nombre
+
+
+@register.filter
+def editable(valor):
+    """Número para una casilla editable sin ceros de más (PLAT-06): 0.927000 → 0.927."""
+    from core.formato import editable as fmt
+    if isinstance(valor, Decimal):
+        return fmt(valor)
+    return '' if valor is None else str(valor)  # ids y textos quedan igual (como stringformat:'s')
+
+
+@register.filter
 def costo(valor):
     """Costo unitario con los decimales de Ajustes › Empresa (2, 4 o automático)."""
     from core.formato import costo as fmt

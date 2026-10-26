@@ -17,7 +17,7 @@
       <tbody>
       {% for d in docs %}
         <tr><td>{{ d }}</td><td>{{ d.fecha_emision|date:'d/m/Y' }}</td><td>{{ d.fecha_vencimiento|date:'d/m/Y' }}</td><td class="num">{{ d.saldo|money }}</td>
-          <td><input type="number" step="0.01" min="0" name="monto_{{ d.pk }}" class="form-control form-control-sm text-end js-monto" data-saldo="{{ d.saldo|stringformat:'s' }}"></td></tr>
+          <td><input type="number" step="0.01" min="0" name="monto_{{ d.pk }}" class="form-control form-control-sm text-end js-monto" data-saldo="{{ d.saldo|editable }}"></td></tr>
       {% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No hay comprobantes pendientes en la moneda del anticipo.</td></tr>{% endfor %}
       </tbody>
       <tfoot><tr class="fw-bold"><td colspan="4" class="text-end">Total a aplicar</td><td class="num" id="total">0.00</td></tr></tfoot>
@@ -39,7 +39,7 @@
   document.querySelectorAll('.js-monto').forEach(i => i.addEventListener('input', total));
   const b = document.getElementById('llenar');
   if (b) b.addEventListener('click', () => {
-    let resto = {{ anticipo.anticipo_disponible|stringformat:'s' }};
+    let resto = {{ anticipo.anticipo_disponible|editable }};
     document.querySelectorAll('.js-monto').forEach(i => { const v = Math.min(resto, parseFloat(i.dataset.saldo)); i.value = v > 0 ? v.toFixed(2) : ''; resto -= Math.max(v, 0); });
     total();
   });

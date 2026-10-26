@@ -115,6 +115,7 @@ class DesviacionForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         _lotes(self.fields['lote'])
         self.fields['orden'].queryset = OrdenProduccion.objects.select_related('producto').order_by('-id')
+        remoto(self.fields['orden'], 'ordenes_produccion')  # con miles de órdenes la página tardaba más de 20 s
         self.fields['estado'].choices = [c for c in Desviacion.ESTADOS if c[0] != 'CERRADA']
 
 

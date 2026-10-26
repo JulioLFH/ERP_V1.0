@@ -357,15 +357,18 @@ def valor_ganado(request, pk):
         kpis=[('Presupuesto del costo (BAC)', _s(r['bac']), ''), ('Avance (EV / BAC)', _p(r['avance_pct']), ''),
               ('SPI (plazo)', r['spi'] or '—', 'text-danger' if r['spi'] and r['spi'] < 1 else ''),
               ('CPI (costo)', r['cpi'] or '—', 'text-danger' if r['cpi'] and r['cpi'] < 1 else ''),
-              ('Costo estimado al cierre (EAC)', _s(r['eac']), ''),
+              ('Costo directo al cierre (EAC, por partida)', _s(r['eac']), ''),
+              ('EAC por índice (BAC ÷ CPI)', _s(r['eac_indice']), 'text-muted'),
               ('Variación al cierre (VAC)', _s(r['vac']), 'text-danger' if r['vac'] is not None and r['vac'] < 0
                else ''),
               ('Término estimado', r['termino_estimado'].strftime('%d/%m/%Y') if r['termino_estimado'] else '—',
                'text-danger' if r['termino_estimado'] and r['termino'] and r['termino_estimado'] > r['termino']
                else '')],
-        ayuda='PV = lo programado en el cronograma; EV = lo ejecutado (avance físico) y AC = el costo real, los tres '
-              'a precios del costo (presupuesto meta). SPI = EV/PV y CPI = EV/AC: menos de 1 es atraso o sobrecosto. '
-              'EAC = BAC/CPI; el término estimado es el plazo ÷ SPI.')
+        ayuda='PV = lo programado en el cronograma y EV = lo ejecutado (avance físico), a precios del costo '
+              '(presupuesto meta), del costo directo (sin el subpresupuesto de gastos generales); AC = el costo real '
+              'directo (el de la proyección al cierre). SPI = EV/PV y CPI = EV/AC: menos de 1 es atraso o '
+              'sobrecosto. El costo al cierre es el de la proyección por partida (el mismo en todo el sistema); el EAC '
+              'por índice (BAC ÷ CPI, sin redondear) es la referencia. El término estimado es el plazo ÷ SPI.')
 
 
 # ---------------------------------------------------------------- HR-06: escenarios del cronograma
@@ -484,14 +487,18 @@ def proyeccion(request, pk):
             ('Control por partida (con gastos generales)', reverse('obras:reporte_partidas', args=[o.pk]),
              'bi-table')], avisos=avisos,
         kpis=[('Venta sin IGV', _s(c['ingreso']), ''), ('Costo directo presupuestado', _s(t.get('bac')), ''),
-              ('Costo real a la fecha', _s(t.get('ac')), ''), ('Costo directo al cierre (EAC)', _s(t.get('eac')), ''),
+              ('Gastos generales del presupuesto', _s(c['gg']), ''),
+              ('Costo real a la fecha (directo + GG)', _s(c['costo_real']), ''),
+              ('Costo directo al cierre (EAC)', _s(t.get('eac')), ''),
               ('Margen presupuestado', _p(c['margen_presupuestado_pct']), ''),
               ('Margen proyectado', _p(c['margen_pct']), 'text-danger fw-bold' if c['bajo_meta'] else 'fw-bold'),
               ('Margen meta', _p(c['margen_meta']), '')],
-        ayuda='EAC por partida = costo real × presupuesto ÷ valor ganado (sin avance: costo real + presupuesto; '
-              'terminada: el costo real). Margen proyectado de la obra = venta sin IGV − EAC − gastos generales del '
-              'presupuesto. La tolerancia (OBR_TOLERANCIA_COSTO_PCT) y el margen meta (en la obra o el parámetro '
-              'OBR_MARGEN_META_PCT) están en Ajustes › Parámetros legales.')
+        ayuda=f'Costo directo = partidas sin el subpresupuesto de gastos generales. EAC por partida = costo real × '
+              f'presupuesto ÷ valor ganado (sin avance: costo real + presupuesto; terminada: el costo real). Margen '
+              f'proyectado = venta sin IGV − EAC − gastos generales (los del presupuesto o los reales cargados a sus '
+              f'partidas, S/ {c["gg_real"]:,.2f}, el mayor). El costo real es el mismo de la cartera y del valor '
+              f'ganado. La tolerancia (OBR_TOLERANCIA_COSTO_PCT) y el margen meta (en la obra o el parámetro '
+              f'OBR_MARGEN_META_PCT) están en Ajustes › Parámetros legales.')
 
 
 # ---------------------------------------------------------------- HR-08: productividad
@@ -517,11 +524,18 @@ def productividad(request, pk):
                                                        'Rendimiento real', 'Rendimiento APU', 'Eficiencia'],
              'filas': [[x['cuadrilla'], _mes(x['periodo']), x['partida'].item, x['partida'].descripcion[:50],
                         x['horas'], x['metrado'], x['rendimiento'] or '—', x['rendimiento_apu'] or '—',
-                        _p(x['eficiencia'])] for x in r['detalle']]}],
+                        _p(x['eficiencia'])] for x in r['detalle']]},
+            {'titulo': 'Avance sin horas de tareo (no cuenta en la productividad)',
+             'nota': 'Avance físico de semanas en que la partida no tiene horas en el tareo: lo ejecutó un '
+                     'subcontrato o equipo, o falta registrar el tareo.',
+             'columnas': ['Semana del', 'Ítem', 'Partida', 'Und.', 'Metrado'],
+             'filas': [[x['semana'].strftime('%d/%m/%Y'), x['partida'].item, x['partida'].descripcion[:50],
+                        x['partida'].unidad, x['metrado']] for x in r['sin_horas']]}],
         por_seccion=True, botones=[('Tareo', reverse('obras:tareo', args=[o.pk]), 'bi-person-lines-fill')]
         + _obra_botones(o), avisos=avisos,
-        ayuda='Horas del tareo (normales y extra) por cuadrilla y partida; el metrado del avance físico del mes se '
-              'reparte entre las cuadrillas según sus horas en esa partida. Eficiencia = horas del APU × metrado ÷ '
+        ayuda='Horas del tareo (normales y extra) por cuadrilla y partida; el metrado del avance físico de cada semana '
+              'se reparte entre las cuadrillas según sus horas en esa partida esa semana (el avance de semanas sin '
+              'horas se lista aparte). Eficiencia = horas del APU × metrado ÷ '
               'horas reales: más de 100 % rinde mejor que el análisis.')
 
 
@@ -655,16 +669,20 @@ def rentabilidad(request):
         {'titulo': 'Por cliente', 'columnas': ['Cliente'] + cab, 'filas': grupo(r['clientes'])},
         {'titulo': 'Por tipo de proyecto', 'columnas': ['Tipo'] + cab, 'filas': grupo(r['tipos'])},
         {'titulo': 'Por obra', 'columnas': ['Obra', 'Cliente', 'Tipo', 'Estado', 'Ingreso S/', 'Costo real S/',
-                                            'Margen S/', 'Margen %', 'Margen proyectado al cierre'],
+                                            'Margen S/', 'Margen %', 'Margen proyectado al cierre',
+                                            'Gastos contables con su centro S/ (referencia)'],
          'filas': [[{'texto': f'{f["obra"].codigo} {f["obra"].nombre[:40]}',
                      'url': reverse('obras:ejecucion', args=[f['obra'].pk])},
                     f['obra'].cliente.nombre[:30] if f['obra'].cliente_id else '—',
                     f['obra'].get_tipo_display().split(' (')[0], f['obra'].get_estado_display(), f['ingreso'],
-                    f['costo'], f['margen'], _p(f['margen_pct']), _p(f['proyectado_pct'])] for f in r['obras']]}],
+                    f['costo'], f['margen'], _p(f['margen_pct']), _p(f['proyectado_pct']), f['contable']]
+                   for f in r['obras']]}],
         por_seccion=True, selects=_selects_obra_tipo(request),
         ayuda='Ingreso = lo valorizado sin IGV (o las ventas con el centro de costo de la obra); costo real = '
-              'planillas, partes de equipo, subcontratos y materiales consumidos, o los gastos contables con su '
-              'centro de costo (el mayor de los dos). El margen proyectado sale de la proyección al cierre.')
+              'planillas, partes de equipo, subcontratos y materiales consumidos (el mismo de la cartera, el valor '
+              'ganado y la proyección); solo si la obra no tiene ninguno, los gastos contables con su centro de costo. '
+              'La última columna muestra esos gastos contables como referencia. El margen proyectado sale de la '
+              'proyección al cierre.')
 
 
 # ---------------------------------------------------------------- HR-15 y HR-17: flujo de caja del proyecto
@@ -704,6 +722,77 @@ def flujo_proyecto(request, pk):
               'cobrar y por pagar en su vencimiento, valorizaciones del cronograma (fin de mes + aprobación + crédito '
               'del cliente, con IGV, menos amortización y fondo de garantía) y el costo programado a precio de la meta. '
               'Las valorizaciones proyectadas también entran al flujo de caja de la empresa (Finanzas).')
+
+
+# ---------------------------------------------------------------- SRV-05: consorcio
+class SocioForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        from .models import SocioConsorcio
+        model = SocioConsorcio
+        fields = ['tercero', 'nombre', 'ruc', 'participacion_pct', 'es_la_empresa', 'operador']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from core.forms import remoto
+        remoto(self.fields['tercero'], 'terceros')
+        self.fields['tercero'].required = False
+
+    def clean(self):
+        d = super().clean()
+        if not d.get('tercero') and not (d.get('nombre') or '').strip():
+            raise forms.ValidationError('Elija el socio en contactos o escriba su razón social.')
+        if d.get('participacion_pct') is not None and not 0 < d['participacion_pct'] <= 100:
+            self.add_error('participacion_pct', 'La participación va de 0 a 100 %.')
+        return d
+
+
+@login_required
+def consorcio(request, pk):
+    from .models import SocioConsorcio
+    o = get_object_or_404(Obra.objects.select_related('cliente'), pk=pk)
+    form = SocioForm()
+    if request.method == 'POST':
+        if request.POST.get('accion') == 'quitar':
+            SocioConsorcio.objects.filter(pk=request.POST.get('socio'), obra=o).delete()
+            return redirect('obras:consorcio', pk)
+        form = SocioForm(request.POST)
+        if form.is_valid():
+            s = form.save(commit=False)
+            s.obra = o
+            s.save()
+            messages.success(request, f'Socio {s} agregado ({s.participacion_pct} %).')
+            return redirect('obras:consorcio', pk)
+    desde, hasta = _fecha(request.GET.get('desde')), _fecha(request.GET.get('hasta'))
+    r = g.consorcio(o, desde, hasta)
+    avisos = []
+    if r['socios'] and r['suma'] != 100:
+        avisos.append(('warning', f'Las participaciones suman {r["suma"]} %: deben sumar 100 %.'))
+    lic = getattr(o, 'licitacion', None)
+    if not r['socios'] and lic is not None and lic.consorcio:
+        avisos.append(('info', f'La licitación se postuló en consorcio con «{lic.consorciados}» y nuestra participación '
+                               f'es {lic.participacion_pct} %: registre aquí a cada socio con su %.'))
+    filas = [[str(f['socio']) + (' (nuestra empresa)' if f['socio'].es_la_empresa else '') +
+              (' · operador' if f['socio'].operador else ''),
+              f['socio'].tercero.numero_doc if f['socio'].tercero_id else f['socio'].ruc or '—', _p(f['pct']),
+              f['ventas'], f['igv_ventas'], f['compras'], f['igv_compras'], f['igv_neto'], f['costo'], f['resultado'],
+              {'texto': 'Quitar', 'post': '', 'campo': 'socio', 'valor': f['socio'].pk, 'extra': {'accion': 'quitar'},
+               'confirmar': f'¿Quitar a {f["socio"]} del consorcio?'}] for f in r['filas']]
+    v, c = r['ventas'], r['compras']
+    return responder(
+        request, f'Consorcio · {o.codigo} {o.nombre}', [{
+            'titulo': 'Atribución por socio', 'columnas': [
+                'Socio', 'RUC', 'Participación', 'Ventas sin IGV S/', 'IGV de ventas S/', 'Compras sin IGV S/',
+                'IGV de compras S/', 'IGV neto S/', 'Costo real S/', 'Resultado S/', ''], 'filas': filas}],
+        form=form, form_titulo='Agregar un socio del consorcio', rango=(desde, hasta), avisos=avisos,
+        botones=_obra_botones(o),
+        kpis=[('Ventas sin IGV', _s(v['base_pen']), ''), ('IGV de ventas', _s(v['igv_pen']), ''),
+              ('Compras sin IGV', _s(c['base_pen']), ''), ('IGV de compras', _s(c['igv_pen']), ''),
+              ('Costo real', _s(r['costo']), ''), ('Participaciones', _p(r['suma']), '')],
+        ayuda=f'Ventas: facturas de valorizaciones y adelantos de la obra y las emitidas con su centro de costo '
+              f'({r["docs_ventas"]}); compras: las registradas con su centro de costo ({r["docs_compras"]}); costo real: '
+              f'el de la proyección. Cada socio recibe su % (atribución de ingresos, costos e IGV). Si el consorcio '
+              f'lleva contabilidad independiente, este reporte es la base para registrarla; confirme el tratamiento '
+              f'con su contador.')
 
 
 # ---------------------------------------------------------------- HR-20: predicción

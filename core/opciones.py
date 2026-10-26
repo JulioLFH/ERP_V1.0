@@ -49,7 +49,16 @@ def _facturas_comerciales():
     return [[pk, f'{nombres[t]} {s}-{n} · {nom[:40]} · {f:%d/%m/%Y}'] for pk, t, s, n, nom, f in qs]
 
 
+def _ordenes_produccion():
+    """Órdenes de producción para las desviaciones (pueden ser decenas de miles: la página no las trae)."""
+    from produccion.models import OrdenProduccion
+    return [[pk, f'{n or "(borrador)"} · {c} {p[:50]} · {f:%d/%m/%Y}'] for pk, n, c, p, f in
+            OrdenProduccion.objects.order_by('-id').values_list('pk', 'numero', 'producto__codigo', 'producto__nombre',
+                                                                'fecha')]
+
+
 FUENTES = {
+    'ordenes_produccion': _ordenes_produccion,
     'productos': lambda: _productos(),
     'productos_venta': lambda: _productos(puede_venderse=True),
     'productos_bienes': lambda: _productos(tipo='BIEN'),
@@ -75,6 +84,7 @@ MODULOS = {  # quién puede pedir cada lista (además del administrador)
                 'requerimientos', 'rendiciones'},
     'ventas': {'ventas', 'logistica', 'tesoreria', 'finanzas'}, 'compras': {'compras', 'tesoreria', 'finanzas'},
     'facturas_comerciales': {'compras'},
+    'ordenes_produccion': {'manufactura', 'control_calidad', 'calidad', 'planificacion', 'inventario'},
 }
 
 
@@ -253,6 +263,6 @@ def opciones(request, fuente):
     resp = JsonResponse(FUENTES[fuente](), safe=False, json_dumps_params={'ensure_ascii': False,
                                                                          'separators': (',', ':')})
     # las listas de comprobantes cambian al registrar uno: sin caché (una factura recién registrada debe aparecer)
-    resp['Cache-Control'] = ('no-store' if fuente in ('compras', 'ventas', 'facturas_comerciales')
+    resp['Cache-Control'] = ('no-store' if fuente in ('compras', 'ventas', 'facturas_comerciales', 'ordenes_produccion')
                              else 'private, max-age=120')
     return resp

@@ -16,7 +16,7 @@
       <td class="fw-semibold">{{ f.l.ubicacion|default:'—' }}</td><td>{{ f.l.producto.codigo }} {{ f.l.producto.nombre }}</td>
       <td class="num">{{ f.l.cantidad|money }} {{ f.l.producto.unidad }}</td><td class="num">{{ f.stock|money }}</td>
       <td class="small">{% for n, c in f.l.detalle.items %}{{ n }}: {{ c }}{% if not forloop.last %} · {% endif %}{% endfor %}</td>
-      <td class="num">{% if o.estado == 'ABIERTA' %}<input name="prep_{{ f.l.pk }}" placeholder="{{ f.l.cantidad|stringformat:'s' }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ f.l.preparada|money }}{% endif %}</td></tr>{% endfor %}</tbody>
+      <td class="num">{% if o.estado == 'ABIERTA' %}<input name="prep_{{ f.l.pk }}" placeholder="{{ f.l.cantidad|editable }}" class="form-control form-control-sm text-end" inputmode="decimal">{% else %}{{ f.l.preparada|money }}{% endif %}</td></tr>{% endfor %}</tbody>
   </table></div>
   {% if o.estado == 'ABIERTA' and puede.inventario_operar %}<div class="card-body py-2 d-flex gap-2">
     <button name="accion" value="preparar" class="btn btn-sm btn-success"><i class="bi bi-check2-all"></i> Confirmar lo recogido</button>
