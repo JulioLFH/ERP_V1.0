@@ -3,6 +3,12 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.93.0 — 27/10/2026 · Declaración de producción de arriba abajo
+- **Orden de producción (MAN-23)**: quien declara ve un solo flujo: 1) cantidad producida y fechas, 2) consumo de materiales, 3) horas y drivers. «Agregar material fuera de la receta» está junto al consumo y ya no se repite abajo. «Terminar en un paso» queda plegado como alternativa cuando también se puede declarar por turnos. Las declaraciones de producción, el historial y la auditoría pasan a la columna derecha.
+- **Fecha contable propuesta (MAN-24)**: al declarar y al terminar, la fecha contable viene con la del día (editable) y sigue a la fecha y hora del turno mientras no se cambie a mano.
+- **Consumo estándar en vivo (MAN-25)**: tabla de insumos con lo que pide la receta por unidad, el estándar para la cantidad que se escribe, lo ya entregado, lo que se descontará, el stock libre y su valor estándar; se recalcula al cambiar la cantidad, igual que las horas. Se puede elegir el lote de cada insumo con control por lote.
+- **Botones según el permiso (PLAT-17)**: «Nuevo» en las listas (almacenes, contactos, productos, series, órdenes de compra y cotizaciones) y «Nueva orden», «Nueva receta», «Nueva hoja de ruta», «Nuevo motivo» y «Crear versión» en Manufactura se muestran solo a quien puede guardar.
+
 ## v1.92.1 — 27/10/2026 · Buscador sin botón en la barra
 - **Buscador**: se quitó el botón «Buscar Ctrl K» de la barra superior. La ventana de búsqueda se abre con **Ctrl + K** desde cualquier pantalla y, en Inicio, al empezar a escribir o con la barra espaciadora (como en Odoo).
 

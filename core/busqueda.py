@@ -27,9 +27,10 @@ def _numero(texto):
     return (serie.strip(), numero.strip().lstrip('0') or numero.strip()) if numero else ('', texto)
 
 
-def puede_abrir(user, url):
+def puede_abrir(user, url, metodo='GET'):
     """¿El usuario abre esta pantalla? Las mismas reglas que el middleware: módulo, acción de la ruta (GET) y la
-    pantalla no oculta ni de sueldos o saldos que no ve."""
+    pantalla no oculta ni de sueldos o saldos que no ve. Con metodo='POST': ¿puede además guardar en ella? (PLAT-17:
+    los botones «Nuevo» se muestran solo a quien puede guardar)."""
     if user.is_superuser:
         return True
     try:
@@ -43,7 +44,7 @@ def puede_abrir(user, url):
     if permitidos is not None and not set(permitidos) & modulos_del_usuario(user):
         return False
     request = HttpRequest()
-    request.method, request.path, request.user, request.resolver_match = 'GET', url.partition('?')[0], user, match
+    request.method, request.path, request.user, request.resolver_match = metodo, url.partition('?')[0], user, match
     request.GET = QueryDict(url.partition('?')[2])
     try:
         accion = accion_de_ruta(match, request)

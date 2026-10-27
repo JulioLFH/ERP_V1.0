@@ -5,7 +5,7 @@
   <h1 class="page-title">Órdenes de producción</h1>
   <div class="d-flex gap-2">
     <a href="{% url 'manufactura:requerimiento' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-basket"></i> Requerimiento de materiales{% if pendientes %} <span class="badge text-bg-primary">{{ pendientes }}</span>{% endif %}</a>
-    <a href="{% url 'manufactura:orden_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva orden</a>
+    {% if puede.manufactura_ordenes %}<a href="{% url 'manufactura:orden_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva orden</a>{% endif %}
   </div>
 </div>
 <div class="card">

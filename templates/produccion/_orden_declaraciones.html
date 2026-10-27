@@ -1,0 +1,15 @@
+{% load erp_tags %}
+{# MAN-23: las declaraciones del turno en la columna derecha, junto al historial #}
+{% if declaraciones %}
+<div class="card mb-3"><div class="card-header"><i class="bi bi-list-ol"></i> Declaraciones de producción</div>
+  <ul class="list-group list-group-flush small">{% for d in declaraciones %}
+    <li class="list-group-item {% if d.anulada %}text-muted{% endif %}">
+      <div class="d-flex justify-content-between gap-2 {% if d.anulada %}text-decoration-line-through{% endif %}"><span><b>D{{ d.numero }}</b> · {{ d.cantidad|money }} {{ o.producto.unidad }}{% if d.lote %} · lote {{ d.lote }}{% endif %}</span><span class="text-muted text-nowrap">{{ d.momento|date:'d/m/Y H:i' }}</span></div>
+      {% if d.fecha != d.momento.date %}<div class="text-muted">Fecha contable {{ d.fecha|date:'d/m/Y' }}</div>{% endif %}
+      {% if ver_costos %}<div class="text-muted">Estándar S/ {{ d.valor_estandar|money }} · materiales {{ d.materiales|money }} · horas {{ d.costo_horas|money }}</div>{% endif %}
+      <div>{% if d.ingreso %}{% if 'inventario' in mods %}<a href="{% url 'inventario:detalle' d.ingreso_id %}">{{ d.ingreso.numero }}</a>{% else %}{{ d.ingreso.numero }}{% endif %}{% endif %}{% if d.consumo %} · {% if 'inventario' in mods %}<a href="{% url 'inventario:detalle' d.consumo_id %}">{{ d.consumo.numero }}</a>{% else %}{{ d.consumo.numero }}{% endif %}{% endif %}{% if d.usuario %} · {{ d.usuario.username }}{% endif %}{% if d.anulada %} · <span class="badge text-bg-secondary">anulada</span>{% endif %}</div>
+      {% if d.nota %}<div class="text-muted">{{ d.nota }}</div>{% endif %}
+      {% if not d.anulada and o.estado in 'PARCIAL CERRADA_TEC' and puede.manufactura_ordenes %}<form method="post" action="{% url 'manufactura:declaracion_anular' d.pk %}" class="d-flex gap-1 mt-1" data-confirm="¿Anular la declaración {{ d.numero }}? Sale su lote y vuelven sus materiales (si el lote no se vendió ni consumió).">{% csrf_token %}<input name="motivo" class="form-control form-control-sm" minlength="10" required placeholder="Motivo para anular"><button class="btn btn-sm btn-outline-danger py-0" title="Anular"><i class="bi bi-x"></i></button></form>{% endif %}
+    </li>{% endfor %}</ul>
+</div>
+{% endif %}

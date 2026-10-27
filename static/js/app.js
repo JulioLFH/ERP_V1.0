@@ -277,6 +277,18 @@
   actualizar(false);
 })();
 
+// MAN-24: la fecha contable propuesta ([data-sigue-fecha="campo"]) toma el día de la fecha y hora de su formulario
+// mientras el usuario no la cambie a mano
+document.querySelectorAll('input[data-sigue-fecha]').forEach((contable) => {
+  const origen = contable.form && contable.form.elements[contable.dataset.sigueFecha];
+  if (!origen) return;
+  contable.addEventListener('input', () => { contable.dataset.editado = '1'; });
+  origen.addEventListener('input', () => {
+    const dia = (origen.value || '').slice(0, 10);
+    if (!contable.dataset.editado && /^\d{4}-\d{2}-\d{2}$/.test(dia)) contable.value = dia;
+  });
+});
+
 // Ubigeo en cascada: departamento → provincia → distrito (el valor guardado es el ubigeo del distrito)
 (function () {
   const dist = document.querySelector('select[data-ubigeo-nivel="distrito"]');

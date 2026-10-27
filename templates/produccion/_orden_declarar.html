@@ -1,0 +1,71 @@
+{% load erp_tags static %}
+{# MAN-18 / MAN-23 a MAN-25: declarar el turno de arriba abajo: qué se produjo → qué se consumió → horas y drivers #}
+<div class="card mb-3 border-primary" id="declarar"><div class="card-header"><i class="bi bi-box-arrow-in-down"></i> Declarar producción del turno</div>
+  <form method="post" action="{% url 'manufactura:orden_declarar' o.pk %}" class="card-body row g-2 align-items-end small js-declarar" data-confirm="¿Declarar esta producción? Ingresa el lote al almacén al costo estándar y se descuenta de la receta lo que falte de lo ya entregado.">{% csrf_token %}
+    <div class="col-12 fw-semibold text-primary">1. Cantidad producida</div>
+    <div class="col-md-3"><label class="form-label mb-1">Cantidad ({{ o.producto.unidad }}) <span class="text-danger">*</span></label>
+      <input name="cantidad" value="{{ saldo|editable }}" class="form-control form-control-sm text-end" inputmode="decimal" required><div class="form-text">Saldo por producir: {{ saldo|money }}</div></div>
+    <div class="col-md-3"><label class="form-label mb-1">Fecha y hora</label><input type="datetime-local" name="fecha" value="{{ ahora|date:'Y-m-d\TH:i' }}" max="{{ ahora|date:'Y-m-d\TH:i' }}" class="form-control form-control-sm"></div>
+    <div class="col-md-3"><label class="form-label mb-1">Fecha contable</label><input type="date" name="fecha_contable" value="{{ hoy|date:'Y-m-d' }}" max="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm" data-sigue-fecha="fecha"><div class="form-text">La del día; cámbiela si va a otro día o mes</div></div>
+    {% if o.producto.control == 'LOTE' %}<div class="col-md-3"><label class="form-label mb-1">Lote</label><input name="lote" maxlength="60" class="form-control form-control-sm" placeholder="Vacío = {{ o.numero }}-{{ declaraciones|length|add:1 }}"></div>
+    <div class="col-md-3"><label class="form-label mb-1">Fabricación</label><input type="date" name="fabricacion" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+    <div class="col-md-3"><label class="form-label mb-1">Vencimiento</label><input type="date" name="vencimiento" class="form-control form-control-sm"><div class="form-text">Vacío = fabricación + vida útil</div></div>{% endif %}
+
+    <div class="col-12 fw-semibold text-primary mt-3">2. Consumo de materiales</div>
+    <div class="col-12">
+      <div class="table-responsive"><table class="table table-sm align-middle mb-1 js-consumo-std" data-producido="{{ o.cantidad_producida|stringformat:'s' }}">
+        <thead><tr><th>Insumo</th><th>U.M.</th><th class="num" title="Lo que pide la receta por cada unidad producida">Por unidad</th><th class="num" title="Receta × la cantidad que declara">Estándar</th><th class="num" title="Ya salió del almacén a la orden o se descontó en declaraciones anteriores">Entregado</th><th class="num" title="Lo que falta para la receta de todo lo declarado: sale del almacén al declarar">Se descontará</th><th class="num" title="Stock libre del almacén de consumo; aparte, lo que está en calidad, bloqueado o vencido (no sale)">Stock libre</th>{% if ver_costos %}<th class="num" title="Estándar × precio estándar del insumo">Valor S/</th>{% endif %}</tr></thead>
+        <tbody>{% for m in consumo_std %}{% with c=m.consumo %}
+          <tr class="js-insumo" data-por-unidad="{{ m.por_unidad|stringformat:'s' }}" data-entregado="{{ m.entregado|stringformat:'s' }}" data-precio="{{ m.precio|stringformat:'s' }}" data-automatico="{% if m.automatico %}1{% endif %}">
+          <td>{{ c.producto.codigo }} {{ c.producto.nombre }}{% if c.adicional %} <span class="badge text-bg-info">agregado</span>{% if c.sustituye %} <span class="text-muted">sustituye a {{ c.sustituye.producto.nombre }}</span>{% endif %}{% endif %}
+            {% if c.aprobacion == 'POR_APROBAR' %}<span class="badge text-bg-warning">por aprobar: {{ c.solicitado|cant:c.producto.unidad }}</span>{% elif c.aprobacion == 'RECHAZADO' %}<span class="badge text-bg-danger">rechazado</span>{% endif %}
+            {% if c.modo == 'SALIDA' %}<div class="text-muted">Solo por salida de almacén</div>{% endif %}
+            {% if c.motivo %}<div class="text-muted">{{ c.motivo }}</div>{% endif %}
+            {% if c.aprobacion == 'POR_APROBAR' and puede.manufactura_aprobar_consumo %}<div class="d-flex gap-1 mt-1"><button form="resolver-{{ c.pk }}" name="accion" value="aprobar" class="btn btn-sm btn-outline-success py-0">Aprobar</button><button form="resolver-{{ c.pk }}" name="accion" value="rechazar" class="btn btn-sm btn-outline-danger py-0">Rechazar</button></div>{% endif %}
+            {% if c.producto.control and m.automatico %}<select name="dlote_{{ c.pk }}" class="form-select form-select-sm mt-1" title="Lote del insumo (vacío = regla de salida)"><option value="">Lote: por regla de salida</option>{% for sl in m.lotes %}<option value="{{ sl.lote.codigo }}">{{ sl.lote.codigo }}{% if sl.lote.vencimiento %} · vence {{ sl.lote.vencimiento|date:'d/m/Y' }}{% endif %} · {{ sl.cantidad|floatformat:'-2' }}</option>{% endfor %}</select>{% endif %}</td>
+          <td>{{ c.producto.unidad }}</td>
+          <td class="num">{% if c.adicional %}—{% else %}{{ m.por_unidad_txt }}{% endif %}</td>
+          <td class="num js-estandar">{% if c.adicional %}—{% else %}{{ m.estandar|floatformat:'-4' }}{% endif %}</td>
+          <td class="num">{{ m.entregado|floatformat:'-4' }}</td>
+          <td class="num fw-semibold js-descuenta">{% if m.automatico %}{{ m.descuenta|floatformat:'-4' }}{% else %}—{% endif %}</td>
+          <td class="num {% if m.faltante > 0 %}text-danger fw-semibold{% endif %}">{{ m.libre|money }}{% if m.no_disponible %}<div class="text-warning" title="En calidad, bloqueado, vencido o sin lote: no sale a producción">+ {{ m.no_disponible|money }} retenido</div>{% endif %}{% if m.sin_lote %}<div class="text-danger" title="El producto se controla por lote: regularice este stock con un ajuste que indique el lote">{{ m.sin_lote|money }} sin lote</div>{% endif %}</td>
+          {% if ver_costos %}<td class="num js-valor">{% if c.adicional %}—{% else %}{{ m.valor|money }}{% endif %}</td>{% endif %}
+        </tr>{% endwith %}{% endfor %}</tbody>
+        {% if ver_costos %}<tfoot><tr class="fw-semibold"><td colspan="7" class="text-end">Materiales al estándar para lo declarado</td><td class="num js-valor-total"></td></tr></tfoot>{% endif %}
+      </table></div>
+      <div class="form-text">Estándar = receta × la cantidad que escribe (se recalcula al cambiarla). Lo entregado por almacén (salida a orden de producción) cuenta para la receta: se descuenta solo lo que falte y puede no descontarse nada. Consumo: {{ politica_texto }}.</div>
+      {% if puede.manufactura_consumo_adicional %}
+      <button type="button" class="btn btn-sm btn-outline-secondary mt-1" data-bs-toggle="collapse" data-bs-target="#agregar-material"><i class="bi bi-plus-square"></i> Agregar material fuera de la receta</button>
+      <div class="collapse" id="agregar-material"><div class="border rounded p-2 mt-2 row g-2 align-items-end mx-0">
+        {# los campos son del formulario «form-material» (fuera de este): no se envían con la declaración #}
+        <div class="col-md-4"><label class="form-label mb-1">Material</label><select name="producto" form="form-material" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'productos_bienes' %}" required><option value="">---------</option></select></div>
+        <div class="col-md-2"><label class="form-label mb-1">Cantidad</label><input name="cantidad" form="form-material" class="form-control form-control-sm text-end" inputmode="decimal" required></div>
+        <div class="col-md-3"><label class="form-label mb-1">Sustituye a (opcional)</label><select name="sustituye" form="form-material" class="form-select form-select-sm"><option value="">— no sustituye —</option>{% for f in filas %}{% if not f.consumo.adicional %}<option value="{{ f.consumo.pk }}">{{ f.consumo.producto.nombre }}</option>{% endif %}{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label mb-1">Motivo</label><input name="motivo" form="form-material" class="form-control form-control-sm" required minlength="5" placeholder="Sustituto, reproceso, merma…"></div>
+        <div class="col-12 d-flex gap-2 align-items-center"><button form="form-material" class="btn btn-sm btn-outline-primary text-nowrap"><i class="bi bi-plus-lg"></i> Agregar</button><span class="text-muted">{% if politica.0 == 'LIBRE' %}Con la política libre queda aprobado.{% else %}Lo aprueba otro usuario con «Aprobar consumos» antes de declarar.{% endif %} Entra al costo real de la orden y a su variación frente al estándar.</span></div>
+      </div></div>
+      {% endif %}
+    </div>
+
+    <div class="col-12 fw-semibold text-primary mt-3">3. Horas y drivers</div>
+    {% if filas_cargo %}
+    <div class="col-12">
+      {% for h in horas %}<input type="hidden" name="cargo-op-{{ h.pk }}" value="1">{% endfor %}
+      <label class="form-label mb-1">Horas y drivers del turno <span class="text-muted">(propuesta: la ruta × la cantidad declarada; cámbiela con lo real)</span></label>
+      <div class="table-responsive"><table class="table table-sm align-middle mb-1 js-cargos" data-siguiente="{{ filas_cargo|length }}">
+        <thead><tr><th>Operación</th><th>Driver</th><th class="num" style="width:110px">Cantidad</th><th>Unidad</th><th>Trabajador o rol (horas hombre)</th><th class="num" style="width:120px">Tarifa S/</th>{% if ver_costos %}<th class="num">Importe S/</th>{% endif %}<th></th></tr></thead>
+        <tbody>{% for f in filas_cargo %}{% include 'produccion/_fila_cargo.html' with i=f.indice %}{% endfor %}</tbody>
+      </table></div>
+      <template id="fila-cargo">{% include 'produccion/_fila_cargo.html' with i='__N__' f=None %}</template>
+      <button type="button" class="btn btn-sm btn-outline-secondary js-agregar-cargo"><i class="bi bi-plus-lg"></i> Agregar fila</button>
+      <span class="form-text ms-2">Varios trabajadores o roles: una fila de horas hombre por persona. El CIF por hora máquina del puesto se suma solo. {% if not puede.manufactura_editar_tarifas %}La tarifa la propone el puesto o el trabajador.{% endif %}</span>
+    </div>
+    {% else %}{% for h in horas %}<div class="col-md-3"><label class="form-label mb-1">H. máquina · {{ h.centro }}</label><input name="dhora_{{ h.pk }}" class="form-control form-control-sm text-end" inputmode="decimal" placeholder="{{ h.horas_saldo|floatformat:2 }}"><div class="form-text">Vacío = las de la ruta para lo declarado</div></div>{% empty %}<div class="col-12 text-muted">La receta no registra horas: el costo será solo de materiales.</div>{% endfor %}{% endif %}
+    <div class="col-md-6 mt-3"><label class="form-label mb-1">Nota</label><input name="nota" maxlength="250" class="form-control form-control-sm" placeholder="Turno, línea, observaciones"></div>
+    {% if puede.manufactura_aprobar_consumo %}<div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="autorizar" value="1" id="autorizar"><label class="form-check-label" for="autorizar">Autorizo producir por encima de lo programado más la tolerancia</label></div></div>{% endif %}
+    <div class="col-md-3"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-box-arrow-in-down"></i> Declarar</button></div>
+    <div class="col-12 text-muted">La orden queda «Parcial» y sigue en la planificación con su saldo.</div>
+  </form>
+  <script src="{% static 'js/declaracion.js' %}?v={{ erp_version }}" defer></script>
+</div>
+{% if puede.manufactura_consumo_adicional %}<form method="post" action="{% url 'manufactura:orden_material' o.pk %}" id="form-material" class="d-none">{% csrf_token %}</form>{% endif %}

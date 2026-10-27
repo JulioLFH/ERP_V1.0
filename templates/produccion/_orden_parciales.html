@@ -1,49 +1,5 @@
 {% load erp_tags static %}
-{# MAN-18 a MAN-21: declarar por turno, cierre técnico, liquidación y costos tardíos #}
-{% if puede_declarar %}
-<div class="card mb-3 border-primary" id="declarar"><div class="card-header"><i class="bi bi-box-arrow-in-down"></i> Declarar producción del turno</div>
-  <form method="post" action="{% url 'manufactura:orden_declarar' o.pk %}" class="card-body row g-2 align-items-end small" data-confirm="¿Declarar esta producción? Ingresa el lote al almacén al costo estándar y se descuenta de la receta lo que falte de lo ya entregado.">{% csrf_token %}
-    <div class="col-md-3"><label class="form-label mb-1">Cantidad ({{ o.producto.unidad }}) <span class="text-danger">*</span></label>
-      <input name="cantidad" value="{{ saldo|editable }}" class="form-control form-control-sm text-end" inputmode="decimal" required><div class="form-text">Saldo por producir: {{ saldo|money }}</div></div>
-    <div class="col-md-3"><label class="form-label mb-1">Fecha y hora</label><input type="datetime-local" name="fecha" value="{{ ahora|date:'Y-m-d\TH:i' }}" max="{{ ahora|date:'Y-m-d\TH:i' }}" class="form-control form-control-sm"></div>
-    <div class="col-md-3"><label class="form-label mb-1">Fecha contable (opcional)</label><input type="date" name="fecha_contable" max="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
-    {% if o.producto.control == 'LOTE' %}<div class="col-md-3"><label class="form-label mb-1">Lote</label><input name="lote" maxlength="60" class="form-control form-control-sm" placeholder="Vacío = {{ o.numero }}-{{ declaraciones|length|add:1 }}"></div>
-    <div class="col-md-3"><label class="form-label mb-1">Fabricación</label><input type="date" name="fabricacion" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
-    <div class="col-md-3"><label class="form-label mb-1">Vencimiento</label><input type="date" name="vencimiento" class="form-control form-control-sm"><div class="form-text">Vacío = fabricación + vida útil</div></div>{% endif %}
-    {% if filas_cargo %}
-    <div class="col-12">
-      {% for h in horas %}<input type="hidden" name="cargo-op-{{ h.pk }}" value="1">{% endfor %}
-      <label class="form-label mb-1">Horas y drivers del turno <span class="text-muted">(propuesta: la ruta × la cantidad declarada; cámbiela con lo real)</span></label>
-      <div class="table-responsive"><table class="table table-sm align-middle mb-1 js-cargos" data-siguiente="{{ filas_cargo|length }}">
-        <thead><tr><th>Operación</th><th>Driver</th><th class="num" style="width:110px">Cantidad</th><th>Unidad</th><th>Trabajador o rol (horas hombre)</th><th class="num" style="width:120px">Tarifa S/</th>{% if ver_costos %}<th class="num">Importe S/</th>{% endif %}<th></th></tr></thead>
-        <tbody>{% for f in filas_cargo %}{% include 'produccion/_fila_cargo.html' with i=f.indice %}{% endfor %}</tbody>
-      </table></div>
-      <template id="fila-cargo">{% include 'produccion/_fila_cargo.html' with i='__N__' f=None %}</template>
-      <button type="button" class="btn btn-sm btn-outline-secondary js-agregar-cargo"><i class="bi bi-plus-lg"></i> Agregar fila</button>
-      <script src="{% static 'js/declaracion.js' %}?v={{ erp_version }}" defer></script>
-      <span class="form-text ms-2">Varios trabajadores o roles: una fila de horas hombre por persona. El CIF por hora máquina del puesto se suma solo. {% if not puede.manufactura_editar_tarifas %}La tarifa la propone el puesto o el trabajador.{% endif %}</span>
-    </div>
-    {% else %}{% for h in horas %}<div class="col-md-3"><label class="form-label mb-1">H. máquina · {{ h.centro }}</label><input name="dhora_{{ h.pk }}" class="form-control form-control-sm text-end" inputmode="decimal" placeholder="{{ h.horas_saldo|floatformat:2 }}"><div class="form-text">Vacío = las de la ruta para lo declarado</div></div>{% endfor %}{% endif %}
-    <div class="col-md-6"><label class="form-label mb-1">Nota</label><input name="nota" maxlength="250" class="form-control form-control-sm" placeholder="Turno, línea, observaciones"></div>
-    {% if puede.manufactura_aprobar_consumo %}<div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="autorizar" value="1" id="autorizar"><label class="form-check-label" for="autorizar">Autorizo producir por encima de lo programado más la tolerancia</label></div></div>{% endif %}
-    <div class="col-md-3"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-box-arrow-in-down"></i> Declarar</button></div>
-    <div class="col-12 text-muted">La orden queda «Parcial» y sigue en la planificación con su saldo. El material entregado por almacén (salida a orden de producción) cuenta para la receta: se descuenta solo lo que falte y puede no descontarse nada.</div>
-  </form></div>
-{% endif %}
-{% if declaraciones %}
-<div class="card mb-3"><div class="card-header"><i class="bi bi-list-ol"></i> Declaraciones de producción</div>
-  <div class="table-responsive"><table class="table table-sm mb-0 small">
-    <thead><tr><th>N°</th><th>Fecha</th><th class="num">Cantidad</th><th>Lote</th>{% if ver_costos %}<th class="num">Estándar S/</th><th class="num">Materiales S/</th><th class="num">Horas S/</th>{% endif %}<th>Almacén</th><th>Declaró</th><th></th></tr></thead>
-    <tbody>{% for d in declaraciones %}<tr {% if d.anulada %}class="text-decoration-line-through text-muted"{% endif %}>
-      <td>{{ d.numero }}</td><td>{{ d.momento|date:'d/m/Y H:i' }}{% if d.fecha != d.momento.date %}<div class="text-muted">contable {{ d.fecha|date:'d/m/Y' }}</div>{% endif %}</td>
-      <td class="num">{{ d.cantidad|money }}</td><td>{{ d.lote|default:'—' }}</td>
-      {% if ver_costos %}<td class="num">{{ d.valor_estandar|money }}</td><td class="num">{{ d.materiales|money }}</td><td class="num">{{ d.costo_horas|money }}</td>{% endif %}
-      <td>{% if d.ingreso %}{% if 'inventario' in mods %}<a href="{% url 'inventario:detalle' d.ingreso_id %}">{{ d.ingreso.numero }}</a>{% else %}{{ d.ingreso.numero }}{% endif %}{% endif %}{% if d.consumo %} · {% if 'inventario' in mods %}<a href="{% url 'inventario:detalle' d.consumo_id %}">{{ d.consumo.numero }}</a>{% else %}{{ d.consumo.numero }}{% endif %}{% endif %}</td>
-      <td>{{ d.usuario.username|default:'' }}{% if d.nota %}<div class="text-muted">{{ d.nota }}</div>{% endif %}</td>
-      <td>{% if not d.anulada and o.estado in 'PARCIAL CERRADA_TEC' and puede.manufactura_ordenes %}<form method="post" action="{% url 'manufactura:declaracion_anular' d.pk %}" class="d-flex gap-1" data-confirm="¿Anular la declaración {{ d.numero }}? Sale su lote y vuelven sus materiales (si el lote no se vendió ni consumió).">{% csrf_token %}<input name="motivo" class="form-control form-control-sm" minlength="10" required placeholder="Motivo"><button class="btn btn-sm btn-outline-danger py-0" title="Anular"><i class="bi bi-x"></i></button></form>{% endif %}</td>
-    </tr>{% endfor %}</tbody>
-  </table></div></div>
-{% endif %}
+{# MAN-18 a MAN-21: cierre técnico, liquidación y costos tardíos (la declaración está en _orden_declarar.html y la lista de declaraciones en _orden_declaraciones.html) #}
 {% if acumulado %}
 <div class="card mb-3"><div class="card-body small row g-2">
   <div class="col-md-3"><div class="text-muted">Cargado a la orden</div><b>S/ {{ acumulado.real|money }}</b><div class="text-muted">Mat. {{ acumulado.materiales|money }} · MO {{ acumulado.mo|money }} · Máq. {{ acumulado.maquina|money }} · CIF {{ acumulado.cif|money }}</div></div>

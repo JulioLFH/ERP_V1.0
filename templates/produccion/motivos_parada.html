@@ -5,7 +5,7 @@
   <h1 class="page-title">Motivos de parada (OEE)</h1>
   <div class="d-flex gap-2">
     {% if url_carga %}<a href="{{ url_carga }}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-arrow-up"></i> Importar desde Excel</a>{% endif %}
-    <a href="{% url 'manufactura:motivo_parada_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo motivo</a>
+    {% if puede.manufactura_recetas %}<a href="{% url 'manufactura:motivo_parada_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo motivo</a>{% endif %}
   </div>
 </div>
 <div class="row g-3">

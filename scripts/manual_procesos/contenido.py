@@ -413,7 +413,11 @@ M['manufactura'] = {
             'Cada turno, <b>Declarar producción</b>: el lote entra al almacén al costo estándar y se descuenta de la '
             'receta solo lo que falte de lo ya entregado; la orden queda «Parcial» con su saldo (desde v1.88). En la '
             'tabla «Horas y drivers del turno» se cargan las horas máquina, la preparación, las horas hombre de cada '
-            'persona o rol y los kWh u otros drivers (desde v1.90).',
+            'persona o rol y los kWh u otros drivers (desde v1.90). Desde v1.93 la declaración va en orden: 1) cantidad '
+            'y fechas (la contable se propone con la del día), 2) consumo de materiales: lo que pide la receta para la '
+            'cantidad escrita, lo ya entregado y lo que se descontará (se recalcula al cambiar la cantidad), con el '
+            'lote de cada insumo y «Agregar material fuera de la receta», 3) horas y drivers. Las declaraciones y el '
+            'historial se ven a la derecha.',
             'Cuando ya no se producirá más, <b>Cierre técnico</b>: motivo del faltante y devolución del material no '
             'usado; luego <b>Liquidar</b>: la variación (real − estándar) va a los lotes en stock, al costo de ventas '
             'o, con merma anormal, a gasto. Las horas olvidadas se registran como <b>Costos tardíos</b>.',

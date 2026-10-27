@@ -13,7 +13,7 @@
     <form method="post" action="{% url 'manufactura:lista_version' lista.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="bi bi-files"></i> Copiar como nueva receta</button></form>
     {% if lista.estado == 'APROBADA' and puede.manufactura_recetas %}<a href="{% url 'manufactura:cambio_nuevo' %}?lista={{ lista.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-left-right"></i> Proponer cambio de ingeniería</a>{% endif %}
     {% if lista.estado != 'OBSOLETA' and puede.manufactura_recetas %}<form method="post" action="{% url 'manufactura:lista_obsoleta' lista.pk %}" data-confirm="¿Declarar obsoleta esta receta? Sus versiones de fabricación quedan inactivas.">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive"></i> Obsoleta</button></form>{% endif %}
-    {% if lista.estado == 'APROBADA' %}<a href="{% url 'manufactura:orden_nueva' %}?producto={{ lista.producto_id }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Orden de producción</a>{% endif %}
+    {% if lista.estado == 'APROBADA' and puede.manufactura_ordenes %}<a href="{% url 'manufactura:orden_nueva' %}?producto={{ lista.producto_id }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Orden de producción</a>{% endif %}
   </div>
 </div>
 {% for c in cambios %}<div class="alert alert-warning py-2 small"><i class="bi bi-arrow-left-right"></i> {% if c.lista_nueva_id == lista.pk %}Esta es la receta propuesta del{% else %}Esta receta tiene en curso el{% endif %} <a href="{% url 'manufactura:cambio' c.pk %}">{{ c }}</a> ({{ c.get_estado_display|lower }}).</div>{% endfor %}
@@ -33,7 +33,7 @@
   <div class="col-lg-4">
     <div class="card mb-3"><div class="card-header">Versiones de fabricación</div><ul class="list-group list-group-flush small">
       {% for v in versiones_fab %}<li class="list-group-item"><a href="{% url 'manufactura:version_editar' v.pk %}">{{ v.codigo }}</a> · {% if v.hoja %}ruta {{ v.hoja.codigo }}{% else %}<span class="text-warning">sin hoja de ruta</span>{% endif %} · {% if v.activa %}activa{% else %}inactiva{% endif %}</li>
-      {% empty %}<li class="list-group-item text-muted">Ninguna. <a href="{% url 'manufactura:version_nueva' %}">Crear versión</a></li>{% endfor %}</ul></div>
+      {% empty %}<li class="list-group-item text-muted">Ninguna.{% if puede.manufactura_recetas %} <a href="{% url 'manufactura:version_nueva' %}">Crear versión</a>{% endif %}</li>{% endfor %}</ul></div>
     {% if otras %}<div class="card mb-3"><div class="card-header">Otras recetas del producto</div><ul class="list-group list-group-flush small">
       {% for v in otras %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'manufactura:lista' v.pk %}">{{ v.codigo }}</a><span>{{ v.get_estado_display }}</span></li>{% endfor %}</ul></div>{% endif %}
     {% if ordenes %}<div class="card"><div class="card-header">Órdenes con esta receta</div><ul class="list-group list-group-flush small">

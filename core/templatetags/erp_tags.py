@@ -127,6 +127,22 @@ def bitacora(obj):
 
 
 @register.simple_tag(takes_context=True)
+def puede_guardar(context, ruta, *args):
+    """PLAT-17: {% puede_guardar 'almacen_nuevo' as ok %}: ¿el usuario puede guardar en esa pantalla? (para mostrar el
+    botón «Nuevo» solo a quien no recibirá «Acción no permitida»)."""
+    from django.urls import NoReverseMatch, reverse
+
+    from core.busqueda import puede_abrir
+    request = context.get('request')
+    if request is None or not request.user.is_authenticated:
+        return False
+    try:
+        return puede_abrir(request.user, reverse(ruta, args=args), 'POST')
+    except NoReverseMatch:
+        return False
+
+
+@register.simple_tag(takes_context=True)
 def qs(context, **kwargs):
     """Mantiene los parámetros GET actuales reemplazando los indicados."""
     params = context['request'].GET.copy()

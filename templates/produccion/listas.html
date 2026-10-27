@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title">Listas de materiales (recetas)</h1>
   {% if url_carga %}<a href="{{ url_carga }}" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-arrow-up"></i> Importar desde Excel</a>{% endif %}
-  <a href="{% url 'manufactura:lista_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva receta</a>
+  {% if puede.manufactura_recetas %}<a href="{% url 'manufactura:lista_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva receta</a>{% endif %}
 </div>
 <div class="card">
   <div class="card-body border-bottom py-2">
@@ -23,7 +23,7 @@
       <td class="small">{{ l.vigente_desde|date:'d/m/Y' }}{% if l.vigente_hasta %} – {{ l.vigente_hasta|date:'d/m/Y' }}{% endif %}</td>
       <td class="num">{{ l.versiones.all|length }}</td>
       <td><span class="badge {% if l.estado == 'APROBADA' %}text-bg-success{% elif l.estado == 'OBSOLETA' %}text-bg-secondary{% else %}text-bg-warning{% endif %}">{{ l.get_estado_display }}</span></td>
-      <td class="text-end">{% if l.estado == 'APROBADA' %}<a href="{% url 'manufactura:orden_nueva' %}?producto={{ l.producto_id }}" class="btn btn-sm btn-outline-primary py-0" data-sin-propagar><i class="bi bi-plus"></i> Orden</a>{% endif %}</td>
+      <td class="text-end">{% if l.estado == 'APROBADA' and puede.manufactura_ordenes %}<a href="{% url 'manufactura:orden_nueva' %}?producto={{ l.producto_id }}" class="btn btn-sm btn-outline-primary py-0" data-sin-propagar><i class="bi bi-plus"></i> Orden</a>{% endif %}</td>
     </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Sin recetas. Cree la lista de materiales de sus productos terminados o semielaborados.</td></tr>{% endfor %}</tbody>
   </table></div>
 </div>

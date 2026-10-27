@@ -172,6 +172,8 @@ def orden_detalle(request, pk):
     ctx['saldo'] = max(orden.cantidad - orden.cantidad_producida, Decimal('0'))
     if ctx['puede_declarar'] and horas:
         ctx.update(_tabla_cargos(orden, horas, ctx['saldo'], trabajadores or _trabajadores_activos()))
+    if ctx['puede_declarar']:
+        ctx['consumo_std'] = _consumo_estandar(orden, filas, ctx['saldo'])
     ctx['motivos_faltante'] = OrdenProduccion.MOTIVOS_FALTANTE[1:]
     ctx['costos_tardios'] = list(CostoTardio.objects.filter(Q(orden=orden) | Q(orden_destino=orden))
                                  .select_related('trabajador', 'centro', 'orden', 'orden_destino'))
@@ -196,6 +198,31 @@ def orden_detalle(request, pk):
         ctx['variaciones'] = servicios.variaciones(orden)
         ctx['por_tipo'] = orden.variaciones.all()
     return render(request, 'produccion/orden_detalle.html', ctx)
+
+
+def _consumo_estandar(orden, filas, saldo):
+    """MAN-25: por insumo, lo que la receta pide por unidad, lo que pide para lo que se declara y lo que se descontará
+    del almacén (lo que falte de lo ya entregado, como parciales.por_descontar). Propuesto para el saldo;
+    declaracion.js lo recalcula al cambiar la cantidad."""
+    D4 = Decimal('0.0001')
+    precios = servicios._estandar_para(orden)[0]
+    producido = orden.cantidad_producida
+    lineas = []
+    for f in filas:
+        c = f['consumo']
+        automatico = not c.adicional and c.modo != 'SALIDA'
+        por_unidad = (c.cantidad_plan / orden.cantidad) if orden.cantidad and not c.adicional else Decimal('0')
+        entregado = c.despachado + c.backflush
+        requerido = (por_unidad * (producido + saldo)).quantize(D4)
+        precio = precios.get(c.producto_id, (None, c.producto.costo_promedio))[1]
+        estandar = (por_unidad * saldo).quantize(D4)
+        por_unidad = por_unidad.quantize(Decimal('0.000001'))
+        lineas.append({**f, 'automatico': automatico, 'por_unidad': por_unidad,
+                       'por_unidad_txt': format(por_unidad.normalize(), 'f'),
+                       'entregado': entregado, 'precio': precio, 'estandar': estandar,
+                       'descuenta': max(requerido - entregado, Decimal('0')) if automatico else Decimal('0'),
+                       'valor': (estandar * precio).quantize(Decimal('0.01'))})
+    return lineas
 
 
 def _tabla_cargos(orden, horas, saldo, trabajadores):
