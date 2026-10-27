@@ -78,10 +78,7 @@ body { background: var(--erp-bg); font-size: .875rem; font-family: var(--bs-font
 .topnav { --mod-color: var(--hoja); background: var(--selva); padding: .35rem 0; border-bottom: 3px solid var(--mod-color); }
 .topnav .btn-apps { color: #fff; font-size: 1.15rem; margin-right: .85rem; opacity: .8; text-decoration: none; }
 .topnav .btn-apps:hover { opacity: 1; }
-/* buscador: botón de la barra y paleta (Ctrl + K) */
-.topnav .btn-buscar { color: #fff; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); }
-.topnav .btn-buscar:hover { background: rgba(255,255,255,.22); color: #fff; }
-.topnav .btn-buscar kbd { background: rgba(0,0,0,.25); font-size: .7rem; margin-left: .25rem; }
+/* buscador: paleta (Ctrl + K; en Inicio, escribir o barra espaciadora) */
 .paleta .modal-dialog { margin-top: 10vh; }
 .paleta .modal-content { overflow: hidden; }
 .paleta-cabecera { display: flex; align-items: center; gap: .5rem; padding: .6rem 1rem; border-bottom: 1px solid #e5e8ec; }

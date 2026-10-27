@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.92.1 — 27/10/2026 · Buscador sin botón en la barra
+- **Buscador**: se quitó el botón «Buscar Ctrl K» de la barra superior. La ventana de búsqueda se abre con **Ctrl + K** desde cualquier pantalla y, en Inicio, al empezar a escribir o con la barra espaciadora (como en Odoo).
+
 ## v1.92.0 — 26/10/2026 · Buscador general en todos los módulos
 - **Buscador general (como el de Odoo)**: ventana de búsqueda que se abre con **Ctrl + K** desde cualquier pantalla (o el botón «Buscar» de la barra superior) y, en Inicio, con solo empezar a escribir o presionar la barra espaciadora. Sin texto lista los módulos del usuario; al escribir muestra los menús que coinciden (sin importar tildes) y luego los registros agrupados por módulo. Flechas para moverse, Enter abre, Ctrl + Enter en una pestaña nueva, Esc cierra; «Ver todos los resultados» abre la página completa. El nombre, RUC o DNI de un cliente o proveedor trae su ficha y lo relacionado: comprobantes de venta y de compra, cotizaciones y pedidos, órdenes de compra, oportunidades del CRM, movimientos de caja y bancos, obras y asientos. Un número de documento (F001-123), código de producto, lote, voucher, asiento, orden de producción, guía, activo o trabajador trae ese registro.
 - **Con los permisos del usuario**: cada grupo aparece solo si el usuario puede abrir esa pantalla (módulo, acción y pantallas ocultas de su perfil) y respeta sus filtros por dato (solo sus ventas si es vendedor, sus centros de costo, sus cuentas de caja y bancos, su cartera del CRM). No muestra sueldos ni costos.

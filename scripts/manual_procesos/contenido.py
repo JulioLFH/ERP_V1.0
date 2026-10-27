@@ -44,7 +44,7 @@ M['tablero'] = {
             'Durante sus vacaciones, registre una suplencia (menú del usuario › <b>Suplencias</b>); lo que no se responde a tiempo escala al jefe.',
         ], 'El documento avanza al siguiente nivel o queda liberado para continuar su proceso.'),
         ('Buscar en todo el sistema', [
-            'Abra el buscador con <b>Ctrl + K</b> desde cualquier pantalla (o el botón <b>Buscar</b> de la barra superior). En <b>Inicio</b> basta con empezar a escribir o presionar la barra espaciadora.',
+            'Abra el buscador con <b>Ctrl + K</b> desde cualquier pantalla. En <b>Inicio</b> basta con empezar a escribir o presionar la barra espaciadora.',
             'Sin escribir nada ve sus módulos. Escriba el nombre de un menú (ej. «órdenes de compra»), el nombre, RUC o DNI de un cliente o proveedor, un número de documento, código de producto, lote, voucher o asiento.',
             'Muévase con las flechas y abra con <b>Enter</b> (<b>Ctrl + Enter</b> en una pestaña nueva); <b>Ver todos los resultados</b> abre la página completa.',
             'Solo aparece lo que su usuario puede abrir (sus módulos, acciones y filtros del perfil).',

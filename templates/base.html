@@ -22,9 +22,6 @@
       <a class="navbar-brand modulo-nombre text-truncate" href="{% url modulo.inicio %}"><i class="bi {{ modulo.icono }}"></i> {{ modulo.nombre }}</a>
     {% endif %}
     <ul class="navbar-nav flex-row ms-auto align-items-center">
-      {% if user.is_authenticated %}<li class="nav-item me-2 buscador-general">
-        <button type="button" class="btn btn-sm btn-buscar" data-paleta title="Buscar menús y registros (Ctrl + K)"><i class="bi bi-search"></i><span class="d-none d-md-inline ms-1">Buscar</span> <kbd class="d-none d-lg-inline">Ctrl K</kbd></button>
-      </li>{% endif %}
       <li class="nav-item d-none d-xl-block"><span class="navbar-text small me-3 opacity-75">{{ empresa.razon_social }}</span></li>
       <li class="nav-item dropdown me-1">
         <a class="nav-link position-relative px-2" href="{% url 'alertas' %}" data-bs-toggle="dropdown" id="campana" title="Alertas" data-url="{% url 'alertas_json' %}">

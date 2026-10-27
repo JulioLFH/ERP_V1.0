@@ -63,6 +63,7 @@ class BuscadorGeneralTest(TestCase):
         self.assertTrue(any(g['titulo'] == 'Contactos' for g in datos['grupos']))
         inicio = self.client.get(reverse('home'))
         self.assertContains(inicio, 'id="paleta"')
+        self.assertNotContains(inicio, 'btn-buscar')  # v1.92.1: sin botón en la barra (Ctrl + K o escribir en Inicio)
         self.assertContains(inicio, 'data-inicio')  # en Inicio se abre al escribir o con espacio
         self.assertNotContains(self.client.get(reverse('terceros')), 'data-inicio')  # en las demás, con Ctrl + K
 
