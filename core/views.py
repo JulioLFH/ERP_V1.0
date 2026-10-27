@@ -120,6 +120,23 @@ def home(request):
 
 
 @login_required
+def buscar(request):
+    """Buscador general: una palabra en todos los módulos que el usuario puede abrir (core/busqueda.py). Con
+    ?formato=json devuelve los primeros resultados para la lista que se abre mientras se escribe."""
+    from .busqueda import MINIMO, buscar as buscar_en_todo, menus
+    q = (request.GET.get('q') or '').strip()[:80]
+    if request.GET.get('formato') == 'json':  # la paleta (Ctrl + K): menús y módulos, y luego los registros
+        grupos = buscar_en_todo(request.user, q)
+        return JsonResponse({'q': q, 'menus': menus(request.user, q), 'grupos': [
+            {'titulo': g['titulo'], 'icono': g['icono'],
+             'filas': [{'texto': t, 'detalle': d, 'url': u} for t, d, u in g['filas'][:4]]} for g in grupos]})
+    grupos = buscar_en_todo(request.user, q)
+    return render(request, 'core/buscar.html', {'q': q, 'grupos': grupos, 'minimo': MINIMO,
+                                                'menus': menus(request.user, q) if q else [],
+                                                'total': sum(len(g['filas']) for g in grupos)})
+
+
+@login_required
 def empresa_config(request):
     empresa = Empresa.actual()
     form = EmpresaForm(request.POST or None, instance=empresa)

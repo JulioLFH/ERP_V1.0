@@ -60,6 +60,7 @@ urlpatterns = [
     path('facturacion-electronica/', views.facturacion_config, name='facturacion'),
     path('tipo-cambio/', views.tipos_cambio, name='tipos_cambio'),
     path('tipo-cambio/api/', views.tipo_cambio_api, name='tipo_cambio_api'),
+    path('buscar/', views.buscar, name='buscar'),
     path('terceros/', views.TerceroLista.as_view(), name='terceros'),
     path('terceros/nuevo/', views.TerceroNuevo.as_view(), name='tercero_nuevo'),
     path('terceros/<int:pk>/', views.TerceroEditar.as_view(), name='tercero_editar'),

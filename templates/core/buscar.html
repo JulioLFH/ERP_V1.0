@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Buscar{% if q %}: {{ q }}{% endif %}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0"><i class="bi bi-search"></i> Buscar en todo el sistema</h1>
+</div>
+<form method="get" class="card mb-3" style="max-width:760px"><div class="card-body d-flex gap-2">
+  <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Nombre, RUC o DNI, número de documento, código, lote…" autofocus aria-label="Texto a buscar">
+  <button class="btn btn-primary"><i class="bi bi-search"></i> Buscar</button>
+</div></form>
+{% if q and q|length < minimo %}<div class="alert alert-info small">Escriba al menos {{ minimo }} letras o números.</div>
+{% elif q %}
+  <p class="small text-muted">{{ total }} resultado(s) para «{{ q }}» en los módulos que su usuario puede abrir.</p>
+  {% if menus %}<div class="card mb-3"><div class="card-header fw-semibold"><i class="bi bi-grid-3x3-gap"></i> Menús</div>
+    <div class="list-group list-group-flush">{% for m in menus %}<a href="{{ m.url }}" class="list-group-item list-group-item-action"><i class="bi {{ m.icono }} me-2"></i>{{ m.texto }} <span class="small text-muted">· {{ m.detalle }}</span></a>{% endfor %}</div></div>{% endif %}
+  {% for g in grupos %}<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center"><span class="fw-semibold"><i class="bi {{ g.icono }}"></i> {{ g.titulo }}</span>
+    {% if g.todos %}<a href="{{ g.todos }}" class="small">Ver todos en la lista</a>{% endif %}</div>
+    <div class="list-group list-group-flush">{% for texto, detalle, url in g.filas %}<a href="{{ url }}" class="list-group-item list-group-item-action"><div class="fw-semibold">{{ texto }}</div><div class="small text-muted">{{ detalle }}</div></a>{% endfor %}</div></div>
+  {% empty %}<div class="alert alert-light border">No se encontró «{{ q }}» en los módulos de su usuario.</div>{% endfor %}
+{% else %}<div class="alert alert-light border small"><b>Busque una palabra en todos los módulos a la vez</b>: el nombre, RUC o DNI de un cliente o proveedor trae su ficha y sus comprobantes, pedidos, órdenes, cobros, pagos y oportunidades; un número de documento, código de producto, lote, voucher o asiento trae ese registro. Solo se muestra lo que su usuario puede abrir. Atajo: tecla <kbd>/</kbd> desde cualquier pantalla.</div>{% endif %}
+{% endblock %}

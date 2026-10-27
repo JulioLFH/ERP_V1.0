@@ -789,6 +789,7 @@ RUTAS_CORE = {
 }
 # Rutas abiertas a cualquier usuario autenticado
 RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'cambiar_clave', 'cambiar_clave_ok',
+                'buscar',  # buscador general: cada fuente se filtra por los permisos del usuario (core/busqueda.py)
                 'cambiar_empresa', 'novedades',  # novedades por versión: para todos los usuarios
                 'alertas', 'alertas_json',  # cada alerta ya se filtra por los módulos del usuario
                 'login_2fa', 'recuperar', 'recuperar_confirmar', 'recuperar_listo', 'seguridad',

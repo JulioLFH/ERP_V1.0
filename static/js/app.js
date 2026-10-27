@@ -535,6 +535,104 @@ document.querySelectorAll('[data-copiar]').forEach((b) => {
   });
 });
 
+// paleta de búsqueda (como la de Odoo): Ctrl + K desde cualquier pantalla y, en Inicio, empezar a escribir o la barra
+// espaciadora. Primero los módulos y opciones del menú, luego los registros (contactos, documentos…); flechas para
+// moverse, Enter abre, Ctrl + Enter en una pestaña nueva, Esc cierra
+(() => {
+  const ventana = document.getElementById('paleta');
+  if (!ventana || !window.bootstrap) return;
+  const caja = document.getElementById('paleta-q');
+  const lista = document.getElementById('paleta-lista');
+  const modal = bootstrap.Modal.getOrCreateInstance(ventana);
+  const url = ventana.dataset.url;
+  let espera = null;
+  let pedido = 0;
+  let activo = 0;
+  const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const opciones = () => [...lista.querySelectorAll('.paleta-opcion')];
+  const marcar = (n) => {
+    const o = opciones();
+    if (!o.length) return;
+    activo = (n + o.length) % o.length;
+    o.forEach((a, i) => a.classList.toggle('activa', i === activo));
+    o[activo].scrollIntoView({ block: 'nearest' });
+  };
+  const fila = (f, icono, color) => `<a class="paleta-opcion" href="${esc(f.url)}" role="option">`
+    + `<span class="paleta-icono" style="${color ? `color:${esc(color)}` : ''}"><i class="bi ${esc(icono)}"></i></span>`
+    + `<span class="paleta-texto"><span>${esc(f.texto)}</span><small>${esc(f.detalle)}</small></span>`
+    + '<span class="paleta-tecla"><kbd>Ctrl</kbd> + <kbd>↵</kbd> nueva pestaña</span></a>';
+  const mostrar = (d) => {
+    let html = '';
+    if (d.menus.length) {
+      html += (d.q ? '<div class="paleta-grupo">Menús</div>' : '') + d.menus.map((m) => fila(m, m.icono, m.color)).join('');
+    }
+    d.grupos.forEach((g) => {
+      html += `<div class="paleta-grupo"><i class="bi ${esc(g.icono)}"></i> ${esc(g.titulo)}</div>`
+        + g.filas.map((f) => fila(f, g.icono, '')).join('');
+    });
+    if (d.q && d.q.length >= 2) {
+      html += `<a class="paleta-opcion paleta-todos" href="${esc(url)}?q=${encodeURIComponent(d.q)}">`
+        + '<span class="paleta-icono"><i class="bi bi-search"></i></span>'
+        + `<span class="paleta-texto"><span>Ver todos los resultados de «${esc(d.q)}»</span></span></a>`;
+    }
+    lista.innerHTML = html || '<div class="p-3 small text-muted">Sin resultados en sus módulos.</div>';
+    marcar(0);
+  };
+  const consultar = () => {
+    clearTimeout(espera);
+    espera = setTimeout(() => {
+      const q = caja.value.replace(/^\//, '').trim();
+      const n = ++pedido;
+      fetch(`${url}?formato=json&q=${encodeURIComponent(q)}`, { headers: { Accept: 'application/json' } })
+        .then((r) => r.json()).then((d) => { if (n === pedido) mostrar(d); })
+        .catch(() => { lista.innerHTML = '<div class="p-3 small text-danger">No se pudo buscar.</div>'; });
+    }, 200);
+  };
+  let abierta = false;  // Bootstrap marca la ventana como abierta recién después de su animación
+  const abrir = (inicial = '') => {
+    if (abierta) return;
+    abierta = true;
+    caja.value = inicial;
+    modal.show();
+    consultar();
+  };
+  ventana.addEventListener('shown.bs.modal', () => { caja.focus(); const n = caja.value.length; caja.setSelectionRange(n, n); });
+  ventana.addEventListener('hidden.bs.modal', () => { abierta = false; });
+  caja.addEventListener('input', consultar);
+  caja.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); marcar(activo + 1); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); marcar(activo - 1); }
+    if (e.key === 'Enter') {
+      const o = opciones()[activo];
+      if (!o) return;
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) window.open(o.href, '_blank');
+      else window.location.href = o.href;
+    }
+  });
+  lista.addEventListener('mousemove', (e) => {
+    const o = e.target.closest('.paleta-opcion');
+    if (o) marcar(opciones().indexOf(o));
+  });
+  document.querySelectorAll('[data-paleta]').forEach((b) => b.addEventListener('click', () => abrir()));
+  const escribiendo = (t) => t.closest('input, textarea, select, [contenteditable], .modal.show');
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); abrir(); return; }
+    if (abierta && document.activeElement !== caja && e.key.length === 1
+        && !e.ctrlKey && !e.metaKey && !e.altKey) {  // lo que se escribe mientras la ventana se abre no se pierde
+      e.preventDefault();
+      caja.value += e.key;
+      caja.focus();
+      consultar();
+      return;
+    }
+    if (abierta || escribiendo(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === '/') { e.preventDefault(); abrir(); return; }
+    // en Inicio: la barra espaciadora o cualquier letra abre la paleta con lo que se empezó a escribir
+    if ('inicio' in ventana.dataset && e.key.length === 1) { e.preventDefault(); abrir(e.key === ' ' ? '' : e.key); }
+  });
+})();
+
 // OBR-32: muestra cómo se leerá el número (coma o punto decimal) antes de grabar; igual que core.formato.numero_usuario
 function numeroUsuario(texto) {
   let t = String(texto || '').replace(/[\s ']/g, '');

@@ -78,6 +78,28 @@ body { background: var(--erp-bg); font-size: .875rem; font-family: var(--bs-font
 .topnav { --mod-color: var(--hoja); background: var(--selva); padding: .35rem 0; border-bottom: 3px solid var(--mod-color); }
 .topnav .btn-apps { color: #fff; font-size: 1.15rem; margin-right: .85rem; opacity: .8; text-decoration: none; }
 .topnav .btn-apps:hover { opacity: 1; }
+/* buscador: botón de la barra y paleta (Ctrl + K) */
+.topnav .btn-buscar { color: #fff; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); }
+.topnav .btn-buscar:hover { background: rgba(255,255,255,.22); color: #fff; }
+.topnav .btn-buscar kbd { background: rgba(0,0,0,.25); font-size: .7rem; margin-left: .25rem; }
+.paleta .modal-dialog { margin-top: 10vh; }
+.paleta .modal-content { overflow: hidden; }
+.paleta-cabecera { display: flex; align-items: center; gap: .5rem; padding: .6rem 1rem; border-bottom: 1px solid #e5e8ec; }
+.paleta-cabecera input { border: 0; box-shadow: none !important; font-size: 1.05rem; padding-left: 0; }
+.paleta-cabecera i { color: #6b7785; }
+.paleta .modal-body { max-height: 60vh; }
+.paleta-grupo { padding: .45rem 1rem .2rem; font-size: .75rem; font-weight: 600; text-transform: uppercase; color: #6b7785; }
+.paleta-opcion { display: flex; align-items: center; gap: .75rem; padding: .5rem 1rem; color: inherit; text-decoration: none; }
+.paleta-opcion.activa { background: #eef6f1; }
+.paleta-icono { width: 1.9rem; height: 1.9rem; display: inline-flex; align-items: center; justify-content: center; border-radius: .4rem; background: #f3f5f8; font-size: 1.05rem; flex: none; }
+.paleta-texto { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.paleta-texto small { color: #6b7785; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.paleta-tecla { font-size: .72rem; color: #6b7785; visibility: hidden; white-space: nowrap; }
+.paleta-opcion.activa .paleta-tecla { visibility: visible; }
+.paleta-tecla kbd { background: #fff; color: #1d2b3a; border: 1px solid #cdd3da; font-size: .7rem; }
+.paleta-todos .paleta-texto span { color: var(--bs-primary); }
+.paleta-pie { padding: .5rem 1rem; font-size: .78rem; color: #5b6673; background: #f8f9fa; border-top: 1px solid #e5e8ec; }
+@media (max-width: 767.98px) { .paleta-tecla { display: none; } .paleta .modal-dialog { margin-top: 1rem; } }
 .topnav .modulo-nombre { font-weight: 600; font-size: 1rem; padding-left: .9rem; border-left: 1px solid rgba(244,246,242,.25); color: #fff; }
 .topnav .modulo-nombre i { color: var(--mod-color); filter: brightness(1.35); }
 .topnav .nav-link { color: rgba(244,246,242,.85); font-size: .875rem; }

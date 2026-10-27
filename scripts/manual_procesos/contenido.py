@@ -43,6 +43,12 @@ M['tablero'] = {
             'Apruebe, observe o rechace (con motivo). Si un nivel no tiene aprobador (sin jefe o puesto vacante), se usa el aprobador de reemplazo o pasa al siguiente nivel con aviso; el administrador ve los documentos sin aprobador.',
             'Durante sus vacaciones, registre una suplencia (menú del usuario › <b>Suplencias</b>); lo que no se responde a tiempo escala al jefe.',
         ], 'El documento avanza al siguiente nivel o queda liberado para continuar su proceso.'),
+        ('Buscar en todo el sistema', [
+            'Abra el buscador con <b>Ctrl + K</b> desde cualquier pantalla (o el botón <b>Buscar</b> de la barra superior). En <b>Inicio</b> basta con empezar a escribir o presionar la barra espaciadora.',
+            'Sin escribir nada ve sus módulos. Escriba el nombre de un menú (ej. «órdenes de compra»), el nombre, RUC o DNI de un cliente o proveedor, un número de documento, código de producto, lote, voucher o asiento.',
+            'Muévase con las flechas y abra con <b>Enter</b> (<b>Ctrl + Enter</b> en una pestaña nueva); <b>Ver todos los resultados</b> abre la página completa.',
+            'Solo aparece lo que su usuario puede abrir (sus módulos, acciones y filtros del perfil).',
+        ], 'El registro y todo lo relacionado con él, en una sola búsqueda.'),
         ('Trabajar con listas', [
             'En las listas que lo permiten (operaciones de inventario, órdenes de compra y otras), use <b>Columnas</b> para elegir qué ver; la elección se guarda por usuario.',
             'Combine filtros (fechas, almacén, centro de costo, usuario, estado) y guárdelos para reutilizarlos.',

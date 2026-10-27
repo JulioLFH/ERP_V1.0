@@ -22,6 +22,9 @@
       <a class="navbar-brand modulo-nombre text-truncate" href="{% url modulo.inicio %}"><i class="bi {{ modulo.icono }}"></i> {{ modulo.nombre }}</a>
     {% endif %}
     <ul class="navbar-nav flex-row ms-auto align-items-center">
+      {% if user.is_authenticated %}<li class="nav-item me-2 buscador-general">
+        <button type="button" class="btn btn-sm btn-buscar" data-paleta title="Buscar menús y registros (Ctrl + K)"><i class="bi bi-search"></i><span class="d-none d-md-inline ms-1">Buscar</span> <kbd class="d-none d-lg-inline">Ctrl K</kbd></button>
+      </li>{% endif %}
       <li class="nav-item d-none d-xl-block"><span class="navbar-text small me-3 opacity-75">{{ empresa.razon_social }}</span></li>
       <li class="nav-item dropdown me-1">
         <a class="nav-link position-relative px-2" href="{% url 'alertas' %}" data-bs-toggle="dropdown" id="campana" title="Alertas" data-url="{% url 'alertas_json' %}">
@@ -98,6 +101,13 @@
     <div class="modal-footer"><button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-sm btn-primary">Enviar reporte</button></div>
   </form></div>
 </div>
+{% if user.is_authenticated %}<div class="modal fade paleta d-print-none" id="paleta" tabindex="-1" aria-label="Buscar" aria-hidden="true" data-url="{% url 'buscar' %}"{% if request.resolver_match.url_name == 'home' %} data-inicio{% endif %}>
+  <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+    <div class="paleta-cabecera"><input type="search" id="paleta-q" class="form-control" placeholder="Buscar un menú, cliente, documento, producto…" autocomplete="off" aria-label="Buscar"><i class="bi bi-search"></i></div>
+    <div class="modal-body p-0" id="paleta-lista" role="listbox"></div>
+    <div class="paleta-pie"><b>CONSEJO</b>, puede abrir el buscador desde cualquier lugar con <b>CONTROL + K</b>{% if request.resolver_match.url_name == 'home' %} (en Inicio basta con empezar a escribir o presionar espacio){% endif %} · <kbd>Ctrl</kbd> + <kbd>↵</kbd> abre en una pestaña nueva</div>
+  </div></div>
+</div>{% endif %}
 <div id="cargando" class="cargando d-print-none" hidden role="status" aria-live="polite">
   <div class="cargando-barra"></div>
   <div class="cargando-aviso"><span class="spinner-border spinner-border-sm"></span> <span class="cargando-texto">Cargando…</span></div>
