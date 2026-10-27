@@ -18,6 +18,7 @@
       <div class="col-auto"><input type="date" name="desde" value="{{ request.GET.desde }}" class="form-control form-control-sm"></div>
       <div class="col-auto"><input type="date" name="hasta" value="{{ request.GET.hasta }}" class="form-control form-control-sm"></div>
       <div class="col-auto"><input type="search" name="q" value="{{ request.GET.q }}" class="form-control form-control-sm" placeholder="Glosa, voucher, N° op."></div>
+  <div class="col-auto form-check mt-1" title="Egresos sin comprobante de compra, letra ni transferencia: para revisarlos"><input type="checkbox" name="manuales" value="1" id="f-manuales" class="form-check-input" {% if request.GET.manuales %}checked{% endif %}><label for="f-manuales" class="form-check-label small">Solo egresos manuales</label></div>
       <div class="col-auto"><select name="estado" class="form-select form-select-sm"><option value="">Vigentes</option><option value="ANULADO" {% if request.GET.estado == 'ANULADO' %}selected{% endif %}>Anulados</option><option value="TODOS" {% if request.GET.estado == 'TODOS' %}selected{% endif %}>Todos</option></select></div>
       <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i></button>
         <button name="formato" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i></button></div>

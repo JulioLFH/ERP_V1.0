@@ -102,18 +102,19 @@ def _periodo_de_cabecera(v):
     if isinstance(v, float) and v.is_integer():
         v = int(v)
     texto = str(v or '').strip().lower()
+    periodo = None
     if re.fullmatch(r'\d{6}', texto):
-        return texto
-    m = re.fullmatch(r'(\d{4})[-/](\d{1,2})', texto)
-    if m:
-        return f'{m.group(1)}{int(m.group(2)):02d}'
-    m = re.fullmatch(r'(\d{1,2})[-/](\d{4})', texto)
-    if m:
-        return f'{m.group(2)}{int(m.group(1)):02d}'
-    m = re.fullmatch(r'([a-zñ]{3})[a-zñ]*[\s\-./]*(\d{2,4})', texto)
-    if m and m.group(1) in MESES:
+        periodo = texto
+    elif m := re.fullmatch(r'(\d{4})[-/](\d{1,2})', texto):
+        periodo = f'{m.group(1)}{int(m.group(2)):02d}'
+    elif m := re.fullmatch(r'(\d{1,2})[-/](\d{4})', texto):
+        periodo = f'{m.group(2)}{int(m.group(1)):02d}'
+    elif (m := re.fullmatch(r'([a-zñ]{3})[a-zñ]*[\s\-./]*(\d{2,4})', texto)) and m.group(1) in MESES:
         anio = int(m.group(2))
-        return f'{anio + 2000 if anio < 100 else anio}{MESES[m.group(1)]:02d}'
+        periodo = f'{anio + 2000 if anio < 100 else anio}{MESES[m.group(1)]:02d}'
+    # OBR-35: «13/2026» o «2026-00» no son meses
+    if periodo and 1 <= int(periodo[4:]) <= 12 and 1900 <= int(periodo[:4]) <= 2200:
+        return periodo
     return None
 
 
@@ -191,9 +192,12 @@ def leer_project_xml(contenido):
     return salida
 
 
-def leer_excel_cronograma(filas, en_porcentaje=False):
+def leer_excel_cronograma(filas, en_porcentaje=False, errores=None, avisos=None):
     """[(ítem, descripción, subpresupuesto, {periodo: valor} | (inicio, fin))] de una hoja con la columna Ítem y las
-    columnas de cada mes, o con las columnas Inicio y Fin."""
+    columnas de cada mes, o con las columnas Inicio y Fin. OBR-35: anota en `errores` las celdas que no son números
+    y las fechas que faltan, y en `avisos` las columnas que parecen meses pero no se reconocen."""
+    errores = [] if errores is None else errores
+    avisos = [] if avisos is None else avisos
     cab_n, cab = None, None
     for n, fila in enumerate(filas[:30]):
         textos = [str(c or '').strip().lower() for c in fila]
@@ -211,12 +215,18 @@ def leer_excel_cronograma(filas, en_porcentaje=False):
         return None
     c_item, c_desc, c_sub = col('ítem', 'item', 'wbs', 'edt'), col('descrip', 'nombre', 'partida'), col('subpres')
     c_ini, c_fin = col('inicio', 'comienzo', 'start'), col('fin', 'término', 'termino', 'finish')
+    conocidas = (c_item, c_desc, c_sub, c_ini, c_fin)
     meses = [(i, _periodo_de_cabecera(c)) for i, c in enumerate(cab)]
-    meses = [(i, p) for i, p in meses if p and i not in (c_item, c_desc, c_sub, c_ini, c_fin)]
+    ignoradas = [str(cab[i]).strip() for i, p in meses
+                 if not p and i not in conocidas and re.search(r'\d', str(cab[i] or ''))
+                 and not isinstance(cab[i], (int, float, Decimal))]
+    meses = [(i, p) for i, p in meses if p and i not in conocidas]
     if not meses and (c_ini is None or c_fin is None):
         raise ErrorEjecucion('La hoja no tiene columnas de meses (Ene-26, 2026-01, 01/2026…) ni Inicio y Fin.')
+    if ignoradas:
+        avisos.append(f'Columnas que no son un mes válido y no se leyeron: {", ".join(ignoradas[:8])}.')
     salida = []
-    for fila in filas[cab_n + 1:]:
+    for n_fila, fila in enumerate(filas[cab_n + 1:], cab_n + 2):
         fila = list(fila) + [None] * len(cab)
         item = str(fila[c_item] or '').strip()
         if item.endswith('.0'):
@@ -226,25 +236,91 @@ def leer_excel_cronograma(filas, en_porcentaje=False):
         desc = str(fila[c_desc] or '').strip() if c_desc is not None else ''
         sub = str(fila[c_sub] or '').strip() if c_sub is not None else ''
         if meses:
-            valores = {p: _dec(fila[i]) for i, p in meses}
-            valores = {p: v for p, v in valores.items() if v}
+            valores = {}
+            for i, p in meses:
+                if fila[i] in (None, ''):
+                    continue
+                v = _dec(fila[i])
+                if v is None or not v.is_finite():
+                    errores.append(f'Fila {n_fila} ({item}): «{fila[i]}» en {p[4:]}/{p[:4]} no es un número.')
+                elif v:
+                    valores[p] = v
             if valores:
                 salida.append((item, desc, sub, valores))
         else:
             inicio, fin = _fecha(fila[c_ini]), _fecha(fila[c_fin])
             if inicio and fin:
                 salida.append((item, desc, sub, (inicio, fin)))
+            elif fila[c_ini] not in (None, '') or fila[c_fin] not in (None, ''):
+                errores.append(f'Fila {n_fila} ({item}): Inicio o Fin no es una fecha.')
     return salida
 
 
+def _validar_programa(p, valores, en_porcentaje, desde, hasta):
+    """OBR-31 y OBR-35: errores de la programación de una partida (negativos, meses fuera de la obra, más del 100 %
+    o del metrado, valores enormes) y el aviso si no llega al total."""
+    errores, avisos = [], []
+    etiqueta = f'{p.item} {p.descripcion[:40]}'.strip()
+    tope = Decimal('100') if en_porcentaje else p.metrado
+    unidad = '%' if en_porcentaje else (p.unidad or '')
+    for per, v in valores.items():
+        mes = f'{per[4:]}/{per[:4]}'
+        if v < 0:
+            errores.append(f'{etiqueta}: {v:,.2f} en {mes} es negativo.')
+        elif v > tope:
+            errores.append(f'{etiqueta}: {v:,.2f} {unidad} en {mes} supera el total de la partida '
+                           f'({tope:,.2f} {unidad}).')
+        if desde and per < desde:
+            errores.append(f'{etiqueta}: {mes} es anterior al inicio de la obra ({desde[4:]}/{desde[:4]}).')
+        elif hasta and per > hasta:
+            avisos.append(f'{etiqueta}: {mes} es posterior al fin del plazo ({hasta[4:]}/{hasta[:4]}).')
+    total = sum(valores.values(), D0)
+    tolerancia = tope * Decimal('0.005')
+    if total > tope + tolerancia:
+        errores.append(f'{etiqueta}: el total programado ({total:,.2f} {unidad}) supera '
+                       f'{"el 100 %" if en_porcentaje else f"el metrado de la partida ({tope:,.2f} {unidad})"}.')
+    elif total < tope - tolerancia:
+        avisos.append(f'{etiqueta}: se programó {total:,.2f} de {tope:,.2f} {unidad}.')
+    return errores, avisos
+
+
+def _meses_de_la_obra(obra):
+    """(AAAAMM del inicio, AAAAMM del fin del plazo) de la obra; None si no tiene fechas."""
+    inicio = obra.fecha_inicio or obra.fecha_contrato
+    if inicio is None:
+        return None, None
+    from datetime import timedelta
+    fin = inicio + timedelta(days=obra.plazo_dias) if obra.plazo_dias else None
+    return _periodo(inicio), _periodo(fin) if fin else None
+
+
 @transaction.atomic
-def importar_cronograma(presupuesto, archivo, en_porcentaje=False, forzar=False):
+def importar_cronograma(presupuesto, archivo, en_porcentaje=False, forzar=False, avisos=None):
     """Carga el cronograma del presupuesto desde el Excel (meses o inicio y fin) o el XML de MS Project; reemplaza la
     programación de las partidas que trae. Devuelve (partidas programadas, [filas sin partida]). Si una fila puede ser
     de varias partidas (el mismo ítem en dos subpresupuestos, OBR-28) no reemplaza nada hasta que se confirme
-    (forzar=True: esas filas quedan sin programar)."""
+    (forzar=True: esas filas quedan sin programar). OBR-31 y OBR-35: valida todo el archivo antes de grabar (números,
+    negativos, más del 100 % o del metrado, meses antes del inicio, inicio después del fin, ítems repetidos); si una
+    fila falla no se graba nada y el mensaje dice cuál. Los avisos (meses después del plazo, partidas que no llegan al
+    total, columnas ignoradas) van a la lista `avisos`."""
+    avisos = [] if avisos is None else avisos
     indices = _indice_partidas(presupuesto)
-    programas, no_encontradas, ambiguas = {}, [], []
+    programas, no_encontradas, ambiguas, errores = {}, [], [], []
+    desde, hasta = _meses_de_la_obra(presupuesto.obra)
+
+    def programar(p, valores, origen):
+        if p in programas:
+            errores.append(f'{p.item} {p.descripcion[:40]} está más de una vez en el archivo ({origen}).')
+            return
+        programas[p] = valores
+
+    def programar_fechas(p, inicio, fin, item):
+        valores = repartir_lineal(p.metrado, inicio, fin)
+        e, a = _validar_programa(p, valores, False, desde, hasta)
+        errores.extend(e)
+        avisos.extend(a)
+        if not e:
+            programar(p, valores, f'ítem {item}')
 
     def buscar(indices, item, desc, sub=''):  # como _buscar, y anota las filas ambiguas
         p, dudosa = _elegir(indices, item, desc, sub)
@@ -258,19 +334,26 @@ def importar_cronograma(presupuesto, archivo, en_porcentaje=False, forzar=False)
             if p is None:
                 no_encontradas.append(f'{item} {desc}'.strip())
                 continue
-            programas[p] = repartir_lineal(p.metrado, inicio, fin)
+            if inicio > fin:
+                errores.append(f'{item} {desc}: el inicio ({inicio:%d/%m/%Y}) es posterior al fin ({fin:%d/%m/%Y}).')
+                continue
+            programar_fechas(p, inicio, fin, item)
     else:
-        leidas = []
+        leidas, errores_hoja, avisos_hoja = [], [], []
         for _, filas in hojas(archivo):
+            errores_hoja, avisos_hoja = [], []
             try:
-                leidas = leer_excel_cronograma(filas, en_porcentaje)
+                leidas = leer_excel_cronograma(filas, en_porcentaje, errores_hoja, avisos_hoja)
             except ErrorEjecucion:
                 continue
-            if leidas:
+            if leidas or errores_hoja:
                 break
-        if not leidas:
+        if errores_hoja:  # OBR-35: «abc» en un mes es un error de la fila, no «no se encontró el cronograma»
+            errores += errores_hoja
+        elif not leidas:
             raise ErrorEjecucion('No se encontró el cronograma: una hoja con la columna «Ítem» y las columnas de cada '
                                  'mes (Ene-26, 2026-01…) o de Inicio y Fin.')
+        avisos += avisos_hoja
         for item, desc, sub, valores in leidas:
             p = buscar(indices, item, desc, sub)
             if p is None:
@@ -278,11 +361,24 @@ def importar_cronograma(presupuesto, archivo, en_porcentaje=False, forzar=False)
                     no_encontradas.append(f'{item} {desc}'.strip())
                 continue
             if isinstance(valores, tuple):
-                programas[p] = repartir_lineal(p.metrado, *valores)
-            elif en_porcentaje:
-                programas[p] = {per: (p.metrado * v / 100).quantize(Decimal('0.0001')) for per, v in valores.items()}
-            else:
-                programas[p] = valores
+                inicio, fin = valores
+                if inicio > fin:
+                    errores.append(f'{item} {desc}'.strip() + f': el inicio ({inicio:%d/%m/%Y}) es posterior al fin '
+                                                              f'({fin:%d/%m/%Y}).')
+                    continue
+                programar_fechas(p, inicio, fin, item)
+                continue
+            e, a = _validar_programa(p, valores, en_porcentaje, desde, hasta)
+            errores += e
+            avisos += a
+            if e:
+                continue
+            if en_porcentaje:
+                valores = {per: (p.metrado * v / 100).quantize(Decimal('0.0001')) for per, v in valores.items()}
+            programar(p, valores, f'ítem {item}')
+    if errores:
+        raise ErrorEjecucion(f'No se grabó el cronograma: {len(errores)} error(es) en el archivo. '
+                             + ' '.join(errores[:8]) + (' …' if len(errores) > 8 else ''))
     if ambiguas and not forzar:
         raise ErrorEjecucion(
             f'No se reemplazó el cronograma: {len(ambiguas)} fila(s) pueden ser de más de una partida (el mismo ítem '
@@ -298,18 +394,43 @@ def importar_cronograma(presupuesto, archivo, en_porcentaje=False, forzar=False)
 
 
 # ---------------------------------------------------------------- avance físico
+LARGO_NOTA = 250
+
+
+def validar_fecha_obra(obra, fecha, que='El avance'):
+    """OBR-36: la fecha de un registro de la obra va entre su inicio (o el contrato) y hoy."""
+    if fecha > timezone.localdate():
+        raise ErrorEjecucion(f'{que} no puede tener fecha futura.')
+    inicio = obra.fecha_inicio or obra.fecha_contrato
+    if inicio and fecha < inicio:
+        raise ErrorEjecucion(f'{que} no puede ser anterior al inicio de la obra ({inicio:%d/%m/%Y}).')
+    if fecha.year < 2000:
+        raise ErrorEjecucion(f'Revise la fecha: {fecha:%d/%m/%Y}.')
+
+
 @transaction.atomic
 def registrar_avance(obra, partida, fecha, metrado, usuario, foto=None, nota=''):
     """Avance físico de la partida; devuelve (avance, aviso) — aviso si el acumulado supera el metrado contratado."""
     if partida.presupuesto.obra_id != obra.pk or partida.es_titulo:
         raise ErrorEjecucion('Elija una partida del presupuesto de la obra.')
+    vigente = presupuesto_ejecucion(obra)
+    if vigente is not None and partida.presupuesto_id != vigente.pk:  # OBR-36: no la de la meta ni otra versión
+        raise ErrorEjecucion(f'La partida {partida.item} es del presupuesto {partida.presupuesto}: el avance se '
+                             f'registra en las partidas de {vigente}.')
     metrado = Decimal(metrado or 0)
     if metrado <= 0:  # OBR-23: un registro errado se anula con su motivo, no se corrige con negativos
         raise ErrorEjecucion('El metrado ejecutado debe ser mayor que cero. Para corregir un avance mal registrado, '
                              'anúlelo en la lista de avances con su motivo.')
     fecha = fecha or timezone.localdate()
-    if fecha > timezone.localdate():
-        raise ErrorEjecucion('La fecha del avance no puede ser futura.')
+    validar_fecha_obra(obra, fecha)
+    if len(nota or '') > LARGO_NOTA:
+        raise ErrorEjecucion(f'La nota tiene {len(nota)} caracteres: el máximo es {LARGO_NOTA}.')
+    if foto:
+        from core.sustentos import ErrorSustento, validar_imagen
+        try:
+            validar_imagen(foto)
+        except ErrorSustento as exc:  # OBR-34: un .exe era un error 500
+            raise ErrorEjecucion(str(exc)) from exc
     acumulado = (AvancePartida.objects.filter(obra=obra, partida=partida).aggregate(s=Sum('metrado'))['s'] or D0)
     if acumulado + metrado > partida.metrado:
         raise ErrorEjecucion(f'El avance acumulado de {partida.item} ({acumulado + metrado:,.2f}) superaría el metrado '
@@ -320,7 +441,15 @@ def registrar_avance(obra, partida, fecha, metrado, usuario, foto=None, nota='')
     if foto:
         from core.sustentos import adjuntar
         adjuntar(a, foto, usuario, f'Foto del avance {partida.item} {fecha:%d/%m/%Y}')
-    return a, ''
+    from .models import Valorizacion
+    cerrada = Valorizacion.objects.filter(obra=obra, periodo=_periodo(fecha),
+                                          estado__in=('APROBADA', 'FACTURADA')).order_by('-numero').first()
+    aviso = ''
+    if cerrada is not None:  # OBR-33
+        aviso = (f'El mes {fecha:%m/%Y} ya está en la valorización N° {cerrada.numero} '
+                 f'({cerrada.get_estado_display().lower()}): este avance no está en ella; pasa a la siguiente '
+                 f'valorización.')
+    return a, aviso
 
 
 @transaction.atomic
@@ -332,13 +461,23 @@ def anular_avance(avance, usuario, motivo):
         raise ErrorEjecucion('El avance ya está anulado.')
     if len(motivo) < 5:
         raise ErrorEjecucion('Indique el motivo de la anulación.')
-    from .models import Valorizacion
-    periodo = avance.fecha.strftime('%Y%m')
-    cerrada = Valorizacion.objects.filter(obra=avance.obra, periodo=periodo,
-                                          estado__in=['APROBADA', 'FACTURADA']).first()
-    if cerrada is not None:
-        raise ErrorEjecucion(f'El avance ya se valorizó en la valorización N° {cerrada.numero} '
-                             f'({cerrada.get_estado_display().lower()}): corríjalo en la valorización del mes siguiente.')
+    # OBR-33: solo está «valorizado» si sin él lo ejecutado quedaría por debajo de lo valorizado en valorizaciones
+    # aprobadas o facturadas; un avance registrado después (aunque sea del mismo mes) pasa a la siguiente y se anula
+    from .models import LineaValorizacion
+    clave = avance.partida.clave
+    valorizadas = [l for l in LineaValorizacion.objects.filter(
+        valorizacion__obra=avance.obra, valorizacion__estado__in=('APROBADA', 'FACTURADA')).select_related(
+        'partida__subpresupuesto', 'valorizacion') if l.partida.clave == clave]
+    valorizado = sum((l.metrado for l in valorizadas), D0)
+    ejecutado = sum((a.metrado for a in AvancePartida.objects.filter(obra=avance.obra).select_related(
+        'partida__subpresupuesto') if a.partida.clave == clave), D0)
+    if valorizado > ejecutado - avance.metrado + Decimal('0.0001'):
+        ultima = max((l.valorizacion for l in valorizadas if l.metrado), key=lambda v: v.numero, default=None)
+        raise ErrorEjecucion(
+            'El avance ya se valorizó' + (f' en la valorización N° {ultima.numero} '
+                                           f'({ultima.get_estado_display().lower()})' if ultima else '') +
+            f': sin él lo ejecutado de {avance.partida.item} ({ejecutado - avance.metrado:,.2f}) quedaría por debajo '
+            f'de lo valorizado ({valorizado:,.2f}). Corríjalo en la valorización del mes siguiente.')
     avance.anulado, avance.motivo_anulacion = True, motivo[:250]
     avance.anulado_por = usuario if usuario and usuario.is_authenticated else None
     avance.anulado_en = timezone.now()

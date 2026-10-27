@@ -69,7 +69,6 @@ MODULOS = [
             ('Productos', 'productos'),
             ('Reportes', [('Registro de ventas 14.1 / PLE', 'ventas:registro', 'bi-journal-text'),
                           ('Detracciones de ventas', 'ventas:detracciones', 'bi-bank'),
-                          ('SIRE: propuesta de SUNAT (RVIE)', 'sire_propuestas?libro=RVIE', 'bi-cloud-download'),
                           ('Reportes de ventas', 'ventas:reportes', 'bi-graph-up'),
                           ('Importar desde Excel', 'ventas:importar', 'bi-file-earmark-arrow-up'),
                           ('Cargar listas de precios (Excel)', 'carga_masiva?tipo=listas_precios',
@@ -112,8 +111,6 @@ MODULOS = [
                           ('Historial de precios de compra', 'compras:historial_precios', 'bi-graph-up'),
                           ('Solicitudes de pedido: estado y tiempos', 'compras:solped_reportes', 'bi-hourglass-split'),
                           ('Desempeño de compradores', 'compras:desempeno', 'bi-speedometer2'),
-                          ('SIRE: propuesta de SUNAT (RCE)', 'sire_propuestas?libro=RCE', 'bi-cloud-download'),
-                          ('Cruce con propuesta SIRE', 'compras:sire', 'bi-arrow-left-right'),
                           ('Importar desde Excel', 'compras:importar', 'bi-file-earmark-arrow-up')]),
         ],
     },
@@ -765,8 +762,10 @@ RUTAS_CORE = {
     'usuarios': ['ajustes'],
     'usuario_nuevo': ['ajustes'],
     'usuario_editar': ['ajustes'], 'segregacion': ['ajustes'],
-    'sire_propuestas': ['sunat', 'compras', 'ventas', 'contabilidad'],
-    'sire_propuesta': ['sunat', 'compras', 'ventas', 'contabilidad'],
+    # SU-01: el SIRE (propuestas de SUNAT) es de SUNAT y Contabilidad, no de quien solo compra o vende
+    'sire_propuestas': ['sunat', 'contabilidad'],
+    'sire_propuesta': ['sunat', 'contabilidad'],
+    'tercero_banco': ['contactos', 'tesoreria', 'compras', 'ventas', 'crm', 'finanzas'],
     'perfiles_acceso': ['ajustes'], 'sso_lista': ['ajustes'], 'sso_nuevo': ['ajustes'], 'sso_editar': ['ajustes'], 'perfil_acceso_nuevo': ['ajustes'], 'perfil_acceso_editar': ['ajustes'],
     'aprobaciones_reglas': ['ajustes', 'compras', 'rendiciones', 'planillas'],
     'series': ['ajustes'], 'serie_nueva': ['ajustes'], 'serie_editar': ['ajustes'],
@@ -890,7 +889,7 @@ RUTAS_MANUFACTURA = {
 # principal). Una pantalla nueva de la app que no esté aquí queda en Finanzas.
 RUTAS_FINANZAS = {
     **{nombre: ['tesoreria'] for nombre in (
-        'cuentas', 'cuenta_nueva', 'cuenta_editar', 'saldo_inicial', 'saldo_inicial_sustento', 'movimientos',
+        'inicio', 'cuentas', 'cuenta_nueva', 'cuenta_editar', 'saldo_inicial', 'saldo_inicial_sustento', 'movimientos',
         'movimiento_nuevo', 'movimiento_eliminar', 'transferencia', 'cheques', 'cheque_estado', 'entregas', 'entrega',
         'entrega_nueva', 'cobranza', 'cobranza_multiple', 'pago', 'pago_multiple', 'pagos_masivos', 'pago_masivo',
         'pago_masivo_nuevo', 'detracciones_masivas', 'detracciones_masivas_nuevo', 'detraccion_masiva',
@@ -944,7 +943,7 @@ RUTAS_COMPARTIDAS = {'contabilidad:reparto_resultado': ['contabilidad', 'obras']
                      # registros, libros y detracciones: también desde el módulo SUNAT
                      'ventas:registro': ['ventas', 'sunat'], 'ventas:detracciones': ['ventas', 'sunat'],
                      'compras:registro': ['compras', 'sunat'], 'compras:detracciones': ['compras', 'sunat'],
-                     'compras:sire': ['compras', 'sunat'], 'activos:registro': ['activos', 'sunat'],
+                     'compras:sire': ['sunat', 'contabilidad'], 'activos:registro': ['activos', 'sunat'],
                      **{f'contabilidad:{n}': ['contabilidad', 'sunat'] for n in (
                          'diario', 'mayor', 'libro_inventarios')}}
 

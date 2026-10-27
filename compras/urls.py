@@ -43,6 +43,7 @@ urlpatterns = views.compras_views.urls() + [
     path('sire/', views_sire.comparar, name='sire'),
     path('ordenes/', views.oc_lista, name='oc_lista'),
     path('ordenes/nueva/', views.oc_nuevo, name='oc_nuevo'),
+    path('ordenes/seguimiento/', views.oc_seguimiento, name='oc_seguimiento'),
     path('ordenes/<int:pk>/', views.oc_detalle, name='oc_detalle'),
     path('ordenes/<int:pk>/editar/', views.oc_editar, name='oc_editar'),
     path('ordenes/<int:pk>/estado/', views.oc_estado, name='oc_estado'),

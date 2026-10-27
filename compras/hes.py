@@ -167,7 +167,20 @@ def anular(hes, usuario, motivo):
     hes.estado, hes.motivo = 'ANULADA', motivo.strip()[:300]
     hes.save(update_fields=['estado', 'motivo'])
     aprobaciones.registrar('HES', hes, usuario, 'ANULADA', motivo)
+    _devolver_valorizacion(hes)
     return hes
+
+
+def _devolver_valorizacion(hes):
+    """OBR-38: si la HES salió de la valorización de un subcontratista, esa valorización vuelve a borrador (sin
+    HES) para corregirla o anularla; su metrado deja de contar como aprobado."""
+    from obras.models import LineaValSubcontrato
+    lineas = list(LineaValSubcontrato.objects.filter(hes=hes).select_related('valorizacion'))
+    for v in {l.valorizacion for l in lineas}:
+        if v.estado == 'APROBADA':
+            v.estado, v.aprobado_por, v.aprobado_en = 'BORRADOR', None, None
+            v.save(update_fields=['estado', 'aprobado_por', 'aprobado_en'])
+    LineaValSubcontrato.objects.filter(hes=hes).update(hes=None)
 
 
 def facturado(hes):

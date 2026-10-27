@@ -242,6 +242,11 @@ class ComprobanteViews:
         if request.method == 'POST':
             motivo = request.POST.get('motivo', '').strip()
             bloqueo = self.motivo_bloqueo_anulacion(doc)
+            from .permisos import puede
+            if doc._meta.model_name == 'compra' and not puede(request.user, 'compras.registrar'):
+                # COM-21: anular un comprobante de compra es de quien los registra (contabilidad), no del comprador
+                bloqueo = ('Anular facturas de compra exige «Registrar facturas de compra» además de «Anular»: lo '
+                           'hace el área que las registra (contabilidad), no el comprador.')
             if bloqueo:
                 messages.error(request, bloqueo)
             elif len(motivo) < 5:

@@ -566,6 +566,48 @@ class TerceroEditar(FormGenerico, UpdateView):
     template_name = 'core/tercero_form.html'
     success_url = reverse_lazy('terceros')
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        t = self.object
+        nombres = {c: str(Tercero._meta.get_field(c).verbose_name) for c in t.cambio_bancario}
+        ctx['cambio_bancario_filas'] = [(nombres[c].capitalize(), getattr(t, c), v) for c, v in t.cambio_bancario.items()]
+        return ctx
+
+    def form_valid(self, form):
+        respuesta = super().form_valid(form)
+        if getattr(form, 'cambio_bancario_pendiente', False):
+            messages.warning(self.request, 'El cambio de cuenta bancaria quedó por aprobar: otro usuario con el permiso '
+                                           '«Cambiar y aprobar las cuentas bancarias» debe aprobarlo; mientras tanto '
+                                           'se le paga a la cuenta anterior.')
+        return respuesta
+
+
+@login_required
+def tercero_banco(request, pk):
+    """SEG-10: otro usuario aprueba (o rechaza) el cambio de cuenta bancaria del contacto."""
+    from .auditoria import registrar
+    t = get_object_or_404(Tercero, pk=pk)
+    if request.method == 'POST' and t.cambio_bancario:
+        if t.cambio_bancario_por_id == request.user.pk:
+            messages.error(request, 'Quien pidió el cambio no lo aprueba: lo aprueba otro usuario (doble control).')
+        elif request.POST.get('accion') == 'aprobar':
+            anterior = {c: getattr(t, c) for c in t.cambio_bancario}
+            for c, v in t.cambio_bancario.items():
+                setattr(t, c, v)
+            nuevo = dict(t.cambio_bancario)
+            t.cambio_bancario, t.cambio_bancario_por, t.cambio_bancario_en = {}, None, None
+            t.save()
+            registrar('MODIFICAR', t, {c: [anterior[c], v] for c, v in nuevo.items()},
+                      'Cambio de cuenta bancaria aprobado (doble control)')
+            messages.success(request, f'Cuenta bancaria de {t.nombre} actualizada.')
+        else:
+            registrar('MODIFICAR', t, {'cambio_bancario': [str(t.cambio_bancario), 'rechazado']},
+                      f'Cambio de cuenta bancaria rechazado: {request.POST.get("motivo", "")[:200]}')
+            t.cambio_bancario, t.cambio_bancario_por, t.cambio_bancario_en = {}, None, None
+            t.save(update_fields=['cambio_bancario', 'cambio_bancario_por', 'cambio_bancario_en'])
+            messages.info(request, 'Cambio de cuenta bancaria rechazado.')
+    return redirect('tercero_editar', pk)
+
 
 class ProductoLista(ListaGenerica):
     model = Producto

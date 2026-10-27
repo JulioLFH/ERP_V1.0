@@ -1,0 +1,32 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Seguimiento de órdenes de compra{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title mb-0"><i class="bi bi-truck"></i> Seguimiento de órdenes de compra</h1>
+    <div class="small text-muted">Órdenes aprobadas con saldo por recibir o facturar. Marque las que el proveedor no completará y cierre su saldo con el motivo.</div></div>
+  <div class="d-flex gap-2"><a href="?{{ request.GET.urlencode }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+    <a href="{% url 'compras:oc_lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Órdenes</a></div>
+</div>
+<form method="get" class="row g-2 mb-3">
+  <div class="col-auto"><select name="proveedor" class="form-select form-select-sm" data-autoenvio><option value="">Todos los proveedores</option>{% for p in proveedores %}<option value="{{ p.pk }}" {% if f.proveedor == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}</select></div>
+  <div class="col-auto"><select name="comprador" class="form-select form-select-sm" data-autoenvio><option value="">Todos los compradores</option>{% for u in compradores %}<option value="{{ u.pk }}" {% if f.comprador == u.pk|stringformat:'s' %}selected{% endif %}>{% if u %}{{ u.get_full_name|default:u.username }}{% else %}—{% endif %}</option>{% endfor %}</select></div>
+  <div class="col-auto form-check mt-1"><input type="checkbox" name="vencidas" value="1" id="f-vencidas" class="form-check-input" data-autoenvio {% if f.vencidas %}checked{% endif %}><label for="f-vencidas" class="form-check-label small">Solo con la entrega vencida</label></div>
+</form>
+<form method="post">{% csrf_token %}
+<div class="card mb-3"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small align-middle">
+  <thead><tr><th><input type="checkbox" class="form-check-input" data-marcar-todos="input[name=oc]" aria-label="Marcar todas"></th><th>Orden</th><th>Fecha</th><th>Entrega</th><th>Proveedor</th><th>Comprador</th><th>Situación</th><th class="num">Pedido</th><th class="num">Por recibir</th><th class="num">Por facturar</th></tr></thead>
+  <tbody>{% for x in filas %}<tr{% if x.vencida %} class="table-warning"{% endif %}>
+    <td><input type="checkbox" name="oc" value="{{ x.oc.pk }}" class="form-check-input" aria-label="Cerrar el saldo de {{ x.oc.numero }}"></td>
+    <td><a href="{% url 'compras:oc_detalle' x.oc.pk %}" class="fw-semibold">{{ x.oc.numero }}</a></td><td>{{ x.oc.fecha|date:'d/m/Y' }}</td>
+    <td>{{ x.oc.fecha_entrega|date:'d/m/Y'|default:'—' }}{% if x.vencida %} <span class="badge text-bg-warning">vencida</span>{% endif %}</td>
+    <td>{{ x.oc.tercero.nombre|truncatechars:35 }}</td><td>{% if x.oc.comprador %}{{ x.oc.comprador.get_full_name|default:x.oc.comprador.username }}{% else %}—{% endif %}</td>
+    <td>{{ x.situacion }}</td><td class="num">{{ x.pedido|cant }}</td><td class="num">{{ x.por_recibir|cant }}</td><td class="num">{{ x.por_facturar|cant }}</td></tr>
+  {% empty %}<tr><td colspan="10" class="text-center text-muted py-4">No hay órdenes aprobadas con saldo pendiente.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if filas and puede.compras_anular_oc %}<div class="card" style="max-width:900px"><div class="card-body row g-2 align-items-end">
+  <div class="col-md-4"><label class="form-label small mb-1">Motivo del cierre</label><select name="motivo_cierre" class="form-select form-select-sm" required><option value="">—</option>{% for v, t in motivos %}<option value="{{ v }}">{{ t }}</option>{% endfor %}</select></div>
+  <div class="col-md-5"><input name="detalle" class="form-control form-control-sm" maxlength="200" placeholder="Detalle (obligatorio si es «Otro»)"></div>
+  <div class="col-md-3"><button class="btn btn-sm btn-warning w-100" data-confirm="¿Cerrar el saldo de las órdenes marcadas? Lo pendiente ya no se recibirá ni facturará.">Cerrar el saldo de las marcadas</button></div>
+</div></div>{% endif %}
+</form>
+{% endblock %}

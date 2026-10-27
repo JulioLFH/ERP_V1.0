@@ -347,6 +347,9 @@ def propuesta(request, pk):
             _post(request, lambda: pp.cambiar(p, ids, montos), 'Propuesta actualizada.')
         elif accion == 'enviar':
             _post(request, lambda: pp.enviar(p, request.user), 'Propuesta enviada a aprobación de la gerencia.')
+        elif accion == 'anular':  # FIN-12: quien la armó la retira mientras no esté aprobada
+            _post(request, lambda: pp.anular(p, request.user, request.POST.get('motivo', '')),
+                  'Propuesta anulada: sus comprobantes quedan libres para otra propuesta.')
         elif accion in ('aprobar', 'rechazar'):
             _post(request, lambda: pp.aprobar(p, request.user, accion == 'aprobar', request.POST.get('motivo', '')),
                   'Propuesta aprobada.' if accion == 'aprobar' else 'Propuesta rechazada: vuelve a tesorería.')

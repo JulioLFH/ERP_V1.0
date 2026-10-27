@@ -150,6 +150,17 @@ class HitoForm(BootstrapMixin, forms.ModelForm):
         model = HitoLicitacion
         fields = ['tipo', 'fecha', 'hora', 'nota']
 
+    def clean_fecha(self):  # CRM-23: un hito de 1900 es un error de digitación
+        from datetime import timedelta
+
+        from django.utils import timezone
+        fecha = self.cleaned_data['fecha']
+        hoy = timezone.localdate()
+        if fecha and not hoy - timedelta(days=730) <= fecha <= hoy + timedelta(days=730):
+            raise forms.ValidationError('Revise la fecha: el cronograma del proceso va de dos años atrás a dos años '
+                                        'adelante.')
+        return fecha
+
 
 class RequisitoForm(BootstrapMixin, forms.ModelForm):
     archivo = forms.FileField(label='Documento (opcional)', required=False,
@@ -158,6 +169,12 @@ class RequisitoForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = RequisitoPostor
         fields = ['tipo', 'descripcion', 'monto', 'vence', 'cumple']
+
+    def clean_monto(self):  # CRM-23
+        monto = self.cleaned_data.get('monto')
+        if monto is not None and monto < 0:
+            raise forms.ValidationError('El monto no puede ser negativo.')
+        return monto
 
 
 class PerderForm(BootstrapMixin, forms.Form):
@@ -272,13 +289,36 @@ class CobroForm(BootstrapMixin, forms.Form):
         self.fields['medio_pago'].choices = Movimiento.MEDIOS
 
 
-class PresupuestoForm(BootstrapMixin, forms.ModelForm):
+class _PieMixin:
+    """OBR-42: gastos generales y utilidad de 0 a 100 %, IGV el de la empresa (o 0 si la obra está exonerada) y la
+    fecha de los precios entre el 2000 y hoy."""
+
+    def clean(self):
+        from django.utils import timezone
+        data = super().clean()
+        for campo, nombre in (('gastos_generales_pct', 'Los gastos generales'), ('utilidad_pct', 'La utilidad')):
+            v = data.get(campo)
+            if v is not None and not 0 <= v <= 100:
+                self.add_error(campo, f'{nombre} van de 0 a 100 %.')
+        igv = data.get('igv_pct')
+        if igv is not None:
+            from core.models import Empresa
+            tasa = Empresa.actual().igv_tasa
+            if igv not in (0, tasa):
+                self.add_error('igv_pct', f'El IGV es {tasa:g} % (o 0 % si la obra está exonerada).')
+        fecha = data.get('fecha_precios')
+        if fecha and (fecha.year < 2000 or fecha > timezone.localdate()):
+            self.add_error('fecha_precios', 'La fecha de los precios va entre el 2000 y hoy.')
+        return data
+
+
+class PresupuestoForm(_PieMixin, BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Presupuesto
         fields = ['tipo', 'nombre', 'fecha_precios', 'gastos_generales_pct', 'utilidad_pct', 'igv_pct']
 
 
-class PieForm(BootstrapMixin, forms.ModelForm):
+class PieForm(_PieMixin, BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Presupuesto
         fields = ['nombre', 'fecha_precios', 'gastos_generales_pct', 'utilidad_pct', 'igv_pct']
@@ -314,6 +354,19 @@ class PartidaForm(BootstrapMixin, forms.ModelForm):
                                               subpresupuesto=data.get('subpresupuesto')).exclude(pk=self.instance.pk)
             if repetido.exists():
                 self.add_error('item', 'Ya existe una partida con ese ítem.')
+            elif '.' in item:  # OBR-42: la partida 09.09.09 necesita los títulos 09 y 09.09
+                partes = item.split('.')
+                padres = ['.'.join(partes[:n]) for n in range(1, len(partes))]
+                existentes = set(Partida.objects.filter(presupuesto=self.presupuesto,
+                                                        subpresupuesto=data.get('subpresupuesto'),
+                                                        item__in=padres).values_list('item', flat=True))
+                faltan = [x for x in padres if x not in existentes]
+                if faltan:
+                    self.add_error('item', f'Falta el título {", ".join(faltan)}: agréguelo antes de la partida '
+                                           f'{item}.')
+        for campo, nombre in (('metrado', 'El metrado'), ('precio', 'El precio')):
+            if (data.get(campo) or 0) < 0:
+                self.add_error(campo, f'{nombre} no puede ser negativo.')
         data['metrado'] = data.get('metrado') or 0
         data['precio'] = data.get('precio') or 0
         if not data.get('es_titulo') and not data.get('unidad'):

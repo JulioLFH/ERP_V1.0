@@ -167,8 +167,9 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
         fields = ['cuenta', 'fecha', 'tipo', 'concepto', 'medio_pago', 'numero_operacion', 'tercero', 'monto',
                   'cuenta_contable', 'centro_costo', 'rubro_flujo', 'glosa']
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, usuario=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.usuario = usuario
         from contabilidad.models import RubroFlujo
         self.fields['rubro_flujo'].queryset = RubroFlujo.objects.filter(activo=True)
         self.fields['cuenta'].queryset = Cuenta.objects.filter(activo=True)
@@ -187,6 +188,10 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
     def clean(self):
         data = super().clean()
         validar_periodo_abierto(self, 'fecha')
+        if data.get('tipo') == 'EGRESO':  # FIN-13 (antes que el saldo: add_error quita el monto de cleaned_data)
+            from contabilidad.models import CuentaDefecto
+            self._validar_egreso_manual(data, data.get('cuenta_contable') or CuentaDefecto.mapa().get(
+                f'mov_{data.get("concepto")}'))
         if data.get('tipo') == 'EGRESO' and data.get('cuenta') and data.get('monto'):
             error = data['cuenta'].error_sobregiro(data['monto'], excluir=self.instance, fecha=data.get('fecha'))
             if error:
@@ -210,6 +215,26 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
             self.add_error('concepto', 'La cuenta de detracciones del Banco de la Nación solo paga tributos a SUNAT '
                                        '(o se libera a su banco con la solicitud de liberación).')
         return data
+
+    def _validar_egreso_manual(self, data, cuenta):
+        """FIN-13: un egreso sin comprobante de compra no va a existencias ni a compras (2x, 60, 61: eso es una
+        compra con su factura) y sobre el tope (TES_EGRESO_MANUAL_TOPE) solo lo registra quien aprueba pagos."""
+        if cuenta and cuenta.codigo[:1] == '2' or cuenta and cuenta.codigo[:2] in ('60', '61'):
+            self.add_error('cuenta_contable', f'La {cuenta.codigo} es de existencias o compras: regístrelo como '
+                                              f'compra (con su factura y la recepción en el almacén), no como egreso '
+                                              f'manual.')
+        if self.usuario is None or not data.get('monto'):
+            return
+        from core import parametros
+        from core.permisos import puede
+        tope = parametros.valor('TES_EGRESO_MANUAL_TOPE', data.get('fecha'))
+        monto = data['monto']
+        if data.get('cuenta') and data['cuenta'].moneda == 'USD':
+            from core.tipo_cambio import venta_del_dia
+            monto = monto * (venta_del_dia(data.get('fecha')) or 1)
+        if tope and monto > tope and not puede(self.usuario, 'tesoreria.aprobar_pagos'):
+            self.add_error('monto', f'Un egreso manual de más de S/ {tope:,.2f} lo registra la gerencia (permiso '
+                                    f'«Aprobar la propuesta de pagos») o va por una compra y la propuesta de pagos.')
 
 
 class OperacionForm(BootstrapMixin, forms.Form):

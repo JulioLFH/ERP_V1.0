@@ -12,7 +12,8 @@ SIRE Compras» (v28) publicados en cpe.sunat.gob.pe:
 5. Aceptar la propuesta: POST .../rvie/propuesta/web/propuesta/{periodo}/aceptapropuesta (ventas) o
    .../rce/propuesta/web/registroslibros/{periodo}/aceptarpropuesta (compras) → numTicket.
 
-La clave SOL no se guarda: se usa una vez para pedir el token, que queda en la caché mientras SUNAT lo da por válido.
+La clave SOL se registra una vez en Ajustes › Empresa (cifrada) y se usa sola para pedir el token cuando vence; el
+token queda en la caché mientras SUNAT lo da por válido. Sin clave guardada se pide en la pantalla.
 """
 import json
 import urllib.error
@@ -41,6 +42,10 @@ class ErrorSIRE(Exception):
     pass
 
 
+class SesionVencida(ErrorSIRE):
+    """SUNAT rechazó el token (401 / 403): con la clave guardada se pide otro y se reintenta una vez."""
+
+
 def _credenciales(empresa=None):
     e = empresa or Empresa.actual()
     return (e.sire_client_id or e.sunat_client_id), (e.sire_client_secret or e.sunat_client_secret)
@@ -56,9 +61,17 @@ def _clave_cache(e):
     return f'sire-token-{e.ruc}-{e.sire_usuario_sol}'
 
 
+def clave_guardada(empresa=None):
+    """La clave SOL del SIRE registrada en Ajustes › Empresa ('' si no hay o no se puede leer)."""
+    from .cifrado import descifrar
+    e = empresa or Empresa.actual()
+    return descifrar(e.sire_clave_sol)
+
+
 def hay_token():
+    """¿Se puede trabajar sin pedir la clave? (sesión activa o clave guardada)."""
     e = Empresa.actual()
-    return bool(cache.get(_clave_cache(e)))
+    return bool(cache.get(_clave_cache(e)) or clave_guardada(e))
 
 
 def _http(metodo, url, datos=None, cabeceras=None, binario=False):
@@ -70,8 +83,8 @@ def _http(metodo, url, datos=None, cabeceras=None, binario=False):
     except urllib.error.HTTPError as exc:
         detalle = exc.read().decode('utf-8', 'ignore')[:500]
         if exc.code in (401, 403):
-            raise ErrorSIRE('SUNAT no aceptó la sesión (token vencido o sin permiso al SIRE). Vuelva a ingresar la '
-                            'clave SOL.') from exc
+            raise SesionVencida('SUNAT no aceptó la sesión (token vencido, clave SOL errada o usuario sin permiso al '
+                                'SIRE). Revise la clave SOL en Ajustes › Empresa.') from exc
         raise ErrorSIRE(f'SUNAT respondió {exc.code}: {_mensaje(detalle)}') from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise ErrorSIRE(f'No se pudo conectar con SUNAT: {exc}') from exc
@@ -91,13 +104,15 @@ def _mensaje(texto):
     return errores or datos.get('msg') or datos.get('error_description') or texto
 
 
-def iniciar_sesion(clave_sol):
-    """Pide el token con la clave SOL (que no se guarda). Lo deja en la caché por el tiempo que SUNAT indique."""
+def iniciar_sesion(clave_sol=None):
+    """Pide el token con la clave SOL escrita o, si no se escribe, con la guardada en Ajustes › Empresa. Lo deja en
+    la caché por el tiempo que SUNAT indique."""
     e = Empresa.actual()
     if not configurada(e):
         raise ErrorSIRE('Registre en Ajustes › Empresa el client_id, el client_secret y el usuario SOL del SIRE.')
+    clave_sol = clave_sol or clave_guardada(e)
     if not clave_sol:
-        raise ErrorSIRE('Ingrese la clave SOL.')
+        raise ErrorSIRE('Registre la clave SOL del SIRE en Ajustes › Empresa (o escríbala aquí).')
     cid, secreto = _credenciales(e)
     datos = urllib.parse.urlencode({'grant_type': 'password', 'scope': SCOPE, 'client_id': cid,
                                     'client_secret': secreto, 'username': f'{e.ruc}{e.sire_usuario_sol}',
@@ -112,15 +127,27 @@ def iniciar_sesion(clave_sol):
 
 
 def _token():
-    token = cache.get(_clave_cache(Empresa.actual()))
+    e = Empresa.actual()
+    token = cache.get(_clave_cache(e))
+    if not token and clave_guardada(e):  # con la clave guardada no se vuelve a pedir
+        token = iniciar_sesion()
     if not token:
-        raise ErrorSIRE('La sesión con SUNAT venció: ingrese de nuevo la clave SOL.')
+        raise ErrorSIRE('La sesión con SUNAT venció: ingrese la clave SOL (o regístrela en Ajustes › Empresa).')
     return token
 
 
 def _api(metodo, ruta, binario=False):
-    return _http(metodo, BASE + ruta, b'' if metodo == 'POST' else None,
-                 {'Authorization': f'Bearer {_token()}', 'Content-Type': 'application/json'}, binario=binario)
+    def llamar():
+        return _http(metodo, BASE + ruta, b'' if metodo == 'POST' else None,
+                     {'Authorization': f'Bearer {_token()}', 'Content-Type': 'application/json'}, binario=binario)
+    try:
+        return llamar()
+    except SesionVencida:
+        e = Empresa.actual()
+        if not clave_guardada(e):
+            raise
+        cache.delete(_clave_cache(e))  # el token pudo vencer antes de lo indicado: una nueva sesión y un reintento
+        return llamar()
 
 
 def solicitar_propuesta(libro, periodo):

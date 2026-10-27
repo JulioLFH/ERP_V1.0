@@ -64,6 +64,10 @@ def registrar(modo, datos, lineas, usuario):
         if monto > doc.saldo + Decimal('0.01'):
             errores.append(f'{doc}: el monto ({monto:,.2f}) supera el saldo ({doc.saldo:,.2f}).')
             continue
+        if doc.fecha_emision and datos['fecha'] < doc.fecha_emision:  # FIN-12
+            errores.append(f'{doc}: la fecha ({datos["fecha"]:%d/%m/%Y}) es anterior a su emisión '
+                           f'({doc.fecha_emision:%d/%m/%Y}).')
+            continue
         if es_detraccion:
             pendiente = detraccion_pendiente(doc)
             if not pendiente:

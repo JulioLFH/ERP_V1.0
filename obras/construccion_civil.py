@@ -61,28 +61,50 @@ def trabajadores_obra():
 @transaction.atomic
 def registrar_tareo(obra, fecha, cuadrilla, filas, usuario, capataz=None, observaciones=''):
     """filas: [(trabajador, partida o None, horas, horas_60, horas_100)]. Un trabajador no pasa de 24 horas en el
-    día sumando sus tareos de la obra."""
+    día sumando sus tareos de la obra, ni de 8 horas normales (HR-21: la jornada de construcción civil; el exceso va
+    como horas extra). Las partidas son las de la meta (OBR-36). El tareo devuelto lleva `avisos` (el trabajador ya
+    tenía otro tareo ese día)."""
     from planillas.models import Trabajador
+
+    from .ejecucion import ErrorEjecucion, validar_fecha_obra
+    from .valorizaciones import presupuesto_meta
     fecha = fecha or timezone.localdate()
-    if fecha > timezone.localdate():
-        raise ErrorCivil('El tareo no puede ser de una fecha futura.')
+    try:
+        validar_fecha_obra(obra, fecha, 'El tareo')
+    except ErrorEjecucion as exc:
+        raise ErrorCivil(str(exc)) from exc
+    if len(observaciones or '') > 250:
+        raise ErrorCivil(f'Las observaciones tienen {len(observaciones)} caracteres: el máximo es 250.')
     filas = [f for f in filas if f[0] is not None and (f[2] or f[3] or f[4])]
     if not filas:
         raise ErrorCivil('Indique las horas de al menos un trabajador.')
-    errores, del_dia = [], defaultdict(lambda: D0)
+    meta = presupuesto_meta(obra)
+    errores, avisos = [], []
+    del_dia, normales = defaultdict(lambda: D0), defaultdict(lambda: D0)
     for t, partida, horas, h60, h100 in filas:
         if not isinstance(t, Trabajador) or t.regimen != 'CONSTRUCCION' or not t.categoria_civil:
             errores.append(f'{t}: no es trabajador de construcción civil con categoría.')
         if partida is not None and partida.presupuesto.obra_id != obra.pk:
             errores.append(f'La partida {partida} no es de la obra.')
+        elif partida is not None and meta is not None and partida.presupuesto_id != meta.pk:
+            errores.append(f'La partida {partida.item} es de {partida.presupuesto}: el tareo va a las partidas de '
+                           f'{meta}.')
         if min(horas or 0, h60 or 0, h100 or 0) < 0:
             errores.append(f'{t}: las horas no pueden ser negativas.')
         del_dia[t] += (horas or 0) + (h60 or 0) + (h100 or 0)
+        normales[t] += horas or 0
     for t, horas in del_dia.items():
-        previas = sum((l.horas + l.horas_60 + l.horas_100 for l in LineaTareo.objects.filter(
-            trabajador=t, tareo__fecha=fecha)), D0)
-        if previas + horas > 24:
+        previas = list(LineaTareo.objects.filter(trabajador=t, tareo__fecha=fecha).select_related('tareo__obra'))
+        total = sum((l.horas + l.horas_60 + l.horas_100 for l in previas), D0) + horas
+        normal = sum((l.horas for l in previas), D0) + normales[t]
+        if total > 24:
             errores.append(f'{t.nombre_completo}: más de 24 horas el {fecha:%d/%m/%Y}.')
+        elif normal > JORNADA:
+            errores.append(f'{t.nombre_completo}: {normal:g} horas normales el {fecha:%d/%m/%Y}; la jornada es de '
+                           f'{JORNADA:g} horas: registre el exceso como horas extra (60 % o 100 %).')
+        if previas:
+            avisos.append(f'{t.nombre_completo} ya tenía {len({l.tareo_id for l in previas})} tareo(s) el '
+                          f'{fecha:%d/%m/%Y} ({total:g} h en el día).')
     if errores:
         raise ErrorCivil(' '.join(errores[:6]))
     tareo = Tareo.objects.create(obra=obra, fecha=fecha, cuadrilla=(cuadrilla or '')[:60], capataz=capataz,
@@ -91,6 +113,7 @@ def registrar_tareo(obra, fecha, cuadrilla, filas, usuario, capataz=None, observ
     for t, partida, horas, h60, h100 in filas:
         LineaTareo.objects.create(tareo=tareo, trabajador=t, partida=partida, horas=horas or 0, horas_60=h60 or 0,
                                   horas_100=h100 or 0)
+    tareo.avisos = avisos
     return tareo
 
 
@@ -103,9 +126,15 @@ def semana_de(fecha):
 
 @transaction.atomic
 def nueva_planilla(obra, fecha):
-    desde, hasta = semana_de(fecha or timezone.localdate())
+    hoy = timezone.localdate()
+    desde, hasta = semana_de(fecha or hoy)
+    if desde > hoy:  # HR-21: ni semanas futuras ni planillas vacías
+        raise ErrorCivil(f'La semana del {desde:%d/%m/%Y} todavía no empieza.')
     if PlanillaCivil.objects.filter(obra=obra, desde=desde).exclude(estado='ANULADA').exists():
         raise ErrorCivil(f'La semana del {desde:%d/%m/%Y} ya tiene planilla.')
+    if not LineaTareo.objects.filter(tareo__obra=obra, tareo__fecha__range=(desde, hasta)).exists():
+        raise ErrorCivil(f'La semana del {desde:%d/%m/%Y} al {hasta:%d/%m/%Y} no tiene tareos: registre primero el '
+                         f'tareo diario.')
     p = PlanillaCivil.objects.create(obra=obra, desde=desde, hasta=hasta)
     calcular(p)
     return p
@@ -188,7 +217,8 @@ def _marcar(planilla):
 @transaction.atomic
 def cerrar(planilla):
     if planilla.estado != 'BORRADOR':
-        raise ErrorCivil('La planilla ya está cerrada.')
+        raise ErrorCivil('La planilla está anulada.' if planilla.estado == 'ANULADA' else
+                         f'La planilla ya está {planilla.get_estado_display().lower()}.')
     calcular(planilla)
     if not planilla.lineas.exists():
         raise ErrorCivil('La semana no tiene tareos de trabajadores de construcción civil.')

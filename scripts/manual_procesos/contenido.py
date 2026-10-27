@@ -242,6 +242,16 @@ M['compras'] = {
             'El sistema cruza factura, recepción y orden: la cantidad facturada no puede superar la recibida; si el precio sale de la tolerancia, la factura queda «retenida para pago» hasta que Compras la libere con motivo.',
             'La factura genera la cuenta por pagar y el asiento (60 / 40 / 42 y destino 20 / 61). El pago se hace en Tesorería.',
         ], 'Factura conforme, lista para pago.'),
+        ('Entregas parciales y cierre del saldo', [
+            'La orden muestra por línea lo pedido, recibido, por recibir, facturado y por facturar; sigue «Aprobado» hasta facturar todo.',
+            'Revise las órdenes con saldo en <b>Órdenes de compra › Seguimiento y cierre de saldos</b> (vencidas, por proveedor y comprador, Excel).',
+            'Si el proveedor no entregará el resto, use <b>Cerrar saldo</b> con su motivo (en la orden o marcando varias en el seguimiento; permiso «Anular órdenes de compra y cerrar su saldo»).',
+            'Una orden con recepciones o facturas no se anula: cierre su saldo o revierta antes sus recepciones y facturas.',
+        ], 'Lo pendiente siempre visible y cada cierre con su motivo en el historial.'),
+        ('Cuenta bancaria del proveedor (doble control)', [
+            'Quien tiene «Cambiar y aprobar las cuentas bancarias» cambia el banco, la cuenta o el CCI en la ficha del contacto.',
+            'El cambio queda por aprobar: otro usuario con el mismo permiso lo aprueba en la ficha (aviso en la campana); hasta entonces se paga a la cuenta anterior.',
+        ], 'Ningún pago se desvía a una cuenta sin una segunda aprobación.'),
         ('Servicios con conformidad (HES)', [
             'Emita la orden de servicio igual que una orden de compra.',
             'Al recibir el servicio, registre la conformidad en <b>Conformidades de servicio (HES)</b> con sus adjuntos (permiso «hes»).',

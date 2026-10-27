@@ -225,6 +225,26 @@ class _Rechazo(Exception):
     pass
 
 
+def _reglas_pedido(form, formset):
+    """CRM-23 y OBR-38: en cotizaciones, pedidos y órdenes de compra la cantidad es mayor que cero, el precio no es
+    negativo y la entrega no es anterior a la fecha del documento."""
+    d = form.cleaned_data
+    errores = []
+    lineas = [f.cleaned_data for f in formset.forms
+              if getattr(f, 'cleaned_data', None) and not f.cleaned_data.get('DELETE')]
+    for n, l in enumerate(lineas, 1):
+        if l.get('cantidad') is not None and l['cantidad'] <= 0:
+            errores.append(f'Ítem {n}: la cantidad debe ser mayor a cero.')
+        if l.get('precio_unitario') is not None and l['precio_unitario'] < 0:
+            errores.append(f'Ítem {n}: el precio no puede ser negativo.')
+    fecha = d.get('fecha') or getattr(form.instance, 'fecha', None)
+    entrega = d.get('fecha_entrega')
+    if fecha and entrega and entrega < fecha:
+        errores.append(f'La fecha de entrega ({entrega:%d/%m/%Y}) no puede ser anterior a la del documento '
+                       f'({fecha:%d/%m/%Y}).')
+    return errores
+
+
 def reglas_comprobante(form, formset):
     """Reglas de compras y ventas en el servidor (pantallas y API, no solo el navegador): cantidad y precio mayores a
     cero (valor 0 solo en operaciones gratuitas; las rebajas y devoluciones van con nota de crédito) (COM-18,
@@ -234,6 +254,8 @@ def reglas_comprobante(form, formset):
 
     from .models import ComprobanteBase
     doc = form.instance
+    if doc._meta.label_lower in ('ventas.cotizacion', 'compras.ordencompra'):
+        return _reglas_pedido(form, formset)
     if not isinstance(doc, ComprobanteBase):
         return []
     d = form.cleaned_data

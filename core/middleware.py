@@ -69,12 +69,23 @@ class AccesoModulosMiddleware:
         return self.get_response(request)
 
     def process_exception(self, request, exception):
-        """Movimiento de almacén en un periodo con el kardex cerrado: aviso claro en vez de un error 500."""
+        """Movimiento de almacén en un periodo con el kardex cerrado: aviso claro en vez de un error 500. OBR-34 y
+        ALM-15: un identificador que no es número («abc», un lote escrito como texto) en un formulario o en la
+        dirección es un dato inválido del usuario: 404 o aviso, no un error 500."""
         from inventario.cierre import KardexCerrado
         if isinstance(exception, KardexCerrado):
             from django.contrib import messages
             messages.error(request, str(exception))
             return redirect(request.META.get('HTTP_REFERER') or 'home')
+        if isinstance(exception, (ValueError, TypeError)) and 'expected a number but got' in str(exception):
+            from django.contrib import messages
+            if request.method == 'POST':
+                messages.error(request, 'Un dato del formulario no es válido (se esperaba elegirlo de la lista): '
+                                        'revise los campos e intente de nuevo.')
+                return redirect(request.META.get('HTTP_REFERER') or request.path)
+            from django.http import Http404
+            from django.views.defaults import page_not_found
+            return page_not_found(request, Http404('Dato inválido'))
         return None
 
     def process_view(self, request, view_func, view_args, view_kwargs):

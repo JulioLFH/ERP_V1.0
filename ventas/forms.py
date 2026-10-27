@@ -19,6 +19,44 @@ def cotizaciones_abiertas(form):
     return Cotizacion.objects.filter(~Q(estado__in=['ANULADO', 'ATENDIDO']) | Q(pk__in=actuales))
 
 
+def campo_vendedor(form):
+    """VEN-22: el vendedor es un usuario de la lista (no texto libre); un documento nuevo lo toma de quien lo
+    registra (o del pedido de origen) y solo lo cambia quien tiene «Cambiar el vendedor de un documento»."""
+    from django.contrib.auth import get_user_model
+
+    from core.auditoria import usuario_actual
+    usuarios = get_user_model().objects.filter(is_active=True, acceso_proveedor__isnull=True).order_by('username')
+    opciones = [('', '—')] + [(u.username, f'{u.get_full_name()} ({u.username})' if u.get_full_name() else u.username)
+                              for u in usuarios]
+    actual = form.instance.vendedor or form.initial.get('vendedor') or ''
+    if actual and actual not in {v for v, _ in opciones}:  # valores antiguos escritos a mano
+        opciones.append((actual, f'{actual} (anterior)'))
+    form.fields['vendedor'] = forms.ChoiceField(label='Vendedor', choices=opciones, required=False)
+    usuario = usuario_actual()
+    if not form.is_bound and not form.instance.pk and not form.initial.get('vendedor') and usuario is not None \
+            and usuario.is_authenticated:
+        form.initial['vendedor'] = usuario.username
+
+
+def limpiar_vendedor(form, valor):
+    """El valor permitido del vendedor: sin el permiso, el del documento (o del pedido) o el propio usuario."""
+    from core.auditoria import usuario_actual
+    from core.permisos import puede
+    usuario = usuario_actual()
+    if usuario is None or not usuario.is_authenticated:
+        return valor
+    permitido = form.instance.vendedor if form.instance.pk else (
+        getattr(form.cleaned_data.get('cotizacion'), 'vendedor', '') or usuario.username)
+    if not valor:  # vacío: el del documento o quien lo registra (PV06: antes quedaba «Vendedor: -»)
+        return permitido
+    if puede(usuario, 'ventas.vendedor'):
+        return valor
+    if valor != (permitido or ''):
+        raise forms.ValidationError(f'Su usuario no cambia el vendedor (queda {permitido or "—"}): pida a quien tenga '
+                                    f'«Cambiar el vendedor de un documento».')
+    return valor
+
+
 class VentaForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Venta
@@ -54,9 +92,15 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
             self.fields['serie'].disabled = True
             self.fields['numero'].disabled = True
             self.fields['tipo_comprobante'].disabled = True
+        campo_vendedor(self)
 
     def clean(self):
         data = super().clean()
+        if 'vendedor' in data:
+            try:
+                data['vendedor'] = limpiar_vendedor(self, data['vendedor'])
+            except forms.ValidationError as exc:
+                self.add_error('vendedor', exc)
         # VEN-18: el número de cuotas en una variable (add_error quita el campo de cleaned_data: antes daba error 500)
         escrito = data.get('cuotas')
         cuotas = escrito or 1
@@ -170,6 +214,10 @@ class CotizacionForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['CLIENTE', 'AMBOS'])
         remoto(self.fields['tercero'], 'clientes')
+        campo_vendedor(self)
+
+    def clean_vendedor(self):
+        return limpiar_vendedor(self, self.cleaned_data.get('vendedor'))
 
     def save(self, commit=True):
         if not self.instance.numero:

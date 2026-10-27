@@ -12,6 +12,8 @@
       {% csrf_token %}
       {% if ayuda %}<div class="alert alert-info py-2 small"><i class="bi bi-info-circle"></i> {{ ayuda }}</div>{% endif %}
       {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+      {% for h in form.hidden_fields %}{% for e in h.errors %}<div class="alert alert-danger py-2">{{ h.label }}: {{ e }}</div>{% endfor %}{% endfor %}
+      {% if form.errors and not form.non_field_errors %}<div class="alert alert-danger py-2 small">No se guardó: revise los campos marcados.</div>{% endif %}
       <div class="row g-3">
         {% for field in form %}
           <div class="{% if field.name == 'glosa' or field.name == 'direccion' or field.name == 'nombre' or field.name == 'razon_social' %}col-12{% else %}col-md-6{% endif %}">
@@ -26,4 +28,5 @@
     </form>
   </div>
 </div>
+{% block despues %}{% endblock %}
 {% endblock %}

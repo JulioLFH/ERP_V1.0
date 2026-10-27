@@ -294,17 +294,21 @@ def garantia(request, pk=None):
 @login_required
 def servicios_proceso(request):
     hoy = timezone.localdate()
+    from .valorizaciones import periodo_valido
     periodo = request.GET.get('periodo') or (hoy.replace(day=1) - timedelta(days=1)).strftime('%Y%m')
-    if not (periodo.isdigit() and len(periodo) == 6):
+    if not periodo_valido(periodo):
         periodo = hoy.strftime('%Y%m')
     if request.method == 'POST':
         try:
+            enviado = (request.POST.get('periodo') or periodo).replace('-', '').strip()
+            if not periodo_valido(enviado):  # OBR-34: «abc» o «202613» eran un error 500
+                raise srv.ErrorServicio(f'«{enviado}» no es un mes válido (AAAAMM).')
             if request.POST.get('accion') == 'distribuir':
-                a = srv.distribuir_horas(request.POST.get('periodo') or periodo, request.user)
+                a = srv.distribuir_horas(enviado, request.user)
                 messages.success(request, f'Asiento {a.numero or a.pk}: el costo de las horas del personal pasó a los '
                                           f'centros de costo de los proyectos.')
                 return redirect(f"{reverse('obras:servicios_proceso')}?periodo={periodo}")
-            a = srv.registrar_cierre(request.POST.get('periodo') or periodo, request.user)
+            a = srv.registrar_cierre(enviado, request.user)
             messages.success(request, f'Asiento {a.numero or a.pk} registrado con el servicio en proceso y el ingreso '
                                       f'por avance.')
         except srv.ErrorServicio as exc:

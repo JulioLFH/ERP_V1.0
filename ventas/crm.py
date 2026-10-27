@@ -85,11 +85,42 @@ class OportunidadForm(BootstrapMixin, forms.ModelForm):
                 self.add_error('motivo_perdida', 'Describa el motivo.')
         if d.get('probabilidad') is not None and d['probabilidad'] > 100:
             self.add_error('probabilidad', 'Máximo 100.')
+        # CRM-23: las mismas reglas que Contactos y Ventas
+        if d.get('fecha_inicio') and d.get('fecha_cierre') and d['fecha_cierre'] < d['fecha_inicio']:
+            self.add_error('fecha_cierre', 'El cierre no puede ser anterior al inicio de la oportunidad.')
+        from core.forms import error_telefono
+        error = error_telefono(d.get('telefono'))
+        if error and (not self.instance.pk or 'telefono' in self.changed_data):
+            self.add_error('telefono', error)
+        if d.get('etapa') == 'GANADA' and d.get('probabilidad') is not None and d['probabilidad'] != 100:
+            d['probabilidad'] = 100  # ganada = 100 %, perdida = 0 %
+        elif d.get('etapa') == 'PERDIDA' and d.get('probabilidad'):
+            d['probabilidad'] = 0
+        if not self.instance.pk and 'consentimiento' in self.fields and not d.get('consentimiento') \
+                and _persona_natural(d):
+            self.add_error('consentimiento', 'El prospecto es una persona natural: registre que autorizó el uso de '
+                                             'sus datos personales (Ley 29733) antes de guardarlo.')
         if d.get('etapa') in ('GANADA', 'PERDIDA') and 'etapa' in self.changed_data and \
                 _licitacion_en_curso(self.instance):
             self.add_error('etapa', 'Es una licitación de obra: registre la buena pro o la pérdida en Obras › '
                                     'Licitaciones (la oportunidad se actualiza sola).')
         return d
+
+
+EMPRESA_RE = re.compile(r'\b(s\.?a\.?c?\.?|s\.?r\.?l\.?|e\.?i\.?r\.?l\.?|s\.?a\.?a\.?|sociedad|empresa|corporaci[oó]n|'
+                        r'consorcio|asociaci[oó]n|cooperativa|municipalidad|gobierno|ministerio|hospital|cl[ií]nica|'
+                        r'universidad|colegio|instituto|inversiones|constructora|comercial|servicios|grupo)\b', re.I)
+
+
+def _persona_natural(d):
+    """CRM-23: el cliente con DNI o carné, o el prospecto cuyo nombre no es el de una empresa o entidad."""
+    tercero = d.get('tercero')
+    if tercero is not None:
+        if tercero.tipo_doc == '6':
+            return False
+        return not ConsentimientoDatos.objects.filter(tercero=tercero, estado='OTORGADO').exists()
+    nombre = (d.get('prospecto') or '').strip()
+    return bool(nombre) and not EMPRESA_RE.search(nombre) and not re.search(r'\b20\d{9}\b', nombre)
 
 
 def _licitacion_en_curso(o):

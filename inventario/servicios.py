@@ -79,8 +79,9 @@ def pendientes(op):
             for k, v in _de_operaciones({'operacion__orden_compra_id': op.compra.orden_compra_id},
                                         ['INGRESO'], excluir=op).items():
                 recibido[k] = recibido.get(k, D0) + v
+        cerrado = op.orden_compra_id and getattr(doc, 'saldo_cerrado_en', None)  # COM-24: ya no se recibe el saldo
         for k, v in pedido.items():
-            resultado[k] = (v - recibido.get(k, D0), costo.get(k))
+            resultado[k] = (D0 if cerrado else v - recibido.get(k, D0), costo.get(k))
     elif tipo.clase == 'SALIDA' and op.compra_id:  # devolución a proveedor
         c = op.compra
         if c.stock_aplicado:
@@ -262,6 +263,10 @@ def errores_lotes(op, items):
     for i in items:
         control = i.producto.control
         if not control:
+            if (i.lote or '').strip() and (clase == 'INGRESO' or i.rol in ('PRODUCTO', 'SUBPROD')):
+                # ALM-15: antes se aceptaba y se perdía sin aviso
+                errores.append(f'"{i.producto.nombre}" no se controla por lote: deje el lote vacío o active el control '
+                               f'por lote en la ficha del producto.')
             continue
         entra = clase == 'INGRESO' or (clase == 'MANUFACTURA' and i.rol in ('PRODUCTO', 'SUBPROD'))
         sale = clase in ('SALIDA', 'TRASLADO', 'TRANSITO_ENVIO') or (clase == 'MANUFACTURA' and i.rol == 'INSUMO')
@@ -488,6 +493,10 @@ def errores_anulacion(op, desde_conteo=False):
     items = list(op.items.select_related('producto'))
     clase = op.tipo.clase
     if clase == 'INGRESO':
+        pagadas = _facturas_pagadas(op)
+        if pagadas:  # COM-27: el stock pagado no sale anulando la recepción
+            return [f'La mercadería de esta recepción ya se facturó y pagó ({", ".join(pagadas)}): no se anula la '
+                    f'recepción; registre la devolución al proveedor (salida por devolución) y su nota de crédito.']
         return faltantes_stock([(i.producto, i.cantidad) for i in items], op.almacen_destino)
     if clase in ('TRASLADO', 'TRANSITO_RECEPCION'):
         return faltantes_stock([(i.producto, i.cantidad) for i in items], op.almacen_destino)
@@ -497,6 +506,26 @@ def errores_anulacion(op, desde_conteo=False):
         return faltantes_stock([(i.producto, i.cantidad) for i in items if i.rol in ('PRODUCTO', 'SUBPROD')],
                                op.almacen_destino)
     return []
+
+
+def _facturas_pagadas(op):
+    """Facturas vigentes de la orden de la recepción con pagos o aplicaciones, si sin esta recepción quedaría más
+    facturado que recibido."""
+    oc = op.orden_compra if op.orden_compra_id else None
+    if oc is None:
+        return []
+    from compras.cruce import facturado_oc, recibido_oc
+    from finanzas.models import Aplicacion, Movimiento
+    recibido, facturado = recibido_oc(oc), facturado_oc(oc)
+    quitado = _cantidades(op.items.select_related('producto'))
+    if not any(facturado.get(k, D0) > recibido.get(k, D0) - v for k, v in quitado.items()):
+        return []
+    salida = []
+    for c in facturas_de_recepcion(op):
+        if Movimiento.objects.filter(compra=c, estado='VIGENTE').exists() or Aplicacion.objects.filter(
+                compra=c, estado='VIGENTE').exclude(origen='GARANTIA').exists():
+            salida.append(str(c))
+    return salida
 
 
 def anular(op, usuario, motivo, desde_conteo=False):

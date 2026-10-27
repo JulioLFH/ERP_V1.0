@@ -25,6 +25,7 @@ from .models import (AdelantoObra, AvancePartida, DevolucionGarantia, FormulaPol
 
 D0 = Decimal('0')
 VIGENTES = ('BORRADOR', 'POR_APROBAR', 'APROBADA', 'FACTURADA')
+MAX_INDICE = 80  # índices unificados de precios de la construcción del INEI: 01 a 80
 
 
 class ErrorValorizacion(Exception):
@@ -41,6 +42,27 @@ def r3(v):
 
 def periodo_de(fecha):
     return fecha.strftime('%Y%m')
+
+
+def periodo_valido(periodo):
+    """AAAAMM con un mes de 01 a 12 (OBR-34: «202613» era un error 500)."""
+    texto = str(periodo or '')
+    return len(texto) == 6 and texto.isdigit() and 1 <= int(texto[4:]) <= 12 and int(texto[:4]) >= 1900
+
+
+def validar_periodo_obra(obra, periodo, que='El mes'):
+    """OBR-40: un mes de la obra va entre su inicio (o el contrato) y el mes actual."""
+    if not periodo_valido(periodo):
+        raise ErrorValorizacion(f'{que}: indique un mes válido (AAAA-MM).')
+    actual = timezone.localdate().strftime('%Y%m')
+    if periodo > actual:
+        raise ErrorValorizacion(f'{que} ({periodo[4:]}/{periodo[:4]}) no puede ser futuro.')
+    inicio = obra.fecha_inicio or obra.fecha_contrato
+    if inicio and periodo < inicio.strftime('%Y%m'):
+        raise ErrorValorizacion(f'{que} ({periodo[4:]}/{periodo[:4]}) es anterior al inicio de la obra '
+                                f'({inicio:%m/%Y}).')
+    if int(periodo[:4]) < 2000:
+        raise ErrorValorizacion(f'{que}: revise el año ({periodo[:4]}).')
 
 
 def rango(periodo):
@@ -357,11 +379,30 @@ def guardar_formula(obra, filas, numero=1, nombre='', subpresupuesto='', area='1
     suma de los coeficientes debe ser 1."""
     if not filas:
         raise ErrorValorizacion('No se encontraron monomios (símbolo, coeficiente e índice de 2 dígitos).')
+    # OBR-40: N° ≥ 1, coeficientes positivos, área 1 a 6, índices del INEI, sin el mismo monomio dos veces
+    if not isinstance(numero, int) or numero < 1 or numero > 99:
+        raise ErrorValorizacion('El N° de la fórmula va de 1 a 99.')
+    if str(area) not in dict(IndiceUnificado.AREAS):
+        raise ErrorValorizacion(f'El área geográfica {area} no existe: van de 1 a 6.')
+    errores, vistos = [], set()
+    for simbolo, coef, codigo, _ in filas:
+        if Decimal(coef) <= 0:
+            errores.append(f'{simbolo}: el coeficiente {coef} debe ser mayor que cero')
+        if not codigo or int(codigo) > MAX_INDICE:
+            errores.append(f'{simbolo}: el índice {codigo} no existe (los índices unificados del INEI van del 01 al '
+                           f'{MAX_INDICE})')
+        if (simbolo, codigo) in vistos:  # el mismo símbolo con otro índice es un monomio compuesto (válido)
+            errores.append(f'{simbolo} con el índice {codigo} está dos veces')
+        vistos.add((simbolo, codigo))
+    if errores:
+        raise ErrorValorizacion('Revise la fórmula: ' + '; '.join(errores[:6]) + '.')
     suma = sum((Decimal(c) for _, c, _, _ in filas), D0)
     if abs(suma - 1) > Decimal('0.001'):
         raise ErrorValorizacion(f'Los coeficientes suman {suma:.3f}: deben sumar 1.000.')
-    if not (len(periodo_base) == 6 and periodo_base.isdigit()):
+    if not periodo_valido(periodo_base):
         raise ErrorValorizacion('Indique el mes de los índices base (presupuesto base).')
+    if periodo_base > timezone.localdate().strftime('%Y%m'):
+        raise ErrorValorizacion(f'El mes base ({periodo_base[4:]}/{periodo_base[:4]}) no puede ser futuro.')
     f, _ = FormulaPolinomica.objects.update_or_create(obra=obra, numero=numero, defaults={
         'nombre': nombre[:150], 'subpresupuesto': subpresupuesto[:10], 'area': area, 'periodo_base': periodo_base,
         'activa': True})
@@ -392,10 +433,16 @@ def leer_indices(filas):
 
 @transaction.atomic
 def guardar_indices(periodo, valores):
-    if not (len(periodo) == 6 and periodo.isdigit()):
+    if not periodo_valido(periodo):
         raise ErrorValorizacion('Indique el mes de los índices (AAAAMM).')
+    if periodo > timezone.localdate().strftime('%Y%m'):  # OBR-40
+        raise ErrorValorizacion(f'Los índices de {periodo[4:]}/{periodo[:4]} todavía no existen (mes futuro).')
     if not valores:
         raise ErrorValorizacion('No se encontraron índices (código de 2 dígitos y valores por área).')
+    malos = [f'{c} área {a}: {v}' for (c, a), v in valores.items() if v <= 0 or int(c) > MAX_INDICE]
+    if malos:
+        raise ErrorValorizacion('Índices no válidos (deben ser mayores que cero y del 01 al '
+                                f'{MAX_INDICE}): {"; ".join(malos[:6])}.')
     for (codigo, area), valor in valores.items():
         IndiceUnificado.objects.update_or_create(codigo=codigo, area=area, periodo=periodo,
                                                  defaults={'valor': valor})
@@ -436,9 +483,8 @@ def nueva(obra, periodo, usuario, fecha_inicio=None, fecha_fin=None):
     if p is None:
         raise ErrorValorizacion('La obra no tiene presupuesto contractual: cópielo desde la oferta o la meta y '
                                 'apruébelo.')
-    if not (len(periodo or '') == 6 and periodo.isdigit()):
-        raise ErrorValorizacion('Indique el mes que se valoriza.')
-    abiertas = obra.valorizaciones.filter(estado__in=('BORRADOR', 'POR_APROBAR')).first()
+    validar_periodo_obra(obra, periodo, 'El mes que se valoriza')
+    abiertas =obra.valorizaciones.filter(estado__in=('BORRADOR', 'POR_APROBAR')).first()
     if abiertas:
         raise ErrorValorizacion(f'{abiertas} sigue abierta: apruébela o anúlela antes de crear otra.')
     if obra.valorizaciones.filter(periodo=periodo, estado__in=VIGENTES).exists():

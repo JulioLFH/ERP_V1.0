@@ -202,6 +202,36 @@ def _tipo_cambio_ok(form, formset):
     return True
 
 
+def cuentas_de_tesoreria():
+    """Cuentas contables de caja y bancos: las 101/104/106 y las vinculadas a una cuenta de Tesorería."""
+    from finanzas.models import Cuenta
+    vinculadas = set(Cuenta.objects.exclude(cuenta_contable=None).values_list('cuenta_contable_id', flat=True))
+    return vinculadas
+
+
+def _bancos_ok(request, form, formset):
+    """CON-21: el asiento manual no mueve caja ni bancos (eso es Tesorería y la conciliación), salvo que el usuario
+    tenga «Asientos manuales a caja y bancos» y explique el motivo en la glosa (queda marcado en la conciliación)."""
+    from core.permisos import puede
+    vinculadas = cuentas_de_tesoreria()
+    tocadas = [f.cleaned_data['cuenta'] for f in formset.forms
+               if getattr(f, 'cleaned_data', None) and not f.cleaned_data.get('DELETE') and f.cleaned_data.get('cuenta')
+               and (f.cleaned_data['cuenta'].codigo[:3] in ('101', '104', '106')
+                    or f.cleaned_data['cuenta'].pk in vinculadas)]
+    if not tocadas:
+        return True
+    codigos = ', '.join(sorted({c.codigo for c in tocadas}))
+    if not puede(request.user, 'contabilidad.bancos'):
+        form.add_error(None, f'El asiento usa cuentas de caja o bancos ({codigos}): esos movimientos se registran en '
+                             f'Tesorería (y se concilian con el banco). Para un ajuste contable a bancos se necesita el '
+                             f'permiso «Asientos manuales a caja y bancos».')
+        return False
+    if len((form.cleaned_data.get('glosa') or '').strip()) < 15:
+        form.add_error('glosa', f'Explique en la glosa por qué el asiento mueve caja o bancos ({codigos}).')
+        return False
+    return True
+
+
 def _importes_en_dolares(asiento):
     """Líneas de cuentas en dólares: importe en US$ = importe en soles ÷ tipo de cambio del asiento."""
     if not asiento.tipo_cambio or asiento.tipo_cambio <= 1:
@@ -219,7 +249,8 @@ def asiento_nuevo(request):
     asiento = Asiento(libro='05')
     form = AsientoForm(request.POST or None, request.FILES or None, instance=asiento)
     formset = lineas_formset(extra=4)(request.POST or None, instance=asiento)
-    if request.method == 'POST' and form.is_valid() and formset.is_valid() and _tipo_cambio_ok(form, formset):
+    if request.method == 'POST' and form.is_valid() and formset.is_valid() and _tipo_cambio_ok(form, formset) \
+            and _bancos_ok(request, form, formset):
         with transaction.atomic():
             a = form.save(commit=False)
             a.origen, a.creado_por = 'MANUAL', request.user

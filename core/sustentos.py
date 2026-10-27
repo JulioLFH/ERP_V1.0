@@ -44,6 +44,19 @@ def validar_archivo(archivo):
         raise ErrorSustento('Formato no admitido: adjunte PDF, imagen, Excel, Word, XML o ZIP.')
 
 
+def validar_imagen(archivo):
+    """OBR-36: una foto debe ser una imagen de verdad (JPG, PNG o WEBP por su contenido, no solo por el nombre)."""
+    validar_archivo(archivo)
+    if not archivo.name.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+        raise ErrorSustento('La foto debe ser una imagen JPG, PNG o WEBP.')
+    archivo.seek(0)
+    cabecera = archivo.read(12)
+    archivo.seek(0)
+    if not (cabecera.startswith(b'\xff\xd8\xff') or cabecera.startswith(b'\x89PNG\r\n\x1a\n')
+            or (cabecera[:4] == b'RIFF' and cabecera[8:12] == b'WEBP')):
+        raise ErrorSustento(f'«{archivo.name}» no es una imagen (su contenido no es JPG, PNG ni WEBP).')
+
+
 def guardar_archivo(archivo, usuario=None, datos=None, nombre=None, tipo=''):
     """ArchivoSustento desde un archivo subido (o desde bytes ya leídos)."""
     if datos is None:

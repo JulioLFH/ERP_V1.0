@@ -13,6 +13,10 @@ ACCIONES = {
             ('configurar', 'Equipos, metas, campañas, formulario web y configuración del CRM', True),
             ('datos_personales', 'Dar de baja, exportar o suprimir datos personales (Ley 29733)', True)],
     'toma_pedido': [('registrar', 'Tomar pedidos de clientes (en el celular) y enviarlos a aprobación', False)],
+    # TE-01: el maestro de clientes y proveedores lo mantiene Contactos; los demás módulos lo consultan
+    'contactos': [('registrar', 'Crear y editar clientes y proveedores (datos maestros)', False)],
+    # AJ-01 a AJ-07: administrar usuarios y permisos es aparte de configurar la empresa
+    'ajustes': [('usuarios', 'Administrar usuarios, perfiles de acceso y permisos (no los propios)', True)],
     'ventas': [('emitir', 'Emitir comprobantes y cotizaciones', False),
                ('notas', 'Emitir notas de crédito y débito', True),
                ('anular', 'Anular comprobantes', True),
@@ -25,7 +29,8 @@ ACCIONES = {
     'compras': [('registrar', 'Registrar facturas de compra', False),
                 ('oc', 'Crear y editar órdenes de compra', False),
                 ('aprobar_oc', 'Aprobar órdenes de compra', True),
-                ('anular', 'Anular compras y órdenes de compra', True),
+                ('anular', 'Anular facturas de compra (con «Registrar facturas»; contabilidad)', True),
+                ('anular_oc', 'Anular órdenes de compra y cerrar su saldo (comprador)', True),
                 ('convertir_solped', 'Convertir solicitudes de pedido en órdenes de compra o licitaciones', False),
                 ('hes', 'Registrar conformidades de servicio (HES) con sus adjuntos', False),
                 ('liberar_hes', 'Liberar conformidades de servicio (sin reglas de aprobación)', True),
@@ -54,15 +59,20 @@ ACCIONES = {
                   ('transferir', 'Transferencias entre cuentas', False),
                   ('anular', 'Anular movimientos, cheques y entregas a rendir', True),
                   ('cuentas', 'Crear cuentas de caja y bancos y sus saldos iniciales', True),
-                  ('aprobar_pagos', 'Aprobar la propuesta de pagos (gerencia)', True)],
+                  ('aprobar_pagos', 'Aprobar la propuesta de pagos (gerencia)', True),
+                  ('datos_bancarios', 'Cambiar y aprobar las cuentas bancarias de clientes y proveedores (doble '
+                                      'control; SEG-10)', True)],
     'finanzas': [('registrar', 'Aplicar anticipos, registrar letras, canjes y cuotas de préstamos', False),
                  ('anular', 'Anular aplicaciones, canjes y préstamos', True),
                  ('cuentas', 'Registrar préstamos y leasing', True),
                  ('cobranza', 'Gestión de cobranza: gestiones, promesas, recordatorios y provisión', False),
                  ('financiamiento', 'Líneas de crédito, depósitos, factoring, cartas fianza, arrendamientos y '
                                     'forwards', True),
-                 ('planeamiento', 'Presupuesto de caja: partidas manuales y escenarios', False)],
+                 ('planeamiento', 'Presupuesto de caja: partidas manuales y escenarios', False),
+                 ('credito', 'Límite y días de crédito, lista de precios y condiciones de pago de los contactos '
+                             '(SEG-12)', True)],
     'contabilidad': [('asientos', 'Asientos manuales', False),
+                     ('bancos', 'Asientos manuales a cuentas de caja y bancos (con motivo; CON-21)', True),
                      ('extornar', 'Extornar asientos', True),
                      ('periodos', 'Centralizar y cerrar periodos', True),
                      ('reabrir', 'Reabrir periodos cerrados (con motivo)', True),
@@ -149,7 +159,11 @@ EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar'
               'control_calidad.reabrir', 'control_calidad.aprobar_oos', 'control_calidad.especificaciones',
               'control_calidad.aprobar_qa', 'tesoreria.aprobar_pagos',
               # v1.88 (SEG-08): sueldos, cuentas y netos de planilla solo a RR. HH.
-              'planillas.ver_sueldos'}
+              'planillas.ver_sueldos',
+              # v1.91: asientos manuales a bancos (CON-21) y cuentas bancarias de terceros (SEG-10)
+              'contabilidad.bancos', 'tesoreria.datos_bancarios',
+              # usuarios y permisos: solo el administrador o a quien se le asigna (AJ-01)
+              'ajustes.usuarios'}
 
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
@@ -185,14 +199,25 @@ RUTAS = {
     'compras:registros_info': {'POST': 'compras.oc'},
     'compras:anular': 'compras.anular', 'compras:eliminar': 'compras.anular',
     'compras:oc_nuevo': 'compras.oc', 'compras:oc_editar': 'compras.oc', 'compras:oc_enviar': 'compras.oc',
-    'compras:oc_estado': lambda r: {'APROBADO': _aprobar_oc(), 'ANULADO': 'compras.anular'}.get(
-        r.POST.get('estado'), 'compras.oc'),
+    'compras:oc_estado': lambda r: {'APROBADO': _aprobar_oc(), 'ANULADO': 'compras.anular_oc'}.get(
+        r.POST.get('estado'), 'compras.anular_oc' if r.POST.get('accion') == 'cerrar_saldo' else 'compras.oc'),
+    'compras:oc_seguimiento': {'POST': 'compras.anular_oc'},
+    # AJ-01 a AJ-07: usuarios, perfiles y segregación (el formulario además impide la autoasignación)
+    **{r: 'ajustes.usuarios' for r in ('usuarios', 'usuario_nuevo', 'usuario_editar', 'segregacion',
+                                       'perfiles_acceso', 'perfil_acceso_nuevo', 'perfil_acceso_editar')},
+    # PLAT-17: crear o cambiar almacenes es configuración del inventario (antes no guardaba ni avisaba)
+    'almacen_nuevo': {'POST': 'inventario.cerrar'}, 'almacen_editar': {'POST': 'inventario.cerrar'},
+    # TE-01 y SEG-10: alta y edición del maestro de terceros; aprobación del cambio de cuenta bancaria
+    'tercero_nuevo': {'POST': 'contactos.registrar'}, 'tercero_editar': {'POST': 'contactos.registrar'},
+    'tercero_banco': {'POST': 'tesoreria.datos_bancarios'},
+    # SU-01 y SU-02: el SIRE es tributario (contabilidad)
+    'sire_propuestas': {'POST': 'contabilidad.asientos'}, 'sire_propuesta': {'POST': 'contabilidad.asientos'},
     'compras:portal_factura_aprobar': 'portal_proveedores.aprobar',
     'compras:portal_factura_rechazar': 'portal_proveedores.aprobar', 'compras:liberar_pago': 'portal_proveedores.aprobar',
     'compras:portal_acceso_nuevo': 'portal_proveedores.aprobar',
     'compras:portal_acceso_editar': 'portal_proveedores.aprobar',
-    'inventario:nueva': 'inventario.operar', 'inventario:editar': 'inventario.operar',
-    'inventario:confirmar': 'inventario.operar', 'inventario:pendientes': 'inventario.operar',
+    'inventario:nueva': lambda r: _operacion(r), 'inventario:editar': lambda r: _operacion(r),
+    'inventario:confirmar': lambda r: _operacion(r), 'inventario:pendientes': 'inventario.operar',
     'inventario:eliminar': 'inventario.operar', 'inventario:anular': 'inventario.anular',
     'inventario:cierre_reabrir': 'inventario.cerrar', 'inventario:tipo_nuevo': 'inventario.cerrar',
     'inventario:tipo_editar': 'inventario.cerrar', 'inv_ajuste': 'inventario.ajustar',
@@ -253,7 +278,7 @@ RUTAS = {
     'planillas:trabajador_editar': {'POST': 'empleados.registrar'},
     'planillas:detalle': lambda r: (None if r.method != 'POST' else 'planillas.cerrar'
                                     if r.POST.get('accion') in ('cerrar', 'reabrir', 'pagar') else 'planillas.calcular'),
-    'planillas:configuracion': {'POST': 'planillas.configurar'},
+    'planillas:configuracion': 'planillas.configurar',  # PL-05: también la lectura (parámetros, AFP, conceptos)
     'planillas:movimiento_nuevo': 'empleados.registrar',
     'planillas:vacaciones': {'POST': 'tiempo_personal.registrar'},
     # la asistencia la registra Empleados; pasarla a la planilla del mes es de Planillas
@@ -405,6 +430,20 @@ def _aprobar_oc():
 
 def _tipo(request):
     return request.POST.get('tipo_comprobante') or request.GET.get('tipo') or ''
+
+
+# SEG-11: tipos de operación de almacén que son ajustes (exigen «Ajustes de inventario» al crearlos y al confirmarlos)
+TIPOS_AJUSTE = ('AJ_ING', 'AJ_SAL', 'SAL_DESTR', 'TRAS_DESTR', 'SALDO_INI')
+
+
+def _operacion(request):
+    """inventario.ajustar para crear, editar o confirmar un ajuste (aunque se entre por «Nueva operación»)."""
+    codigo = request.GET.get('tipo') or ''
+    pk = (request.resolver_match.kwargs or {}).get('pk') if request.resolver_match else None
+    if pk and not codigo:
+        from inventario.models import Operacion
+        codigo = Operacion.objects.filter(pk=pk).values_list('tipo__codigo', flat=True).first() or ''
+    return 'inventario.ajustar' if codigo in TIPOS_AJUSTE else 'inventario.operar'
 
 
 def _calibrar(request):

@@ -8,6 +8,11 @@ from .models import Compra, ContratoMarco, Licitacion, OrdenCompra
 
 
 class CompraForm(BootstrapMixin, forms.ModelForm):
+    # COM-27: un precio fuera de la tolerancia de la orden se acepta solo marcándolo (y la factura queda retenida)
+    aceptar_precio = forms.BooleanField(
+        label='El precio difiere de la orden de compra: registrarla igual (queda retenida para pago hasta que '
+              'Compras la libere)', required=False)
+
     class Meta:
         model = Compra
         fields = ['tipo_comprobante', 'serie', 'numero', 'tercero', 'fecha_emision', 'fecha_vencimiento', 'periodo',
@@ -25,6 +30,8 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         self.fields['serie'].required = True
         self.fields['numero'].required = True
         self.fields['orden_compra'].queryset = OrdenCompra.objects.exclude(estado='ANULADO')
+        if not self.is_bound:  # solo aparece si el precio difiere de la orden
+            self.fields['aceptar_precio'].widget = forms.HiddenInput()
         self.fields['doc_referencia'].queryset = Compra.objects.filter(
             estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
         remoto(self.fields['doc_referencia'], 'compras', perezoso=True)

@@ -12,7 +12,7 @@
     {% if not en_uso %}<a href="{% url 'manufactura:lista_editar' lista.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
     <form method="post" action="{% url 'manufactura:lista_version' lista.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary"><i class="bi bi-files"></i> Copiar como nueva receta</button></form>
     {% if lista.estado == 'APROBADA' and puede.manufactura_recetas %}<a href="{% url 'manufactura:cambio_nuevo' %}?lista={{ lista.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-left-right"></i> Proponer cambio de ingeniería</a>{% endif %}
-    {% if lista.estado != 'OBSOLETA' %}<form method="post" action="{% url 'manufactura:lista_obsoleta' lista.pk %}" data-confirm="¿Declarar obsoleta esta receta? Sus versiones de fabricación quedan inactivas.">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive"></i> Obsoleta</button></form>{% endif %}
+    {% if lista.estado != 'OBSOLETA' and puede.manufactura_recetas %}<form method="post" action="{% url 'manufactura:lista_obsoleta' lista.pk %}" data-confirm="¿Declarar obsoleta esta receta? Sus versiones de fabricación quedan inactivas.">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive"></i> Obsoleta</button></form>{% endif %}
     {% if lista.estado == 'APROBADA' %}<a href="{% url 'manufactura:orden_nueva' %}?producto={{ lista.producto_id }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Orden de producción</a>{% endif %}
   </div>
 </div>

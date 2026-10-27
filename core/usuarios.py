@@ -164,6 +164,7 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
                 self.add_error('is_active', 'No puede desactivar su propio usuario.')
             if self.instance.is_superuser and not data.get('es_admin'):
                 self.add_error('es_admin', 'No puede quitarse a sí mismo el rol de administrador.')
+        self._sin_escalada(data)
         if not data.get('es_admin') and not data.get('modulos') and not self._perfil_a_aplicar(data):
             self.add_error('modulos', 'Asigne al menos un módulo (o un perfil de acceso).')
         # CRM-15: al desactivar a un vendedor con cartera abierta se pide a quién pasarla
@@ -174,6 +175,36 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
                                             f'{c["actividades"]} actividad(es) pendientes y {c["clientes"]} cliente(s) '
                                             f'en su cartera del CRM: elija a quién pasarlas.')
         return data
+
+    def _sin_escalada(self, data):
+        """AJ-06 y AJ-07: quien no es administrador no se marca (ni marca a otro) como administrador, no edita a un
+        administrador, no cambia sus propios módulos, acciones ni perfil, y no da módulos ni acciones que él mismo no
+        tiene."""
+        editor = self.editor
+        if editor is None or editor.is_superuser:
+            return
+        if data.get('es_admin') and not (self.instance.pk and self.instance.is_superuser):
+            self.add_error('es_admin', 'Solo un administrador marca a otro usuario como administrador.')
+        if self.instance.pk and self.instance.is_superuser:
+            self.add_error(None, 'Solo un administrador edita la ficha de un administrador.')
+            return
+        propio = self.instance.pk and self.instance.pk == editor.pk
+        from .modulos import modulos_del_usuario
+        from .permisos import perfil_de
+        mis_modulos = set(modulos_del_usuario(editor))
+        perfil = perfil_de(editor)
+        from .permisos import EXPLICITAS, TODAS
+        mis_acciones = set(perfil.acciones) if perfil is not None else (TODAS - EXPLICITAS)
+        modulos, acciones = set(data.get('modulos') or []), set(data.get('acciones') or [])
+        antes_mod, antes_acc = set(self.initial.get('modulos') or []), set(self.initial.get('acciones') or [])
+        if propio and (modulos != antes_mod or acciones != antes_acc or self._perfil_a_aplicar(data)):
+            self.add_error(None, 'No puede cambiar sus propios módulos, acciones ni perfil de acceso: lo hace otro '
+                                 'usuario que administre los permisos.')
+            return
+        nuevos_mod, nuevas_acc = modulos - antes_mod - mis_modulos, acciones - antes_acc - mis_acciones
+        if nuevos_mod or nuevas_acc:
+            self.add_error(None, 'Solo puede dar módulos y acciones que usted tiene: '
+                                 + ', '.join(sorted(nuevos_mod | nuevas_acc)[:8]) + '.')
 
     def _perfil_a_aplicar(self, data):
         p = data.get('perfil_acceso')
@@ -192,6 +223,8 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
 
     def save(self, commit=True):
         user = super().save(commit=False)
+        antes = {'modulos': sorted(self.initial.get('modulos') or []), 'acciones': sorted(self.initial.get('acciones') or []),
+                 'administrador': bool(self.initial.get('es_admin'))} if self.instance.pk else {}
         user.is_superuser = user.is_staff = bool(self.cleaned_data.get('es_admin'))
         if self.cleaned_data.get('clave1'):
             user.set_password(self.cleaned_data['clave1'])
@@ -233,6 +266,16 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         if destino is not None and not user.is_active:
             from ventas.crm_servicios import reasignar
             reasignar(user, destino, self.editor, 'Usuario desactivado')
+        # AJ-06: todo cambio de permisos queda en la bitácora (quién, a quién, antes y después)
+        despues = {'modulos': sorted(self.cleaned_data.get('modulos') or []),
+                   'acciones': sorted(perfil.acciones or []), 'administrador': user.is_superuser}
+        cambios = {k: [antes.get(k), v] for k, v in despues.items() if antes.get(k) != v}
+        if cambios:
+            from .auditoria import registrar
+            registrar('MODIFICAR', user, {k: [', '.join(map(str, a)) if isinstance(a, list) else a,
+                                             ', '.join(map(str, b)) if isinstance(b, list) else b]
+                                         for k, (a, b) in cambios.items()},
+                      f'Permisos de {user.username} cambiados por {getattr(self.editor, "username", "—")}')
         return user
 
 

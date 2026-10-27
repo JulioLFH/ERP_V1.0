@@ -1,10 +1,13 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views, views_extractos, views_gestion as vg, views_prestamos as vp, views_tesoreria as vt
 
 app_name = 'finanzas'
 
 urlpatterns = [
+    # FIN-12: /finanzas/ sola (volver de una anulación) lleva a los movimientos, no a un 404
+    path('', RedirectView.as_view(pattern_name='finanzas:movimientos'), name='inicio'),
     # v1.84: planeamiento y gestión financiera (FIN-02 a FIN-08)
     path('presupuesto-caja/', vg.presupuesto_caja, name='presupuesto_caja'),
     path('presupuesto-caja/<int:pk>/real/', vg.real_vs_proyectado, name='real_vs_proyectado'),

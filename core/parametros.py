@@ -72,6 +72,16 @@ DEFECTOS = {
     'OBR_MARGEN_META_PCT': ('Obras', 'Margen meta del proyecto: se alerta si el margen proyectado al cierre baja de '
                                      'este % (cada obra puede tener el suyo)', '%', [('2000-01-01', '10')],
                             'Política de la empresa'),
+    'TES_EGRESO_MANUAL_TOPE': ('Tesorería', 'Egreso manual (sin comprobante de compra) que puede registrar tesorería '
+                                            'sin la gerencia', 'S/', [('2000-01-01', '2000')], 'Política de la empresa'),
+    'OBR_ADELANTO_SUBCONTRATO_MAX_PCT': ('Obras', 'Adelanto máximo a un subcontratista (% del subcontrato)', '%',
+                                         [('2000-01-01', '30')], 'Política de la empresa'),
+    'OBR_ADELANTO_DIRECTO_MAX_PCT': ('Obras', 'Adelanto directo máximo del cliente (% del contrato)', '%',
+                                     [('2000-01-01', '10')], 'Ley de Contrataciones del Estado (obras públicas)'),
+    'OBR_ADELANTO_MATERIALES_MAX_PCT': ('Obras', 'Adelanto para materiales máximo del cliente (% del contrato)', '%',
+                                        [('2000-01-01', '20')], 'Ley de Contrataciones del Estado (obras públicas)'),
+    'OBR_PENALIDAD_MAX_PCT': ('Obras', 'Tope acumulado de las penalidades del contrato (% del monto contratado)', '%',
+                              [('2000-01-01', '10')], 'Ley de Contrataciones del Estado (penalidad por mora)'),
     'OBR_TOLERANCIA_COSTO_PCT': ('Obras', 'Tolerancia del costo de la partida: se alerta si el costo real supera la '
                                           'meta × avance en más de este %', '%', [('2000-01-01', '10')],
                                  'Política de la empresa'),

@@ -26,13 +26,13 @@ SESION_IMPORTACION = 'obras_importacion'
 
 
 def _decimal(valor, defecto=None):
-    texto = (valor or '').strip().replace(',', '')
-    if not texto:
-        return defecto
+    """OBR-32: con punto o coma decimal (core.formato.numero_usuario); lo que no es número = defecto."""
+    from core.formato import numero_usuario
     try:
-        return Decimal(texto)
-    except InvalidOperation:
+        numero = numero_usuario(valor)
+    except ValueError:
         return defecto
+    return defecto if numero is None else numero
 
 
 # ---------------------------------------------------------------- obras
@@ -147,6 +147,24 @@ def presupuesto(request, pk):
         'imprimir': request.GET.get('imprimir') == '1'})
 
 
+def errores_para_aprobar(p):
+    """OBR-42: un presupuesto en S/ 0 o con metrados, precios, aportes o cuadrillas negativos no se aprueba."""
+    problemas = []
+    if p.total <= 0:
+        problemas.append(f'el presupuesto suma S/ {p.total:,.2f}.')
+    malas = list(p.partidas.filter(es_titulo=False).filter(Q(metrado__lt=0) | Q(precio__lt=0)).values_list(
+        'item', flat=True)[:6])
+    if malas:
+        problemas.append(f'partidas con metrado o precio negativo: {", ".join(malas)}.')
+    apu = list(RecursoAPU.objects.filter(partida__presupuesto=p).filter(
+        Q(cantidad__lt=0) | Q(cuadrilla__lt=0)).values_list('partida__item', flat=True).distinct()[:6])
+    if apu:
+        problemas.append(f'análisis con aportes o cuadrillas negativos: {", ".join(apu)}.')
+    if p.precios.filter(precio__lt=0).exists():
+        problemas.append('hay insumos con precio negativo (Precios del presupuesto).')
+    return problemas
+
+
 def _siguiente_item(partidas):
     if not partidas:
         return '01'
@@ -211,6 +229,9 @@ def _accion_presupuesto(request, p, accion):
         cambios = []
         for partida in p.partidas.filter(es_titulo=False):
             nuevo = _decimal(request.POST.get(f'metrado_{partida.pk}'))
+            if nuevo is not None and nuevo < 0:  # OBR-42
+                messages.error(request, f'{partida.item}: el metrado no puede ser negativo. No se guardó nada.')
+                return None
             if nuevo is not None and nuevo != partida.metrado:
                 partida.metrado = nuevo
                 cambios.append(partida)
@@ -223,11 +244,19 @@ def _accion_presupuesto(request, p, accion):
             form.save()
             calculos.recalcular(p)
             messages.success(request, 'Pie del presupuesto actualizado.')
+        else:  # OBR-42: el error se muestra (antes no decía nada)
+            for errores in form.errors.values():
+                messages.error(request, ' '.join(errores))
+            p.refresh_from_db()
     elif accion == 'recalcular':
         calculos.recalcular(p)
         messages.success(request, 'Presupuesto recalculado.')
     elif accion == 'aprobar':
         calculos.recalcular(p)
+        problemas = errores_para_aprobar(p)
+        if problemas:  # OBR-42: ni vacío ni con negativos
+            messages.error(request, 'No se aprueba: ' + ' '.join(problemas))
+            return None
         p.estado, p.aprobado_por, p.aprobado_en = 'APROBADO', request.user, timezone.now()
         p.save(update_fields=['estado', 'aprobado_por', 'aprobado_en'])
         messages.success(request, f'{p} aprobado por S/ {p.total:,.2f}. Ya no se modifica: cópielo para una nueva versión.')
@@ -296,6 +325,10 @@ def _guardar_apu(request, partida):
                                        cantidad=l.cantidad, orden=l.orden)
         messages.success(request, f'Guardada en la biblioteca como {base.codigo}.')
         return
+    errores = _errores_apu(request, partida)
+    if errores:  # OBR-42: no se guarda nada si un dato no es válido
+        messages.error(request, 'No se guardó el análisis: ' + '; '.join(errores[:6]) + '.')
+        return
     # cabecera
     for campo in ('rendimiento', 'jornada', 'metrado'):
         valor = _decimal(request.POST.get(campo))
@@ -356,6 +389,50 @@ def _guardar_apu(request, partida):
     messages.success(request, f'Análisis guardado: precio unitario S/ {partida.precio:,.2f}.')
 
 
+def _errores_apu(request, partida):
+    """OBR-42: rendimiento mayor que cero si hay mano de obra o equipos con cuadrilla, jornada de 1 a 24 h, aportes,
+    cuadrillas y precios no negativos, y el recurso nuevo con un tipo válido y su unidad."""
+    d, errores = request.POST, []
+
+    def numero(campo, nombre):
+        texto = (d.get(campo) or '').strip()
+        if not texto:
+            return None
+        v = _decimal(texto)
+        if v is None:
+            errores.append(f'{nombre}: «{texto}» no es un número')
+        elif v < 0:
+            errores.append(f'{nombre} no puede ser negativo')
+        return v
+    rendimiento = numero('rendimiento', 'El rendimiento')
+    jornada = numero('jornada', 'La jornada')
+    numero('metrado', 'El metrado')
+    numero('precio', 'El precio')
+    if jornada is not None and not 0 < jornada <= 24:
+        errores.append('La jornada va de 1 a 24 horas (normal: 8)')
+    for l in partida.recursos.select_related('recurso'):
+        if d.get(f'quitar_{l.pk}'):
+            continue
+        numero(f'cuadrilla_{l.pk}', f'{l.recurso.nombre}: la cuadrilla')
+        numero(f'cantidad_{l.pk}', f'{l.recurso.nombre}: el aporte')
+        numero(f'precio_{l.pk}', f'{l.recurso.nombre}: el precio')
+    numero('nuevo_cuadrilla', 'La cuadrilla del recurso nuevo')
+    numero('nuevo_cantidad', 'El aporte del recurso nuevo')
+    numero('nuevo_precio', 'El precio del recurso nuevo')
+    if (d.get('nuevo_nombre') or '').strip():
+        if (d.get('nuevo_tipo') or 'MAT') not in dict(Recurso.TIPOS):
+            errores.append(f'El tipo de recurso «{d.get("nuevo_tipo")}» no existe')
+        if not (d.get('nuevo_unidad') or '').strip():
+            errores.append('Indique la unidad del recurso nuevo (hh, m3, bls, kg…)')
+    con_cuadrilla = any(l.recurso.tipo in ('MO', 'EQ') and not l.recurso.es_porcentaje_mo
+                        for l in partida.recursos.select_related('recurso') if not d.get(f'quitar_{l.pk}')) \
+        or bool((d.get('nuevo_cuadrilla') or '').strip())
+    final = rendimiento if rendimiento is not None else partida.rendimiento
+    if con_cuadrilla and not d.get('precio_fijo') and final is not None and final <= 0:
+        errores.append('El rendimiento debe ser mayor que cero: con 0 la mano de obra y los equipos quedan en S/ 0')
+    return errores
+
+
 @login_required
 def apu_reporte(request, pk):
     """Todos los análisis del presupuesto (para imprimir o Excel)."""
@@ -392,6 +469,10 @@ def precios(request, pk):
             messages.error(request, 'El presupuesto está aprobado.')
         else:
             cambios = []
+            negativos = [f.recurso.nombre for f in filas if (_decimal(request.POST.get(f'precio_{f.pk}')) or 0) < 0]
+            if negativos:  # OBR-42
+                messages.error(request, 'No se guardó: precios negativos en ' + ', '.join(negativos[:6]) + '.')
+                return redirect('obras:precios', pk)
             for f in filas:
                 nuevo = _decimal(request.POST.get(f'precio_{f.pk}'))
                 if nuevo is not None and nuevo != f.precio:

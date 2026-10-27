@@ -57,9 +57,15 @@ def registrar_parte(obra, semana, horas, usuario, trabajador=None, persona='', e
         raise ErrorServicio('Indique las horas trabajadas.')
     if trabajador is None and not (persona or '').strip():
         raise ErrorServicio('Indique el trabajador o el nombre del especialista independiente.')
+    if trabajador is not None and (persona or '').strip():  # HR-21: no se ignora uno de los dos en silencio
+        raise ErrorServicio('Indique el trabajador en planilla o el especialista independiente, no los dos.')
     semana = lunes(semana or timezone.localdate())
     if semana > lunes(timezone.localdate()):
         raise ErrorServicio('No se registran horas de semanas futuras.')
+    inicio = obra.fecha_inicio or obra.fecha_contrato
+    if semana.year < 2000 or (inicio and semana < lunes(inicio)):  # HR-21: la semana de 1900
+        raise ErrorServicio(f'La semana del {semana:%d/%m/%Y} es anterior al inicio del proyecto'
+                            + (f' ({inicio:%d/%m/%Y}).' if inicio else '.'))
     if entregable is not None and entregable.obra_id != obra.pk:
         raise ErrorServicio('El entregable es de otro proyecto.')
     otras = ParteHoras.objects.filter(semana=semana).exclude(estado='RECHAZADO')

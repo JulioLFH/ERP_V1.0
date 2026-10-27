@@ -42,6 +42,11 @@ class OrdenCompra(DocumentoBase):
     exceso_autorizado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
                                               related_name='+', editable=False)
     exceso_motivo = models.CharField('Motivo del exceso de presupuesto', max_length=250, blank=True, editable=False)
+    # COM-24: el saldo que el proveedor no entregará se cierra con su motivo (compras.seguimiento.cerrar_saldo)
+    saldo_cerrado_en = models.DateTimeField('Saldo cerrado el', null=True, blank=True, editable=False)
+    saldo_cerrado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                          related_name='+', editable=False)
+    motivo_cierre = models.CharField('Motivo del cierre del saldo', max_length=250, blank=True, editable=False)
 
     class Meta(DocumentoBase.Meta):
         verbose_name = 'orden de compra'

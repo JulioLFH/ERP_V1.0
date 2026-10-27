@@ -63,6 +63,7 @@ urlpatterns = [
     path('terceros/', views.TerceroLista.as_view(), name='terceros'),
     path('terceros/nuevo/', views.TerceroNuevo.as_view(), name='tercero_nuevo'),
     path('terceros/<int:pk>/', views.TerceroEditar.as_view(), name='tercero_editar'),
+    path('terceros/<int:pk>/cuenta-bancaria/', views.tercero_banco, name='tercero_banco'),
     path('productos/', views.ProductoLista.as_view(), name='productos'),
     path('productos/nuevo/', views.ProductoNuevo.as_view(), name='producto_nuevo'),
     path('productos/<int:pk>/', views.ProductoEditar.as_view(), name='producto_editar'),

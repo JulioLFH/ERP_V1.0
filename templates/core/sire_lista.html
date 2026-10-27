@@ -9,7 +9,7 @@
     {% csrf_token %}
     <div class="col-md-3">{% with field=form.libro %}{% include 'core/_campo.html' %}{% endwith %}</div>
     <div class="col-md-2">{% with field=form.periodo %}{% include 'core/_campo.html' %}{% endwith %}</div>
-    {% if configurada %}<div class="col-md-3">{% with field=form.clave_sol %}{% include 'core/_campo.html' %}{% endwith %}{% if sesion %}<div class="form-text text-success">Sesión con SUNAT activa: puede dejarla vacía.</div>{% endif %}</div>{% endif %}
+    {% if configurada %}<div class="col-md-3">{% with field=form.clave_sol %}{% include 'core/_campo.html' %}{% endwith %}{% if sesion %}<div class="form-text text-success">Clave SOL guardada en Ajustes › Empresa (o sesión activa): déjela vacía.</div>{% endif %}</div>{% endif %}
     <div class="col-md-4">{% with field=form.archivo %}{% include 'core/_campo.html' %}{% endwith %}</div>
     <div class="col-12"><button class="btn btn-primary"><i class="bi bi-cloud-download"></i> {% if configurada %}Traer de SUNAT (o leer el archivo){% else %}Leer el archivo{% endif %}</button></div>
   </form>

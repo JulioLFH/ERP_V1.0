@@ -34,7 +34,11 @@ def _usuario(u):
 @transaction.atomic
 def crear(obra, proveedor, descripcion, lineas, usuario, modalidad='PRECIOS_UNITARIOS', adelanto_pct=D0,
           garantia_pct=Decimal('5'), detraccion=True, fecha=None):
-    """lineas: [(partida o None, descripción, unidad, metrado, precio)]."""
+    """lineas: [(partida o None, descripción, unidad, metrado, precio)]. OBR-38: adelanto hasta el máximo
+    (parámetro OBR_ADELANTO_SUBCONTRATO_MAX_PCT, 30 % si no está), fondo de garantía de 0 a 100 %, precios mayores
+    que cero y el metrado de cada partida hasta lo que le queda sin subcontratar."""
+    if any(l[3] is not None and l[3] < 0 for l in lineas):
+        raise ErrorSubcontrato('El metrado no puede ser negativo.')
     lineas = [l for l in lineas if l[3] and l[3] > 0]
     if proveedor is None:
         raise ErrorSubcontrato('Elija el subcontratista.')
@@ -42,9 +46,29 @@ def crear(obra, proveedor, descripcion, lineas, usuario, modalidad='PRECIOS_UNIT
         raise ErrorSubcontrato('Agregue al menos una partida con su metrado y precio.')
     if not (descripcion or '').strip():
         raise ErrorSubcontrato('Indique el objeto del subcontrato.')
-    for partida, *_ in lineas:
+    if modalidad not in dict(Subcontrato.MODALIDADES):
+        raise ErrorSubcontrato('Elija la modalidad: precios unitarios o suma alzada.')
+    adelanto_pct, garantia_pct = adelanto_pct or D0, garantia_pct or D0
+    tope = adelanto_maximo()
+    if not D0 <= adelanto_pct <= tope:
+        raise ErrorSubcontrato(f'El adelanto va de 0 a {tope:g} % del subcontrato.')
+    if not D0 <= garantia_pct <= 100:
+        raise ErrorSubcontrato('El fondo de garantía va de 0 a 100 %.')
+    errores, pedido = [], defaultdict(lambda: D0)
+    for partida, desc, _, metrado, precio in lineas:
         if partida is not None and partida.presupuesto.obra_id != obra.pk:
             raise ErrorSubcontrato(f'La partida {partida} no es de la obra.')
+        if precio is None or precio <= 0:
+            errores.append(f'{partida.item if partida else desc}: el precio unitario debe ser mayor que cero')
+        if partida is not None:
+            pedido[partida] += metrado
+    for partida, metrado in pedido.items():
+        saldo = saldo_sin_subcontratar(partida)
+        if metrado > saldo + Decimal('0.0001'):
+            errores.append(f'{partida.item} {partida.descripcion[:40]}: {metrado:,.2f} {partida.unidad} supera lo que '
+                           f'queda sin subcontratar ({saldo:,.2f} de {partida.metrado:,.2f})')
+    if errores:
+        raise ErrorSubcontrato('Revise el subcontrato: ' + '; '.join(errores[:6]) + '.')
     sc = Subcontrato.objects.create(obra=obra, proveedor=proveedor, descripcion=descripcion.strip()[:250],
                                     modalidad=modalidad, fecha=fecha or timezone.localdate(),
                                     adelanto_pct=adelanto_pct or D0, garantia_pct=garantia_pct or D0,
@@ -54,6 +78,39 @@ def crear(obra, proveedor, descripcion, lineas, usuario, modalidad='PRECIOS_UNIT
                                         descripcion=(desc or (partida.descripcion if partida else ''))[:250],
                                         unidad=(unidad or (partida.unidad if partida else ''))[:12],
                                         metrado=metrado, precio=precio or D0)
+    return sc
+
+
+def adelanto_maximo():
+    """OBR-38: tope del adelanto al subcontratista (%), configurable; 30 % si no está definido."""
+    from core import parametros
+    return parametros.valor('OBR_ADELANTO_SUBCONTRATO_MAX_PCT') or Decimal('30')
+
+
+def saldo_sin_subcontratar(partida, excluir=None):
+    """Metrado de la partida que aún no está en otro subcontrato vigente o en borrador."""
+    qs = LineaSubcontrato.objects.filter(partida=partida).exclude(subcontrato__estado='ANULADO')
+    if excluir is not None:
+        qs = qs.exclude(subcontrato=excluir)
+    return partida.metrado - (qs.aggregate(s=Sum('metrado'))['s'] or D0)
+
+
+@transaction.atomic
+def anular_subcontrato(sc, usuario, motivo):
+    """OBR-38: anula un subcontrato en borrador (sin orden de servicio) o uno cuya orden de servicio ya se anuló y
+    no tiene valorizaciones vigentes."""
+    if sc.estado == 'ANULADO':
+        raise ErrorSubcontrato('El subcontrato ya está anulado.')
+    if len((motivo or '').strip()) < 5:
+        raise ErrorSubcontrato('Indique el motivo de la anulación.')
+    if sc.valorizaciones.exclude(estado='ANULADA').exists():
+        raise ErrorSubcontrato('El subcontrato tiene valorizaciones vigentes: anúlelas primero.')
+    if sc.orden_compra_id and sc.orden_compra.estado != 'ANULADO':
+        raise ErrorSubcontrato(f'Anule primero su orden de servicio {sc.orden_compra.numero} en Compras.')
+    sc.estado = 'ANULADO'
+    sc.save(update_fields=['estado'])
+    from core.auditoria import registrar
+    registrar('ANULAR', sc, {'motivo': motivo.strip()[:250]}, f'Subcontrato anulado: {motivo.strip()[:200]}')
     return sc
 
 
@@ -75,9 +132,12 @@ def emitir_orden(sc, usuario):
     from compras.models import OrdenCompra, OrdenCompraItem
     from compras.solped import _numero
     if sc.estado != 'BORRADOR':
-        raise ErrorSubcontrato('El subcontrato ya tiene orden de servicio.')
+        raise ErrorSubcontrato('El subcontrato ya tiene orden de servicio.' if sc.estado != 'ANULADO' else
+                               'El subcontrato está anulado.')
     if sc.obra.centro_costo_id is None:
         raise ErrorSubcontrato('La obra no tiene centro de costo.')
+    if sc.monto <= 0 or any(l.precio <= 0 or l.metrado <= 0 for l in sc.lineas.all()):  # OBR-38
+        raise ErrorSubcontrato('El subcontrato tiene líneas en cero o negativas: no se emite la orden de servicio.')
     producto = producto_subcontrato()
     oc = OrdenCompra.objects.create(
         numero=_numero('OC', 'OC01'), tercero=sc.proveedor, fecha=timezone.localdate(), centro_costo=sc.obra.centro_costo,
@@ -125,8 +185,11 @@ def valorizar(sc, periodo, metrados, usuario):
     from core.models import Empresa
     if sc.estado != 'VIGENTE':
         raise ErrorSubcontrato('El subcontrato debe estar vigente (con su orden de servicio).')
-    if not (len(periodo or '') == 6 and periodo.isdigit()):
-        raise ErrorSubcontrato('Indique el mes que se valoriza.')
+    from .valorizaciones import ErrorValorizacion, validar_periodo_obra
+    try:  # OBR-38: ni 2030 ni antes del inicio de la obra
+        validar_periodo_obra(sc.obra, periodo, 'El mes que se valoriza')
+    except ErrorValorizacion as exc:
+        raise ErrorSubcontrato(str(exc)) from exc
     if sc.valorizaciones.filter(estado='BORRADOR').exists():
         raise ErrorSubcontrato('Hay una valorización en borrador: apruébela o anúlela.')
     previo = valorizado_por_linea(sc)
@@ -135,7 +198,9 @@ def valorizar(sc, periodo, metrados, usuario):
         m = Decimal(metrados.get(l.pk) or 0)
         if not m:
             continue
-        if m < 0 or previo[l.pk] + m > l.metrado:
+        if m < 0:
+            raise ErrorSubcontrato(f'{l.descripcion[:40]}: el metrado del mes no puede ser negativo.')
+        if previo[l.pk] + m > l.metrado:
             excesos.append(f'{l.descripcion[:40]} (acumulado {previo[l.pk] + m:,.2f} de {l.metrado:,.2f})')
         filas.append((l, m))
     if excesos:
@@ -187,7 +252,13 @@ def aprobar(v, usuario):
 @transaction.atomic
 def anular(v):
     if v.estado != 'BORRADOR':
-        raise ErrorSubcontrato('Solo se anula una valorización en borrador (las aprobadas tienen HES).')
+        raise ErrorSubcontrato('Solo se anula una valorización en borrador (las aprobadas tienen HES: anule sus HES '
+                               'y la valorización vuelve a borrador).')
+    from compras.models import ConformidadServicio
+    vivas = ConformidadServicio.objects.filter(pk__in=v.lineas.exclude(hes=None).values('hes')).exclude(
+        estado='ANULADA')
+    if vivas.exists():
+        raise ErrorSubcontrato('La valorización tiene HES vigentes: anúlelas primero.')
     v.estado = 'ANULADA'
     v.save(update_fields=['estado'])
     return v

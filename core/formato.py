@@ -16,6 +16,51 @@ def _dec(valor):
         return None
 
 
+class NumeroAmbiguo(ValueError):
+    pass
+
+
+def numero_usuario(valor):
+    """OBR-32: número escrito en una casilla con punto o coma decimal (muchos celulares usan la coma). «10,5» y
+    «10.5» = 10.5; «1,234.50» y «1.234,50» = 1234.50; «1,234,567» = 1234567. «1,500» (una coma seguida de 3 cifras)
+    puede ser mil quinientos o uno y medio: NumeroAmbiguo. Vacío = None; texto que no es número = ValueError."""
+    if valor is None:
+        return None
+    if isinstance(valor, (int, Decimal)):
+        return Decimal(valor)
+    if isinstance(valor, float):
+        return Decimal(str(valor))
+    texto = str(valor).strip().replace(' ', '').replace(' ', '').replace("'", '')
+    if not texto:
+        return None
+    if ',' in texto and '.' in texto:
+        if texto.rfind(',') > texto.rfind('.'):  # 1.234,50
+            texto = texto.replace('.', '').replace(',', '.')
+        else:  # 1,234.50
+            texto = texto.replace(',', '')
+    elif ',' in texto:
+        partes = texto.split(',')
+        if len(partes) == 2 and len(partes[1]) != 3:
+            texto = texto.replace(',', '.')
+        elif len(partes) > 2 and all(len(p) == 3 for p in partes[1:]):
+            texto = texto.replace(',', '')
+        else:
+            raise NumeroAmbiguo(f'«{valor}» es ambiguo: escriba {texto.replace(",", "")} o '
+                                f'{texto.replace(",", ".")} (con punto decimal).')
+    elif texto.count('.') > 1:
+        partes = texto.split('.')
+        if not all(len(p) == 3 for p in partes[1:]):
+            raise ValueError(f'«{valor}» no es un número.')
+        texto = texto.replace('.', '')
+    try:
+        numero = Decimal(texto)
+    except InvalidOperation:
+        raise ValueError(f'«{valor}» no es un número.') from None
+    if not numero.is_finite():
+        raise ValueError(f'«{valor}» no es un número.')
+    return numero
+
+
 def cantidad(valor, unidad=''):
     d = _dec(valor)
     if d is None:

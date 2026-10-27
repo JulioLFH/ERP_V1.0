@@ -140,7 +140,7 @@ class PermisosVentaTest(Base):
             'glosa': '', 'items-TOTAL_FORMS': '1', 'items-INITIAL_FORMS': '1', 'items-MIN_NUM_FORMS': '1',
             'items-MAX_NUM_FORMS': '1000', 'items-0-id': ped.items.get().pk, 'items-0-producto': self.p.pk,
             'items-0-descripcion': self.p.nombre, 'items-0-cantidad': '2', 'items-0-precio_unitario': '100'})
-        self.assertContains(r, 'no cambia el vendedor')
+        self.assertContains(r, 'Escoja una opción válida')  # VEN-22: el vendedor es un usuario de la lista
         ped.refresh_from_db()
         self.assertEqual(ped.vendedor, 'Ana')
         # reactivar: exige el permiso y repone la salida del almacén

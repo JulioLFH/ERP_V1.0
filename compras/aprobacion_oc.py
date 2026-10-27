@@ -52,6 +52,11 @@ def puede_aprobar(user, oc):
 
 def aprobar(oc, user, comentario=''):
     """Aprueba el nivel que le toca al usuario (o la OC entera sin reglas). Devuelve el mensaje para el usuario."""
+    if oc.estado != 'PENDIENTE':
+        raise ErrorAprobacionOC(f'La orden está {oc.get_estado_display().lower()}: solo se aprueba una pendiente.')
+    if oc.total <= 0 or oc.items.filter(cantidad__lte=0).exists() or oc.items.filter(precio_unitario__lt=0).exists():
+        raise ErrorAprobacionOC('No se aprueba: la orden tiene total en cero o negativo, o líneas con cantidad o '
+                                'precio no válidos (OBR-38).')
     from .abastecimiento import validar_orden
     errores = validar_orden(oc)
     if errores:

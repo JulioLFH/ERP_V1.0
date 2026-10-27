@@ -111,6 +111,9 @@ def _filtrar_movs(request):
         q = f['q']
         qs = qs.filter(Q(glosa__icontains=q) | Q(voucher__icontains=q) | Q(numero_operacion__icontains=q) |
                        Q(tercero__nombre__icontains=q))
+    if f.get('manuales'):  # FIN-13: egresos sin comprobante, letra ni transferencia (para revisarlos)
+        qs = qs.filter(tipo='EGRESO', compra__isnull=True, venta__isnull=True, letra__isnull=True).exclude(
+            concepto__in=('TRANSFERENCIA', 'PAGO', 'COBRANZA', 'DETRACCION'))
     return qs
 
 
@@ -137,7 +140,7 @@ def movimientos(request):
 def movimiento_nuevo(request):
     from core.sustentos import adjuntar
     initial = {'fecha': timezone.localdate(), 'tipo': request.GET.get('tipo', 'EGRESO'), 'cuenta': request.GET.get('cuenta')}
-    form = MovimientoForm(request.POST or None, request.FILES or None, initial=initial)
+    form = MovimientoForm(request.POST or None, request.FILES or None, initial=initial, usuario=request.user)
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
             mov = form.save(commit=False)
@@ -194,7 +197,11 @@ def movimiento_eliminar(request, pk):
                     from .operaciones import actualizar_letra
                     actualizar_letra(mov.letra)
             messages.success(request, f'Movimiento {mov.voucher} anulado{" junto con su transferencia par" if par else ""}.')
-    return redirect(request.POST.get('next') or 'finanzas:movimientos')
+    from django.utils.http import url_has_allowed_host_and_scheme
+    siguiente = request.POST.get('next') or ''
+    if not (siguiente.startswith('/') and url_has_allowed_host_and_scheme(siguiente, {request.get_host()})):
+        siguiente = 'finanzas:movimientos'
+    return redirect(siguiente)
 
 
 @login_required
@@ -298,6 +305,10 @@ def cobrar_pagar(request, modo):
                 if getattr(d, 'pago_bloqueado', False):
                     errores.append(f'{d}: pago bloqueado por Compras ({d.motivo_bloqueo_pago}). Se paga cuando '
                                    f'Compras lo libere.')
+                    continue
+                if d.fecha_emision and data['fecha'] < d.fecha_emision:  # FIN-12
+                    errores.append(f'{d}: la fecha del {"cobro" if modo == "cobranza" else "pago"} '
+                                   f'({data["fecha"]:%d/%m/%Y}) es anterior a su emisión ({d.fecha_emision:%d/%m/%Y}).')
                     continue
                 creados.append(Movimiento.objects.create(
                     cuenta=data['cuenta'], fecha=data['fecha'], tipo=cfg['tipo'],
@@ -456,6 +467,16 @@ def conciliacion(request):
             sb = None
         ctx.update(movs=movs, saldo_libros=saldo_libros, ing_trans=ing_trans, egr_trans=egr_trans,
                    saldo_conciliado=saldo_conciliado, diferencia=(sb - saldo_conciliado) if sb is not None else None)
+        if cuenta.cuenta_contable_id:  # CON-21: asientos manuales que movieron esta cuenta sin pasar por Tesorería
+            from contabilidad.models import AsientoLinea
+            manuales = list(AsientoLinea.objects.filter(
+                cuenta_id=cuenta.cuenta_contable_id, asiento__origen='MANUAL', asiento__fecha__lte=fecha,
+                asiento__fecha__gte=fecha.replace(day=1)).select_related('asiento')[:20])
+            for l in manuales:
+                messages.warning(request, f'Asiento manual {l.asiento.numero} del {l.asiento.fecha:%d/%m/%Y} a la '
+                                          f'{cuenta.cuenta_contable.codigo} (debe {l.debe:,.2f} / haber {l.haber:,.2f}): '
+                                          f'no es un movimiento de Tesorería; revíselo al conciliar. '
+                                          f'{l.asiento.glosa[:80]}')
     return render(request, 'finanzas/conciliacion.html', ctx)
 
 

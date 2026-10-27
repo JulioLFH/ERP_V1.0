@@ -12,6 +12,18 @@ def periodo_cerrado(periodo):
     return bool(periodo) and PeriodoContable.esta_cerrado(periodo)
 
 
+def error_telefono(telefono):
+    """TER-02 y CRM-23: el mensaje si el teléfono no tiene de 6 a 15 dígitos (varios separados por «/»); None si
+    está bien o vacío."""
+    import re
+    for parte in filter(None, re.split(r'[/,;]', (telefono or '').strip())):
+        digitos = re.sub(r'\D', '', parte)
+        if not re.fullmatch(r'[\d\s+()\-.]+', parte.strip()) or not 6 <= len(digitos) <= 15:
+            return ('Teléfono de 6 a 15 dígitos (puede llevar +, espacios, guiones o paréntesis; varios separados '
+                    'por «/»).')
+    return None
+
+
 def validar_periodo_abierto(form, campo_fecha, periodo=None):
     fecha = form.cleaned_data.get(campo_fecha)
     periodo = periodo or (fecha.strftime('%Y%m') if fecha else '')
@@ -224,6 +236,12 @@ class UbigeoMixin:
 
 
 class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
+    # la clave SOL del SIRE se guarda cifrada y no se vuelve a mostrar (vacío = la guardada no cambia)
+    sire_clave_nueva = forms.CharField(
+        label='SIRE: clave SOL', required=False, widget=forms.PasswordInput,
+        help_text='Se guarda cifrada y el SIRE la usa solo al conectarse con SUNAT. Vacío = no cambia')
+    sire_quitar_clave = forms.BooleanField(label='Borrar la clave SOL guardada del SIRE', required=False)
+
     class Meta:
         model = Empresa
         fields = '__all__'
@@ -237,6 +255,23 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
         self.fields['direccion'].required = True
         self.fields['email'].required = True
         self.fields['ruc'].help_text = 'Al escribirlo se traen de SUNAT la razón social, la dirección y el ubigeo'
+        if self.instance.sire_clave_sol:
+            self.fields['sire_clave_nueva'].help_text = ('Hay una clave guardada (cifrada). Escriba otra solo para '
+                                                         'cambiarla')
+        else:
+            self.fields.pop('sire_quitar_clave')
+
+    def save(self, commit=True):
+        empresa = super().save(commit=False)
+        if self.cleaned_data.get('sire_clave_nueva'):
+            from .cifrado import cifrar
+            empresa.sire_clave_sol = cifrar(self.cleaned_data['sire_clave_nueva'])
+        elif self.cleaned_data.get('sire_quitar_clave'):
+            empresa.sire_clave_sol = ''
+        if commit:
+            empresa.save()
+            self.save_m2m()
+        return empresa
 
     def clean_ruc(self):
         ruc = (self.cleaned_data.get('ruc') or '').strip()
@@ -273,10 +308,84 @@ def error_ruc(ruc):
     return ''
 
 
-class TerceroForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
+class CamposSensiblesMixin:
+    """SEG-12: cada grupo de campos sensibles lo cambia solo quien tiene su permiso (precios, cuentas contables,
+    crédito, cuentas bancarias); para los demás se ve bloqueado y, si igual se envía un valor distinto, se rechaza con
+    un mensaje (nunca un guardado silencioso, PLAT-17)."""
+    SENSIBLES = []  # [(campos, acción, qué es)]
+
+    def _aplicar_sensibles(self):
+        from .auditoria import usuario_actual
+        from .permisos import puede
+        usuario = usuario_actual()
+        self.bloqueados = {}
+        if usuario is None or not usuario.is_authenticated:
+            return
+        for campos, accion, que in self.SENSIBLES:
+            if puede(usuario, accion):
+                continue
+            for c in campos:
+                if c in self.fields:
+                    self.fields[c].disabled = True
+                    self.fields[c].help_text = f'Solo lo cambia quien tiene el permiso de {que}.'
+                    self.bloqueados[c] = que
+
+    def _rechazar_sensibles(self):
+        for c, que in getattr(self, 'bloqueados', {}).items():
+            nombre = self.add_prefix(c)
+            if nombre not in self.data:
+                continue
+            campo = self.fields[c]
+            enviado = campo.widget.value_from_datadict(self.data, self.files, nombre)
+            campo.disabled = False  # has_changed no compara los campos bloqueados
+            try:
+                cambio = campo.has_changed(self.get_initial_for_field(campo, c), enviado)
+            except (forms.ValidationError, ValueError, TypeError):
+                cambio = True
+            finally:
+                campo.disabled = True
+            if cambio:
+                self.add_error(None, f'Acción no permitida: su usuario no cambia {que}.')
+                return
+
+
+CAMPOS_BANCARIOS = ('banco', 'cuenta_bancaria', 'cci', 'cuenta_detracciones')
+
+
+class TerceroForm(CamposSensiblesMixin, UbigeoMixin, BootstrapMixin, forms.ModelForm):
+    SENSIBLES = [(CAMPOS_BANCARIOS, 'tesoreria.datos_bancarios', 'las cuentas bancarias (Tesorería)'),
+                 (('limite_credito', 'dias_credito', 'lista_precios', 'gestor_cobranza', 'descuento_pronto_pago_pct',
+                   'dias_pronto_pago', 'proveedor_critico'), 'finanzas.credito',
+                  'el crédito y las condiciones de pago (Créditos y cobranzas)')]
+
     class Meta:
         model = Tercero
         fields = '__all__'
+
+    def save(self, commit=True):
+        """SEG-10: el cambio de cuenta bancaria no se aplica: queda por aprobar por otro usuario con el mismo permiso
+        (doble control) y hasta entonces se le sigue pagando a la cuenta anterior."""
+        from django.utils import timezone
+
+        from .auditoria import usuario_actual
+        cambios = {}
+        if self.instance.pk:
+            anterior = Tercero.objects.filter(pk=self.instance.pk).values(*CAMPOS_BANCARIOS).first() or {}
+            cambios = {c: self.cleaned_data.get(c) or '' for c in CAMPOS_BANCARIOS
+                       if c in self.cleaned_data and (self.cleaned_data.get(c) or '') != (anterior.get(c) or '')}
+            for c in cambios:
+                setattr(self.instance, c, anterior.get(c) or '')
+        else:
+            cambios = {c: self.cleaned_data.get(c) or '' for c in CAMPOS_BANCARIOS if self.cleaned_data.get(c)}
+            for c in cambios:
+                setattr(self.instance, c, '')
+        if cambios:
+            usuario = usuario_actual()
+            self.instance.cambio_bancario = cambios
+            self.instance.cambio_bancario_por = usuario if usuario is not None and usuario.is_authenticated else None
+            self.instance.cambio_bancario_en = timezone.now()
+        self.cambio_bancario_pendiente = bool(cambios)
+        return super().save(commit)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -285,9 +394,11 @@ class TerceroForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
             # registro antiguo (ej. datos de demostración): se puede editar; se avisa que conviene corregirlo
             self.fields['numero_doc'].help_text = (f'Atención: {error_ruc(t.numero_doc)} Puede guardar otros cambios, '
                                                    'pero SUNAT rechazará facturas a este RUC.')
+        self._aplicar_sensibles()
 
     def clean(self):
         data = super().clean()
+        self._rechazar_sensibles()
         doc, num = data.get('tipo_doc'), (data.get('numero_doc') or '').strip()
         if doc in ('6', '1'):  # K36: «20-123456789-0» o con espacios se guarda solo con los dígitos
             num = num.replace('-', '').replace(' ', '').replace('.', '')
@@ -313,13 +424,9 @@ class TerceroForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
         solo lo que se cambia: sus otros datos se pueden seguir editando)."""
         import re
         data = {c: v for c, v in data.items() if not self.instance.pk or c in self.changed_data}
-        telefono = (data.get('telefono') or '').strip()
-        for parte in filter(None, re.split(r'[/,;]', telefono)):
-            digitos = re.sub(r'\D', '', parte)
-            if not re.fullmatch(r'[\d\s+()\-.]+', parte.strip()) or not 6 <= len(digitos) <= 15:
-                self.add_error('telefono', 'Teléfono de 6 a 15 dígitos (puede llevar +, espacios, guiones o '
-                                           'paréntesis; varios separados por «/»).')
-                break
+        error = error_telefono(data.get('telefono'))
+        if error:
+            self.add_error('telefono', error)
         if (data.get('dias_credito') or 0) > 365:
             self.add_error('dias_credito', 'Máximo 365 días.')
         if (data.get('dias_pronto_pago') or 0) > 365:
@@ -347,7 +454,11 @@ class TerceroForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
                                                   '(00-000-000000).')
 
 
-class ProductoForm(BootstrapMixin, forms.ModelForm):
+class ProductoForm(CamposSensiblesMixin, BootstrapMixin, forms.ModelForm):
+    SENSIBLES = [(('precio_venta',), 'ventas.precios', 'el precio de venta (Comercial)'),
+                 (('cuenta_existencias', 'cuenta_compra', 'cuenta_venta', 'cuenta_costo'), 'contabilidad.configurar',
+                  'las cuentas contables (Contabilidad)')]
+
     # pestañas del formulario (estilo Odoo): (clave, título, icono, campos)
     PESTANAS = [
         ('general', 'General', 'bi-info-circle',
@@ -466,6 +577,7 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
         self.fields['detraccion_codigo'].widget = forms.Select(
             choices=[('', 'No sujeto a detracción')] + DETRACCION_TIPOS, attrs={'class': 'form-select form-select-sm'})
         self.fields['detraccion_pct'].required = False
+        self._aplicar_sensibles()  # SEG-12
 
     def pestanas(self):
         return [(clave, titulo, icono, [self[c] for c in campos if c in self.fields])
@@ -473,6 +585,7 @@ class ProductoForm(BootstrapMixin, forms.ModelForm):
 
     def clean(self):
         datos = super().clean()
+        self._rechazar_sensibles()
         clase = datos.get('clase') or self.instance.clase
         if clase != 'ACTIVO' and datos.get('puede_venderse') and datos.get('precio_venta') is None:
             self.add_error('precio_venta', 'Indique el precio de venta.')

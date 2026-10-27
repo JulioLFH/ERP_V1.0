@@ -1,5 +1,14 @@
 {% extends 'core/form.html' %}
 {% load static %}
+{% block despues %}{% if object.pk %}<div style="max-width:900px">
+  {% if object.cambio_bancario %}<div class="card border-warning mt-3"><div class="card-header fw-semibold"><i class="bi bi-shield-lock"></i> Cambio de cuenta bancaria por aprobar (doble control)</div>
+    <div class="card-body small"><div>Pidió el cambio {% if object.cambio_bancario_por %}{{ object.cambio_bancario_por.get_full_name|default:object.cambio_bancario_por.username }}{% else %}—{% endif %} el {{ object.cambio_bancario_en|date:'d/m/Y H:i' }}. Hasta que otro usuario lo apruebe se le sigue pagando a la cuenta anterior.</div>
+      <table class="table table-sm mt-2 mb-2"><thead><tr><th>Dato</th><th>Actual</th><th>Nuevo</th></tr></thead><tbody>{% for c, actual, nuevo in cambio_bancario_filas %}<tr><td>{{ c }}</td><td>{{ actual|default:'—' }}</td><td class="fw-semibold">{{ nuevo|default:'—' }}</td></tr>{% endfor %}</tbody></table>
+      {% if puede.tesoreria_datos_bancarios and object.cambio_bancario_por_id != user.pk %}<form method="post" action="{% url 'tercero_banco' object.pk %}" class="d-flex flex-wrap gap-2">{% csrf_token %}<input name="motivo" class="form-control form-control-sm w-auto" placeholder="Motivo (si lo rechaza)">
+        <button name="accion" value="aprobar" class="btn btn-sm btn-success" data-confirm="¿Aprobar la nueva cuenta bancaria de {{ object.nombre }}? Confirmó el cambio con el proveedor por otro medio.">Aprobar el cambio</button>
+        <button name="accion" value="rechazar" class="btn btn-sm btn-outline-danger">Rechazar</button></form>
+      {% elif object.cambio_bancario_por_id == user.pk %}<div class="text-muted">Lo aprueba otro usuario con el permiso «Cambiar y aprobar las cuentas bancarias».</div>{% endif %}</div></div>{% endif %}
+  {% include 'core/_bitacora.html' with objeto=object %}</div>{% endif %}{% endblock %}
 {% block scripts %}
 <script src="{% static 'js/consulta_ruc.js' %}?v={{ erp_version }}"></script>
 <script nonce="{{ csp_nonce }}">

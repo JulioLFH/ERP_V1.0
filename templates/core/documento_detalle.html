@@ -5,9 +5,9 @@
   <div class="d-flex gap-2">
     <a href="{% url url_lista %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
     <button data-imprimir class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir / PDF</button>
-    {% if doc.estado == 'PENDIENTE' or doc.estado == 'APROBADO' %}
+    {% if doc.estado == 'PENDIENTE' or doc.estado == 'APROBADO' %}{% if not sin_editar %}
       <a href="{% url url_editar doc.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>
-    {% endif %}
+    {% endif %}{% endif %}
   </div>
   <div class="d-flex gap-2">
     {% include 'inventario/_acciones_doc.html' %}
@@ -16,12 +16,13 @@
     {% endif %}
     {% if doc.estado != 'ANULADO' %}
       {% if bloqueo_convertir %}<span class="btn btn-sm btn-light border disabled" title="{{ bloqueo_convertir }}"><i class="bi bi-lock"></i> {{ texto_convertir }}</span>
-      {% else %}<a href="{% url url_convertir %}?{{ param_convertir }}={{ doc.pk }}" class="btn btn-sm btn-success"><i class="bi bi-arrow-right-circle"></i> {{ texto_convertir }}</a>{% endif %}
+      {% elif not sin_convertir %}<a href="{% url url_convertir %}?{{ param_convertir }}={{ doc.pk }}" class="btn btn-sm btn-success"><i class="bi bi-arrow-right-circle"></i> {{ texto_convertir }}</a>{% endif %}
       {% if pedido_enviar %}<form method="post" action="{% url url_estado doc.pk %}">{% csrf_token %}<input type="hidden" name="estado" value="ENVIAR"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-send"></i> Enviar a aprobación</button></form>
       {% elif doc.estado == 'PENDIENTE' and not es_oc and not pedido_espera or doc.estado == 'PENDIENTE' and oc_puede_aprobar %}<form method="post" action="{% url url_estado doc.pk %}">{% csrf_token %}<input type="hidden" name="estado" value="APROBADO">{% if oc_exceso %}<input name="comentario" class="form-control form-control-sm d-inline-block me-1" style="width:260px" minlength="10" required placeholder="Motivo del exceso de presupuesto" aria-label="Motivo del exceso de presupuesto">{% endif %}<button class="btn btn-sm btn-outline-primary"{% if es_cotizacion %} title="La cotización no sigue la ruta de aprobación: la acepta el cliente. Los pedidos sí."{% endif %}><i class="bi bi-check2"></i> {% if es_cotizacion %}Aceptada por el cliente{% else %}Aprobar{% endif %}{% if oc_pendiente and oc_niveles|length > 1 %} nivel {{ oc_pendiente.nivel }}{% endif %}{% if pedido_pendiente and pedido_ruta|length > 1 %} nivel {{ pedido_pendiente.nivel }}{% endif %}</button></form>
         {% if es_oc %}<button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="collapse" data-bs-target="#form-rechazar-oc"><i class="bi bi-arrow-return-left"></i> Rechazar</button>{% endif %}
       {% elif pedido_espera %}<span class="btn btn-sm btn-light border disabled"><i class="bi bi-hourglass-split"></i> En aprobación: {{ pedido_espera }}</span>{% endif %}
-      {% if not es_oc or puede.compras_anular %}<form method="post" action="{% url url_estado doc.pk %}" data-confirm="¿Anular {{ doc.numero }}?">{% csrf_token %}<input type="hidden" name="estado" value="ANULADO"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular</button></form>{% endif %}
+      {% if not es_oc %}{% if not ped_facturas_vivas %}<form method="post" action="{% url url_estado doc.pk %}" class="d-flex gap-1" data-confirm="¿Anular {{ doc.numero }}?">{% csrf_token %}<input type="hidden" name="estado" value="ANULADO"><input name="motivo" class="form-control form-control-sm" style="width:11rem" required minlength="5" placeholder="Motivo de la anulación" aria-label="Motivo de la anulación"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular</button></form>{% endif %}
+      {% elif puede.compras_anular_oc and not oc_bloqueo_anular %}<button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#form-anular-oc"><i class="bi bi-x-circle"></i> Anular</button>{% endif %}
     {% endif %}
   </div>
 </div>
@@ -60,6 +61,7 @@
 </div>
 
 {% if es_oc %}
+{% include 'compras/_oc_seguimiento.html' %}
 {% if oc_puede_aprobar %}<div class="collapse mt-3" id="form-rechazar-oc" style="max-width:900px;margin:auto"><div class="card border-warning"><div class="card-body"><form method="post" action="{% url 'compras:oc_rechazar' doc.pk %}" class="row g-2 align-items-end">{% csrf_token %}<div class="col-md-9"><input name="motivo" class="form-control form-control-sm" minlength="10" required placeholder="Motivo del rechazo (vuelve al comprador)"></div><div class="col-md-3"><button class="btn btn-sm btn-warning w-100">Rechazar</button></div></form></div></div></div>{% endif %}
 {% if oc_error_niveles %}<div class="alert alert-warning mt-3 small" style="max-width:900px;margin:auto">Aprobación: {{ oc_error_niveles }}</div>{% endif %}
 {% if oc_avisos_niveles %}<div class="alert alert-info mt-3 small" style="max-width:900px;margin:auto"><i class="bi bi-signpost-split"></i> {% for a in oc_avisos_niveles %}{{ a }} {% endfor %}</div>{% endif %}
@@ -90,8 +92,15 @@
   {% if facturas_portal %}<ul class="list-group list-group-flush small">{% for f in facturas_portal %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'compras:portal_factura' f.pk %}">Factura del portal {{ f.numero_completo }}</a><span>{{ f.simbolo }} {{ f.total|money }} · {{ f.get_estado_display }}</span></li>{% endfor %}</ul>{% endif %}
 </div>
 {% endif %}
+{% if ped_avance %}<div class="card mt-3 d-print-none" style="max-width:900px;margin:auto">
+  <div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-receipt"></i> Saldo del pedido</span><span class="badge text-bg-light border">{{ ped_situacion }}</span></div>
+  <div class="table-responsive"><table class="table table-sm mb-0 small"><thead><tr><th>Línea</th><th class="num">Pedido</th><th class="num">Despachado</th><th class="num">Facturado</th><th class="num">Pendiente</th></tr></thead>
+    <tbody>{% for f in ped_avance %}<tr><td>{{ f.item.descripcion|truncatechars:60 }}</td><td class="num">{{ f.pedido|cant }}</td><td class="num">{% if f.despachado is not None %}{{ f.despachado|cant }}{% else %}—{% endif %}</td><td class="num">{{ f.facturado|cant }}</td><td class="num{% if f.pendiente %} fw-semibold{% endif %}">{{ f.pendiente|cant }}</td></tr>{% endfor %}</tbody></table></div>
+  {% if ped_tiene_saldo %}<div class="card-body border-top"><form method="post" action="{% url url_estado doc.pk %}" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="cerrar_saldo"><div class="col-md-9"><input name="motivo" class="form-control form-control-sm" minlength="5" required placeholder="El cliente ya no comprará el saldo: motivo (queda en el historial)"></div><div class="col-md-3"><button class="btn btn-sm btn-outline-warning w-100" data-confirm="¿Cerrar el saldo de {{ doc.numero }}?">Cerrar saldo</button></div></form></div>{% endif %}
+  {% if ped_facturas_vivas and doc.estado != 'ANULADO' %}<div class="card-body border-top small text-muted"><i class="bi bi-info-circle"></i> Tiene comprobantes vigentes: no se anula; cierre el saldo o anule antes los comprobantes.</div>{% endif %}
+</div>{% endif %}
 <div style="max-width:900px;margin:auto">{% include 'inventario/_operaciones_doc.html' %}
-  {% if es_oc %}{% include 'core/_sustentos.html' with objeto=doc %}{% include 'core/_bitacora.html' with objeto=doc %}{% endif %}</div>
+  {% if es_oc %}{% include 'core/_sustentos.html' with objeto=doc %}{% endif %}{% if es_oc or con_historial %}{% include 'core/_bitacora.html' with objeto=doc %}{% endif %}</div>
 {% if relacionados %}
 <div class="card mt-3 d-print-none" style="max-width:900px;margin:auto"><div class="card-header">Comprobantes generados</div>
   <ul class="list-group list-group-flush">{% for r in relacionados %}<li class="list-group-item d-flex justify-content-between"><a href="{% url url_rel r.pk %}">{{ r }}</a><span class="num">{{ r.total|money }}</span></li>{% endfor %}</ul>

@@ -183,7 +183,12 @@ def bloqueo(cot):
 def restaurar_al_anular(cot):
     """VEN-14: al anular la última factura de un pedido o cotización, vuelve a su estado anterior: Aprobado si su ruta
     está completa (o se aprobó) y Pendiente si no."""
-    if cot is None or cot.estado != 'ATENDIDO' or cot.ventas.exclude(estado='ANULADO').exists():
+    if cot is None or cot.estado != 'ATENDIDO':
+        return cot
+    if cot.ventas.exclude(estado='ANULADO').exists():  # VEN-21: con otras facturas vuelve a «Aprobado» si queda saldo
+        if cot.tipo == 'PED':
+            from .seguimiento_pedido import actualizar_estado
+            actualizar_estado(cot, 'comprobante anulado')
         return cot
     ultimo = aprobaciones.historial('PEDIDO', cot).order_by('-fecha', '-id').first()
     completa = bool(cot.niveles) and aprobaciones.pendiente(cot.niveles, cot.nivel_aprobado) is None

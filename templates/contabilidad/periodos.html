@@ -4,8 +4,8 @@
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title">Periodos contables</h1>
   <div class="d-flex gap-2">
-    <form method="post">{% csrf_token %}<button name="accion" value="apertura" class="btn btn-sm btn-outline-primary"><i class="bi bi-flag"></i> {% if apertura %}Regenerar{% else %}Generar{% endif %} asiento de apertura</button></form>
-    <a href="{% url 'contabilidad:asiento_nuevo' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Asiento manual</a>
+    {% if puede.contabilidad_periodos %}<form method="post">{% csrf_token %}<button name="accion" value="apertura" class="btn btn-sm btn-outline-primary"><i class="bi bi-flag"></i> {% if apertura %}Regenerar{% else %}Generar{% endif %} asiento de apertura</button></form>{% endif %}
+    {% if puede.contabilidad_asientos %}<a href="{% url 'contabilidad:asiento_nuevo' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Asiento manual</a>{% endif %}
   </div>
 </div>
 <div class="alert alert-info small">
@@ -29,7 +29,8 @@
             {% else %}<span class="badge text-bg-success">Al día</span>{% endif %}</td>
         <td class="text-end text-nowrap">
           <form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="periodo" value="{{ f.periodo }}">
-            {% if not f.estado.cerrado %}
+            {% if not f.estado.cerrado and not puede.contabilidad_periodos %}<span class="small text-muted" title="Pida el permiso «Centralizar y cerrar periodos»">Cierre con permiso</span>
+            {% elif not f.estado.cerrado %}
               <button name="accion" value="centralizar" class="btn btn-sm btn-outline-primary" title="Volver a centralizar"><i class="bi bi-arrow-repeat"></i></button>
               <button name="accion" value="cerrar" class="btn btn-sm btn-outline-dark" data-confirm="¿Cerrar el periodo {{ f.periodo }}? No se podrán modificar sus documentos ni asientos."><i class="bi bi-lock"></i> Cerrar</button>
             {% elif puede_reabrir %}

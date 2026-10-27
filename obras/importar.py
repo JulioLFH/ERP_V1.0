@@ -96,10 +96,14 @@ def _hojas(archivo):
         return [(h.name, [[None if c.ctype in vacias else c.value for c in h.row(i)] for i in range(h.nrows)])
                 for h in libro.sheets()]
     from openpyxl import load_workbook
+    if datos[:2] != b'PK':  # OBR-42: un .txt o un archivo renombrado (antes: «File is not a zip file»)
+        raise ErrorImportacion('El archivo no es un Excel (.xlsx o .xls): ábralo en Excel y guárdelo como «Libro de '
+                               'Excel (.xlsx)».')
     try:
         libro = load_workbook(io.BytesIO(datos), data_only=True, read_only=True)
     except Exception as exc:
-        raise ErrorImportacion(f'No se pudo leer el Excel: {exc}') from exc
+        raise ErrorImportacion('No se pudo leer el Excel: el archivo está dañado o no es un libro de Excel '
+                               f'({type(exc).__name__}).') from exc
     return [(h.title, [list(f) for f in h.iter_rows(values_only=True)]) for h in libro.worksheets]
 
 

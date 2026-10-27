@@ -30,5 +30,9 @@
   {% if p.pago_masivo %}<a href="{% url 'finanzas:pago_masivo' p.pago_masivo_id %}" class="btn btn-sm btn-outline-success">Ver {{ p.pago_masivo.numero }}</a>{% endif %}
 </div>
 </form>
+{% if p.estado == 'BORRADOR' or p.estado == 'RECHAZADA' or p.estado == 'ENVIADA' %}{% if puede.tesoreria_registrar or p.creado_por_id == user.pk %}
+<form method="post" class="d-flex flex-wrap gap-2 align-items-center mt-2">{% csrf_token %}<input type="hidden" name="accion" value="anular">
+  <input name="motivo" class="form-control form-control-sm w-auto" required minlength="5" placeholder="Motivo para retirarla" aria-label="Motivo para retirar la propuesta">
+  <button class="btn btn-sm btn-outline-danger" data-confirm="¿Retirar y anular la propuesta {{ p.numero }}?">Retirar / anular</button></form>{% endif %}{% endif %}
 <p class="small text-muted mt-2">Prioridad: 1 proveedor crítico, 2 descuento por pronto pago disponible, 3 vencida, 4 por vencer. La detracción no se incluye: se deposita en la cuenta del Banco de la Nación del proveedor.</p>
 {% endblock %}

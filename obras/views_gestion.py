@@ -11,6 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.forms import BootstrapMixin
+from core.utils import id_o_none
 from ventas.crm_tabla import responder
 
 from . import gestion as g
@@ -209,7 +210,7 @@ def adendas(request, pk):
     if request.method == 'POST':
         try:
             if 'accion' in request.POST:
-                a = get_object_or_404(AdendaContrato, pk=request.POST.get('adenda'), obra=o)
+                a = get_object_or_404(AdendaContrato, pk=id_o_none(request.POST.get('adenda')), obra=o)
                 if request.POST['accion'] == 'aprobar':
                     g.aprobar_adenda(a, request.user)
                     messages.success(request, f'{a} aprobada: el contrato vigente es S/ {Obra.objects.get(pk=o.pk).monto_contratado:,.2f} '
@@ -275,18 +276,47 @@ class EventoForm(BootstrapMixin, forms.ModelForm):
         fields = ['fecha', 'tipo', 'gravedad', 'monto', 'descripcion', 'resuelto']
         widgets = {'fecha': forms.DateInput(attrs={'type': 'date'})}
 
+    def __init__(self, *args, obra=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.obra = obra
+
+    def clean(self):
+        """OBR-39: fecha razonable, montos no negativos y penalidades con tope acumulado (% del contrato)."""
+        d = super().clean()
+        fecha, monto, tipo = d.get('fecha'), d.get('monto'), d.get('tipo')
+        if fecha and self.obra is not None:
+            try:
+                g._fecha_razonable(self.obra, fecha, 'La fecha')
+            except g.ErrorGestion as exc:
+                self.add_error('fecha', str(exc))
+        if monto is not None and monto < 0:
+            self.add_error('monto', 'El monto no puede ser negativo.')
+        elif tipo == 'PENALIDAD' and self.obra is not None:
+            if not monto:
+                self.add_error('monto', 'Indique el monto de la penalidad.')
+            else:
+                from core import parametros
+                tope_pct = parametros.valor('OBR_PENALIDAD_MAX_PCT') or Decimal('10')
+                tope = (self.obra.monto_contratado * tope_pct / 100).quantize(Decimal('0.01'))
+                previas = sum((e.monto for e in self.obra.eventos_contrato.filter(tipo='PENALIDAD')), Decimal('0'))
+                if previas + monto > tope:
+                    self.add_error('monto', f'Las penalidades sumarían S/ {previas + monto:,.2f}: el tope es el '
+                                            f'{tope_pct:g} % del contrato (S/ {tope:,.2f}; ya aplicadas '
+                                            f'S/ {previas:,.2f}).')
+        return d
+
 
 @login_required
 def eventos(request, pk):
     o = get_object_or_404(Obra.objects.select_related('cliente'), pk=pk)
-    form = EventoForm(initial={'fecha': timezone.localdate()})
+    form = EventoForm(initial={'fecha': timezone.localdate()}, obra=o)
     if request.method == 'POST':
         if 'evento' in request.POST:
-            e = get_object_or_404(EventoContrato, pk=request.POST['evento'], obra=o)
+            e = get_object_or_404(EventoContrato, pk=id_o_none(request.POST['evento']), obra=o)
             e.resuelto = not e.resuelto
             e.save(update_fields=['resuelto'])
             return redirect('obras:eventos', pk)
-        form = EventoForm(request.POST)
+        form = EventoForm(request.POST, obra=o)
         if form.is_valid():
             e = form.save(commit=False)
             e.obra, e.registrado_por = o, request.user
@@ -378,12 +408,12 @@ def escenarios(request, pk):
     if request.method == 'POST':
         try:
             if request.POST.get('accion') == 'restaurar':
-                e = get_object_or_404(EscenarioCronograma, pk=request.POST.get('escenario'), obra=o)
+                e = get_object_or_404(EscenarioCronograma, pk=id_o_none(request.POST.get('escenario')), obra=o)
                 n = g.restaurar_escenario(e, request.user)
                 messages.success(request, f'El cronograma volvió a «{e.nombre}» ({n} metrados por mes); el anterior '
                                           f'quedó guardado como escenario.')
             elif request.POST.get('accion') == 'eliminar':
-                e = get_object_or_404(EscenarioCronograma, pk=request.POST.get('escenario'), obra=o)
+                e = get_object_or_404(EscenarioCronograma, pk=id_o_none(request.POST.get('escenario')), obra=o)
                 e.delete()
                 messages.info(request, f'Escenario «{e.nombre}» eliminado.')
             else:
@@ -775,7 +805,7 @@ def consorcio(request, pk):
     form = SocioForm(obra=o)
     if request.method == 'POST':
         if request.POST.get('accion') == 'quitar':
-            SocioConsorcio.objects.filter(pk=request.POST.get('socio'), obra=o).delete()
+            SocioConsorcio.objects.filter(pk=id_o_none(request.POST.get('socio')), obra=o).delete()
             return redirect('obras:consorcio', pk)
         form = SocioForm(request.POST, obra=o)
         if form.is_valid():
@@ -787,6 +817,9 @@ def consorcio(request, pk):
     desde, hasta = _fecha(request.GET.get('desde')), _fecha(request.GET.get('hasta'))
     r = g.consorcio(o, desde, hasta)
     avisos = []
+    if desde and hasta and desde > hasta:  # OBR-41
+        avisos.append(('warning', f'El rango está invertido: «desde» ({desde:%d/%m/%Y}) es posterior a «hasta» '
+                                  f'({hasta:%d/%m/%Y}); no hay movimientos en ese rango.'))
     if r['socios'] and r['suma'] != 100:
         avisos.append(('warning', f'Las participaciones suman {r["suma"]} %: deben sumar 100 %.'))
     if r['socios'] and not any(s.es_la_empresa for s in r['socios']):

@@ -535,6 +535,36 @@ document.querySelectorAll('[data-copiar]').forEach((b) => {
   });
 });
 
+// OBR-32: muestra cómo se leerá el número (coma o punto decimal) antes de grabar; igual que core.formato.numero_usuario
+function numeroUsuario(texto) {
+  let t = String(texto || '').replace(/[\s ']/g, '');
+  if (!t) return null;
+  if (t.includes(',') && t.includes('.')) {
+    t = t.lastIndexOf(',') > t.lastIndexOf('.') ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  } else if (t.includes(',')) {
+    const partes = t.split(',');
+    if (partes.length === 2 && partes[1].length !== 3) t = t.replace(',', '.');
+    else if (partes.length > 2 && partes.slice(1).every((p) => p.length === 3)) t = t.replace(/,/g, '');
+    else return 'ambiguo';
+  } else if ((t.match(/\./g) || []).length > 1) {
+    if (!t.split('.').slice(1).every((p) => p.length === 3)) return NaN;
+    t = t.replace(/\./g, '');
+  }
+  return /^-?\d*\.?\d+$/.test(t) ? Number(t) : NaN;
+}
+document.querySelectorAll('input[data-ver-numero]').forEach((inp) => {
+  const ayuda = document.createElement('div');
+  ayuda.className = 'form-text';
+  inp.insertAdjacentElement('afterend', ayuda);
+  inp.addEventListener('input', () => {
+    const n = numeroUsuario(inp.value);
+    if (n === null) ayuda.textContent = '';
+    else if (n === 'ambiguo') ayuda.textContent = 'Ambiguo: escriba 1500 o 1.5 (punto decimal)';
+    else if (Number.isNaN(n)) ayuda.textContent = 'No es un número';
+    else ayuda.textContent = 'Se registrará: ' + n.toLocaleString('en-US', { maximumFractionDigits: 4 });
+  });
+});
+
 // aviso de carga: al abrir pantallas o enviar formularios (si el servidor tarda más de un instante) y bloqueo del
 // botón pulsado para no registrar dos veces lo mismo. Las descargas (Excel, PDF, plantillas) no lo muestran.
 (function () {

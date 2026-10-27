@@ -14,7 +14,8 @@
         {% endfor %}
         </tbody>
       </table></div></div>
-      <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>
+      {% if puede.contabilidad_configurar %}<button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>
+      {% else %}<div class="alert alert-light border small mt-3 mb-0"><i class="bi bi-eye"></i> Solo lectura: cambiar las cuentas exige el permiso «Plan de cuentas y configuración».</div>{% endif %}
     </form>
   </div>
   <div class="col-lg-4"><div class="card"><div class="card-header">Cómo se usa</div><div class="card-body small">

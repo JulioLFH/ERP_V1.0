@@ -79,7 +79,7 @@ def crear_pedido(user, cliente, lineas, glosa=''):
 
     from .forms import CotizacionForm
     datos = {'tipo': 'PED', 'tercero': cliente.pk if cliente else '', 'fecha': timezone.localdate().isoformat(),
-             'validez_dias': '7', 'vendedor': (user.get_full_name() or user.username)[:80], 'moneda': 'PEN',
+             'validez_dias': '7', 'vendedor': user.username[:80], 'moneda': 'PEN',  # VEN-22: el usuario
              'tipo_cambio': '1', 'tipo_operacion': 'GRAVADA', 'condicion_pago': '', 'glosa': glosa[:500],
              'items-TOTAL_FORMS': str(len(lineas)), 'items-INITIAL_FORMS': '0', 'items-MIN_NUM_FORMS': '1',
              'items-MAX_NUM_FORMS': '1000'}

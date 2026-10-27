@@ -232,12 +232,13 @@ class SubpresupuestosTest(Base):
         self.client.post(url, {'accion': 'subpresupuesto', 'codigo': '002', 'nombre': 'GASTOS GENERALES',
                                'es_gastos_generales': 'on'})
         s2 = p.subpresupuestos.get(codigo='002')
-        # el mismo ítem 01.01 en otro subpresupuesto
+        # el mismo ítem 01.01 en otro subpresupuesto (OBR-42: con su título 01)
+        Partida.objects.create(presupuesto=p, subpresupuesto=s2, item='01', descripcion='PERSONAL', es_titulo=True)
         self.client.post(url, {'accion': 'agregar', 'subpresupuesto': s2.pk, 'item': '01.01',
                                'descripcion': 'RESIDENTE DE OBRA', 'unidad': 'mes', 'metrado': '3', 'precio_fijo': 'on',
                                'precio': '6000'})
         p.refresh_from_db()
-        self.assertEqual(p.partidas.count(), 2)
+        self.assertEqual(p.partidas.count(), 3)
         self.assertEqual(p.gastos_generales, D('18000.00'))
         self.assertEqual(p.costo_directo, s1.partidas.get().parcial)
         copia = calculos.copiar(p, 'META')

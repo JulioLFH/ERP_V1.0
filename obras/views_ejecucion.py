@@ -10,8 +10,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from core.formato import numero_usuario
 from core.permisos import puede
-from core.utils import excel_response
+from core.utils import excel_response, id_o_none
 
 from . import construccion_civil as civil
 from . import ejecucion as ej
@@ -24,13 +25,12 @@ from .models import (AdelantoObra, IndiceUnificado, Obra, ParteEquipo, Partida, 
 
 
 def _dec(valor, defecto=None):
-    texto = str(valor or '').strip().replace(',', '')
-    if not texto:
-        return defecto
+    """OBR-32: con punto o coma decimal (core.formato.numero_usuario); lo que no es número = defecto."""
     try:
-        return Decimal(texto)
-    except InvalidOperation:
+        numero = numero_usuario(valor)
+    except ValueError:
         return defecto
+    return defecto if numero is None else numero
 
 
 def _fecha(valor):
@@ -43,7 +43,7 @@ def _fecha(valor):
 def _periodo(valor):
     """'2026-10' (input month) o '202610' → '202610'."""
     texto = (valor or '').replace('-', '').strip()
-    return texto if len(texto) == 6 and texto.isdigit() else ''
+    return texto if val.periodo_valido(texto) else ''
 
 
 def _partidas(presupuesto):
@@ -148,6 +148,10 @@ def valorizacion(request, pk):
             if accion == 'guardar':
                 metrados = {int(k[8:]): _dec(x, Decimal('0')) for k, x in request.POST.items()
                             if k.startswith('metrado_') and k[8:].isdigit()}
+                malos = [x for k, x in request.POST.items() if k.startswith('metrado_') and x.strip()
+                         and _dec(x) is None]
+                if malos:  # OBR-40: «abc» no es 0
+                    raise val.ErrorValorizacion(f'Metrados que no son números: {", ".join(malos[:6])}.')
                 amort = {t: _dec(request.POST.get(f'amort_{t}')) for t in ('DIRECTO', 'MATERIALES')
                          if request.POST.get(f'amort_{t}', '').strip()}
                 ret = _dec(request.POST.get('retencion')) if request.POST.get('retencion', '').strip() else None
@@ -225,7 +229,10 @@ def formula(request, pk):
                         coef, codigo = _dec(partes[1]), val._codigo_indice(partes[2])
                         if coef is not None and codigo:
                             filas.append((partes[0][:10], val.r3(coef), codigo, ' '.join(partes[3:])[:120]))
-            f = val.guardar_formula(o, filas, numero=int(request.POST.get('numero') or 1),
+            numero = request.POST.get('numero', '').strip() or '1'
+            if not numero.isdigit():  # OBR-34: «-1» o «abc» eran un error 500
+                raise val.ErrorValorizacion('El N° de la fórmula va de 1 a 99.')
+            f = val.guardar_formula(o, filas, numero=int(numero),
                                     nombre=request.POST.get('nombre', ''),
                                     subpresupuesto=request.POST.get('subpresupuesto', '').strip(),
                                     area=request.POST.get('area') or '1',
@@ -254,15 +261,20 @@ def indices(request):
                     if valores:
                         break
             else:
-                valores = {}
+                valores, omitidos = {}, []
                 for linea in (request.POST.get('texto') or '').splitlines():
                     partes = linea.replace(';', ' ').replace('\t', ' ').split()
                     codigo = val._codigo_indice(partes[0]) if partes else None
                     if codigo:
                         for area, x in enumerate(partes[1:7], 1):
                             d = _dec(x)
-                            if d:
+                            if d is None:  # OBR-40: avisar cuál no se guardó
+                                omitidos.append(f'{codigo} área {area} («{x}»)')
+                            elif d:
                                 valores[(codigo, str(area))] = d
+                if omitidos:
+                    raise val.ErrorValorizacion('No se guardó nada: valores que no son números en '
+                                                + '; '.join(omitidos[:6]) + '.')
             n = val.guardar_indices(periodo, valores)
             messages.success(request, f'{n} índices de {periodo[4:]}/{periodo[:4]} guardados.')
         except (val.ErrorValorizacion, ej.ErrorEjecucion) as exc:
@@ -288,12 +300,15 @@ def cronograma(request, pk):
             messages.error(request, 'La obra no tiene presupuesto contractual ni meta.')
         else:
             try:
+                avisos = []
                 n, faltan = ej.importar_cronograma(p, request.FILES['archivo'],
                                                    en_porcentaje=request.POST.get('unidad') == 'PCT',
-                                                   forzar=bool(request.POST.get('forzar')))
+                                                   forzar=bool(request.POST.get('forzar')), avisos=avisos)
                 messages.success(request, f'Cronograma cargado: {n} partidas programadas.')
                 if faltan:
                     messages.warning(request, f'{len(faltan)} fila(s) sin partida equivalente: ' + '; '.join(faltan[:6]))
+                if avisos:
+                    messages.warning(request, 'Revise: ' +' '.join(avisos[:8]) + (' …' if len(avisos) > 8 else ''))
             except ej.ErrorEjecucion as exc:
                 messages.error(request, str(exc))
         return redirect('obras:cronograma', pk)
@@ -306,14 +321,18 @@ def avance(request, pk):
     o = get_object_or_404(Obra, pk=pk)
     p = val.presupuesto_ejecucion(o)
     if request.method == 'POST':
-        partida = Partida.objects.filter(pk=request.POST.get('partida') or 0, presupuesto__obra=o).first()
+        partida = Partida.objects.filter(pk=id_o_none(request.POST.get('partida')) or 0, presupuesto__obra=o).first()
         try:
             if partida is None:
                 raise ej.ErrorEjecucion('Elija la partida.')
-            a, aviso = ej.registrar_avance(o, partida, _fecha(request.POST.get('fecha')),
-                                           _dec(request.POST.get('metrado'), Decimal('0')), request.user,
+            try:  # OBR-32: «10,5» es 10.5 (no 105) y «1,500» se pide escribir sin dudas
+                metrado = numero_usuario(request.POST.get('metrado')) or Decimal('0')
+            except ValueError as exc:
+                raise ej.ErrorEjecucion(f'Metrado: {exc}') from exc
+            a, aviso = ej.registrar_avance(o, partida, _fecha(request.POST.get('fecha')), metrado, request.user,
                                            request.FILES.get('foto'), request.POST.get('nota', ''))
-            messages.success(request, f'Avance de {partida.item} registrado: {a.metrado:,.2f} {partida.unidad}.')
+            messages.success(request, f'Avance de {partida.item} registrado: {a.metrado:,.2f} {partida.unidad} '
+                                      f'(se leyó «{request.POST.get("metrado", "").strip()}» como {a.metrado:,.2f}).')
             if aviso:
                 messages.warning(request, aviso)
         except ej.ErrorEjecucion as exc:
@@ -417,21 +436,29 @@ def tareo(request, pk):
     if request.method == 'POST':
         por_id = {t.pk: t for t in trabajadores}
         por_partida = {x.pk: x for x in partidas}
-        filas = []
-        for n in range(int(request.POST.get('filas') or 0)):
-            t = por_id.get(int(request.POST.get(f'trabajador_{n}') or 0))
+        filas, ajenas = [], []
+        for n in range(min(int(_dec(request.POST.get('filas'), Decimal('0'))), 200)):
+            t = por_id.get(id_o_none(request.POST.get(f'trabajador_{n}')))
             if t is None:
                 continue
-            filas.append((t, por_partida.get(int(request.POST.get(f'partida_{n}') or 0)),
+            id_partida = id_o_none(request.POST.get(f'partida_{n}'))
+            if id_partida and id_partida not in por_partida:  # OBR-36: no se descarta en silencio
+                ajenas.append(t.nombre_completo)
+            filas.append((t, por_partida.get(id_partida),
                           _dec(request.POST.get(f'horas_{n}'), Decimal('0')),
                           _dec(request.POST.get(f'h60_{n}'), Decimal('0')),
                           _dec(request.POST.get(f'h100_{n}'), Decimal('0'))))
         try:
-            capataz = Trabajador.objects.filter(pk=request.POST.get('capataz') or 0).first()
+            if ajenas:
+                raise civil.ErrorCivil(f'La partida elegida para {", ".join(ajenas[:4])} no es del presupuesto '
+                                       f'meta de la obra.')
+            capataz = Trabajador.objects.filter(pk=id_o_none(request.POST.get('capataz')) or 0).first()
             t = civil.registrar_tareo(o, _fecha(request.POST.get('fecha')), request.POST.get('cuadrilla', ''), filas,
                                       request.user, capataz=capataz,
                                       observaciones=request.POST.get('observaciones', ''))
             messages.success(request, f'{t} registrado con {t.lineas.count()} trabajador(es).')
+            for aviso in t.avisos:
+                messages.warning(request, aviso)
         except civil.ErrorCivil as exc:
             messages.error(request, str(exc))
         return redirect('obras:tareo', pk)
@@ -511,26 +538,48 @@ def partes(request, pk):
     partidas = _partidas(meta)
     if request.method == 'POST':
         d = request.POST
-        parte = ParteEquipo(
-            obra=o, fecha=_fecha(d.get('fecha')) or timezone.localdate(),
-            equipo=Equipo.objects.filter(pk=d.get('equipo') or 0).first(), descripcion=d.get('descripcion', '')[:120],
-            propiedad=d.get('propiedad') if d.get('propiedad') in ('PROPIO', 'ALQUILADO') else 'PROPIO',
-            proveedor=Tercero.objects.filter(pk=d.get('proveedor') or 0).first(),
-            partida=Partida.objects.filter(pk=d.get('partida') or 0, presupuesto__obra=o).first(),
-            operador=d.get('operador', '')[:120], horometro_inicio=_dec(d.get('horometro_inicio')),
-            horometro_fin=_dec(d.get('horometro_fin')), horas=_dec(d.get('horas'), Decimal('0')),
-            horas_espera=_dec(d.get('horas_espera'), Decimal('0')), combustible=_dec(d.get('combustible'), Decimal('0')),
-            tarifa=_dec(d.get('tarifa'), Decimal('0')), tarifa_espera=_dec(d.get('tarifa_espera'), Decimal('0')),
-            observacion=d.get('observacion', '')[:200])
-        try:
+        if d.get('accion') == 'anular':  # OBR-37
+            parte = get_object_or_404(ParteEquipo.todos, pk=id_o_none(d.get('parte')), obra=o)
+            try:
+                eq.anular(parte, request.user, d.get('motivo', ''))
+                messages.info(request, f'{parte} anulado.')
+            except eq.ErrorParte as exc:
+                messages.error(request, str(exc))
+            return redirect('obras:partes', pk)
+        try:  # OBR-37: un dato que no se reconoce se avisa, no se reemplaza por 0 o por «propio»
+            errores = [f'{nombre}: «{d.get(campo)}» no es un número' for campo, nombre in (
+                ('horometro_inicio', 'Horómetro inicial'), ('horometro_fin', 'Horómetro final'),
+                ('horas', 'Horas trabajadas'), ('horas_espera', 'Horas en espera'), ('combustible', 'Combustible'),
+                ('tarifa', 'Tarifa'), ('tarifa_espera', 'Tarifa en espera'))
+                if (d.get(campo) or '').strip() and _dec(d.get(campo)) is None]
+            equipo = Equipo.objects.filter(pk=id_o_none(d.get('equipo')) or 0).first()
+            if (d.get('equipo') or '').strip() and equipo is None:
+                errores.append('el equipo elegido no existe en Flota')
+            partida = Partida.objects.filter(pk=id_o_none(d.get('partida')) or 0, presupuesto__obra=o).first()
+            if (d.get('partida') or '').strip() and partida is None:
+                errores.append('la partida elegida no es de la obra')
+            proveedor = Tercero.objects.filter(pk=id_o_none(d.get('proveedor')) or 0).first()
+            if errores:
+                raise eq.ErrorParte('Revise el parte: ' + '; '.join(errores) + '.')
+            parte = ParteEquipo(
+                obra=o, fecha=_fecha(d.get('fecha')) or timezone.localdate(), equipo=equipo,
+                descripcion=d.get('descripcion', '')[:120], propiedad=d.get('propiedad') or 'PROPIO',
+                proveedor=proveedor, partida=partida, operador=d.get('operador', '')[:120],
+                horometro_inicio=_dec(d.get('horometro_inicio')), horometro_fin=_dec(d.get('horometro_fin')),
+                horas=_dec(d.get('horas'), Decimal('0')), horas_espera=_dec(d.get('horas_espera'), Decimal('0')),
+                combustible=_dec(d.get('combustible'), Decimal('0')), tarifa=_dec(d.get('tarifa'), Decimal('0')),
+                tarifa_espera=_dec(d.get('tarifa_espera'), Decimal('0')), observacion=d.get('observacion', '')[:200])
             parte = eq.registrar(parte, request.user)
             messages.success(request, f'{parte} registrado: {parte.horas:g} h × S/ {parte.tarifa:,.2f} = '
                                       f'S/ {parte.costo:,.2f}.')
+            for aviso in parte.avisos:
+                messages.warning(request, aviso)
         except eq.ErrorParte as exc:
             messages.error(request, str(exc))
         return redirect('obras:partes', pk)
     return render(request, 'obras/partes.html', {
-        'o': o, 'partidas': partidas, 'partes': o.partes_equipo.select_related('equipo', 'partida', 'proveedor')[:60],
+        'o': o, 'partidas': partidas,
+        'partes': ParteEquipo.todos.filter(obra=o).select_related('equipo', 'partida', 'proveedor')[:60],
         'equipos': Equipo.objects.filter(activo=True).order_by('codigo'), 'r': eq.resumen(o),
         'proveedores': Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS']).order_by('nombre'),
         'hoy': timezone.localdate()})
@@ -577,6 +626,9 @@ def subcontrato(request, pk):
             if accion == 'orden':
                 oc = sub.emitir_orden(sc, request.user)
                 messages.success(request, f'Orden de servicio {oc.numero} creada (pendiente de aprobar en Compras).')
+            elif accion == 'anular_subcontrato':  # OBR-38
+                sub.anular_subcontrato(sc, request.user, request.POST.get('motivo', ''))
+                messages.info(request, f'{sc} anulado.')
             elif accion == 'valorizar':
                 metrados = {int(k[8:]): _dec(x, Decimal('0')) for k, x in request.POST.items()
                             if k.startswith('metrado_') and k[8:].isdigit()}

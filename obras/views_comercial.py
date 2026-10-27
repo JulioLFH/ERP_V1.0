@@ -111,6 +111,9 @@ def _accion_licitacion(request, obra, lic, accion, forms_):
         r = forms_['requisito'].save(commit=False)
         r.licitacion = lic
         r.save()
+        if r.vence and r.vence < timezone.localdate():  # CRM-23
+            messages.warning(request, f'«{r.descripcion}» venció el {r.vence:%d/%m/%Y}: renuévelo antes de '
+                                      f'presentar la oferta.')
         archivo = forms_['requisito'].cleaned_data.get('archivo')
         if archivo:
             try:

@@ -18,7 +18,20 @@ def estado_stock(request):
     if request.method == 'POST':
         try:
             if request.POST.get('que') == 'lote':
-                lote = get_object_or_404(Lote, pk=request.POST.get('lote') or 0)
+                valor = (request.POST.get('lote') or '').strip()
+                # ALM-15: el lote escrito como texto («L-E2») era un error 500: se busca por su código
+                lotes = Lote.objects.filter(pk=int(valor)) if valor.isdigit() else Lote.objects.filter(
+                    codigo__iexact=valor)
+                if request.POST.get('producto', '').isdigit():
+                    lotes = lotes.filter(producto_id=int(request.POST['producto']))
+                lotes = list(lotes[:2])
+                if not lotes:
+                    raise estados.ErrorLote(f'No existe el lote «{valor}»: elíjalo de la lista.' if valor else
+                                            'Elija el lote.')
+                if len(lotes) > 1:
+                    raise estados.ErrorLote(f'Hay más de un lote «{valor}» (de distintos productos): elíjalo de la '
+                                            f'lista.')
+                lote = lotes[0]
                 c = estados.cambiar_estado_lote(lote, request.POST.get('estado'), request.POST.get('motivo'),
                                                 request.user)
                 messages.success(request, f'Lote {lote.codigo}: {c.get_estado_anterior_display()} → '

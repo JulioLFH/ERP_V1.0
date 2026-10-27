@@ -59,8 +59,11 @@ class VentasViews(ComprobanteViews):
             from datetime import timedelta
             from django.utils import timezone
             initial['fecha_vencimiento'] = timezone.localdate() + timedelta(days=dias)
-        items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,
-                  'precio_unitario': i.precio_unitario, 'descuento_pct': i.descuento_pct} for i in cot.items.all()]
+        from .seguimiento_pedido import items_saldo
+        items = items_saldo(cot) if cot.tipo == 'PED' else []  # VEN-21: la siguiente factura propone el saldo
+        if not items:
+            items = [{'producto': i.producto_id, 'descripcion': i.descripcion, 'cantidad': i.cantidad,
+                      'precio_unitario': i.precio_unitario, 'descuento_pct': i.descuento_pct} for i in cot.items.all()]
         return initial, items
 
     def _form_ctx(self, titulo, doc=None):
@@ -68,7 +71,18 @@ class VentasViews(ComprobanteViews):
 
     def validar_stock(self, form, formset):
         return (super().validar_stock(form, formset) + self.validar_credito(form, formset)
-                + self.validar_permisos(form, formset))
+                + self.validar_permisos(form, formset) + self.validar_saldo_pedido(form, formset))
+
+    def validar_saldo_pedido(self, form, formset):
+        """VEN-21: lo facturado de un pedido no supera lo pedido (la segunda factura propone el saldo)."""
+        from .seguimiento_pedido import errores_factura
+        datos = form.cleaned_data
+        if datos.get('tipo_comprobante') not in ('01', '03', '12', '00'):
+            return []
+        lineas = [(c.get('producto'), c.get('descripcion'), c.get('cantidad'))
+                  for c in (getattr(f, 'cleaned_data', None) or {} for f in formset.forms) if c and not c.get('DELETE')]
+        errores = errores_factura(datos.get('cotizacion'), lineas, form.instance)
+        return ['No se factura más que el pedido: ' + '; '.join(errores[:5]) + '.'] if errores else []
 
     @staticmethod
     def _pedido_aprobado(datos):
@@ -170,8 +184,9 @@ class VentasViews(ComprobanteViews):
     def al_guardar(self, doc):
         if doc.descontar_stock and doc.tipo_comprobante in ('01', '03', '12', '00', '07'):
             doc.aplicar_stock()
-        if doc.cotizacion_id:
-            Cotizacion.objects.filter(pk=doc.cotizacion_id).exclude(estado='ANULADO').update(estado='ATENDIDO')
+        if doc.cotizacion_id:  # VEN-21: «Atendido» solo con todo el pedido facturado
+            from .seguimiento_pedido import actualizar_estado
+            actualizar_estado(doc.cotizacion, f'comprobante {doc}')
         cfg = FacturacionConfig.actual()
         if cfg.activa and cfg.envio_automatico and doc.tipo_comprobante in sunat.TIPO_NUBEFACT:
             transaction.on_commit(lambda: self._enviar_silencioso(doc.pk))
@@ -313,7 +328,7 @@ def cot_nuevo(request):
         oportunidad = Oportunidad.objects.filter(pk=request.GET['oportunidad']).select_related('responsable').first()
         if oportunidad is not None and srv.puede_ver(request.user, oportunidad):
             u = oportunidad.responsable or request.user
-            inicial.update(tercero=oportunidad.tercero_id, vendedor=(u.get_full_name() or u.username)[:80],
+            inicial.update(tercero=oportunidad.tercero_id, vendedor=u.username[:80],  # VEN-22: el usuario
                            glosa=f'Oportunidad: {oportunidad.nombre}')
         else:
             oportunidad = None
@@ -368,8 +383,16 @@ def cot_detalle(request, pk):
     cot = get_object_or_404(Cotizacion, pk=pk)
     ruta, enviar, espera = estado_aprobacion(cot, request.user) if cot.tipo == 'PED' else ([], False, '')
     from .crm_servicios import credito
+    from . import seguimiento_pedido as sp
+    filas = sp.avance(cot) if cot.tipo == 'PED' else []
     return render(request, 'core/documento_detalle.html', {
-        'bloqueo_convertir': bloqueo(cot), 'es_cotizacion': cot.tipo == 'COT', 'credito_cliente': credito(cot.tercero) if cot.estado == 'PENDIENTE' else None,
+        # VEN-21: saldo por línea, cierre del saldo y su historial
+        'ped_avance': filas, 'ped_situacion': sp.situacion(cot, filas) if filas else '',
+        'ped_tiene_saldo': cot.estado == 'APROBADO' and any(f['pendiente'] > 0 for f in filas),
+        'ped_facturas_vivas': cot.ventas.filter(estado='REGISTRADO').exists(), 'con_historial': True,
+        'bloqueo_convertir': bloqueo(cot) or ('El pedido ya está facturado por completo.' if filas and cot.estado ==
+                                              'ATENDIDO' else ''),
+        'es_cotizacion': cot.tipo == 'COT', 'credito_cliente': credito(cot.tercero) if cot.estado == 'PENDIENTE' else None,
         'pedido_ruta': ruta, 'pedido_enviar': enviar, 'pedido_espera': espera,
         'pedido_historial': historial('PEDIDO', cot) if cot.tipo == 'PED' else [],
         'pedido_motivos': motivos(cot)[1] if cot.estado == 'PENDIENTE' and cot.tipo == 'PED' else [],
@@ -400,12 +423,29 @@ def cot_estado(request, pk):
             messages.success(request, aprobar(cot, request.user))
         except ErrorAprobacionPedido as exc:
             messages.error(request, str(exc))
-    elif request.method == 'POST' and estado in dict(Cotizacion._meta.get_field('estado').choices):
-        cot.estado = estado
-        if estado == 'PENDIENTE':
-            cot.niveles, cot.nivel_aprobado = [], 0
+    elif request.method == 'POST' and estado == 'ANULADO':  # VEN-21: no con comprobantes vigentes; con motivo
+        from .seguimiento_pedido import ErrorPedido, anular
+        try:
+            anular(cot, request.user, request.POST.get('motivo', ''))
+            messages.success(request, f'{cot.numero}: anulado.')
+        except ErrorPedido as exc:
+            messages.error(request, str(exc))
+    elif request.method == 'POST' and request.POST.get('accion') == 'cerrar_saldo':
+        from .seguimiento_pedido import ErrorPedido, cerrar_saldo
+        try:
+            cerrar_saldo(cot, request.user, request.POST.get('motivo', ''))
+            messages.success(request, f'{cot.numero}: saldo cerrado.')
+        except ErrorPedido as exc:
+            messages.error(request, str(exc))
+    elif request.method == 'POST' and estado == 'PENDIENTE' and not cot.ventas.filter(estado='REGISTRADO').exists():
+        cot.estado, cot.niveles, cot.nivel_aprobado = 'PENDIENTE', [], 0
         cot.save(update_fields=['estado', 'niveles', 'nivel_aprobado'])
+        from core.auditoria import registrar
+        registrar('MODIFICAR', cot, {'estado': ['', 'Pendiente']}, 'Vuelve a pendiente')
         messages.success(request, f'{cot.numero}: {cot.get_estado_display()}.')
+    elif request.method == 'POST':
+        messages.error(request, 'Cambio de estado no permitido: «Atendido» lo pone el sistema al facturar todo el '
+                                'pedido o al cerrar su saldo.')
     return redirect('ventas:cot_detalle', pk)
 
 

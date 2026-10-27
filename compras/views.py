@@ -75,7 +75,35 @@ class ComprasViews(ComprobanteViews):
 
     def validar_stock(self, form, formset):
         return (super().validar_stock(form, formset) + self.validar_servicios(form, formset) +
-                self.validar_cruce(form, formset))
+                self.validar_cruce(form, formset) + self.validar_precio(form, formset))
+
+    def validar_precio(self, form, formset):
+        """COM-27: precio de la factura fuera de la tolerancia de la orden (del proveedor o de la empresa): se
+        detiene y se pide confirmarlo; al confirmarlo, la factura queda retenida para pago (cruce.retener)."""
+        from .tolerancias import permitida, texto
+        datos = form.cleaned_data
+        oc = datos.get('orden_compra')
+        if oc is None or datos.get('tipo_comprobante') in ('07', '08') or datos.get('aceptar_precio') \
+                or oc.moneda != datos.get('moneda', oc.moneda):
+            return []
+        precios = {}
+        for i in oc.items.all():
+            if i.producto_id:
+                precios.setdefault(i.producto_id, i.precio_neto)
+        fuera = []
+        for c in (getattr(f, 'cleaned_data', None) or {} for f in formset.forms):
+            p = c.get('producto') if c and not c.get('DELETE') else None
+            if p is None or p.pk not in precios or c.get('precio_unitario') is None:
+                continue
+            neto = c['precio_unitario'] * (1 - (c.get('descuento_pct') or 0) / 100)
+            ref = precios[p.pk]
+            if abs(neto - ref) > permitida(oc.tercero, 'precio', ref):
+                fuera.append(f'{p.nombre}: {neto:,.4f} frente a {ref:,.4f} de {oc.numero}')
+        if not fuera:
+            return []
+        return [f'Precio fuera de la tolerancia de la orden ({texto(oc.tercero, "precio")}): {"; ".join(fuera[:5])}. '
+                f'Corrija el precio o marque «registrarla igual»: la factura quedará retenida para pago hasta que '
+                f'Compras la libere.']
 
     def validar_cruce(self, form, formset):
         """Cruce de tres vías (ALM-06): no se factura más de lo recibido (o de lo pedido si la factura ingresa la
@@ -143,7 +171,8 @@ class ComprasViews(ComprobanteViews):
         if doc.ingresar_almacen and doc.tipo_comprobante != '08':
             doc.aplicar_stock()
         if doc.orden_compra_id and doc.orden_compra.estado != 'ANULADO':
-            OrdenCompra.objects.filter(pk=doc.orden_compra_id).update(estado='ATENDIDO')
+            from .seguimiento import actualizar_estado  # COM-23: «Atendido» solo con todo facturado
+            actualizar_estado(doc.orden_compra, f'factura {doc}')
             doc.orden_compra.actualizar_vencimientos()  # vence desde el ingreso de la mercadería
         from .precios import liquidar
         liquidar(doc)  # diferencia entre el precio facturado y el costo con que se recibió
@@ -256,7 +285,20 @@ def distribuir(request, pk):
 LISTA_OC = Lista('compras.ordenes', [  # LIS-01: columnas por usuario, filtros guardados y Excel
     ('numero', 'Número', True), ('fecha', 'Fecha', True), ('tercero', 'Proveedor', True),
     ('centro', 'Centro de costo', False), ('comprador', 'Comprador', False), ('entrega', 'Fecha de entrega', False),
-    ('registro', 'Registrado', False), ('moneda', 'Moneda', True), ('total', 'Total', True), ('estado', 'Estado', True)])
+    ('registro', 'Registrado', False), ('moneda', 'Moneda', True), ('total', 'Total', True), ('estado', 'Estado', True),
+    # COM-23: lo recibido, pendiente y facturado
+    ('situacion', 'Situación', True), ('por_recibir', 'Por recibir', False), ('por_facturar', 'Por facturar', False)])
+
+
+def _con_avance(ordenes):
+    """Situación, por recibir y por facturar de cada orden de la página (COM-23)."""
+    from . import seguimiento
+    for d in ordenes:
+        filas = seguimiento.avance(d)
+        d.situacion = seguimiento.situacion(d, filas)
+        d.por_recibir = sum((f['por_recibir'] or 0 for f in filas), 0)
+        d.por_facturar = sum((f['por_facturar'] for f in filas), 0) if d.estado != 'ANULADO' else 0
+    return ordenes
 
 
 @login_required
@@ -273,6 +315,9 @@ def oc_lista(request):
     comprador = request.GET.get('comprador', '')
     if comprador == 'yo' or comprador.isdigit():  # órdenes de un comprador (COM-09)
         qs = qs.filter(comprador_id=request.user.pk if comprador == 'yo' else int(comprador))
+    if request.GET.get('saldo'):  # COM-23: aprobadas con algo por recibir o facturar
+        from . import seguimiento
+        qs = qs.filter(pk__in=[x['oc'].pk for x in seguimiento.ordenes_con_saldo(qs)])
     ctx_lista = LISTA_OC.contexto(request)
     if request.GET.get('formato') == 'excel':
         cols = ctx_lista['visibles']
@@ -281,11 +326,15 @@ def oc_lista(request):
                  'centro': lambda d: d.centro_costo.codigo if d.centro_costo_id else '',
                  'comprador': lambda d: d.comprador.username if d.comprador_id else '',
                  'entrega': lambda d: d.fecha_entrega, 'registro': lambda d: timezone.localtime(d.creado),
-                 'moneda': lambda d: d.moneda, 'total': lambda d: d.total, 'estado': lambda d: d.get_estado_display()}
+                 'moneda': lambda d: d.moneda, 'total': lambda d: d.total, 'estado': lambda d: d.get_estado_display(),
+                 'situacion': lambda d: d.situacion, 'por_recibir': lambda d: d.por_recibir,
+                 'por_facturar': lambda d: d.por_facturar}
         return excel_response('Ordenes_de_compra', 'Órdenes de compra', LISTA_OC.titulos(cols),
-                              [[valor[c](d) for c in cols] for d in qs[:20000]])
+                              [[valor[c](d) for c in cols] for d in _con_avance(list(qs[:5000]))])
+    pagina = Paginator(qs, 50).get_page(request.GET.get('page'))
+    _con_avance(pagina.object_list)
     return render(request, 'core/documento_lista.html', {
-        'page_obj': Paginator(qs, 50).get_page(request.GET.get('page')), 'q': q,
+        'page_obj': pagina, 'q': q,
         'titulo': 'Órdenes de compra', 'etiqueta_tercero': 'Proveedor', 'app': 'compras',
         'url_nuevo': 'compras:oc_nuevo', 'url_detalle': 'compras:oc_detalle',
         'estados': OrdenCompra._meta.get_field('estado').choices, **ctx_lista})
@@ -380,7 +429,17 @@ def oc_detalle(request, pk):
     presupuesto = evaluar_oc(oc) if pendiente else None  # SRV-11: disponible del rubro del proyecto
     if presupuesto:
         avisos_fuente = [*avisos_fuente, mensaje(presupuesto)]
+    from core.permisos import puede
+
+    from . import seguimiento
+    avance = seguimiento.avance(oc)
     return render(request, 'core/documento_detalle.html', {
+        # COM-23 a COM-26: avance por línea, entregas, cierre del saldo y solo los botones que el usuario puede usar
+        'oc_avance': avance, 'oc_situacion': seguimiento.situacion(oc, avance), 'oc_entregas': seguimiento.entregas(oc),
+        'oc_tiene_saldo': seguimiento.tiene_saldo(oc, avance), 'motivos_cierre': seguimiento.MOTIVOS_CIERRE,
+        'oc_bloqueo_anular': seguimiento.errores_anulacion(oc) if oc.estado != 'ANULADO' else [],
+        'sin_editar': oc.estado != 'PENDIENTE' or not puede(request.user, 'compras.oc'),
+        'sin_convertir': not puede(request.user, 'compras.registrar') or oc.estado not in ('APROBADO', 'ATENDIDO'),
         'oc_exceso': bool(presupuesto and presupuesto['excede'] and not oc.exceso_autorizado_por_id),
         'alertas_precio': alertas_orden(oc) if pendiente else [], 'avisos_fuente': avisos_fuente if pendiente else [],
         'bloqueos_fuente': bloqueos_fuente if pendiente else [],
@@ -440,20 +499,74 @@ def oc_rechazar(request, pk):
 
 @login_required
 def oc_estado(request, pk):
+    """COM-22 y COM-24: solo se aprueba (por niveles o por el límite) o se anula (sin recepciones ni facturas, con
+    motivo); «Atendido» lo pone el sistema al facturar todo o al cerrar el saldo, nunca un POST."""
+    from . import seguimiento
     oc = get_object_or_404(OrdenCompra, pk=pk)
     estado = request.POST.get('estado')
-    if request.method == 'POST' and estado in dict(OrdenCompra._meta.get_field('estado').choices):
-        if estado == 'APROBADO':  # por niveles (Ajustes › Aprobaciones) o, sin reglas, por el límite del usuario
-            from .aprobacion_oc import ErrorAprobacionOC, aprobar
-            try:
-                messages.success(request, aprobar(oc, request.user, request.POST.get('comentario', '')))
-            except ErrorAprobacionOC as exc:
-                messages.error(request, str(exc))
-            return redirect('compras:oc_detalle', pk)
-        oc.estado = estado
-        oc.save(update_fields=['estado'])
-        if estado == 'ANULADO':  # lo que tenía de solicitudes de pedido vuelve a la bandeja de compras
-            from .solped import actualizar_estados
-            actualizar_estados(SolicitudPedido.objects.filter(lineas__items_oc__documento=oc).distinct())
-        messages.success(request, f'Orden {oc.numero}: {oc.get_estado_display()}.')
+    if request.method != 'POST':
+        return redirect('compras:oc_detalle', pk)
+    if estado == 'APROBADO':  # por niveles (Ajustes › Aprobaciones) o, sin reglas, por el límite del usuario
+        from .aprobacion_oc import ErrorAprobacionOC, aprobar
+        try:
+            messages.success(request, aprobar(oc, request.user, request.POST.get('comentario', '')))
+        except ErrorAprobacionOC as exc:
+            messages.error(request, str(exc))
+    elif estado == 'ANULADO':
+        try:
+            seguimiento.anular(oc, request.user, request.POST.get('motivo', ''))
+            messages.success(request, f'Orden {oc.numero}: anulada.')
+        except seguimiento.ErrorSeguimiento as exc:
+            messages.error(request, str(exc))
+    elif request.POST.get('accion') == 'cerrar_saldo':
+        try:
+            seguimiento.cerrar_saldo(oc, request.user, request.POST.get('motivo_cierre', ''),
+                                     request.POST.get('detalle', ''))
+            messages.success(request, f'Orden {oc.numero}: saldo cerrado.')
+        except seguimiento.ErrorSeguimiento as exc:
+            messages.error(request, str(exc))
+    else:
+        messages.error(request, 'Cambio de estado no permitido: la orden se aprueba, se anula o se cierra su saldo; '
+                                '«Atendido» lo pone el sistema al facturar todo.')
     return redirect('compras:oc_detalle', pk)
+
+
+@login_required
+def oc_seguimiento(request):
+    """COM-23 y COM-24: órdenes aprobadas con saldo por recibir o facturar (vencidas, por proveedor y comprador) y el
+    cierre masivo de saldos con motivo."""
+    from core.utils import id_o_none
+
+    from . import seguimiento
+    if request.method == 'POST':
+        cerradas, errores = 0, []
+        for oc in OrdenCompra.objects.filter(pk__in=[id_o_none(x) for x in request.POST.getlist('oc')
+                                                      if id_o_none(x)]):
+            try:
+                seguimiento.cerrar_saldo(oc, request.user, request.POST.get('motivo_cierre', ''),
+                                         request.POST.get('detalle', ''))
+                cerradas += 1
+            except seguimiento.ErrorSeguimiento as exc:
+                errores.append(str(exc))
+        if cerradas:
+            messages.success(request, f'{cerradas} orden(es) con el saldo cerrado.')
+        for e in errores[:5]:
+            messages.error(request, e)
+        if not cerradas and not errores:
+            messages.error(request, 'Marque las órdenes cuyo saldo se cierra.')
+        return redirect(request.get_full_path())
+    f = request.GET
+    filas = seguimiento.ordenes_con_saldo(vencidas=bool(f.get('vencidas')), proveedor=id_o_none(f.get('proveedor')),
+                                          comprador=id_o_none(f.get('comprador')))
+    if f.get('formato') == 'excel':
+        return excel_response('Seguimiento_OC', 'Seguimiento de órdenes de compra con saldo', [
+            'Orden', 'Fecha', 'Entrega', 'Proveedor', 'Comprador', 'Situación', 'Pedido', 'Por recibir',
+            'Por facturar', 'Vencida'], [
+            [x['oc'].numero, x['oc'].fecha, x['oc'].fecha_entrega, x['oc'].tercero.nombre,
+             str(x['oc'].comprador or ''), x['situacion'], x['pedido'], x['por_recibir'], x['por_facturar'],
+             'Sí' if x['vencida'] else ''] for x in filas])
+    from core.models import Tercero
+    return render(request, 'compras/oc_seguimiento.html', {
+        'filas': filas, 'motivos': seguimiento.MOTIVOS_CIERRE, 'f': f,
+        'proveedores': Tercero.objects.filter(pk__in={x['oc'].tercero_id for x in filas}).order_by('nombre'),
+        'compradores': sorted({x['oc'].comprador for x in filas if x['oc'].comprador_id}, key=str)})

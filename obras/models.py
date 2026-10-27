@@ -843,7 +843,8 @@ class ProgramacionPartida(models.Model):
 
 
 class AvancesVigentes(models.Manager):
-    """Los avances anulados no cuentan en el acumulado, la curva S ni las valorizaciones (OBR-23)."""
+    """Los avances (y partes de equipo, OBR-37) anulados no cuentan en el acumulado, la curva S, el costo ni las
+    valorizaciones (OBR-23)."""
 
     def get_queryset(self):
         return super().get_queryset().filter(anulado=False)
@@ -1006,6 +1007,15 @@ class ParteEquipo(models.Model):
     registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='+', editable=False)
     creado = models.DateTimeField(auto_now_add=True)
+    # OBR-37: un parte mal registrado se anula con su motivo (queda en la lista y ya no cuenta en el costo)
+    anulado = models.BooleanField(default=False, editable=False)
+    motivo_anulacion = models.CharField('Motivo de la anulación', max_length=250, blank=True, editable=False)
+    anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='+', editable=False)
+    anulado_en = models.DateTimeField(null=True, blank=True, editable=False)
+
+    objects = AvancesVigentes()
+    todos = models.Manager()
 
     class Meta:
         ordering = ['-fecha', '-id']

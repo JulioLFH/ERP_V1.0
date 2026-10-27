@@ -198,6 +198,14 @@ def calcular(user):
                                    f'{n} trabajador(es) activos sin centro de costo: la planilla no se cierra hasta '
                                    f'asignarlo (use la asignación masiva).',
                                    reverse('planillas:trabajadores') + '?estado=sin_centro', n))
+    if puede(user, 'tesoreria.datos_bancarios'):  # SEG-10: doble control de las cuentas bancarias de terceros
+        from .models import Tercero
+        pendientes = list(Tercero.objects.exclude(cambio_bancario={}).exclude(cambio_bancario_por=user)[:20])
+        if pendientes:
+            alertas.append(_alerta('danger', 'bi-shield-lock', 'Cuentas bancarias por aprobar',
+                                   f'{len(pendientes)} cambio(s) de cuenta bancaria esperan otra aprobación: '
+                                   + ', '.join(t.nombre[:30] for t in pendientes[:4]),
+                                   reverse('tercero_editar', args=[pendientes[0].pk]), len(pendientes)))
     if 'obras' in mods:
         alertas += _alertas_obras(hoy)
         alertas += _alertas_servicios(user, hoy)

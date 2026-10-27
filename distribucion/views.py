@@ -25,6 +25,7 @@ class HojaForm(BootstrapMixin, forms.ModelForm):
         from logistica.models import Conductor, Vehiculo
         self.fields['vehiculo'].queryset = Vehiculo.objects.filter(activo=True)
         self.fields['conductor'].queryset = Conductor.objects.filter(activo=True)
+        self.fields['fecha'].required = True  # DI-01: el formulario vacío no crea una hoja
 
 
 def _fecha(texto, defecto):
@@ -65,8 +66,10 @@ def _documentos(request):
 def nueva(request):
     hoy = timezone.localdate()
     form = HojaForm(request.POST or None, initial={'fecha': hoy})
+    guias, pedidos = _documentos(request) if request.method == 'POST' else ([], [])
+    if request.method == 'POST' and form.is_valid() and not (guias or pedidos):
+        form.add_error(None, 'Elija al menos una guía o un pedido para la hoja de ruta.')  # DI-01
     if request.method == 'POST' and form.is_valid():
-        guias, pedidos = _documentos(request)
         hoja = form.save(commit=False)
         hoja.creado_por = request.user
         hoja.save()

@@ -1,0 +1,29 @@
+{% load erp_tags %}{# COM-22 a COM-25: avance por línea, entregas, anulación con motivo y cierre del saldo #}
+<div class="card mt-3 d-print-none" style="max-width:900px;margin:auto">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2"><span><i class="bi bi-truck"></i> Entregas y facturación</span>
+    <span class="badge text-bg-light border">{{ oc_situacion }}</span></div>
+  <div class="table-responsive"><table class="table table-sm mb-0 small">
+    <thead><tr><th>Línea</th><th class="num">Pedido</th><th class="num">Recibido</th><th class="num">Por recibir</th><th class="num">Facturado</th><th class="num">Por facturar</th></tr></thead>
+    <tbody>{% for f in oc_avance %}<tr><td>{{ f.item.descripcion|truncatechars:60 }}</td><td class="num">{{ f.pedido|cant }}</td>
+      <td class="num">{% if f.bien %}{{ f.recibido|cant }}{% else %}<span class="text-muted" title="Servicio: se conforma con la HES">—</span>{% endif %}</td>
+      <td class="num{% if f.por_recibir %} text-warning fw-semibold{% endif %}">{% if f.bien %}{{ f.por_recibir|cant }}{% else %}—{% endif %}</td>
+      <td class="num">{{ f.facturado|cant }}</td><td class="num{% if f.por_facturar %} fw-semibold{% endif %}">{{ f.por_facturar|cant }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if oc_entregas %}<div class="card-body border-top pb-1"><div class="fw-semibold small mb-1">Recepciones</div>
+    <div class="table-responsive"><table class="table table-sm mb-0 small">
+      <thead><tr><th>Fecha</th><th>Recepción</th><th>Guía / referencia</th><th>Producto</th><th class="num">Cantidad</th><th>Lote · vence</th><th>Recibió</th><th class="num">Acumulado</th><th class="num">Saldo</th></tr></thead>
+      <tbody>{% for e in oc_entregas %}<tr{% if e.operacion.estado != 'CONFIRMADO' %} class="text-muted"{% endif %}><td>{{ e.operacion.fecha|date:'d/m/Y' }}</td>
+        <td><a href="{% url 'inventario:detalle' e.operacion.pk %}">{{ e.operacion.numero|default:e.operacion.pk }}</a>{% if e.operacion.estado != 'CONFIRMADO' %} <span class="badge text-bg-secondary">{{ e.operacion.get_estado_display|lower }}</span>{% endif %}</td>
+        <td>{{ e.referencia|default:'—' }}</td><td>{{ e.producto.nombre|truncatechars:30 }}</td><td class="num">{{ e.cantidad|cant }}</td>
+        <td>{{ e.lote|default:'—' }}{% if e.vence %} · {{ e.vence|date:'d/m/Y' }}{% endif %}</td><td>{% if e.por %}{{ e.por.get_full_name|default:e.por.username }}{% else %}—{% endif %}</td>
+        <td class="num">{% if e.acumulado is not None %}{{ e.acumulado|cant }}{% endif %}</td><td class="num">{% if e.saldo is not None %}{{ e.saldo|cant }}{% endif %}</td></tr>{% endfor %}</tbody>
+    </table></div></div>{% endif %}
+  {% if doc.saldo_cerrado_en %}<div class="card-body border-top small text-muted">Saldo cerrado el {{ doc.saldo_cerrado_en|date:'d/m/Y H:i' }} por {% if doc.saldo_cerrado_por %}{{ doc.saldo_cerrado_por.get_full_name|default:doc.saldo_cerrado_por.username }}{% else %}—{% endif %}: {{ doc.motivo_cierre }}</div>{% endif %}
+  {% if oc_tiene_saldo and puede.compras_anular_oc %}<div class="card-body border-top"><form method="post" action="{% url 'compras:oc_estado' doc.pk %}" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="cerrar_saldo">
+    <div class="col-md-4"><label class="form-label small mb-1">Cerrar el saldo: motivo</label><select name="motivo_cierre" class="form-select form-select-sm" required><option value="">—</option>{% for v, t in motivos_cierre %}<option value="{{ v }}">{{ t }}</option>{% endfor %}</select></div>
+    <div class="col-md-5"><input name="detalle" class="form-control form-control-sm" maxlength="200" placeholder="Detalle (obligatorio si es «Otro»)"></div>
+    <div class="col-md-3"><button class="btn btn-sm btn-outline-warning w-100" data-confirm="¿Cerrar el saldo de {{ doc.numero }}? Lo pendiente ya no se recibirá ni facturará.">Cerrar saldo</button></div></form>
+    <div class="form-text">Si el proveedor no entregará el resto. Las recepciones y facturas ya registradas no cambian.</div></div>{% endif %}
+  {% if oc_bloqueo_anular and doc.estado != 'ANULADO' %}<div class="card-body border-top small text-muted"><i class="bi bi-info-circle"></i> No se anula: {{ oc_bloqueo_anular|join:'; ' }}. Use «Cerrar saldo» o revierta antes las recepciones y facturas.</div>{% endif %}
+</div>
+{% if puede.compras_anular_oc and not oc_bloqueo_anular and doc.estado != 'ANULADO' %}<div class="collapse mt-3" id="form-anular-oc" style="max-width:900px;margin:auto"><div class="card border-danger"><div class="card-body"><form method="post" action="{% url 'compras:oc_estado' doc.pk %}" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="estado" value="ANULADO"><div class="col-md-9"><input name="motivo" class="form-control form-control-sm" minlength="5" required placeholder="Motivo de la anulación (queda en el historial)"></div><div class="col-md-3"><button class="btn btn-sm btn-danger w-100" data-confirm="¿Anular {{ doc.numero }}?">Anular</button></div></form></div></div></div>{% endif %}

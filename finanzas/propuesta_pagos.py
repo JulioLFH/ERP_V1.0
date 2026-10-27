@@ -47,8 +47,15 @@ def armar(cuenta, fecha, hasta, reserva, usuario):
     from compras.models import Compra
     if cuenta.moneda not in ('PEN', 'USD'):
         raise ErrorPropuesta('Elija un banco.')
-    if hasta < fecha - timedelta(days=366):
-        raise ErrorPropuesta('Revise la fecha de los vencimientos.')
+    # FIN-12: se paga hoy o después, en un periodo abierto, y los vencimientos llegan al menos a la fecha de pago
+    if fecha < timezone.localdate():
+        raise ErrorPropuesta(f'La fecha de pago ({fecha:%d/%m/%Y}) no puede ser anterior a hoy.')
+    from contabilidad.models import PeriodoContable
+    if PeriodoContable.esta_cerrado(fecha.strftime('%Y%m')):
+        raise ErrorPropuesta(f'El periodo {fecha:%m/%Y} está cerrado.')
+    if hasta < fecha:
+        raise ErrorPropuesta(f'«Vencimientos hasta» ({hasta:%d/%m/%Y}) no puede ser anterior a la fecha de pago '
+                             f'({fecha:%d/%m/%Y}).')
     disponible = cuenta.saldo
     p = PropuestaPago.objects.create(numero=_siguiente('PPG', 'PP'), cuenta=cuenta, fecha=fecha, hasta=hasta,
                                      reserva=reserva or D0, disponible=disponible, creado_por=usuario)
@@ -103,6 +110,23 @@ def enviar(p, usuario):
         raise ErrorPropuesta(f'La propuesta suma {p.cuenta.simbolo} {p.total:,.2f} y la caja disponible es '
                              f'{p.cuenta.simbolo} {p.cuenta.saldo - p.reserva:,.2f}.')
     p.estado, p.motivo = 'ENVIADA', ''
+    p.save(update_fields=['estado', 'motivo'])
+    return p
+
+
+@transaction.atomic
+def anular(p, usuario, motivo):
+    """FIN-12: quien la armó (o tesorería) retira o anula la propuesta mientras no esté aprobada ni con pago
+    masivo; los comprobantes vuelven a estar disponibles para otra propuesta."""
+    if p.estado in ('APROBADA', 'GENERADA', 'ANULADA'):
+        raise ErrorPropuesta('La propuesta ya está anulada.' if p.estado == 'ANULADA' else
+                             f'La propuesta está {p.get_estado_display().lower()}: ya no se retira.')
+    if len((motivo or '').strip()) < 5:
+        raise ErrorPropuesta('Indique el motivo (mínimo 5 caracteres).')
+    from core.permisos import puede
+    if not (usuario.is_superuser or usuario.pk == p.creado_por_id or puede(usuario, 'tesoreria.registrar')):
+        raise ErrorPropuesta('La retira quien la armó o tesorería.')
+    p.estado, p.motivo = 'ANULADA', motivo.strip()[:250]
     p.save(update_fields=['estado', 'motivo'])
     return p
 

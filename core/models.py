@@ -134,15 +134,16 @@ class Empresa(models.Model):
         help_text='Credenciales de "Consulta de validez de comprobantes" (SUNAT Operaciones en Línea > '
                   'Empresas > Comprobantes de pago > Credenciales de API SUNAT)')
     sunat_client_secret = models.CharField('SUNAT API: client_secret', max_length=200, blank=True)
-    # ---- SIRE (registros de ventas y compras): API con usuario SOL; la clave SOL no se guarda, se pide al usarla
+    # ---- SIRE (registros de ventas y compras): API con usuario SOL y su clave (guardada cifrada, core/cifrado.py)
     sire_client_id = models.CharField(
         'SIRE: client_id', max_length=100, blank=True,
         help_text='Credenciales de API SUNAT generadas en SUNAT Operaciones en Línea con el usuario SOL que '
                   'opera el SIRE. Vacío = las de la consulta de validez')
     sire_client_secret = models.CharField('SIRE: client_secret', max_length=200, blank=True)
     sire_usuario_sol = models.CharField('SIRE: usuario SOL', max_length=30, blank=True,
-                                        help_text='Solo el usuario (sin el RUC). La clave SOL se pide cada vez '
-                                                  'y no se guarda en el sistema')
+                                        help_text='Solo el usuario (sin el RUC). Su clave se registra abajo y se '
+                                                  'guarda cifrada')
+    sire_clave_sol = models.CharField(max_length=300, blank=True, editable=False)  # cifrada: no se pide cada vez
     # ---- migración: hasta esta fecha la contabilidad es la del sistema anterior (se importa tal cual)
     fecha_corte_contable = models.DateField(
         'Contabilidad del sistema anterior hasta', null=True, blank=True, editable=False,
@@ -273,6 +274,12 @@ class Tercero(models.Model):
                                        help_text='Cuenta en el mismo banco desde el que se paga')
     cci = models.CharField('CCI', max_length=20, blank=True, help_text='Código de cuenta interbancario (20 dígitos)')
     cuenta_detracciones = models.CharField('Cuenta de detracciones (BN)', max_length=20, blank=True)
+    # SEG-10: un cambio de cuenta bancaria queda por aprobar (doble control) y no se usa hasta que otro usuario lo apruebe
+    cambio_bancario = models.JSONField('Cambio de cuenta bancaria por aprobar', default=dict, blank=True,
+                                       editable=False)
+    cambio_bancario_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                            related_name='+', editable=False)
+    cambio_bancario_en = models.DateTimeField(null=True, blank=True, editable=False)
     # tolerancias propias del proveedor para sus facturas (vacío = las de Ajustes › Empresa)
     tolerancia_precio = models.DecimalField('Tolerancia de precio (±)', max_digits=10, decimal_places=4, null=True,
                                             blank=True, help_text='Solo proveedores. Vacío = la de la empresa')

@@ -165,6 +165,20 @@ def sensibilidad(presupuesto, variaciones=None, n=10):
 
 
 # ---------------------------------------------------------------- HR-03: adendas del contrato
+CON_CONTRATO = ('ADJUDICADA', 'EJECUCION', 'PARALIZADA', 'RECEPCION', 'LIQUIDADA')
+
+
+def _fecha_razonable(obra, fecha, que):
+    """OBR-39: ni futura ni anterior al contrato de la obra (ni de antes del 2000)."""
+    if fecha > timezone.localdate():
+        raise ErrorGestion(f'{que} no puede ser futura ({fecha:%d/%m/%Y}).')
+    inicio = obra.fecha_contrato or obra.fecha_inicio
+    if inicio and fecha < inicio:
+        raise ErrorGestion(f'{que} ({fecha:%d/%m/%Y}) es anterior al contrato ({inicio:%d/%m/%Y}).')
+    if fecha.year < 2000:
+        raise ErrorGestion(f'{que}: revise el año ({fecha:%d/%m/%Y}).')
+
+
 def registrar_adenda(obra, tipo, monto, plazo_dias, motivo, usuario, fecha=None, resolucion='', fecha_resolucion=None,
                      presupuesto=None):
     if not (motivo or '').strip():
@@ -177,6 +191,19 @@ def registrar_adenda(obra, tipo, monto, plazo_dias, motivo, usuario, fecha=None,
         raise ErrorGestion('La adenda debe indicar la variación del monto y/o del plazo según su tipo.')
     if presupuesto is not None and presupuesto.obra_id != obra.pk:
         raise ErrorGestion('El presupuesto es de otra obra.')
+    # OBR-39: solo sobre un contrato adjudicado, plazo que no se reduce, monto final no negativo y fechas razonables
+    if obra.estado not in CON_CONTRATO:
+        raise ErrorGestion(f'La obra está «{obra.get_estado_display()}»: las adendas son de obras adjudicadas.')
+    if plazo_dias < 0:
+        raise ErrorGestion('La ampliación de plazo no puede ser negativa (una reducción se registra como «Otra '
+                           'modificación» con su resolución).')
+    pendientes = sum((a.monto for a in obra.adendas.filter(estado='BORRADOR')), D0)
+    if obra.monto_contratado + pendientes + (monto if tipo in ('MONTO', 'MONTO_PLAZO') else D0) < 0:
+        raise ErrorGestion(f'La reducción ({monto:,.2f}) deja el contrato en negativo (monto vigente '
+                           f'{obra.monto_contratado:,.2f}).')
+    _fecha_razonable(obra, fecha or timezone.localdate(), 'La fecha de la adenda')
+    if fecha_resolucion:
+        _fecha_razonable(obra, fecha_resolucion, 'La fecha de la resolución')
     return AdendaContrato.objects.create(
         obra=obra, tipo=tipo, monto=r2(monto) if tipo in ('MONTO', 'MONTO_PLAZO') else D0,
         plazo_dias=plazo_dias if tipo in ('PLAZO', 'MONTO_PLAZO') else 0, motivo=motivo.strip()[:300],
@@ -560,8 +587,13 @@ def guardar_escenario(obra, nombre, usuario, descripcion=''):
     p = presupuesto_ejecucion(obra)
     if p is None:
         raise ErrorGestion('La obra no tiene presupuesto.')
-    if not (nombre or '').strip():
+    nombre = (nombre or '').strip()
+    if not nombre:
         raise ErrorGestion('Indique el nombre del escenario.')
+    if len(nombre) > 120:  # OBR-41
+        raise ErrorGestion(f'El nombre tiene {len(nombre)} caracteres: el máximo es 120.')
+    if EscenarioCronograma.objects.filter(obra=obra, nombre__iexact=nombre).exists():
+        raise ErrorGestion(f'Ya hay un escenario «{nombre}» en la obra: use otro nombre.')
     datos = _programa_actual(p)
     if not datos:
         raise ErrorGestion('El presupuesto no tiene cronograma: impórtelo o escríbalo en «Cronograma y curva S».')

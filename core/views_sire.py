@@ -37,7 +37,7 @@ class PropuestaForm(BootstrapMixin, forms.Form):
     libro = forms.ChoiceField(label='Registro', choices=PropuestaSIRE.LIBROS)
     periodo = forms.CharField(label='Periodo', widget=forms.TextInput(attrs={'type': 'month'}))
     clave_sol = forms.CharField(label='Clave SOL', required=False, widget=forms.PasswordInput,
-                                help_text='Solo para traer de SUNAT; no se guarda')
+                                help_text='Solo si no la registró en Ajustes › Empresa (allí se guarda cifrada)')
     archivo = forms.FileField(label='O suba el archivo de la propuesta', required=False,
                               help_text='TXT, ZIP, CSV o Excel descargado del SIRE. En compras puede agregarle las '
                                         'columnas Orden de compra, Clasificación (1 a 8) y Cuenta contable')

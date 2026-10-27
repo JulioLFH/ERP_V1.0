@@ -13,6 +13,8 @@
     <form class="row g-2" method="get">
       <div class="col-md-4"><input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Número o {{ etiqueta_tercero|lower }}..."></div>
       <div class="col-auto"><select name="estado" class="form-select form-select-sm" data-autoenvio><option value="">Todos los estados</option>{% for v, l in estados %}<option value="{{ v }}" {% if request.GET.estado == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      {% if app == 'compras' %}<div class="col-auto form-check mt-1"><input type="checkbox" name="saldo" value="1" id="f-saldo" class="form-check-input" data-autoenvio {% if request.GET.saldo %}checked{% endif %}><label for="f-saldo" class="form-check-label small">Con saldo pendiente</label></div>
+      <div class="col-auto"><a href="{% url 'compras:oc_seguimiento' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-truck"></i> Seguimiento y cierre de saldos</a></div>{% endif %}
       <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button></div>
     </form>
     {% if lista_clave %}<div class="mt-2">{% include 'core/_lista_opciones.html' %}</div>{% endif %}
@@ -20,7 +22,7 @@
   <div class="table-responsive">
     <table class="table table-hover mb-0"{% if not lista_clave %} data-lista="{{ request.resolver_match.view_name }}"{% endif %}>
       {% if lista_clave %}
-      <thead><tr>{% if 'numero' in visibles %}<th>Número</th>{% endif %}{% if 'fecha' in visibles %}<th>Fecha</th>{% endif %}{% if 'tercero' in visibles %}<th>{{ etiqueta_tercero }}</th>{% endif %}{% if 'centro' in visibles %}<th>Centro de costo</th>{% endif %}{% if 'comprador' in visibles %}<th>Comprador</th>{% endif %}{% if 'entrega' in visibles %}<th>Entrega</th>{% endif %}{% if 'registro' in visibles %}<th>Registrado</th>{% endif %}{% if 'moneda' in visibles %}<th>Mon.</th>{% endif %}{% if 'total' in visibles %}<th class="num">Total</th>{% endif %}{% if 'estado' in visibles %}<th>Estado</th>{% endif %}</tr></thead>
+      <thead><tr>{% if 'numero' in visibles %}<th>Número</th>{% endif %}{% if 'fecha' in visibles %}<th>Fecha</th>{% endif %}{% if 'tercero' in visibles %}<th>{{ etiqueta_tercero }}</th>{% endif %}{% if 'centro' in visibles %}<th>Centro de costo</th>{% endif %}{% if 'comprador' in visibles %}<th>Comprador</th>{% endif %}{% if 'entrega' in visibles %}<th>Entrega</th>{% endif %}{% if 'registro' in visibles %}<th>Registrado</th>{% endif %}{% if 'moneda' in visibles %}<th>Mon.</th>{% endif %}{% if 'total' in visibles %}<th class="num">Total</th>{% endif %}{% if 'estado' in visibles %}<th>Estado</th>{% endif %}{% if 'situacion' in visibles %}<th>Situación</th>{% endif %}{% if 'por_recibir' in visibles %}<th class="num">Por recibir</th>{% endif %}{% if 'por_facturar' in visibles %}<th class="num">Por facturar</th>{% endif %}</tr></thead>
       <tbody>
       {% for d in page_obj %}
         <tr data-href="{% url url_detalle d.pk %}" style="cursor:pointer">
@@ -29,6 +31,7 @@
           {% if 'comprador' in visibles %}<td class="small">{{ d.comprador.username|default:'' }}</td>{% endif %}{% if 'entrega' in visibles %}<td class="small">{{ d.fecha_entrega|date:'d/m/Y' }}</td>{% endif %}
           {% if 'registro' in visibles %}<td class="small">{{ d.creado|date:'d/m/Y H:i' }}</td>{% endif %}{% if 'moneda' in visibles %}<td>{{ d.moneda }}</td>{% endif %}
           {% if 'total' in visibles %}<td class="num">{{ d.total|money }}</td>{% endif %}{% if 'estado' in visibles %}<td><span class="badge badge-{{ d.estado }}">{{ d.get_estado_display }}</span></td>{% endif %}
+          {% if 'situacion' in visibles %}<td class="small">{{ d.situacion }}</td>{% endif %}{% if 'por_recibir' in visibles %}<td class="num">{{ d.por_recibir|cant }}</td>{% endif %}{% if 'por_facturar' in visibles %}<td class="num">{{ d.por_facturar|cant }}</td>{% endif %}
         </tr>
       {% empty %}<tr><td colspan="{{ visibles|length }}" class="text-center text-muted py-4">Sin documentos.</td></tr>{% endfor %}
       {% else %}

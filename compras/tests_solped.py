@@ -140,7 +140,8 @@ class BandejaParcialidadesTest(Base):
         self.assertEqual((sp.estado, sp.lineas.get().pendiente), ('PARCIAL', D('4')))
         # anular la OC devuelve todo a la bandeja
         self.client.force_login(self.admin)
-        self.client.post(reverse('compras:oc_estado', args=[oc.pk]), {'estado': 'ANULADO'})
+        self.client.post(reverse('compras:oc_estado', args=[oc.pk]), {'estado': 'ANULADO',
+                                                                      'motivo': 'Se pidió por error'})
         sp.refresh_from_db()
         self.assertEqual((sp.estado, sp.lineas.get().pendiente), ('LIBERADA', D('10')))
         # Compras cierra lo que ya no se pedirá
