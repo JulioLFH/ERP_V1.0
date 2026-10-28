@@ -1278,7 +1278,8 @@ M['contabilidad'] = {
         'Asientos del sistema anterior': 'Consulta de asientos migrados.',
         'Balance del sistema anterior': 'Balance migrado.',
         'Posiciones presupuestarias': 'Posiciones del presupuesto migradas.',
-        'Plan de cuentas': 'Plan contable (PCGE) con niveles y naturaleza.',
+        'Plan de cuentas': 'Plan contable (PCGE) con niveles y naturaleza; se exporta a Excel en el formato de la '
+                           'plantilla para completarlo y volver a importarlo.',
         'Centros de beneficio (líneas)': 'Líneas de negocio.',
         'Centros de costo': 'Centros de costo (áreas, obras).',
         'Cifras de reparto (m², trabajadores…)': 'Bases para repartir gastos.',

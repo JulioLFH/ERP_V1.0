@@ -1710,8 +1710,19 @@ def _cargar_listas_precios(filas):
     return f'{nuevos} precios nuevos y {actualizados} actualizados.{extra}'
 
 
-def plantilla(tipo):
-    """Libro Excel con la hoja de datos (encabezados y ejemplo) e instrucciones."""
+def filas_cuentas(cuentas):
+    """Plan de cuentas en las columnas de la plantilla 'cuentas' (se vuelve a importar con «Actualizar existentes»)."""
+    def si_no(v):
+        return '' if v is None else 'Sí' if v else 'No'
+    return [[c.codigo, c.nombre, c.get_naturaleza_display(), si_no(c.imputable),
+             c.destino_debe.codigo if c.destino_debe_id else '', c.destino_haber.codigo if c.destino_haber_id else '',
+             c.get_columna_balance_display(), c.get_moneda_display(), c.get_tipo_cambio_display(), si_no(c.analisis),
+             c.get_centro_costo_regla_display()] for c in cuentas]
+
+
+def plantilla(tipo, filas=None):
+    """Libro Excel con la hoja de datos (encabezados y ejemplo) e instrucciones. Con `filas` (exportación) la hoja
+    lleva esos datos en lugar del ejemplo, en el mismo formato, para completarlos y volver a importarlos."""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
     definicion = DEFINICIONES[tipo]
@@ -1719,7 +1730,9 @@ def plantilla(tipo):
     ws = wb.active
     ws.title = 'Datos'
     ws.append([c[0] for c in definicion['columnas']])
-    ws.append([c[3] for c in definicion['columnas']])
+    for fila in (filas if filas is not None else [[c[3] for c in definicion['columnas']]]):
+        ws.append(fila)
+    ws.freeze_panes = 'A2'
     for celda, col in zip(ws[1], definicion['columnas']):
         celda.font = Font(bold=True, color='FFFFFF')
         celda.fill = PatternFill('solid', fgColor='0F3D2E' if col[2] else '1F7A52')
@@ -1728,7 +1741,9 @@ def plantilla(tipo):
     ayuda.append([definicion['titulo']])
     ayuda['A1'].font = Font(bold=True, size=13)
     ayuda.append([definicion['descripcion']])
-    ayuda.append(['Borre la fila de ejemplo. Las columnas en verde oscuro son obligatorias.'])
+    ayuda.append(['Borre la fila de ejemplo. Las columnas en verde oscuro son obligatorias.' if filas is None else
+                  'Datos exportados del sistema: agregue o corrija filas y vuelva a importar el archivo marcando '
+                  '«Actualizar existentes». Las columnas en verde oscuro son obligatorias.'])
     ayuda.append([])
     ayuda.append(['Columna', 'Descripción', 'Obligatoria', 'Notas'])
     for c in ayuda[5]:

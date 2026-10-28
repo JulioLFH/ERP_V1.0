@@ -679,6 +679,14 @@ def plan_cuentas(request):
         periodo = timezone.localdate().strftime('%Y%m')
         lineas = [f'{periodo}00|{c.codigo}|{c.nombre}|01|PLAN CONTABLE GENERAL EMPRESARIAL|||1|' for c in qs]
         return txt_response(f'LE{empresa.ruc}{periodo}00050300001111.txt', lineas)
+    if request.GET.get('formato') == 'excel':  # mismo formato que la plantilla de carga masiva: se completa y se importa
+        from django.http import HttpResponse
+
+        from core import carga_masiva as cm
+        resp = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        resp['Content-Disposition'] = f'attachment; filename="plan_de_cuentas_{timezone.localdate():%Y%m%d}.xlsx"'
+        cm.plantilla('cuentas', cm.filas_cuentas(qs)).save(resp)
+        return resp
     return render(request, 'contabilidad/plan.html', {'cuentas': qs, 'q': q, 'clase': request.GET.get('clase', ''),
                                                       'plan_contable': Empresa.actual().get_plan_contable_display()})
 

@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.98.0 — 28/10/2026 · Exportar el plan de cuentas
+- **Contabilidad › Plan de cuentas › Exportar a Excel**: descarga el plan de cuentas (con el filtro de la pantalla: búsqueda o clase) en el mismo formato que la plantilla de carga masiva: mismas columnas (código, nombre, naturaleza, acepta movimientos, destinos, columna del balance, moneda, tipo de cambio, análisis y centro de costo) y la hoja de instrucciones. Se completa o corrige en Excel y se vuelve a subir con «Importar desde Excel» marcando «Actualizar existentes».
+
 ## v1.97.0 — 28/10/2026 · Asistente de planta «Lucho»
 - **Módulo nuevo: Asistente de planta (Lucho)**, fases 1 y 2 del requerimiento, sin IA por ahora: el conocimiento para arrancar un proceso y resolver sus defectos queda en la empresa y llega al operador al pie de la máquina.
 - **Procesos**: el eje del módulo (inyección, extrusión, mezclado, empaque o el que se cree): parámetros, catálogo de defectos con sinónimos y qué parámetro se sube, baja o revisa ante cada defecto. Botón para cargar los cuatro procesos de ejemplo.
