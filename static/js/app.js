@@ -277,6 +277,16 @@
   actualizar(false);
 })();
 
+// Selector de empresa de la barra superior: con muchas empresas, buscar por nombre (sin importar tildes)
+document.querySelectorAll('input[data-filtrar-empresas]').forEach((campo) => {
+  const plano = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const lista = campo.closest('.empresas-menu').querySelector('.empresas-lista');
+  campo.addEventListener('input', () => {
+    const q = plano(campo.value.trim());
+    lista.querySelectorAll('form').forEach((f) => { f.hidden = q && !plano(f.textContent).includes(q); });
+  });
+});
+
 // MAN-24: la fecha contable propuesta ([data-sigue-fecha="campo"]) toma el día de la fecha y hora de su formulario
 // mientras el usuario no la cambie a mano
 document.querySelectorAll('input[data-sigue-fecha]').forEach((contable) => {

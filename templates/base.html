@@ -22,7 +22,22 @@
       <a class="navbar-brand modulo-nombre text-truncate" href="{% url modulo.inicio %}"><i class="bi {{ modulo.icono }}"></i> {{ modulo.nombre }}</a>
     {% endif %}
     <ul class="navbar-nav flex-row ms-auto align-items-center">
+      {# empresa actual; con más empresas, se cambia desde aquí (como en Odoo) a las que el usuario tiene acceso #}
+      {% if otras_empresas %}
+      <li class="nav-item dropdown me-2">
+        <a class="nav-link dropdown-toggle px-2 small empresa-actual" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" title="Cambiar de empresa"><i class="bi bi-building"></i> <span class="d-none d-lg-inline">{{ empresa.razon_social }}</span></a>
+        <div class="dropdown-menu dropdown-menu-end shadow-sm position-absolute empresas-menu">
+          {% if otras_empresas|length > 6 %}<div class="px-2 pb-2"><input type="search" class="form-control form-control-sm" placeholder="Buscar empresa…" aria-label="Buscar empresa" data-filtrar-empresas></div>{% endif %}
+          <div class="empresas-lista">
+            <div class="dropdown-item empresa-activa"><i class="bi bi-check-square-fill me-2"></i>{{ empresa.razon_social }}</div>
+            {% for alias, nombre in otras_empresas %}<form method="post" action="{% url 'cambiar_empresa' %}">{% csrf_token %}<button name="empresa" value="{{ alias }}" class="dropdown-item" title="Ir a {{ nombre }}"><i class="bi bi-square me-2"></i>{{ nombre }}</button></form>{% endfor %}
+          </div>
+          {% if not corporativo %}<div class="dropdown-item-text small text-muted border-top mt-1 pt-2">Cada empresa tiene sus usuarios: al cambiar, se ingresa con el usuario de esa empresa.</div>{% endif %}
+        </div>
+      </li>
+      {% else %}
       <li class="nav-item d-none d-xl-block"><span class="navbar-text small me-3 opacity-75">{{ empresa.razon_social }}</span></li>
+      {% endif %}
       <li class="nav-item dropdown me-1">
         <a class="nav-link position-relative px-2" href="{% url 'alertas' %}" data-bs-toggle="dropdown" id="campana" title="Alertas" data-url="{% url 'alertas_json' %}">
           <i class="bi bi-bell"></i><span class="position-absolute top-0 start-100 translate-middle badge rounded-pill d-none" id="campana-n"></span>
@@ -35,7 +50,6 @@
         <a class="nav-link dropdown-toggle px-2" href="#" data-bs-toggle="dropdown"><i class="bi bi-person-circle"></i> <span class="d-none d-md-inline">{{ user.get_full_name|default:user.get_username }}</span></a>
         <ul class="dropdown-menu dropdown-menu-end shadow-sm position-absolute">
           <li><a class="dropdown-item" href="{% url 'home' %}"><i class="bi bi-grid-3x3-gap me-2"></i>Aplicaciones</a></li>
-          {% for alias, nombre in otras_empresas %}<li><form method="post" action="{% url 'cambiar_empresa' %}">{% csrf_token %}<button name="empresa" value="{{ alias }}" class="dropdown-item"><i class="bi bi-building me-2"></i>Ir a {{ nombre|truncatechars:30 }}</button></form></li>{% endfor %}
           {% if corporativo %}<li><a class="dropdown-item" href="{% url 'grupo_panel' %}"><i class="bi bi-buildings me-2"></i>Panel del grupo</a></li>{% endif %}
           <li><a class="dropdown-item" href="{% url 'aprobaciones_bandeja' %}"><i class="bi bi-check2-square me-2"></i>Mis aprobaciones</a></li>
           <li><a class="dropdown-item" href="{% url 'aprobaciones_delegaciones' %}"><i class="bi bi-person-check me-2"></i>Suplencias</a></li>

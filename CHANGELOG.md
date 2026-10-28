@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.95.0 — 28/10/2026 · Cambio de empresa desde la barra
+- **Cambiar de empresa (como en Odoo)**: el nombre de la empresa en la barra superior abre la lista de empresas a las que el usuario tiene acceso; la actual va marcada y basta un clic en otra para pasar a ella (el usuario corporativo cambia sin volver a ingresar; los demás ingresan con su usuario de esa empresa). Con más de 6 empresas aparece un buscador. Sale del menú del usuario, donde estaba como «Ir a …».
+- **Inicio**: el título es la marca de Ceiba ERP (la misma de la barra, más grande) en lugar de «Hola, usuario» y la razón social.
+
 ## v1.94.2 — 28/10/2026 · Íconos 3D más pequeños y que giran
 - **Inicio**: los íconos 3D de los módulos son un poco más pequeños (del tamaño de los íconos de antes) y, al pasar el cursor, el objeto da una vuelta sobre su eje. Si el equipo tiene activada la opción de reducir animaciones, no gira.
 

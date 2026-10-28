@@ -3,8 +3,7 @@
 {% block content %}
 <div class="apps-home">
   <div class="text-center mb-5">
-    <h1 class="h4 mb-1">Hola, {{ user.first_name|default:user.get_username }}</h1>
-    <div class="text-muted small">{{ empresa.razon_social }} · RUC {{ empresa.ruc }}</div>
+    <h1 class="apps-titulo" aria-label="Ceiba ERP">{% include 'core/_marca.html' %}</h1>
   </div>
   <div class="apps-grid">
     {% for app in tiles %}
