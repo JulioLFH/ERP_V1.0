@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %}{% load static %}
 {% block title %}Aplicaciones{% endblock %}
 {% block content %}
 <div class="apps-home">
@@ -9,7 +9,8 @@
   <div class="apps-grid">
     {% for app in tiles %}
       <a href="{% url app.inicio %}" class="app-tile"{% if app.ayuda or app.nuevo %} title="{% if app.nuevo %}Módulo nuevo&#10;{% endif %}{{ app.ayuda }}"{% endif %}>
-        <span class="app-icon" style="background: {{ app.color }}"><i class="bi {{ app.icono }}"></i>
+        {# ícono isométrico 3D del módulo (scripts/iconos_modulos.py) #}
+        <span class="app-icon app-icon-3d">{% with 'img/modulos/'|add:app.clave|add:'.svg' as ruta %}<img src="{% static ruta %}" alt="" width="120" height="123">{% endwith %}
           {% if app.nuevo %}<span class="app-nuevo" aria-label="Nuevo">*</span>{% endif %}
           {% if app.insignia %}<span class="app-insignia badge rounded-pill text-bg-danger">{{ app.insignia }}</span>{% endif %}
         </span>
