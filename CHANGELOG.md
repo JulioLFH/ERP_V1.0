@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.94.1 — 28/10/2026 · Íconos 3D de un solo objeto
+- **Inicio**: cada módulo vuelve a su ícono de siempre, ahora grande y con volumen: un solo objeto con espesor, caras sombreadas, degradado y sombra en el piso, en el color del módulo (cono de tránsito en Obras, camión en Logística, engranaje en Manufactura y Ajustes, llave en Mantenimiento, chanchito en Finanzas, banco en Tesorería, corazón en Seguridad y salud…). Reemplaza las escenas isométricas pequeñas de la v1.94.0.
+
 ## v1.94.0 — 28/10/2026 · Módulos en 3D
 - **Inicio**: cada módulo se muestra con una ilustración isométrica 3D al estilo de la presentación comercial (base con borde verde y una escena por módulo: almacén, planta, banco, camión, grúa, tienda, monitor…), con el color del módulo como acento. Los 38 íconos están en `static/img/modulos` y se regeneran con `python scripts/iconos_modulos.py`.
 

@@ -1,9 +1,9 @@
-"""Íconos isométricos 3D de los módulos (pantalla de Inicio), al estilo de la presentación comercial: una base con el
-borde verde oscuro y una escena por módulo (almacén, planta, banco, camión…) con el color del módulo como acento.
+"""Íconos 3D de los módulos (pantalla de Inicio): un solo objeto grande por módulo, con la forma del ícono de siempre
+(cono en Obras, camión en Logística, engranaje en Ajustes…) y volumen: la figura de frente con su espesor hacia
+arriba a la derecha, caras laterales sombreadas y una sombra suave en el piso. El color del módulo es el del objeto.
 
 Genera static/img/modulos/<clave>.svg. Uso: python scripts/iconos_modulos.py
-Proyección isométrica: x hacia abajo a la derecha, y hacia abajo a la izquierda, z hacia arriba; la base va de (0, 0)
-a (12, 12). Las caras visibles son la superior, la «izquierda» (plano y = máx.) y la «derecha» (plano x = máx.)."""
+Coordenadas de dibujo: 0 a 100, con y hacia abajo. El marco (viewBox) se ajusta a cada objeto para que llene el ícono."""
 import math
 import os
 import sys
@@ -11,17 +11,8 @@ import sys
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
 
-C, S = math.cos(math.radians(30)), 0.5
-VISTA = (-11.0, -9.6, 22.0, 22.6)  # viewBox común: la base se ve del mismo tamaño en todos los íconos
-
-SUELO, GRILLA, BORDE_I, BORDE_D = '#e8efeb', '#d5dfd9', '#2f6f50', '#235a40'
-MURO, TECHO, OSCURO, BLANCO = '#dfe6e2', '#6f8a7d', '#33463d', '#f5f8f6'
-ARBOL, TRONCO, CARTON, MADERA = '#66a582', '#86705a', '#d8b47c', '#b88c58'
-ORO, PIEL, ALERTA, VIDRIO = '#e3b23c', '#f0c8a2', '#e05a47', '#3f5f55'
-
-
-def P(x, y, z=0.0):
-    return (x - y) * C, (x + y) * S - z
+ESPESOR = (6.5, -6.5)  # hacia dónde va el volumen (arriba a la derecha)
+OSCURO, BLANCO, CLARO, ORO, VIDRIO = '#24332c', '#ffffff', '#e3eae6', '#f0b93a', '#d7ece4'
 
 
 def tono(color, f):
@@ -34,627 +25,481 @@ def tono(color, f):
     return f'#{r:02x}{g:02x}{b:02x}'
 
 
-class Icono:
-    def __init__(self, acento):
-        self.a = acento
-        self.el = []
-        self.puntos = []
+# ---------------------------------------------------------------------------------------------------- formas 2D
+def circ(cx, cy, r, a0=0, a1=360, n=None, ry=None):
+    n = n or max(int(abs(a1 - a0) / 7.5), 6)
+    ry = r if ry is None else ry
+    return [(cx + r * math.cos(math.radians(a0 + (a1 - a0) * i / n)),
+             cy + ry * math.sin(math.radians(a0 + (a1 - a0) * i / n))) for i in range(n + (0 if a1 - a0 == 360 else 1))]
 
-    # ---------------------------------------------------------------- primitivas
-    def poligono2(self, pts, color, extra=''):
-        self.puntos += pts
-        txt = ' '.join(f'{X:.2f},{Y:.2f}' for X, Y in pts)
-        self.el.append(f'<polygon points="{txt}" fill="{color}" stroke="{color}" stroke-width=".04" '
-                       f'stroke-linejoin="round"{extra}/>')
 
-    def poligono(self, pts3, color, extra=''):
-        self.poligono2([P(*p) for p in pts3], color, extra)
+def rect(x, y, w, h):
+    return [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
 
-    def linea(self, pts3, color, ancho=.12, extra=''):
-        pts = [P(*p) for p in pts3]
-        self.puntos += pts
-        txt = ' '.join(f'{X:.2f},{Y:.2f}' for X, Y in pts)
-        self.el.append(f'<polyline points="{txt}" fill="none" stroke="{color}" stroke-width="{ancho}" '
-                       f'stroke-linecap="round" stroke-linejoin="round"{extra}/>')
 
-    def circulo(self, x, y, z, r, color, extra=''):
-        X, Y = P(x, y, z)
-        self.puntos += [(X - r, Y - r), (X + r, Y + r)]
-        self.el.append(f'<circle cx="{X:.2f}" cy="{Y:.2f}" r="{r:.2f}" fill="{color}"{extra}/>')
+def rrect(x, y, w, h, r):
+    r = min(r, w / 2, h / 2)
+    return (circ(x + w - r, y + r, r, -90, 0, 6) + circ(x + w - r, y + h - r, r, 0, 90, 6) +
+            circ(x + r, y + h - r, r, 90, 180, 6) + circ(x + r, y + r, r, 180, 270, 6))
 
-    def sombra(self, x, y, w, d, h):
-        k = min(h * .45, 2.2)
-        self.poligono([(x, y, 0), (x + w + k, y, 0), (x + w + k, y + d, 0), (x, y + d, 0)], '#000',
-                      ' fill-opacity=".10" stroke-opacity="0"')
 
-    def caja(self, x, y, z, w, d, h, color, superior=None, sombra=True):
-        if sombra and z == 0:
-            self.sombra(x, y, w, d, h)
-        self.poligono([(x, y, z + h), (x + w, y, z + h), (x + w, y + d, z + h), (x, y + d, z + h)],
-                      superior or tono(color, .2))
-        self.poligono([(x, y + d, z), (x + w, y + d, z), (x + w, y + d, z + h), (x, y + d, z + h)], color)
-        self.poligono([(x + w, y, z), (x + w, y + d, z), (x + w, y + d, z + h), (x + w, y, z + h)], tono(color, -.18))
-        return (x, y, z, w, d, h)
+def girar(pts, ang, cx=50, cy=50):
+    c, s = math.cos(math.radians(ang)), math.sin(math.radians(ang))
+    return [(cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c) for x, y in pts]
 
-    def cara(self, c, lado, u0, v0, u1, v1, color, extra=''):
-        """Rectángulo sobre una cara de la caja c: lado 'I' (izquierda), 'D' (derecha) o 'S' (superior); u, v de 0 a 1."""
-        x, y, z, w, d, h = c
-        if lado == 'I':
-            f = lambda u, v: (x + w * u, y + d, z + h * v)  # noqa: E731
-        elif lado == 'D':
-            f = lambda u, v: (x + w, y + d - d * u, z + h * v)  # noqa: E731
-        else:
-            f = lambda u, v: (x + w * u, y + d * v, z + h)  # noqa: E731
-        self.poligono([f(u0, v0), f(u1, v0), f(u1, v1), f(u0, v1)], color, extra)
 
-    def ventanas(self, c, lado, cols, filas, color=VIDRIO, mu=.12, mv=.14):
-        for i in range(cols):
-            for j in range(filas):
-                u0 = mu + (1 - 2 * mu) * i / cols
-                v0 = mv + (1 - 2 * mv) * j / filas
-                self.cara(c, lado, u0 + .04, v0 + .05, u0 + (1 - 2 * mu) / cols - .04,
-                          v0 + (1 - 2 * mv) / filas - .05, color)
-
-    def galpon(self, x, y, w, d, h, alto_techo, muro, techo):
-        """Nave a dos aguas con la cumbrera a lo largo de x."""
-        c = self.caja(x, y, 0, w, d, h, muro)
-        cumbre = h + alto_techo
-        self.poligono([(x, y, h), (x + w, y, h), (x + w, y + d / 2, cumbre), (x, y + d / 2, cumbre)], tono(techo, .12))
-        self.poligono([(x, y + d / 2, cumbre), (x + w, y + d / 2, cumbre), (x + w, y + d, h), (x, y + d, h)], techo)
-        self.poligono([(x + w, y, h), (x + w, y + d, h), (x + w, y + d / 2, cumbre)], tono(muro, -.18))
-        return c
-
-    def _elipse(self, cx, cy, z, r, desde, hasta, n=18):
-        return [(cx + r * math.cos(math.radians(t)), cy + r * math.sin(math.radians(t)), z)
-                for t in (desde + (hasta - desde) * i / n for i in range(n + 1))]
-
-    def cilindro(self, cx, cy, z, r, h, color, superior=None, sombra=True):
-        if sombra and z == 0:
-            self.sombra(cx - r, cy - r, 2 * r, 2 * r, h)
-        # mitad frontal: de -45° a 135° (la parte de 45° a 135° mira a la izquierda: más clara)
-        for desde, hasta, f in ((45, 135, 0), (-45, 45, -.18)):
-            abajo = self._elipse(cx, cy, z, r, desde, hasta, 9)
-            arriba = self._elipse(cx, cy, z + h, r, hasta, desde, 9)
-            self.poligono(abajo + arriba, tono(color, f))
-        self.poligono(self._elipse(cx, cy, z + h, r, 0, 360, 36), superior or tono(color, .22))
-
-    def cono(self, cx, cy, z, r, h, color):
-        for desde, hasta, f in ((45, 135, 0), (-45, 45, -.2)):
-            self.poligono(self._elipse(cx, cy, z, r, desde, hasta, 9) + [(cx, cy, z + h)], tono(color, f))
-
-    def rueda(self, cx, y, cz, r, plano='I', color=OSCURO, x=None):
-        """Rueda en el plano de la cara izquierda (y fija) o derecha (x fija)."""
-        pts = []
-        for i in range(24):
-            t = math.radians(i * 15)
-            pts.append((cx + r * math.cos(t), y, cz + r * math.sin(t)) if plano == 'I'
-                       else (x, cx + r * math.cos(t), cz + r * math.sin(t)))
-        self.poligono(pts, color)
-        cen = [(p[0], p[1], cz + (p[2] - cz) * .45) if plano == 'I' else p for p in pts]
-        if plano == 'I':
-            cen = [(cx + (p[0] - cx) * .45, y, cz + (p[2] - cz) * .45) for p in pts]
-        else:
-            cen = [(x, cx + (p[1] - cx) * .45, cz + (p[2] - cz) * .45) for p in pts]
-        self.poligono(cen, '#9aa7a1')
-
-    def extruir(self, perfil, z, h, color):
-        """Prisma con el perfil (puntos x, y en el plano) extruido en z: caras laterales visibles y la superior."""
-        n = len(perfil)
-        caras = []
-        for i in range(n):
-            (x0, y0), (x1, y1) = perfil[i], perfil[(i + 1) % n]
-            nx, ny = y1 - y0, -(x1 - x0)  # normal hacia afuera (perfil en sentido antihorario visto desde arriba)
-            if nx + ny > 0:
-                f = -.18 if nx > ny else 0
-                caras.append(((x0 + x1 + y0 + y1) / 2, [(x0, y0, z), (x1, y1, z), (x1, y1, z + h), (x0, y0, z + h)],
-                              tono(color, f)))
-        for _, pts, col in sorted(caras, key=lambda c: c[0]):
-            self.poligono(pts, col)
-        self.poligono([(px, py, z + h) for px, py in perfil], tono(color, .2))
-
-    def arbol(self, x, y, s=1.0):
-        self.caja(x - .13 * s, y - .13 * s, 0, .26 * s, .26 * s, .9 * s, TRONCO)
-        self.caja(x - .75 * s, y - .75 * s, .9 * s, 1.5 * s, 1.5 * s, 1.35 * s, ARBOL, sombra=False)
-
-    def persona(self, x, y, color, s=1.0):
-        self.cilindro(x, y, 0, .8 * s, 2.0 * s, color)
-        self.circulo(x, y, 2.0 * s + .8 * s, .74 * s, PIEL)
-
-    def monedas(self, x, y, n, r=1.1):
-        for i in range(n):
-            self.cilindro(x, y, i * .42, r, .42, ORO, sombra=(i == 0))
-        self.cara((x - r, y - r, n * .42 - .01, 2 * r, 2 * r, .01), 'S', .35, .35, .65, .65, tono(ORO, -.15))
-
-    def papel(self, x, y, z, w, d, lineas=4, color=BLANCO, tinta='#b8c4bf'):
-        c = self.caja(x, y, z, w, d, .12, color, sombra=False)
-        for i in range(lineas):
-            v = .18 + .66 * i / max(lineas - 1, 1)
-            self.cara(c, 'S', .15, v, .85 if i % 2 else .65, v + .06, tinta)
-        return c
-
-    def tablero_pie(self, x, y, w, h, color=BLANCO, grosor=.45, base=OSCURO):
-        """Pizarra o pantalla de pie mirando a la izquierda (cara I)."""
-        return self.caja(x, y, 0, w, grosor, h, color)
-
-    def base(self):
-        g = .9
-        self.poligono([(0, 12, -g), (12, 12, -g), (12, 12, 0), (0, 12, 0)], BORDE_I)
-        self.poligono([(12, 0, -g), (12, 12, -g), (12, 12, 0), (12, 0, 0)], BORDE_D)
-        self.poligono([(0, 0, 0), (12, 0, 0), (12, 12, 0), (0, 12, 0)], SUELO)
-        for k in (3, 6, 9):
-            self.linea([(k, 0, 0), (k, 12, 0)], GRILLA, .05)
-            self.linea([(0, k, 0), (12, k, 0)], GRILLA, .05)
-
-    def svg(self, titulo):
-        xs = [p[0] for p in self.puntos]
-        ys = [p[1] for p in self.puntos]
-        x0, y0, w, h = VISTA
-        if min(xs) < x0 or max(xs) > x0 + w or min(ys) < y0 or max(ys) > y0 + h:
-            print(f'  aviso: {titulo} se sale del marco ({min(xs):.1f}, {min(ys):.1f}) – ({max(xs):.1f}, {max(ys):.1f})')
-        return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x0} {y0} {w} {h}" role="img" '
-                f'aria-label="{titulo}">' + ''.join(self.el) + '</svg>\n')
-
-
-# ---------------------------------------------------------------------------------------------------- escenas
-def edificio(i, x, y, w, d, h, cols=3, filas=None, muro=MURO):
-    c = i.caja(x, y, 0, w, d, h, muro)
-    filas = filas or max(int(h // 1.6), 1)
-    i.ventanas(c, 'I', cols, filas)
-    i.ventanas(c, 'D', cols, filas)
-    return c
-
-
-def e_tablero(i):  # monitor con gráfico
-    i.caja(5.2, 5.4, 0, 1.6, 1.6, .35, '#55665e')
-    i.caja(5.75, 5.95, .35, .5, .5, 1.6, '#55665e', sombra=False)
-    m = i.caja(1.8, 5.7, 1.9, 8.4, .5, 5.6, OSCURO)
-    i.cara(m, 'I', .05, .07, .95, .93, '#1f2d27')
-    for k, (u, v) in enumerate(((.12, .35), (.27, .55), (.42, .45), (.57, .75), (.72, .62))):
-        i.cara(m, 'I', u, .14, u + .1, v, i.a if k % 2 else tono(i.a, .4))
-    i.cara(m, 'I', .1, .82, .45, .86, '#9fd3b5')
-    i.arbol(10, 10, .9)
-
-
-def e_crm(i):  # embudo de ventas
-    i.cilindro(6, 6, 0, 1.4, 1.5, tono(i.a, -.15))
-    i.cilindro(6, 6, 1.5, 2.4, 1.5, i.a, sombra=False)
-    i.cilindro(6, 6, 3.0, 3.4, 1.5, tono(i.a, .3), sombra=False)
-    i.persona(10, 3.5, '#5b7a6c', .8)
-    i.persona(2.5, 10.2, '#5b7a6c', .8)
-
-
-def e_toma_pedido(i):  # celular y paquete
-    t = i.caja(3.5, 5, 0, 4.6, .8, 7.6, '#2b3833')
-    i.cara(t, 'I', .08, .1, .92, .9, tono(i.a, .15))
-    for k in range(4):
-        v = .68 - k * .15
-        i.cara(t, 'I', .16, v, .84, v + .1, BLANCO)
-        i.cara(t, 'I', .2, v + .03, .3, v + .07, i.a)
-    i.cara(t, 'I', .4, .02, .6, .06, '#56645e')
-    p = i.caja(8.4, 8.2, 0, 2.6, 2.6, 2.0, CARTON)
-    i.cara(p, 'S', .42, 0, .58, 1, tono(CARTON, -.2))
-
-
-def e_ventas(i):  # tienda con toldo
-    c = i.caja(2.4, 2.6, 0, 7.2, 5.2, 4.2, MURO)
-    i.cara(c, 'I', .08, .0, .3, .62, OSCURO)
-    i.cara(c, 'I', .38, .2, .92, .62, VIDRIO)
-    i.ventanas(c, 'D', 3, 2)
-    for k in range(8):  # toldo a rayas
-        x0, x1 = 2.4 + 7.2 * k / 8, 2.4 + 7.2 * (k + 1) / 8
-        i.poligono([(x0, 7.8, 4.0), (x1, 7.8, 4.0), (x1, 9.2, 3.1), (x0, 9.2, 3.1)], i.a if k % 2 == 0 else BLANCO)
-    letrero = i.caja(4.2, 3.6, 4.2, 3.6, .4, 1.3, i.a, sombra=False)
-    i.cara(letrero, 'I', .15, .35, .85, .65, BLANCO)
-    i.arbol(10.6, 10.3, .85)
-
-
-def e_compras(i):  # parihuela con cajas y bolsa
-    i.caja(2.6, 3.4, 0, 5.6, 5.6, .5, MADERA)
-    for x, y, z in ((2.9, 3.7, .5), (5.6, 3.7, .5), (2.9, 6.4, .5), (5.6, 6.4, .5), (4.2, 5.0, 2.6)):
-        b = i.caja(x, y, z, 2.5, 2.5, 2.1, CARTON, sombra=False)
-        i.cara(b, 'S', .42, 0, .58, 1, tono(CARTON, -.2))
-    b = i.caja(8.8, 8.6, 0, 2.4, 1.4, 2.8, i.a)
-    i.linea([(9.4, 9.3, 2.8), (9.6, 9.3, 3.7), (10.4, 9.3, 3.7), (10.6, 9.3, 2.8)], tono(i.a, -.3), .22)
-    i.cara(b, 'I', .3, .45, .7, .62, BLANCO)
-
-
-def e_portal_proveedores(i):  # almacén del proveedor y laptop
-    c = i.galpon(1.2, 1.2, 5.8, 4.4, 3.0, 1.5, '#9db0a6', i.a)
-    i.cara(c, 'I', .3, 0, .7, .7, OSCURO)
-    i.caja(6.2, 7.2, 0, 4.6, 3.4, .35, '#3b4a44')
-    i.poligono([(6.2, 7.2, .35), (10.8, 7.2, .35), (10.8, 6.6, 3.6), (6.2, 6.6, 3.6)], '#2b3833')
-    i.poligono([(6.5, 7.15, .7), (10.5, 7.15, .7), (10.5, 6.7, 3.3), (6.5, 6.7, 3.3)], tono(i.a, .2))
-    i.poligono([(7.0, 7.1, 1.4), (9.0, 7.1, 1.4), (9.0, 6.85, 2.6), (7.0, 6.85, 2.6)], BLANCO)
-    i.arbol(10.8, 2.0, .8)
-
-
-def e_inventario(i):  # almacén con parihuelas
-    c = i.galpon(1.0, 1.0, 7.4, 5.4, 3.6, 1.8, '#9db0a6', TECHO)
-    i.cara(c, 'I', .3, 0, .72, .75, OSCURO)
-    i.cara(c, 'I', .3, .75, .72, .8, i.a)
-    for x, y in ((8.6, 7.6), (5.2, 8.9)):
-        i.caja(x, y, 0, 2.4, 2.4, .35, MADERA)
-        b = i.caja(x + .15, y + .15, .35, 2.1, 2.1, 1.7, CARTON, sombra=False)
-        i.cara(b, 'S', .42, 0, .58, 1, tono(CARTON, -.2))
-    i.cilindro(10.5, 4.6, 0, .6, 1.5, i.a)
-
-
-def e_codigo_barras(i):  # caja con etiqueta de barras y láser
-    c = i.caja(2.8, 3.2, 0, 6.2, 5.8, 5.2, CARTON)
-    i.cara(c, 'S', .42, 0, .58, 1, tono(CARTON, -.2))
-    i.cara(c, 'I', .15, .2, .85, .75, BLANCO)
-    for k, ancho in enumerate((.03, .015, .04, .02, .015, .035, .02, .03, .015, .04, .02, .03)):
-        u = .2 + k * .052
-        i.cara(c, 'I', u, .3, u + ancho, .68, OSCURO)
-    i.cara(c, 'D', .2, .35, .8, .6, BLANCO)
-    i.linea([(2.4, 9.3, 2.9), (9.6, 9.3, 2.9)], ALERTA, .14, ' stroke-opacity=".85"')
-    i.circulo(10.3, 10.0, 1.2, .55, i.a)
-
-
-def e_manufactura(i):  # planta con tanque y chimenea
-    i.cilindro(2.6, 2.4, 0, 1.6, 5.0, '#c9d2ce')
-    i.caja(7.6, 1.2, 0, 1.1, 1.1, 7.2, '#a9b6b0')
-    i.cara((7.6, 1.2, 0, 1.1, 1.1, 7.2), 'I', 0, .82, 1, .9, i.a)
-    c = i.caja(1.6, 4.6, 0, 8.6, 4.6, 3.2, MURO)
-    for k in range(4):  # techo en diente de sierra
-        x0 = 1.6 + 8.6 * k / 4
-        x1 = 1.6 + 8.6 * (k + 1) / 4
-        i.poligono([(x0, 4.6, 3.2), (x0, 9.2, 3.2), (x0 + .2, 9.2, 4.4), (x0 + .2, 4.6, 4.4)], TECHO)
-        i.poligono([(x0 + .2, 4.6, 4.4), (x0 + .2, 9.2, 4.4), (x1, 9.2, 3.2), (x1, 4.6, 3.2)], tono(TECHO, .25))
-    i.cara(c, 'I', .1, 0, .3, .65, OSCURO)
-    i.ventanas((c[0] + 8.6 * .35, c[1], 0, 8.6 * .6, c[4], 3.2), 'I', 3, 1)
-    i.ventanas(c, 'D', 2, 1)
-    i.circulo(10.6, 10.4, 3.6, .45, i.a)
-
-
-def e_planificacion(i):  # diagrama de Gantt en una pizarra y engranaje
-    p = i.tablero_pie(1.4, 4.4, 8.4, 6.2, BLANCO)
-    i.cara(p, 'I', 0, .84, 1, 1, OSCURO)
-    for k in range(4):
-        i.cara(p, 'I', .23 + .2 * k, .06, .235 + .2 * k, .82, '#d7dfdb')
-    for k, (u0, u1) in enumerate(((.05, .42), (.3, .68), (.52, .95), (.18, .55))):
-        v = .66 - k * .18
-        i.cara(p, 'I', u0, v, u1, v + .11, i.a if k % 2 == 0 else tono(i.a, .45))
-    i.sombra(8.2, 8.0, 3.0, 3.0, 1.0)
-    i.extruir([(9.7 + px, 9.5 + py) for px, py in engranaje(1.2, 7, .45)], 0, .9, '#9aa7a1')
-    i.poligono(i._elipse(9.7, 9.5, .91, .45, 0, 360, 20), OSCURO)
-
-
-def e_control_calidad(i):  # faja con botellas y sello
-    f = i.caja(1.2, 5.2, 0, 9.8, 2.2, 1.1, '#56665f')
-    i.cara(f, 'S', 0, .15, 1, .85, '#33433c')
-    for x in (2.4, 4.6, 6.8, 9.0):
-        i.cilindro(x, 6.3, 1.1, .6, 1.9, BLANCO, sombra=False)
-        i.cilindro(x, 6.3, 3.0, .32, .45, i.a, sombra=False)
-    i.circulo(8.6, 2.6, 6.0, 1.75, i.a)
-    X, Y = P(8.6, 2.6, 6.0)
-    i.el.append(f'<polyline points="{X - .8:.2f},{Y:.2f} {X - .2:.2f},{Y + .6:.2f} {X + .9:.2f},{Y - .6:.2f}" '
-                f'fill="none" stroke="#fff" stroke-width=".38" stroke-linecap="round" stroke-linejoin="round"/>')
-
-
-def e_mantenimiento(i):  # máquina con alerta y caja de herramientas
-    m = i.caja(2.2, 2.8, 0, 6.4, 4.8, 3.6, '#a9b8b1')
-    i.cara(m, 'I', .1, .3, .55, .8, VIDRIO)
-    i.cara(m, 'D', .25, .3, .75, .75, '#7d8d86')
-    i.cilindro(4.0, 4.2, 3.6, 1.0, .6, '#7d8d86', sombra=False)
-    p = i.caja(6.6, 3.4, 3.6, 1.6, 1.6, 1.4, i.a, sombra=False)
-    i.cara(p, 'I', .2, .3, .8, .7, BLANCO)
-    i.circulo(5.4, 5.2, 7.2, .55, ALERTA)
-    t = i.caja(8.2, 8.6, 0, 3.0, 1.8, 1.5, i.a)
-    i.cara(t, 'I', 0, .62, 1, .7, tono(i.a, -.35))
-    i.linea([(9.1, 9.5, 1.5), (9.1, 9.5, 2.1), (10.3, 9.5, 2.1), (10.3, 9.5, 1.5)], OSCURO, .2)
-
-
-def e_costos(i):  # monedas y calculadora
-    i.monedas(4.0, 3.6, 7)
-    i.monedas(7.4, 3.0, 10)
-    i.monedas(8.6, 6.8, 4)
-    c = i.caja(1.6, 6.6, 0, 3.6, 4.4, .7, '#33433c')
-    i.cara(c, 'S', .12, .08, .88, .3, '#9fd3b5')
-    for a in range(3):
-        for b in range(3):
-            i.cara(c, 'S', .14 + a * .26, .4 + b * .19, .32 + a * .26, .53 + b * .19, i.a if (a, b) == (2, 2) else BLANCO)
-
-
-def e_presupuestos(i):  # pizarra con barras y monedas
-    p = i.tablero_pie(2.0, 4.6, 7.0, 6.2, '#c9b48e')
-    i.cara(p, 'I', .06, .06, .94, .94, BLANCO)
-    for k, v in enumerate((.35, .55, .45, .78)):
-        u = .14 + k * .2
-        i.cara(p, 'I', u, .14, u + .13, v, i.a if k == 3 else tono(i.a, .45))
-    i.monedas(9.4, 9.0, 5, 1.0)
-
-
-def e_activos(i):  # edificio y máquina con placa de activo
-    edificio(i, 1.4, 1.4, 4.4, 4.4, 6.4, 2)
-    m = i.caja(6.0, 6.2, 0, 4.6, 3.4, 2.6, '#a9b8b1')
-    i.cara(m, 'I', .1, .25, .45, .75, VIDRIO)
-    i.cara(m, 'I', .58, .4, .9, .72, i.a)
-    i.cara(m, 'I', .62, .48, .86, .64, BLANCO)
-    i.rueda(7.0, 9.62, .1, .1, color=OSCURO)
-
-
-def e_obras(i):  # grúa, estructura y conos
-    i.caja(1.6, 1.6, 0, .8, .8, 10.2, i.a)
-    i.caja(-.4, 1.7, 9.6, 11.0, .6, .5, i.a, sombra=False)
-    i.caja(-.4, 1.6, 8.6, 1.4, .8, 1.0, '#6b7b74', sombra=False)
-    i.linea([(8.6, 2.0, 9.6), (8.6, 2.0, 6.6)], OSCURO, .08)
-    i.caja(8.0, 1.5, 5.6, 1.2, 1.0, 1.0, CARTON, sombra=False)
-    for z in (0, 2.4, 4.8):
-        i.caja(4.6, 4.6, z, 5.4, 5.4, .35, '#c9d2ce', sombra=(z == 0))
-        if z < 4.8:
-            for x, y in ((4.7, 9.6), (9.6, 9.6), (9.6, 4.7)):
-                i.caja(x, y, z + .35, .3, .3, 2.05, '#9aa7a1', sombra=False)
-    for x, y in ((2.6, 10.6), (4.4, 11.0)):
-        i.caja(x - .5, y - .5, 0, 1.0, 1.0, .15, tono(i.a, -.2))
-        i.cono(x, y, .15, .45, 1.4, i.a)
-
-
-def e_proyectos(i):  # tablero kanban y bandera
-    p = i.tablero_pie(1.6, 4.2, 7.4, 5.6, BLANCO)
-    for col in range(3):
-        u = .06 + col * .31
-        i.cara(p, 'I', u, .86, u + .27, .92, OSCURO)
-        for k in range(3 - col):
-            v = .66 - k * .2
-            i.cara(p, 'I', u, v, u + .27, v + .14, i.a if col == 2 else tono(i.a, .5))
-    i.caja(9.6, 8.6, 0, .25, .25, 5.4, '#6b7b74')
-    i.poligono([(9.85, 8.85, 5.4), (11.8, 8.85, 4.75), (9.85, 8.85, 4.1)], i.a)
-
-
-def e_sst(i):  # botiquín y conos
-    c = i.caja(2.6, 3.4, 0, 5.8, 4.8, 3.4, BLANCO)
-    i.cara(c, 'S', .42, .18, .58, .82, i.a)
-    i.cara(c, 'S', .2, .4, .8, .6, i.a)
-    i.cara(c, 'I', .42, .2, .58, .8, i.a)
-    i.cara(c, 'I', .3, .4, .7, .6, i.a)
-    i.linea([(4.4, 5.8, 3.4), (4.4, 5.8, 4.1), (6.6, 5.8, 4.1), (6.6, 5.8, 3.4)], OSCURO, .22)
-    for x, y in ((9.8, 6.6), (9.4, 9.8)):
-        i.caja(x - .55, y - .55, 0, 1.1, 1.1, .15, '#e8833a')
-        i.cono(x, y, .15, .5, 1.6, '#f08c3a')
-
-
-def e_calidad(i):  # podio con trofeo
-    i.caja(1.4, 4.4, 0, 3.2, 3.2, 2.0, '#c9d2ce')
-    c = i.caja(4.6, 4.4, 0, 3.2, 3.2, 3.6, BLANCO)
-    i.caja(7.8, 4.4, 0, 3.2, 3.2, 1.3, '#c9d2ce')
-    i.cara(c, 'I', .4, .45, .6, .75, i.a)
-    i.cilindro(6.2, 6.0, 3.6, .7, .35, ORO, sombra=False)
-    i.cilindro(6.2, 6.0, 3.95, .22, .7, ORO, sombra=False)
-    i.cilindro(6.2, 6.0, 4.65, 1.05, 1.3, ORO, superior=tono(ORO, -.25), sombra=False)
-    i.circulo(9.4, 5.9, 2.2, .45, i.a)
-
-
-def e_planillas(i):  # papeles, monedas y persona
-    for k in range(6):
-        i.papel(2.0 + k * .08, 3.6 - k * .06, k * .14, 5.0, 6.0, 0)
-    i.papel(2.4, 3.3, .84, 5.0, 6.0, 5, BLANCO, tono(i.a, .3))
-    i.monedas(9.0, 3.6, 5, 1.0)
-    i.persona(9.6, 9.4, i.a, .9)
-
-
-def e_empleados(i):  # tres personas
-    i.persona(4.0, 3.6, tono(i.a, .35), .95)
-    i.persona(9.0, 4.4, tono(i.a, .35), .95)
-    i.persona(6.4, 7.4, i.a, 1.25)
-    i.arbol(2.4, 10.2, .8)
-
-
-def e_tiempo_personal(i):  # sombrilla y reposera
-    i.caja(5.9, 5.9, 0, .22, .22, 4.6, '#8a7a6a')
-    i.cono(6.0, 6.0, 4.0, 3.6, 1.6, i.a)
-    i.caja(6.6, 8.2, 0, 4.0, 1.8, .7, BLANCO)
-    i.poligono([(6.6, 8.2, .7), (6.6, 10.0, .7), (5.6, 10.0, 2.4), (5.6, 8.2, 2.4)], tono(i.a, .45))
-    i.arbol(2.2, 9.8, .8)
-
-
-def e_requerimientos(i):  # portapapeles y caja de materiales
-    p = i.tablero_pie(1.8, 4.0, 5.6, 7.0, '#c9b48e')
-    i.cara(p, 'I', .08, .05, .92, .9, BLANCO)
-    i.cara(p, 'I', .33, .86, .67, .97, OSCURO)
-    for k in range(4):
-        v = .68 - k * .17
-        i.cara(p, 'I', .16, v, .26, v + .09, i.a)
-        i.cara(p, 'I', .32, v + .02, .82, v + .07, '#b8c4bf')
-    b = i.caja(8.0, 7.6, 0, 3.0, 3.0, 2.4, CARTON)
-    i.cara(b, 'S', .42, 0, .58, 1, tono(CARTON, -.2))
-    i.cara(b, 'I', .25, .35, .75, .65, BLANCO)
-
-
-def e_rendiciones(i):  # recibo de pie y monedas
-    zig = [(2.2 + .5 * k, 5.4, .3 if k % 2 else 0) for k in range(13)]
-    i.poligono(zig + [(8.2, 5.4, 7.2), (2.2, 5.4, 7.2)], BLANCO)
-    i.poligono([(8.2, 5.4, 0), (8.2, 4.9, 0), (8.2, 4.9, 7.2), (8.2, 5.4, 7.2)], '#c9d2ce')
-    for k in range(6):
-        z = 6.2 - k * .9
-        i.linea([(2.8, 5.4, z), (6.6 if k % 2 else 7.6, 5.4, z)], '#b8c4bf', .2)
-    i.linea([(5.4, 5.4, 1.1), (7.6, 5.4, 1.1)], i.a, .35)
-    i.monedas(9.6, 9.0, 4, 1.0)
-
-
-def camion(i, x, y, largo, cabina):
-    t = i.caja(x, y, .65, largo, 2.8, 3.3, BLANCO)
-    i.cara(t, 'I', 0, .45, 1, .62, cabina)
-    c = i.caja(x + largo + .1, y, .65, 2.3, 2.8, 2.6, cabina)
-    i.cara(c, 'D', .12, .5, .88, .88, VIDRIO)
-    i.cara(c, 'I', .55, .5, .95, .85, VIDRIO)
-    for rx in (x + 1.1, x + largo - 1.0, x + largo + 1.3):
-        i.rueda(rx, y + 2.82, .55, .55)
-
-
-def e_logistica(i):  # almacén y camión
-    c = i.galpon(.8, .6, 6.4, 4.0, 3.0, 1.4, '#9db0a6', TECHO)
-    i.cara(c, 'I', .3, 0, .7, .75, OSCURO)
-    camion(i, 2.2, 6.6, 6.0, i.a)
-
-
-def e_distribucion(i):  # carretera, furgoneta y marcador
-    i.poligono([(0, 6.2, 0), (12, 6.2, 0), (12, 9.4, 0), (0, 9.4, 0)], '#c5cfca')
-    for k in range(5):
-        i.poligono([(1 + k * 2.4, 7.7, 0), (2.2 + k * 2.4, 7.7, 0), (2.2 + k * 2.4, 7.9, 0), (1 + k * 2.4, 7.9, 0)],
-                   BLANCO)
-    camion(i, 4.0, 6.5, 3.6, '#5f7f71')
-    for desde, hasta, f in ((45, 135, 0), (-45, 45, -.2)):  # marcador del mapa: cono invertido y esfera
-        i.poligono(i._elipse(5.0, 2.6, 6.2, 1.1, desde, hasta, 9) + [(5.0, 2.6, 3.4)], tono(i.a, f))
-    i.circulo(5.0, 2.6, 6.6, 1.55, i.a)
-    i.circulo(5.0, 2.6, 6.6, .6, BLANCO)
-    i.arbol(10.6, 2.4, .8)
-
-
-def auto(i, x, y, color):
-    i.caja(x, y, .45, 4.4, 2.2, 1.1, color)
-    c = i.caja(x + .9, y + .15, 1.55, 2.4, 1.9, .95, tono(color, .25), sombra=False)
-    i.cara(c, 'I', .08, .1, .92, .9, VIDRIO)
-    i.cara(c, 'D', .1, .1, .9, .9, VIDRIO)
-    for rx in (x + 1.0, x + 3.4):
-        i.rueda(rx, y + 2.22, .45, .45)
-
-
-def e_flota(i):  # dos autos
-    auto(i, 1.4, 2.8, '#9aa7a1')
-    auto(i, 5.4, 7.0, i.a)
-    i.arbol(10.6, 2.6, .85)
-
-
-def banco(i, x, y, w, d, techo):
-    i.caja(x, y, 0, w, d, .6, '#c9d2ce')
-    i.caja(x + .6, y + .4, .6, w - 1.2, d - 1.6, 3.6, MURO, sombra=False)
-    for k in range(5):
-        i.cilindro(x + .9 + (w - 1.8) * k / 4, y + d - .7, .6, .32, 3.6, BLANCO, sombra=False)
-    i.caja(x, y, 4.2, w, d, .55, '#c9d2ce', sombra=False)
-    z, cumbre = 4.75, 6.4
-    i.poligono([(x, y, z), (x + w, y, z), (x + w, y + d / 2, cumbre), (x, y + d / 2, cumbre)], tono(techo, .15))
-    i.poligono([(x, y + d / 2, cumbre), (x + w, y + d / 2, cumbre), (x + w, y + d, z), (x, y + d, z)], techo)
-    i.poligono([(x + w, y, z), (x + w, y + d, z), (x + w, y + d / 2, cumbre)], tono(MURO, -.18))
-
-
-def e_tesoreria(i):  # banco con columnas
-    banco(i, 1.4, 2.0, 9.0, 7.4, i.a)
-    i.monedas(10.6, 10.6, 3, .8)
-
-
-def e_finanzas(i):  # barras crecientes y moneda
-    for k, h in enumerate((2.0, 3.4, 4.8, 6.4)):
-        i.caja(1.6 + k * 2.3, 6.2 - k * .9, 0, 1.8, 1.8, h, tono(i.a, .45 - k * .15))
-    i.linea([(1.6, 7.2, 3.0), (4.0, 6.2, 4.6), (6.4, 5.4, 6.0), (9.4, 4.0, 8.0)], ORO, .3)
-    i.poligono([(9.6, 3.9, 8.6), (9.9, 3.8, 7.5), (8.9, 4.2, 7.8)], ORO)
-    i.monedas(9.6, 9.6, 3, .9)
-
-
-def e_contabilidad(i):  # libros
-    for k, (dx, col) in enumerate(((0, tono(i.a, .35)), (.3, i.a), (-.2, tono(i.a, -.25)))):
-        b = i.caja(2.6 + dx, 3.6 - dx, k * 1.0, 5.6, 4.0, .9, col, sombra=(k == 0))
-        i.cara(b, 'D', .03, .2, .97, .8, BLANCO)  # hojas a los lados; la tapa es la cara superior
-        i.cara(b, 'I', .03, .2, .9, .8, '#eef2ef')
-    i.caja(9.0, 5.0, 0, .9, 4.4, 4.6, tono(i.a, -.1))
-    i.cara((9.0, 5.0, 0, .9, 4.4, 4.6), 'D', .1, .55, .9, .62, ORO)
-    i.papel(7.6, 9.8, 0, 3.0, 1.8, 3)
-
-
-def e_sunat(i):  # edificio público con bandera
-    banco(i, 1.6, 3.2, 7.6, 6.2, '#8c9b94')
-    i.caja(9.8, 2.2, 0, .22, .22, 8.2, '#6b7b74')
-    for k, col in enumerate((i.a, BLANCO, i.a)):
-        i.poligono([(10.0 + k * .8, 2.3, 8.2), (10.8 + k * .8, 2.3, 8.2), (10.8 + k * .8, 2.3, 6.8),
-                    (10.0 + k * .8, 2.3, 6.8)], col)
-
-
-def e_cliente(i):  # torre de oficinas
-    c = edificio(i, 3.2, 3.2, 5.6, 5.6, 9.0, 3, 5)
-    i.caja(4.8, 4.8, 9.0, 2.4, 2.4, .9, i.a, sombra=False)
-    i.cara(c, 'I', .4, 0, .6, .13, OSCURO)
-    i.arbol(10.6, 10.4, .9)
-    i.arbol(1.8, 10.6, .7)
-
-
-def e_contactos(i):  # tarjeta de contacto y dos personas
-    p = i.tablero_pie(2.0, 3.6, 6.6, 4.8, BLANCO)
-    i.cara(p, 'I', .08, .25, .38, .8, tono(i.a, .3))
-    i.cara(p, 'I', .14, .32, .32, .55, i.a)
-    for k in range(3):
-        v = .65 - k * .18
-        i.cara(p, 'I', .46, v, .9 if k else .78, v + .08, '#b8c4bf' if k else OSCURO)
-    i.persona(5.4, 8.6, i.a)
-    i.persona(8.6, 9.2, tono(i.a, .4), .85)
-
-
-def e_consulta_ruc(i):  # documento y lupa
-    p = i.tablero_pie(1.8, 3.6, 5.6, 7.0, BLANCO)
-    i.cara(p, 'I', .1, .82, .6, .9, OSCURO)
-    for k in range(5):
-        v = .68 - k * .13
-        i.cara(p, 'I', .1, v, .9 if k % 2 else .7, v + .06, '#b8c4bf')
-    X, Y = P(8.0, 7.6, 4.2)
-    i.puntos += [(X - 3, Y - 3), (X + 4, Y + 4)]
-    i.el.append(f'<line x1="{X + 1.5:.2f}" y1="{Y + 1.5:.2f}" x2="{X + 3.6:.2f}" y2="{Y + 3.6:.2f}" '
-                f'stroke="{OSCURO}" stroke-width=".8" stroke-linecap="round"/>')
-    i.el.append(f'<circle cx="{X:.2f}" cy="{Y:.2f}" r="2.1" fill="#d7ece4" fill-opacity=".7" stroke="{i.a}" '
-                f'stroke-width=".55"/>')
-
-
-def e_conversaciones(i):  # dos globos de diálogo
-    a = i.caja(1.6, 3.4, 3.0, 6.2, .6, 3.8, i.a, sombra=False)
-    i.poligono([(2.6, 4.0, 3.0), (3.8, 4.0, 3.0), (2.4, 4.0, 1.9)], i.a)
-    for k in range(3):
-        i.cara(a, 'I', .28 + k * .17, .42, .36 + k * .17, .58, BLANCO)
-    b = i.caja(4.8, 7.6, 1.2, 6.0, .6, 3.2, BLANCO, sombra=False)
-    i.poligono([(9.0, 8.2, 1.2), (10.0, 8.2, 1.2), (10.6, 8.2, .2)], BLANCO)
-    i.cara(b, 'I', .12, .55, .88, .68, '#b8c4bf')
-    i.cara(b, 'I', .12, .3, .6, .43, '#b8c4bf')
-    i.sombra(1.6, 3.4, 6.2, .6, 1.5)
-    i.sombra(4.8, 7.6, 6.0, .6, 1.0)
-
-
-def e_calendario(i):  # calendario de pie
-    c = i.caja(2.0, 4.8, 0, 7.6, 1.0, 6.6, BLANCO)
-    i.cara(c, 'I', 0, .76, 1, 1, i.a)
-    for a in range(5):
-        for b in range(3):
-            u, v = .07 + a * .18, .1 + b * .2
-            i.cara(c, 'I', u, v, u + .13, v + .14, tono(i.a, .55) if (a, b) == (3, 1) else '#e1e7e4')
-    for x in (3.4, 8.0):
-        i.cilindro(x, 5.3, 6.6, .25, .7, OSCURO, sombra=False)
-    i.arbol(10.4, 9.8, .8)
-
-
-def e_actividades(i):  # lista de tareas con marcas
-    p = i.tablero_pie(2.0, 4.4, 7.2, 6.4, BLANCO)
-    for k in range(4):
-        v = .74 - k * .2
-        i.cara(p, 'I', .08, v, .2, v + .14, i.a if k < 3 else '#d7dfdb')
-        i.cara(p, 'I', .28, v + .04, .9 if k % 2 else .75, v + .1, '#b8c4bf')
-    for k in range(3):
-        z = .74 - k * .2
-        x0, zz = 2.0 + 7.2 * .1, 6.4 * (z + .07)
-        i.linea([(x0, 4.85, zz), (x0 + .3, 4.85, zz - .3), (x0 + .75, 4.85, zz + .35)], BLANCO, .16)
-    i.circulo(10.2, 9.4, 1.4, 1.1, tono(i.a, .3))
-    X, Y = P(10.2, 9.4, 1.4)
-    i.el.append(f'<polyline points="{X:.2f},{Y - .7:.2f} {X:.2f},{Y:.2f} {X + .5:.2f},{Y + .3:.2f}" fill="none" '
-                f'stroke="{OSCURO}" stroke-width=".18" stroke-linecap="round"/>')
-
-
-def engranaje(r, dientes, alto=.75):
+def engranaje(cx, cy, r, dientes, alto):
     pts = []
     for k in range(dientes * 4):
-        t = 2 * math.pi * k / (dientes * 4)
+        t = 2 * math.pi * (k + .5) / (dientes * 4)
         rr = r + (alto if k % 4 in (1, 2) else 0)
-        pts.append((rr * math.cos(t), rr * math.sin(t)))
+        pts.append((cx + rr * math.cos(t), cy + rr * math.sin(t)))
     return pts
 
 
-def e_ajustes(i):  # engranajes
-    for cx, cy, r, z, h, col in ((4.8, 4.8, 3.0, 0, 1.3, '#9aa7a1'), (8.9, 8.6, 1.8, 0, 1.0, i.a)):
-        i.sombra(cx - r, cy - r, 2 * r, 2 * r, h)
-        i.extruir([(cx + px, cy + py) for px, py in engranaje(r, 10 if r > 2 else 7)], z, h, col)
-        i.poligono(i._elipse(cx, cy, z + h + .01, r * .35, 0, 360, 24), tono(col, -.35))
+def estrella(cx, cy, r1, r2, puntas=5):
+    return [(cx + (r1 if k % 2 == 0 else r2) * math.sin(math.pi * k / puntas),
+             cy - (r1 if k % 2 == 0 else r2) * math.cos(math.pi * k / puntas)) for k in range(2 * puntas)]
 
 
-def e_generico(i):
-    edificio(i, 3.0, 3.0, 6.0, 6.0, 6.0, 3)
-    i.caja(4.6, 4.6, 6.0, 2.8, 2.8, .8, i.a, sombra=False)
+def _dentro(anillos, x, y):
+    dentro = False
+    for anillo in anillos:
+        n = len(anillo)
+        for i in range(n):
+            (x0, y0), (x1, y1) = anillo[i], anillo[(i + 1) % n]
+            if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
+                dentro = not dentro
+    return dentro
 
 
-ESCENAS = {k[2:]: v for k, v in globals().items() if k.startswith('e_') and callable(v)}
+def _txt(pts):
+    return ' '.join(f'{x:.2f},{y:.2f}' for x, y in pts)
+
+
+class Icono:
+    def __init__(self, acento):
+        self.a = acento
+        self.el, self.defs, self.puntos = [], [], []
+
+    def _grad(self, c1, c2, x2=1, y2=1):
+        gid = f'g{len(self.defs) + 1}'
+        self.defs.append(f'<linearGradient id="{gid}" x1="0" y1="0" x2="{x2}" y2="{y2}">'
+                         f'<stop offset="0" stop-color="{c1}"/><stop offset="1" stop-color="{c2}"/></linearGradient>')
+        return f'url(#{gid})'
+
+    def solido(self, anillos, color, prof=1.0):
+        """Figura plana (con huecos si hay varios anillos) con volumen: lados visibles sombreados y el frente con un
+        degradado suave."""
+        if isinstance(anillos[0][0], (int, float)):
+            anillos = [anillos]
+        ox, oy = ESPESOR[0] * prof, ESPESOR[1] * prof
+        lados = []
+        for anillo in anillos:
+            n = len(anillo)
+            for i in range(n):
+                (x0, y0), (x1, y1) = anillo[i], anillo[(i + 1) % n]
+                largo = math.hypot(x1 - x0, y1 - y0)
+                if largo < 1e-6:
+                    continue
+                nx, ny = (y1 - y0) / largo, -(x1 - x0) / largo
+                mx, my = (x0 + x1) / 2, (y0 + y1) / 2
+                if _dentro(anillos, mx + nx * .4, my + ny * .4):
+                    nx, ny = -nx, -ny
+                if nx * ox + ny * oy <= 1e-6:
+                    continue
+                f = -.08 - .26 * max(nx, 0) + .04 * max(-ny, 0)
+                lados.append((mx * ox + my * oy, [(x0, y0), (x1, y1), (x1 + ox, y1 + oy), (x0 + ox, y0 + oy)],
+                              tono(color, f)))
+                self.puntos += [(x0 + ox, y0 + oy)]
+        for _, pts, col in sorted(lados, key=lambda q: -q[0]):
+            self.el.append(f'<polygon points="{_txt(pts)}" fill="{col}" stroke="{col}" stroke-width=".35" '
+                           f'stroke-linejoin="round"/>')
+        d = ' '.join('M' + ' L'.join(f'{x:.2f},{y:.2f}' for x, y in a) + ' Z' for a in anillos)
+        self.el.append(f'<path d="{d}" fill="{self._grad(tono(color, .2), tono(color, -.06))}" fill-rule="evenodd"/>')
+        for a in anillos:
+            self.puntos += a
+
+    def plano(self, pts, color, extra=''):
+        """Detalle pintado sobre el frente (sin volumen)."""
+        self.puntos += pts
+        self.el.append(f'<polygon points="{_txt(pts)}" fill="{color}"{extra}/>')
+
+    def circulo(self, cx, cy, r, color, extra=''):
+        self.puntos += [(cx - r, cy - r), (cx + r, cy + r)]
+        self.el.append(f'<circle cx="{cx:.2f}" cy="{cy:.2f}" r="{r:.2f}" fill="{color}"{extra}/>')
+
+    def trazo(self, pts, color, ancho, extra=''):
+        self.puntos += pts
+        self.el.append(f'<polyline points="{_txt(pts)}" fill="none" stroke="{color}" stroke-width="{ancho}" '
+                       f'stroke-linecap="round" stroke-linejoin="round"{extra}/>')
+
+    def redondo(self, pts, color):
+        """Cuerpo de revolución visto de frente (cono, cilindro): degradado de izquierda (luz) a derecha (sombra)."""
+        self.puntos += pts
+        g = self._grad(tono(color, .32), tono(color, -.3), 1, 0)
+        self.el.append(f'<polygon points="{_txt(pts)}" fill="{g}"/>')
+
+    def svg(self, titulo):
+        xs, ys = [p[0] for p in self.puntos], [p[1] for p in self.puntos]
+        x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+        ancho = x1 - x0
+        sombra = (f'<ellipse cx="{(x0 + x1) / 2 - 2:.2f}" cy="{y1 + 1.5:.2f}" rx="{ancho * .42:.2f}" '
+                  f'ry="{max(ancho * .07, 2.5):.2f}" fill="url(#sombra)"/>')
+        y1 += 5
+        lado = max(x1 - x0, y1 - y0) + 6
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        defs = ('<radialGradient id="sombra"><stop offset="0" stop-color="#0f3d2e" stop-opacity=".28"/>'
+                '<stop offset="1" stop-color="#0f3d2e" stop-opacity="0"/></radialGradient>' + ''.join(self.defs))
+        return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{cx - lado / 2:.1f} {cy - lado / 2:.1f} '
+                f'{lado:.1f} {lado:.1f}" role="img" aria-label="{titulo}"><defs>{defs}</defs>{sombra}'
+                + ''.join(self.el) + '</svg>\n')
+
+
+# ---------------------------------------------------------------------------------------------------- objetos
+def i_obras(i):  # cono de tránsito
+    i.solido(rect(14, 80, 72, 9), tono(i.a, -.15), .9)
+    ap, base, rx, ry = (50, 8), 82, 26, 6.5
+
+    def anillo(t):
+        return 50 - rx * t, 50 + rx * t, 8 + (base - 8) * t
+
+    i.redondo([ap] + circ(50, base, rx, 180, 0, 24, ry)[::-1][::-1], i.a)
+    for t0, t1 in ((.3, .45), (.62, .78)):
+        _, _, y0 = anillo(t0)
+        _, _, y1 = anillo(t1)
+        banda = circ(50, y1, rx * t1, 0, 180, 18, ry * t1) + circ(50, y0, rx * t0, 180, 0, 18, ry * t0)
+        i.redondo(banda, '#f4f6f5')
+    i.plano([(46, 14), (48.5, 12), (43, 44), (39, 46)], BLANCO, ' fill-opacity=".35"')
+
+
+def i_tablero(i):  # velocímetro
+    i.solido(circ(50, 64, 40, 180, 360, 30) + [(90, 74), (10, 74)], i.a)
+    for k in range(7):
+        t = math.radians(195 + k * 25)
+        i.trazo([(50 + 29 * math.cos(t), 64 + 29 * math.sin(t)), (50 + 35 * math.cos(t), 64 + 35 * math.sin(t))],
+                BLANCO, 3.4)
+    i.plano([(47, 66), (53, 62), (75, 38)], OSCURO)
+    i.circulo(50, 64, 7, OSCURO)
+    i.circulo(50, 64, 2.6, BLANCO)
+
+
+def i_crm(i):  # tablero kanban
+    i.solido(rrect(12, 16, 76, 66, 9), i.a)
+    for col, tarjetas in enumerate((2, 3, 1)):
+        x = 20 + col * 21.5
+        for k in range(tarjetas):
+            i.plano(rrect(x, 25 + k * 16, 17, 12, 3), BLANCO, ' fill-opacity=".92"')
+
+
+def i_toma_pedido(i):  # celular
+    i.solido(rrect(28, 6, 44, 86, 9), '#2b3a33')
+    i.plano(rrect(32, 15, 36, 66, 3), tono(i.a, .1))
+    for k in range(4):
+        i.plano(rrect(36, 21 + k * 14, 28, 10, 2.5), BLANCO)
+        i.plano(rrect(38.5, 24 + k * 14, 5, 4, 1.5), i.a)
+    i.plano(rrect(44, 9.5, 12, 2.6, 1.3), '#5b6b64')
+    i.plano(rrect(43, 84.5, 14, 2.6, 1.3), '#5b6b64')
+
+
+def i_ventas(i):  # etiqueta de precio
+    cuerpo = [(34, 20), (86, 20), (86, 76), (34, 76), (12, 48)]
+    i.solido([cuerpo, circ(30, 48, 5.5, n=24)], i.a)
+    for k, w in enumerate((36, 26, 30)):
+        i.plano(rrect(44, 34 + k * 11, w, 5.5, 2.75), BLANCO)
+
+
+def i_compras(i):  # bolsa
+    asa = circ(50, 36, 17, 180, 360, 20) + circ(50, 36, 11, 360, 180, 20)
+    i.solido(asa, tono(i.a, -.25), .55)
+    i.solido(rrect(17, 34, 66, 56, 6), i.a)
+    for x in (37, 63):
+        i.circulo(x, 44, 3, tono(i.a, -.35))
+    i.plano(rrect(36, 58, 28, 6, 3), BLANCO, ' fill-opacity=".85"')
+
+
+def i_portal_proveedores(i):  # tienda
+    i.solido(rect(18, 40, 64, 48), tono(i.a, .15))
+    toldo = [(10, 24), (90, 24)] + [p for k in range(8) for p in circ(90 - 10 * k - 5, 40, 5, 0, 180, 8)]
+    i.solido(toldo, i.a, .8)
+    for k in range(0, 8, 2):
+        x = 10 + 10 * k
+        i.plano([(x, 24), (x + 10, 24)] + circ(x + 5, 40, 5, 0, 180, 8)[::-1], BLANCO)
+    i.plano(rrect(27, 56, 18, 32, 2), '#f5f8f6')
+    i.plano(rrect(52, 54, 22, 18, 2), VIDRIO)
+
+
+def i_inventario(i):  # cajas apiladas
+    for x, y in ((14, 52), (50, 52), (32, 16)):
+        i.solido(rect(x, y, 34, 34), i.a, .85)
+        i.plano(rect(x + 14, y, 6, 34), BLANCO, ' fill-opacity=".75"')
+        i.plano(rect(x + 4, y + 25, 9, 5), BLANCO, ' fill-opacity=".9"')
+
+
+def i_codigo_barras(i):  # etiqueta con barras
+    i.solido(rrect(12, 20, 76, 60, 7), i.a)
+    i.plano(rrect(20, 28, 60, 44, 3), BLANCO)
+    x = 26
+    for k, w in enumerate((3, 1.5, 4, 2, 1.5, 3.5, 2, 3, 1.5, 4, 2, 3, 1.5, 3.5)):
+        if k % 2 == 0:
+            i.plano(rect(x, 33, w, 26), OSCURO)
+        x += w + 1.4
+    i.plano(rrect(26, 62, 48, 4, 2), '#b8c4bf')
+
+
+def i_manufactura(i):  # engranaje
+    i.solido([engranaje(50, 50, 30, 9, 8), circ(50, 50, 11, n=32)], i.a)
+    i.plano(circ(50, 50, 20, n=40), BLANCO, ' fill-opacity=".14"')
+
+
+def i_planificacion(i):  # diagrama
+    for r in (rect(48, 34, 4, 14), rect(24, 46, 52, 4), rect(24, 46, 4, 12), rect(72, 46, 4, 12)):
+        i.solido(r, '#7b8a84', .45)
+    i.solido(rrect(32, 10, 36, 24, 5), i.a)
+    for x in (8, 54):
+        i.solido(rrect(x, 58, 38, 24, 5), tono(i.a, .25))
+        i.plano(rrect(x + 7, 67, 24, 5, 2.5), BLANCO)
+    i.plano(rrect(40, 19, 20, 5, 2.5), BLANCO)
+
+
+def portapapeles(i, color):
+    i.solido(rrect(20, 14, 60, 78, 7), color)
+    i.plano(rrect(27, 24, 46, 61, 3), BLANCO)
+    i.solido(rrect(37, 7, 26, 13, 4), OSCURO, .45)
+
+
+def i_control_calidad(i):  # portapapeles con visto bueno
+    portapapeles(i, i.a)
+    i.trazo([(36, 55), (46, 66), (65, 41)], i.a, 7.5)
+
+
+def i_presupuestos(i):  # portapapeles con barras
+    portapapeles(i, i.a)
+    for k, h in enumerate((16, 28, 22, 38)):
+        i.plano(rect(32 + k * 10, 78 - h, 6.5, h), i.a if k == 3 else tono(i.a, .45))
+
+
+def i_requerimientos(i):  # portapapeles con «más»
+    portapapeles(i, i.a)
+    i.plano(rrect(46, 38, 8, 34, 3), i.a)
+    i.plano(rrect(33, 51, 34, 8, 3), i.a)
+
+
+def i_mantenimiento(i):  # llave
+    mango = rrect(36, 43, 56, 14, 7)
+    cabeza = circ(24, 50, 19, 200, 520, 36) + [(15, 56.5), (15, 43.5)]
+    i.solido([girar(mango, 45), girar(circ(83, 50, 3.5, n=16), 45)], i.a)
+    i.solido(girar(cabeza, 45), i.a)
+
+
+def i_costos(i):  # calculadora
+    i.solido(rrect(22, 8, 56, 84, 8), i.a)
+    i.plano(rrect(29, 15, 42, 17, 3), '#dff3e8')
+    i.plano(rrect(46, 21, 20, 5, 2), OSCURO)
+    for a in range(3):
+        for b in range(4):
+            col = ORO if (a, b) == (2, 3) else BLANCO
+            i.plano(rrect(29 + a * 14.5, 38 + b * 12.5, 11.5, 9.5, 2.5), col)
+
+
+def i_activos(i):  # edificio con engranaje
+    i.solido(rect(20, 12, 46, 76), i.a)
+    for a in range(3):
+        for b in range(5):
+            i.plano(rect(26 + a * 13, 19 + b * 11.5, 8, 7), BLANCO, ' fill-opacity=".9"')
+    i.plano(rect(37, 76, 12, 12), OSCURO)
+    i.solido([engranaje(72, 72, 13, 7, 4.5), circ(72, 72, 5, n=20)], '#5d6d66', .6)
+
+
+def i_proyectos(i):  # lista con vistos
+    i.solido(rrect(14, 14, 72, 72, 10), i.a)
+    for k in range(3):
+        y = 31 + k * 19
+        i.trazo([(24, y), (28.5, y + 4.5), (36, y - 4)], BLANCO, 3.8)
+        i.plano(rrect(42, y - 3, 34 if k != 1 else 26, 6, 3), BLANCO)
+
+
+def i_sst(i):  # corazón con pulso
+    pts = []
+    for k in range(60):
+        t = 2 * math.pi * k / 60
+        pts.append((50 + 2.4 * 16 * math.sin(t) ** 3,
+                    44 - 2.4 * (13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t))))
+    i.solido(pts, i.a)
+    i.trazo([(20, 48), (36, 48), (42, 36), (51, 62), (58, 42), (63, 48), (80, 48)], BLANCO, 4.2)
+
+
+def i_calidad(i):  # medalla
+    for lado in (1, -1):
+        cinta = [(50 - 14 * lado, 56), (50 - 2 * lado, 60), (50 - 8 * lado, 94), (50 - 15 * lado, 86),
+                 (50 - 24 * lado, 90)]
+        i.solido(cinta if lado == 1 else cinta[::-1], tono(i.a, -.15), .5)
+    i.solido(circ(50, 38, 28, n=48), ORO)
+    i.plano(circ(50, 38, 20, n=40), tono(ORO, .25))
+    i.plano(estrella(50, 39, 12, 5), i.a)
+
+
+def i_planillas(i):  # fotocheck
+    i.solido([rrect(24, 8, 52, 84, 8), rrect(42, 14, 16, 4.5, 2.2)], i.a)
+    i.circulo(50, 40, 10, BLANCO)
+    i.plano(circ(50, 66, 17, 180, 360, 20, 11), BLANCO)
+    i.plano(rrect(34, 72, 32, 4.5, 2.2), BLANCO)
+    i.plano(rrect(39, 80, 22, 4.5, 2.2), BLANCO, ' fill-opacity=".8"')
+
+
+def i_empleados(i):  # tarjeta de empleado
+    i.solido(rrect(8, 20, 84, 60, 8), i.a)
+    i.circulo(30, 42, 8.5, BLANCO)
+    i.plano(circ(30, 64, 14, 180, 360, 20, 9.5), BLANCO)
+    for k, w in enumerate((32, 24, 28)):
+        i.plano(rrect(50, 36 + k * 11, w, 5.5, 2.7), BLANCO)
+
+
+def i_tiempo_personal(i):  # sombrilla
+    gancho = circ(41, 82, 10, 0, 180, 14) + circ(41, 82, 5.5, 180, 0, 14)
+    i.solido(rect(48, 46, 5, 36), '#45544e', .4)
+    i.solido(gancho, '#45544e', .4)
+    lona = circ(50, 50, 40, 180, 360, 30) + [p for k in range(4) for p in circ(80 - 20 * k, 50, 10, 0, -180, 10)]
+    i.solido(lona, i.a)
+    for k in (1, 3):
+        x = 10 + 20 * k
+        i.plano([(50, 10)] + circ(x + 10, 50, 10, -180, 0, 10), BLANCO, ' fill-opacity=".3"')
+
+
+def i_rendiciones(i):  # recibo y moneda
+    dientes = [(76 - 6.5 * k, 84 if k % 2 == 0 else 78) for k in range(9)]
+    i.solido([(24, 8), (76, 8)] + dientes + [(24, 84)], i.a)
+    for k, w in enumerate((36, 28, 32)):
+        i.plano(rrect(32, 20 + k * 10, w, 5, 2.5), BLANCO)
+    i.trazo([(30, 58), (70, 58)], BLANCO, 2.2, ' stroke-dasharray="4 4"')
+    i.solido(circ(72, 72, 14, n=40), ORO, .6)
+    i.plano(circ(72, 72, 9, n=30), tono(ORO, .3))
+
+
+def i_logistica(i):  # camión
+    i.solido(rrect(6, 22, 58, 46, 4), i.a)
+    i.plano(rrect(12, 38, 46, 8, 3), BLANCO, ' fill-opacity=".85"')
+    i.solido([(66, 36), (82, 36), (94, 52), (94, 68), (66, 68)], tono(i.a, -.12))
+    i.plano([(70, 41), (80, 41), (88, 52), (70, 52)], VIDRIO)
+    i.solido(rect(6, 68, 88, 5), OSCURO, .4)
+    for x in (22, 46, 80):
+        i.solido(circ(x, 76, 9.5, n=32), '#2e3b35', .55)
+        i.plano(circ(x, 76, 4, n=20), '#aab5b0')
+
+
+def i_distribucion(i):  # marcador de ubicación
+    i.solido(circ(50, 38, 30, 145, 395, 40) + [(50, 94)], i.a)
+    i.circulo(50, 38, 12, BLANCO)
+
+
+def i_flota(i):  # auto de frente
+    for x in (16, 70):
+        i.solido(rrect(x, 70, 14, 16, 3), OSCURO, .5)
+    i.solido([(27, 26), (73, 26), (85, 50), (15, 50)], tono(i.a, .1))
+    i.solido(rrect(10, 46, 80, 28, 9), i.a)
+    i.plano([(31, 31), (69, 31), (77, 47), (23, 47)], VIDRIO)
+    for x in (24, 76):
+        i.circulo(x, 59, 5.5, BLANCO)
+    i.plano(rrect(38, 56, 24, 8, 3), tono(i.a, -.35))
+
+
+def banco(i, color, bandera=False):
+    i.solido(rect(10, 80, 80, 9), '#c6d0cb', .8)
+    for k in range(4):
+        i.solido(rect(18 + k * 18.3, 44, 9, 36), '#f2f5f3', .6)
+    i.solido(rect(12, 36, 76, 8), color)
+    i.solido([(8, 36), (50, 12), (92, 36)], color)
+    i.plano([(32, 31), (50, 21), (68, 31)], BLANCO, ' fill-opacity=".35"')
+    if bandera:
+        i.solido(rect(49, 0, 2.5, 14), OSCURO, .3)
+        for k, col in enumerate((color, BLANCO, color)):
+            i.plano(rect(51.5 + k * 6, 1, 6, 9), col)
+
+
+def i_tesoreria(i):  # banco
+    banco(i, i.a)
+
+
+def i_sunat(i):  # edificio público con bandera
+    banco(i, i.a, bandera=True)
+
+
+def i_finanzas(i):  # chanchito
+    for x in (26, 58):
+        i.solido(rrect(x, 72, 12, 16, 3), tono(i.a, -.1), .6)
+    i.solido([(30, 36), (37, 18), (47, 32)], tono(i.a, -.05), .6)
+    i.solido(circ(48, 56, 35, n=56, ry=27), i.a)
+    i.solido(rrect(78, 47, 13, 17, 6), tono(i.a, .15), .5)
+    i.circulo(83, 53, 1.6, tono(i.a, -.4))
+    i.circulo(83, 58.5, 1.6, tono(i.a, -.4))
+    i.circulo(68, 46, 2.8, OSCURO)
+    i.plano(rrect(38, 33, 20, 4, 2), tono(i.a, -.45))
+    i.solido(circ(48, 17, 11, n=36), ORO, .55)
+    i.plano(circ(48, 17, 6.5, n=24), tono(ORO, .3))
+
+
+def i_contabilidad(i):  # libro con marcador
+    i.solido(rrect(27, 12, 54, 78, 4), '#f2f5f3', .8)
+    i.solido(rrect(20, 8, 56, 80, 5), i.a)
+    i.plano(rrect(20, 8, 10, 80, 4), tono(i.a, -.25))
+    i.plano(rrect(38, 28, 30, 12, 2.5), BLANCO)
+    i.plano([(56, 8), (68, 8), (68, 36), (62, 30), (56, 36)], ORO)
+
+
+def i_cliente(i):  # persona frente al monitor
+    i.solido(rrect(26, 8, 64, 46, 6), '#2b3a33')
+    i.plano(rrect(30, 12, 56, 36, 3), tono(i.a, .35))
+    i.solido(rect(54, 54, 8, 9), '#2b3a33', .5)
+    i.solido(circ(34, 96, 24, 180, 360, 24, 24), i.a, .8)
+    i.solido(circ(34, 60, 12, n=36), i.a, .8)
+
+
+def i_contactos(i):  # dos personas
+    i.solido(circ(66, 76, 21, 180, 360, 24, 19), tono(i.a, .35), .7)
+    i.solido(circ(66, 36, 12, n=36), tono(i.a, .35), .7)
+    i.solido(circ(38, 92, 25, 180, 360, 24, 23), i.a, .8)
+    i.solido(circ(38, 46, 14, n=36), i.a, .8)
+
+
+def i_consulta_ruc(i):  # lupa
+    i.solido(girar(rrect(62, 44, 34, 12, 6), 45, 62, 50), OSCURO, .6)
+    i.solido([circ(40, 40, 30, n=48), circ(40, 40, 20, n=40)], i.a)
+    i.plano(circ(40, 40, 20, n=40), VIDRIO, ' fill-opacity=".55"')
+    i.plano(circ(33, 32, 6, n=16), BLANCO, ' fill-opacity=".7"')
+
+
+def i_conversaciones(i):  # globo de diálogo
+    i.solido([(24, 62), (42, 62), (18, 86)], i.a)
+    i.solido(rrect(10, 16, 80, 54, 15), i.a)
+    for x in (32, 50, 68):
+        i.circulo(x, 43, 5.5, BLANCO)
+
+
+def i_calendario(i):  # calendario
+    i.solido(rrect(12, 16, 76, 74, 8), i.a)
+    i.plano(rrect(18, 36, 64, 48, 3), BLANCO)
+    for a in range(4):
+        for b in range(3):
+            i.plano(rrect(23 + a * 14.5, 41 + b * 14, 10, 9.5, 2), i.a if (a, b) == (2, 1) else CLARO)
+    for x in (30, 64):
+        i.solido(rrect(x, 8, 7, 18, 3.5), OSCURO, .4)
+
+
+def i_actividades(i):  # casilla con visto
+    i.solido(rrect(14, 14, 72, 72, 13), i.a)
+    i.trazo([(31, 50), (45, 64), (70, 36)], BLANCO, 9)
+
+
+def i_ajustes(i):  # engranaje
+    i.solido([engranaje(50, 50, 31, 8, 9), circ(50, 50, 12, n=32)], i.a)
+    i.plano(circ(50, 50, 21, n=40), BLANCO, ' fill-opacity=".12"')
+
+
+def i_generico(i):
+    i.solido(rrect(14, 14, 72, 72, 12), i.a)
+
+
+OBJETOS = {k[2:]: v for k, v in globals().items() if k.startswith('i_') and callable(v)}
 
 
 def generar():
@@ -666,12 +511,11 @@ def generar():
     os.makedirs(carpeta, exist_ok=True)
     for m in MODULOS:
         i = Icono(m['color'])
-        i.base()
-        ESCENAS.get(m['clave'], e_generico)(i)
+        OBJETOS.get(m['clave'], i_generico)(i)
         with open(os.path.join(carpeta, f"{m['clave']}.svg"), 'w', encoding='utf-8', newline='\n') as f:
             f.write(i.svg(m['nombre']))
-    print(f'{len(MODULOS)} íconos en {carpeta}; sin escena propia:',
-          [m['clave'] for m in MODULOS if m['clave'] not in ESCENAS] or 'ninguno')
+    print(f'{len(MODULOS)} íconos en {carpeta}; sin objeto propio:',
+          [m['clave'] for m in MODULOS if m['clave'] not in OBJETOS] or 'ninguno')
 
 
 if __name__ == '__main__':
