@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}{{ p }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">{{ p.codigo }} · {{ p.nombre }}</h1>
+  <a href="{% url 'asistente:procesos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Procesos</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card mb-3"><div class="card-header fw-semibold small">Proceso</div>
+      <form method="post" class="card-body row g-2">{% csrf_token %}<input type="hidden" name="accion" value="proceso">
+        {% for field in form %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endfor %}
+        <div class="col-12"><button class="btn btn-sm btn-primary">Guardar</button></div></form></div>
+    <div class="card"><div class="card-header fw-semibold small">Parámetros (plantilla de la ficha)</div>
+      <ul class="list-group list-group-flush small">{% for x in parametros %}<li class="list-group-item d-flex justify-content-between"><span>{{ x.nombre }}</span><span class="text-muted">{{ x.unidad }}</span></li>{% empty %}<li class="list-group-item text-muted">Sin parámetros.</li>{% endfor %}</ul>
+      <form method="post" class="card-body row g-2 border-top">{% csrf_token %}<input type="hidden" name="accion" value="parametro">
+        {% for field in form_param %}<div class="{% if field.name == 'nombre' %}col-12{% else %}col-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+        <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar parámetro</button></div></form></div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="card-header fw-semibold small">Defectos y qué parámetro se revisa</div>
+      {% for d in defectos %}<div class="card-body border-bottom small" id="defecto-{{ d.pk }}">
+        <div class="d-flex justify-content-between gap-2"><div><b>{{ d.codigo }} · {{ d.nombre }}</b>{% if not d.activo %} <span class="badge text-bg-secondary">inactivo</span>{% endif %}<div class="text-muted">{{ d.descripcion }}{% if d.sinonimos %} · también: {{ d.sinonimos }}{% endif %}</div></div>
+          <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="defecto_activo"><button name="defecto" value="{{ d.pk }}" class="btn btn-sm btn-link p-0">{% if d.activo %}Desactivar{% else %}Activar{% endif %}</button></form></div>
+        <ol class="mb-1 mt-1">{% for a in d.ajustes.all %}<li class="d-flex justify-content-between gap-2"><span>{{ a.get_sentido_display }} <b>{{ a.parametro.nombre|lower }}</b>{% if a.nota %} <span class="text-muted">· {{ a.nota }}</span>{% endif %}</span><form method="post">{% csrf_token %}<input type="hidden" name="accion" value="quitar_ajuste"><button name="ajuste" value="{{ a.pk }}" class="btn btn-sm btn-link text-danger p-0" title="Quitar"><i class="bi bi-x"></i></button></form></li>{% empty %}<li class="text-muted list-unstyled">Sin ajustes: Lucho no sugerirá parámetros para este defecto.</li>{% endfor %}</ol>
+        <form method="post" class="d-flex flex-wrap gap-1">{% csrf_token %}<input type="hidden" name="accion" value="ajuste"><input type="hidden" name="defecto" value="{{ d.pk }}">
+          <select name="sentido" class="form-select form-select-sm w-auto">{% for v, n in sentidos %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select>
+          <select name="parametro" class="form-select form-select-sm w-auto" required><option value="">parámetro…</option>{% for x in parametros %}<option value="{{ x.pk }}">{{ x.nombre }}</option>{% endfor %}</select>
+          <input name="prioridad" type="number" min="1" max="20" value="{{ d.ajustes.count|add:1 }}" class="form-control form-control-sm" style="width:70px" title="Prioridad">
+          <input name="nota" maxlength="200" class="form-control form-control-sm" style="max-width:240px" placeholder="Por qué (opcional)">
+          <button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i></button></form>
+      </div>{% empty %}<div class="card-body small text-muted">Sin defectos.</div>{% endfor %}
+      <form method="post" class="card-body row g-2">{% csrf_token %}<input type="hidden" name="accion" value="defecto">
+        {% for field in form_def %}<div class="{% if field.name == 'codigo' %}col-md-2{% elif field.name == 'nombre' %}col-md-4{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+        <div class="col-12"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Agregar defecto</button></div></form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -174,6 +174,9 @@ def orden_detalle(request, pk):
         ctx.update(_tabla_cargos(orden, horas, ctx['saldo'], trabajadores or _trabajadores_activos()))
     if ctx['puede_declarar']:
         ctx['consumo_std'] = _consumo_estandar(orden, filas, ctx['saldo'])
+        # asistente de planta: la ficha de parámetros vigente de la orden, a la vista al declarar
+        from asistente.servicios import contexto_de_orden
+        ctx['ficha_lucho'] = contexto_de_orden(orden).get('ficha')
     ctx['motivos_faltante'] = OrdenProduccion.MOTIVOS_FALTANTE[1:]
     ctx['costos_tardios'] = list(CostoTardio.objects.filter(Q(orden=orden) | Q(orden_destino=orden))
                                  .select_related('trabajador', 'centro', 'orden', 'orden_destino'))

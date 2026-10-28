@@ -100,6 +100,14 @@ ACCIONES = {
                                           'estudios de estabilidad', False),
                         ('aprobar_qa', 'Aprobación de QA: cerrar desviaciones, aprobar y cerrar cambios y retiros',
                          True)],
+    # v1.97: asistente de planta «Lucho»
+    'asistente': [('consultar', 'Preguntar a Lucho y ver fichas de parámetros, casos y manuales', False),
+                  ('registrar_caso', 'Registrar y cerrar casos de planta (merma, parada, no conformidad y aviso)',
+                   False),
+                  ('proponer_ficha', 'Crear fichas de parámetros, nuevas revisiones e importarlas desde Excel', False),
+                  ('aprobar_ficha', 'Aprobar o rechazar fichas de parámetros (ingeniería o calidad)', True),
+                  ('configurar', 'Procesos, defectos, manuales, configuración y uso inadecuado del asistente',
+                   True)],
     'mantenimiento': [('registrar', 'Equipos, planes preventivos, órdenes de mantenimiento y lecturas', False),
                       ('calibrar', 'Calibraciones y calificación (IQ/OQ/PQ) de equipos e instrumentos', False),
                       ('avisos', 'Aprobar o rechazar avisos de mantenimiento del operador', False)],
@@ -151,7 +159,7 @@ ACCIONES = {
 }
 TODAS = {f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, _ in lista}
 # acciones sensibles nuevas: nunca se dan por defecto (ni a usuarios sin perfil); el administrador las asigna
-EXPLICITAS = {'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar', 'manufactura.aprobar_cambios',
+EXPLICITAS = {'asistente.aprobar_ficha', 'requerimientos.aprobar', 'contabilidad.reabrir', 'costos.liberar', 'manufactura.aprobar_cambios',
               'costos.liquidar', 'requerimientos.liberar_solped', 'inventario.aprobar_mayor', 'obras.aprobar',
               'obras.reabrir', 'sst.validar', 'calidad.validar', 'obras.facturar',
               'inventario.fecha_anterior', 'proyectos.ver_todos',
@@ -364,6 +372,14 @@ RUTAS = {
     # v1.83: módulos nuevos
     'toma_pedido:nuevo': 'toma_pedido.registrar',
     'codigo_barras:asignar': {'POST': 'codigo_barras.asignar'},
+    # asistente de planta (Lucho)
+    **{f'asistente:{n}': 'asistente.consultar' for n in ('chat', 'casos', 'fichas', 'manuales', 'manual')},
+    'asistente:caso': {'GET': 'asistente.consultar', 'POST': 'asistente.registrar_caso'},
+    'asistente:ficha': lambda r: 'asistente.consultar' if r.method != 'POST' else (
+        'asistente.aprobar_ficha' if r.POST.get('accion') in ('aprobar', 'rechazar') else 'asistente.proponer_ficha'),
+    **{f'asistente:{n}': 'asistente.proponer_ficha' for n in ('ficha_nueva', 'ficha_editar', 'importar')},
+    **{f'asistente:{n}': 'asistente.configurar' for n in ('manual_nuevo', 'manual_editar', 'procesos', 'proceso',
+                                                          'configuracion', 'uso')},
     'distribucion:nueva': 'distribucion.programar',
     'distribucion:hoja': {'POST': 'distribucion.programar'},
     'distribucion:movil': {'POST': 'distribucion.entregar'},

@@ -119,6 +119,15 @@ body { background: var(--erp-bg); font-size: .875rem; font-family: var(--bs-font
 .apps-titulo .marca-iso { height: 54px; }
 .apps-titulo .marca-nombre { font-size: 2.6rem; }
 .apps-titulo .marca-erp { font-size: 1.05rem; }
+/* asistente de planta (Lucho) */
+.chat-lucho { max-height: 62vh; overflow-y: auto; }
+.lucho-msg { display: flex; gap: .6rem; align-items: flex-start; }
+.lucho-avatar { flex: 0 0 2.2rem; height: 2.2rem; border-radius: 50%; background: #0e7490; color: #fff; display: grid;
+  place-items: center; font-size: 1.15rem; }
+.lucho-burbuja { background: #f1f6f5; border: 1px solid #d8e6e3; border-radius: .9rem; border-top-left-radius: .2rem;
+  padding: .6rem .85rem; max-width: 88%; font-size: .9rem; }
+.usuario-burbuja { background: var(--selva); color: #fff; border-radius: .9rem; border-top-right-radius: .2rem;
+  padding: .5rem .85rem; max-width: 80%; font-size: .9rem; }
 /* chat de la barra superior */
 .chat-menu { width: min(360px, 92vw); max-height: 70vh; overflow-y: auto; }
 .chat-menu .chat-nuevo { background: #f1f6f3; }

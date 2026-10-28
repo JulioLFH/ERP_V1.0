@@ -495,6 +495,18 @@ def i_ajustes(i):  # engranaje
     i.plano(circ(50, 50, 21, n=40), BLANCO, ' fill-opacity=".12"')
 
 
+def i_asistente(i):  # Lucho: globo de diálogo con casco de planta
+    i.solido([(26, 72), (42, 72), (20, 92)], i.a)
+    i.solido(rrect(8, 36, 84, 44, 14), i.a)
+    i.solido(circ(50, 34, 24, 180, 360, 26), ORO, .7)
+    i.solido(rrect(16, 31, 68, 7, 3.5), tono(ORO, -.12), .7)
+    i.plano(rrect(47, 12, 6, 20, 3), tono(ORO, .3))
+    for x in (36, 64):
+        i.circulo(x, 54, 5.5, BLANCO)
+        i.circulo(x + 1, 55, 2.4, OSCURO)
+    i.trazo([(40, 66), (50, 71), (60, 66)], BLANCO, 3.5)
+
+
 def i_generico(i):
     i.solido(rrect(14, 14, 72, 72, 12), i.a)
 

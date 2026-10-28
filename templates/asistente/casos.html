@@ -1,0 +1,35 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Casos de planta{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Casos de planta</h1>
+  <a href="{% url 'asistente:chat' %}" class="btn btn-sm btn-primary"><i class="bi bi-robot"></i> Preguntar a Lucho</a>
+</div>
+<div class="btn-group btn-group-sm mb-2" role="group">
+  <a href="?{% qs estado='' %}" class="btn btn-outline-secondary{% if not estado %} active{% endif %}">Todos</a>
+  <a href="?{% qs estado='SIN_RESOLVER' %}" class="btn btn-outline-secondary{% if estado == 'SIN_RESOLVER' %} active{% endif %}">Sin resolver</a>
+  <a href="?{% qs estado='RESUELTO' %}" class="btn btn-outline-secondary{% if estado == 'RESUELTO' %} active{% endif %}">Resueltos</a>
+</div>
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3 small">
+  <input type="hidden" name="estado" value="{{ estado }}">
+  <div><label class="form-label mb-0">Equipo</label><select name="equipo" class="form-select form-select-sm"><option value="">Todos</option>{% for e in equipos %}<option value="{{ e.pk }}"{% if e.pk == f_equipo %} selected{% endif %}>{{ e.codigo }} {{ e.nombre }}</option>{% endfor %}</select></div>
+  <div><label class="form-label mb-0">Molde</label><select name="molde" class="form-select form-select-sm"><option value="">Todos</option>{% for e in moldes %}<option value="{{ e.pk }}"{% if e.pk == f_molde %} selected{% endif %}>{{ e.codigo }} {{ e.nombre }}</option>{% endfor %}</select></div>
+  <div><label class="form-label mb-0">Defecto</label><select name="defecto" class="form-select form-select-sm"><option value="">Todos</option>{% for d in defectos %}<option value="{{ d.pk }}"{% if d.pk == f_defecto %} selected{% endif %}>{{ d.nombre }} ({{ d.proceso.codigo }})</option>{% endfor %}</select></div>
+  <div><label class="form-label mb-0">Buscar</label><input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="N°, producto, causa, lote…"></div>
+  <button class="btn btn-sm btn-outline-primary">Filtrar</button>
+  {% if f_equipo or f_molde %}<a href="{% url 'asistente:chat' %}?equipo={% if f_molde %}{{ f_molde }}{% else %}{{ f_equipo }}{% endif %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-robot"></i> Preguntar por este {% if f_molde %}molde{% else %}equipo{% endif %}</a>
+  <a href="{% url 'manufactura:equipo' f_molde|default:f_equipo %}" class="btn btn-sm btn-outline-secondary">Ver el {% if f_molde %}molde{% else %}equipo{% endif %}</a>{% endif %}
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+  <thead><tr><th>N°</th><th>Fecha</th><th>Estado</th><th>Defecto</th><th>Producto</th><th>Equipo / molde</th><th>Orden · lote</th><th>Causa → acción</th><th class="num">Piezas</th>{% if ver_costos %}<th class="num">Costo S/</th>{% endif %}</tr></thead>
+  <tbody>{% for c in casos %}<tr data-href="{% url 'asistente:caso' c.pk %}">
+    <td><a href="{% url 'asistente:caso' c.pk %}">{{ c.numero }}</a></td><td>{{ c.creado|date:'d/m/Y' }}</td>
+    <td><span class="badge text-bg-{% if c.estado == 'RESUELTO' %}success{% elif c.estado == 'PENDIENTE' %}warning{% else %}secondary{% endif %}">{{ c.get_estado_display }}</span></td>
+    <td>{{ c.defecto|default:'—' }}</td><td>{{ c.producto.nombre|default:'—'|truncatechars:30 }}</td>
+    <td>{{ c.equipo.nombre|default:'—' }}{% if c.molde %} · {{ c.molde.nombre }}{% endif %}</td>
+    <td>{{ c.orden.numero|default:'' }}{% if c.lote %} · {{ c.lote }}{% endif %}</td>
+    <td>{% if c.causa %}{{ c.causa|truncatechars:40 }} → {{ c.accion|truncatechars:40 }}{% endif %}</td>
+    <td class="num">{{ c.piezas_perdidas|money }}</td>{% if ver_costos %}<td class="num">{{ c.costo|money }}</td>{% endif %}
+  </tr>{% empty %}<tr><td colspan="10" class="text-muted">Aún no hay casos con estos filtros.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

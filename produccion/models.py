@@ -912,7 +912,8 @@ class Equipo(models.Model):
     """Maestro único de equipos y flota (FLO-01): máquinas de planta, vehículos, montacargas y herramientas. Lo usan
     las guías (el vehículo de Logística es un equipo de tipo vehículo), el mantenimiento, las paradas y los activos."""
     TIPOS = [('MAQUINA', 'Máquina / equipo de planta'), ('VEHICULO', 'Vehículo'), ('MONTACARGAS', 'Montacargas'),
-             ('MAQ_PESADA', 'Maquinaria pesada'), ('HERRAMIENTA', 'Herramienta'), ('OTRO', 'Otro')]
+             ('MAQ_PESADA', 'Maquinaria pesada'), ('HERRAMIENTA', 'Herramienta'),
+             ('MOLDE', 'Molde / herramental de proceso'), ('OTRO', 'Otro')]
     ESTADOS = [('OPERATIVO', 'Operativo'), ('MANTENIMIENTO', 'En mantenimiento'), ('INOPERATIVO', 'Inoperativo'),
                ('BAJA', 'De baja')]
     COMBUSTIBLES = [('', '—'), ('DIESEL', 'Diésel'), ('GASOLINA', 'Gasolina'), ('GLP', 'GLP'), ('GNV', 'GNV'),
@@ -926,6 +927,9 @@ class Equipo(models.Model):
     activo_fijo = models.ForeignKey('activos.ActivoFijo', on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='+', verbose_name='Activo fijo')
     marca_modelo = models.CharField('Marca / modelo', max_length=120, blank=True)
+    # asistente de planta: el manual y los parámetros del equipo (o molde) los respalda su fabricante o proveedor
+    fabricante = models.ForeignKey('core.Tercero', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                   verbose_name='Fabricante / proveedor')
     placa = models.CharField(max_length=10, blank=True)
     serie = models.CharField('Chasis / N° de serie', max_length=40, blank=True)
     anio = models.PositiveSmallIntegerField('Año', null=True, blank=True)

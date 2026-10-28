@@ -1,0 +1,86 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Preguntar a Lucho{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0"><i class="bi bi-robot"></i> Lucho, el asistente de planta</h1>
+  <div class="d-flex gap-2">
+    {% if caso %}<a href="{% url 'asistente:chat' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Nueva consulta</a>{% endif %}
+    <a href="{% url 'asistente:casos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-journal-check"></i> Casos</a>
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card mb-3"><div class="card-header fw-semibold small"><i class="bi bi-crosshair"></i> Lo que Lucho sabe de su trabajo</div>
+      {% if caso %}
+      <div class="card-body small">
+        <div class="mb-1"><b>Caso {{ caso.numero }}</b> <span class="badge text-bg-{% if caso.estado == 'RESUELTO' %}success{% elif caso.estado == 'PENDIENTE' %}warning{% else %}secondary{% endif %}">{{ caso.get_estado_display }}</span></div>
+        {% if ctx.orden %}<div>Orden <a href="{% url 'manufactura:orden' ctx.orden.pk %}">{{ ctx.orden.numero }}</a></div>{% endif %}
+        <div>Producto: {{ ctx.producto.nombre|default:'—' }}</div>
+        <div>Equipo: {{ ctx.equipo.nombre|default:'—' }}{% if ctx.molde %} · molde {{ ctx.molde.nombre }}{% endif %}</div>
+        <div>Proceso: {{ ctx.proceso|default:'—' }}{% if ctx.lote %} · lote {{ ctx.lote }}{% endif %}</div>
+        {% if ctx.material %}<div>Material: {{ ctx.material.nombre }}</div>{% endif %}
+      </div>
+      {% else %}
+      <form method="get" class="card-body row g-2 small">
+        <div class="col-12"><label class="form-label mb-1">Orden de producción abierta</label>
+          <select name="orden" class="form-select form-select-sm" data-autoenvio><option value="">— sin orden —</option>{% for o in ordenes %}<option value="{{ o.pk }}"{% if ctx.orden and ctx.orden.pk == o.pk %} selected{% endif %}>{{ o.numero }} · {{ o.producto.nombre|truncatechars:40 }}</option>{% endfor %}</select>
+          <div class="form-text">Con la orden, Lucho toma el producto, el equipo, el proceso y el lote sin que los escriba.</div></div>
+        {% if not ctx.orden %}
+        <div class="col-12"><label class="form-label mb-1">Producto</label><select name="producto" class="form-select form-select-sm" data-opciones="{% url 'opciones' 'productos' %}"><option value="">---------</option>{% if ctx.producto %}<option value="{{ ctx.producto.pk }}" selected>{{ ctx.producto.codigo }} {{ ctx.producto.nombre }}</option>{% endif %}</select></div>
+        <div class="col-12"><label class="form-label mb-1">Proceso</label><select name="proceso" class="form-select form-select-sm"><option value="">—</option>{% for p in procesos %}<option value="{{ p.pk }}"{% if ctx.proceso and ctx.proceso.pk == p.pk %} selected{% endif %}>{{ p.nombre }}</option>{% endfor %}</select></div>
+        {% endif %}
+        <div class="col-12"><label class="form-label mb-1">Equipo / máquina</label><select name="equipo" class="form-select form-select-sm">{% if ctx.orden and ctx.equipos %}{% for e in ctx.equipos %}<option value="{{ e.pk }}"{% if ctx.equipo and ctx.equipo.pk == e.pk %} selected{% endif %}>{{ e.codigo }} {{ e.nombre }}</option>{% endfor %}{% else %}<option value="">—</option>{% for e in equipos %}<option value="{{ e.pk }}"{% if ctx.equipo and ctx.equipo.pk == e.pk %} selected{% endif %}>{{ e.codigo }} {{ e.nombre }}</option>{% endfor %}{% endif %}</select></div>
+        <div class="col-12"><button class="btn btn-sm btn-outline-primary w-100">Usar este contexto</button></div>
+        {% if ctx.orden %}<div class="col-12 text-muted">Producto: <b>{{ ctx.producto.nombre }}</b>{% if ctx.proceso %} · proceso {{ ctx.proceso }}{% endif %}{% if ctx.lote %} · lote {{ ctx.lote }}{% endif %}{% if ctx.material %} · material {{ ctx.material.nombre }}{% endif %}</div>{% endif %}
+      </form>
+      {% endif %}
+    </div>
+    <div class="card mb-3"><div class="card-header fw-semibold small d-flex justify-content-between"><span><i class="bi bi-sliders"></i> Ficha de parámetros vigente</span>{% if ctx.ficha %}<a href="{% url 'asistente:ficha' ctx.ficha.pk %}">{{ ctx.ficha }}</a>{% endif %}</div>
+      {% if ctx.ficha %}<div class="table-responsive"><table class="table table-sm mb-0 small">
+        <thead><tr><th>Parámetro</th><th class="num">Mín.</th><th class="num">Objetivo</th><th class="num">Máx.</th></tr></thead>
+        <tbody>{% for s in ctx.ficha.setpoints.all %}<tr><td>{{ s.nombre }}</td><td class="num">{{ s.minimo|floatformat:'-3' }}</td><td class="num fw-semibold">{{ s.objetivo|floatformat:'-3' }} {{ s.unidad }}</td><td class="num">{{ s.maximo|floatformat:'-3' }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+      {% else %}<div class="card-body small text-muted">{% if ctx.equipo and ctx.producto %}No hay ficha vigente para {{ ctx.producto.nombre }} en {{ ctx.equipo.nombre }}: Lucho no dará valores.{% else %}Elija la orden (o el producto y el equipo).{% endif %}</div>{% endif %}
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body chat-lucho" id="conversacion">
+        {% if not consultas %}<div class="lucho-msg"><div class="lucho-avatar"><i class="bi bi-robot"></i></div><div class="lucho-burbuja">Hola, soy Lucho. Tome una foto del defecto y elija qué ve (o escríbalo en una línea): le respondo con la ficha validada, los casos resueltos y los manuales de su equipo. Solo uso fuentes validadas de la empresa.</div></div>{% endif %}
+        {% for c in consultas %}
+        <div class="d-flex justify-content-end mb-2"><div class="usuario-burbuja">{% if c.con_foto %}<i class="bi bi-camera"></i> Foto · {% endif %}{% if c.defecto %}<b>{{ c.defecto }}</b>{% if c.pregunta %} · {% endif %}{% endif %}{{ c.pregunta|default:'' }}{% if not c.pregunta and not c.defecto and not c.con_foto %}…{% endif %}<div class="small opacity-75">{{ c.usuario.get_full_name|default:c.usuario.username }} · {{ c.creado|date:'d/m H:i' }}</div></div></div>
+        <div class="lucho-msg mb-3"><div class="lucho-avatar"><i class="bi bi-robot"></i></div><div class="lucho-burbuja"><div style="white-space: pre-wrap">{{ c.respuesta }}</div>
+          {% if c.fuentes %}<div class="mt-2 small">{% for f in c.fuentes %}<a href="{{ f.url }}" class="badge text-bg-light border text-decoration-none me-1"><i class="bi bi-{% if f.tipo == 'Ficha' %}sliders{% elif f.tipo == 'Caso' %}journal-check{% else %}book{% endif %}"></i> {{ f.tipo }}: {{ f.texto|truncatechars:50 }}</a>{% endfor %}</div>{% endif %}</div></div>
+        {% endfor %}
+        {% if caso and caso.estado == 'PENDIENTE' and consultas %}
+        <div class="lucho-msg" id="fin"><div class="lucho-avatar"><i class="bi bi-robot"></i></div><div class="lucho-burbuja"><b>¿Se resolvió su consulta?</b>
+          <div class="d-flex flex-wrap gap-2 mt-2">{% if puede_registrar %}<a href="{% url 'asistente:caso' caso.pk %}?resuelto=1#cerrar" class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Sí, registrar el caso</a><a href="{% url 'asistente:caso' caso.pk %}?resuelto=0#cerrar" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i> No, escalar</a>{% endif %}<span class="small text-muted align-self-center">o cuénteme qué pasó después del ajuste.</span></div></div></div>
+        {% elif caso %}<div class="alert alert-light border small mb-0" id="fin">Caso {{ caso.get_estado_display|lower }}. <a href="{% url 'asistente:caso' caso.pk %}">Ver el caso</a></div>{% endif %}
+      </div>
+      {% if not caso or caso.estado == 'PENDIENTE' %}
+      <form method="post" enctype="multipart/form-data" class="card-footer">{% csrf_token %}
+        {% if caso %}<input type="hidden" name="caso" value="{{ caso.pk }}">{% else %}{% if ctx.orden %}<input type="hidden" name="orden" value="{{ ctx.orden.pk }}">{% endif %}{% if ctx.equipo %}<input type="hidden" name="equipo" value="{{ ctx.equipo.pk }}">{% endif %}{% if ctx.producto and not ctx.orden %}<input type="hidden" name="producto" value="{{ ctx.producto.pk }}">{% endif %}{% if ctx.proceso and not ctx.orden %}<input type="hidden" name="proceso" value="{{ ctx.proceso.pk }}">{% endif %}{% endif %}
+        {% if defectos %}<div class="mb-2 d-flex flex-wrap gap-1 small" role="group" aria-label="Defecto">{% for d in defectos %}<input type="radio" class="btn-check" name="defecto" value="{{ d.pk }}" id="def-{{ d.pk }}" autocomplete="off"><label class="btn btn-sm btn-outline-secondary" for="def-{{ d.pk }}" title="{{ d.descripcion }}">{{ d.nombre }}</label>{% endfor %}</div>{% endif %}
+        <div class="d-flex gap-2 align-items-end">
+          <label class="btn btn-outline-primary mb-0 text-nowrap" title="Tomar o elegir la foto del defecto"><i class="bi bi-camera"></i> <span class="d-none d-sm-inline">Foto</span><input type="file" name="foto" accept="image/*" capture="environment" class="d-none" data-foto-lucho></label>
+          <textarea name="texto" rows="2" maxlength="2000" class="form-control" placeholder="Opcional: describa el problema o lo que pasó después del ajuste"></textarea>
+          <button class="btn btn-primary"><i class="bi bi-send"></i></button>
+        </div>
+        <div class="small text-muted mt-1" data-foto-nombre></div>
+      </form>
+      {% endif %}
+    </div>
+    <p class="small text-muted mt-2 mb-0"><i class="bi bi-shield-check"></i> Lucho solo responde con fichas validadas, casos resueltos y manuales de la empresa; sin una fuente validada no da valores. Toda consulta queda registrada.</p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+document.querySelectorAll('[data-foto-lucho]').forEach((inp) => inp.addEventListener('change', () => {
+  const caja = inp.closest('form').querySelector('[data-foto-nombre]');
+  caja.textContent = inp.files.length ? `Foto lista: ${inp.files[0].name}` : '';
+}));
+const conv = document.getElementById('conversacion');
+if (conv) conv.scrollTop = conv.scrollHeight;
+</script>
+{% endblock %}

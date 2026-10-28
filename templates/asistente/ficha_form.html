@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}{% if ficha.pk %}Editar ficha {{ ficha }}{% else %}Nueva ficha de parámetros{% endif %}{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">{% if ficha.pk %}Editar ficha {{ ficha }}{% else %}Nueva ficha de parámetros{% endif %}</h1>
+{% if not ficha.pk %}<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3 small">
+  <div><label class="form-label mb-0">Cargar los parámetros del proceso</label><select name="proceso" class="form-select form-select-sm" data-autoenvio><option value="">— elija —</option>{% for p in procesos %}<option value="{{ p.pk }}"{% if request.GET.proceso == p.pk|stringformat:'s' %} selected{% endif %}>{{ p.nombre }}</option>{% endfor %}</select></div>
+</form>{% endif %}
+<form method="post" class="card"><div class="card-body row g-3">{% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1 small mb-0">{{ e }}</div>{% endfor %}
+  {% for field in form %}<div class="{% if field.name == 'nota' %}col-12{% else %}col-md-3{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+  <div class="col-12">
+    <label class="form-label small mb-1">Parámetros (setpoints) <span class="text-muted">mínimo ≤ objetivo ≤ máximo; las filas vacías no se guardan</span></label>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-1">
+      <thead><tr><th>Parámetro</th><th style="width:90px">Unidad</th><th class="num" style="width:110px">Mínimo</th><th class="num" style="width:110px">Objetivo</th><th class="num" style="width:110px">Máximo</th><th>Nota / fuente</th><th></th></tr></thead>
+      <tbody id="filas-sp" data-siguiente="{{ siguiente }}">{% for s in filas %}{% include 'asistente/_fila_setpoint.html' with i=forloop.counter0 %}{% endfor %}</tbody>
+    </table></div>
+    <template id="fila-sp">{% include 'asistente/_fila_setpoint.html' with i='__N__' s=None %}</template>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-agregar-fila="#fila-sp" data-destino="#filas-sp"><i class="bi bi-plus-lg"></i> Agregar parámetro</button>
+  </div>
+  <div class="col-12 d-flex flex-wrap gap-2">
+    <button class="btn btn-outline-primary"><i class="bi bi-save"></i> Guardar borrador</button>
+    <button name="proponer" value="1" class="btn btn-primary"><i class="bi bi-send"></i> Guardar y enviar a aprobación</button>
+    <a href="{% if ficha.pk %}{% url 'asistente:ficha' ficha.pk %}{% else %}{% url 'asistente:fichas' %}{% endif %}" class="btn btn-outline-secondary">Cancelar</a>
+  </div>
+</div></form>
+<p class="small text-muted mt-2">Una ficha es el estándar validado de producto × equipo (y molde) × proceso. Solo entra en vigencia cuando otra persona de ingeniería o calidad la aprueba; la vigente anterior queda retirada.</p>
+{% endblock %}

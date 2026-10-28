@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Manuales y conocimiento{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Manuales y conocimiento</h1>
+  {% if puede.asistente_configurar %}<a href="{% url 'asistente:manual_nuevo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nuevo</a>{% endif %}
+</div>
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3 small">
+  <div><label class="form-label mb-0">Tipo</label><select name="tipo" class="form-select form-select-sm"><option value="">Todos</option>{% for v, n in tipos %}<option value="{{ v }}"{% if v == tipo %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div><label class="form-label mb-0">Buscar</label><input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Título, equipo, material, fabricante, texto"></div>
+  <button class="btn btn-sm btn-outline-primary">Filtrar</button>
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+  <thead><tr><th>Título</th><th>Tipo</th><th>Equipo / puesto</th><th>Material</th><th>Proceso</th><th>Fabricante / proveedor</th><th>Validado</th></tr></thead>
+  <tbody>{% for m in manuales %}<tr data-href="{% url 'asistente:manual' m.pk %}">
+    <td><a href="{% url 'asistente:manual' m.pk %}">{{ m.titulo }}</a></td><td>{{ m.get_tipo_display }}</td>
+    <td>{{ m.equipo.nombre|default:'' }}{% if m.puesto %}{% if m.equipo %} · {% endif %}{{ m.puesto }}{% endif %}</td>
+    <td>{{ m.material.nombre|default:'' }}</td><td>{{ m.proceso|default:'' }}</td><td>{{ m.fabricante.nombre|default:'' }}</td>
+    <td>{% if m.validado %}<i class="bi bi-patch-check-fill text-success" title="Lucho lo cita"></i>{% else %}<span class="text-muted">No</span>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="7" class="text-muted">Aún no hay manuales: cargue los del fabricante de cada equipo y las fichas técnicas de los materiales.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

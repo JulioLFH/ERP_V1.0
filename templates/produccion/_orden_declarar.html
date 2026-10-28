@@ -48,6 +48,10 @@
     </div>
 
     <div class="col-12 fw-semibold text-primary mt-3">3. Horas y drivers</div>
+    {% if ficha_lucho %}<div class="col-12"><details class="border rounded px-2 py-1"><summary><i class="bi bi-sliders"></i> Ficha de parámetros vigente {% if 'asistente' in mods %}<a href="{% url 'asistente:ficha' ficha_lucho.pk %}">{{ ficha_lucho }}</a>{% else %}{{ ficha_lucho }}{% endif %} · {{ ficha_lucho.equipo.nombre }}{% if ficha_lucho.molde %} · {{ ficha_lucho.molde.nombre }}{% endif %}</summary>
+      <div class="table-responsive"><table class="table table-sm mb-1"><thead><tr><th>Parámetro</th><th class="num">Mín.</th><th class="num">Objetivo</th><th class="num">Máx.</th></tr></thead>
+      <tbody>{% for s in ficha_lucho.setpoints.all %}<tr><td>{{ s.nombre }}</td><td class="num">{{ s.minimo|floatformat:'-3' }}</td><td class="num fw-semibold">{{ s.objetivo|floatformat:'-3' }} {{ s.unidad }}</td><td class="num">{{ s.maximo|floatformat:'-3' }}</td></tr>{% endfor %}</tbody></table></div></details></div>{% endif %}
+    {% if 'asistente' in mods %}<div class="col-12"><a href="{% url 'asistente:chat' %}?orden={{ o.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-robot"></i> ¿Un defecto? Preguntar a Lucho</a></div>{% endif %}
     {% if filas_cargo %}
     <div class="col-12">
       {% for h in horas %}<input type="hidden" name="cargo-op-{{ h.pk }}" value="1">{% endfor %}

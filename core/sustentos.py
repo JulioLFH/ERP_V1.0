@@ -12,6 +12,9 @@ MAX_BYTES = 5 * 1024 * 1024
 EXTENSIONES = ('.pdf', '.png', '.jpg', '.jpeg', '.webp', '.xlsx', '.xls', '.xml', '.zip', '.docx', '.doc', '.csv')
 # modelo -> módulo que puede ver y adjuntar sus sustentos
 MODULO_DE = {'contabilidad.asiento': 'contabilidad', 'finanzas.movimiento': 'tesoreria', 'finanzas.cuenta': 'tesoreria',
+             # v1.97: fotos del defecto y de parámetros, manuales y respaldos de la ficha (asistente de planta)
+             'asistente.casoplanta': 'asistente', 'asistente.manual': 'asistente',
+             'asistente.fichaparametros': 'asistente',
              'inventario.operacion': 'inventario', 'ventas.venta': 'ventas', 'compras.compra': 'compras',
              'compras.ordencompra': 'compras', 'logistica.guiaremision': 'logistica',
              'produccion.ordenproduccion': 'manufactura', 'activos.activofijo': 'activos',

@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}{{ m.titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title mb-0"><i class="bi bi-book"></i> {{ m.titulo }}</h1>
+    <div class="small text-muted">{{ m.get_tipo_display }}{% if m.validado %} · <span class="text-success"><i class="bi bi-patch-check-fill"></i> Validado (Lucho lo cita)</span>{% else %} · sin validar (Lucho no lo cita){% endif %}{% if not m.activo %} · inactivo{% endif %}</div></div>
+  <div class="d-flex gap-2"><a href="{% url 'asistente:manuales' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Manuales</a>
+    {% if puede.asistente_configurar %}<a href="{% url 'asistente:manual_editar' m.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}</div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="card-header fw-semibold small">Puntos clave</div><div class="card-body small" style="white-space: pre-wrap">{{ m.contenido|default:'—' }}</div></div>
+    {% include 'core/_sustentos.html' with objeto=m %}
+  </div>
+  <div class="col-lg-4"><div class="card"><div class="card-body small">
+    {% if m.equipo %}<div>Equipo: <a href="{% url 'manufactura:equipo' m.equipo.pk %}">{{ m.equipo.nombre }}</a></div>{% endif %}
+    {% if m.puesto %}<div>Puesto: {{ m.puesto }}</div>{% endif %}
+    {% if m.material %}<div>Material: {{ m.material.codigo }} {{ m.material.nombre }}</div>{% endif %}
+    {% if m.proceso %}<div>Proceso: {{ m.proceso }}</div>{% endif %}
+    {% if m.fabricante %}<div>Fabricante / proveedor: <b>{{ m.fabricante.nombre }}</b></div>{% endif %}
+    {% if m.documento %}<div>Documento controlado: <a href="{{ m.documento.get_absolute_url }}">{{ m.documento.codigo }}</a></div>{% endif %}
+  </div></div></div>
+</div>
+{% endblock %}

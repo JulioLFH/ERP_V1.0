@@ -424,6 +424,18 @@ M['manufactura'] = {
             'Para una orden simple, <b>Terminar en un paso</b> ingresa el producto y cierra la orden con su costo '
             'real.',
         ], 'Producto terminado en stock con su costo; a fin de mes lo no declarado queda como productos en proceso.'),
+        ('Asistente de planta (Lucho)', [
+            'Ingeniería carga los procesos (o los de ejemplo: inyección, extrusión, mezclado, empaque) con sus '
+            'parámetros y defectos, y qué parámetro se revisa ante cada defecto (<b>Asistente › Configuración</b>).',
+            'Cada estándar es una <b>ficha de parámetros</b> de producto × equipo (y molde) × proceso, con mínimo, '
+            'objetivo y máximo; la aprueba otra persona y queda una sola vigente (también se importan desde Excel).',
+            'Se cargan los manuales del fabricante y las fichas técnicas del material, amarrados al equipo, puesto o '
+            'material; Lucho solo cita los validados.',
+            'Al pie de la máquina, con la orden abierta, el operario toma la foto, elige el defecto (o lo escribe) y '
+            'Lucho responde con la ficha, los casos resueltos y los manuales; sin fuente validada no da valores.',
+            'Al cerrar el caso: causa, acción, piezas perdidas (merma a la orden con su costo), parada, no conformidad '
+            'y aviso de mantenimiento; si los parámetros reales salen de la ficha se propone una revisión nueva.',
+        ], 'El conocimiento queda en la empresa y cada defecto queda con su causa, su acción y su costo.'),
     ],
     'pantallas': {
         'Órdenes de producción': 'Órdenes con su estado, avance y costo.',

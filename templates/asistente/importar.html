@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Importar fichas de parámetros{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Importar fichas de parámetros desde Excel</h1>
+<div class="card" style="max-width: 760px"><div class="card-body small">
+  <ol class="mb-3">
+    <li>Descargue la <a href="?plantilla=1"><i class="bi bi-file-earmark-excel"></i> plantilla</a> (la hoja «Códigos» trae los procesos).</li>
+    <li>Llene una fila por parámetro: {{ columnas|join:', ' }}.</li>
+    <li>Las filas del mismo producto, equipo, molde y proceso forman una ficha; cada ficha entra como nueva revisión <b>por aprobar</b>.</li>
+    <li>Se valida todo antes de grabar (códigos que existen, mínimo ≤ objetivo ≤ máximo, unidad): si una fila falla, no se graba nada y se indica la fila.</li>
+  </ol>
+  <form method="post" enctype="multipart/form-data" class="d-flex gap-2">{% csrf_token %}
+    <input type="file" name="archivo" accept=".xlsx" required class="form-control form-control-sm">
+    <button class="btn btn-sm btn-primary text-nowrap"><i class="bi bi-upload"></i> Importar</button>
+  </form>
+</div></div>
+{% endblock %}

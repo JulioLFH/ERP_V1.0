@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">{{ titulo }}</h1>
+<div class="card" style="max-width: 900px"><div class="card-body">
+  <form method="post" class="row g-3">{% csrf_token %}
+    {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1 small">{{ e }}</div>{% endfor %}
+    {% for field in form %}<div class="{% if field.name in anchos %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+    <div class="col-12 d-flex gap-2">
+      <button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button>
+      <a href="{{ cancelar }}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+  </form>
+</div></div>
+{% if ayuda %}<p class="small text-muted mt-2" style="max-width: 900px">{{ ayuda }}</p>{% endif %}
+{% endblock %}

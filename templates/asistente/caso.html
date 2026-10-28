@@ -1,0 +1,78 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Caso {{ c.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div><h1 class="page-title mb-0"><i class="bi bi-journal-check"></i> Caso de planta {{ c.numero }}
+    <span class="badge fs-6 align-middle text-bg-{% if c.estado == 'RESUELTO' %}success{% elif c.estado == 'PENDIENTE' %}warning{% else %}secondary{% endif %}">{{ c.get_estado_display }}</span></h1>
+    <div class="small text-muted">{{ c.creado|date:'d/m/Y H:i' }}{% if c.autor %} · {{ c.autor.get_full_name|default:c.autor.username }}{% endif %}</div></div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'asistente:casos' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Casos</a>
+    {% if c.estado == 'PENDIENTE' %}<a href="{% url 'asistente:chat' %}?caso={{ c.pk }}#fin" class="btn btn-sm btn-primary"><i class="bi bi-robot"></i> Seguir con Lucho</a>{% endif %}
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card mb-3"><div class="card-body row g-2 small">
+      <div class="col-md-4"><div class="text-muted">Defecto</div><b>{{ c.defecto|default:'—' }}</b></div>
+      <div class="col-md-4"><div class="text-muted">Producto</div>{{ c.producto.nombre|default:'—' }}</div>
+      <div class="col-md-4"><div class="text-muted">Equipo / molde</div>{% if c.equipo %}<a href="{% url 'manufactura:equipo' c.equipo.pk %}">{{ c.equipo.nombre }}</a>{% else %}—{% endif %}{% if c.molde %} · <a href="{% url 'manufactura:equipo' c.molde.pk %}">{{ c.molde.nombre }}</a>{% endif %}</div>
+      <div class="col-md-4"><div class="text-muted">Orden</div>{% if c.orden %}<a href="{% url 'manufactura:orden' c.orden.pk %}">{{ c.orden.numero }}</a>{% else %}—{% endif %}</div>
+      <div class="col-md-4"><div class="text-muted">Lote</div>{{ c.lote|default:'—' }}</div>
+      <div class="col-md-4"><div class="text-muted">Ficha usada</div>{% if c.ficha %}<a href="{% url 'asistente:ficha' c.ficha.pk %}">{{ c.ficha }}</a>{% else %}—{% endif %}</div>
+      {% if c.problema %}<div class="col-12"><div class="text-muted">Problema</div>{{ c.problema|linebreaksbr }}</div>{% endif %}
+      {% if c.estado != 'PENDIENTE' %}
+      <div class="col-md-6"><div class="text-muted">Causa</div>{{ c.causa|default:'—'|linebreaksbr }}</div>
+      <div class="col-md-6"><div class="text-muted">Acción</div>{{ c.accion|default:'—'|linebreaksbr }}</div>
+      {% if c.resultado %}<div class="col-12"><div class="text-muted">Resultado</div>{{ c.resultado|linebreaksbr }}</div>{% endif %}
+      <div class="col-md-3"><div class="text-muted">Piezas perdidas</div>{{ c.piezas_perdidas|money }}</div>
+      {% if ver_costos %}<div class="col-md-3"><div class="text-muted">Costo del defecto</div><b>S/ {{ c.costo|money }}</b></div>{% endif %}
+      <div class="col-md-3"><div class="text-muted">Duración</div>{{ c.minutos }} min</div>
+      <div class="col-md-3"><div class="text-muted">Merma a la orden</div>{% if c.merma_registrada %}<i class="bi bi-check-circle text-success"></i> Registrada{% else %}—{% endif %}</div>
+      {% if c.parametros_reales %}<div class="col-12"><div class="text-muted">Parámetros que resolvieron</div>{% for p in c.parametros_reales %}<span class="badge text-bg-light border me-1">{{ p.nombre }}: {{ p.valor }}</span>{% endfor %}</div>{% endif %}
+      <div class="col-12">{% if c.parada %}<span class="badge text-bg-light border"><i class="bi bi-pause-circle"></i> Parada {{ c.parada.motivo }} ({{ c.parada.horas }} h)</span>{% endif %}
+        {% if c.no_conformidad %} <a class="badge text-bg-light border text-decoration-none" href="{{ c.no_conformidad.get_absolute_url }}"><i class="bi bi-exclamation-diamond"></i> {{ c.no_conformidad.codigo }}</a>{% endif %}
+        {% if c.aviso %} <span class="badge text-bg-light border"><i class="bi bi-megaphone"></i> Aviso {{ c.aviso.numero }}</span>{% endif %}
+        {% for f in propuestas %} <a class="badge text-bg-warning text-decoration-none" href="{% url 'asistente:ficha' f.pk %}"><i class="bi bi-sliders"></i> Propuesta {{ f }} ({{ f.get_estado_display|lower }})</a>{% endfor %}</div>
+      {% endif %}
+    </div></div>
+
+    {% if c.estado == 'PENDIENTE' and puede.asistente_registrar_caso %}
+    <div class="card mb-3 border-primary" id="cerrar"><div class="card-header fw-semibold"><i class="bi bi-check2-square"></i> Cerrar el caso</div>
+      <form method="post" enctype="multipart/form-data" class="card-body row g-2 small">{% csrf_token %}
+        <div class="col-12 d-flex gap-3">
+          <div class="form-check"><input class="form-check-input" type="radio" name="resuelto" value="1" id="r-si"{% if request.GET.resuelto != '0' %} checked{% endif %}><label class="form-check-label" for="r-si"><b>Se resolvió</b></label></div>
+          <div class="form-check"><input class="form-check-input" type="radio" name="resuelto" value="0" id="r-no"{% if request.GET.resuelto == '0' %} checked{% endif %}><label class="form-check-label" for="r-no"><b>No se resolvió</b> (escalar)</label></div>
+        </div>
+        <div class="col-md-4"><label class="form-label mb-1">Defecto <span class="text-danger">*</span></label><select name="defecto" class="form-select form-select-sm"><option value="">—</option>{% for d in defectos %}<option value="{{ d.pk }}"{% if c.defecto_id == d.pk %} selected{% endif %}>{{ d.nombre }}</option>{% endfor %}</select></div>
+        <div class="col-md-4"><label class="form-label mb-1">Piezas perdidas</label><input name="piezas" inputmode="decimal" class="form-control form-control-sm text-end" placeholder="0"><div class="form-text">{% if c.orden %}Van a la orden {{ c.orden.numero }} como merma.{% else %}Sin orden: solo quedan en el caso.{% endif %}</div></div>
+        <div class="col-md-4"><label class="form-label mb-1">Duración (min)</label><input name="minutos" inputmode="numeric" class="form-control form-control-sm text-end" placeholder="0"></div>
+        <div class="col-md-6"><label class="form-label mb-1">Causa <span class="text-danger">*</span></label><textarea name="causa" rows="2" class="form-control form-control-sm" placeholder="Ej. la masa llegaba muy caliente al final del llenado"></textarea></div>
+        <div class="col-md-6"><label class="form-label mb-1">Acción (ajuste realizado) <span class="text-danger">*</span></label><textarea name="accion" rows="2" class="form-control form-control-sm" placeholder="Ej. bajé la velocidad de inyección de 70 % a 60 %"></textarea></div>
+        <div class="col-12"><label class="form-label mb-1">Resultado</label><input name="resultado" maxlength="500" class="form-control form-control-sm"></div>
+        <div class="col-12"><label class="form-label mb-1">Parámetros que resolvieron (valores reales de la máquina)</label>
+          <div class="table-responsive"><table class="table table-sm align-middle mb-1"><thead><tr><th>Parámetro</th><th class="num" style="width:140px">Valor real</th><th class="text-muted">Ficha</th></tr></thead><tbody>
+          {% for s in filas_param %}<tr><td><input name="param_nombre_{{ forloop.counter0 }}" value="{{ s.nombre|default:'' }}" class="form-control form-control-sm"{% if s %} readonly{% endif %}></td><td><input name="param_valor_{{ forloop.counter0 }}" inputmode="decimal" class="form-control form-control-sm text-end"></td><td class="text-muted">{% if s %}{{ s.objetivo|floatformat:'-3' }} {{ s.unidad }} ({{ s.minimo|floatformat:'-3' }} a {{ s.maximo|floatformat:'-3' }}){% endif %}</td></tr>{% endfor %}
+          </tbody></table></div>
+          <div class="form-text">Si un valor sale del rango de la ficha, se propone una revisión nueva de la ficha para que ingeniería o calidad la apruebe.</div></div>
+        <div class="col-md-6"><label class="form-label mb-1">Fotos de parámetros (una por pantalla de la máquina)</label><input type="file" name="fotos" accept="image/*" multiple class="form-control form-control-sm"></div>
+        <div class="col-md-6"></div>
+        <div class="col-12 fw-semibold mt-2">De vuelta a Ceiba</div>
+        {% if c.orden %}<div class="col-md-6"><label class="form-label mb-1">Parada (motivo)</label><select name="parada_motivo" class="form-select form-select-sm"><option value="">— sin parada —</option>{% for m in motivos %}<option value="{{ m.pk }}">{{ m.nombre }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label mb-1">Minutos parados</label><input name="parada_minutos" inputmode="numeric" class="form-control form-control-sm text-end"></div>{% endif %}
+        <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="abrir_nc" value="1" id="nc"><label class="form-check-label" for="nc">Abrir una no conformidad (Calidad)</label></div>
+          {% if c.equipo %}<div class="form-check d-flex gap-2 align-items-center"><input class="form-check-input" type="checkbox" name="avisar" value="1" id="av"><label class="form-check-label" for="av">Avisar a mantenimiento</label><select name="prioridad" class="form-select form-select-sm w-auto">{% for v, n in prioridades %}<option value="{{ v }}">{{ n }}</option>{% endfor %}</select></div>{% endif %}</div>
+        <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> Cerrar el caso</button></div>
+      </form></div>
+    {% endif %}
+    {% include 'core/_sustentos.html' with objeto=c %}
+  </div>
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-header fw-semibold small"><i class="bi bi-chat-dots"></i> Conversación con Lucho</div>
+      <ul class="list-group list-group-flush small">{% for q in consultas %}
+        <li class="list-group-item"><div class="text-muted">{{ q.creado|date:'d/m H:i' }} · {{ q.usuario.get_full_name|default:q.usuario.username }}{% if q.con_foto %} · <i class="bi bi-camera"></i>{% endif %}</div>
+          {% if q.defecto or q.pregunta %}<div class="fw-semibold">{{ q.defecto|default:'' }}{% if q.defecto and q.pregunta %} · {% endif %}{{ q.pregunta }}</div>{% endif %}
+          <div style="white-space: pre-wrap">{{ q.respuesta }}</div></li>
+      {% empty %}<li class="list-group-item text-muted">Sin consultas.</li>{% endfor %}</ul></div>
+  </div>
+</div>
+{% endblock %}

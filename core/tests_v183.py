@@ -41,15 +41,17 @@ class ModulosNuevosTest(Base):
     def test_asterisco_una_semana(self):
         self.assertEqual(nuevos(date(2026, 10, 25)), set(NUEVOS) | {'planificacion', 'control_calidad',
                                                                        'mantenimiento'})
-        self.assertEqual(nuevos(date(2026, 10, 31)), set(NUEVOS))  # los de v1.82 (24/10) ya cumplieron la semana
-        self.assertEqual(nuevos(date(2026, 11, 1)), set())
+        # los de v1.82 (24/10) ya cumplieron la semana; el asistente de planta (v1.97, 28/10) sigue nuevo
+        self.assertEqual(nuevos(date(2026, 10, 31)), set(NUEVOS) | {'asistente'})
+        self.assertEqual(nuevos(date(2026, 11, 1)), {'asistente'})
+        self.assertEqual(nuevos(date(2026, 11, 4)), set())
         self.assertEqual(nuevos(date(2026, 10, 24)), {'planificacion', 'control_calidad', 'mantenimiento'})
         self.assertEqual(set(NUEVOS_DESDE) - set(POR_CLAVE), set())
         with patch('django.utils.timezone.localdate', return_value=date(2026, 10, 26)):
             r = self.client.get(reverse('home'))
         self.assertContains(r, 'class="app-nuevo"', count=17)
         self.assertContains(r, 'Módulo nuevo')
-        with patch('django.utils.timezone.localdate', return_value=date(2026, 11, 2)):
+        with patch('django.utils.timezone.localdate', return_value=date(2026, 11, 5)):
             r = self.client.get(reverse('home'))
         self.assertNotContains(r, 'class="app-nuevo"')
 

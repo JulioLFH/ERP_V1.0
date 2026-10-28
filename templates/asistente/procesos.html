@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Procesos del asistente{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Procesos, parámetros y defectos</h1>
+  <form method="post" data-confirm="¿Cargar los procesos de ejemplo (inyección, extrusión, mezclado y empaque) con sus parámetros, defectos y ajustes? No cambia los que ya existen.">{% csrf_token %}<button name="accion" value="plantillas" class="btn btn-sm btn-outline-primary"><i class="bi bi-magic"></i> Cargar procesos de ejemplo</button></form>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+    <thead><tr><th>Código</th><th>Proceso</th><th class="num">Parámetros</th><th class="num">Defectos</th><th class="num">Fichas</th><th>Activo</th></tr></thead>
+    <tbody>{% for p in procesos %}<tr data-href="{% url 'asistente:proceso' p.pk %}"><td><a href="{% url 'asistente:proceso' p.pk %}">{{ p.codigo }}</a></td><td>{{ p.nombre }}</td><td class="num">{{ p.n_param }}</td><td class="num">{{ p.n_def }}</td><td class="num">{{ p.n_fichas }}</td><td>{% if p.activo %}Sí{% else %}No{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="6" class="text-muted">Aún no hay procesos: cargue los de ejemplo o cree el de su planta.</td></tr>{% endfor %}</tbody>
+  </table></div></div></div>
+  <div class="col-lg-5"><div class="card"><div class="card-header fw-semibold small">Nuevo proceso</div>
+    <form method="post" class="card-body row g-2">{% csrf_token %}
+      {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1 small">{{ e }}</div>{% endfor %}
+      {% for field in form %}<div class="{% if field.name == 'codigo' %}col-md-4{% elif field.name == 'nombre' %}col-md-8{% else %}col-12{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Crear</button></div>
+    </form></div>
+    <p class="small text-muted mt-2">El proceso es el eje del asistente: define qué parámetros lleva cada ficha y qué defectos aplican. Agregar un rubro nuevo de manufactura es agregar un proceso, sin tocar el motor.</p>
+  </div>
+</div>
+{% endblock %}

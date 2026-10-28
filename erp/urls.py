@@ -29,6 +29,7 @@ urlpatterns += [
     path('toma-pedido/', include('ventas.urls_toma_pedido')),
     path('codigo-barras/', include('inventario.urls_barras')),
     path('distribucion/', include('distribucion.urls')),
+    path('asistente/', include('asistente.urls')),
     path('conversaciones/', include('colaboracion.urls_conversaciones')),
     path('calendario/', include('colaboracion.urls_calendario')),
     path('actividades/', include('colaboracion.urls_actividades')),

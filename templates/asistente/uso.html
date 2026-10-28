@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Uso inadecuado del asistente{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Uso inadecuado del asistente <span class="small text-muted fw-normal">(últimos 90 días)</span></h1>
+<div class="row g-3">
+  <div class="col-lg-4"><div class="card"><div class="card-header fw-semibold small">Por usuario</div>
+    <ul class="list-group list-group-flush small">{% for r in resumen %}<li class="list-group-item d-flex justify-content-between"><span>{{ r.usuario__first_name }} {{ r.usuario__last_name }} <span class="text-muted">({{ r.usuario__username|default:'—' }})</span></span><span>{{ r.n }}{% if r.marcadas %} <span class="badge text-bg-danger" title="Superó el umbral: marcado al supervisor">marcado</span>{% endif %}</span></li>{% empty %}<li class="list-group-item text-muted">Sin consultas fuera de tema.</li>{% endfor %}</ul></div>
+    <p class="small text-muted mt-2">Lucho solo atiende la planta y el proceso. Las consultas fuera de tema, los pedidos de datos de otras áreas y el lenguaje impropio se rechazan y quedan aquí; desde el umbral de la configuración se marcan al supervisor (campana y bitácora).</p></div>
+  <div class="col-lg-8"><div class="card"><div class="table-responsive"><table class="table table-sm mb-0 small">
+    <thead><tr><th>Fecha</th><th>Usuario</th><th>Motivo</th><th>Lo que escribió</th></tr></thead>
+    <tbody>{% for c in consultas %}<tr><td class="text-nowrap">{{ c.creado|date:'d/m/Y H:i' }}</td><td>{{ c.usuario.get_full_name|default:c.usuario.username|default:'—' }}</td><td>{{ c.motivo_uso }}{% if c.supervisor_avisado %} <i class="bi bi-flag-fill text-danger" title="Marcado al supervisor"></i>{% endif %}</td><td>{{ c.pregunta|truncatechars:120 }}</td></tr>{% empty %}<tr><td colspan="4" class="text-muted">Nada que revisar.</td></tr>{% endfor %}</tbody>
+  </table></div></div></div>
+</div>
+{% endblock %}

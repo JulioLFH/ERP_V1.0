@@ -1,0 +1,9 @@
+{% load erp_tags %}<tr>
+  <td><input name="sp_nombre_{{ i }}" value="{{ s.nombre|default:'' }}" maxlength="80" class="form-control form-control-sm"></td>
+  <td><input name="sp_unidad_{{ i }}" value="{{ s.unidad|default:'' }}" maxlength="15" class="form-control form-control-sm"></td>
+  <td><input name="sp_minimo_{{ i }}" value="{{ s.minimo|default_if_none:''|editable }}" inputmode="decimal" class="form-control form-control-sm text-end"></td>
+  <td><input name="sp_objetivo_{{ i }}" value="{{ s.objetivo|default_if_none:''|editable }}" inputmode="decimal" class="form-control form-control-sm text-end"></td>
+  <td><input name="sp_maximo_{{ i }}" value="{{ s.maximo|default_if_none:''|editable }}" inputmode="decimal" class="form-control form-control-sm text-end"></td>
+  <td><input name="sp_nota_{{ i }}" value="{{ s.nota|default:'' }}" maxlength="200" class="form-control form-control-sm"></td>
+  <td><button type="button" class="btn btn-sm btn-link text-danger p-0" data-quitar-fila title="Quitar"><i class="bi bi-x-lg"></i></button></td>
+</tr>

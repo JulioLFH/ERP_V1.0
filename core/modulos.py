@@ -260,6 +260,23 @@ MODULOS = [
         ],
     },
     {
+        'clave': 'asistente', 'nombre': 'Asistente de planta', 'icono': 'bi-robot', 'color': '#0e7490',
+        'inicio': 'asistente:chat',
+        'descripcion': 'Lucho: fichas de parámetros validadas, casos resueltos, manuales y diagnóstico guiado con foto',
+        'menu': [
+            ('Preguntar a Lucho', 'asistente:chat'),
+            ('Casos de planta', 'asistente:casos'),
+            ('Fichas de parámetros', [('Fichas', 'asistente:fichas', 'bi-sliders'),
+                                      ('Nueva ficha', 'asistente:ficha_nueva', 'bi-plus-circle'),
+                                      ('Por aprobar', 'asistente:fichas?estado=POR_APROBAR', 'bi-hourglass-split'),
+                                      ('Importar desde Excel', 'asistente:importar', 'bi-file-earmark-excel')]),
+            ('Manuales y conocimiento', 'asistente:manuales'),
+            ('Configuración', [('Procesos, parámetros y defectos', 'asistente:procesos', 'bi-diagram-3'),
+                               ('Uso inadecuado', 'asistente:uso', 'bi-shield-exclamation'),
+                               ('Configuración del asistente', 'asistente:configuracion', 'bi-gear')]),
+        ],
+    },
+    {
         'clave': 'costos', 'nombre': 'Costos', 'icono': 'bi-calculator', 'color': '#0f766e',
         'inicio': 'costos:estandar', 'descripcion': 'Costo estándar, real vs estándar y rentabilidad',
         'menu': [
@@ -734,6 +751,7 @@ NUEVOS_DESDE = {
     **dict.fromkeys(('toma_pedido', 'portal_proveedores', 'codigo_barras', 'presupuestos', 'proyectos', 'empleados',
                      'tiempo_personal', 'distribucion', 'flota', 'sunat', 'consulta_ruc', 'conversaciones',
                      'calendario', 'actividades'), date(2026, 10, 25)),
+    'asistente': date(2026, 10, 28),
 }
 DIAS_NUEVO = 7
 

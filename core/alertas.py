@@ -177,6 +177,8 @@ def calcular(user):
                                    reverse('flota:combustible') + '?desvio=1', n))
     if 'rendiciones' in mods:
         alertas += _alertas_rendiciones(user)
+    if 'asistente' in mods:
+        alertas += _alertas_asistente(user)
     if 'planillas' in mods:  # contratos y documentos del legajo (EMO, antecedentes) que vencen en 30 días
         from planillas.organizacion import por_vencer
         contratos, documentos = por_vencer()
@@ -437,6 +439,29 @@ def _alertas_seguridad():
         salida.append(_alerta('info', 'bi-phone', 'Verificación en dos pasos opcional',
                               'Conviene exigirla al menos a administradores y aprobadores (Ajustes › Empresa).',
                               reverse('empresa'), 1))
+    return salida
+
+
+def _alertas_asistente(user):
+    """Asistente de planta: fichas de parámetros por aprobar (ingeniería o calidad, no las propias) y uso inadecuado
+    de Lucho marcado al supervisor en los últimos 7 días."""
+    from asistente.models import ConfigAsistente, Consulta, FichaParametros
+    salida = []
+    if puede(user, 'asistente.aprobar_ficha'):
+        n = FichaParametros.objects.filter(estado='POR_APROBAR').exclude(propuesta_por=user).count()
+        if n:
+            salida.append(_alerta('warning', 'bi-sliders', 'Fichas de parámetros por aprobar',
+                                  f'{n} ficha(s) esperan su aprobación', reverse('asistente:fichas') +
+                                  '?estado=POR_APROBAR', n))
+    cfg = ConfigAsistente.actual()
+    if puede(user, 'asistente.configurar') or cfg.supervisor_id == user.pk:
+        desde = timezone.now() - timedelta(days=7)
+        marcadas = (Consulta.objects.filter(supervisor_avisado=True, creado__gte=desde)
+                    .values('usuario').distinct().count())
+        if marcadas:
+            salida.append(_alerta('danger', 'bi-shield-exclamation', 'Uso inadecuado del asistente',
+                                  f'{marcadas} usuario(s) con consultas fuera de tema reiteradas',
+                                  reverse('asistente:uso'), marcadas))
     return salida
 
 

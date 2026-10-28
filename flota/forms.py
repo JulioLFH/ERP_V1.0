@@ -78,7 +78,8 @@ class EquipoForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         from produccion.models import Equipo
         model = Equipo
-        fields = ['codigo', 'nombre', 'tipo', 'estado', 'placa', 'marca_modelo', 'serie', 'anio', 'combustible',
+        fields = ['codigo', 'nombre', 'tipo', 'estado', 'placa', 'marca_modelo', 'fabricante', 'serie', 'anio',
+                  'combustible',
                   'medidor', 'rendimiento_esperado', 'centro', 'centro_costo', 'activo_fijo', 'responsable',
                   'ubicacion', 'aplica_prestamo', 'criticidad', 'ubicacion_tecnica', 'garantia_hasta',
                   'valor_reposicion', 'presupuesto_anual', 'tarifa_alquiler', 'horas_mes', 'es_instrumento', 'rango_tolerancia', 'calibracion_dias',
@@ -93,6 +94,8 @@ class EquipoForm(BootstrapMixin, forms.ModelForm):
         self.fields['centro'].queryset = CentroTrabajo.objects.filter(activo=True)
         self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
         self.fields['responsable'].queryset = Trabajador.objects.filter(fecha_cese__isnull=True)
+        from core.models import Tercero
+        self.fields['fabricante'].queryset = Tercero.objects.filter(tipo__in=('PROVEEDOR', 'AMBOS'))
 
     def clean_placa(self):
         return self.cleaned_data['placa'].replace(' ', '').upper()
