@@ -217,9 +217,13 @@ def puede_aprobar(user, documento, niveles, nivel_aprobado, solicitante_id=None)
 
 def registrar(documento, objeto, usuario, accion, comentario='', nivel=None):
     from .models import HistorialAprobacion
-    return HistorialAprobacion.objects.create(
+    h = HistorialAprobacion.objects.create(
         documento=documento, objeto_id=objeto.pk, descripcion=str(objeto)[:120], accion=accion, nivel=nivel,
         usuario=usuario if usuario and usuario.is_authenticated else None, comentario=(comentario or '')[:300])
+    # aviso por chat a quienes aprueban (o a quien la pidió), como en Odoo
+    from colaboracion.avisos import aviso_aprobacion
+    aviso_aprobacion(documento, objeto, usuario, accion, comentario)
+    return h
 
 
 def historial(documento, objeto):

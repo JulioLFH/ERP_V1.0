@@ -44,6 +44,8 @@ class Mensaje(models.Model):
     canal = models.ForeignKey(Canal, on_delete=models.CASCADE, related_name='mensajes')
     autor = models.ForeignKey(USUARIO, on_delete=models.SET_NULL, null=True, related_name='+')
     texto = models.TextField(max_length=4000)
+    # aviso de aprobación: enlace al documento dentro del sistema (colaboracion/avisos.py)
+    enlace = models.CharField(max_length=300, blank=True)
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:

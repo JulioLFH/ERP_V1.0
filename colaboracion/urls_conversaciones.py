@@ -6,6 +6,7 @@ app_name = 'conversaciones'
 
 urlpatterns = [
     path('', v.inicio, name='inicio'),
+    path('resumen.json', v.resumen, name='resumen'),
     path('canales/nuevo/', v.canal_nuevo, name='canal_nuevo'),
     path('canales/<int:pk>/nuevos.json', v.nuevos, name='nuevos'),
     path('canales/<int:pk>/unirse/', v.unirse, name='unirse'),

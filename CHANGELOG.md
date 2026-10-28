@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.96.0 — 28/10/2026 · Chat y avisos de aprobación como en Odoo
+- **Avisos de aprobación por chat**: al pedir una aprobación (orden de compra, solicitud de pedido, requerimiento, rendición, vacaciones o permiso, movimiento de personal, pedido de venta o HES), quien la registra les escribe por chat directo a los usuarios que pueden aprobarla (el aprobador del nivel, sus suplentes y su jefe si escaló; sin reglas, a quienes tienen el permiso del documento), con el comentario y el botón «Abrir el documento». Al aprobar un nivel se avisa al siguiente aprobador; al aprobar del todo, observar o rechazar, a quien la pidió (con el motivo). Un aviso que falla nunca detiene la aprobación.
+- **Chat en la barra superior**: ícono de conversaciones con el número de mensajes sin leer y las últimas conversaciones (chats directos y canales) con su último mensaje; un clic abre la conversación. Se actualiza cada minuto. La comunicación entre usuarios sigue en Conversaciones (canales por área y mensajes directos).
+
 ## v1.95.0 — 28/10/2026 · Cambio de empresa desde la barra
 - **Cambiar de empresa (como en Odoo)**: el nombre de la empresa en la barra superior abre la lista de empresas a las que el usuario tiene acceso; la actual va marcada y basta un clic en otra para pasar a ella (el usuario corporativo cambia sin volver a ingresar; los demás ingresan con su usuario de esa empresa). Con más de 6 empresas aparece un buscador. Sale del menú del usuario, donde estaba como «Ir a …».
 - **Inicio**: el título es la marca de Ceiba ERP (la misma de la barra, más grande) en lugar de «Hola, usuario» y la razón social.

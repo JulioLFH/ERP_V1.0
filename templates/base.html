@@ -38,6 +38,17 @@
       {% else %}
       <li class="nav-item d-none d-xl-block"><span class="navbar-text small me-3 opacity-75">{{ empresa.razon_social }}</span></li>
       {% endif %}
+      {% if 'conversaciones' in mods %}
+      {# chat como en Odoo: mensajes sin leer (también los avisos de aprobación) y las últimas conversaciones #}
+      <li class="nav-item dropdown me-1">
+        <a class="nav-link position-relative px-2" href="{% url 'conversaciones:inicio' %}" data-bs-toggle="dropdown" id="chat" title="Conversaciones" data-url="{% url 'conversaciones:resumen' %}">
+          <i class="bi bi-chat-dots"></i><span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger d-none" id="chat-n"></span>
+        </a>
+        <div class="dropdown-menu dropdown-menu-end shadow-sm p-0 position-absolute chat-menu" id="chat-lista">
+          <div class="p-3 small text-muted">Cargando…</div>
+        </div>
+      </li>
+      {% endif %}
       <li class="nav-item dropdown me-1">
         <a class="nav-link position-relative px-2" href="{% url 'alertas' %}" data-bs-toggle="dropdown" id="campana" title="Alertas" data-url="{% url 'alertas_json' %}">
           <i class="bi bi-bell"></i><span class="position-absolute top-0 start-100 translate-middle badge rounded-pill d-none" id="campana-n"></span>

@@ -64,6 +64,12 @@ def nuevos(request, pk):
 
 
 @login_required
+def resumen(request):
+    """Chat de la barra superior: total sin leer y las últimas conversaciones (JSON)."""
+    return JsonResponse(srv.resumen(request.user))
+
+
+@login_required
 def canal_nuevo(request):
     form = CanalForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():

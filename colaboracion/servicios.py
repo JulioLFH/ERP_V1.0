@@ -2,7 +2,7 @@
 from datetime import datetime, time, timedelta
 
 from django.contrib.auth import get_user_model
-from django.db.models import Count, F, Q
+from django.db.models import Count, F, Max, Q
 from django.urls import reverse
 from django.utils import timezone
 
@@ -103,7 +103,25 @@ def publicar(canal, user, texto):
 def mensaje_json(m, user):
     local = timezone.localtime(m.creado)
     return {'id': m.pk, 'autor': nombre(m.autor) or 'Usuario eliminado', 'mio': m.autor_id == user.pk,
-            'texto': m.texto, 'hora': local.strftime('%d/%m %H:%M')}
+            'texto': m.texto, 'hora': local.strftime('%d/%m %H:%M'), 'enlace': m.enlace}
+
+
+def resumen(user, limite=8):
+    """Chat de la barra superior (como en Odoo): mensajes sin leer y las últimas conversaciones del usuario, con su
+    último mensaje."""
+    nuevos = no_leidos(user)
+    canales = (Canal.objects.filter(archivado=False, membresias__usuario=user)
+               .annotate(ultimo=Max('mensajes__id')).filter(ultimo__isnull=False).order_by('-ultimo')
+               .prefetch_related('membresias__usuario')[:limite])
+    ultimos = {m.pk: m for m in Mensaje.objects.filter(pk__in=[c.ultimo for c in canales]).select_related('autor')}
+    filas = []
+    for c in canales:
+        m = ultimos.get(c.ultimo)
+        filas.append({'titulo': titulo_canal(c, user), 'directo': c.tipo == 'DIRECTO', 'nuevos': nuevos.get(c.pk, 0),
+                      'texto': ('Usted: ' if m and m.autor_id == user.pk else '') + (m.texto[:90] if m else ''),
+                      'hora': timezone.localtime(m.creado).strftime('%d/%m %H:%M') if m else '',
+                      'url': f'{reverse("conversaciones:inicio")}?canal={c.pk}'})
+    return {'total': sum(nuevos.values()), 'conversaciones': filas, 'url': reverse('conversaciones:inicio')}
 
 
 # ---------------------------------------------------------------- proyectos

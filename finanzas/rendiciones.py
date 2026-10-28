@@ -307,6 +307,8 @@ def _cambiar(r, estado, usuario, comentario='', nivel=None, **campos):
         setattr(r, k, v)
     r.save()
     _historial(r, usuario, de, estado, comentario, nivel)
+    from colaboracion.avisos import aviso_aprobacion  # aviso por chat al aprobador o al rendidor
+    aviso_aprobacion('RENDICION', r, usuario, estado, comentario)
 
 
 def _motivo(valor, comentario):

@@ -329,6 +329,41 @@ document.querySelectorAll('input[data-sigue-fecha]').forEach((contable) => {
   });
 })();
 
+// Chat de la barra (como en Odoo): mensajes sin leer y últimas conversaciones; se actualiza cada minuto y al abrirlo
+(function () {
+  const chat = document.getElementById('chat');
+  if (!chat) return;
+  const badge = document.getElementById('chat-n');
+  const lista = document.getElementById('chat-lista');
+  const el = (tag, clase, texto) => { const e = document.createElement(tag); if (clase) e.className = clase; if (texto !== undefined) e.textContent = texto; return e; };
+  const cargar = () => fetch(chat.dataset.url, { credentials: 'same-origin' }).then((r) => r.json()).then((d) => {
+    badge.textContent = d.total;
+    badge.classList.toggle('d-none', !d.total);
+    lista.innerHTML = '';
+    if (!d.conversaciones.length) lista.appendChild(el('div', 'p-3 small text-muted', 'Aún no tiene conversaciones.'));
+    d.conversaciones.forEach((c) => {
+      const item = el('a', 'dropdown-item d-flex gap-2 py-2 border-bottom small text-wrap' + (c.nuevos ? ' chat-nuevo' : ''));
+      item.href = c.url;
+      item.appendChild(el('i', `bi ${c.directo ? 'bi-person-circle' : 'bi-hash'} fs-4 text-secondary`));
+      const cuerpo = el('div', 'flex-grow-1 overflow-hidden');
+      const cab = el('div', 'd-flex justify-content-between gap-2');
+      cab.append(el('span', 'fw-semibold text-truncate', c.titulo), el('span', 'text-muted text-nowrap', c.hora));
+      const pie = el('div', 'd-flex justify-content-between gap-2');
+      pie.appendChild(el('span', 'text-muted text-truncate', c.texto));
+      if (c.nuevos) pie.appendChild(el('span', 'badge rounded-pill text-bg-danger', c.nuevos));
+      cuerpo.append(cab, pie);
+      item.appendChild(cuerpo);
+      lista.appendChild(item);
+    });
+    const todo = el('a', 'dropdown-item text-center small py-2', 'Abrir Conversaciones');
+    todo.href = d.url;
+    lista.appendChild(todo);
+  }).catch(() => {});
+  cargar();
+  chat.addEventListener('show.bs.dropdown', cargar);
+  setInterval(() => { if (!document.hidden) cargar(); }, 60000);
+})();
+
 // Campana de alertas: se carga en segundo plano para no demorar la pantalla
 (function () {
   const campana = document.getElementById('campana');

@@ -31,7 +31,7 @@
         </div>
       </div>
       <div id="mensajes" class="card-body" style="height: 55vh; overflow-y: auto" data-url="{% url 'conversaciones:nuevos' actual.pk %}" data-ultimo="{{ ultimo }}">
-        {% for m in mensajes %}<div class="mb-2 d-flex {% if m.autor_id == user.pk %}justify-content-end{% endif %}"><div class="px-3 py-2 rounded-3 {% if m.autor_id == user.pk %}text-bg-primary{% else %}bg-body-tertiary border{% endif %}" style="max-width: 75%"><div class="small fw-semibold">{{ m.autor.get_full_name|default:m.autor.username|default:'Usuario eliminado' }} <span class="fw-normal opacity-75">{{ m.creado|date:'d/m H:i' }}</span></div><div style="white-space: pre-wrap">{{ m.texto }}</div></div></div>
+        {% for m in mensajes %}<div class="mb-2 d-flex {% if m.autor_id == user.pk %}justify-content-end{% endif %}"><div class="px-3 py-2 rounded-3 {% if m.autor_id == user.pk %}text-bg-primary{% else %}bg-body-tertiary border{% endif %}" style="max-width: 75%"><div class="small fw-semibold">{{ m.autor.get_full_name|default:m.autor.username|default:'Usuario eliminado' }} <span class="fw-normal opacity-75">{{ m.creado|date:'d/m H:i' }}</span></div><div style="white-space: pre-wrap">{{ m.texto }}</div>{% if m.enlace %}<a href="{{ m.enlace }}" class="btn btn-sm {% if m.autor_id == user.pk %}btn-light{% else %}btn-outline-primary{% endif %} py-0 mt-1"><i class="bi bi-box-arrow-up-right"></i> Abrir el documento</a>{% endif %}</div></div>
         {% empty %}<p class="text-muted small" id="vacio">Todavía no hay mensajes. Escriba el primero.</p>{% endfor %}
       </div>
       <form method="post" class="card-footer d-flex gap-2">{% csrf_token %}
@@ -61,7 +61,14 @@
     const cab = document.createElement('div'); cab.className = 'small fw-semibold'; cab.textContent = m.autor + ' ';
     const hora = document.createElement('span'); hora.className = 'fw-normal opacity-75'; hora.textContent = m.hora; cab.appendChild(hora);
     const cuerpo = document.createElement('div'); cuerpo.style.whiteSpace = 'pre-wrap'; cuerpo.textContent = m.texto;
-    b.append(cab, cuerpo); fila.appendChild(b); return fila;
+    b.append(cab, cuerpo);
+    if (m.enlace && m.enlace.startsWith('/')) {  // aviso de aprobación: enlace al documento
+      const a = document.createElement('a');
+      a.className = 'btn btn-sm py-0 mt-1 ' + (m.mio ? 'btn-light' : 'btn-outline-primary');
+      a.href = m.enlace; a.textContent = 'Abrir el documento';
+      b.appendChild(a);
+    }
+    fila.appendChild(b); return fila;
   };
   setInterval(async () => {
     if (document.hidden) return;
