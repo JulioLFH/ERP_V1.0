@@ -114,9 +114,13 @@ body { background: var(--erp-bg); font-size: .875rem; font-family: var(--bs-font
   font-size: 2.1rem; box-shadow: 0 6px 16px rgba(16,24,40,.15); transition: transform .12s ease, box-shadow .12s ease; }
 .app-tile:hover .app-icon { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(16,24,40,.2); }
 /* íconos 3D: un objeto por módulo con su volumen y sombra (static/img/modulos, scripts/iconos_modulos.py) */
-.app-tile .app-icon-3d { width: 92px; height: 92px; border-radius: 0; background: none; box-shadow: none; }
+.app-tile .app-icon-3d { width: 76px; height: 76px; border-radius: 0; background: none; box-shadow: none; perspective: 300px; }
 .app-tile .app-icon-3d img { width: 100%; height: 100%; display: block; }
-.app-tile:hover .app-icon-3d { transform: translateY(-4px) scale(1.04); box-shadow: none; }
+.app-tile:hover .app-icon-3d { transform: translateY(-3px); box-shadow: none; }
+/* al pasar el cursor el objeto gira una vuelta sobre su eje vertical */
+.app-tile:hover .app-icon-3d img, .app-tile:focus-visible .app-icon-3d img { animation: app-girar .9s ease-in-out; }
+@keyframes app-girar { from { transform: rotateY(0); } to { transform: rotateY(360deg); } }
+@media (prefers-reduced-motion: reduce) { .app-tile:hover .app-icon-3d img, .app-tile:focus-visible .app-icon-3d img { animation: none; } }
 .app-tile .app-nombre { font-weight: 600; font-size: .95rem; text-align: center; line-height: 1.2; }
 .app-tile .app-desc { font-size: .75rem; color: #6b7a8c; text-align: center; line-height: 1.2; }
 /* módulo nuevo: asterisco encima del ícono durante una semana (core/modulos.NUEVOS_DESDE) */
