@@ -1366,7 +1366,8 @@ M['ajustes'] = {
         'Reglas de aprobación (todos los documentos)': 'Niveles y aprobadores de cada documento.',
         'Suplencias de aprobación': 'Quién aprueba en reemplazo y por cuánto tiempo.',
         'IP permitidas e intentos de ingreso': 'IP o redes que pueden usar el ERP, interruptor del control y listado '
-                                               'de las IP que abrieron o intentaron abrir el sistema (con «Permitir»).',
+                                               'de las IP que abrieron o intentaron abrir el sistema (con «Permitir»); '
+                                               'celulares con la app Ceiba (aprobar, revocar) y versión mínima.',
         'Auditoría de todo el sistema': 'Bitácora de cambios de todos los módulos.',
         'Incidencias y errores': 'Errores del sistema y reportes de usuarios.',
         'Correlativos / series': 'Series y números de cada tipo de documento.',

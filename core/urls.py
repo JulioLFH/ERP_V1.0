@@ -83,6 +83,7 @@ urlpatterns = [
     path('modificaciones/', views.modificaciones, name='modificaciones'),
     path('incidencias/', monitoreo.incidencias, name='incidencias'),
     path('ajustes/ip/', views_acceso_ip.acceso_ip_vista, name='acceso_ip'),
+    path('app/autorizar/', views_acceso_ip.autorizar_app, name='autorizar_app'),  # = app_movil.RUTA
     path('incidencias/<int:pk>/', monitoreo.incidencia, name='incidencia'),
     path('reportar-problema/', monitoreo.reportar, name='reportar'),
     path('salud/', monitoreo.salud, name='salud'),

@@ -1464,6 +1464,9 @@ class Incidencia(models.Model):
 class ControlIp(models.Model):
     """Restricción del ingreso por IP (una sola fila, en la base principal: vale para todas las empresas)."""
     activo = models.BooleanField('Solo las IP de la lista pueden usar el ERP', default=False)
+    version_minima_app = models.CharField(
+        'Versión mínima de la app', max_length=20, default='1.1.0',
+        help_text='Los celulares aprobados entran desde cualquier IP solo con esta versión de la app o una mayor')
     modificado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='+')
     modificado = models.DateTimeField(auto_now=True)
@@ -1474,6 +1477,42 @@ class ControlIp(models.Model):
     @classmethod
     def actual(cls):
         return cls.objects.using('default').first() or cls(activo=False)
+
+
+class DispositivoApp(models.Model):
+    """Celular con la app Ceiba ERP. Su llave nace en el Android Keystore y no sale del equipo: el ERP guarda solo la
+    llave pública y verifica la firma de cada autorización. Con el control por IP activo, un celular aprobado entra
+    desde cualquier IP (datos móviles, otra red) si su app no es menor a la versión mínima."""
+    ESTADOS = [('PENDIENTE', 'Pendiente de aprobación'), ('APROBADO', 'Aprobado'), ('REVOCADO', 'Revocado')]
+
+    codigo = models.CharField(max_length=64, unique=True, help_text='SHA-256 de la llave pública')
+    clave_publica = models.TextField()
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='PENDIENTE')
+    descripcion = models.CharField('Descripción', max_length=120, blank=True,
+                                   help_text='Ej. Celular de Juan (almacén)')
+    modelo = models.CharField(max_length=120, blank=True)
+    version_app = models.CharField('Versión de la app', max_length=20, blank=True)
+    usuario = models.CharField('Último usuario', max_length=150, blank=True)
+    ultima_ip = models.CharField('Última IP', max_length=45, blank=True)
+    ultima_firma = models.BigIntegerField(default=0, help_text='Hora (ms) de la última firma: no se aceptan repetidas')
+    creado = models.DateTimeField(auto_now_add=True)
+    ultima_vez = models.DateTimeField(null=True, blank=True)
+    aprobado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='+')
+    aprobado_en = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['estado', '-ultima_vez']
+        verbose_name = 'celular con la app'
+        verbose_name_plural = 'celulares con la app'
+
+    def __str__(self):
+        return f'{self.codigo_corto} {self.modelo}'
+
+    @property
+    def codigo_corto(self):
+        """El mismo código que la app muestra en pantalla (para reconocer el celular al aprobarlo)."""
+        return f'{self.codigo[:4]}-{self.codigo[4:8]}'.upper()
 
 
 class IpPermitida(models.Model):

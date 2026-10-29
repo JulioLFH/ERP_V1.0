@@ -3,6 +3,12 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.99.0 — 29/10/2026 · App Ceiba ERP para Android y celulares autorizados
+- **App para Android** (proyecto aparte en `Desarrollo ERP CEIBA\Ceiba APP`, APK con doble clic en `Compilar APK.bat`): abre el ERP con el ícono de Ceiba, con cámara para las fotos y adjuntos, descargas de Excel/PDF a la carpeta Descargas (también el Excel de las listas), imprimir, ubicación, botón Atrás y cambio de la dirección del servidor.
+- **Celulares autorizados con el control por IP activo**: cada app crea su propia llave en la zona segura del celular (Android Keystore; no se puede copiar) y se presenta firmada ante el ERP. En **Ajustes › IP permitidas e intentos de ingreso › Celulares** aparece cada celular con su código (el mismo que muestra la app), modelo, versión, último usuario e IP; el administrador lo **aprueba**, lo **revoca** o lo borra. Un celular aprobado entra desde cualquier red (datos móviles, otra wifi) con un pase de 8 horas que la app renueva sola; igual pide usuario y contraseña.
+- **Versión mínima de la app**: en la misma pantalla. Las apps más antiguas ven «Actualice la app» y su pase deja de valer.
+- La firma vence en 10 minutos y no se acepta dos veces; el pedido de autorización tiene tope por IP. La página «Acceso no autorizado» explica qué hacer cuando se abre desde la app.
+
 ## v1.98.0 — 28/10/2026 · Exportar el plan de cuentas
 - **Contabilidad › Plan de cuentas › Exportar a Excel**: descarga el plan de cuentas (con el filtro de la pantalla: búsqueda o clase) en el mismo formato que la plantilla de carga masiva: mismas columnas (código, nombre, naturaleza, acepta movimientos, destinos, columna del balance, moneda, tipo de cambio, análisis y centro de costo) y la hoja de instrucciones. Se completa o corrige en Excel y se vuelve a subir con «Importar desde Excel» marcando «Actualizar existentes».
 

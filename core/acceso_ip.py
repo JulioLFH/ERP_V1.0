@@ -21,7 +21,7 @@ LOCALES = ('127.0.0.1', '::1')
 REFRESCO = 30          # segundos que dura en memoria la lista de IP permitidas
 REGISTRO_CADA = 60     # una escritura por IP y minuto como máximo (las demás visitas se suman en memoria)
 
-_estado = {'hora': 0.0, 'activo': False, 'redes': []}
+_estado = {'hora': 0.0, 'activo': False, 'redes': [], 'aprobados': set(), 'version_minima': ''}
 _pendientes = {}       # ip -> [veces, bloqueos, ruta, navegador, usuario, permitida, última escritura]
 _candado = threading.Lock()
 
@@ -46,18 +46,21 @@ def invalidar():
 def _cargar():
     if time.monotonic() - _estado['hora'] < REFRESCO:
         return _estado
-    from .models import ControlIp, IpPermitida
+    from .models import ControlIp, DispositivoApp, IpPermitida
     try:
-        activo = ControlIp.actual().activo
+        control = ControlIp.actual()
+        activo, minima = control.activo, control.version_minima_app
         redes = []
         for texto in IpPermitida.objects.using('default').values_list('ip', flat=True):
             try:
                 redes.append(red_valida(texto))
             except ValueError:
                 continue
+        aprobados = set(DispositivoApp.objects.using('default').filter(estado='APROBADO')
+                        .values_list('codigo', flat=True))
     except Exception:  # base sin migrar o no disponible: no se bloquea a nadie
-        activo, redes = False, []
-    _estado.update(hora=time.monotonic(), activo=activo, redes=redes)
+        activo, redes, aprobados, minima = False, [], set(), ''
+    _estado.update(hora=time.monotonic(), activo=activo, redes=redes, aprobados=aprobados, version_minima=minima)
     return _estado
 
 
@@ -112,19 +115,29 @@ def olvidar(ip):
 
 
 class ControlIpMiddleware:
-    """Rechaza las IP que no están en la lista cuando el control está activo y registra todas las que llegan."""
+    """Rechaza las IP que no están en la lista cuando el control está activo y registra todas las que llegan. Un
+    celular aprobado con la app Ceiba entra desde cualquier IP con su pase (core/app_movil.py); la autorización de
+    la app se atiende siempre, porque es la que entrega ese pase."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
+        from . import app_movil
         ip = ip_cliente(request)
-        if not permitida(ip):
-            registrar(ip, request, False, request.POST.get('username', '') if request.method == 'POST' else '')
-            return HttpResponseForbidden(render_to_string('core/ip_no_autorizada.html', {'ip': ip}))
+        celular = None
+        if not permitida(ip) and request.path != app_movil.RUTA:
+            celular = app_movil.codigo_con_pase(request, _cargar())
+            if celular is None:
+                registrar(ip, request, False, request.POST.get('username', '') if request.method == 'POST' else '')
+                es_app = 'CeibaApp/' in request.META.get('HTTP_USER_AGENT', '')
+                return HttpResponseForbidden(render_to_string('core/ip_no_autorizada.html',
+                                                              {'ip': ip, 'es_app': es_app}))
         response = self.get_response(request)
         if ip not in LOCALES and not request.path.startswith('/static/'):
             usuario = getattr(request, 'user', None)
-            registrar(ip, request, True, usuario.get_username() if usuario is not None and
-                      usuario.is_authenticated else '')
+            nombre = usuario.get_username() if usuario is not None and usuario.is_authenticated else ''
+            registrar(ip, request, True, nombre)
+            if celular:
+                app_movil.marcar_uso(celular, nombre, ip)
         return response

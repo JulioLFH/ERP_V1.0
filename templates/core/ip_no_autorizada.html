@@ -16,8 +16,13 @@
 <body>
   <div class="caja">
     <h1>Acceso no autorizado</h1>
+    {% if es_app %}
+    <p>Este celular no tiene un pase vigente para entrar desde esta red (IP <code>{{ ip }}</code>).</p>
+    <p>Cierre y vuelva a abrir la app Ceiba ERP: si el celular está aprobado, el pase se renueva solo. Si sigue igual, pídale al administrador que apruebe el celular en <b>Ajustes › IP permitidas e intentos de ingreso › Celulares</b>.</p>
+    {% else %}
     <p>Esta computadora no está autorizada para usar el ERP.</p>
     <p>Su IP es <code>{{ ip }}</code>. Pídale al administrador que la permita en <b>Ajustes › IP permitidas e intentos de ingreso</b>; su intento ya quedó registrado.</p>
+    {% endif %}
   </div>
 </body>
 </html>

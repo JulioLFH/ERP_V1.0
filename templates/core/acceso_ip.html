@@ -63,4 +63,33 @@
     <p class="small text-muted mt-2">Se registra cada IP que abre el ERP (salvo esta PC), aunque el control esté apagado: así sabe quién entra antes de activarlo. Con el control activo, las IP que no están en la lista ven «Acceso no autorizado» y aparecen como «Rechazada»; con «Permitir» entran desde ese momento.</p>
   </div>
 </div>
+
+<div class="card mt-3" id="celulares"><div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+  <span><i class="bi bi-phone"></i> Celulares con la app Ceiba ERP ({{ celulares|length }})</span>
+  <form method="post" class="d-flex gap-2 align-items-center small">{% csrf_token %}<input type="hidden" name="accion" value="version_minima">
+    <label for="version-minima" class="text-nowrap">Versión mínima de la app</label>
+    <input id="version-minima" name="version" value="{{ control.version_minima_app }}" required maxlength="20" pattern="\d+(\.\d+){0,2}" class="form-control form-control-sm" style="width:6rem">
+    <button class="btn btn-sm btn-outline-primary">Guardar</button>
+  </form></div>
+  <div class="table-responsive"><table class="table table-sm mb-0 small align-middle">
+    <thead><tr><th>Código</th><th>Celular</th><th>App</th><th>Último uso</th><th>Estado</th><th></th></tr></thead>
+    <tbody>{% for c in celulares %}<tr>
+      <td><code class="fs-6">{{ c.codigo_corto }}</code></td>
+      <td>{{ c.modelo|default:'—' }}{% if c.descripcion %}<div class="text-muted">{{ c.descripcion }}</div>{% endif %}</td>
+      <td>{{ c.version_app|default:'—' }}{% if c.version_app and not c.vigente %} <span class="badge text-bg-warning" title="Menor a la versión mínima">actualizar</span>{% endif %}</td>
+      <td class="text-nowrap">{{ c.ultima_vez|date:'d/m/Y H:i'|default:'—' }}<div class="text-muted">{{ c.usuario|default:'' }}{% if c.ultima_ip %} · {{ c.ultima_ip }}{% endif %}</div></td>
+      <td>{% if c.estado == 'APROBADO' %}<span class="badge text-bg-success">Aprobado</span><div class="text-muted">{{ c.aprobado_en|date:'d/m/Y' }}{% if c.aprobado_por %} · {{ c.aprobado_por.username }}{% endif %}</div>
+        {% elif c.estado == 'REVOCADO' %}<span class="badge text-bg-danger">Revocado</span>
+        {% else %}<span class="badge text-bg-warning">Pendiente</span>{% endif %}</td>
+      <td class="text-end text-nowrap">
+        {% if c.estado != 'APROBADO' %}<form method="post" class="d-inline-flex gap-1">{% csrf_token %}<input type="hidden" name="accion" value="aprobar_celular"><input type="hidden" name="id" value="{{ c.pk }}">
+          <input name="descripcion" value="{{ c.descripcion }}" maxlength="120" class="form-control form-control-sm py-0" style="width:11rem" placeholder="De quién es (opcional)" aria-label="Descripción del celular">
+          <button class="btn btn-sm btn-outline-success py-0"><i class="bi bi-check-lg"></i> Aprobar</button></form>{% endif %}
+        {% if c.estado == 'APROBADO' %}<form method="post" class="d-inline" data-confirm="¿Revocar el celular {{ c.codigo_corto }}? Fuera de las IP permitidas ya no podrá entrar.">{% csrf_token %}<input type="hidden" name="accion" value="revocar_celular"><input type="hidden" name="id" value="{{ c.pk }}"><button class="btn btn-sm btn-outline-danger py-0"><i class="bi bi-slash-circle"></i> Revocar</button></form>{% endif %}
+        <form method="post" class="d-inline" data-confirm="¿Borrar el celular {{ c.codigo_corto }} del listado?">{% csrf_token %}<input type="hidden" name="accion" value="borrar_celular"><input type="hidden" name="id" value="{{ c.pk }}"><button class="btn btn-sm btn-outline-secondary py-0" title="Borrar del listado"><i class="bi bi-x"></i></button></form>
+      </td>
+    </tr>{% empty %}<tr><td colspan="6" class="text-center text-muted py-4">Ningún celular abrió todavía la app Ceiba ERP (versión 1.1.0 o mayor).</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-body small text-muted border-top">Con el control activo, un celular <b>aprobado</b> entra con la app desde cualquier red (datos móviles, wifi de un cliente), siempre que su app no sea menor a la versión mínima; igual pide usuario y contraseña. La app muestra el mismo <b>código</b> de la primera columna para reconocerlo. El pase que recibe dura {{ pase_horas }} horas y se renueva solo; al <b>revocar</b>, queda fuera en menos de un minuto.</div>
+</div>
 {% endblock %}
