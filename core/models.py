@@ -475,7 +475,8 @@ class Producto(models.Model):
     # ---- compras
     puede_comprarse = models.BooleanField('Se puede comprar', default=True)
     precio_compra = models.DecimalField('Precio de compra (sin IGV)', max_digits=12, decimal_places=4, default=D0,
-                                        help_text='Precio referencial para órdenes de compra')
+                                        help_text='Precio referencial por unidad de medida (kg, unidad); la orden '
+                                                  'de compra lo lleva a la unidad de compra (bolsa, caja)')
     proveedor = models.ForeignKey('Tercero', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
                                   verbose_name='Proveedor habitual', limit_choices_to={'tipo__in': ['PROVEEDOR', 'AMBOS']})
     unidad_compra = models.CharField('Unidad de compra', max_length=5, choices=UNIDADES, blank=True,
@@ -587,6 +588,12 @@ class Producto(models.Model):
         return self.unidad_compra or self.unidad
 
     @property
+    def precio_compra_unidad_compra(self):
+        """AUD-01: el precio de compra del maestro es por unidad de medida (kg); la orden va en unidad de compra
+        (bolsa de 50 kg): S/ 3.20 × 50 = S/ 160 por bolsa."""
+        return (self.precio_compra or D0) * self.factor
+
+    @property
     def precio_referencia(self):
         """Activos (solo compra): su precio es el de compra; los demás, el de venta."""
         return self.precio_compra if self.clase == 'ACTIVO' else self.precio_venta
@@ -695,11 +702,15 @@ class Producto(models.Model):
                     if fabricacion and not lote.fabricacion:
                         lote.fabricacion = fabricacion
                         cambios.append('fabricacion')
-                    if creado and (self._requiere_liberacion() or getattr(self, '_ingreso_a_calidad', False)):
+                    a_calidad = creado and (self._requiere_liberacion() or getattr(self, '_ingreso_a_calidad', False))
+                    if a_calidad:
                         lote.estado_calidad = 'CUARENTENA'  # entra en calidad hasta que Calidad lo libere
                         cambios.append('estado_calidad')
                     if cambios:
                         lote.save(update_fields=cambios)
+                    if a_calidad:  # AUD-09: Calidad recibe la inspección pendiente del lote (no queda olvidado)
+                        from produccion.planta import inspeccion_pendiente
+                        inspeccion_pendiente(self, lote, Decimal(cant), almacen, concepto)
                 else:
                     estados.validar_salida_lote(self, lote, categoria, concepto, origen, destino, fecha)
                 partes.append((lote, Decimal(cant)))

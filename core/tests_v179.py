@@ -251,7 +251,9 @@ class AprobacionesTest(Base):
             self.assertTrue(debe_enviar)
             self.assertEqual([f['nombre'] for f in ruta], ['jefe'])
             self.assertIn('nivel 1', enviar(cot, vendedor))
-            self.assertEqual(estado_aprobacion(cot, vendedor)[2], 'nivel 1: jefe')
+            espera = estado_aprobacion(cot, vendedor)[2]
+            self.assertTrue(espera.endswith('nivel 1: jefe'), espera)
+            self.assertIn('usted registró este pedido', espera)  # AUD-VEN-08: al creador se le explica
             from core.views_aprobaciones import _pendientes
             self.assertIn(cot, [f[2] for f in _pendientes(jefe)])
 

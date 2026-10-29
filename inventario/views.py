@@ -235,10 +235,20 @@ def nueva(request):
     if request.GET.get('oc'):
         origen = op.orden_compra = get_object_or_404(OrdenCompra, pk=request.GET['oc'])
         initial['orden_compra'] = origen.pk
+        initial['centro_costo'] = origen.centro_costo_id  # AUD-04: el centro de costo de la orden viaja
         from obras.models import Obra
         obra = Obra.de_centro(origen.centro_costo_id)
         if obra is not None and obra.almacen_id and tipo.usa_destino_almacen:
             initial['almacen_destino'] = obra.almacen_id  # la orden es de una obra: entra a su almacén
+        elif tipo.usa_destino_almacen:
+            # AUD-03: los bienes de la orden entran al almacén por defecto de sus productos (si todos tienen el mismo)
+            defectos = {i.producto.almacen_defecto_id for i in origen.items.select_related('producto')
+                        if i.producto_id and i.producto.es_inventariable}
+            if len(defectos) == 1 and None not in defectos:
+                initial['almacen_destino'] = defectos.pop()
+            elif len(defectos - {None}) > 1:
+                messages.info(request, 'Los productos de la orden tienen distintos almacenes por defecto: registre una '
+                                       'recepción por almacén (quite las líneas que van a otro).')
     elif request.GET.get('compra'):
         origen = op.compra = get_object_or_404(Compra, pk=request.GET['compra'])
         initial['compra'] = origen.pk

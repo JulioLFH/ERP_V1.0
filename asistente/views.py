@@ -73,10 +73,11 @@ def chat(request):
         if not (texto or foto or defecto):
             messages.error(request, 'Tome la foto del defecto, elija el defecto o escriba una línea.')
             return redirect(request.get_full_path())
-        ajustados = [n for c in (caso.consultas.all() if caso else []) for n in (c.recomendados or [])]
+        # LUC-05: lo ajustado son los parámetros que el operario dijo haber cambiado (no todo lo recomendado)
+        ajustados = [n for c in (caso.consultas.all() if caso else []) for n in (c.ajustes or {})]
         r = motor.responder(texto, ctx, defecto, ajustados=ajustados, caso=caso, con_foto=bool(foto))
-        if r['fuera_de_dominio']:
-            motor.registrar_consulta(request.user, ctx, texto, r, caso=None, con_foto=bool(foto))
+        if r['fuera_de_dominio']:  # LUC-10: queda con el caso (y la orden) en la bitácora
+            motor.registrar_consulta(request.user, ctx, texto, r, caso=caso, con_foto=bool(foto))
             messages.warning(request, r['texto'])
             return redirect(f'{reverse("asistente:chat")}?caso={caso.pk}' if caso else request.get_full_path())
         if caso is None:
@@ -338,19 +339,51 @@ def manuales(request):
 @login_required
 def manual(request, pk):
     m = get_object_or_404(Manual.objects.select_related('equipo', 'puesto', 'material', 'fabricante', 'proceso',
-                                                        'documento'), pk=pk)
+                                                        'documento', 'validado_por'), pk=pk)
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        if accion == 'validar':  # LUC-07: otra persona con el permiso de aprobar (como las fichas)
+            from core.segregacion import propio
+            error = propio(request.user, m)
+            if error:
+                messages.error(request, error)
+            elif not (m.secciones or m.contenido.strip()):
+                messages.error(request, 'No hay qué validar: adjunte el archivo del manual o escriba los puntos clave.')
+            else:
+                m.validado, m.validado_por, m.validado_en = True, request.user, timezone.now()
+                m.save(update_fields=['validado', 'validado_por', 'validado_en'])
+                messages.success(request, f'«{m}» validado: Lucho ya lo cita.')
+        elif accion == 'quitar_validacion':
+            m.validado, m.validado_por, m.validado_en = False, None, None
+            m.save(update_fields=['validado', 'validado_por', 'validado_en'])
+            messages.success(request, f'«{m}»: Lucho deja de citarlo hasta que se valide de nuevo.')
+        elif accion == 'leer':
+            from .lectura import leer_manual
+            messages.info(request, leer_manual(m) or 'El manual no tiene un PDF ni un TXT adjunto.')
+        return redirect('asistente:manual', m.pk)
     return render(request, 'asistente/manual.html', {'m': m})
 
 
 def _manual_form(request, m):
-    form = ManualForm(request.POST or None, instance=m)
+    form = ManualForm(request.POST or None, request.FILES or None, instance=m)
+    contenido_antes = m.contenido
     if request.method == 'POST' and form.is_valid():
         nuevo = form.instance.pk is None
         obj = form.save(commit=False)
         if nuevo:
             obj.creado_por = request.user
+        elif obj.contenido != contenido_antes and obj.validado:
+            # LUC-07: lo validado era otro texto: vuelve a validarse antes de que Lucho lo cite
+            obj.validado, obj.validado_por, obj.validado_en = False, None, None
+            messages.warning(request, 'Cambió el contenido: el manual vuelve a «sin validar» hasta que otra persona '
+                                      'lo valide.')
         obj.save()
-        messages.success(request, f'«{obj}» guardado.' + (' Adjunte el archivo del manual abajo.' if nuevo else ''))
+        archivo = form.cleaned_data.get('archivo')
+        if archivo:  # LUC-01: se adjunta y Lucho lo lee
+            from core.sustentos import adjuntar
+            messages.info(request, obj.al_adjuntar(adjuntar(obj, archivo, request.user, 'Archivo del manual')))
+        messages.success(request, f'«{obj}» guardado.' + (' Adjunte el archivo del manual abajo.'
+                                                          if nuevo and not archivo else ''))
         return redirect('asistente:manual', obj.pk)
     return render(request, 'asistente/formulario.html', {
         'form': form, 'titulo': 'Editar manual' if m.pk else 'Nuevo manual o conocimiento',
@@ -459,8 +492,24 @@ def configuracion(request):
 
 @login_required
 def uso(request):
+    if request.method == 'POST' and request.POST.get('accion') == 'descartar':
+        # LUC-02: falso positivo: sale del conteo y del aviso, pero queda en la bitácora con su motivo
+        c = get_object_or_404(Consulta, pk=_entero(request.POST.get('id')))
+        motivo = (request.POST.get('motivo') or '').strip()
+        if len(motivo) < 5:
+            messages.error(request, 'Indique por qué no aplica (mínimo 5 caracteres).')
+        else:
+            c.descartada, c.descartada_por, c.motivo_descarte = True, request.user, motivo[:200]
+            c.supervisor_avisado = False
+            c.save(update_fields=['descartada', 'descartada_por', 'motivo_descarte', 'supervisor_avisado'])
+            from core.auditoria import registrar
+            registrar('MODIFICAR', c, {'descartada': [False, True], 'motivo': [None, motivo[:200]]},
+                      'Uso inadecuado descartado (falso positivo)')
+            messages.success(request, 'Registro descartado como falso positivo: ya no cuenta para el aviso.')
+        return redirect('asistente:uso')
     desde = timezone.now() - timedelta(days=90)
-    qs = Consulta.objects.filter(fuera_de_dominio=True, creado__gte=desde).select_related('usuario')
-    resumen = (qs.values('usuario__username', 'usuario__first_name', 'usuario__last_name')
+    qs = (Consulta.objects.filter(creado__gte=desde).exclude(motivo_uso='')
+          .select_related('usuario', 'caso', 'orden', 'descartada_por'))
+    resumen = (qs.filter(descartada=False).values('usuario__username', 'usuario__first_name', 'usuario__last_name')
                .annotate(n=Count('id'), marcadas=Count('id', filter=Q(supervisor_avisado=True))).order_by('-n'))
     return render(request, 'asistente/uso.html', {'consultas': qs[:200], 'resumen': resumen})

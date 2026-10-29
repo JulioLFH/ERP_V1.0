@@ -17,7 +17,7 @@
     <thead><tr><th></th><th>Código</th><th>Producto</th><th>U.M.</th><th class="num">Stock</th><th class="num">En camino</th><th class="num">Reorden</th><th class="num">Objetivo</th><th class="num">Sugerido</th><th class="num">Precio compra</th><th class="num">Importe</th><th class="num">Entrega</th></tr></thead>
     <tbody>{% for f in g.filas %}<tr><td><input type="checkbox" class="form-check-input r{{ forloop.parentloop.counter }}" name="producto" value="{{ f.p.pk }}"></td><td>{{ f.p.codigo }}</td><td><a href="{% url 'producto_editar' f.p.pk %}">{{ f.p.nombre }}</a></td><td>{{ f.p.unidad }}</td>
       <td class="num {% if f.p.stock <= 0 %}text-danger fw-semibold{% endif %}">{{ f.p.stock|money }}</td><td class="num">{{ f.camino|money }}</td><td class="num">{{ f.limite|money }}</td>
-      <td class="num">{{ f.objetivo|money }}</td><td class="num fw-bold">{{ f.cantidad|money }}</td><td class="num">{{ f.precio|floatformat:2 }}</td><td class="num">{{ f.importe|money }}</td>
+      <td class="num">{{ f.objetivo|money }}</td><td class="num"><b>{{ f.cantidad|money }} {{ f.unidad_compra }}</b>{% if f.p.factor > 1 %}<div class="small text-muted">{{ f.unidades|money }} {{ f.p.unidad }}</div>{% endif %}</td><td class="num">{{ f.precio|floatformat:2 }}{% if f.p.factor > 1 %}<div class="small text-muted">por {{ f.unidad_compra }}</div>{% endif %}</td><td class="num">{{ f.importe|money }}</td>
       <td class="num">{% if f.p.tiempo_entrega %}{{ f.p.tiempo_entrega }} d{% endif %}</td></tr>{% endfor %}</tbody>
     <tfoot><tr class="fw-semibold"><td colspan="10" class="text-end">Total estimado sin IGV</td><td class="num">{{ g.total|money }}</td><td></td></tr></tfoot>
   </table></div>

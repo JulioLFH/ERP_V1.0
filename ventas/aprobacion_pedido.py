@@ -118,6 +118,11 @@ def aprobar(cot, user):
     if lista and not puede(user, 'ventas.aprobar_pedidos'):
         raise ErrorAprobacionPedido(f'El pedido requiere aprobación ({cot.motivo_aprobacion}): pídala a quien tenga '
                                     f'«Aprobar pedidos de venta» o configure las reglas (documento «Pedidos de venta»).')
+    if not lista and not (puede(user, 'ventas.aprobar_pedidos') or puede(user, 'ventas.emitir')):
+        raise ErrorAprobacionPedido('Su usuario no puede aprobar pedidos de venta.')  # la ruta ya no exige emitir
+    from core.segregacion import propio
+    if lista and propio(user, cot):  # AUD-08: mismo criterio que la orden de compra
+        raise ErrorAprobacionPedido(propio(user, cot))
     cot.estado = 'APROBADO'
     cot.save(update_fields=['estado', 'motivo_aprobacion'])
     aprobaciones.registrar('PEDIDO', cot, user, 'APROBADA', cot.motivo_aprobacion)
@@ -227,11 +232,14 @@ def estado_aprobacion(cot, user):
         return ruta, False, ''
     if not enviado:
         return ruta, bool(s and s.pk == user.pk), ''
+    # AUD-VEN-08: al creador se le explica por qué no ve «Aprobar»
+    propio = ('usted registró este pedido y no lo aprueba (segregación de funciones: lo aprueba otro usuario); se '
+              'espera a ' if s and s.pk == user.pk else '')
     if cot.niveles:
         if aprobaciones.puede_aprobar(user, 'PEDIDO', cot.niveles, cot.nivel_aprobado, s.pk if s else None):
             return ruta, False, ''
         n = aprobaciones.pendiente(cot.niveles, cot.nivel_aprobado)
-        return ruta, False, f'nivel {n["nivel"]}: {n["nombre"]}' if n else 'sin nivel pendiente'
+        return ruta, False, propio + (f'nivel {n["nivel"]}: {n["nombre"]}' if n else 'sin nivel pendiente')
     if puede(user, 'ventas.aprobar_pedidos') and not (s and s.pk == user.pk):
         return ruta, False, ''
-    return ruta, False, 'quien tenga «Aprobar pedidos de venta»'
+    return ruta, False, propio + 'quien tenga «Aprobar pedidos de venta»'

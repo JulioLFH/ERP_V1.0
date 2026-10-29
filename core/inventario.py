@@ -275,8 +275,9 @@ def sugerencias_compra():
         filas.append({'p': p, 'limite': limite, 'camino': camino.get(p.pk, D0), 'disponible': disponible,
                       'objetivo': objetivo, 'cantidad': cantidad, 'unidad_compra': p.unidad_de_compra,
                       'almacenes_bajo': almacenes_bajo,
-                      'unidades': p.a_stock(cantidad), 'precio': p.precio_compra,
-                      'importe': r2(cantidad * p.precio_compra)})
+                      # AUD-INV-03: cantidad, precio e importe en la unidad de compra (bolsas × S/ por bolsa)
+                      'unidades': p.a_stock(cantidad), 'precio': p.precio_compra_unidad_compra,
+                      'importe': r2(cantidad * p.precio_compra_unidad_compra)})
     return filas
 
 

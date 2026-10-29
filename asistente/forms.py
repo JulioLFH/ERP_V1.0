@@ -26,14 +26,33 @@ class FichaForm(BootstrapMixin, forms.ModelForm):
 
 
 class ManualForm(BootstrapMixin, forms.ModelForm):
+    # LUC-01: el archivo del manual se sube al crearlo (PDF o TXT): Lucho lee su texto por secciones
+    archivo = forms.FileField(label='Archivo del manual (PDF o TXT)', required=False,
+                              help_text='Lucho lee su texto y cita la sección y la página (máx. 5 MB). Los puntos '
+                                        'clave quedan como resumen opcional.')
+
     class Meta:
         model = Manual
+        # LUC-07: «Validado» no está aquí: lo marca otra persona con el permiso de aprobar, desde la ficha del manual
         fields = ['titulo', 'tipo', 'proceso', 'equipo', 'puesto', 'material', 'fabricante', 'documento',
-                  'contenido', 'validado', 'activo']
+                  'contenido', 'activo']
         widgets = {'contenido': forms.Textarea(attrs={'rows': 8})}
+
+    def clean_archivo(self):
+        archivo = self.cleaned_data.get('archivo')
+        if archivo:
+            from core.sustentos import ErrorSustento, validar_archivo
+            if not archivo.name.lower().endswith(('.pdf', '.txt')):
+                raise forms.ValidationError('Suba el manual en PDF o en texto (.txt).')
+            try:
+                validar_archivo(archivo)
+            except ErrorSustento as exc:
+                raise forms.ValidationError(str(exc))
+        return archivo
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['contenido'].label = 'Puntos clave (resumen opcional)'
         from produccion.models import CentroTrabajo, Equipo
         self.fields['equipo'].queryset = Equipo.objects.filter(activo=True).order_by('codigo')
         self.fields['puesto'].queryset = CentroTrabajo.objects.filter(activo=True)

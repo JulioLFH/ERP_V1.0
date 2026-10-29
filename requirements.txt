@@ -10,3 +10,4 @@ psycopg[binary]>=3.2
 signxml>=4.0,<5
 lxml>=5.0
 cryptography>=42.0
+pypdf>=5.0,<7  # Lucho lee el texto de los manuales en PDF (LUC-01)

@@ -94,15 +94,32 @@ def ultimo_precio(producto, proveedor=None):
     return f['precio_pen'], f['fecha'], f['proveedor']
 
 
+def alertas_unidad(oc, tc):
+    """AUD-01: la orden va en unidad de compra (bolsa de 50 kg). Si el precio de una línea, repartido entre las
+    unidades de almacén, queda muy por debajo del costo promedio, parece escrito por kg y no por bolsa."""
+    alertas = []
+    for i in oc.items.filter(producto__isnull=False).select_related('producto'):
+        p = i.producto
+        if p.factor <= 1 or not p.costo_promedio or not i.precio_unitario:
+            continue
+        por_unidad = i.precio_unitario * (tc or 1) / p.factor
+        if por_unidad * 5 < p.costo_promedio:
+            alertas.append(f'{p.codigo} {p.nombre}: la orden va en {p.unidad_de_compra} de {p.factor:g} {p.unidad}; '
+                           f'S/ {i.precio_unitario:,.4f} por {p.unidad_de_compra} es S/ {por_unidad:,.4f} por '
+                           f'{p.unidad} frente a un costo promedio de S/ {p.costo_promedio:,.4f}. ¿El precio está por '
+                           f'{p.unidad} en vez de por {p.unidad_de_compra}?')
+    return alertas
+
+
 def alertas_orden(oc):
     """Líneas de la OC cuyo precio supera el último pagado (al mismo proveedor o, si nunca se le compró, a cualquiera)
     en más del % de la empresa. [texto]"""
     from core.models import Empresa
+    tc = oc.tipo_cambio if oc.moneda == 'USD' else Decimal('1')
+    alertas = alertas_unidad(oc, tc)
     pct = Empresa.actual().alerta_precio_pct
     if not pct:
-        return []
-    tc = oc.tipo_cambio if oc.moneda == 'USD' else Decimal('1')
-    alertas = []
+        return alertas
     for i in oc.items.filter(producto__isnull=False).select_related('producto'):
         ref = ultimo_precio(i.producto, oc.tercero) or ultimo_precio(i.producto)
         if ref is None or not ref[0]:

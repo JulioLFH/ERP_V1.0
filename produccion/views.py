@@ -63,6 +63,10 @@ def _guardar_orden(request, orden, titulo):
             servicios.explotar(orden)
         messages.success(request, f'Orden guardada en borrador con la versión {orden.version.codigo}: insumos y '
                                   'horas de su receta y hoja de ruta.')
+        preferente = orden.producto.almacen_defecto
+        if preferente is not None and preferente.pk != orden.almacen_destino_id:  # AUD-MAN-02
+            messages.warning(request, f'El producto terminado ingresará a {orden.almacen_destino}, distinto de su '
+                                      f'almacén por defecto ({preferente}).')
         return redirect('manufactura:orden', orden.pk)
     if not orden.pk and request.GET.get('producto'):
         form.initial['producto'] = request.GET['producto']
@@ -79,9 +83,18 @@ def _guardar_orden(request, orden, titulo):
                 'El producto «{}» no tiene versión de fabricación vigente: por eso no aparece en la lista. '
                 '<a href="{}">Crear su versión de fabricación</a> (receta + hoja de ruta).',
                 producto.nombre if producto else '', url))
+        from core.models import Producto
+        destino = Producto.objects.filter(pk=request.GET['producto']).values_list('almacen_defecto', flat=True).first() \
+            if request.GET['producto'].isdigit() else None
+        if destino:  # AUD-03: el producto terminado ingresa a su almacén por defecto
+            form.initial['almacen_destino'] = destino
     versiones = {v.pk: v.producto_id for v in VersionFabricacion.objects.filter(activa=True)}
+    from core.models import Producto
+    # AUD-03: almacén por defecto de cada producto fabricable (la página lo propone como almacén de terminados)
+    almacenes = dict(Producto.objects.filter(pk__in=set(versiones.values()), almacen_defecto__isnull=False)
+                     .values_list('pk', 'almacen_defecto'))
     return render(request, 'produccion/orden_form.html', {'form': form, 'titulo': titulo, 'orden': orden,
-                                                         'versiones': versiones})
+                                                         'versiones': versiones, 'almacenes_defecto': almacenes})
 
 
 @login_required

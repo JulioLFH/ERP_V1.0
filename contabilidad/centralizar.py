@@ -60,10 +60,12 @@ class Borrador:
             return None
         if centro_beneficio is None and centro_costo is not None:
             centro_beneficio = centro_costo.beneficio  # la línea de negocio sale del centro de costo
+        del_documento = centro_costo
         if centro_costo is not None and not admite_centro(cuenta):
             centro_costo = None  # la cuenta no lleva centro de costo (balance, compras 60, costo de ventas…)
         linea = AsientoLinea(cuenta=cuenta, debe=debe, haber=haber, tercero=tercero, documento=documento,
                              glosa=glosa[:200], centro_costo=centro_costo, centro_beneficio=centro_beneficio)
+        linea.centro_documento = del_documento  # AUD-04: lo hereda su destino analítico aunque esta cuenta no lo lleve
         if self.moneda == 'USD' and importe_me is not None:
             linea.debe_me = r2(abs(importe_me)) if debe else D0
             linea.haber_me = r2(abs(importe_me)) if haber else D0
@@ -86,15 +88,19 @@ class Borrador:
 
     def agregar_destinos(self):
         destinos = []
-        plan = pcge.plan() if any(l.centro_costo for l in self.lineas) else None
+        plan = pcge.plan() if any(l.centro_costo or getattr(l, 'centro_documento', None)
+                                  for l in self.lineas) else None
         for l in self.lineas:
             c = l.cuenta
             if c.destino_debe_id and c.destino_haber_id:
                 neto = l.debe - l.haber
                 if neto:
-                    destino = _destino_por_centro(c.destino_debe, l.centro_costo, plan)
+                    centro = l.centro_costo or getattr(l, 'centro_documento', None)
+                    destino = _destino_por_centro(c.destino_debe, centro, plan)
+                    if not l.centro_costo and centro is not None and not admite_centro(destino):
+                        centro = None  # el heredado del documento solo va donde la cuenta de destino lo admite
                     destinos.append(AsientoLinea(cuenta=destino, debe=max(neto, D0), haber=max(-neto, D0),
-                                                 glosa=f'Destino {c.codigo}', centro_costo=l.centro_costo,
+                                                 glosa=f'Destino {c.codigo}', centro_costo=centro,
                                                  centro_beneficio=l.centro_beneficio, es_destino=True))
                     destinos.append(AsientoLinea(cuenta=c.destino_haber, debe=max(-neto, D0), haber=max(neto, D0),
                                                  glosa=f'Destino {c.codigo}', es_destino=True))
@@ -299,8 +305,9 @@ def asiento_compra(c, cta):
         if centros:
             for centro, sub in _repartir(parte, centros):
                 b.add(cuenta, debe=sub, documento=doc, centro_costo=centro, importe_me=me * centros[centro] / 100)
-        else:
-            b.add(cuenta, debe=parte, documento=doc, centro_costo=c.centro_costo, importe_me=me)
+        else:  # AUD-04: sin centro en la factura, el de su orden de compra
+            centro_factura = c.centro_costo or (c.orden_compra.centro_costo if c.orden_compra_id else None)
+            b.add(cuenta, debe=parte, documento=doc, centro_costo=centro_factura, importe_me=me)
     b.add(cta['igv'], debe=igv_credito, documento=doc, importe_me=c.igv - igv_me_costo)
     if ajuste > 0:
         b.add(cta.get('redondeo_perdida') or cta['egreso_otro'], debe=ajuste, documento=doc,

@@ -26,9 +26,12 @@ class Celular:
                                                    serialization.PublicFormat.SubjectPublicKeyInfo)
         self.clave = base64.b64encode(der).decode()
         self.codigo = app_movil.codigo_de(der)
+        self.ultima = 0
 
     def pedido(self, version='1.1.0', hora=None, firma=None):
-        hora = hora or int(time.time() * 1000)
+        # cada firma con una hora mayor que la anterior (dos pedidos en el mismo milisegundo serían una repetición)
+        self.ultima = hora or max(int(time.time() * 1000), self.ultima + 1)
+        hora = self.ultima
         firmado = self.llave.sign(app_movil.mensaje_firmado(hora, version, self.clave), ec.ECDSA(hashes.SHA256()))
         return json.dumps({'clave': self.clave, 'version': version, 'modelo': 'Pixel 7', 'hora': hora,
                            'firma': firma or base64.b64encode(firmado).decode()})

@@ -34,7 +34,7 @@ class FactorCompraTest(TestCase):
         self.prov = Tercero.objects.filter(tipo__in=['PROVEEDOR', 'AMBOS']).first()
         self.gaseosa = Producto.objects.create(nombre='Gaseosa 500 ml', clase='MERCADERIA', unidad='NIU',
                                                unidad_compra='BX', factor_compra=D('12'), proveedor=self.prov,
-                                               precio_compra=D('24'), punto_reorden=D('24'), stock_maximo=D('60'))
+                                               precio_compra=D('2'), punto_reorden=D('24'), stock_maximo=D('60'))
 
     def test_factura_con_ingreso_directo_convierte_cantidad_y_costo(self):
         c = Compra.objects.create(tercero=self.prov, serie='F001', numero='1212', fecha_emision=HOY)
@@ -67,3 +67,5 @@ class FactorCompraTest(TestCase):
         oc.save()
         fila = next(f for f in sugerencias_compra() if f['p'] == self.gaseosa)
         self.assertEqual((fila['cantidad'], fila['unidades']), (D('3'), D('36')))  # (60 − 24) / 12 = 3 cajas
+        # AUD-INV-03: el precio del maestro es por unidad (S/ 2): la caja de 12 vale S/ 24 y el importe sale en cajas
+        self.assertEqual((fila['precio'], fila['importe']), (D('24'), D('72')))

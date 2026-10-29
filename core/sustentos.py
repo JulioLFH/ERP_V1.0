@@ -9,7 +9,8 @@ from django.shortcuts import get_object_or_404, redirect
 from .models import ArchivoSustento, Sustento
 
 MAX_BYTES = 5 * 1024 * 1024
-EXTENSIONES = ('.pdf', '.png', '.jpg', '.jpeg', '.webp', '.xlsx', '.xls', '.xml', '.zip', '.docx', '.doc', '.csv')
+EXTENSIONES = ('.pdf', '.png', '.jpg', '.jpeg', '.webp', '.xlsx', '.xls', '.xml', '.zip', '.docx', '.doc', '.csv',
+               '.txt')  # .txt: manuales en texto que Lucho lee (LUC-01)
 # modelo -> módulo que puede ver y adjuntar sus sustentos
 MODULO_DE = {'contabilidad.asiento': 'contabilidad', 'finanzas.movimiento': 'tesoreria', 'finanzas.cuenta': 'tesoreria',
              # v1.97: fotos del defecto y de parámetros, manuales y respaldos de la ficha (asistente de planta)
@@ -44,7 +45,7 @@ def validar_archivo(archivo):
     if archivo.size > MAX_BYTES:
         raise ErrorSustento('El sustento supera los 5 MB.')
     if not archivo.name.lower().endswith(EXTENSIONES):
-        raise ErrorSustento('Formato no admitido: adjunte PDF, imagen, Excel, Word, XML o ZIP.')
+        raise ErrorSustento('Formato no admitido: adjunte PDF, imagen, Excel, Word, XML, ZIP o texto.')
 
 
 def validar_imagen(archivo):
@@ -136,8 +137,11 @@ def subir(request, ct_id, obj_id):
             messages.error(request, 'No tiene acceso para adjuntar sustentos a este documento.')
         else:
             try:
-                adjuntar(obj, request.FILES.get('archivo'), request.user, request.POST.get('descripcion', ''))
+                s = adjuntar(obj, request.FILES.get('archivo'), request.user, request.POST.get('descripcion', ''))
                 messages.success(request, 'Sustento adjuntado.')
+                aviso = obj.al_adjuntar(s) if hasattr(obj, 'al_adjuntar') else ''  # ej. Lucho lee el manual
+                if aviso:
+                    messages.info(request, aviso)
             except ErrorSustento as exc:
                 messages.error(request, str(exc))
     return redirect(destino)

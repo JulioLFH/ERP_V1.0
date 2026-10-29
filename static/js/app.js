@@ -189,8 +189,25 @@
     }
   }
 
+  // AUD-01: en compras la cantidad y el precio van en la unidad de compra (bolsa de 50 kg, caja de 12): se indica
+  // debajo de la cantidad para que nadie escriba el precio por kg con la cantidad en bolsas
+  function unidadCompra(tr, p) {
+    const cant = tr.querySelector('.js-cantidad');
+    if (precioCampo !== 'precio_compra' || !cant) return;
+    let nota = tr.querySelector('.js-unidad-compra');
+    if (!nota) {
+      nota = document.createElement('div');
+      nota.className = 'small text-muted js-unidad-compra';
+      cant.insertAdjacentElement('afterend', nota);
+    }
+    const factor = parseFloat(p.factor_compra || 1);
+    nota.textContent = factor > 1 ? `${p.unidad_compra} de ${factor} ${p.unidad} · precio por ${p.unidad_compra}`
+      : (p.unidad_compra || '');
+  }
+
   function enlazar(tr) {
     const sel = tr.querySelector('.js-producto');
+    if (sel && sel.value) producto(sel.value).then((p) => { if (p) unidadCompra(tr, p); });
     if (sel) {
       sel.addEventListener('change', async () => {
         const p = await producto(sel.value);
@@ -206,6 +223,7 @@
         }
         const unidad = tr.querySelector('.js-unidad');
         if (unidad && p.unidad) unidad.value = p.unidad;
+        unidadCompra(tr, p);
         const afec = tr.querySelector('.js-afectacion');
         if (afec && p.afectacion_igv !== undefined) afec.value = p.afectacion_igv || '';
         const cant = tr.querySelector('.js-cantidad');
@@ -536,20 +554,31 @@ document.querySelectorAll('input[data-sigue-fecha]').forEach((contable) => {
   if (emision && vence && window.ERP_TERCERO_CREDITO_URL) {
     let manual = !!vence.value;
     vence.addEventListener('input', () => { manual = true; });
+    // AUD-06: la forma de pago sigue al cliente (crédito si tiene días) mientras el usuario no la elija a mano;
+    // en un documento que ya existe no se toca
+    let formaManual = /\/editar\//.test(location.pathname);
+    let formaPropuesta = false;
+    if (forma) forma.addEventListener('change', (e) => { if (e.isTrusted) formaManual = true; });
     const sumar = (iso, dias) => {
       const d = new Date(`${iso}T12:00:00`);
       d.setDate(d.getDate() + dias);
       return d.toISOString().slice(0, 10);
     };
-    async function proponer() {
-      if (manual || !emision.value) return;
+    async function proponer(ev) {
       let dias = 0;
-      if (tercero && tercero.value && (!forma || forma.value === 'CREDITO')) {
+      if (tercero && tercero.value) {
         try {
           const r = await fetch(window.ERP_TERCERO_CREDITO_URL.replace('/0/', `/${tercero.value}/`), { credentials: 'same-origin' });
           if (r.ok) dias = (await r.json()).dias || 0;
         } catch (e) { /* sin datos: vence el día de emisión */ }
       }
+      const porCliente = ev && ev.target === tercero;
+      if (forma && porCliente && !formaManual && [...forma.options].some((o) => o.value === 'CREDITO')) {
+        if (dias && forma.value !== 'CREDITO') { forma.value = 'CREDITO'; formaPropuesta = true; }
+        else if (!dias && formaPropuesta && forma.value === 'CREDITO') { forma.value = 'CONTADO'; formaPropuesta = false; }
+      }
+      if (manual || !emision.value) return;
+      if (forma && forma.value !== 'CREDITO') dias = 0;
       if (forma && forma.value === 'CREDITO' && !dias) { vence.value = ''; return; }  // lo calcula el servidor
       vence.value = sumar(emision.value, dias);
     }

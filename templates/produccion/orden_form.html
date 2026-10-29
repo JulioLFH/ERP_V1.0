@@ -22,17 +22,27 @@
   </form>
 </div></div>
 {{ versiones|json_script:"versiones-data" }}
+{{ almacenes_defecto|json_script:"almacenes-defecto" }}
 <script nonce="{{ csp_nonce }}">
-// la lista de versiones muestra solo las del producto elegido
+// la lista de versiones muestra solo las del producto elegido; el almacén de terminados sigue al producto (AUD-03)
 (function () {
   const versiones = JSON.parse(document.getElementById('versiones-data').textContent);
+  const almacenes = JSON.parse(document.getElementById('almacenes-defecto').textContent);
   const prod = document.getElementById('id_producto'), sel = document.getElementById('id_version');
+  const destino = document.getElementById('id_almacen_destino');
   if (!prod || !sel) return;
   function filtrar() {
     [...sel.options].forEach(o => { if (o.value) o.hidden = !!prod.value && String(versiones[o.value]) !== prod.value; });
     if (sel.value && String(versiones[sel.value]) !== prod.value) sel.value = '';
   }
-  prod.addEventListener('change', filtrar);
+  prod.addEventListener('change', () => {
+    filtrar();
+    const alm = almacenes[prod.value];
+    if (destino && alm) {
+      if (destino.tomselect) destino.tomselect.setValue(String(alm));
+      else { destino.value = String(alm); destino.dispatchEvent(new Event('change')); }
+    }
+  });
   filtrar();
 })();
 </script>

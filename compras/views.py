@@ -42,6 +42,11 @@ class ComprasViews(ComprobanteViews):
         obra = Obra.de_centro(oc.centro_costo_id)
         if obra is not None and obra.almacen_id:
             initial['almacen'] = obra.almacen_id  # compra de una obra: ingresa a su almacén de obra
+        else:  # AUD-03: si todos sus bienes tienen el mismo almacén por defecto, la factura ingresa ahí
+            defectos = {i.producto.almacen_defecto_id for i in oc.items.select_related('producto')
+                        if i.producto_id and i.producto.es_inventariable}
+            if len(defectos) == 1 and None not in defectos:
+                initial['almacen'] = defectos.pop()
         sugerida = {}
         if recibida:  # ALM-14: se propone lo recibido y aún no facturado (en la unidad de compra)
             from .cruce import cantidad_sugerida
@@ -80,6 +85,8 @@ class ComprasViews(ComprobanteViews):
     def validar_precio(self, form, formset):
         """COM-27: precio de la factura fuera de la tolerancia de la orden (del proveedor o de la empresa): se
         detiene y se pide confirmarlo; al confirmarlo, la factura queda retenida para pago (cruce.retener)."""
+        from decimal import Decimal
+
         from .tolerancias import permitida, texto
         datos = form.cleaned_data
         oc = datos.get('orden_compra')
@@ -95,7 +102,8 @@ class ComprasViews(ComprobanteViews):
             p = c.get('producto') if c and not c.get('DELETE') else None
             if p is None or p.pk not in precios or c.get('precio_unitario') is None:
                 continue
-            neto = c['precio_unitario'] * (1 - (c.get('descuento_pct') or 0) / 100)
+            # AUD-02: con descuento 0 «or 0» daba un float (0 / 100) y Decimal × float era un error 500
+            neto = c['precio_unitario'] * (1 - Decimal(c.get('descuento_pct') or 0) / Decimal('100'))
             ref = precios[p.pk]
             if abs(neto - ref) > permitida(oc.tercero, 'precio', ref):
                 fuera.append(f'{p.nombre}: {neto:,.4f} frente a {ref:,.4f} de {oc.numero}')

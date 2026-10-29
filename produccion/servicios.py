@@ -262,6 +262,13 @@ def explotar(orden):
             h = (o.horas * factor).quantize(Decimal('0.01'))
             HoraOrden.objects.create(orden=orden, centro_id=o.centro_id, descripcion=o.descripcion, horas_plan=h,
                                      horas_real=h)
+    if not orden.centro_costo_id:
+        # AUD-04: sin centro elegido, la orden lleva desde el borrador el del puesto de su primera operación
+        primera = (orden.horas.filter(centro__centro_costo__isnull=False).select_related('centro')
+                   .order_by('secuencia', 'id').first())
+        if primera is not None:
+            orden.centro_costo_id = primera.centro.centro_costo_id
+            orden.save(update_fields=['centro_costo'])
 
 
 def disponibilidad(orden):
@@ -1022,9 +1029,10 @@ def convertir_en_orden(propuesta, usuario):
         raise ErrorProduccion(f'{propuesta.producto.nombre} no tiene versión de fabricación vigente.')
     with transaction.atomic():
         principal = Almacen.principal()
+        destino = propuesta.producto.almacen_defecto or principal  # AUD-03: su almacén por defecto
         orden = OrdenProduccion.objects.create(
             producto=propuesta.producto, version=version, lista=version.lista, cantidad=propuesta.cantidad,
-            fecha=propuesta.fecha_inicio, almacen_insumos=principal, almacen_destino=principal, creado_por=usuario,
+            fecha=propuesta.fecha_inicio, almacen_insumos=principal, almacen_destino=destino, creado_por=usuario,
             glosa=f'Generada por el MRP ({propuesta.origen})'[:500])
         explotar(orden)
         propuesta.orden_produccion = orden
@@ -1054,7 +1062,7 @@ def convertir_en_compras(propuestas, usuario, centro_costo):
             for f in filas:  # la necesidad está en unidad de almacén; se pide en unidad de compra
                 OrdenCompraItem.objects.create(documento=oc, producto=f.producto, descripcion=f.producto.nombre,
                                                cantidad=f.producto.a_compra(f.cantidad),
-                                               precio_unitario=f.producto.precio_compra or D0)
+                                               precio_unitario=f.producto.precio_compra_unidad_compra)
                 f.orden_compra = oc
                 f.save(update_fields=['orden_compra'])
             oc.calcular_totales()

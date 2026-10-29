@@ -190,8 +190,16 @@ class Manual(models.Model):
                                   help_text='Si el procedimiento ya está en Calidad › Documentos')
     contenido = models.TextField('Puntos clave', blank=True,
                                  help_text='Lo que Lucho cita: arranque, ajustes, advertencias del fabricante')
-    validado = models.BooleanField('Validado por ingeniería o calidad', default=False,
+    validado = models.BooleanField('Validado por ingeniería o calidad', default=False, editable=False,
                                    help_text='Lucho solo cita conocimiento validado')
+    # LUC-07: lo valida otra persona con el permiso de aprobar (como las fichas), con fecha y usuario
+    validado_por = models.ForeignKey(USUARIO, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+                                     editable=False)
+    validado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    # LUC-01: el texto del archivo adjunto, por secciones [{titulo, pagina, texto}], para citar sección y página
+    secciones = models.JSONField(default=list, blank=True, editable=False)
+    leido_en = models.DateTimeField('Archivo leído', null=True, blank=True, editable=False)
+    lectura_aviso = models.CharField(max_length=250, blank=True, editable=False)
     activo = models.BooleanField(default=True)
     creado_por = models.ForeignKey(USUARIO, on_delete=models.SET_NULL, null=True, related_name='+', editable=False)
     creado = models.DateTimeField(auto_now_add=True)
@@ -206,6 +214,11 @@ class Manual(models.Model):
 
     def get_absolute_url(self):
         return reverse('asistente:manual', args=[self.pk])
+
+    def al_adjuntar(self, sustento):
+        """Al adjuntar el PDF o TXT del manual, Lucho lee su texto (LUC-01). Devuelve el aviso para el usuario."""
+        from .lectura import leer_manual
+        return leer_manual(self)
 
 
 class CasoPlanta(models.Model):
@@ -279,6 +292,12 @@ class Consulta(models.Model):
     fuera_de_dominio = models.BooleanField(default=False)
     motivo_uso = models.CharField('Motivo (uso inadecuado)', max_length=120, blank=True)
     supervisor_avisado = models.BooleanField(default=False)
+    # LUC-05: parámetros que el operario dice haber ajustado en este mensaje {nombre: valor}
+    ajustes = models.JSONField(default=dict, blank=True)
+    # LUC-02: un registro de uso inadecuado equivocado se descarta con motivo (sale del conteo, queda en la bitácora)
+    descartada = models.BooleanField('No aplica (falso positivo)', default=False)
+    descartada_por = models.ForeignKey(USUARIO, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    motivo_descarte = models.CharField(max_length=200, blank=True)
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:

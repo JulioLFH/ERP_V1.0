@@ -192,7 +192,7 @@ RUTAS = {
     'crm:equipo': {'POST': 'crm.configurar'}, 'crm:equipo_nuevo': {'POST': 'crm.configurar'},
     'crm:configuracion': 'crm.configurar', 'crm:reasignaciones': 'crm.ver_todas',
     'crm:datos_personales': {'POST': 'crm.datos_personales'},
-    'ventas:cot_nuevo': 'ventas.emitir','ventas:cot_editar': 'ventas.emitir', 'ventas:cot_estado': 'ventas.emitir',
+    'ventas:cot_nuevo': 'ventas.emitir','ventas:cot_editar': 'ventas.emitir', 'ventas:cot_estado': lambda r: _estado_pedido(r),
     'compras:nuevo': 'compras.registrar', 'compras:editar': 'compras.registrar', 'compras:importar': 'compras.registrar',
     'compras:importar_xml': 'compras.registrar', 'compras:importar_xml_revisar': 'compras.registrar',
     'compras:trasladar': 'compras.registrar', 'compras:notas': 'compras.registrar',
@@ -380,6 +380,10 @@ RUTAS = {
     **{f'asistente:{n}': 'asistente.proponer_ficha' for n in ('ficha_nueva', 'ficha_editar', 'importar')},
     **{f'asistente:{n}': 'asistente.configurar' for n in ('manual_nuevo', 'manual_editar', 'procesos', 'proceso',
                                                           'configuracion', 'uso')},
+    # LUC-07: validar un manual es aprobar conocimiento (como las fichas); volver a leerlo, configurar
+    'asistente:manual': lambda r: 'asistente.consultar' if r.method != 'POST' else (
+        'asistente.aprobar_ficha' if r.POST.get('accion') in ('validar', 'quitar_validacion') else
+        'asistente.configurar'),
     'distribucion:nueva': 'distribucion.programar',
     'distribucion:hoja': {'POST': 'distribucion.programar'},
     'distribucion:movil': {'POST': 'distribucion.entregar'},
@@ -442,6 +446,17 @@ def _aprobar_oc():
     """Con reglas de aprobación de OC, la vista valida el nivel (el aprobador puede no tener el permiso general)."""
     from .aprobaciones import hay_reglas
     return None if hay_reglas('OC') else 'compras.aprobar_oc'
+
+
+def _estado_pedido(request):
+    """AUD-07: aprobar un pedido de venta (por niveles o con «Aprobar pedidos de venta») lo valida la vista, como en
+    «Mis aprobaciones»: no exige el permiso de emitir. Lo demás (enviar, anular, cotizaciones) sí."""
+    if request.method == 'POST' and request.POST.get('estado') == 'APROBADO':
+        pk = (request.resolver_match.kwargs or {}).get('pk') if request.resolver_match else None
+        from ventas.models import Cotizacion
+        if pk and Cotizacion.objects.filter(pk=pk, tipo='PED').exists():
+            return None
+    return 'ventas.emitir'
 
 
 def _tipo(request):

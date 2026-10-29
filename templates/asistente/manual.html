@@ -3,13 +3,21 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
   <div><h1 class="page-title mb-0"><i class="bi bi-book"></i> {{ m.titulo }}</h1>
-    <div class="small text-muted">{{ m.get_tipo_display }}{% if m.validado %} · <span class="text-success"><i class="bi bi-patch-check-fill"></i> Validado (Lucho lo cita)</span>{% else %} · sin validar (Lucho no lo cita){% endif %}{% if not m.activo %} · inactivo{% endif %}</div></div>
-  <div class="d-flex gap-2"><a href="{% url 'asistente:manuales' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Manuales</a>
-    {% if puede.asistente_configurar %}<a href="{% url 'asistente:manual_editar' m.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}</div>
+    <div class="small text-muted">{{ m.get_tipo_display }}{% if m.validado %} · <span class="text-success"><i class="bi bi-patch-check-fill"></i> Validado (Lucho lo cita){% if m.validado_por %} por {{ m.validado_por.get_full_name|default:m.validado_por.username }} el {{ m.validado_en|date:'d/m/Y H:i' }}{% endif %}</span>{% else %} · sin validar (Lucho no lo cita){% endif %}{% if not m.activo %} · inactivo{% endif %}</div></div>
+  <div class="d-flex flex-wrap gap-2"><a href="{% url 'asistente:manuales' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Manuales</a>
+    {% if puede.asistente_aprobar_ficha %}<form method="post">{% csrf_token %}
+      {% if m.validado %}<button name="accion" value="quitar_validacion" class="btn btn-sm btn-outline-warning" data-confirm="¿Quitar la validación? Lucho deja de citarlo.">Quitar validación</button>
+      {% else %}<button name="accion" value="validar" class="btn btn-sm btn-success" title="Lo valida otra persona con el permiso de aprobar (quien lo cargó no)"><i class="bi bi-patch-check"></i> Validar</button>{% endif %}</form>{% endif %}
+    {% if puede.asistente_configurar %}<form method="post">{% csrf_token %}<button name="accion" value="leer" class="btn btn-sm btn-outline-secondary" title="Lee de nuevo el PDF o TXT adjunto"><i class="bi bi-arrow-repeat"></i> Volver a leer el archivo</button></form>
+    <a href="{% url 'asistente:manual_editar' m.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}</div>
 </div>
 <div class="row g-3">
   <div class="col-lg-8">
-    <div class="card mb-3"><div class="card-header fw-semibold small">Puntos clave</div><div class="card-body small" style="white-space: pre-wrap">{{ m.contenido|default:'—' }}</div></div>
+    {% if m.lectura_aviso %}<div class="alert alert-warning small py-2"><i class="bi bi-exclamation-triangle"></i> {{ m.lectura_aviso }}</div>{% endif %}
+    <div class="card mb-3"><div class="card-header fw-semibold small d-flex justify-content-between"><span>Texto leído del archivo</span>{% if m.leido_en %}<span class="fw-normal text-muted">{{ m.secciones|length }} secciones · leído el {{ m.leido_en|date:'d/m/Y H:i' }}</span>{% endif %}</div>
+      {% if m.secciones %}<div class="list-group list-group-flush small">{% for s in m.secciones %}<details class="list-group-item"><summary><b>{{ s.titulo }}</b> <span class="text-muted">· pág. {{ s.pagina }}</span></summary><div class="mt-1" style="white-space: pre-wrap">{{ s.texto }}</div></details>{% endfor %}</div>
+      {% else %}<div class="card-body small text-muted">Adjunte el PDF o TXT del manual abajo: Lucho lee su texto y cita la sección y la página.</div>{% endif %}</div>
+    <div class="card mb-3"><div class="card-header fw-semibold small">Puntos clave (resumen opcional)</div><div class="card-body small" style="white-space: pre-wrap">{{ m.contenido|default:'—' }}</div></div>
     {% include 'core/_sustentos.html' with objeto=m %}
   </div>
   <div class="col-lg-4"><div class="card"><div class="card-body small">
@@ -19,6 +27,7 @@
     {% if m.proceso %}<div>Proceso: {{ m.proceso }}</div>{% endif %}
     {% if m.fabricante %}<div>Fabricante / proveedor: <b>{{ m.fabricante.nombre }}</b></div>{% endif %}
     {% if m.documento %}<div>Documento controlado: <a href="{{ m.documento.get_absolute_url }}">{{ m.documento.codigo }}</a></div>{% endif %}
+    {% if m.creado_por %}<div class="text-muted mt-2">Cargado por {{ m.creado_por.username }} el {{ m.creado|date:'d/m/Y' }}</div>{% endif %}
   </div></div></div>
 </div>
 {% endblock %}

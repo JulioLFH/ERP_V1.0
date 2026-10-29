@@ -542,6 +542,11 @@ class ProductoForm(CamposSensiblesMixin, BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['peso'].required = False
         self.fields['factor_compra'].required = False
+        if 'precio_compra' in self.fields:  # AUD-01: el precio es por unidad de medida; la orden lo convierte
+            self.fields['precio_compra'].label = 'Precio de compra por unidad de medida (sin IGV)'
+            self.fields['precio_compra'].help_text = (
+                'El del kg, litro o unidad (la unidad de medida). Si se compra en bolsas o cajas, la orden de compra '
+                'lo multiplica por las unidades de la bolsa: S/ 3.20 el kg × 50 = S/ 160 por bolsa.')
         self.fields['tipo_planificacion'].required = False
         self.fields['estrategia'].required = False
         self.fields['peso_neto'].required = False
@@ -599,6 +604,17 @@ class ProductoForm(CamposSensiblesMixin, BootstrapMixin, forms.ModelForm):
             self.add_error('detraccion_codigo', 'Indique el bien o servicio sujeto a detracción (catálogo 54).')
         elif datos.get('detraccion_codigo') and not pct:
             self.add_error('detraccion_pct', 'Indique el % de detracción del bien o servicio.')
+        # AUD-10: configuraciones que se contradicen. El vencimiento obligatorio es del control por lote: sin lote no
+        # aplica y se apaga. Con MRP el punto de reorden no se usa: se graba, pero se avisa (la vista lo muestra)
+        self.avisos = []
+        control = datos.get('control', self.instance.control)
+        if 'exige_vencimiento' in datos and control != 'LOTE' and datos.get('exige_vencimiento'):
+            datos['exige_vencimiento'] = False
+        planificacion = datos.get('tipo_planificacion') or self.instance.tipo_planificacion
+        if planificacion == 'MRP' and (datos.get('punto_reorden') or 0) > 0:
+            self.avisos.append('Con planificación MRP el punto de reorden no se usa: el producto no sale en la '
+                               'sugerencia de compra por reorden (lo repone el MRP según la demanda). Cambie el tipo de '
+                               'planificación a «Punto de reorden» si quiere reponerlo por su reorden.')
         return datos
 
 

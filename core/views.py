@@ -662,11 +662,21 @@ class ProductoNuevo(FormGenerico, CreateView):
     def get_initial(self):
         return {'clase': self.request.GET.get('clase', 'MERCADERIA')}
 
+    def form_valid(self, form):
+        for aviso in getattr(form, 'avisos', []):  # AUD-10
+            messages.warning(self.request, aviso)
+        return super().form_valid(form)
+
 
 class ProductoEditar(FormGenerico, UpdateView):
     model, form_class, titulo = Producto, ProductoForm, 'Editar producto / servicio'
     template_name = 'core/producto_form.html'
     success_url = reverse_lazy('productos')
+
+    def form_valid(self, form):
+        for aviso in getattr(form, 'avisos', []):  # AUD-10: se graba, pero se avisa lo que no se usará
+            messages.warning(self.request, aviso)
+        return super().form_valid(form)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

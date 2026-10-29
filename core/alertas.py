@@ -456,7 +456,7 @@ def _alertas_asistente(user):
     cfg = ConfigAsistente.actual()
     if puede(user, 'asistente.configurar') or cfg.supervisor_id == user.pk:
         desde = timezone.now() - timedelta(days=7)
-        marcadas = (Consulta.objects.filter(supervisor_avisado=True, creado__gte=desde)
+        marcadas = (Consulta.objects.filter(supervisor_avisado=True, creado__gte=desde, descartada=False)
                     .values('usuario').distinct().count())
         if marcadas:
             salida.append(_alerta('danger', 'bi-shield-exclamation', 'Uso inadecuado del asistente',

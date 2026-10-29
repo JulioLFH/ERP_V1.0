@@ -717,7 +717,7 @@ class LineaSolicitud(models.Model):
     def precio(self):
         if self.precio_estimado:
             return self.precio_estimado
-        return self.producto.precio_compra / (self.producto.factor or 1) if self.producto_id else Decimal('0')
+        return self.producto.precio_compra if self.producto_id else Decimal('0')  # por unidad de medida (AUD-01)
 
     @property
     def valor(self):

@@ -11,6 +11,7 @@ from django.db.models import Sum
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 
 from compras.models import Compra
 from contabilidad.automatico import actualizar_pendientes, periodos_pendientes
@@ -79,8 +80,10 @@ class HallazgosQATest(TestCase):
     def test_bug01_dos_lineas_mismo_producto_descuentan_bien(self):
         p = Producto.objects.get(codigo='P003')
         stock0 = p.stock
+        # con fecha de hoy: los ingresos de la demo se fechan relativos a hoy (el 03/10 ese stock aún no existía)
         r = self._venta(p, 2, **{'items-TOTAL_FORMS': '2', 'items-1-producto': p.pk, 'items-1-descripcion': 'x',
-                                  'items-1-cantidad': '3', 'items-1-precio_unitario': '10'})
+                                  'items-1-cantidad': '3', 'items-1-precio_unitario': '10',
+                                  'fecha_emision': timezone.localdate().isoformat()})
         self.assertEqual(r.status_code, 302)
         p.refresh_from_db()
         self.assertEqual(p.stock, stock0 - 5)

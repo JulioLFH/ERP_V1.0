@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 
 from core import aprobaciones
 from core.models import r2
-from core.segregacion import creador, error_aprobacion
+from core.segregacion import creador, error_aprobacion, propio
 
 from .models import Compra, OrdenCompra
 
@@ -66,7 +66,9 @@ def aprobar(oc, user, comentario=''):
     if bloqueos:
         raise ErrorAprobacionOC('No se aprueba: ' + ' '.join(bloqueos) + ' Elija otro proveedor o levante el bloqueo '
                                 'en Compras › Proveedores por producto.')
-    error = error_aprobacion(user, oc)
+    # AUD-08: quien registró la orden no la aprueba (regla fija, como en pedidos, rendiciones y solicitudes), también
+    # sin reglas de aprobación y para el administrador, salvo que sea el único usuario
+    error = propio(user, oc) or error_aprobacion(user, oc)
     if error:
         raise ErrorAprobacionOC(error)
     from obras.presupuesto_proyecto import ErrorPresupuesto, autorizar_exceso

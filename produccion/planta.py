@@ -54,6 +54,25 @@ def crear_inspeccion(insp, usuario):
     return insp
 
 
+def inspeccion_pendiente(producto, lote, cantidad, almacen, concepto=''):
+    """AUD-09: el lote que entra en cuarentena por su plan de calidad deja su inspección pendiente (con las
+    características de la especificación vigente) para que Calidad se entere. Una sola por lote. Si el producto no
+    tiene especificación aprobada, la inspección queda sin características (QA la completa)."""
+    if InspeccionCalidad.objects.filter(producto=producto, lote__iexact=lote.codigo,
+                                        resultado__in=('PENDIENTE', 'OOS')).exists():
+        return None
+    tipo = 'TERMINADO' if concepto in ('ENT_OP', 'PRODUCCION') else 'RECEPCION'
+    insp = InspeccionCalidad(tipo=tipo, producto=producto, lote=lote.codigo[:40], cantidad=cantidad,
+                             almacen=almacen if isinstance(almacen, Almacen) else None,
+                             observaciones='Creada al ingresar el lote en cuarentena (plan de calidad).')
+    try:
+        return crear_inspeccion(insp, None)
+    except ErrorPlanta:
+        insp.numero = _numero('CAL', 'QC')
+        insp.save()
+        return insp
+
+
 def registrar_resultados(insp, valores, resultado, observaciones, usuario, motivo=''):
     """valores: {resultado_id: (valor Decimal o None, texto, conforme bool o None)}. Con rastro de auditoría, bloqueo
     al decidir y OOS (produccion/calidad_farma.py)."""

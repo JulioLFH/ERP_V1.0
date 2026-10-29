@@ -88,7 +88,8 @@ MODULOS = {  # quién puede pedir cada lista (además del administrador)
 }
 
 
-CAMPOS_PRODUCTO = ('id', 'nombre', 'unidad', 'precio_venta', 'costo_promedio', 'precio_compra', 'afectacion_igv')
+CAMPOS_PRODUCTO = ('id', 'nombre', 'unidad', 'precio_venta', 'costo_promedio', 'precio_compra', 'afectacion_igv',
+                   'unidad_compra', 'factor_compra')
 
 
 def datos_productos(user, ids=None):
@@ -100,8 +101,13 @@ def datos_productos(user, ids=None):
         qs = qs.filter(pk__in=ids)
     productos = list(qs.values(*CAMPOS_PRODUCTO))
     costos = puede_ver_costos(user)
-    for p in productos:  # compras: precio de compra referencial o, si no hay (y puede ver costos), el costo promedio
-        p['precio_compra'] = p['precio_compra'] or (p['costo_promedio'] if costos else 0)
+    for p in productos:
+        # compras: precio de compra referencial o, si no hay (y puede ver costos), el costo promedio; ambos son por
+        # unidad de medida (kg) y la orden va en unidad de compra (bolsa de 50 kg): se multiplican por el factor (AUD-01)
+        factor = p['factor_compra'] if p['factor_compra'] and p['factor_compra'] > 0 else 1
+        p['factor_compra'] = factor
+        p['unidad_compra'] = p['unidad_compra'] or p['unidad']
+        p['precio_compra'] = (p['precio_compra'] or (p['costo_promedio'] or 0 if costos else 0)) * factor
         if not costos:
             p.pop('costo_promedio')
     return productos

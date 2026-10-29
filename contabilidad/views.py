@@ -41,8 +41,11 @@ D0 = Decimal('0')
 
 
 def _ultimo_periodo():
-    return (Asiento.objects.order_by('-periodo').values_list('periodo', flat=True).first()
-            or timezone.localdate().strftime('%Y%m'))
+    """Periodo por defecto: el último con asientos que no sea futuro (AUD-11: un asiento de prueba en 02/2027 hacía
+    abrir las pantallas en un mes que aún no llega); sin asientos, el mes actual."""
+    actual = timezone.localdate().strftime('%Y%m')
+    return (Asiento.objects.filter(periodo__lte=actual).order_by('-periodo').values_list('periodo', flat=True).first()
+            or actual)
 
 
 def _periodo(request, clave='periodo', defecto=None):
