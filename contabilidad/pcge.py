@@ -311,6 +311,48 @@ def plan(alias=None):
     return fila[0] if fila else PCGE2019
 
 
+# ---------------------------------------------------------------- cuentas de 6 dígitos del plan cargado
+DIGITOS_DETALLE = 6
+_DETALLE = {}  # base -> {prefijo: [cuentas imputables de 6 dígitos que empiezan con él]}
+
+
+def limpiar_detalle(**kwargs):
+    """Se llama al cambiar el plan de cuentas (también como receptor de post_save / post_delete)."""
+    _DETALLE.clear()
+
+
+def _subcuentas(alias):
+    if alias not in _DETALLE:
+        from .models import CuentaContable
+        indice = {}
+        for c in CuentaContable.objects.using(alias).filter(imputable=True, activo=True).order_by('codigo'):
+            if len(c.codigo) == DIGITOS_DETALLE:
+                for n in range(1, DIGITOS_DETALLE):
+                    indice.setdefault(c.codigo[:n], []).append(c)
+        _DETALLE[alias] = indice
+    return _DETALLE[alias]
+
+
+def al_detalle(cuenta, moneda=None, emparejar=False):
+    """Cuenta de 6 dígitos del plan cargado en lugar de la general de la configuración (4212 -> 421211, 40111 ->
+    401111): la de la moneda (MN/ME según su campo moneda) y, si hay varias, la de menor código. Sin subcuentas de 6
+    dígitos queda la misma. emparejar: una cuenta de 6 dígitos con su par en la otra moneda (421211 MN / 421212 ME)
+    pasa a la de la moneda del documento."""
+    if cuenta is None:
+        return None
+    from erp.empresas import actual
+    subcuentas = _subcuentas(cuenta._state.db or actual())
+    moneda = moneda or 'PEN'
+    if len(cuenta.codigo) < DIGITOS_DETALLE:
+        hijas = subcuentas.get(cuenta.codigo)
+        return min(hijas, key=lambda c: (c.moneda != moneda, c.codigo)) if hijas else cuenta
+    if emparejar and len(cuenta.codigo) == DIGITOS_DETALLE and cuenta.moneda != moneda:
+        par = subcuentas.get(cuenta.codigo[:-1], [])
+        if len(par) == 2 and {c.moneda for c in par} == {'PEN', 'USD'}:
+            return next(c for c in par if c.moneda == moneda)
+    return cuenta
+
+
 def codigo(codigo_2019, plan_contable=None):
     """Código de la cuenta en el plan de la empresa (los códigos del ERP están escritos en el PCGE 2019)."""
     if not codigo_2019:

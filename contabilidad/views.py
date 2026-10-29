@@ -714,6 +714,11 @@ def configuracion(request):
         messages.success(request, 'Configuración contable guardada. Vuelva a centralizar los periodos abiertos '
                                   'para aplicar los cambios.')
         return redirect('contabilidad:configuracion')
+    pcge.limpiar_detalle()
+    for f in formset.forms:  # la cuenta de 6 dígitos del plan cargado en que se registra (y su par en dólares)
+        cuenta = f.instance.cuenta if f.instance.cuenta_id else None
+        mn, me = pcge.al_detalle(cuenta), pcge.al_detalle(cuenta, 'USD', emparejar=True)
+        f.detalle = [c for c in dict.fromkeys((mn, me)) if c is not None and c != cuenta]
     return render(request, 'contabilidad/configuracion.html', {'formset': formset})
 
 

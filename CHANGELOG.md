@@ -3,6 +3,12 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.101.0 — 29/10/2026 · Asientos con las cuentas de 6 dígitos del plan cargado
+- **Cuentas de 6 dígitos**: si la cuenta de la configuración contable (o la del producto, banco o comprobante) tiene subcuentas de 6 dígitos en el plan de cuentas cargado, el asiento va a la subcuenta: IGV 40111 → 401111, proveedores 4212 → 421211, clientes 1212 → 121201… Si hay varias, a la de la moneda (campo «moneda» de la cuenta) y después a la de menor código; para usar otra, se elige la exacta en la configuración contable.
+- **Soles y dólares**: el cliente, el proveedor y las letras van a la cuenta de la moneda del documento cuando el plan tiene el par MN / ME (421211 / 421212), también al pagar una factura en dólares desde un banco en soles; la aplicación de un anticipo sale de la cuenta en que se registró.
+- La subcuenta sin destino propio usa el destino (clase 9) de su cuenta general; el ajuste del inventario y el costo del proyecto inmobiliario miran la misma subcuenta.
+- **Configuración contable**: debajo de cada cuenta se ve en qué subcuenta de 6 dígitos se registra.
+
 ## v1.100.0 — 29/10/2026 · Auditoría funcional v1.98 y Lucho
 - **Unidad de compra (AUD-01)**: el precio de compra del producto es por unidad de medida (S/ 3.20 el kg); la orden de compra, la sugerencia de compra y el MRP lo llevan a la unidad de compra (bolsa de 50 kg = S/ 160). La línea de la orden muestra «BG de 50 KGM · precio por BG» y la orden avisa antes de aprobarla si el precio parece escrito por kg. Sin precio de compra se propone el costo promedio también por bolsa. La recepción ingresa al costo correcto.
 - **Factura desde la OC con descuento 0 % (AUD-02)**: ya no da error 500.

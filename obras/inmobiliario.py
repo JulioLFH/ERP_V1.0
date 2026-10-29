@@ -469,9 +469,10 @@ def costo_proyecto(obra, desde=None, hasta=None, con_directos=True):
     if not obra.centro_costo_id:
         return D0
     cuentas = Q(cuenta__codigo__startswith='6')
-    proceso = CuentaDefecto.objects.filter(clave='inmuebles_proceso').values_list('cuenta_id', flat=True).first()
+    proceso = CuentaDefecto.objects.filter(clave='inmuebles_proceso').select_related('cuenta').first()
     if con_directos and proceso:
-        cuentas |= Q(cuenta_id=proceso)
+        from contabilidad.pcge import al_detalle  # los asientos la registran en su cuenta de 6 dígitos (2341 -> 234111)
+        cuentas |= Q(cuenta_id__in={proceso.cuenta_id, al_detalle(proceso.cuenta).pk})
     qs = AsientoLinea.objects.filter(cuentas, centro_costo_id=obra.centro_costo_id, es_destino=False).exclude(
         asiento__origen__in=ORIGENES_SIN_ACTIVAR)
     if desde:

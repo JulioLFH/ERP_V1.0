@@ -49,7 +49,12 @@ class Borrador:
         self.en_periodo_cerrado = en_periodo_cerrado
 
     def add(self, cuenta, debe=D0, haber=D0, tercero=None, documento='', glosa='', centro_costo=None,
-            importe_me=None, centro_beneficio=None):
+            importe_me=None, centro_beneficio=None, moneda=None):
+        # la cuenta de 6 dígitos del plan cargado (4212 -> 421211); la de un cliente o proveedor, en la moneda de su
+        # documento (421211 MN / 421212 ME), que puede no ser la del banco con que se paga
+        general = cuenta
+        cuenta = pcge.al_detalle(cuenta, moneda or self.moneda,
+                                 emparejar=tercero is not None and pcge.analisis_por_defecto(cuenta.codigo))
         debe, haber = r2(debe), r2(haber)
         # importes negativos pasan al lado contrario
         if debe < 0:
@@ -66,6 +71,7 @@ class Borrador:
         linea = AsientoLinea(cuenta=cuenta, debe=debe, haber=haber, tercero=tercero, documento=documento,
                              glosa=glosa[:200], centro_costo=centro_costo, centro_beneficio=centro_beneficio)
         linea.centro_documento = del_documento  # AUD-04: lo hereda su destino analítico aunque esta cuenta no lo lleve
+        linea.cuenta_general = general  # su destino (clase 9) si la subcuenta de 6 dígitos no tiene uno propio
         if self.moneda == 'USD' and importe_me is not None:
             linea.debe_me = r2(abs(importe_me)) if debe else D0
             linea.haber_me = r2(abs(importe_me)) if haber else D0
@@ -92,18 +98,21 @@ class Borrador:
                                   for l in self.lineas) else None
         for l in self.lineas:
             c = l.cuenta
+            if not (c.destino_debe_id and c.destino_haber_id):
+                c = getattr(l, 'cuenta_general', None) or c
             if c.destino_debe_id and c.destino_haber_id:
                 neto = l.debe - l.haber
                 if neto:
                     centro = l.centro_costo or getattr(l, 'centro_documento', None)
-                    destino = _destino_por_centro(c.destino_debe, centro, plan)
+                    destino = pcge.al_detalle(_destino_por_centro(c.destino_debe, centro, plan))
                     if not l.centro_costo and centro is not None and not admite_centro(destino):
                         centro = None  # el heredado del documento solo va donde la cuenta de destino lo admite
                     destinos.append(AsientoLinea(cuenta=destino, debe=max(neto, D0), haber=max(-neto, D0),
-                                                 glosa=f'Destino {c.codigo}', centro_costo=centro,
+                                                 glosa=f'Destino {l.cuenta.codigo}', centro_costo=centro,
                                                  centro_beneficio=l.centro_beneficio, es_destino=True))
-                    destinos.append(AsientoLinea(cuenta=c.destino_haber, debe=max(-neto, D0), haber=max(neto, D0),
-                                                 glosa=f'Destino {c.codigo}', es_destino=True))
+                    destinos.append(AsientoLinea(cuenta=pcge.al_detalle(c.destino_haber), debe=max(-neto, D0),
+                                                 haber=max(neto, D0),
+                                                 glosa=f'Destino {l.cuenta.codigo}', es_destino=True))
         self.lineas.extend(destinos)
 
     def grabar(self):
@@ -381,18 +390,19 @@ def asiento_movimiento(m, cta, tc_func):
         contra = cta.get(f'mov_{m.concepto}') or (cta['ingreso_otro'] if m.tipo == 'INGRESO' else cta['egreso_otro'])
     # el documento se cancela por el importe en soles con su propio tipo de cambio
     importe_doc = m.monto_doc_pen if doc_obj and not m.cuenta_contable_id else importe_caja
+    moneda_doc = getattr(doc_obj, 'moneda', None) if doc_obj and not m.cuenta_contable_id else None
     diferencia = importe_caja - importe_doc
     if m.tipo == 'INGRESO':
         b.add(caja, debe=importe_caja, documento=doc, importe_me=m.monto)
         b.add(contra, haber=importe_doc, tercero=tercero, documento=doc, centro_costo=m.centro_costo,
-              importe_me=m.monto)
+              importe_me=m.monto, moneda=moneda_doc)
         if diferencia > 0:
             b.add(cta['dif_cambio_ganancia'], haber=diferencia, documento=doc, glosa='Diferencia de cambio')
         elif diferencia < 0:
             b.add(cta['dif_cambio_perdida'], debe=-diferencia, documento=doc, glosa='Diferencia de cambio')
     else:
         b.add(contra, debe=importe_doc, tercero=tercero, documento=doc, centro_costo=m.centro_costo,
-              importe_me=m.monto)
+              importe_me=m.monto, moneda=moneda_doc)
         b.add(caja, haber=importe_caja, documento=doc, importe_me=m.monto)
         if diferencia > 0:
             b.add(cta['dif_cambio_perdida'], debe=diferencia, documento=doc, glosa='Diferencia de cambio')
@@ -415,9 +425,12 @@ def asiento_aplicacion(ap, cta, tc_func):
     (día del anticipo o del canje) y la diferencia es diferencia de cambio."""
     doc = ap.documento
     es_venta = ap.venta_id is not None
+    moneda_contra = None
     if ap.origen == 'ANTICIPO':
         mov = ap.anticipo
         contra = mov.cuenta_contable or (cta['mov_ANTICIPO_INGRESO'] if es_venta else cta['mov_ANTICIPO_EGRESO'])
+        # el anticipo se registró en la moneda de su banco (122101 MN / 122102 ME): se aplica desde esa misma cuenta
+        moneda_contra = mov.cuenta.moneda
         tc_contra = tc_func(mov.fecha) if doc.moneda == 'USD' else Decimal('1')
         glosa = f'Aplicación del anticipo {mov.voucher}'
     elif ap.origen == 'CANJE':
@@ -437,7 +450,8 @@ def asiento_aplicacion(ap, cta, tc_func):
     tercero = ap.entrega.responsable if ap.origen == 'RENDICION' else doc.tercero
     diferencia = importe_contra - importe_doc
     if es_venta:  # 122/123 al debe, 12 al haber
-        b.add(contra, debe=importe_contra, tercero=tercero, documento=documento, glosa=glosa, importe_me=ap.monto_doc)
+        b.add(contra, debe=importe_contra, tercero=tercero, documento=documento, glosa=glosa, importe_me=ap.monto_doc,
+              moneda=moneda_contra)
         b.add(_cuenta_tercero(doc, cta), haber=importe_doc, tercero=doc.tercero, documento=documento, glosa=glosa,
               importe_me=ap.monto_doc)
         if diferencia > 0:
@@ -447,7 +461,8 @@ def asiento_aplicacion(ap, cta, tc_func):
     else:  # 42 al debe, 422/423/141 al haber
         b.add(_cuenta_tercero(doc, cta), debe=importe_doc, tercero=doc.tercero, documento=documento, glosa=glosa,
               importe_me=ap.monto_doc)
-        b.add(contra, haber=importe_contra, tercero=tercero, documento=documento, glosa=glosa, importe_me=ap.monto_doc)
+        b.add(contra, haber=importe_contra, tercero=tercero, documento=documento, glosa=glosa, importe_me=ap.monto_doc,
+              moneda=moneda_contra)
         if diferencia > 0:
             b.add(cta['dif_cambio_perdida'], debe=diferencia, documento=documento, glosa='Diferencia de cambio')
         elif diferencia < 0:
@@ -524,12 +539,13 @@ def asiento_inventario(periodo, cta):
     from inventario.models import TipoOperacion
     desde, hasta = _rango(periodo)
     tipos = {t.codigo: t for t in TipoOperacion.objects.select_related('cuenta_contable')}
-    merc_def = cta['mercaderias']
+    # las de 6 dígitos del plan cargado: el ajuste final compara el saldo de la misma cuenta en que se registra
+    merc_def = pcge.al_detalle(cta['mercaderias'])
     productos = {p.pk: p for p in Producto.objects.select_related(
         'cuenta_existencias', 'cuenta_costo', 'cuenta_compra__destino_debe', 'centro_beneficio')}
 
     def existencias(p):
-        return p.cuenta_existencias if p and p.cuenta_existencias_id else merc_def
+        return pcge.al_detalle(p.cuenta_existencias) if p and p.cuenta_existencias_id else merc_def
 
     def por_recibir(p):
         c = p.cuenta_compra if p and p.cuenta_compra_id else None
@@ -861,6 +877,7 @@ def centralizar_periodo(periodo):
         return {'compras': 0, 'ventas': 0, 'tesoreria': 0, 'costo': 0, 'errores': [], 'migrado': True}
     cta = CuentaDefecto.mapa()
     _DESTINOS.clear()
+    pcge.limpiar_detalle()  # el plan de cuentas al día (subcuentas de 6 dígitos)
     from .prorrata import limpiar
     limpiar()  # coeficiente de la prorrata con las ventas al día
     from core.tipo_cambio import obtener, venta_del_dia
