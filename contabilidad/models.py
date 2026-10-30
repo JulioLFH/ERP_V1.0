@@ -1,4 +1,5 @@
 from contextvars import ContextVar
+from datetime import date
 from decimal import Decimal
 
 from django.conf import settings
@@ -11,6 +12,11 @@ from core.models import Tercero
 from . import pcge
 
 D0 = Decimal('0')
+FIN_VIGENCIA = date(9999, 12, 31)
+
+
+def fin_vigencia():
+    return FIN_VIGENCIA
 
 # Libros paralelos: cada asiento es de ambos libros (lo normal), solo NIIF (ajuste contable que no reconoce la ley
 # tributaria) o solo tributario (no va a los libros oficiales). Los reportes leen el libro activo: NIIF por defecto.
@@ -210,6 +216,10 @@ class CentroCosto(models.Model):
         verbose_name='Usuario responsable', help_text='Libera las solicitudes de pedido del centro (si así lo indican '
                                                       'las reglas de liberación)')
     activo = models.BooleanField(default=True)
+    # vigencia (como en SAP): fuera de estas fechas el centro no se ofrece para elegir en los documentos
+    valido_desde = models.DateField('Válido desde', default=timezone.localdate)
+    valido_hasta = models.DateField('Válido hasta', default=fin_vigencia,
+                                    help_text='31/12/9999 = sin fecha de cierre')
 
     class Meta:
         ordering = ['codigo']
@@ -225,6 +235,25 @@ class CentroCosto(models.Model):
         while c is not None and n < 20:
             n, c = n + 1, c.padre
         return n
+
+    @classmethod
+    def vigentes(cls, fecha=None, incluir=None):
+        """Activos y dentro de su vigencia a la fecha (hoy); incluir: el centro que ya tiene el documento."""
+        fecha = fecha or timezone.localdate()
+        q = models.Q(activo=True, valido_desde__lte=fecha, valido_hasta__gte=fecha)
+        if incluir:
+            q |= models.Q(pk=incluir)
+        return cls.objects.filter(q)
+
+    @classmethod
+    def para_formulario(cls, form, campo='centro_costo'):
+        """Para elegir en un formulario: los vigentes hoy y el que ya tiene el documento que se edita."""
+        instancia = getattr(form, 'instance', None)
+        return cls.vigentes(incluir=getattr(instancia, f'{campo}_id', None) if instancia is not None else None)
+
+    def vigente(self, fecha=None):
+        fecha = fecha or timezone.localdate()
+        return self.activo and self.valido_desde <= fecha <= self.valido_hasta
 
     def descendientes_ids(self):
         """IDs del centro y de todos los que dependen de él."""

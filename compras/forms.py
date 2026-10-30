@@ -35,7 +35,7 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         self.fields['doc_referencia'].queryset = Compra.objects.filter(
             estado='REGISTRADO').exclude(tipo_comprobante__in=['07', '08'])
         remoto(self.fields['doc_referencia'], 'compras', perezoso=True)
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
         self.fields['valor_aduana'].required = False  # solo la DUA (tipo 50)
         self.fields['destino_igv'].required = False  # vacío = operaciones gravadas
         if not self.instance.pk:
@@ -125,7 +125,7 @@ class LicitacionForm(BootstrapMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
 
 
 class ContratoForm(BootstrapMixin, forms.ModelForm):
@@ -203,9 +203,9 @@ class OrdenCompraForm(BootstrapMixin, forms.ModelForm):
         from django.contrib.auth import get_user_model
         self.fields['comprador'].queryset = get_user_model().objects.filter(
             is_active=True, acceso_proveedor__isnull=True).order_by('username')
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
         self.fields['centro_costo'].required = True
-        if not CentroCosto.objects.filter(activo=True).exists():
+        if not CentroCosto.vigentes().exists():
             self.fields['centro_costo'].help_text = 'Cree primero los centros de costo en Contabilidad > ' \
                                                     'Configuración > Centros de costo'
         from .models import ContratoMarco

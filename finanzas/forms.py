@@ -419,7 +419,7 @@ class PrestamoForm(BootstrapMixin, forms.ModelForm):
         self.fields['cuenta'].queryset = Cuenta.objects.filter(activo=True)
         from contabilidad.models import CentroCosto, CuentaContable
         self.fields['cuenta_activo'].queryset = CuentaContable.objects.filter(imputable=True, codigo__startswith='32')
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
 
     def clean(self):
         data = super().clean()

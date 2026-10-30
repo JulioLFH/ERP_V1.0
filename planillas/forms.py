@@ -39,7 +39,7 @@ class TrabajadorForm(BootstrapMixin, forms.ModelForm):
             for campo in ('sueldo', 'banco', 'cuenta_sueldo', 'banco_cts', 'cuenta_cts'):
                 self.fields.pop(campo, None)
         self.fields['afp'].queryset = AFP.objects.filter(activo=True)
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
         self.fields['puesto'].queryset = Puesto.objects.filter(activo=True)
         ocupados = Trabajador.objects.exclude(usuario=None).exclude(pk=self.instance.pk).values('usuario')
         self.fields['usuario'].queryset = get_user_model().objects.exclude(pk__in=ocupados).order_by('username')

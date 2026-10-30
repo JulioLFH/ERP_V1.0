@@ -24,7 +24,7 @@ class ReglaForm(BootstrapMixin, forms.ModelForm):
         from contabilidad.models import CentroCosto
         self.fields['aprobador'].queryset = get_user_model().objects.filter(is_active=True).order_by('username')
         self.fields['reemplazo'].queryset = self.fields['aprobador'].queryset
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
 
     def clean(self):
         d = super().clean()
@@ -61,7 +61,7 @@ def reglas(request):
                        for d, nombre in ReglaAprobacion.DOCUMENTOS],
         'reglas': ReglaAprobacion.objects.filter(documento=documento).select_related('aprobador', 'centro_costo',
                                                                                      'puesto'),
-        'centros': CentroCosto.objects.filter(activo=True).select_related('responsable_usuario')})
+        'centros': CentroCosto.vigentes().select_related('responsable_usuario')})
 
 
 class DelegacionForm(BootstrapMixin, forms.ModelForm):

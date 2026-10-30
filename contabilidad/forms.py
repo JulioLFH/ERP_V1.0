@@ -3,7 +3,7 @@ from decimal import Decimal
 from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory, modelformset_factory
 
-from core.forms import remoto, BootstrapMixin
+from core.forms import remoto, BootstrapMixin, FechaInput
 from core.models import Tercero
 from core.sustentos import SustentoField
 
@@ -69,7 +69,15 @@ class CentroCostoForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = CentroCosto
         fields = ['codigo', 'nombre', 'tipo', 'padre', 'centro_beneficio', 'responsable', 'responsable_usuario',
-                  'activo']
+                  'valido_desde', 'valido_hasta', 'activo']
+        widgets = {'valido_desde': FechaInput(), 'valido_hasta': FechaInput()}
+
+    def clean(self):
+        datos = super().clean()
+        desde, hasta = datos.get('valido_desde'), datos.get('valido_hasta')
+        if desde and hasta and hasta < desde:
+            self.add_error('valido_hasta', 'La fecha de fin no puede ser anterior a la de inicio.')
+        return datos
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -129,7 +137,7 @@ class PresupuestoLineaForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['cuenta'].queryset = cuentas_imputables().filter(codigo__regex=r'^(6[2-9]|7[0-8]|88)')
         remoto(self.fields['cuenta'], 'cuentas')
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
         self.fields['centro_costo'].required = False
         for m in PresupuestoLinea.MESES:
             self.fields[m].required = False
@@ -253,7 +261,7 @@ class AsientoLineaForm(BootstrapMixin, forms.ModelForm):
         remoto(self.fields['cuenta'], 'cuentas')
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True)
         remoto(self.fields['tercero'], 'terceros')
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
         self.fields['debe'].widget.attrs['class'] = 'form-control form-control-sm text-end js-debe'
         self.fields['haber'].widget.attrs['class'] = 'form-control form-control-sm text-end js-haber'
         self.fields['debe'].required = self.fields['haber'].required = False

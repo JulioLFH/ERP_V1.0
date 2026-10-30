@@ -228,7 +228,7 @@ def detalle(request, pk):
         'ct_linea': _ct(LineaGasto), 'hay_movilidad': any(l.tipo_comprobante == 'PM' for l in lineas),
         'motivos': MotivoObservacion.objects.filter(activo=True),
         'plantillas': PlantillaDistribucion.objects.filter(activo=True),
-        'centros': CentroCosto.objects.filter(activo=True).order_by('codigo'),
+        'centros': CentroCosto.vigentes().order_by('codigo'),
         'fecha_sugerida': rd.fecha_contable_sugerida(r) if r.estado == 'APROBADA' else None,
         'corte': rd.proximo_corte(), 'sugerencias': _sugerencias()})
 

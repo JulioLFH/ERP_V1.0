@@ -66,7 +66,7 @@ class LineaGastoForm(BootstrapMixin, forms.ModelForm):
         self.fields['indicador'].required = True
         self.fields['indicador'].help_text = 'Define el IGV y si da crédito fiscal (registro de compras)'
         self.fields['categoria'].queryset = CategoriaGasto.objects.filter(activo=True)
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
         self.fields['proyecto'].queryset = Proyecto.objects.filter(activo=True)
         self.fields['sitio'].queryset = Sitio.objects.filter(activo=True, proyecto__activo=True).select_related('proyecto')
         self.fields['sitio'].label_from_instance = lambda s: f'{s.proyecto.codigo} › {s}'
@@ -175,7 +175,7 @@ class PlantillaLineaForm(BootstrapMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
 
 
 class _PlantillaLineas(forms.BaseInlineFormSet):
@@ -211,7 +211,7 @@ class ProyectoForm(BootstrapMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
         from core.forms import remoto
         remoto(self.fields['cliente'], 'clientes')
 
@@ -236,7 +236,7 @@ class TarjetaForm(BootstrapMixin, forms.ModelForm):
         from core.models import Tercero
         self.fields['titular'].queryset = Tercero.objects.filter(activo=True, tipo_doc__in=['1', '4', '7'])
         self.fields['categoria_defecto'].queryset = CategoriaGasto.objects.filter(activo=True)
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
         remoto(self.fields['cuenta_contable'], 'cuentas')
 
     def clean_ultimos4(self):
@@ -295,7 +295,7 @@ class ReglaAprobacionForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['aprobador'].queryset = get_user_model().objects.filter(is_active=True).order_by('username')
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
 
     def clean(self):
         d = super().clean()

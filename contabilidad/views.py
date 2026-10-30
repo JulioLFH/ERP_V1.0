@@ -708,6 +708,15 @@ class CuentaEditar(FormGenerico, UpdateView):
 def configuracion(request):
     if not CuentaDefecto.objects.exists():
         pcge.cargar(CuentaContable, CuentaDefecto)
+    if request.method == 'POST' and request.POST.get('accion') == 'detallar':
+        cambios = pcge.detallar_configuracion()
+        if cambios:
+            messages.success(request, f'{len(cambios)} operaciones pasaron a la cuenta más detallada del plan: ' +
+                             '; '.join(f'{d} {a.codigo} → {n.codigo}' for d, a, n in cambios[:8]) +
+                             ('…' if len(cambios) > 8 else '') + '. Vuelva a centralizar los periodos abiertos.')
+        else:
+            messages.info(request, 'Todas las operaciones ya usan la cuenta más detallada del plan.')
+        return redirect('contabilidad:configuracion')
     formset = CuentaDefectoFormSet(request.POST or None, queryset=CuentaDefecto.objects.select_related('cuenta'))
     if request.method == 'POST' and formset.is_valid():
         formset.save()
@@ -726,7 +735,8 @@ class CentroCostoLista(ListaGenerica):
     model = CentroCosto
     titulo = 'Centros de costo'
     columnas = [('Código', 'codigo'), ('Nombre', 'nombre'), ('Tipo', 'get_tipo_display'), ('Depende de', 'padre'),
-                ('Centro de beneficio', 'beneficio'), ('Responsable', 'responsable'), ('Activo', 'activo')]
+                ('Centro de beneficio', 'beneficio'), ('Responsable', 'responsable'), ('Válido desde', 'valido_desde'),
+                ('Válido hasta', 'valido_hasta'), ('Activo', 'activo')]
     url_nuevo, url_editar = 'contabilidad:cc_nuevo', 'contabilidad:cc_editar'
     buscar_en = ['codigo', 'nombre', 'responsable']
 

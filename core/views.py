@@ -408,7 +408,8 @@ def carga_masiva(request):
                     archivo.seek(0)
                     # el Excel queda como sustento de los saldos que se carguen
                     request.session['carga_masiva'] = {'tipo': tipo, 'filas': filas, 'archivo': archivo.name,
-                                                       'datos': base64.b64encode(archivo.read()).decode()}
+                                                       'datos': base64.b64encode(archivo.read()).decode(),
+                                                       'actualizar': actualizar}
                 else:
                     request.session.pop('carga_masiva', None)
                 # archivos grandes: se muestran los errores y una muestra de las filas válidas
@@ -416,6 +417,10 @@ def carga_masiva(request):
                     [f for f in filas if f.get('error')][:1000] + [f for f in filas if not f.get('error')][:300])
                 ctx.update(filas=muestra, total_filas=len(filas), errores=errores, validas=len(filas) - errores,
                            archivo=archivo.name, actualizar=actualizar)
+                if tipo == 'cuentas' and actualizar:  # el plan se reemplaza: cuántas cuentas salen
+                    from contabilidad.models import CuentaContable
+                    ctx['fuera_del_plan'] = CuentaContable.objects.exclude(
+                        codigo__in=[f['codigo'] for f in filas if f.get('codigo')]).count()
     elif request.method == 'POST' and accion == 'confirmar':
         pendiente = request.session.pop('carga_masiva', None)
         if not pendiente or pendiente['tipo'] != tipo:
@@ -424,8 +429,9 @@ def carga_masiva(request):
             try:
                 import base64
                 adjunto = (base64.b64decode(pendiente['datos']), pendiente['archivo']) if pendiente.get('datos') else None
-                messages.success(request, f'Carga completada ({pendiente["archivo"]}): '
-                                          f'{cm.cargar(tipo, pendiente["filas"], request.user, adjunto)}')
+                resumen = cm.cargar(tipo, pendiente['filas'], request.user, adjunto,
+                                    actualizar=pendiente.get('actualizar', False))
+                messages.success(request, f'Carga completada ({pendiente["archivo"]}): {resumen}')
             except Exception as exc:  # p. ej. kardex cerrado o datos cambiados desde la validación
                 messages.error(request, f'No se cargó nada: {exc}')
         return redirect(f"{request.path}?tipo={tipo}")

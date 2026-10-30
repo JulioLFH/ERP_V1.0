@@ -288,6 +288,8 @@ DEFINICIONES = OrderedDict([
             ('padre', 'Depende de (código)', False, 'PL', ''),
             ('centro_beneficio', 'Centro de beneficio (código)', False, 'GAL', ''),
             ('responsable', 'Responsable', False, '', ''),
+            ('valido_desde', 'Válido desde', False, '', 'dd/mm/aaaa. Vacío = hoy'),
+            ('valido_hasta', 'Válido hasta', False, '', 'dd/mm/aaaa. Vacío = 31/12/9999 (sin fecha de cierre)'),
         ]}),
     ('puestos', {
         'titulo': '3. Puestos de trabajo', 'icono': 'bi-tools', 'modulos': ['manufactura'],
@@ -727,9 +729,15 @@ def _fila_centro_costo(d, actualizar):
     existe = CentroCosto.objects.filter(codigo=codigo).exists()
     if existe and not actualizar:
         raise ErrorFila(f'{codigo} ya existe (marque "Actualizar existentes").')
+    from contabilidad.models import FIN_VIGENCIA
+    desde = a_fecha(d.get('valido_desde')) if d.get('valido_desde') not in (None, '') else timezone.localdate()
+    hasta = a_fecha(d.get('valido_hasta')) if d.get('valido_hasta') not in (None, '') else FIN_VIGENCIA
+    if hasta < desde:
+        raise ErrorFila('Válido hasta no puede ser anterior a Válido desde.')
     return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': codigo,
             'datos': {'nombre': nombre[:100], 'tipo': tipo, 'padre': padre, 'centro_beneficio': cb,
-                      'responsable': _txt(d.get('responsable'))[:120]},
+                      'responsable': _txt(d.get('responsable'))[:120], 'valido_desde': desde.isoformat(),
+                      'valido_hasta': hasta.isoformat()},
             'resumen': f'{codigo} · {nombre} · {dict(CentroCosto.TIPOS)[tipo]}' + (f' · depende de {padre}' if padre else '')}
 
 
@@ -1042,6 +1050,8 @@ def _fila_cuenta(d, actualizar):
         c = _txt(d.get(campo))
         if c and not CuentaContable.objects.filter(codigo=c).exists() and c not in _CONTEXTO['codigos']:
             raise ErrorFila(f'Cuenta de destino {c} no existe (cárguela antes o en este archivo).')
+        if c and actualizar and c not in _CONTEXTO['codigos']:  # el plan queda solo con lo del Excel
+            raise ErrorFila(f'Cuenta de destino {c}: no está en el Excel (el plan se reemplaza por el del archivo).')
         destinos[campo] = c
     from contabilidad import pcge
     # determinación de la cuenta: vacío = según el código (se completa al grabar)
@@ -1060,13 +1070,12 @@ def _fila_cuenta(d, actualizar):
     existe = CuentaContable.objects.filter(codigo=codigo).exists()
     if existe and not actualizar:
         raise ErrorFila(f'{codigo} ya existe (marque "Actualizar existentes").')
-    # en una actualización, lo que viene vacío no cambia lo configurado
-    determinacion = {k: v for k, v in determinacion.items() if v not in ('', None) or not existe}
-    if existe and not _txt(d.get('moneda')):
-        determinacion.pop('moneda', None)
+    # «Actualizar» reemplaza el plan: cada cuenta queda solo con los datos del Excel, como nueva (lo vacío toma el valor
+    # por defecto según el código al grabar, no lo que tenía) y activa
+    determinacion.setdefault('analisis', None)
     return {'accion': 'Actualizar' if existe else 'Nuevo', 'codigo': codigo,
-            'datos': {'nombre': nombre[:200], 'naturaleza': naturaleza, 'imputable': imputable, **destinos,
-                      **determinacion},
+            'datos': {'nombre': nombre[:200], 'naturaleza': naturaleza, 'imputable': imputable, 'activo': True,
+                      **destinos, **determinacion},
             'resumen': f'{codigo} · {nombre} · {naturaleza.lower()}' + ('' if imputable else ' · agrupación')}
 
 
@@ -1367,10 +1376,68 @@ def validar(archivo, tipo, actualizar=False):
 
 
 # ---------------------------------------------------------------- grabación
-def cargar(tipo, filas, usuario, adjunto=None):
+def _cuentas_en_uso(ids):
+    """De esas cuentas contables, las que usa algún registro (asientos, configuración, productos, bancos…)."""
+    from django.apps import apps
+
+    from contabilidad.models import CuentaContable
+    usadas = set()
+    for modelo in apps.get_models(include_auto_created=True):
+        if modelo is CuentaContable:  # destinos: las del Excel solo apuntan a cuentas del Excel
+            continue
+        for campo in modelo._meta.concrete_fields:
+            if campo.is_relation and campo.related_model is CuentaContable:
+                usadas |= set(modelo._base_manager.filter(**{f'{campo.attname}__in': ids})
+                              .values_list(campo.attname, flat=True).distinct())
+    return usadas
+
+
+def _plan_cargado(codigos, reemplazar):
+    """Después de cargar el plan: las cuentas por operación pasan a la cuenta más detallada (4212 -> 421211) y, con
+    «Actualizar los existentes», el plan queda solo con las cuentas del Excel: las demás se eliminan, salvo las que
+    tienen asientos o se usan en algún registro, que quedan inactivas. Los asientos automáticos de los periodos abiertos
+    se rehacen con las cuentas nuevas."""
+    from contabilidad import pcge
+    from contabilidad.automatico import actualizar_pendientes, marcar_pendiente
+    from contabilidad.models import CuentaContable, CuentaDefecto, PeriodoContable
+    sobran = set(CuentaContable.objects.exclude(codigo__in=codigos).values_list('pk', flat=True)) if reemplazar \
+        else set()
+    if sobran:  # fuera del plan antes de elegir las cuentas más detalladas y de rehacer los asientos
+        CuentaContable.objects.filter(pk__in=sobran).update(activo=False)
+    cambios = pcge.detallar_configuracion()
+    partes = [f'Cuentas por operación: {len(cambios)} pasaron a la cuenta más detallada.'] if cambios else []
+    errores = []
+    if sobran:
+        primero = PeriodoContable.objects.filter(cerrado=False).order_by('periodo').values_list('periodo', flat=True)
+        if primero.first():
+            marcar_pendiente(primero.first())
+            errores = actualizar_pendientes()
+        usadas = _cuentas_en_uso(sobran)
+        borrar = CuentaContable.objects.filter(pk__in=sobran - usadas)
+        borrar.update(destino_debe=None, destino_haber=None)  # se apuntan entre ellas (la auditoría las lee al borrar)
+        eliminadas = borrar.delete()[0]
+        partes.append(f'Plan reemplazado: {eliminadas} cuentas que no estaban en el Excel se eliminaron')
+        if usadas:
+            inactivas = CuentaContable.objects.filter(pk__in=usadas).order_by('codigo')
+            partes[-1] += (f' y {len(usadas)} en uso quedaron inactivas (' +
+                           ', '.join(c.codigo for c in inactivas[:15]) + ('…' if len(usadas) > 15 else '') + ')')
+        partes[-1] += '.'
+    pcge.limpiar_detalle()
+    revisar = CuentaDefecto.objects.filter(cuenta__activo=False).select_related('cuenta')
+    if revisar:
+        partes.append('Revise en Contabilidad › Cuentas por operación (cuentas fuera del plan): ' +
+                      '; '.join(f'{d.descripcion} ({d.cuenta.codigo})' for d in revisar[:10]) + '.')
+    if errores:
+        partes.append(f'Al rehacer los asientos: {errores[0]}' + (f' (y {len(errores) - 1} más)' if len(errores) > 1
+                                                                  else ''))
+    return ' '.join(partes)
+
+
+def cargar(tipo, filas, usuario, adjunto=None, actualizar=False):
     """Graba las filas validadas (todo o nada). Devuelve un texto con el resumen.
 
-    adjunto: (bytes, nombre) del Excel, que queda como sustento de los saldos iniciales creados."""
+    adjunto: (bytes, nombre) del Excel, que queda como sustento de los saldos iniciales creados.
+    actualizar: se marcó «Actualizar los existentes» (en el plan de cuentas, reemplaza el plan por el del Excel)."""
     from .sustentos import guardar_archivo, vincular
     archivo = None
 
@@ -1460,12 +1527,13 @@ def cargar(tipo, filas, usuario, adjunto=None):
             for f in filas:  # primero las cuentas, después sus destinos (pueden venir en el mismo archivo)
                 d = {k: v for k, v in f['datos'].items() if not k.startswith('destino')}
                 CuentaContable.objects.update_or_create(codigo=f['codigo'], defaults=d)
-            for f in filas:
-                cambios = {k: CuentaContable.objects.get(codigo=v) for k, v in f['datos'].items()
-                           if k.startswith('destino') and v}
+            for f in filas:  # solo los destinos del Excel (vacío = sin destino)
+                cambios = {k: CuentaContable.objects.get(codigo=v) if v else None for k, v in f['datos'].items()
+                           if k.startswith('destino')}
                 if cambios:
                     CuentaContable.objects.filter(codigo=f['codigo']).update(**cambios)
-            return f'{len(filas)} cuentas contables cargadas.'
+            return f'{len(filas)} cuentas contables cargadas. ' + _plan_cargado({f['codigo'] for f in filas},
+                                                                               reemplazar=actualizar)
         if tipo == 'almacenes':
             for f in filas:
                 d = dict(f['datos'])
@@ -1624,6 +1692,9 @@ def _cargar_maestro(tipo, filas):
             d['padre'] = CentroCosto.objects.get(codigo=d['padre']) if d['padre'] else None
             d['centro_beneficio'] = CentroBeneficio.objects.get(codigo=d['centro_beneficio']) \
                 if d['centro_beneficio'] else None
+            for campo in ('valido_desde', 'valido_hasta'):
+                if d.get(campo):
+                    d[campo] = date.fromisoformat(d[campo])
             CentroCosto.objects.update_or_create(codigo=f['codigo'], defaults=d)
         return f'{len(filas)} centros de costo cargados.'
     if tipo == 'puestos':

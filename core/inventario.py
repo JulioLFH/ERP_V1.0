@@ -320,7 +320,7 @@ def reposicion(request):
                                'Stock objetivo', 'Cantidad sugerida', 'Proveedor habitual', 'Entrega (días)'], datos)
     from contabilidad.models import CentroCosto
     return render(request, 'inventario/reposicion.html', {'grupos': grupos, 'total_filas': len(filas),
-                                                          'centros': CentroCosto.objects.filter(activo=True)})
+                                                          'centros': CentroCosto.vigentes()})
 
 
 def valor_inventario(corte, almacen=None, permitidos=None):

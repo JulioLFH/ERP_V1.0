@@ -19,7 +19,8 @@
         <input type="hidden" name="tipo" value="{{ tipo }}"><input type="hidden" name="accion" value="validar">
         <input type="file" name="archivo" accept=".xlsx" class="form-control form-control-sm mb-2" required>
         {% if tipo != 'saldos' %}<div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="actualizar" id="actualizar" value="1" {% if actualizar %}checked{% endif %}>
-          <label class="form-check-label small" for="actualizar">Actualizar los existentes (mismo código / documento)</label></div>{% endif %}
+          <label class="form-check-label small" for="actualizar">Actualizar los existentes (mismo código / documento)</label>
+          {% if tipo == 'cuentas' %}<div class="form-text">Reemplaza el plan: queda <b>solo lo del Excel</b>, cada cuenta con sus datos como nueva. Las cuentas que no vienen se eliminan; las que tienen asientos o se usan quedan inactivas.</div>{% endif %}</div>{% endif %}
         <button class="btn btn-sm btn-primary"><i class="bi bi-check2-square"></i> Validar archivo</button>
       </form>
     </div></div>
@@ -33,7 +34,7 @@
       <span>Resultado de la validación · {{ archivo }}</span>
       <span><span class="badge text-bg-success">{{ validas }} correctas</span> {% if errores %}<span class="badge text-bg-danger">{{ errores }} con error</span>{% endif %}</span></div>
       {% if errores %}<div class="alert alert-danger m-3 py-2 small">Corrija las filas con error en el Excel y vuelva a validarlo. No se cargó nada.</div>
-      {% elif filas %}<div class="card-body border-bottom"><form method="post">{% csrf_token %}<input type="hidden" name="tipo" value="{{ tipo }}"><input type="hidden" name="accion" value="confirmar">
+      {% elif filas %}<div class="card-body border-bottom">{% if fuera_del_plan %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> El plan se reemplaza: <b>{{ fuera_del_plan }}</b> cuenta(s) del sistema no están en el Excel y saldrán del plan (se eliminan, o quedan inactivas si están en uso). Las cuentas por operación pasan a la cuenta más detallada.</div>{% endif %}<form method="post">{% csrf_token %}<input type="hidden" name="tipo" value="{{ tipo }}"><input type="hidden" name="accion" value="confirmar">
         <button class="btn btn-success"><i class="bi bi-cloud-upload"></i> Confirmar carga de {{ validas }} fila(s)</button></form></div>
       {% else %}<div class="alert alert-warning m-3 py-2 small">El archivo no tiene filas con datos.</div>{% endif %}
       {% if total_filas > filas|length %}<div class="small text-muted px-3 py-2 border-bottom">Archivo grande: se muestran {{ filas|length }} de {{ total_filas }} filas ({% if errores %}primero las que tienen error{% else %}una muestra{% endif %}).</div>{% endif %}

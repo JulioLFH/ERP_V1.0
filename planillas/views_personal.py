@@ -81,7 +81,7 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         from contabilidad.models import CentroCosto
         self.fields['puesto'].queryset = Puesto.objects.filter(activo=True)
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
 
     def clean(self):
         d = super().clean()

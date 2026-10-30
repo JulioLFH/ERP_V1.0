@@ -40,8 +40,9 @@ class ErrorContable(Exception):
 class Borrador:
     """Acumula líneas de un asiento y las graba cuadradas."""
 
-    def __init__(self, asiento, moneda='PEN', tc=Decimal('1'), en_periodo_cerrado=False):
+    def __init__(self, asiento, moneda='PEN', tc=Decimal('1'), en_periodo_cerrado=False, detallar=True):
         self.asiento = asiento
+        self.detallar = detallar  # False: las cuentas tal cual (traspasos entre cuentas de la misma rama)
         self.lineas = []
         self.moneda = moneda
         self.tc = tc or Decimal('1')
@@ -53,8 +54,9 @@ class Borrador:
         # la cuenta de 6 dígitos del plan cargado (4212 -> 421211); la de un cliente o proveedor, en la moneda de su
         # documento (421211 MN / 421212 ME), que puede no ser la del banco con que se paga
         general = cuenta
-        cuenta = pcge.al_detalle(cuenta, moneda or self.moneda,
-                                 emparejar=tercero is not None and pcge.analisis_por_defecto(cuenta.codigo))
+        if self.detallar:
+            cuenta = pcge.al_detalle(cuenta, moneda or self.moneda,
+                                     emparejar=tercero is not None and pcge.analisis_por_defecto(cuenta.codigo))
         debe, haber = r2(debe), r2(haber)
         # importes negativos pasan al lado contrario
         if debe < 0:

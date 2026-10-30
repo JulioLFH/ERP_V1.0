@@ -961,4 +961,4 @@ def mrp(request):
     return render(request, 'produccion/mrp.html', {
         'form': form, 'plan': PlanDemanda.objects.select_related('producto').filter(fecha__gte=hoy - timedelta(30)),
         'corrida': corrida, 'propuestas': propuestas, 'horizonte': hoy + timedelta(days=60),
-        'centros': CentroCosto.objects.filter(activo=True)})
+        'centros': CentroCosto.vigentes()})

@@ -269,7 +269,7 @@ def distribuir(request, pk):
                 pct = Decimal(p.replace(',', '.'))
             except InvalidOperation:
                 pct = Decimal('0')
-            centro = CentroCosto.objects.filter(pk=c, activo=True).first()
+            centro = CentroCosto.vigentes().filter(pk=c).first()
             if centro is None or pct <= 0:
                 messages.error(request, 'Revise los centros de costo y porcentajes (mayores a cero).')
                 return redirect('compras:distribuir', pk)
@@ -285,7 +285,7 @@ def distribuir(request, pk):
                          'Distribución quitada: el gasto va al centro de costo de la factura.')
         return redirect('compras:detalle', pk)
     return render(request, 'compras/distribuir.html', {
-        'doc': compra, 'filas': filas, 'centros': CentroCosto.objects.filter(activo=True),
+        'doc': compra, 'filas': filas, 'centros': CentroCosto.vigentes(),
         'vacias': range(max(3, 6 - len(filas)))})
 
 
@@ -363,7 +363,7 @@ def oc_nuevo(request):
         filas = [f for f in sugerencias_compra() if f['p'].proveedor_id == prov]
         if filas:
             from contabilidad.models import CentroCosto
-            centro = CentroCosto.objects.filter(activo=True).first()
+            centro = CentroCosto.vigentes().first()
             initial = {'tercero': prov, 'centro_costo': centro.pk if centro else None,
                        'glosa': 'Reposición de stock (sugerencia de compra)'}
             items = [{'producto': f['p'].pk, 'descripcion': f['p'].nombre, 'cantidad': f['cantidad'],
@@ -375,7 +375,7 @@ def oc_nuevo(request):
         contrato = ContratoMarco.objects.filter(pk=request.GET['contrato'], estado='VIGENTE').first()
         if contrato:
             from contabilidad.models import CentroCosto
-            centro = CentroCosto.objects.filter(activo=True).first()
+            centro = CentroCosto.vigentes().first()
             initial = {'tercero': contrato.proveedor_id, 'contrato': contrato.pk, 'moneda': contrato.moneda,
                        'condicion_pago': contrato.condicion_pago, 'centro_costo': centro.pk if centro else None,
                        'glosa': f'Pedido contra el contrato marco {contrato.numero}'}

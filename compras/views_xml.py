@@ -31,7 +31,7 @@ class RevisarXMLForm(BootstrapMixin, forms.Form):
     def __init__(self, *args, lineas=(), **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['almacen'].queryset = Almacen.objects.filter(activo=True)
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
         self.fields['cuenta_contable'].queryset = CuentaContable.objects.filter(
             imputable=True, activo=True, codigo__regex=r'^(6|3)')
         productos = Producto.objects.filter(activo=True, es_plantilla=False)

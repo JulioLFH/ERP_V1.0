@@ -29,7 +29,7 @@ class SolicitudForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from contabilidad.models import CentroCosto
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
 
     def clean(self):
         d = super().clean()

@@ -168,7 +168,7 @@ def iniciales_mantenimiento(ot):
     from contabilidad.models import CentroCosto
     equipo = ot.equipo
     centro = (equipo.centro_costo_efectivo or
-              CentroCosto.objects.filter(activo=True, tipo='PRODUCCION').first())
+              CentroCosto.vigentes().filter(tipo='PRODUCCION').first())
     lineas = []
     for r in ot.repuestos.select_related('producto', 'almacen'):
         falta = r.cantidad - max(r.producto.stock_en(r.almacen), D0)

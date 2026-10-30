@@ -134,7 +134,7 @@ def lista(request):
         'tipos': tipos, 'q': q, 'desde': desde, 'hasta': hasta, 'en_transito': en_transito,
         'estados': Operacion.ESTADOS, 'recepcion_transito': _tipo_recepcion_transito(), 'grupos_filas': grupos_filas,
         'almacenes': Almacen.objects.filter(activo=True), 'usuarios': usuarios,
-        'centros': CentroCosto.objects.filter(activo=True).order_by('codigo'), 'sel': sel, **ctx_lista})
+        'centros': CentroCosto.vigentes().order_by('codigo'), 'sel': sel, **ctx_lista})
 
 def _tipo_recepcion_transito():
     return TipoOperacion.objects.filter(clase='TRANSITO_RECEPCION', activo=True).first()

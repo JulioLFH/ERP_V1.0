@@ -16,6 +16,7 @@
         </tbody>
       </table></div></div>
       {% if puede.contabilidad_configurar %}<button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>
+        <button name="accion" value="detallar" class="btn btn-outline-secondary mt-3" formnovalidate><i class="bi bi-arrow-return-right"></i> Usar las cuentas más detalladas</button>
       {% else %}<div class="alert alert-light border small mt-3 mb-0"><i class="bi bi-eye"></i> Solo lectura: cambiar las cuentas exige el permiso «Plan de cuentas y configuración».</div>{% endif %}
     </form>
   </div>
@@ -25,7 +26,8 @@
       <li>En cada <b>cuenta de caja o banco</b> (Finanzas) puede indicar su propia cuenta contable (ej. 10411 BCP soles).</li>
       <li>En cada <b>compra</b> puede elegir otra cuenta de gasto y un centro de costo; en cada <b>movimiento</b>, la contrapartida.</li>
       <li>Las cuentas de gasto (62-68) tienen destino <b>94 / 79</b>, y las compras de mercadería (6011) destino <b>20111 / 6111</b>; se editan en el plan de cuentas.</li>
-      <li>Si la cuenta elegida tiene <b>subcuentas de 6 dígitos</b> en el plan cargado, el asiento va a la subcuenta (ej. 4212 → 421211; en dólares, 421212 si existe). Si hay varias, a la de menor código: elija aquí la exacta si prefiere otra.</li>
+      <li>Si la cuenta elegida tiene <b>subcuentas</b> en el plan cargado, el asiento va a la más detallada (la de más dígitos: ej. 4212 → 421211; en dólares, 421212 si existe). Si hay varias, a la de menor código: elija aquí la exacta si prefiere otra.</li>
+      <li>Al cargar el plan desde Excel, o con <b>Usar las cuentas más detalladas</b>, cada operación pasa a esa subcuenta.</li>
       <li>Después de cambiar algo, vuelva a centralizar los periodos abiertos.</li>
     </ul>
   </div></div></div>

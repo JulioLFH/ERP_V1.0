@@ -30,7 +30,7 @@ class CargaForm(BootstrapMixin, forms.ModelForm):
         _conductores(self.fields['conductor'])
         self.fields['grifo'].queryset = Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS'])
         remoto(self.fields['grifo'], 'terceros')
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
 
 
 class GastoForm(BootstrapMixin, forms.ModelForm):
@@ -92,7 +92,7 @@ class EquipoForm(BootstrapMixin, forms.ModelForm):
         from planillas.models import Trabajador
         from produccion.models import CentroTrabajo
         self.fields['centro'].queryset = CentroTrabajo.objects.filter(activo=True)
-        self.fields['centro_costo'].queryset = CentroCosto.objects.filter(activo=True)
+        self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
         self.fields['responsable'].queryset = Trabajador.objects.filter(fecha_cese__isnull=True)
         from core.models import Tercero
         self.fields['fabricante'].queryset = Tercero.objects.filter(tipo__in=('PROVEEDOR', 'AMBOS'))

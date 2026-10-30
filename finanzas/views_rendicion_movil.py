@@ -53,7 +53,7 @@ def movil(request):
                      for e in rd.entregas_para_rendir(user).exclude(tipo='TARJETA')[:20]],
         'categorias': [{'id': c.pk, 'nombre': c.nombre, 'tarifa_km': str(c.tarifa_km), 'movilidad': c.es_movilidad}
                        for c in CategoriaGasto.objects.filter(activo=True)],
-        'centros': [{'id': c.pk, 'nombre': f'{c.codigo} {c.nombre}'} for c in CentroCosto.objects.filter(activo=True)],
+        'centros': [{'id': c.pk, 'nombre': f'{c.codigo} {c.nombre}'} for c in CentroCosto.vigentes()],
         'proyectos': [{'id': p.pk, 'nombre': str(p)} for p in Proyecto.objects.filter(activo=True)],
         'ruc_empresa': Empresa.actual().ruc, 'ia': cp.ia_configurada(), 'usuario': user.username,
         'urls': {'gasto': reverse('rendiciones:movil_gasto'), 'ruc': reverse('rendiciones:ruc', args=['00000000000']),

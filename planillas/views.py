@@ -27,7 +27,7 @@ def trabajadores(request):
         if not puede(request.user, 'empleados.registrar'):
             messages.error(request, 'Su usuario no edita trabajadores.')
         else:
-            centro = CentroCosto.objects.filter(pk=request.POST.get('centro_costo') or 0, activo=True).first()
+            centro = CentroCosto.vigentes().filter(pk=request.POST.get('centro_costo') or 0).first()
             ids = [int(x) for x in request.POST.getlist('trabajador') if x.isdigit()]
             if centro is None or not ids:
                 messages.error(request, 'Marque los trabajadores y elija el centro de costo.')
@@ -69,7 +69,7 @@ def trabajadores(request):
         'incompletos': Trabajador.objects.filter(Q(fecha_ingreso__isnull=True) | Q(sueldo__lte=0),
                                                  fecha_cese__isnull=True).count(),
         'sin_centro': Trabajador.objects.filter(vigentes, centro_costo__isnull=True).count(),
-        'centros': CentroCosto.objects.filter(activo=True)})
+        'centros': CentroCosto.vigentes()})
 
 
 def _guardar_trabajador(request, t, titulo):
