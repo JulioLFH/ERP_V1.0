@@ -196,7 +196,40 @@ def registrar_resultados(insp, valores, resultado, observaciones, usuario, motiv
     insp.decidida_en = timezone.now() if resultado in DECIDIDAS else None
     insp.save()
     insp.oos_abiertas = abiertas
+    insp.retenido = retener_sin_lote(insp, usuario)
     return insp
+
+
+def retener_sin_lote(insp, usuario):
+    """CAL-01: un producto sin lote rechazado o en investigación OOS no puede seguir libre en un almacén normal (se
+    consumiría en producción, se vendería o se trasladaría): en el mismo acto lo inspeccionado que queda en ese almacén
+    pasa a cuarentena (rechazado) o al almacén de control de calidad (OOS). Devuelve el texto para el usuario."""
+    from core.models import Almacen, StockAlmacen
+    from inventario.estados import USOS_NO_LIBRE, ErrorLote, trasladar_estado
+    if insp.resultado not in ('RECHAZADO', 'OOS') or (insp.lote and insp.producto.control):
+        return ''  # los lotes se retienen con su estado de calidad
+    if insp.almacen_id is None:
+        raise ErrorPlanta('Indique en qué almacén está la mercadería: lo rechazado o en investigación OOS se retiene '
+                          'en el mismo acto (sale del stock libre).')
+    if insp.almacen.uso == 'DESTRUCCION' or (insp.resultado == 'OOS' and insp.almacen.uso in USOS_NO_LIBRE):
+        return ''  # ya está fuera del stock libre
+    stock = StockAlmacen.objects.filter(producto=insp.producto, almacen=insp.almacen).first()
+    disponible = stock.cantidad if stock else Decimal('0')
+    cantidad = min(insp.cantidad, disponible) if insp.cantidad else disponible
+    if cantidad <= 0:
+        return f'No queda stock de {insp.producto.nombre} en {insp.almacen} para retener.'
+    if insp.resultado == 'RECHAZADO':
+        from .planta import enviar_a_cuarentena
+        op = enviar_a_cuarentena(insp, cantidad, usuario)
+        return f'{cantidad:f} {insp.producto.unidad} pasaron a cuarentena ({op.numero}).'
+    calidad = Almacen.especial('CALIDAD')
+    try:
+        trasladar_estado(insp.producto, cantidad, insp.almacen, calidad, f'{insp.numero} en investigación OOS', usuario)
+    except ErrorLote as exc:
+        raise ErrorPlanta(f'No se pudo retener la mercadería en investigación: {exc}') from exc
+    insp.almacen = calidad  # ahí está ahora la mercadería (para la cuarentena si se rechaza)
+    insp.save(update_fields=['almacen'])
+    return f'{cantidad:f} {insp.producto.unidad} pasaron a {calidad} hasta cerrar la investigación.'
 
 
 @transaction.atomic

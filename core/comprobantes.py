@@ -197,6 +197,10 @@ class ComprobanteViews:
         if doc._meta.model_name == 'compra':  # activos fijos de la factura: registrados y por registrar
             from activos.servicios import items_compra
             activos = {'pendientes': items_compra(doc), 'registrados': doc.activos.exclude(estado='ANULADO')}
+            from compras.models import aviso_funcion
+            aviso = aviso_funcion(doc)
+            if aviso:
+                messages.info(request, aviso)
         return render(request, 'core/comprobante_detalle.html', self._ctx(
             doc=doc, items=doc.items.select_related('producto'), notas=doc.notas.all(),
             movimientos=doc.movimientos.select_related('cuenta'), puede_editar=self.puede_editar(doc),
@@ -260,6 +264,9 @@ class ComprobanteViews:
                     if doc._meta.model_name == 'compra':
                         from compras.precios import liquidar
                         liquidar(doc)  # se revierte la diferencia de precio que hubiera liquidado
+                        if doc.orden_compra_id:  # COM-03: la orden vuelve a «Aprobado» si ya no está todo facturado
+                            from compras.seguimiento import actualizar_estado
+                            actualizar_estado(doc.orden_compra, f'factura {doc} anulada')
                 messages.success(request, f'{doc} anulado.')
         return redirect(self._url('detalle', pk))
 

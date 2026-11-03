@@ -1,7 +1,8 @@
 @echo off
-rem Inicia Ceiba ERP en esta PC con la base de trabajo PostgreSQL (la de .env.postgres, selector «Empresa»).
-rem   iniciar.bat           base de trabajo PostgreSQL (desde la version 1.32)
-rem   iniciar.bat sqlite    base SQLite anterior (cliente.sqlite3), solo para consultar: ya no recibe datos nuevos
+rem Inicia Ceiba ERP en esta PC con la base de trabajo: PostgreSQL si esta configurado (.env.postgres y servicio)
+rem o, si no, la base SQLite cliente.sqlite3 (equipos sin PostgreSQL: ahi es la base de trabajo y recibe los datos).
+rem   iniciar.bat           base de trabajo (PostgreSQL o, sin PostgreSQL, SQLite)
+rem   iniciar.bat sqlite    base SQLite (cliente.sqlite3) aunque haya PostgreSQL
 rem   iniciar.bat demo      base de demostracion (db.sqlite3)
 rem Acepta conexiones de otras computadoras y de internet (abra el puerto en el router y en el firewall de Windows).
 rem Puerto: linea PUERTO=8030 en .env.postgres (sin ella, 8000). Guia: docs\POSTGRESQL.md
@@ -10,9 +11,20 @@ title Ceiba ERP
 
 set AJUSTES=--settings=erp.settings_postgres
 set MODO=PostgreSQL
+set AUTO_SQLITE=
+rem DOC-01: sin PostgreSQL en este equipo (sin .env.postgres o sin el servicio) se trabaja con la base SQLite
+if "%~1"=="" if exist "cliente.sqlite3" (
+  if not exist ".env.postgres" set AUTO_SQLITE=1
+  sc query postgresql-17 >nul 2>&1 || set AUTO_SQLITE=1
+)
+if defined AUTO_SQLITE (
+  set AJUSTES=--settings=erp.settings_cliente
+  set MODO=SQLite
+  echo PostgreSQL no esta configurado en este equipo: se trabaja con la base SQLite cliente.sqlite3.
+)
 if /i "%~1"=="sqlite" (
   set AJUSTES=--settings=erp.settings_cliente
-  set MODO=SQLite anterior ^(solo consulta^)
+  set MODO=SQLite
 )
 if /i "%~1"=="demo" (
   set AJUSTES=

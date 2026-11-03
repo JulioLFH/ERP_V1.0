@@ -30,8 +30,8 @@
   <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
     <span><i class="bi bi-list-task"></i> Órdenes planificadas</span>
     <span class="d-flex flex-wrap gap-2 align-items-center">
+      <select name="centro_costo" class="form-select form-select-sm" style="width:auto" title="Para las órdenes de producción sin puesto con centro de costo y para las compras"><option value="">Centro de costo…</option>{% for c in centros %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}</select>
       <button name="accion" value="fabricar" class="btn btn-sm btn-outline-primary"><i class="bi bi-gear"></i> Crear órdenes de producción</button>
-      <select name="centro_costo" class="form-select form-select-sm" style="width:auto"><option value="">Centro de costo de la compra…</option>{% for c in centros %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}</select>
       <button name="accion" value="comprar" class="btn btn-sm btn-outline-primary" title="Crea una solicitud de pedido para Compras; con contrato marco vigente, la orden de compra directa"><i class="bi bi-cart"></i> Comprar (solicitud de pedido)</button>
     </span>
   </div>

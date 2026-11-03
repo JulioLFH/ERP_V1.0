@@ -286,8 +286,12 @@ class CuarentenaTest(LotesBase):
         with self.assertRaisesMessage(estados.ErrorLote, 'no está libre'):
             harina.mover_stock(D('-1'), 'Consumo', almacen=self.calidad, origen='OPERACION', concepto='CONS_INT')
         almacenero = usuario('alm2', ['inventario'], ['inventario.operar'])
-        with self.assertRaisesMessage(estados.ErrorLote, 'liberarlo'):
+        with self.assertRaisesMessage(estados.ErrorLote, 'liberar lotes'):
             estados.trasladar_estado(harina, D('8'), self.calidad, self.almacen, 'Liberado', almacenero)
+        with self.assertRaisesMessage(estados.ErrorLote, 'inspección de calidad aprobada'):  # CAL-02
+            estados.trasladar_estado(harina, D('8'), self.calidad, self.almacen, 'Sin inspección', self.user)
+        from produccion.models import InspeccionCalidad
+        InspeccionCalidad.objects.create(numero='QC-V184', producto=harina, cantidad=D('8'), resultado='APROBADO')
         estados.trasladar_estado(harina, D('8'), self.calidad, self.almacen, 'Inspección conforme', self.user)
         self.assertEqual(harina.stock_en(self.almacen), D('20'))
 

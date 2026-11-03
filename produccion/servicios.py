@@ -10,7 +10,7 @@ from datetime import date, timedelta
 from decimal import ROUND_CEILING, Decimal
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 
 from core.models import Producto, Serie, r2
@@ -39,11 +39,15 @@ def fecha_de_periodo(periodo):
 
 
 # ---------------------------------------------------------------- versiones de fabricación
+# MAN-01: entre versiones empatadas manda la que tiene hoja de ruta (la automática sin hoja no deja fuera MO y CIF)
+_CON_HOJA = F('hoja_id').desc(nulls_last=True)
+
+
 def version_para(producto, cantidad, fecha=None):
     """Versión vigente para fabricar `cantidad` en `fecha`: la de rango de lote más específico."""
     fecha = fecha or timezone.localdate()
     candidatas = (VersionFabricacion.objects.filter(producto=producto, activa=True)
-                  .select_related('lista', 'hoja').order_by('-lote_min', '-vigente_desde', 'codigo'))
+                  .select_related('lista', 'hoja').order_by('-lote_min', '-vigente_desde', _CON_HOJA, 'codigo'))
     return next((v for v in candidatas if v.aplica(cantidad, fecha)), None)
 
 
@@ -51,7 +55,7 @@ def version_vigente(producto, fecha=None):
     """Versión para costear o planificar sin cantidad: la que aplica a su propio lote de costeo."""
     fecha = fecha or timezone.localdate()
     for v in (VersionFabricacion.objects.filter(producto=producto, activa=True).select_related('lista', 'hoja')
-              .order_by('-vigente_desde', 'codigo')):
+              .order_by('-vigente_desde', _CON_HOJA, 'codigo')):
         if v.aplica(v.lote_estandar, fecha) or v.aplica(max(v.lote_min, Decimal('1')), fecha):
             return v
     return None
@@ -523,6 +527,24 @@ def terminar(orden, usuario, cantidad_producida, consumos, horas, fecha=None, pe
             inv.confirmar(op, usuario)
         except inv.ErrorOperacion as exc:
             raise ErrorProduccion(str(exc)) from exc
+        # MAN-06: el subproducto con otro almacén por defecto (una materia prima recuperada) pasa a su almacén
+        reubicar = defaultdict(list)
+        for s in lista_salidas:
+            if s.cantidad_real > 0 and s.producto.almacen_defecto_id and \
+                    s.producto.almacen_defecto_id != orden.almacen_destino_id:
+                reubicar[s.producto.almacen_defecto_id].append(s)
+        for almacen_id, filas in reubicar.items():
+            traslado = Operacion.objects.create(
+                tipo=TipoOperacion.objects.get(codigo='TRAS_ALM'), fecha=contable, fecha_documento=documento,
+                almacen_origen=orden.almacen_destino, almacen_destino_id=almacen_id, referencia=orden.numero,
+                creado_por=usuario, glosa=f'Subproductos de {orden.numero} a su almacén')
+            for s in filas:
+                traslado.items.create(producto=s.producto, cantidad=r2(s.cantidad_real),
+                                      lote=orden.numero if s.producto.control == 'LOTE' else '')
+            try:
+                inv.confirmar(traslado, usuario)
+            except inv.ErrorOperacion as exc:
+                raise ErrorProduccion(f'Traslado de subproductos: {exc}') from exc
         costos = {}
         for i in op.items.filter(rol='INSUMO'):
             costos[i.producto_id] = i.costo_unitario
@@ -1019,8 +1041,10 @@ def _reponer_por_reorden(corrida, entradas, niveles, hoy):
                                         fecha_inicio=hoy, proveedor=proveedor, origen=origen[:250])
 
 
-def convertir_en_orden(propuesta, usuario):
-    """Orden planificada de fabricar -> orden de producción en borrador (con su versión y sus insumos)."""
+def convertir_en_orden(propuesta, usuario, centro_costo=None):
+    """Orden planificada de fabricar -> orden de producción en borrador (con su versión y sus insumos). MAN-04: el
+    centro de costo es el del puesto de su primera operación, el elegido en la pantalla del MRP o el de la última
+    orden del producto."""
     from core.models import Almacen
     if propuesta.tipo != 'PRODUCIR' or propuesta.convertida:
         raise ErrorProduccion('La propuesta ya se convirtió o no es de fabricación.')
@@ -1035,6 +1059,12 @@ def convertir_en_orden(propuesta, usuario):
             fecha=propuesta.fecha_inicio, almacen_insumos=principal, almacen_destino=destino, creado_por=usuario,
             glosa=f'Generada por el MRP ({propuesta.origen})'[:500])
         explotar(orden)
+        if not orden.centro_costo_id:
+            anterior = (OrdenProduccion.objects.filter(producto=propuesta.producto, centro_costo__isnull=False)
+                        .exclude(pk=orden.pk).order_by('-id').values_list('centro_costo_id', flat=True).first())
+            orden.centro_costo_id = centro_costo.pk if centro_costo else anterior
+            if orden.centro_costo_id:
+                orden.save(update_fields=['centro_costo'])
         propuesta.orden_produccion = orden
         propuesta.save(update_fields=['orden_produccion'])
     return orden

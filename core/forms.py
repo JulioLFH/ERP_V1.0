@@ -610,6 +610,11 @@ class ProductoForm(CamposSensiblesMixin, BootstrapMixin, forms.ModelForm):
         control = datos.get('control', self.instance.control)
         if 'exige_vencimiento' in datos and control != 'LOTE' and datos.get('exige_vencimiento'):
             datos['exige_vencimiento'] = False
+        # MAN-07: la declaración de producción calcula el vencimiento del lote con la vida útil (no se escribe a mano)
+        if control == 'LOTE' and datos.get('exige_vencimiento') and 'vida_util_dias' in datos and \
+                not datos.get('vida_util_dias'):
+            self.add_error('vida_util_dias', 'Con lote de vencimiento obligatorio indique la vida útil (mayor a 0): '
+                                             'con ella se calcula el vencimiento de cada lote producido.')
         planificacion = datos.get('tipo_planificacion') or self.instance.tipo_planificacion
         if planificacion == 'MRP' and (datos.get('punto_reorden') or 0) > 0:
             self.avisos.append('Con planificación MRP el punto de reorden no se usa: el producto no sale en la '
@@ -667,6 +672,9 @@ class TipoCambioForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = TipoCambio
         fields = ['fecha', 'compra', 'venta']
+
+    def validate_unique(self):
+        """FIN-05: una fecha ya registrada se corrige (la vista actualiza el valor y deja el rastro)."""
 
 
 class FacturacionConfigForm(BootstrapMixin, forms.ModelForm):

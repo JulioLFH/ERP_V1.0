@@ -116,6 +116,15 @@
     const vender = document.getElementById('id_puede_venderse');
     if (vender && activo) vender.checked = false;
   }
+  // MAE-01: al cambiar la clase de un producto nuevo, lo que se compra y se vende según la clase
+  function porDefecto() {
+    if (clase.disabled) return;
+    const v = clase.value;
+    const vender = document.getElementById('id_puede_venderse'), comprar = document.getElementById('id_puede_comprarse');
+    if (vender) vender.checked = !['MATERIA_PRIMA', 'SUMINISTRO', 'ENVASE', 'SEMIELABORADO', 'ACTIVO'].includes(v);
+    if (comprar) comprar.checked = !['PRODUCTO_TERMINADO', 'SEMIELABORADO'].includes(v);
+  }
+  clase.addEventListener('change', porDefecto);
   clase.addEventListener('change', aplicar);
   aplicar();
 })();

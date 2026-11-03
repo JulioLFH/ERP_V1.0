@@ -100,6 +100,21 @@ class OrdenCompra(DocumentoBase):
                 Compra.objects.filter(pk=c.pk).update(fecha_vencimiento=vence, fecha_ingreso=ingreso)
 
 
+def aviso_funcion(compra):
+    """FIN-03: un flete o una comisión de venta registrado con un centro de costo administrativo queda como gasto de
+    administración en el estado de resultados por función: se avisa en la factura por si debía ir a ventas."""
+    import re
+    centro = compra.centro_costo
+    if compra.estado == 'ANULADO' or centro is None or centro.tipo != 'ADMINISTRACION':
+        return ''
+    textos = [f'{i.descripcion} {i.producto.nombre if i.producto_id else ""}' for i in compra.items.all()]
+    if not any(re.search(r'\b(flete|fletes|transporte de mercader|comisi[oó]n|comisiones)', t, re.I) for t in textos):
+        return ''
+    return (f'Esta factura tiene fletes o comisiones con el centro de costo {centro}, que es de administración: en el '
+            f'estado de resultados por función quedan como gasto de administración. Si son de la venta, use un centro '
+            f'de costo de ventas.')
+
+
 class OrdenCompraItem(ItemBase):
     documento = models.ForeignKey(OrdenCompra, on_delete=models.CASCADE, related_name='items')
     linea_solped = models.ForeignKey('LineaSolicitud', on_delete=models.SET_NULL, null=True, blank=True,

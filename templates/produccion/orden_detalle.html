@@ -67,6 +67,7 @@
 
     {# MAN-23: quien declara ve un solo flujo (cantidad → consumo → horas); «Terminar en un paso» es la alternativa plegada #}
     {% if puede_declarar %}{% include 'produccion/_orden_declarar.html' %}{% endif %}
+    {% if sin_declarar %}<div class="alert alert-info small py-2 mb-2"><i class="bi bi-info-circle"></i> Esta orden no se declara por turnos (sin declaraciones parciales, cierre técnico ni liquidación) porque {{ sin_declarar }}. Use <b>Terminar en un paso</b>.</div>{% endif %}
     {% if terminable or not puede_declarar %}
     <div {% if terminable and puede_declarar %}class="collapse" id="terminar-paso"{% endif %}>
     {% if terminable and puede_declarar %}<div class="alert alert-light border small py-2 mb-2"><i class="bi bi-flag"></i> <b>Terminar en un paso</b>: en vez de declarar por turnos, registra todo lo producido, consumido y las horas de una vez y cierra la orden.</div>{% endif %}

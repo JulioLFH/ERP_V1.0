@@ -273,7 +273,28 @@ class VersionForm(BootstrapMixin, forms.ModelForm):
         desde, hasta = datos.get('vigente_desde'), datos.get('vigente_hasta')
         if desde and hasta and hasta < desde:
             self.add_error('vigente_hasta', 'No puede ser anterior al inicio de la vigencia.')
+        # MAN-01: dos versiones activas no se solapan (producto, vigencia y rango de lote); la automática sin hoja
+        # de ruta que CEIBA creó con la receta se desactiva al guardar esta
+        self.reemplaza = []
+        if producto and desde and datos.get('lote_min') is not None and not self.errors:
+            prueba = VersionFabricacion(pk=self.instance.pk, producto=producto, activa=datos.get('activa', True),
+                                        vigente_desde=desde, vigente_hasta=hasta, lote_min=datos['lote_min'],
+                                        lote_max=datos.get('lote_max'))
+            otras = prueba.solapadas()
+            self.reemplaza = [v for v in otras if v.automatica and datos.get('hoja')]
+            choques = [v for v in otras if v not in self.reemplaza]
+            if choques:
+                self.add_error(None, 'Se solapa con otra versión activa del mismo producto en fechas y rango de lote: '
+                               + ', '.join(v.codigo for v in choques) + '. Ajuste la vigencia o el rango de lote, o '
+                               'desactive la otra versión.')
         return datos
+
+    def save(self, commit=True):
+        version = super().save(commit)
+        for v in getattr(self, 'reemplaza', []):
+            v.activa = False
+            v.save(update_fields=['activa'])
+        return version
 
 
 class OrdenProduccionForm(BootstrapMixin, forms.ModelForm):

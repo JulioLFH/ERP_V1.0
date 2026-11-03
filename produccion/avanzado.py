@@ -299,10 +299,10 @@ def aprobar(cambio, usuario, comentario=''):
         actual.vigente_hasta = vence
     actual.save()
     for v in VersionFabricacion.objects.filter(lista=actual, activa=True):
-        codigo, n = nueva.codigo[:10], 1
+        codigo, n = nueva.codigo[:20], 1
         while VersionFabricacion.objects.filter(producto=v.producto, codigo=codigo).exists():
             n += 1
-            codigo = f'{nueva.codigo[:7]}-{n}'
+            codigo = f'{nueva.codigo[:17]}-{n}'
         VersionFabricacion.objects.create(
             producto=v.producto, codigo=codigo, descripcion=f'{cambio.numero}: {v.descripcion}'[:120], lista=nueva,
             hoja=v.hoja, lote_min=v.lote_min, lote_max=v.lote_max, lote_costeo=v.lote_costeo, vigente_desde=efectiva,

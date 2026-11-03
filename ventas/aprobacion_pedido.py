@@ -89,6 +89,12 @@ def _solicitante(cot):
 def aprobar(cot, user):
     """Aprueba el nivel que le toca (o el pedido entero sin reglas). Devuelve el mensaje."""
     from core.permisos import puede
+    from core.segregacion import error_aprobacion, propio
+    # VEN-01: quien registró el pedido no lo aprueba (regla fija, como la orden de compra), aunque no requiera
+    # aprobación por precio o crédito y también para el administrador, salvo que sea el único usuario
+    error = propio(user, cot) or error_aprobacion(user, cot)
+    if error:
+        raise ErrorAprobacionPedido(error)
     tipo, lista = motivos(cot)
     cot.motivo_aprobacion = ' · '.join(lista)[:300]
     if aprobaciones.hay_reglas('PEDIDO'):
@@ -120,9 +126,6 @@ def aprobar(cot, user):
                                     f'«Aprobar pedidos de venta» o configure las reglas (documento «Pedidos de venta»).')
     if not lista and not (puede(user, 'ventas.aprobar_pedidos') or puede(user, 'ventas.emitir')):
         raise ErrorAprobacionPedido('Su usuario no puede aprobar pedidos de venta.')  # la ruta ya no exige emitir
-    from core.segregacion import propio
-    if lista and propio(user, cot):  # AUD-08: mismo criterio que la orden de compra
-        raise ErrorAprobacionPedido(propio(user, cot))
     cot.estado = 'APROBADO'
     cot.save(update_fields=['estado', 'motivo_aprobacion'])
     aprobaciones.registrar('PEDIDO', cot, user, 'APROBADA', cot.motivo_aprobacion)
@@ -140,7 +143,8 @@ def enviar(cot, user):
                 'PEDIDO', _solicitante(cot), _total_pen(cot), None, tipo, avisos=avisos), 0
         except aprobaciones.ErrorAprobacion as exc:
             raise ErrorAprobacionPedido(str(exc)) from exc
-    if not cot.niveles and not lista:
+    from core.segregacion import propio
+    if not cot.niveles and not lista and not propio(user, cot):  # VEN-01: quien lo registró no se lo aprueba
         cot.estado = 'APROBADO'
         cot.save(update_fields=['estado', 'niveles', 'nivel_aprobado', 'motivo_aprobacion'])
         aprobaciones.registrar('PEDIDO', cot, user, 'APROBADA', 'No requiere aprobación')
@@ -225,7 +229,9 @@ def estado_aprobacion(cot, user):
             niveles = aprobaciones.calcular_niveles('PEDIDO', s, _total_pen(cot), None, tipo)
         except aprobaciones.ErrorAprobacion:
             niveles = []
-    requiere = bool(lista or niveles)
+    from core.segregacion import propio as es_propio
+    # VEN-01: al creador siempre se le pide enviarlo; lo aprueba otro usuario
+    requiere = bool(lista or niveles or (s and s.pk == user.pk and es_propio(user, cot)))
     enviado = enviado_a_aprobacion(cot)
     ruta = aprobaciones.ruta('PEDIDO', cot, niveles, cot.nivel_aprobado)
     if not requiere:

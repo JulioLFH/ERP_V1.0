@@ -276,8 +276,9 @@ def declarar(orden, usuario, cantidad, fecha=None, fecha_contable=None, lote='',
     p = orden.producto
     con_lote = p.control == 'LOTE'
     lote_pt = ((lote or '').strip().upper()[:60] or f'{orden.numero}-{numero}') if con_lote else ''
-    fabricado = fabricacion or fecha
-    vence = vencimiento or (vencimiento_propuesto(p, fabricado) if con_lote else None)
+    # MAN-07: fabricación = fecha de registro y vencimiento = el del maestro (vida útil); no se escriben a mano
+    fabricado = fecha
+    vence = vencimiento_propuesto(p, fabricado) if con_lote else None
     ingreso = Operacion.objects.create(
         tipo=TipoOperacion.objects.get(codigo='ENT_OP'), fecha=contable, fecha_documento=documento,
         almacen_destino=orden.almacen_destino, orden_imputada=orden, centro_costo=orden.centro_costo, referencia=ref,
@@ -420,6 +421,33 @@ def costo_real(orden):
     return materiales, mo + t['MO'], maq + t['MAQUINA'], cif + t['OTRO']
 
 
+def _en_stock_de_la_orden(producto, vigentes, declarado):
+    """COS-01: cuánto de lo declarado por la orden sigue en stock, para repartir su variación. Con lotes, el stock de
+    los lotes de la orden; sin lotes (costo promedio), la producción se mezcla con el stock que había y con las otras
+    entradas: queda en stock la misma proporción que del total (declarado × stock actual ÷ (stock previo + entradas
+    desde la primera declaración))."""
+    from django.db.models import Sum
+
+    from core.models import Kardex, StockLote
+    lotes = [d.lote for d in vigentes if d.lote]
+    if producto.control and lotes:
+        en_lotes = (StockLote.objects.filter(lote__producto=producto, lote__codigo__in=lotes)
+                    .aggregate(s=Sum('cantidad'))['s'] or D0)
+        return min(max(en_lotes, D0), declarado)
+    stock = max(producto.stock, D0)
+    inicio = min(d.fecha for d in vigentes)
+    previo = D0
+    for tipo, cantidad in (Kardex.objects.filter(producto=producto, fecha__lt=inicio).order_by()
+                           .values('tipo').annotate(s=Sum('cantidad')).values_list('tipo', 's')):
+        previo += (cantidad or D0) * (1 if tipo == 'ENTRADA' else -1)
+    entradas = (Kardex.objects.filter(producto=producto, fecha__gte=inicio, tipo='ENTRADA')
+                .aggregate(s=Sum('cantidad'))['s'] or D0)
+    total = max(previo, D0) + max(entradas, declarado)
+    if total <= 0:
+        return min(stock, declarado)
+    return min((declarado * stock / total).quantize(Decimal('0.0001')), stock, declarado)
+
+
 @transaction.atomic
 def liquidar_orden(orden, usuario, fecha=None):
     """Liquidación final de la orden cerrada técnicamente: variación = costo real − estándar declarado, repartida a
@@ -463,7 +491,7 @@ def liquidar_orden(orden, usuario, fecha=None):
         a_gasto = variacion
     elif variacion:
         producto.refresh_from_db()
-        en_stock = min(max(producto.stock, D0), declarado)
+        en_stock = _en_stock_de_la_orden(producto, vigentes, declarado)
         a_inv = r2(variacion * en_stock / declarado)
         a_costo = variacion - a_inv
         ajuste = _fecha_ajuste(producto, contable)

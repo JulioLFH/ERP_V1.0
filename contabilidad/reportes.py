@@ -85,6 +85,23 @@ def resultado_ejercicio(sumas):
     return -_neto(sumas, ('6', '7'), excluir=('79',)) - _neto(sumas, ('88',))
 
 
+LINEA_MERMA = 'Merma anormal de producción (gasto del periodo, NIC 2)'
+
+
+def merma_anormal(desde, hasta):
+    """Merma anormal llevada a gasto en las órdenes terminadas o liquidadas en el rango (fechas o periodos AAAAMM)."""
+    from django.db.models import Sum
+
+    from produccion.models import OrdenProduccion
+    from .centralizar import _rango
+    if isinstance(desde, str):
+        desde = _rango(desde[:6])[0]
+    if isinstance(hasta, str):
+        hasta = _rango(hasta[:6])[1]
+    return (OrdenProduccion.objects.filter(fecha_fin__range=[desde, hasta], merma_anormal__gt=0)
+            .exclude(estado='ANULADA').aggregate(s=Sum('merma_anormal'))['s'] or D0)
+
+
 def estado_resultados(desde, hasta, sumas=None):
     """Estado de resultados por función. El costo de ventas suma al 69 lo consumido (60/61) y los gastos destinados a
     producción (9x salvo 94, 95 y 97) y resta la producción almacenada (71/72): así el resultado siempre es igual al
@@ -107,7 +124,11 @@ def estado_resultados(desde, hasta, sumas=None):
         # el costo (pasa con los asientos del sistema anterior)
         no_absorbido += sin_destino
         sin_destino = D0
-    costo = costo_vendido + no_absorbido
+    # FIN-01: la merma anormal llevada a gasto en las órdenes (consumo que no entró al producto) es gasto del periodo
+    # (NIC 2 párr. 16): se muestra en su propia línea y no neteada con la absorción de mano de obra, máquina y CIF
+    merma = merma_anormal(desde, hasta) if sumas is None and desde and hasta else D0  # solo el estado de la empresa
+    no_absorbido -= merma
+    costo = costo_vendido + no_absorbido + merma
     bruta = ventas - costo
     otros_ing = -_neto(s, ('73', '75', '76', '78'))
     operativa = bruta - adm - vtas - sin_destino + otros_ing
@@ -119,6 +140,8 @@ def estado_resultados(desde, hasta, sumas=None):
         ('Ventas netas', ventas, 'total'),
         ('Costo de ventas', -costo_vendido, ''),
     ]
+    if merma:
+        lineas.append((LINEA_MERMA, -merma, ''))
     if no_absorbido:
         lineas.append(('Producción en proceso y costos de producción no absorbidos', -no_absorbido, 'alerta'))
     lineas += [
@@ -403,7 +426,8 @@ def sumas_presupuesto(desde, hasta):
     return sumas
 
 
-ORDEN_RESULTADOS = ['Ventas netas', 'Costo de ventas', 'Producción en proceso y costos de producción no absorbidos',
+ORDEN_RESULTADOS = ['Ventas netas', 'Costo de ventas', LINEA_MERMA,
+                    'Producción en proceso y costos de producción no absorbidos',
                     'UTILIDAD BRUTA', 'Gastos de administración',
                     'Gastos de ventas', 'Otros gastos por función', 'Gastos sin destino asignado',
                     'Otros ingresos de gestión', 'UTILIDAD OPERATIVA', 'Ingresos financieros', 'Gastos financieros',

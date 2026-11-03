@@ -59,8 +59,9 @@ def agregar_material(orden, producto, cantidad, motivo, usuario, sustituye=None,
         raise ErrorConsumo('El producto de la orden no puede ser su propio insumo.')
     if sustituye is not None and sustituye.orden_id != orden.pk:
         raise ErrorConsumo('El insumo sustituido es de otra orden.')
-    modo, _ = politica(orden)
-    libre = modo == 'LIBRE'
+    # MAN-02: el material fuera de receta lo aprueba otro usuario (segregación, como las órdenes de compra y los
+    # cambios de ingeniería) con cualquier política de consumo; solo con un único usuario activo queda aprobado
+    libre = not _otro_usuario(usuario)
     return ConsumoOrden.objects.create(
         orden=orden, producto=producto, cantidad_plan=D0, cantidad_real=Decimal(cantidad) if libre else D0,
         almacen=almacen, adicional=True, sustituye=sustituye, motivo=motivo.strip()[:250],

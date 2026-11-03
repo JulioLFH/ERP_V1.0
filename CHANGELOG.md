@@ -3,6 +3,32 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.103.0 — 03/11/2026 · Auditoría funcional v1.102 (27 casos)
+- **Pedidos de venta (VEN-01)**: quien registra un pedido no lo aprueba (regla fija, como la orden de compra), aunque no requiera aprobación por precio o crédito; al enviarlo, queda a la espera de otro usuario.
+- **Versión de fabricación (MAN-01)**: la versión automática que se crea con la receta solo se crea si el producto no tiene otra activa y con el código completo (ya no se corta a 10 caracteres). Al guardar una versión con hoja de ruta, la automática se desactiva; no se guardan dos versiones activas con el mismo rango de lote y fechas que se cruzan; entre versiones empatadas manda la que tiene hoja de ruta.
+- **Devoluciones (VEN-02, COM-02)**: la nota de crédito de venta reingresa al costo con que salió la factura de referencia, y la nota de crédito del proveedor saca la mercadería al costo neto de su línea (no al promedio del día).
+- **Diferencia de cambio al cierre (FIN-04)**: el cierre ajusta también las cuentas por cobrar (12, T.C. compra) y por pagar (42, T.C. venta) en dólares, por documento, contra 776 / 676; el cobro o pago posterior parte del saldo ajustado. Se calcula aunque no haya bancos en dólares.
+- **Calidad (CAL-01, CAL-02)**: un producto sin lote rechazado pasa a cuarentena en el mismo acto, y en investigación OOS pasa al almacén «En control de calidad»; liberar de ese almacén exige el permiso «liberar lotes» y una inspección aprobada que cubra la cantidad.
+- **Consumo fuera de receta (MAN-02)**: lo aprueba otro usuario con cualquier política de consumo (con un único usuario activo queda aprobado).
+- **Merma anormal (FIN-01)**: línea propia en el estado de resultados por función, separada de lo no absorbido.
+- **Órdenes con subproductos (MAN-03)**: la orden explica por qué no se declara por turnos.
+- **Pagos (FIN-02)**: con la segregación de funciones estricta, quien registró la factura del proveedor no la paga (Tesorería › Pagos y pagos múltiples).
+- **Cierre guiado (CIE-01)**: antes de cerrar (también con «Cerrar aunque falten pasos») centraliza lo pendiente; si quedan documentos sin asiento no cierra.
+- **Declaración de producción (MAN-07)**: ya no muestra Fabricación ni Vencimiento: la fabricación es la fecha de registro y el vencimiento sale de la vida útil del maestro (se ve en el mensaje y en Inventario › Lotes). Con lote de vencimiento obligatorio el producto exige vida útil mayor a 0.
+- **Liquidación (COS-01)**: la variación se reparte según lo que queda de la orden en stock: con lotes, el stock de sus lotes; sin lotes, en proporción a la mezcla con el stock previo (costo promedio).
+- **MRP (MAN-04)**: la orden creada toma el centro de costo del puesto, el elegido en la pantalla del MRP o el de la última orden del producto, y avisa si queda sin él.
+- **Tarifas (MAN-05)**: las tarifas por hora del puesto no pueden ser negativas (también fuera del formulario).
+- **Subproductos (MAN-06)**: el subproducto pasa a su almacén por defecto.
+- **Usuarios (SEG-01)**: no se guarda una acción nueva de un módulo que el usuario no tiene; se pide marcar el módulo o quitarla.
+- **Excel (SEG-02)**: un texto que empieza con «=» se exporta como texto, no como fórmula.
+- **Producto nuevo (MAE-01)**: la materia prima, suministros y envases no se marcan para vender; lo fabricado no se marca para comprar ni lleva cuenta de compra.
+- **Fletes y comisiones (FIN-03)**: aviso en la factura si se registran con un centro de costo de administración.
+- **Orden de compra (COM-03)**: al anular su factura vuelve a «Aprobado» si ya no está todo facturado.
+- **Tipo de cambio (FIN-05)**: una fecha ya registrada se corrige desde la pantalla; queda en la bitácora y se avisa si hay comprobantes en dólares de ese día.
+- **Factura de compra (COM-04)**: el vencimiento no puede ser anterior a la emisión.
+- **Arranque (DOC-01)**: `iniciar.bat` sin parámetros usa SQLite si el equipo no tiene PostgreSQL configurado; la guía lo explica.
+- **Revisión de datos (DAT-01, DAT-02, SEG-02, MAN-05, COM-04)**: nuevo comando de solo lectura `manage.py revisar_datos` que lista los datos que no pasan las validaciones actuales (no corrige nada).
+
 ## v1.102.0 — 29/10/2026 · Plan de cuentas del Excel, cuentas más detalladas y vigencia de centros de costo
 - **Plan de cuentas › carga masiva con «Actualizar los existentes»**: el plan se reemplaza por el del Excel. Cada cuenta queda solo con los datos del archivo, como nueva (lo vacío toma el valor por defecto según el código, sin destinos si no los trae, y activa). Las cuentas que no vienen en el Excel se eliminan; las que tienen asientos o se usan (productos, bancos, configuración…) quedan inactivas y se listan en el resumen. Al validar se avisa cuántas cuentas saldrán del plan, y un destino que no está en el Excel es un error de la fila. Los asientos automáticos de los periodos abiertos se rehacen con las cuentas nuevas.
 - **Cuentas por operación**: al cargar el plan (con o sin «Actualizar») cada operación pasa a la cuenta **más detallada** de su rama (la de más dígitos: 4212 → 421211, 40111 → 401111, 639710 → 6397101), la de soles si hay MN y ME. El botón **Usar las cuentas más detalladas** hace lo mismo sin volver a cargar el plan. El resumen indica las operaciones que quedaron con una cuenta fuera del plan para revisarlas. Los asientos también van a la cuenta más detallada (ya no solo a la de 6 dígitos); el ajuste de migración del sistema anterior usa exactamente sus cuentas (pasa de 12120001 a 1212).

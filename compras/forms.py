@@ -87,6 +87,10 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
             if dias:
                 data['fecha_vencimiento'] = data['fecha_emision'] + timedelta(days=dias)
                 self.instance.fecha_vencimiento = data['fecha_vencimiento']
+        if data.get('fecha_emision') and data.get('fecha_vencimiento') and \
+                data['fecha_vencimiento'] < data['fecha_emision']:  # COM-04 (regla COM-R04)
+            self.add_error('fecha_vencimiento', 'El vencimiento no puede ser anterior a la emisión. Vacío = emisión + '
+                                                'días de crédito del proveedor.')
         oc = data.get('orden_compra')
         if oc and oc.estado not in ('APROBADO', 'ATENDIDO') and oc.pk != self.instance.orden_compra_id:
             self.add_error('orden_compra', f'La orden de compra {oc.numero} está «{oc.get_estado_display()}»: solo se '

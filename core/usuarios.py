@@ -167,6 +167,14 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         self._sin_escalada(data)
         if not data.get('es_admin') and not data.get('modulos') and not self._perfil_a_aplicar(data):
             self.add_error('modulos', 'Asigne al menos un módulo (o un perfil de acceso).')
+        # SEG-01: una acción nueva no tiene efecto sin su módulo: se avisa antes de guardar
+        if not data.get('es_admin') and not self._perfil_a_aplicar(data):
+            nuevas = set(data.get('acciones') or []) - set(self.initial.get('acciones') or [])
+            sin_modulo = sorted({a.split('.')[0] for a in nuevas} & set(GRUPOS) - set(data.get('modulos') or []))
+            if sin_modulo:
+                self.add_error('acciones', 'Eligió acciones de módulos que el usuario no tiene y no tendrían efecto: '
+                               + ', '.join(POR_CLAVE[m]['nombre'] for m in sin_modulo) + '. Marque el módulo o '
+                               'quite esas acciones.')
         # CRM-15: al desactivar a un vendedor con cartera abierta se pide a quién pasarla
         if 'reasignar_crm' in self.fields and self.instance.pk and not data.get('is_active') and \
                 not data.get('reasignar_crm'):

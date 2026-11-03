@@ -85,6 +85,10 @@ def registrar(modo, datos, lineas, usuario):
             if getattr(doc, 'pago_bloqueado', False):
                 errores.append(f'{doc}: pago bloqueado por Compras ({doc.motivo_bloqueo_pago}).')
                 continue
+            from .operaciones import error_pago_propio
+            if modo == 'pago' and error_pago_propio(usuario, doc):
+                errores.append(error_pago_propio(usuario, doc))
+                continue
             if modo == 'pago':
                 try:
                     _validar_sin_detraccion(doc, monto)

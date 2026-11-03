@@ -18,6 +18,16 @@ class ErrorTesoreria(Exception):
     pass
 
 
+def error_pago_propio(usuario, compra):
+    """FIN-02: con la segregación de funciones estricta (Ajustes › Empresa), quien registró la factura del proveedor no
+    la paga directo: la paga otro usuario o sale en una propuesta de pagos aprobada. '' si puede pagarla."""
+    from core.segregacion import creador, estricta, _otro_usuario
+    if not estricta() or not _otro_usuario(usuario) or creador(compra) != usuario.pk:
+        return ''
+    return (f'{compra}: usted registró la factura y no puede pagarla (segregación de funciones estricta); la paga otro '
+            f'usuario o inclúyala en una propuesta de pagos para su aprobación.')
+
+
 def _periodo_abierto(fecha):
     if periodo_cerrado(fecha.strftime('%Y%m')):
         raise ErrorTesoreria(f'El periodo contable {fecha:%m/%Y} está cerrado.')

@@ -180,6 +180,11 @@ def orden_detalle(request, pk):
     from .models import CostoTardio
     ctx['declaraciones'] = list(orden.declaraciones.select_related('ingreso', 'consumo', 'usuario'))
     ctx['puede_declarar'] = abierta and not ctx['salidas'] and not orden.maquilador_id
+    # MAN-03: por qué la orden no ofrece declarar por turnos (solo «Terminar en un paso»)
+    ctx['sin_declarar'] = '' if ctx['puede_declarar'] or not abierta else (
+        'la receta tiene subproductos o coproductos: su reparto del costo se hace al terminar la orden completa'
+        if ctx['salidas'] else 'es una orden de maquila: la produce el maquilador y se termina con su factura'
+        if orden.maquilador_id else '')
     # «Terminar» en un paso: solo si no se declaró producción por turnos
     ctx['terminable'] = orden.estado in ('CONFIRMADA', 'EN_PROCESO')
     ctx['saldo'] = max(orden.cantidad - orden.cantidad_producida, Decimal('0'))
@@ -348,14 +353,14 @@ def orden_declarar(request, pk):
             d = parciales.declarar(
                 orden, request.user, _decimal(request.POST.get('cantidad'), None),
                 fecha=request.POST.get('fecha') or None, fecha_contable=request.POST.get('fecha_contable') or None,
-                lote=request.POST.get('lote', ''), fabricacion=_dia_post(request, 'fabricacion'),
-                vencimiento=_dia_post(request, 'vencimiento'), horas=horas, personal=personal,
+                lote=request.POST.get('lote', ''), horas=horas, personal=personal,
                 nota=request.POST.get('nota', ''), cargos=cargos,
                 lotes_insumos={c.pk: request.POST.get(f'dlote_{c.pk}', '') for c in orden.consumos.all()},
                 autorizar=request.POST.get('autorizar') == '1' and puede(request.user, 'manufactura.aprobar_consumo'))
             orden.refresh_from_db()
             messages.success(request, f'Declaración {d.numero}: ingresaron {d.cantidad:,.2f} {orden.producto.unidad}'
-                                      f'{f" (lote {d.lote})" if d.lote else ""}. Saldo por producir: '
+                                      f'{f" (lote {d.lote})" if d.lote else ""}'
+                                      f'{f", vence el {d.vencimiento:%d/%m/%Y}" if d.vencimiento else ""}. Saldo por producir: '
                                       f'{max(orden.cantidad - orden.cantidad_producida, 0):,.2f}.')
         except servicios.ErrorProduccion as exc:
             messages.error(request, f'No se declaró: {exc}')
@@ -621,10 +626,15 @@ def _guardar_lista(request, lista, titulo):
                 componentes.save()
                 subproductos.instance = lista
                 subproductos.save()
-                if not lista.versiones.exists():  # primera receta del producto: su versión de fabricación
+                # primera receta del producto: su versión de fabricación, solo si el producto aún no tiene una activa
+                # (MAN-01: no desplaza a la versión real con hoja de ruta) y con el código completo de la receta
+                if not lista.versiones.exists() and not VersionFabricacion.objects.filter(
+                        producto=lista.producto, activa=True).exists():
+                    from .models import DESCRIPCION_AUTOMATICA
                     VersionFabricacion.objects.get_or_create(
-                        producto=lista.producto, codigo=lista.codigo[:10],
-                        defaults={'lista': lista, 'vigente_desde': lista.vigente_desde})
+                        producto=lista.producto, codigo=lista.codigo,
+                        defaults={'lista': lista, 'vigente_desde': lista.vigente_desde,
+                                  'descripcion': f'{DESCRIPCION_AUTOMATICA} (sin hoja de ruta)'})
             messages.success(request, f'Lista de materiales {lista} guardada.')
             return redirect('manufactura:lista', lista.pk)
     from core.models import Producto
@@ -936,9 +946,15 @@ def mrp(request):
             propuestas = list(PropuestaMRP.objects.filter(pk__in=ids).select_related('producto', 'version'))
             try:
                 if accion == 'fabricar':
-                    hechas = [servicios.convertir_en_orden(p, request.user) for p in propuestas
+                    from contabilidad.models import CentroCosto
+                    centro = CentroCosto.objects.filter(pk=request.POST.get('centro_costo') or 0).first()
+                    hechas = [servicios.convertir_en_orden(p, request.user, centro) for p in propuestas
                               if p.tipo == 'PRODUCIR' and not p.convertida]
                     messages.success(request, f'{len(hechas)} orden(es) de producción creadas en borrador.')
+                    sin_centro = [o.numero for o in hechas if not o.centro_costo_id]
+                    if sin_centro:
+                        messages.warning(request, 'Sin centro de costo (elíjalo en la pantalla del MRP o en el puesto '
+                                                  'de trabajo de la hoja de ruta): ' + ', '.join(sin_centro) + '.')
                 else:  # compras: solicitud de pedido (u OC directa si hay contrato marco y la empresa lo permite)
                     from compras.solped import desde_mrp
                     from contabilidad.models import CentroCosto

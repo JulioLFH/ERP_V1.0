@@ -195,6 +195,31 @@ def cambiar_estado_lote(lote, nuevo, motivo, usuario=None):
         motivo=motivo.strip()[:250], usuario=usuario if usuario and usuario.is_authenticated else None)
 
 
+def validar_liberacion(producto, cantidad, usuario):
+    """CAL-02: liberar del almacén de calidad a uno normal lo hace Calidad («liberar lotes», como con los lotes) y solo
+    hasta la cantidad de las inspecciones aprobadas del producto que aún no se liberó."""
+    from django.apps import apps
+    from django.db.models import Sum
+
+    from core.permisos import puede
+    from .models import CambioEstadoStock
+    if usuario is not None and not puede(usuario, 'control_calidad.liberar_lotes'):
+        raise ErrorLote('Liberar del almacén de calidad lo hace Calidad (permiso «liberar lotes»).')
+    aprobadas = apps.get_model('produccion', 'InspeccionCalidad').objects.filter(
+        producto=producto, resultado__in=('APROBADO', 'OBSERVADO'))
+    if not aprobadas.exists():
+        raise ErrorLote(f'{producto.nombre} no tiene una inspección de calidad aprobada: no se libera del almacén de '
+                        f'calidad.')
+    if aprobadas.filter(cantidad__lte=0).exists():
+        return  # inspección aprobada sin cantidad: cubre todo lo inspeccionado
+    aprobado = aprobadas.aggregate(s=Sum('cantidad'))['s'] or D0
+    liberado = (CambioEstadoStock.objects.filter(producto=producto, lote__isnull=True, estado_anterior='CUARENTENA',
+                                                 estado_nuevo='LIBRE').aggregate(s=Sum('cantidad'))['s'] or D0)
+    if Decimal(cantidad) > aprobado - liberado:
+        raise ErrorLote(f'Las inspecciones aprobadas de {producto.nombre} cubren {max(aprobado - liberado, D0):f} por '
+                        f'liberar: no se liberan {Decimal(cantidad):f}.')
+
+
 def trasladar_estado(producto, cantidad, origen, destino, motivo, usuario, lote_codigo=''):
     """Producto sin lote (o un lote completo): se pone en calidad, se bloquea o se libera trasladándolo entre un
     almacén normal y uno de calidad o bloqueo (genera y confirma el traslado)."""
@@ -204,6 +229,8 @@ def trasladar_estado(producto, cantidad, origen, destino, motivo, usuario, lote_
         raise ErrorLote('Elija un almacén normal y uno de calidad o bloqueo (el cambio de estado va de uno al otro).')
     if len((motivo or '').strip()) < 5:
         raise ErrorLote('Indique el motivo del cambio de estado.')
+    if origen.uso in USOS_CALIDAD and destino.uso not in USOS_NO_LIBRE:
+        validar_liberacion(producto, cantidad, usuario)
     tipo = TipoOperacion.objects.filter(codigo='TRAS_ALM').first()
     if tipo is None:
         raise ErrorLote('Falta el tipo de operación «Traslado entre almacenes» (TRAS_ALM).')

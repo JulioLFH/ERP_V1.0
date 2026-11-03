@@ -41,6 +41,19 @@ def cierre_mes(request):
                 messages.error(request, 'Faltan pasos: ' + ', '.join(pendientes) + '. Complételos o confirme el cierre '
                                         'con pasos pendientes.')
             else:
+                # CIE-01: como en Periodos, se cierra con la contabilidad al día (también si se fuerza el cierre)
+                if PeriodoContable.objects.filter(periodo=periodo, pendiente=True).exists():
+                    try:
+                        r = centralizar_periodo(periodo)
+                    except ErrorContable as exc:
+                        messages.error(request, f'No se cerró: {exc}')
+                        return redirect(f'{request.path}?periodo={_mes_input(periodo)}')
+                    if r['errores']:
+                        for e in r['errores']:
+                            messages.warning(request, e)
+                        messages.error(request, 'No se cerró: la centralización dejó documentos sin asiento. '
+                                                'Corríjalos y vuelva a cerrar.')
+                        return redirect(f'{request.path}?periodo={_mes_input(periodo)}')
                 PeriodoContable.objects.update_or_create(periodo=periodo, defaults={'cerrado': True})
                 messages.success(request, f'Periodo {periodo[4:]}/{periodo[:4]} cerrado.')
         return redirect(f'{request.path}?periodo={_mes_input(periodo)}')

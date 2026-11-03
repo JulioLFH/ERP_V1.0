@@ -72,15 +72,18 @@ class PlantaTest(TestCase):
         insp = InspeccionCalidad.objects.get()
         self.assertRedirects(r, reverse('manufactura:inspeccion', args=[insp.pk]))
         res = insp.resultados.get()
-        # 15.2 % está fuera de especificación: no se aprueba, queda en investigación OOS (CAL-02)
+        antes = self.insumo.stock_en(self.almacen)
+        # 15.2 % está fuera de especificación: no se aprueba, queda en investigación OOS (CAL-02) y, sin lote, lo
+        # inspeccionado pasa en el mismo acto al almacén de calidad (CAL-01 v1.103)
         insp = planta.registrar_resultados(insp, {res.pk: (D('15.2'), '', None)}, 'APROBADO', '', self.user)
         self.assertEqual(insp.resultado, 'OOS')
+        self.assertEqual(self.insumo.stock_en(self.almacen), antes - 1)
+        self.assertEqual(self.insumo.stock_en(Almacen.especial('CALIDAD')), D('1'))
+        # rechazado: pasa solo a cuarentena (ya no se espera a «Enviar a cuarentena»)
         planta.registrar_resultados(insp, {res.pk: (D('15.2'), '', None)}, 'RECHAZADO', 'Humedad alta', self.user)
         res.refresh_from_db()
         self.assertIs(res.conforme, False)
-        antes = self.insumo.stock_en(self.almacen)
-        planta.enviar_a_cuarentena(insp, D('1'), self.user)
-        self.assertEqual(self.insumo.stock_en(self.almacen), antes - 1)
+        self.assertEqual(self.insumo.stock_en(Almacen.especial('CALIDAD')), D('0'))
         self.assertEqual(self.insumo.stock_en(Almacen.especial('DESTRUCCION')), D('1'))
 
     def test_mantenimiento_preventivo_con_repuestos(self):

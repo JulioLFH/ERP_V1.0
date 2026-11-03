@@ -43,6 +43,9 @@ def excel_response(nombre, titulo, encabezados, filas, rojas=()):
         cell.fill = PatternFill('solid', fgColor='1F4E79')
     for fila in filas:
         ws.append([float(v) if isinstance(v, Decimal) else v for v in fila])
+        for cell in ws[ws.max_row]:  # SEG-02: un texto que empieza con «=» (nombre, glosa) queda como texto, no fórmula
+            if isinstance(cell.value, str) and cell.value.startswith('='):
+                cell.data_type = 's'
     rojo = PatternFill('solid', fgColor='FFC7CE')
     for i, j in rojas:
         ws.cell(row=4 + i, column=j + 1).fill = rojo

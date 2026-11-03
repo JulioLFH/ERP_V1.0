@@ -19,6 +19,7 @@ from ventas.models import Venta
 
 from .forms import CuentaForm, ImportarExtractoForm, MovimientoForm, OperacionForm, TransferenciaForm
 from .models import Cuenta, Movimiento
+from .operaciones import error_pago_propio
 from django.utils import timezone
 
 
@@ -305,6 +306,9 @@ def cobrar_pagar(request, modo):
                 if getattr(d, 'pago_bloqueado', False):
                     errores.append(f'{d}: pago bloqueado por Compras ({d.motivo_bloqueo_pago}). Se paga cuando '
                                    f'Compras lo libere.')
+                    continue
+                if modo == 'pago' and error_pago_propio(request.user, d):
+                    errores.append(error_pago_propio(request.user, d))
                     continue
                 if d.fecha_emision and data['fecha'] < d.fecha_emision:  # FIN-12
                     errores.append(f'{d}: la fecha del {"cobro" if modo == "cobranza" else "pago"} '

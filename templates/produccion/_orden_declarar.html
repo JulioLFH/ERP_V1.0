@@ -8,8 +8,7 @@
     <div class="col-md-3"><label class="form-label mb-1">Fecha y hora</label><input type="datetime-local" name="fecha" value="{{ ahora|date:'Y-m-d\TH:i' }}" max="{{ ahora|date:'Y-m-d\TH:i' }}" class="form-control form-control-sm"></div>
     <div class="col-md-3"><label class="form-label mb-1">Fecha contable</label><input type="date" name="fecha_contable" value="{{ hoy|date:'Y-m-d' }}" max="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm" data-sigue-fecha="fecha"><div class="form-text">La del día; cámbiela si va a otro día o mes</div></div>
     {% if o.producto.control == 'LOTE' %}<div class="col-md-3"><label class="form-label mb-1">Lote</label><input name="lote" maxlength="60" class="form-control form-control-sm" placeholder="Vacío = {{ o.numero }}-{{ declaraciones|length|add:1 }}"></div>
-    <div class="col-md-3"><label class="form-label mb-1">Fabricación</label><input type="date" name="fabricacion" value="{{ hoy|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
-    <div class="col-md-3"><label class="form-label mb-1">Vencimiento</label><input type="date" name="vencimiento" class="form-control form-control-sm"><div class="form-text">Vacío = fabricación + vida útil</div></div>{% endif %}
+    {# MAN-07: fabricación = fecha de registro; el vencimiento lo calcula CEIBA con la vida útil del maestro (se ve en Inventario › Lotes) #}{% endif %}
 
     <div class="col-12 fw-semibold text-primary mt-3">2. Consumo de materiales</div>
     <div class="col-12">

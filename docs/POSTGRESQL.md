@@ -1,8 +1,16 @@
 # Ceiba ERP sobre PostgreSQL
 
 Guía para trabajar con PostgreSQL en local y llevar luego la base completa (tablas y datos) al servidor de la
-empresa. Desde la versión 1.32.0 PostgreSQL es la base de trabajo; las bases SQLite (`cliente.sqlite3`,
+empresa. Desde la versión 1.32.0 PostgreSQL es la base de trabajo **en los equipos donde está instalado y
+configurado** (servicio `postgresql-17` y archivo `.env.postgres`); ahí las bases SQLite (`cliente.sqlite3`,
 `cliente_empresa2.sqlite3`) quedan como respaldo de solo consulta.
+
+> **Equipos sin PostgreSQL** (por ejemplo, el equipo de pruebas): la base de trabajo sigue siendo SQLite
+> (`cliente.sqlite3` y `cliente_empresa2.sqlite3`) y recibe todos los datos. `iniciar.bat` sin parámetros lo detecta
+> solo (sin `.env.postgres` o sin el servicio arranca con SQLite y lo indica en la ventana). **No descarte ni
+> sobrescriba esas bases SQLite creyendo que son un respaldo.** El paso a PostgreSQL en esos equipos es un plan: al
+> hacerlo, copie los datos con `copiar_a_postgres` (sección de migración) y audite la base nueva con un usuario de solo
+> lectura.
 
 > Render ya no se usa para desplegar. El código se publica solo en GitHub; el servidor definitivo será propio (VPS).
 

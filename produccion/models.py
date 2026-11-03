@@ -1,13 +1,16 @@
 """Manufactura: centros de trabajo, listas de materiales (recetas) y órdenes de producción."""
+from datetime import date
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
 
 from core.models import Almacen, Producto, r2
 
 D0 = Decimal('0')
+NO_NEGATIVO = [MinValueValidator(D0)]  # MAN-05: tarifas por hora (también fuera del formulario)
 
 
 ESTADOS_MAESTRO = [('BORRADOR', 'Borrador'), ('APROBADA', 'Aprobada'), ('OBSOLETA', 'Obsoleta')]
@@ -22,14 +25,14 @@ class CentroTrabajo(models.Model):
     nombre = models.CharField(max_length=100)
     tipo = models.CharField(max_length=8, choices=TIPOS, default='MAQUINA')
     costo_hora_mo = models.DecimalField(
-        'Tarifa mano de obra referencial S/ h', max_digits=12, decimal_places=2, default=D0,
+        'Tarifa mano de obra referencial S/ h', max_digits=12, decimal_places=2, default=D0, validators=NO_NEGATIVO,
         help_text='Por hora hombre. Para el costo estándar y para las horas sin trabajador asignado; con trabajador se '
                   'usa su costo real (sueldo y cargas)')
     costo_hora_maquina = models.DecimalField(
-        'Tarifa máquina S/ h', max_digits=12, decimal_places=2, default=D0,
+        'Tarifa máquina S/ h', max_digits=12, decimal_places=2, default=D0, validators=NO_NEGATIVO,
         help_text='Por hora máquina: depreciación, energía y mantenimiento de la máquina')
     costo_hora_cif = models.DecimalField(
-        'Tarifa CIF S/ h', max_digits=12, decimal_places=2, default=D0,
+        'Tarifa CIF S/ h', max_digits=12, decimal_places=2, default=D0, validators=NO_NEGATIVO,
         help_text='Costos indirectos de fabricación, distribuidos por hora máquina')
     centro_costo = models.ForeignKey('contabilidad.CentroCosto', on_delete=models.SET_NULL, null=True, blank=True,
                                      verbose_name='Centro de costo',
@@ -273,7 +276,7 @@ class VersionFabricacion(models.Model):
     La orden de producción y el MRP eligen la versión según la cantidad y la fecha."""
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='versiones_fabricacion',
                                  limit_choices_to={'clase__in': ['PRODUCTO_TERMINADO', 'SEMIELABORADO']})
-    codigo = models.CharField('Versión', max_length=10)
+    codigo = models.CharField('Versión', max_length=20)  # MAN-01: el mismo largo que el código de la receta
     descripcion = models.CharField(max_length=120, blank=True)
     lista = models.ForeignKey(ListaMateriales, on_delete=models.PROTECT, related_name='versiones',
                               verbose_name='Lista de materiales')
@@ -308,6 +311,25 @@ class VersionFabricacion(models.Model):
                 (self.vigente_hasta is None or fecha <= self.vigente_hasta) and cantidad >= self.lote_min and
                 (self.lote_max is None or cantidad <= self.lote_max) and
                 (self.hoja_id is None or self.hoja.estado == 'APROBADA'))
+
+    def solapadas(self):
+        """MAN-01: otras versiones activas del producto con el mismo rango de lote y vigencias que se cruzan (no hay
+        cómo elegir entre ellas). Un rango más específico sí convive: gana el de lote mínimo mayor (version_para)."""
+        if not self.activa or not self.producto_id:
+            return []
+        fin = self.vigente_hasta or date.max
+        return [v for v in VersionFabricacion.objects.filter(producto_id=self.producto_id, activa=True,
+                                                             lote_min=self.lote_min, lote_max=self.lote_max)
+                .exclude(pk=self.pk)
+                if v.vigente_desde <= fin and (v.vigente_hasta or date.max) >= self.vigente_desde]
+
+    @property
+    def automatica(self):
+        """La que CEIBA crea sola al guardar la primera receta del producto (sin hoja de ruta)."""
+        return self.hoja_id is None and self.descripcion.startswith(DESCRIPCION_AUTOMATICA)
+
+
+DESCRIPCION_AUTOMATICA = 'Creada al guardar la receta'
 
 
 class CostoEstandar(models.Model):

@@ -627,7 +627,11 @@ def resultados_por_linea(request):
             for n in acumulados:
                 calculo[pk][n] = calculo[pk].get(n, D0) - delta
                 calculo[None][n] = calculo[None].get(n, D0) + delta
-    filas = [(n, {pk: calculo[pk].get(n, D0) for pk, _ in columnas}, e in ('subtotal', 'total'), v)
+    merma = dict((n, v) for n, v, _ in oficial).get(reportes.LINEA_MERMA)
+    if merma and None in calculo:  # FIN-01: la merma anormal en su línea, como en el estado de la empresa
+        calculo[None][reportes.LINEA_MERMA] = merma
+        calculo[None][no_absorbido] = calculo[None].get(no_absorbido, D0) - merma
+    filas =[(n, {pk: calculo[pk].get(n, D0) for pk, _ in columnas}, e in ('subtotal', 'total'), v)
              for n, v, e in oficial]
     # cuentas por cobrar e inventario por línea al cierre
     from contabilidad.centralizar import _fin_mes

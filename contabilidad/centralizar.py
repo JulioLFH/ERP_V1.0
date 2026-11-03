@@ -392,6 +392,9 @@ def asiento_movimiento(m, cta, tc_func):
         contra = cta.get(f'mov_{m.concepto}') or (cta['ingreso_otro'] if m.tipo == 'INGRESO' else cta['egreso_otro'])
     # el documento se cancela por el importe en soles con su propio tipo de cambio
     importe_doc = m.monto_doc_pen if doc_obj and not m.cuenta_contable_id else importe_caja
+    tc_libros = tc_en_libros(m.venta or m.compra, m.fecha) if not m.cuenta_contable_id else None
+    if tc_libros:  # FIN-04: ajustado al cierre de un mes anterior, se cancela al T.C. de ese ajuste
+        importe_doc = r2(m.monto_doc * tc_libros)
     moneda_doc = getattr(doc_obj, 'moneda', None) if doc_obj and not m.cuenta_contable_id else None
     diferencia = importe_caja - importe_doc
     if m.tipo == 'INGRESO':
@@ -449,6 +452,9 @@ def asiento_aplicacion(ap, cta, tc_func):
     b = Borrador(a, doc.moneda, doc.tc_efectivo)
     documento = f'{doc.tipo_comprobante} {doc.numero_completo}'
     importe_doc, importe_contra = ap.monto_doc_pen, r2(ap.monto_doc * tc_contra)
+    tc_libros = tc_en_libros(doc, ap.fecha)
+    if tc_libros:  # FIN-04: el documento ajustado al cierre de un mes anterior se cancela al T.C. de ese ajuste
+        importe_doc = r2(ap.monto_doc * tc_libros)
     tercero = ap.entrega.responsable if ap.origen == 'RENDICION' else doc.tercero
     diferencia = importe_contra - importe_doc
     if es_venta:  # 122/123 al debe, 12 al haber
@@ -524,8 +530,72 @@ def asiento_cambio_cierre(periodo, cta, tc_obj):
         elif dif < 0:
             b.add(cta['dif_cambio_perdida'], debe=-dif, glosa=f'Ajuste T.C. {c}')
             b.add(sub, haber=-dif, glosa=f'Ajuste T.C. {c}')
+    # FIN-04: las cuentas por cobrar (12, T.C. compra) y por pagar (42, T.C. venta) en dólares, por documento (NIC 21
+    # párr. 23, LIR art. 61): el saldo pendiente al cierre se lleva al T.C. del cierre contra 776 / 676
+    for modelo, es_venta in ((Venta, True), (Compra, False)):
+        tc = tc_obj.compra if es_venta else tc_obj.venta
+        for doc in (modelo.objects.filter(moneda='USD', estado='REGISTRADO', periodo__lte=periodo,
+                                          fecha_emision__lte=hasta).exclude(tipo_comprobante__in=('07', '08'))
+                    .select_related('tercero').order_by('fecha_emision', 'id')):
+            if doc.historico_cancelado:
+                continue
+            general = _cuenta_tercero(doc, cta)
+            lineas = _lineas_documento(doc, general).filter(asiento__fecha__lte=hasta)
+            agg = lineas.aggregate(d=Sum('debe'), h=Sum('haber'))
+            libro = r2((agg['d'] or D0) - (agg['h'] or D0))
+            primera = lineas.select_related('cuenta').first()
+            if primera is None:
+                continue  # el documento aún no tiene asiento
+            saldo = _saldo_me_al(doc, hasta)
+            dif = r2(saldo * tc) * (1 if es_venta else -1) - libro
+            texto = _doc_texto(doc)
+            glosa = f'Ajuste T.C. {texto} ({"compra" if es_venta else "venta"} {tc})'
+            if dif > 0:
+                b.add(primera.cuenta, debe=dif, tercero=doc.tercero, documento=texto, glosa=glosa, moneda='USD')
+                b.add(cta['dif_cambio_ganancia'], haber=dif, documento=texto, glosa=glosa)
+            elif dif < 0:
+                b.add(cta['dif_cambio_perdida'], debe=-dif, documento=texto, glosa=glosa)
+                b.add(primera.cuenta, haber=-dif, tercero=doc.tercero, documento=texto, glosa=glosa, moneda='USD')
     b.agregar_destinos()
     return b.grabar()
+
+
+def _doc_texto(doc):
+    return f'{doc.tipo_comprobante} {doc.numero_completo}'
+
+
+def _lineas_documento(doc, general):
+    """Líneas de la cuenta del cliente o proveedor (y sus subcuentas) de un comprobante y de sus notas."""
+    textos = [_doc_texto(doc)] + [_doc_texto(n) for n in doc.notas.filter(estado='REGISTRADO')]
+    return AsientoLinea.objects.filter(tercero=doc.tercero, documento__in=textos,
+                                       cuenta__codigo__startswith=general.codigo)
+
+
+def _saldo_me_al(doc, fecha):
+    """Lo que falta cobrar o pagar del comprobante en su moneda a una fecha (como ComprobanteBase.saldo)."""
+    notas = doc.notas.filter(estado='REGISTRADO', fecha_emision__lte=fecha)
+    nc = notas.filter(tipo_comprobante='07').aggregate(s=Sum('total'))['s'] or D0
+    nd = notas.filter(tipo_comprobante='08').aggregate(s=Sum('total'))['s'] or D0
+    pagado = ((doc.movimientos.filter(fecha__lte=fecha).aggregate(s=Sum('monto_doc'))['s'] or D0)
+              + (doc.aplicaciones.filter(fecha__lte=fecha).aggregate(s=Sum('monto_doc'))['s'] or D0))
+    return doc.total - nc + nd - doc.retencion_monto + doc.percepcion_monto - pagado - doc.pagado_anterior
+
+
+def tc_en_libros(doc, fecha):
+    """FIN-04: T.C. al que está en libros un comprobante en dólares antes de `fecha` (el del último ajuste de cierre
+    que lo tocó), para que el cobro o pago posterior parta del saldo ajustado; None si no se ajustó."""
+    if doc is None or doc.moneda != 'USD' or doc._meta.model_name not in ('venta', 'compra'):
+        return None
+    linea = (AsientoLinea.objects.filter(asiento__origen='CAMBIO', asiento__fecha__lt=fecha, tercero=doc.tercero,
+                                         documento=_doc_texto(doc)).select_related('asiento')
+             .order_by('-asiento__fecha').first())
+    if linea is None:
+        return None
+    from core.tipo_cambio import obtener
+    tc = obtener(linea.asiento.fecha, consultar=False)
+    if tc is None:
+        return None
+    return tc.compra if doc._meta.model_name == 'venta' else tc.venta
 
 
 # ---------------------------------------------------------------- inventario
@@ -958,8 +1028,10 @@ def centralizar_periodo(periodo):
             asiento_provisiones(periodo, cta)
             asiento_vnr(periodo)
             asiento_prestamos(periodo, cta, tc_func)
-            asiento_cambio_cierre(periodo, cta, obtener(hasta) if Cuenta.objects.filter(moneda='USD').exists()
-                                  else None)
+            # FIN-04: también sin bancos en dólares, por las cuentas por cobrar y por pagar en dólares
+            asiento_cambio_cierre(periodo, cta, obtener(hasta) if Cuenta.objects.filter(moneda='USD').exists() or
+                                  Venta.objects.filter(moneda='USD').exists() or
+                                  Compra.objects.filter(moneda='USD').exists() else None)
             from obras.inmobiliario import asiento_inmobiliario
             asiento_inmobiliario(periodo, cta)  # costos activados y unidades entregadas (usa los gastos del mes)
             from .reparto import regenerar

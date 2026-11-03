@@ -465,9 +465,24 @@ def tipos_cambio(request):
                                         'disponible). Puede registrarlo manualmente.')
             return redirect('tipos_cambio')
         if form.is_valid():
-            TipoCambio.objects.update_or_create(fecha=form.cleaned_data['fecha'], defaults={
-                'compra': form.cleaned_data['compra'], 'venta': form.cleaned_data['venta'], 'fuente': 'MANUAL'})
+            d = form.cleaned_data
+            anterior = TipoCambio.objects.filter(fecha=d['fecha']).first()
+            tc, _ = TipoCambio.objects.update_or_create(fecha=d['fecha'], defaults={
+                'compra': d['compra'], 'venta': d['venta'], 'fuente': 'MANUAL'})
             messages.success(request, 'Tipo de cambio guardado.')
+            if anterior and (anterior.compra, anterior.venta) != (d['compra'], d['venta']):
+                # FIN-05: la corrección queda en la bitácora (quién, antes y después)
+                from .auditoria import registrar
+                registrar('MODIFICAR', tc, {'Compra': [str(anterior.compra), str(d['compra'])],
+                                            'Venta': [str(anterior.venta), str(d['venta'])]},
+                          f'Corrección del tipo de cambio ({anterior.fuente} → manual)')
+                from compras.models import Compra
+                from ventas.models import Venta
+                n = (Compra.objects.filter(moneda='USD', fecha_emision=d['fecha']).exclude(estado='ANULADO').count()
+                     + Venta.objects.filter(moneda='USD', fecha_emision=d['fecha']).exclude(estado='ANULADO').count())
+                if n:
+                    messages.warning(request, f'Hay {n} comprobante(s) en dólares del {d["fecha"]:%d/%m/%Y}: conservan '
+                                              f'el tipo de cambio con que se registraron; revíselos si deben cambiar.')
             return redirect('tipos_cambio')
     return render(request, 'core/tipos_cambio.html', {
         'form': form, 'tipos': TipoCambio.objects.all()[:90], 'hoy': tipo_cambio.obtener(timezone.localdate()),
@@ -666,7 +681,11 @@ class ProductoNuevo(FormGenerico, CreateView):
     success_url = reverse_lazy('productos')
 
     def get_initial(self):
-        return {'clase': self.request.GET.get('clase', 'MERCADERIA')}
+        # MAE-01: lo que se compra y se vende según la clase (la materia prima no se vende; lo fabricado no se compra)
+        clase = self.request.GET.get('clase', 'MERCADERIA')
+        return {'clase': clase,
+                'puede_venderse': clase not in ('MATERIA_PRIMA', 'SUMINISTRO', 'ENVASE', 'SEMIELABORADO'),
+                'puede_comprarse': clase not in ('PRODUCTO_TERMINADO', 'SEMIELABORADO')}
 
     def form_valid(self, form):
         for aviso in getattr(form, 'avisos', []):  # AUD-10

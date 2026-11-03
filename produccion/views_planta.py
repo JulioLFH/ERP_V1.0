@@ -93,6 +93,8 @@ def inspeccion(request, pk):
                                               f'queda en investigación.')
                 else:
                     messages.success(request, f'Resultado registrado: {insp.get_resultado_display()}.')
+                if getattr(insp, 'retenido', ''):
+                    messages.info(request, insp.retenido)
         except planta.ErrorPlanta as exc:
             messages.error(request, str(exc))
         return redirect('manufactura:inspeccion', pk)

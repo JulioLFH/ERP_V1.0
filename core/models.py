@@ -380,6 +380,8 @@ def cuentas_de_clase(clase, CuentaContable=None):
 def asignar_cuentas(producto, CuentaContable):
     """Completa las cuentas vacías del producto con las de su tipo (acepta modelo histórico)."""
     for campo, cuenta in cuentas_de_clase(producto.clase, CuentaContable).items():
+        if campo == 'cuenta_compra' and getattr(producto, 'puede_comprarse', True) is False:
+            continue  # MAE-01: lo que no se compra no lleva cuenta de compra (se completa al marcarlo comprable)
         if cuenta is not None and not getattr(producto, f'{campo}_id'):
             setattr(producto, campo, cuenta)
 
@@ -854,9 +856,11 @@ class Almacen(models.Model):
 
     @classmethod
     def especial(cls, uso):
-        """Almacén virtual de tránsito o de destrucción (se crea la primera vez que se necesita)."""
+        """Almacén virtual de tránsito, de destrucción o de control de calidad (se crea la primera vez que se
+        necesita)."""
         nombres = {'TRANSITO': ('ALM-TR', 'Mercadería en tránsito'),
-                   'DESTRUCCION': ('ALM-DS', 'Cuarentena / por destruir')}
+                   'DESTRUCCION': ('ALM-DS', 'Cuarentena / por destruir'),
+                   'CALIDAD': ('ALM-QC', 'En control de calidad')}
         alm = cls.objects.filter(uso=uso).first()
         if alm is None:
             codigo, nombre = nombres[uso]
@@ -2197,9 +2201,18 @@ class ComprobanteBase(TotalesMixin):
         signo = self._signo_stock()
         # notas de crédito: la mercadería vuelve a (o sale de) los lotes del comprobante que modifican
         ref = str(self.doc_referencia) if getattr(self, 'doc_referencia_id', None) else None
+        # VEN-02: la devolución de una venta reingresa al costo con que salió en la factura de referencia (no al
+        # promedio del día), como revertir_stock; COM-02: la devolución al proveedor sale al costo neto de la línea de
+        # la nota (el que abona el proveedor)
+        costos_ref = {}
+        if ref and self.es_nota_credito and signo > 0:
+            costos_ref = self.doc_referencia._costos_del_movimiento('SALIDA')
         for item in self.items.select_related('producto'):
             if item.producto and item.producto.es_inventariable:
-                costo = self._costo_entrada(item) if signo > 0 else None
+                if ref and self.es_nota_credito:
+                    costo = costos_ref.get(item.producto_id) if signo > 0 else self._costo_entrada(item)
+                else:
+                    costo = self._costo_entrada(item) if signo > 0 else None
                 item.producto.mover_stock(signo * self._cantidad_stock(item), str(self), costo=costo,
                                           fecha=self.fecha_emision,
                                           almacen=self.almacen, origen=self._meta.model_name.upper(), lotes_de=ref)
