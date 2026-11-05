@@ -105,6 +105,10 @@ class HerramientasVentasTest(BaseAgentes):
         self.assertEqual((p[0]['pedido'], p[0]['motivo_aprobacion']), ('PD01-00000007', 'Bajo la tarifa: P001'))
         self.assertEqual(self.datos('pedidos_de_venta', self.vendedor_ana, situacion='abiertos')['pedidos'], [])
         self.assertEqual(self.datos('buscar_cliente', self.gerente, texto='2010007')[0]['id'], self.cliente.pk)
+        # número sin guion, como los pedidos importados del sistema anterior
+        Cotizacion.objects.create(tipo='PED', numero='S35592', tercero=self.cliente, total=D('50'), vendedor='luis')
+        self.assertEqual(self.datos('documento_de_venta', self.gerente, numero='s35592')['numero'], 'S35592')
+        self.assertEqual(self.datos('documento_de_venta', self.gerente, numero='PD01-7')['numero'], 'PD01-00000007')
 
     def test_sin_permiso_y_parametros_invalidos(self):
         sin = self.usuario('cajera', ['ventas'], acciones=['ventas.emitir'])

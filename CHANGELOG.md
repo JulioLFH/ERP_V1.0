@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.104.1 — 05/11/2026 · Agente de Ventas: pedidos importados
+- **Agente de Ventas**: encuentra los pedidos importados del sistema anterior por su número aunque no lleve guion (p. ej. S35592); antes respondía «Indique serie y número».
+
 ## v1.104.0 — 05/11/2026 · Agentes con IA (piloto: Agente de Ventas)
 - **Agente de Ventas (Ventas › Preguntar al agente (IA))**: responde en lenguaje natural con los datos del ERP: buscar un cliente, su deuda vencida y por vencer con el crédito disponible, ventas de un mes por cliente, vendedor, producto o tipo de comprobante, pedidos por aprobar o por facturar, el detalle de un comprobante o pedido y los clientes con deuda vencida. Solo consulta: no emite, modifica, aprueba ni anula; si se le pide, explica en qué menú se hace.
 - **Mismos permisos que en pantalla**: el agente ve lo que el usuario puede ver (incluye «Solo las ventas del vendedor»). Nuevo permiso «Usar el agente de ventas con IA», que viene desmarcado; cada usuario ve solo sus conversaciones.

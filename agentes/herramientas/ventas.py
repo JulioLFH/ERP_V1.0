@@ -174,12 +174,14 @@ def pedidos_de_venta(usuario, situacion):
 def documento_de_venta(usuario, numero):
     from ventas.models import Cotizacion, Venta
     texto = (numero or '').strip().upper().replace(' ', '')
-    m = re.fullmatch(r'([A-Z0-9]{2,4})-0*(\d+)', texto)
-    if not m:
+    if not texto:
         raise ErrorHerramienta('Indique serie y número, p. ej. F001-123.')
-    serie, num = m.group(1), m.group(2)
-    v = _vendedor(Venta.objects.con_saldos().filter(serie=serie, numero__regex=rf'^0*{num}$'), usuario).select_related(
-        'tercero', 'cotizacion', 'doc_referencia').first()
+    m = re.fullmatch(r'([A-Z0-9]{2,4})-0*(\d+)', texto)
+    serie, num = (m.group(1), m.group(2)) if m else (None, None)
+    v = None
+    if m:
+        v = _vendedor(Venta.objects.con_saldos().filter(serie=serie, numero__regex=rf'^0*{num}$'),
+                      usuario).select_related('tercero', 'cotizacion', 'doc_referencia').first()
     if v is not None:
         return {'tipo': v.get_tipo_comprobante_display(), 'documento': v.numero_completo, 'emision': v.fecha_emision,
                 'vencimiento': v.fecha_vencimiento, 'cliente': v.tercero.nombre, 'documento_cliente': v.tercero.numero_doc,
@@ -191,8 +193,9 @@ def documento_de_venta(usuario, numero):
                 'notas_credito_debito': [str(n) for n in v.notas.filter(estado='REGISTRADO')],
                 'lineas': [{'descripcion': i.descripcion, 'cantidad': i.cantidad, 'valor_unitario': i.precio_unitario,
                             'descuento_pct': i.descuento_pct, 'subtotal': i.subtotal} for i in v.items.all()[:50]]}
-    c = _vendedor(Cotizacion.objects.filter(Q(numero=texto) | Q(numero__regex=rf'^{serie}-0*{num}$')),
-                  usuario).select_related('tercero').first()
+    # los pedidos importados del sistema anterior no llevan guion (p. ej. S35592): se buscan tal cual
+    filtro = Q(numero=texto) | (Q(numero__regex=rf'^{serie}-0*{num}$') if m else Q())
+    c = _vendedor(Cotizacion.objects.filter(filtro), usuario).select_related('tercero').first()
     if c is None:
         raise ErrorHerramienta(f'No se encontró {texto} (o su usuario no lo ve).')
     from ventas.seguimiento_pedido import avance, situacion
