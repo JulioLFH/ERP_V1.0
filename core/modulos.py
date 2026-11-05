@@ -59,6 +59,7 @@ MODULOS = [
         'inicio': 'ventas:lista', 'descripcion': 'Cotizaciones, comprobantes y cobranzas',
         'menu': [
             ('Punto de venta', 'ventas:pos'),
+            ('Preguntar al agente (IA)', 'agentes:ventas'),
             ('Ventas', [('Cotizaciones y pedidos', 'ventas:cot_lista', 'bi-file-earmark-text'),
                         ('Comprobantes', 'ventas:lista', 'bi-receipt'),
                         ('Notas de crédito / débito', 'ventas:notas', 'bi-file-earmark-diff'),
@@ -696,11 +697,13 @@ MODULOS = [
                                      ('Suplencias de aprobación', 'aprobaciones_delegaciones', 'bi-person-check'),
                                      ('IP permitidas e intentos de ingreso', 'acceso_ip', 'bi-hdd-network')]),
             ('Control', [('Auditoría de todo el sistema', 'auditoria', 'bi-journal-text'),
-                         ('Incidencias y errores', 'incidencias', 'bi-bug')]),
+                         ('Incidencias y errores', 'incidencias', 'bi-bug'),
+                         ('Conversaciones con los agentes (IA)', 'agentes:conversaciones', 'bi-chat-left-text')]),
             ('Configuración', [('Correlativos / series', 'series', 'bi-123'),
                                ('Tipo de cambio', 'tipos_cambio', 'bi-currency-exchange'),
                                ('Facturación electrónica', 'facturacion', 'bi-cloud-upload'),
                                ('Correo saliente', 'correo', 'bi-envelope'),
+                               ('Agentes con IA', 'agentes:configuracion', 'bi-stars'),
                                ('Carga masiva (Excel)', 'carga_masiva', 'bi-file-earmark-arrow-up'),
                                ('Respaldo de datos', 'respaldo', 'bi-shield-check')]),
             ('Ayuda', [('Manuales de usuario', 'manuales', 'bi-book'),
@@ -933,6 +936,9 @@ RUTAS_FINANZAS = {
 }
 # pantallas de un módulo que también abre otro (vista: módulos; el primero es el principal)
 RUTAS_COMPARTIDAS = {'contabilidad:reparto_resultado': ['contabilidad', 'obras'],
+                     # v1.104: agentes con IA: cada uno en su módulo; la configuración y la bitácora en Ajustes
+                     'agentes:ventas': ['ventas'],
+                     **{f'agentes:{n}': ['ajustes'] for n in ('configuracion', 'conversaciones', 'conversacion')},
                      # COM-13: el traslado lo piden, aprueban y reciben compras, almacén y las obras
                      'compras:traslados': ['compras', 'inventario', 'obras', 'requerimientos'],
                      'compras:traslado_nuevo': ['compras', 'inventario', 'obras', 'requerimientos'],

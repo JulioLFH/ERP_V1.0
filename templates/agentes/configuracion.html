@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Agentes con IA{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0"><i class="bi bi-stars"></i> Agentes con IA</h1>
+  <a href="{% url 'agentes:conversaciones' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-journal-text"></i> Conversaciones</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="card-body">
+    <form method="post" class="row g-3">{% csrf_token %}
+      {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1 small">{{ e }}</div>{% endfor %}
+      {% for field in form %}<div class="{% if field.name == 'api_key' %}col-12{% else %}col-md-6{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+      <div class="col-12"><button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar</button></div>
+    </form>
+  </div></div></div>
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-body small">
+      <div class="d-flex justify-content-between"><span>Estado</span>{% if configurado %}<span class="badge text-bg-success">Activos</span>{% else %}<span class="badge text-bg-secondary">Inactivos</span>{% endif %}</div>
+      <div class="d-flex justify-content-between mt-2"><span>Gasto estimado este mes</span><b>US$ {{ gasto|floatformat:2 }}{% if cfg.tope_mensual_usd %} de {{ cfg.tope_mensual_usd|floatformat:2 }}{% endif %}</b></div>
+    </div></div>
+    <div class="card"><div class="card-header fw-semibold small">Agentes disponibles</div>
+      <ul class="list-group list-group-flush small">{% for a in agentes %}<li class="list-group-item"><b>{{ a.nombre }}</b> · permiso «{{ a.permiso }}» en el perfil<div class="text-muted">{{ a.herramientas|length }} consultas al ERP: {% for h in a.herramientas %}{{ h.nombre }}{% if not forloop.last %}, {% endif %}{% endfor %}</div></li>{% endfor %}</ul>
+    </div>
+    <p class="small text-muted mt-2">Los agentes solo consultan: no emiten, modifican, aprueban ni anulan documentos. Ven lo mismo que el usuario (permisos del perfil y «Solo las ventas del vendedor»). Para que un usuario use un agente, marque su permiso en Ajustes › Usuarios o en su perfil de acceso. El costo es una estimación con los precios por token del modelo.</p>
+  </div>
+</div>
+{% endblock %}

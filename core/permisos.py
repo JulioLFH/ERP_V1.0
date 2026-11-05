@@ -16,7 +16,9 @@ ACCIONES = {
     # TE-01: el maestro de clientes y proveedores lo mantiene Contactos; los demás módulos lo consultan
     'contactos': [('registrar', 'Crear y editar clientes y proveedores (datos maestros)', False)],
     # AJ-01 a AJ-07: administrar usuarios y permisos es aparte de configurar la empresa
-    'ajustes': [('usuarios', 'Administrar usuarios, perfiles de acceso y permisos (no los propios)', True)],
+    'ajustes': [('usuarios', 'Administrar usuarios, perfiles de acceso y permisos (no los propios)', True),
+                ('agentes', 'Configurar los agentes con IA (clave, modelo y tope de gasto) y ver sus conversaciones',
+                 True)],
     'ventas': [('emitir', 'Emitir comprobantes y cotizaciones', False),
                ('notas', 'Emitir notas de crédito y débito', True),
                ('anular', 'Anular comprobantes', True),
@@ -25,7 +27,8 @@ ACCIONES = {
                ('aprobar_pedidos', 'Aprobar pedidos de venta (incluye bajo la tarifa y exceso de crédito)', True),
                ('devoluciones', 'Emitir notas de crédito por devolución', True),
                ('reactivar', 'Reactivar una venta anulada que no se envió a SUNAT', True),
-               ('vendedor', 'Cambiar el vendedor de un documento', True)],
+               ('vendedor', 'Cambiar el vendedor de un documento', True),
+               ('agente', 'Usar el agente de ventas con IA (solo consultas)', True)],
     'compras': [('registrar', 'Registrar facturas de compra', False),
                 ('oc', 'Crear y editar órdenes de compra', False),
                 ('aprobar_oc', 'Aprobar órdenes de compra', True),
@@ -171,10 +174,15 @@ EXPLICITAS = {'asistente.aprobar_ficha', 'requerimientos.aprobar', 'contabilidad
               # v1.91: asientos manuales a bancos (CON-21) y cuentas bancarias de terceros (SEG-10)
               'contabilidad.bancos', 'tesoreria.datos_bancarios',
               # usuarios y permisos: solo el administrador o a quien se le asigna (AJ-01)
-              'ajustes.usuarios'}
+              'ajustes.usuarios',
+              # v1.104: los agentes con IA tienen costo por uso: solo a quien se le asigna
+              'ventas.agente', 'ajustes.agentes'}
 
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
+    # v1.104: agentes con IA (el permiso de cada agente; la configuración y la bitácora, del administrador)
+    'agentes:ventas': 'ventas.agente',
+    **{f'agentes:{n}': 'ajustes.agentes' for n in ('configuracion', 'conversaciones', 'conversacion')},
     'ventas:nuevo': lambda r: 'ventas.notas' if _tipo(r) in ('07', '08') else 'ventas.emitir',
     'ventas:editar': 'ventas.emitir', 'ventas:anular': 'ventas.anular', 'ventas:reactivar': 'ventas.reactivar', 'ventas:eliminar': 'ventas.anular',
     'ventas:importar': 'ventas.emitir', 'ventas:notas': 'ventas.notas', 'ventas:trasladar': 'ventas.emitir',

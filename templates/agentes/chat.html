@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}{{ agente.nombre }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0"><i class="bi bi-stars"></i> {{ agente.nombre }} <span class="badge text-bg-light border fw-normal small">IA · solo consultas</span></h1>
+  {% if conversacion %}<a href="{{ url }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Nueva conversación</a>{% endif %}
+</div>
+{% if bloqueo %}<div class="alert alert-warning small">{{ bloqueo }}</div>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-3 order-lg-2">
+    <div class="card"><div class="card-header fw-semibold small"><i class="bi bi-clock-history"></i> Mis conversaciones</div>
+      <div class="list-group list-group-flush small">{% for c in recientes %}<a href="{{ url }}?c={{ c.pk }}#fin" class="list-group-item list-group-item-action{% if conversacion and conversacion.pk == c.pk %} active{% endif %}">{{ c.titulo|truncatechars:60|default:'Conversación' }}<div class="small opacity-75">{{ c.actualizado|date:'d/m H:i' }}</div></a>{% empty %}<div class="list-group-item text-muted">Aún no hay conversaciones.</div>{% endfor %}</div>
+    </div>
+  </div>
+  <div class="col-lg-9 order-lg-1">
+    <div class="card">
+      <div class="card-body chat-lucho" id="conversacion">
+        {% if not mensajes %}<div class="lucho-msg mb-3"><div class="lucho-avatar"><i class="bi bi-stars"></i></div><div class="lucho-burbuja">Hola, soy el {{ agente.nombre|lower }}. Consulto los datos del ERP con sus mismos permisos y le respondo; no emito, modifico ni apruebo documentos. Por ejemplo:
+          <div class="d-flex flex-wrap gap-1 mt-2">{% for s in agente.sugerencias %}<button type="button" class="btn btn-sm btn-outline-secondary" data-sugerencia="{{ s }}">{{ s }}</button>{% endfor %}</div></div></div>{% endif %}
+        {% for m in mensajes %}
+        {% if m.rol == 'USUARIO' %}<div class="d-flex justify-content-end mb-2"><div class="usuario-burbuja" style="white-space: pre-wrap">{{ m.texto }}<div class="small opacity-75">{{ m.creado|date:'d/m H:i' }}</div></div></div>
+        {% else %}<div class="lucho-msg mb-3"><div class="lucho-avatar"><i class="bi bi-stars"></i></div><div class="lucho-burbuja{% if m.error %} border-danger{% endif %}"><div style="white-space: pre-wrap">{% if m.error %}<i class="bi bi-exclamation-triangle text-danger"></i> {% endif %}{{ m.texto }}</div></div></div>{% endif %}
+        {% endfor %}
+        <div id="fin"></div>
+      </div>
+      <form method="post" class="card-footer" data-pregunta>{% csrf_token %}
+        {% if conversacion %}<input type="hidden" name="c" value="{{ conversacion.pk }}">{% endif %}
+        <div class="d-flex gap-2 align-items-end">
+          <textarea name="pregunta" rows="2" maxlength="4000" class="form-control" placeholder="Escriba su pregunta" required{% if bloqueo %} disabled{% endif %}></textarea>
+          <button class="btn btn-primary"{% if bloqueo %} disabled{% endif %}><i class="bi bi-send"></i></button>
+        </div>
+        <div class="small text-muted mt-1 d-none" data-pensando><span class="spinner-border spinner-border-sm"></span> Consultando el ERP… puede tardar unos segundos.</div>
+      </form>
+    </div>
+    <p class="small text-muted mt-2 mb-0"><i class="bi bi-shield-check"></i> El agente ve solo lo que su usuario puede ver. Cada pregunta y cada dato que consulta quedan registrados. Verifique las cifras importantes en el ERP antes de decidir.</p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+const form = document.querySelector('[data-pregunta]');
+const caja = form.querySelector('textarea');
+document.querySelectorAll('[data-sugerencia]').forEach((b) => b.addEventListener('click', () => {
+  caja.value = b.dataset.sugerencia; caja.focus();
+}));
+caja.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (caja.value.trim()) form.requestSubmit(); }
+});
+form.addEventListener('submit', () => {
+  form.querySelector('[data-pensando]').classList.remove('d-none');
+  form.querySelector('button').disabled = true;
+  caja.readOnly = true;
+});
+const conv = document.getElementById('conversacion');
+if (conv) conv.scrollTop = conv.scrollHeight;
+</script>
+{% endblock %}

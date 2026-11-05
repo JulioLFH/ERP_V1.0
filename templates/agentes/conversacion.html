@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}{{ c }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">{{ c.titulo|default:'Conversación' }}</h1>
+  <a href="{% url 'agentes:conversaciones' %}" class="btn btn-sm btn-outline-secondary">Volver</a>
+</div>
+<p class="small text-muted">{{ agente.nombre|default:c.agente }} · {{ c.usuario.get_full_name|default:c.usuario.username }} · iniciada el {{ c.creado|date:'d/m/Y H:i' }} · costo estimado US$ {{ costo|default:0|floatformat:4 }}</p>
+{% for m in mensajes %}
+<div class="card mb-2{% if m.error %} border-danger{% endif %}"><div class="card-body py-2 small">
+  <div class="d-flex justify-content-between"><b>{% if m.rol == 'USUARIO' %}<i class="bi bi-person"></i> Pregunta{% else %}<i class="bi bi-stars"></i> Respuesta{% endif %}</b><span class="text-muted">{{ m.creado|date:'d/m H:i:s' }}{% if m.rol == 'AGENTE' %} · {{ m.modelo }} · {{ m.tokens_entrada }} + {{ m.tokens_salida }} tokens{% if m.tokens_cache_lectura %} · {{ m.tokens_cache_lectura }} de caché{% endif %} · US$ {{ m.costo_usd|floatformat:4 }}{% endif %}</span></div>
+  <div style="white-space: pre-wrap">{{ m.texto }}</div>
+  {% if m.llamadas.all %}<details class="mt-2"><summary>Datos del ERP consultados ({{ m.llamadas.all|length }})</summary>
+    <table class="table table-sm mb-0 mt-1"><thead><tr><th>Consulta</th><th>Parámetros</th><th>Resultado</th></tr></thead><tbody>
+    {% for l in m.llamadas.all %}<tr class="{% if not l.ok %}table-warning{% endif %}"><td class="text-nowrap">{{ l.herramienta }}</td><td><code>{{ l.entrada }}</code></td><td><div style="max-height: 8rem; overflow: auto; white-space: pre-wrap" class="font-monospace">{{ l.resultado|truncatechars:1500 }}</div></td></tr>{% endfor %}
+    </tbody></table></details>{% endif %}
+</div></div>
+{% endfor %}
+{% endblock %}

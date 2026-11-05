@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.104.0 — 05/11/2026 · Agentes con IA (piloto: Agente de Ventas)
+- **Agente de Ventas (Ventas › Preguntar al agente (IA))**: responde en lenguaje natural con los datos del ERP: buscar un cliente, su deuda vencida y por vencer con el crédito disponible, ventas de un mes por cliente, vendedor, producto o tipo de comprobante, pedidos por aprobar o por facturar, el detalle de un comprobante o pedido y los clientes con deuda vencida. Solo consulta: no emite, modifica, aprueba ni anula; si se le pide, explica en qué menú se hace.
+- **Mismos permisos que en pantalla**: el agente ve lo que el usuario puede ver (incluye «Solo las ventas del vendedor»). Nuevo permiso «Usar el agente de ventas con IA», que viene desmarcado; cada usuario ve solo sus conversaciones.
+- **Configuración (Ajustes › Configuración › Agentes con IA)**: activar los agentes, clave de Anthropic, modelo (Claude Opus 5.5 por defecto), esfuerzo de razonamiento, tope de gasto mensual en US$ y consultas al ERP por pregunta. Nuevo permiso «Configurar los agentes con IA».
+- **Bitácora (Ajustes › Control › Conversaciones con los agentes (IA))**: cada pregunta, cada dato del ERP que leyó el agente y el costo estimado por mensaje y del mes.
+- **Documentación**: la guía de implementación (PDF) y su checklist en Excel se generan con la versión del sistema (`scripts/guia_implementacion/generar.py`); nueva planilla de auditoría del proceso de venta con 53 casos de prueba (`scripts/auditoria_ventas/generar.py`).
+
 ## v1.103.0 — 03/11/2026 · Auditoría funcional v1.102 (27 casos)
 - **Pedidos de venta (VEN-01)**: quien registra un pedido no lo aprueba (regla fija, como la orden de compra), aunque no requiera aprobación por precio o crédito; al enviarlo, queda a la espera de otro usuario.
 - **Versión de fabricación (MAN-01)**: la versión automática que se crea con la receta solo se crea si el producto no tiene otra activa y con el código completo (ya no se corta a 10 caracteres). Al guardar una versión con hoja de ruta, la automática se desactiva; no se guardan dos versiones activas con el mismo rango de lote y fechas que se cruzan; entre versiones empatadas manda la que tiene hoja de ruta.

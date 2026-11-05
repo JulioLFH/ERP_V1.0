@@ -30,6 +30,7 @@ urlpatterns += [
     path('codigo-barras/', include('inventario.urls_barras')),
     path('distribucion/', include('distribucion.urls')),
     path('asistente/', include('asistente.urls')),
+    path('agentes/', include('agentes.urls')),
     path('conversaciones/', include('colaboracion.urls_conversaciones')),
     path('calendario/', include('colaboracion.urls_calendario')),
     path('actividades/', include('colaboracion.urls_actividades')),
