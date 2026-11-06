@@ -232,6 +232,8 @@ class CorreccionesTest(TestCase):
 
     # ---------------------------------------------------------------- seguridad
     def test_bloqueo_por_intentos_fallidos(self):
+        Empresa.actual()
+        Empresa.objects.update(intentos_bloqueo=5)  # v1.105: el bloqueo es opcional (por defecto 0 = sin bloqueo)
         User.objects.create_user('cajero', 'c@c.com', 'clave-correcta-1')
         self.client.logout()
         for _ in range(5):

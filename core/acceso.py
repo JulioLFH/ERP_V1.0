@@ -1,4 +1,4 @@
-"""Inicio de sesión con bloqueo temporal por intentos fallidos."""
+"""Inicio de sesión con bloqueo temporal por intentos fallidos (opcional: 0 intentos en la empresa = sin bloqueo)."""
 from datetime import timedelta
 
 from django import forms
@@ -8,13 +8,19 @@ from django.utils import timezone
 
 from .models import IntentoAcceso
 
-MAX_INTENTOS = 5  # por defecto; cada empresa lo define en Ajustes › Empresa › Seguridad
+MAX_INTENTOS = 5  # códigos del doble factor (siempre); la contraseña, según Ajustes › Empresa › Seguridad
 MINUTOS_BLOQUEO = 15
 
 
 def max_intentos():
+    """Contraseñas fallidas que bloquean al usuario; 0 = sin bloqueo temporal."""
     from .models import Empresa
-    return Empresa.actual().intentos_bloqueo or MAX_INTENTOS
+    return Empresa.actual().intentos_bloqueo
+
+
+def max_intentos_codigo():
+    """Códigos de doble factor fallidos: siempre hay tope (un código de 6 dígitos no resiste intentos ilimitados)."""
+    return max_intentos() or MAX_INTENTOS
 
 
 def _ip(request):
@@ -36,13 +42,14 @@ class LoginSeguroForm(AuthenticationForm):
     def clean(self):
         usuario = (self.data.get('username') or '').strip()
         maximo = max_intentos()
-        if usuario and intentos_recientes(usuario) >= maximo:
+        if maximo and usuario and intentos_recientes(usuario) >= maximo:
             raise self._bloqueado(maximo)
         try:
             datos = super().clean()
         except forms.ValidationError:
             if usuario:
                 IntentoAcceso.objects.create(usuario=usuario[:150], ip=_ip(self.request) if self.request else '')
+            if usuario and maximo:
                 restantes = maximo - intentos_recientes(usuario)
                 if restantes <= 0:
                     raise self._bloqueado(maximo)

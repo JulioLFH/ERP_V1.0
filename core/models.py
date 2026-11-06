@@ -167,7 +167,10 @@ class Empresa(models.Model):
     clave_vence_dias = models.PositiveSmallIntegerField('Contraseña: vence a los (días)', default=0,
                                                         help_text='0 = no vence')
     clave_historial = models.PositiveSmallIntegerField('Contraseña: no repetir las últimas', default=3)
-    intentos_bloqueo = models.PositiveSmallIntegerField('Bloquear tras intentos fallidos', default=5)
+    intentos_bloqueo = models.PositiveSmallIntegerField(
+        'Bloquear tras intentos fallidos', default=0,
+        help_text='0 = sin bloqueo temporal: una contraseña mal escrita no bloquea al usuario (los intentos igual quedan '
+                  'registrados)')
     minutos_inactividad = models.PositiveSmallIntegerField('Cerrar sesión tras minutos sin actividad', default=30,
                                                            help_text='0 = no cerrar')
     aviso_equipo_nuevo = models.BooleanField('Avisar por correo el ingreso desde un equipo nuevo', default=True)

@@ -84,7 +84,7 @@ def tiene_doble_factor(usuario):
 # ---------------------------------------------------------------- inicio de sesión (segundo paso)
 def verificar_login(request):
     """Segundo paso del inicio de sesión: código de la app autenticadora o un código de respaldo."""
-    from .acceso import _ip, intentos_recientes, max_intentos
+    from .acceso import _ip, intentos_recientes, max_intentos_codigo
     pendiente = request.session.get(SESION_PENDIENTE)
     if not pendiente:
         return redirect('login')
@@ -94,7 +94,7 @@ def verificar_login(request):
         return redirect('login')
     error = ''
     if request.method == 'POST':
-        if intentos_recientes(usuario.username) >= max_intentos():
+        if intentos_recientes(usuario.username) >= max_intentos_codigo():
             request.session.pop(SESION_PENDIENTE, None)
             messages.error(request, 'Demasiados códigos incorrectos: usuario bloqueado temporalmente.')
             return redirect('login')

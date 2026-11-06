@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.105.0 — 06/11/2026 · Sin bloqueo temporal por contraseña
+- **Inicio de sesión**: una contraseña mal escrita ya no bloquea al usuario por 15 minutos. «Bloquear tras intentos fallidos» (Ajustes › Empresa › Seguridad) acepta 0 = sin bloqueo, que es el valor por defecto; las empresas existentes pasan a 0. Quien quiera el bloqueo pone el número de intentos. Los intentos fallidos se siguen registrando (Ajustes › IP permitidas e intentos de ingreso).
+- **Doble factor**: los códigos incorrectos siguen bloqueando tras 5 intentos (o los de la empresa, si tiene un número).
+
 ## v1.104.1 — 05/11/2026 · Agente de Ventas: pedidos importados
 - **Agente de Ventas**: encuentra los pedidos importados del sistema anterior por su número aunque no lleve guion (p. ej. S35592); antes respondía «Indique serie y número».
 

@@ -260,6 +260,19 @@ class IntentosBloqueoTest(Base):
         r = self.client.post(reverse('login'), {'username': 'bloq1', 'password': 'Clave-segura-9'})
         self.assertContains(r, 'bloqueado temporalmente por 2 intentos')
 
+    def test_sin_bloqueo_por_defecto(self):
+        """v1.105: con 0 intentos (por defecto) la contraseña mal escrita no bloquea; los intentos se registran."""
+        from core.models import IntentoAcceso
+        Empresa.objects.update(intentos_bloqueo=0)
+        self.usuario('libre1')
+        for _ in range(8):
+            r = self.client.post(reverse('login'), {'username': 'libre1', 'password': 'mala'})
+            self.assertNotContains(r, 'bloqueado')
+            self.assertNotContains(r, 'antes del bloqueo')
+        self.assertEqual(IntentoAcceso.objects.filter(usuario='libre1').count(), 8)
+        r = self.client.post(reverse('login'), {'username': 'libre1', 'password': 'Clave-segura-9'})
+        self.assertEqual(r.status_code, 302)
+
 
 class EquipoNuevoTest(Base):
     def test_avisa_el_ingreso_desde_otro_equipo(self):
