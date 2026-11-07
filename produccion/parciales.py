@@ -426,7 +426,7 @@ def _en_stock_de_la_orden(producto, vigentes, declarado):
     los lotes de la orden; sin lotes (costo promedio), la producción se mezcla con el stock que había y con las otras
     entradas: queda en stock la misma proporción que del total (declarado × stock actual ÷ (stock previo + entradas
     desde la primera declaración))."""
-    from django.db.models import Sum
+    from django.db.models import Q, Sum
 
     from core.models import Kardex, StockLote
     lotes = [d.lote for d in vigentes if d.lote]
@@ -435,12 +435,22 @@ def _en_stock_de_la_orden(producto, vigentes, declarado):
                     .aggregate(s=Sum('cantidad'))['s'] or D0)
         return min(max(en_lotes, D0), declarado)
     stock = max(producto.stock, D0)
-    inicio = min(d.fecha for d in vigentes)
+    # el corte es el movimiento del kardex de la primera declaración, en el orden del kardex (fecha y luego id): lo
+    # de otra orden declarado y vendido el mismo día, antes que esta, es stock previo y no entrada nueva
+    primera = min(vigentes, key=lambda d: (d.fecha, getattr(d, 'numero', 0)))
+    inicio = primera.fecha
+    corte = None
+    if getattr(primera, 'ingreso_id', None):  # sin el ingreso (datos antiguos) el corte es solo la fecha
+        op = primera.ingreso
+        corte = (Kardex.objects.filter(producto=producto, tipo='ENTRADA', fecha=inicio,
+                                       referencia__startswith=f'{op.tipo.nombre} {op.numero}')
+                 .order_by('id').values_list('id', flat=True).first())
+    antes = Q(fecha__lt=inicio) | (Q(fecha=inicio, id__lt=corte) if corte else Q(pk__in=[]))
     previo = D0
-    for tipo, cantidad in (Kardex.objects.filter(producto=producto, fecha__lt=inicio).order_by()
+    for tipo, cantidad in (Kardex.objects.filter(antes, producto=producto).order_by()
                            .values('tipo').annotate(s=Sum('cantidad')).values_list('tipo', 's')):
         previo += (cantidad or D0) * (1 if tipo == 'ENTRADA' else -1)
-    entradas = (Kardex.objects.filter(producto=producto, fecha__gte=inicio, tipo='ENTRADA')
+    entradas = (Kardex.objects.filter(producto=producto, fecha__gte=inicio, tipo='ENTRADA').exclude(antes)
                 .aggregate(s=Sum('cantidad'))['s'] or D0)
     total = max(previo, D0) + max(entradas, declarado)
     if total <= 0:

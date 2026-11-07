@@ -32,6 +32,12 @@ def _rango(request, meses=12):
     return desde, hasta
 
 
+def ciclo_dias(o):
+    """Días de la creación al cierre. VEN-03: la creación en la fecha de Lima (en UTC, lo creado después de las 19:00
+    caía al día siguiente y el ciclo salía −1)."""
+    return (o.cerrada_en - timezone.localtime(o.creado).date()).days
+
+
 def _pct(a, b):
     return f'{a * 100 / b:.1f}%' if b else '—'
 
@@ -91,7 +97,7 @@ def reportes(request):
     por_origen = agrupar(lambda o: o.get_origen_display() if o.origen else 'Sin origen')
     por_vendedor = agrupar(lambda o: _nombre(o.responsable))
     # 5. ciclo de venta (días de la creación al cierre de las ganadas)
-    ciclos = [(o.cerrada_en - o.creado.date()).days for o in ops if o.etapa == 'GANADA' and o.cerrada_en]
+    ciclos = [ciclo_dias(o) for o in ops if o.etapa == 'GANADA' and o.cerrada_en]
     ciclo = [['Oportunidades ganadas con fecha de cierre', len(ciclos)],
              ['Ciclo promedio (días)', round(sum(ciclos) / len(ciclos)) if ciclos else '—'],
              ['Ciclo más corto (días)', min(ciclos) if ciclos else '—'],

@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.106.0 — 07/11/2026 · Verificación de la v1.103.0
+- **Reparto de la variación de costo (COS-01)**: el corte entre el stock previo y las entradas de la orden sigue el orden real del kardex (fecha y número de movimiento), no solo la fecha; lo declarado y vendido de otra orden el mismo día, antes que esta, cuenta como stock previo.
+- **CRM, ciclo de venta (VEN-03)**: se calcula con la fecha de Lima (ya no sale negativo para oportunidades creadas de noche). La oportunidad que se crea sola desde una cotización registra su etapa inicial en el historial.
+- **CRM, WhatsApp (SEG-03)**: la actividad se registra solo al pulsar el botón (formulario POST); abrir el enlace ya no crea actividades.
+- **Claves cifradas (SEG-04)**: las contraseñas y tokens guardados (buzón del CRM y de rendiciones, WhatsApp, claves de IA, facturación electrónica, correo saliente, Decolecta, SUNAT y SIRE) se guardan cifrados en la base y en las copias de respaldo; la actualización cifra los ya guardados. Si se cambia la SECRET_KEY hay que volver a ingresarlas.
+- **Depuración de datos (MAN-05, SEG-02, DAT-02)**: `revisar_datos --corregir` lleva a 0 las tarifas por hora negativas, quita el código HTML de los nombres de almacén y completa la fecha y el motivo de las órdenes anuladas sin ellos, con registro en la auditoría. Lo migrado del sistema anterior (DAT-01) no se modifica, por decisión.
+
 ## v1.105.0 — 06/11/2026 · Sin bloqueo temporal por contraseña
 - **Inicio de sesión**: una contraseña mal escrita ya no bloquea al usuario por 15 minutos. «Bloquear tras intentos fallidos» (Ajustes › Empresa › Seguridad) acepta 0 = sin bloqueo, que es el valor por defecto; las empresas existentes pasan a 0. Quien quiera el bloqueo pone el número de intentos. Los intentos fallidos se siguen registrando (Ajustes › IP permitidas e intentos de ingreso).
 - **Doble factor**: los códigos incorrectos siguen bloqueando tras 5 intentos (o los de la empresa, si tiene un número).

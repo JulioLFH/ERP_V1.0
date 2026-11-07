@@ -7,6 +7,7 @@ from django.db import models
 from django.db.models import Sum
 from django.utils import timezone
 
+from core.cifrado import CampoCifrado
 from core.models import MONEDAS
 
 D0 = Decimal('0')
@@ -489,22 +490,23 @@ class ConfigRendicion(models.Model):
         help_text='Recordatorio a rendidores con borradores y a aprobadores con pendientes')
     # lectura de comprobantes sin QR (OCR / IA)
     ia_activa = models.BooleanField('Leer comprobantes con IA', default=False)
-    ia_api_key = models.CharField('Clave API de Anthropic', max_length=200, blank=True,
-                                  help_text='Vacío = variable de entorno ANTHROPIC_API_KEY del servidor')
+    # SEG-04: las claves y tokens se guardan cifrados (CampoCifrado)
+    ia_api_key = CampoCifrado('Clave API de Anthropic', max_length=200, blank=True,
+                              help_text='Vacío = variable de entorno ANTHROPIC_API_KEY del servidor')
     ia_modelo = models.CharField('Modelo', max_length=40, default='claude-opus-5-5')
     # WhatsApp Business Cloud API
     whatsapp_activo = models.BooleanField('Recibir gastos por WhatsApp', default=False)
     whatsapp_phone_id = models.CharField('Phone number ID', max_length=40, blank=True)
-    whatsapp_token = models.CharField('Token de acceso', max_length=400, blank=True)
-    whatsapp_verify_token = models.CharField('Token de verificación del webhook', max_length=80, blank=True)
-    whatsapp_app_secret = models.CharField('App secret (firma del webhook)', max_length=120, blank=True)
+    whatsapp_token = CampoCifrado('Token de acceso', max_length=400, blank=True)
+    whatsapp_verify_token = CampoCifrado('Token de verificación del webhook', max_length=80, blank=True)
+    whatsapp_app_secret = CampoCifrado('App secret (firma del webhook)', max_length=120, blank=True)
     # buzón que recibe comprobantes reenviados (IMAP)
     correo_activo = models.BooleanField('Recibir gastos por correo', default=False)
     correo_direccion = models.EmailField('Dirección para reenviar comprobantes', blank=True)
     correo_servidor = models.CharField('Servidor IMAP', max_length=120, blank=True)
     correo_puerto = models.PositiveIntegerField('Puerto IMAP', default=993)
     correo_usuario = models.CharField('Usuario IMAP', max_length=120, blank=True)
-    correo_clave = models.CharField('Contraseña IMAP', max_length=200, blank=True)
+    correo_clave = CampoCifrado('Contraseña IMAP', max_length=200, blank=True)
 
     class Meta:
         verbose_name = 'configuración de rendiciones'

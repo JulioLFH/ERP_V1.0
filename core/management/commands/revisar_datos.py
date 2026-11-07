@@ -1,9 +1,16 @@
 """Lista los datos que hoy no pasarían las validaciones del sistema (auditoría v1.102: MAN-05, COM-04, SEG-02, DAT-01,
-DAT-02). Solo lee: no corrige nada. Lo que salga se depura en la empresa (anular, corregir) o se documenta como caso de
-prueba negativo.
+DAT-02). Sin opciones solo lee. Con --corregir (v1.106) arregla lo que no necesita una decisión, con registro en la
+auditoría: tarifas por hora negativas a 0 (MAN-05), el código HTML fuera del nombre del almacén (SEG-02) y la fecha y el
+motivo de las órdenes anuladas sin ellos (DAT-02). Lo demás (planillas, sueldos, DNI, áreas, kardex y periodos futuros)
+lo depura la empresa en sus pantallas o lo documenta como caso de prueba negativo.
+
+DAT-01: lo migrado del sistema anterior (es_historico) NO se corrige: es la copia de lo que se registró allí y se
+conserva tal cual para consulta; no mueve stock, no genera asientos ni va al registro / PLE, así que no afecta saldos.
+La lista sirve para explicar las diferencias en los reportes históricos.
 
   manage.py revisar_datos --settings=erp.settings_postgres
-  manage.py revisar_datos --database empresa2 --settings=erp.settings_postgres"""
+  manage.py revisar_datos --database empresa2 --corregir --settings=erp.settings_postgres"""
+import re
 from datetime import timedelta
 from decimal import Decimal
 
@@ -80,17 +87,65 @@ def revisiones():
     return salida
 
 
+def corregir():
+    """[texto de cada corrección] de lo que no necesita una decisión (ver el docstring del módulo)."""
+    from django.db import transaction
+
+    from core.auditoria import registrar
+    from core.models import Almacen
+    from produccion.models import CentroTrabajo, OrdenProduccion
+    hechas = []
+    with transaction.atomic():
+        for c in CentroTrabajo.objects.filter(Q(costo_hora_mo__lt=0) | Q(costo_hora_maquina__lt=0) |
+                                              Q(costo_hora_cif__lt=0)):
+            cambios = {}
+            for campo in ('costo_hora_mo', 'costo_hora_maquina', 'costo_hora_cif'):
+                if getattr(c, campo) < 0:
+                    cambios[campo] = [str(getattr(c, campo)), '0']
+                    setattr(c, campo, D0)
+            c.save(update_fields=list(cambios))
+            registrar('MODIFICAR', c, cambios, 'MAN-05: tarifa por hora negativa llevada a 0 (revisar_datos)')
+            hechas.append(f'MAN-05 puesto {c.codigo}: ' + ', '.join(f'{k} {v[0]} → 0' for k, v in cambios.items()))
+        for a in Almacen.objects.filter(Q(nombre__contains='<') | Q(nombre__contains='>')):
+            nuevo = re.sub(r'\s+', ' ', re.sub(r'<[^>]*>|[<>]', ' ', a.nombre)).strip()[:100] or f'Almacén {a.codigo}'
+            anterior, a.nombre = a.nombre, nuevo
+            a.save(update_fields=['nombre'])
+            registrar('MODIFICAR', a, {'nombre': [anterior, nuevo]}, 'SEG-02: código HTML quitado del nombre')
+            hechas.append(f'SEG-02 almacén id {a.pk}: {anterior!r} → {nuevo!r}')
+        for o in OrdenProduccion.objects.filter(estado='ANULADA').filter(Q(anulado_en__isnull=True) |
+                                                                         Q(motivo_anulacion='')):
+            campos = []
+            if o.anulado_en is None:
+                from django.utils import timezone as tz
+                o.anulado_en = tz.now()
+                campos.append('anulado_en')
+            if not o.motivo_anulacion:
+                o.motivo_anulacion = 'Anulada antes de que el sistema exigiera el motivo (depuración DAT-02)'
+                campos.append('motivo_anulacion')
+            o.save(update_fields=campos)
+            registrar('MODIFICAR', o, {c: ['', 'completado'] for c in campos}, 'DAT-02: anulación sin fecha o motivo')
+            hechas.append(f'DAT-02 orden id {o.pk} {o.numero or "(sin número)"}: {", ".join(campos)} completado')
+    return hechas
+
+
 class Command(BaseCommand):
     help = 'Lista (sin corregir) los datos que no pasan las validaciones actuales: tarifas negativas, vencimientos, ' \
            'nombres con HTML, datos de prueba antiguos y lo migrado que no cuadra.'
 
     def add_arguments(self, parser):
         parser.add_argument('--database', default='default', help='Alias de la base (default o empresa2)')
+        parser.add_argument('--corregir', action='store_true',
+                            help='Arregla tarifas negativas, HTML en nombres de almacén y anulaciones sin fecha o motivo')
 
     def handle(self, *args, **opciones):
         from erp.empresas import activar, restaurar
         token = activar(opciones['database'])
         try:
+            if opciones['corregir']:
+                hechas = corregir()
+                for h in hechas:
+                    self.stdout.write(f'  corregido: {h}')
+                self.stdout.write(self.style.SUCCESS(f'{len(hechas)} corrección(es); queda por revisar:'))
             total = 0
             for codigo, titulo, filas in revisiones():
                 total += len(filas)

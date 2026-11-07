@@ -7,6 +7,8 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from core.cifrado import CampoCifrado
+
 D0 = Decimal('0')
 USUARIO = settings.AUTH_USER_MODEL
 
@@ -42,7 +44,7 @@ class ConfigCRM(models.Model):
     correo_servidor = models.CharField('Servidor IMAP', max_length=120, blank=True, help_text='Ej. imap.gmail.com')
     correo_puerto = models.PositiveIntegerField('Puerto IMAP', default=993)
     correo_usuario = models.CharField('Usuario IMAP (ventas@…)', max_length=120, blank=True)
-    correo_clave = models.CharField('Contraseña IMAP', max_length=200, blank=True)
+    correo_clave = CampoCifrado('Contraseña IMAP', max_length=200, blank=True)  # SEG-04: cifrada en la base
 
     class Meta:
         verbose_name = 'configuración del CRM'

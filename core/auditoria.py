@@ -60,6 +60,7 @@ IGNORAR = {
     'pendiente', 'fecha_centralizacion', 'correlativo', 'fecha_ingreso', 'conformidad_enviada_en',
     'conformidad_enviada_a', 'pdf', 'xml', 'token', 'clave', 'token_tipo_cambio', 'sunat_client_secret',
     'ia_api_key', 'whatsapp_token', 'whatsapp_app_secret', 'correo_clave',
+    'sire_client_secret', 'whatsapp_verify_token', 'api_key',  # SEG-04: secretos cifrados, nunca a la bitácora
 }
 # asientos automáticos: se regeneran al centralizar, solo se auditan los manuales y extornos
 SOLO_SI = {'Asiento': lambda o: o.origen == 'MANUAL'}

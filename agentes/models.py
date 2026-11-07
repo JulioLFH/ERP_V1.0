@@ -5,6 +5,8 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import models
 
+from core.cifrado import CampoCifrado
+
 D0 = Decimal('0')
 
 
@@ -14,8 +16,8 @@ class ConfigAgentes(models.Model):
                ('claude-haiku-5-5', 'Claude Haiku 5.5 (más económico)')]
     ESFUERZOS = [('low', 'Bajo (más rápido)'), ('medium', 'Medio'), ('high', 'Alto (más análisis)')]
     activo = models.BooleanField('Agentes activos', default=False)
-    api_key = models.CharField('Clave API de Anthropic', max_length=200, blank=True,
-                               help_text='Vacío = variable de entorno ANTHROPIC_API_KEY del servidor')
+    api_key = CampoCifrado('Clave API de Anthropic', max_length=200, blank=True,  # SEG-04: cifrada en la base
+                           help_text='Vacío = variable de entorno ANTHROPIC_API_KEY del servidor')
     modelo = models.CharField(max_length=40, choices=MODELOS, default='claude-opus-5-5')
     esfuerzo = models.CharField('Esfuerzo de razonamiento', max_length=6, choices=ESFUERZOS, default='medium')
     tope_mensual_usd = models.DecimalField('Tope de gasto mensual (US$)', max_digits=10, decimal_places=2,

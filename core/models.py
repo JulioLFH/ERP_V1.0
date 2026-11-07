@@ -9,6 +9,8 @@ from django.db.models import OuterRef, Q, Subquery, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
+from .cifrado import CampoCifrado
+
 D0 = Decimal('0')
 D2 = Decimal('0.01')
 
@@ -77,7 +79,7 @@ class Empresa(models.Model):
     fuente_tipo_cambio = models.CharField(
         'Fuente del tipo de cambio', max_length=5, choices=FUENTES_TC, default='SUNAT',
         help_text='SBS: tipo de cambio promedio ponderado publicado por la SBS. Si no responde se usa SUNAT.')
-    token_tipo_cambio = models.CharField(
+    token_tipo_cambio = CampoCifrado(  # SEG-04: tokens y secretos de integraciones, cifrados en la base
         'Token Decolecta (tipo de cambio SBS)', max_length=200, blank=True,
         help_text='Se obtiene al registrarse en decolecta.com (API de tipo de cambio SBS)')
     # ---- control de crédito de clientes
@@ -133,13 +135,13 @@ class Empresa(models.Model):
         'SUNAT API: client_id', max_length=100, blank=True,
         help_text='Credenciales de "Consulta de validez de comprobantes" (SUNAT Operaciones en Línea > '
                   'Empresas > Comprobantes de pago > Credenciales de API SUNAT)')
-    sunat_client_secret = models.CharField('SUNAT API: client_secret', max_length=200, blank=True)
+    sunat_client_secret = CampoCifrado('SUNAT API: client_secret', max_length=200, blank=True)
     # ---- SIRE (registros de ventas y compras): API con usuario SOL y su clave (guardada cifrada, core/cifrado.py)
     sire_client_id = models.CharField(
         'SIRE: client_id', max_length=100, blank=True,
         help_text='Credenciales de API SUNAT generadas en SUNAT Operaciones en Línea con el usuario SOL que '
                   'opera el SIRE. Vacío = las de la consulta de validez')
-    sire_client_secret = models.CharField('SIRE: client_secret', max_length=200, blank=True)
+    sire_client_secret = CampoCifrado('SIRE: client_secret', max_length=200, blank=True)
     sire_usuario_sol = models.CharField('SIRE: usuario SOL', max_length=30, blank=True,
                                         help_text='Solo el usuario (sin el RUC). Su clave se registra abajo y se '
                                                   'guarda cifrada')
@@ -952,7 +954,7 @@ class FacturacionConfig(models.Model):
     proveedor = models.CharField(max_length=10, choices=PROVEEDORES, default='NINGUNO')
     ruta = models.URLField('Ruta / URL de la API', max_length=300, blank=True,
                            help_text='La entrega el proveedor (ej. https://api.nubefact.com/api/v1/xxxx)')
-    token = models.CharField(max_length=200, blank=True)
+    token = CampoCifrado(max_length=200, blank=True)  # SEG-04: cifrado en la base
     envio_automatico = models.BooleanField('Enviar al emitir', default=False,
                                            help_text='Envía facturas, boletas, notas y guías al guardarlas')
     # ---- SUNAT directo: el sistema arma el XML UBL 2.1, lo firma con el certificado de la empresa y lo envía
@@ -1640,8 +1642,8 @@ class CorreoConfig(models.Model):
     seguridad = models.CharField(max_length=4, choices=[('TLS', 'STARTTLS (587)'), ('SSL', 'SSL (465)'),
                                                         ('', 'Ninguna')], default='TLS', blank=True)
     usuario = models.CharField(max_length=120, blank=True)
-    clave = models.CharField('Contraseña', max_length=200, blank=True,
-                             help_text='En Gmail u Outlook use una "contraseña de aplicación"')
+    clave = CampoCifrado('Contraseña', max_length=200, blank=True,  # SEG-04: cifrada en la base
+                         help_text='En Gmail u Outlook use una "contraseña de aplicación"')
     remitente = models.EmailField('Correo remitente', blank=True, help_text='Vacío = el usuario')
     nombre_remitente = models.CharField('Nombre del remitente', max_length=100, blank=True,
                                         help_text='Vacío = razón social de la empresa')

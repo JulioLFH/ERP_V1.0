@@ -245,14 +245,17 @@ def vincular_cotizacion(cot, o):
 def asegurar_oportunidad(cot, usuario=None):
     """CRM-14: una cotización desde el monto del parámetro sin oportunidad crea la suya (origen «cotización sin
     oportunidad», responsable el vendedor) para que el embudo quede completo."""
-    from .models import Oportunidad
+    from .models import CambioEtapa, Oportunidad
     desde = parametro('CRM_EXIGIR_OPORTUNIDAD_DESDE')
     if cot.oportunidad_id or not desde or cot.total < desde or cot.estado == 'ANULADO':
         return None
+    autor = usuario if usuario is not None and usuario.is_authenticated else None
     o = Oportunidad.objects.create(
         nombre=f'{cot.get_tipo_display()} {cot.numero}'[:150], tercero=cot.tercero, etapa='PROPUESTA',
-        origen='COTIZACION', responsable=usuario if usuario is not None and usuario.is_authenticated else None,
+        origen='COTIZACION', responsable=autor,
         fecha_cierre=cot.fecha + timedelta(days=cot.validez_dias or 15) if cot.fecha else None)
+    # VEN-03: su etapa inicial queda en el historial (entra en la conversión por etapa, como las demás)
+    CambioEtapa.objects.create(oportunidad=o, de='', a=o.etapa, usuario=autor)
     vincular_cotizacion(cot, o)
     return o
 

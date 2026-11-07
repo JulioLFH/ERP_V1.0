@@ -122,6 +122,27 @@ class CierreTecnicoTest(BaseProduccion):
         with self.assertRaises(servicios.ErrorProduccion):
             servicios.anular(o, self.user, 'No debería anularse una orden liquidada')
 
+    def test_reparto_con_otra_orden_del_mismo_dia(self):
+        """COS-01 (verificación del 06/11): sin lotes, lo de otra orden declarado y vendido el mismo día ANTES que esta
+        es stock previo (orden del kardex), no entrada nueva: 10 de OP-A − 6 vendidas = 4 previas + 10 de OP-B; con 8
+        en stock quedan 10 × 8 ÷ 14 de OP-B (antes contaba 20 y daba 4)."""
+        from core.models import Producto
+        from produccion import parciales
+        Producto.objects.filter(pk=self.galleta.pk).update(control='')
+        self.galleta.refresh_from_db()
+        a = self.orden()
+        parciales.declarar(a, self.user, '10')
+        self.galleta.refresh_from_db()
+        self.galleta.mover_stock(D('-6'), 'Venta de prueba 1', fecha=HOY, almacen=self.almacen, origen='AJUSTE')
+        b = self.orden()
+        parciales.declarar(b, self.user, '10')
+        self.galleta.refresh_from_db()
+        self.galleta.mover_stock(D('-6'), 'Venta de prueba 2', fecha=HOY, almacen=self.almacen, origen='AJUSTE')
+        self.galleta.refresh_from_db()
+        self.assertEqual(self.galleta.stock, D('8'))
+        en_stock = parciales._en_stock_de_la_orden(self.galleta, list(b.declaraciones.all()), D('10'))
+        self.assertEqual(en_stock, D('5.7143'))
+
     def test_merma_anormal_va_a_gasto(self):
         from produccion import parciales
         o = self.orden()

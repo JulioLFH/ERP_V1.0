@@ -189,7 +189,7 @@ RUTAS = {
     'ventas:lista_precios_nueva': 'ventas.precios', 'ventas:lista_precios_editar': 'ventas.precios',
     'ventas:pos': {'POST': 'ventas.emitir'},
     'crm:nueva': 'crm.registrar', 'crm:oportunidad': {'POST': 'crm.registrar'}, 'crm:etapa': 'crm.registrar',
-    'crm:convertir': {'POST': 'crm.registrar'}, 'crm:whatsapp': 'crm.registrar',
+    'crm:convertir': {'POST': 'crm.registrar'}, 'crm:whatsapp': {'POST': 'crm.registrar'},
     'crm:actividad_hecha': 'crm.registrar', 'crm:visitas': {'POST': 'crm.registrar'},
     'crm:movil_sincronizar': 'crm.registrar', 'crm:cliente': {'POST': 'crm.registrar'},
     'crm:contratos': {'POST': 'crm.postventa'}, 'crm:contrato': {'POST': 'crm.postventa'},

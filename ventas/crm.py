@@ -430,10 +430,13 @@ def _numero_whatsapp(texto):
 
 @login_required
 def whatsapp(request, pk):
-    """Abre el chat de WhatsApp con el contacto y deja la actividad registrada en la oportunidad."""
+    """Abre el chat de WhatsApp con el contacto y deja la actividad registrada en la oportunidad. SEG-03: solo con POST
+    (formulario con CSRF): un enlace abierto por un robot o una vista previa no crea actividades."""
     from urllib.parse import quote
     o = get_object_or_404(Oportunidad, pk=pk)
-    numero = _numero_whatsapp(request.GET.get('numero') or o.telefono or (o.tercero.telefono if o.tercero_id else ''))
+    if request.method != 'POST':
+        return redirect('crm:oportunidad', pk)
+    numero = _numero_whatsapp(request.POST.get('numero') or o.telefono or (o.tercero.telefono if o.tercero_id else ''))
     if not numero:
         messages.error(request, 'La oportunidad no tiene un celular válido.')
         return redirect('crm:oportunidad', pk)
