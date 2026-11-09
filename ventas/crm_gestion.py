@@ -480,20 +480,30 @@ class ConfigForm(BootstrapMixin, forms.ModelForm):
         model = ConfigCRM
         fields = ['web_activo', 'asignacion_web', 'responsable_web', 'equipo_web', 'avisar_ganadas',
                   'finalidad_datos', 'correo_activo', 'correo_servidor', 'correo_puerto', 'correo_usuario',
-                  'correo_clave']
+                  'correo_clave',
+                  # v1.107: canales de mensajería y anuncios
+                  'whatsapp_activo', 'meta_activo', 'meta_leads', 'meta_token', 'meta_app_secret', 'chat_activo',
+                  'chat_saludo', 'telegram_activo', 'telegram_token', 'tiktok_activo']
         # SEG-06: el navegador no debe llenar el buzón con el usuario y la clave de Ceiba
+        _clave = forms.PasswordInput(render_value=False, attrs={'autocomplete': 'new-password'})
         widgets = {'avisar_ganadas': forms.CheckboxSelectMultiple,
                    'correo_usuario': forms.TextInput(attrs={'autocomplete': 'off'}),
-                   'correo_clave': forms.PasswordInput(render_value=False, attrs={'autocomplete': 'new-password'})}
+                   'correo_clave': _clave, 'meta_token': _clave, 'meta_app_secret': _clave, 'telegram_token': _clave}
 
-    def clean_correo_clave(self):  # vacía = la que ya estaba (no se muestra)
-        return self.cleaned_data.get('correo_clave') or self.instance.correo_clave
+    SECRETOS = ('correo_clave', 'meta_token', 'meta_app_secret', 'telegram_token')
+
+    def clean(self):  # una clave vacía = la que ya estaba (no se muestra)
+        datos = super().clean()
+        for campo in self.SECRETOS:
+            datos[campo] = datos.get(campo) or getattr(self.instance, campo)
+        return datos
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['responsable_web'].queryset = self.fields['avisar_ganadas'].queryset = _usuarios()
-        if self.instance.correo_clave:
-            self.fields['correo_clave'].help_text = 'Registrada. Déjela vacía para conservarla.'
+        for campo in self.SECRETOS:
+            if getattr(self.instance, campo):
+                self.fields[campo].help_text = 'Registrada. Déjela vacía para conservarla.'
         self.fields['nombres'].initial = '\n'.join(f'{k} = {v}' for k, v in (self.instance.nombres_etapas or {}).items())
 
     def clean_nombres(self):
@@ -521,13 +531,34 @@ def configuracion(request):
         ConfigCRM.objects.filter(pk=cfg.pk).update(token_web=__import__('secrets').token_urlsafe(18))
         messages.success(request, 'Clave del formulario web cambiada: actualice el formulario de su página.')
         return redirect('crm:configuracion')
+    if request.method == 'POST' and request.POST.get('accion') == 'nueva_clave_tiktok':
+        cfg.tiktok_clave = __import__('secrets').token_urlsafe(18)
+        cfg.save(update_fields=['tiktok_clave'])
+        messages.success(request, 'Clave del enlace de TikTok cambiada: actualice el enlace en TikTok.')
+        return redirect('crm:configuracion')
+    if request.method == 'POST' and request.POST.get('accion') == 'conectar_telegram':
+        from . import crm_canales
+        try:
+            bot = crm_canales.conectar_telegram(request, cfg)
+            messages.success(request, f'Bot de Telegram conectado{f": @{bot}" if bot else ""}.')
+        except crm_canales.ErrorCanal as exc:
+            messages.error(request, str(exc))
+        except Exception as exc:  # noqa: BLE001  (sin internet o token inválido)
+            messages.error(request, f'No se pudo conectar con Telegram: {exc}')
+        return redirect('crm:configuracion')
     form = ConfigForm(request.POST or None, instance=cfg)
     if request.method == 'POST' and form.is_valid():
         form.save()
         messages.success(request, 'Configuración del CRM guardada.')
         return redirect('crm:configuracion')
     from erp.empresas import actual
-    url_web = request.build_absolute_uri(reverse('crm_web', args=[actual(), cfg.token_web]))
+
+    def url(nombre, *args):
+        return request.build_absolute_uri(reverse(nombre, args=[actual(), *args]))
+    from . import crm_canales
     return render(request, 'ventas/crm_configuracion.html', {
-        'form': form, 'cfg': cfg, 'url_web': url_web,
+        'form': form, 'cfg': cfg, 'url_web': url('crm_web', cfg.token_web),
+        'url_whatsapp': request.build_absolute_uri('/rendiciones/whatsapp/') + f'?empresa={actual()}',
+        'url_meta': url('crm_meta'), 'url_tiktok': url('crm_tiktok', cfg.tiktok_clave),
+        'url_chat': url('crm_chat_widget', cfg.token_web), 'canales': crm_canales.canales_activos(),
         'parametros': reverse('parametros') + '?grupo=CRM'})

@@ -17,11 +17,16 @@ $env_ = @{}
 foreach ($linea in [IO.File]::ReadAllLines((Join-Path $raiz '.env.postgres'))) {
     if ($linea -match '^\s*([A-Z_0-9]+)\s*=\s*(.*)$') { $env_[$Matches[1]] = $Matches[2].Trim() }
 }
-$bases = @($env_['PG_BASE_PRINCIPAL'], $env_['PG_BASE_EMPRESA2']) | Where-Object { $_ }
+$bases = @(@($env_['PG_BASE_PRINCIPAL'], $env_['PG_BASE_EMPRESA2']) | Where-Object { $_ -and $_ -notin @('-', 'ninguna') })
 New-Item -ItemType Directory -Force $Destino | Out-Null
 $sello = Get-Date -Format 'yyyyMMdd_HHmm'
 $env:PGPASSWORD = $env_['PG_CLAVE']
 try {
+    # también las empresas creadas desde Ajustes › Empresas del grupo (cada una en su propia base)
+    $registradas = & (Join-Path $BinPostgres 'psql.exe') --host $env_['PG_HOST'] --port $env_['PG_PUERTO'] `
+        --username $env_['PG_USUARIO'] --dbname $bases[0] --tuples-only --no-align `
+        --command "SELECT base FROM core_empresagrupo WHERE estado NOT IN ('ERROR', 'INACTIVA')"
+    if ($LASTEXITCODE -eq 0) { $bases = @($bases + @($registradas | Where-Object { $_ })) | Select-Object -Unique }
     foreach ($base in $bases) {
         $archivo = Join-Path $Destino "${base}_$sello.dump"
         & (Join-Path $BinPostgres 'pg_dump.exe') --host $env_['PG_HOST'] --port $env_['PG_PUERTO'] `

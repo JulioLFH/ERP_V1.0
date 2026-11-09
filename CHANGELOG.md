@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.107.0 — 09/11/2026 · CRM: canales de entrada y bandeja de mensajes
+- **Nuevos canales (CRM › Configuración › Canales de entrada)**: WhatsApp (usa la conexión oficial de Rendiciones: el número de un usuario registra gastos, cualquier otro entra al CRM), Messenger, Instagram, anuncios de Facebook / Instagram (formularios de clientes potenciales), chat en la página web (burbuja que se pega con una línea `<script>`, con autorización de datos personales), Telegram (bot de @BotFather, botón «Conectar el bot») y formularios de anuncios de TikTok (directo o con Zapier / Make).
+- **Oportunidad automática**: el primer mensaje de cada persona crea la oportunidad como el formulario web (asignación, «Responder hoy», aviso de duplicados); los siguientes se suman a la misma conversación.
+- **Bandeja de mensajes (CRM › Seguimiento)**: todas las conversaciones juntas, con lo que falta leer; se responde por el mismo canal. Cada vendedor ve las suyas. La oportunidad muestra el botón de su conversación.
+- **Límites**: WhatsApp, Messenger e Instagram solo dejan responder dentro de las 24 horas del último mensaje del cliente; de TikTok se reciben los formularios de anuncios, no los mensajes directos; las fotos y audios quedan como aviso.
+- **Respaldo**: `scripts/respaldar_postgres.ps1` también respalda las empresas creadas desde Ajustes › Empresas del grupo.
+
 ## v1.106.0 — 07/11/2026 · Verificación de la v1.103.0
 - **Reparto de la variación de costo (COS-01)**: el corte entre el stock previo y las entradas de la orden sigue el orden real del kardex (fecha y número de movimiento), no solo la fecha; lo declarado y vendido de otra orden el mismo día, antes que esta, cuenta como stock previo.
 - **CRM, ciclo de venta (VEN-03)**: se calcula con la fecha de Lima (ya no sale negativo para oportunidades creadas de noche). La oportunidad que se crea sola desde una cotización registra su etapa inicial en el historial.

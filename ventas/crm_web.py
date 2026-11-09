@@ -19,15 +19,25 @@ def _limpio(request, campo, largo):
     return ' '.join((request.POST.get(campo) or '').split())[:largo]
 
 
+# origen -> (cómo se nombra la oportunidad, por dónde llegó)
+MEDIOS = {'WEB': ('Consulta web', 'la página web'), 'CORREO': ('Consulta por correo', 'el correo'),
+          'WHATSAPP': ('Consulta por WhatsApp', 'WhatsApp'), 'MESSENGER': ('Consulta por Messenger', 'Facebook Messenger'),
+          'INSTAGRAM': ('Consulta por Instagram', 'Instagram'), 'TELEGRAM': ('Consulta por Telegram', 'Telegram'),
+          'CHAT_WEB': ('Chat web', 'el chat de la página web'),
+          'META_ADS': ('Anuncio de Facebook / Instagram', 'un formulario de anuncio de Facebook / Instagram'),
+          'TIKTOK': ('Anuncio de TikTok', 'un formulario de anuncio de TikTok')}
+CON_CONSENTIMIENTO = {'WEB': 'WEB', 'CHAT_WEB': 'CHAT_WEB'}  # marcó la casilla de datos personales en la página
+
+
 def registrar(datos, ip='', origen='WEB'):
-    """Crea la oportunidad de la web (o del buzón comercial). datos: nombre, empresa, telefono, email, mensaje.
-    Devuelve la oportunidad."""
+    """Crea la oportunidad de un canal de entrada (web, buzón comercial, mensajería o anuncios). datos: nombre,
+    empresa, telefono, email, mensaje. Devuelve la oportunidad."""
     from . import crm_servicios as srv
     from .models import ActividadCRM, ConfigCRM, ConsentimientoDatos, Oportunidad
     responsable = srv.asignar_web()
     quien = datos.get('empresa') or datos['nombre']
-    medio = 'la página web' if origen == 'WEB' else 'el correo'
-    o = Oportunidad(nombre=f'Consulta {"web" if origen == "WEB" else "por correo"}: {quien}'[:150],
+    titulo, medio = MEDIOS.get(origen, MEDIOS['WEB'])
+    o = Oportunidad(nombre=f'{titulo}: {quien}'[:150],
                     prospecto=quien[:150], contacto=datos['nombre'][:120],
                     telefono=datos.get('telefono', '')[:40], email=datos.get('email', '')[:254], etapa='PROSPECTO',
                     origen=origen, responsable=responsable,
@@ -41,9 +51,10 @@ def registrar(datos, ip='', origen='WEB'):
     ActividadCRM.objects.create(oportunidad=o, tipo='LLAMADA' if o.telefono else 'CORREO', fecha=timezone.localdate(),
                                 descripcion=f'{"Llamar" if o.telefono else "Responder"} hoy: consulta recibida por '
                                             f'{medio}', responsable=responsable, usuario=responsable)
-    if origen == 'WEB':  # en la web autorizó el uso de sus datos (casilla obligatoria)
+    if origen in CON_CONSENTIMIENTO:  # en la página autorizó el uso de sus datos (casilla obligatoria)
         ConsentimientoDatos.objects.create(titular=datos['nombre'][:150], email=o.email, telefono=o.telefono,
-                                           oportunidad=o, canal='WEB', finalidad=ConfigCRM.actual().finalidad_datos)
+                                           oportunidad=o, canal=CON_CONSENTIMIENTO[origen],
+                                           finalidad=ConfigCRM.actual().finalidad_datos)
     return o
 
 

@@ -6,7 +6,7 @@ from django.urls import include, path
 from core import doble_factor
 from core.acceso import LoginSeguroView, cambiar_empresa
 from planillas import views_personal as personal
-from ventas import crm_web
+from ventas import crm_canales, crm_web
 
 # el panel de Django solo se publica con ADMIN_URL (en producción no hay /admin/)
 urlpatterns = [path(f'{settings.ADMIN_URL}/', admin.site.urls)] if settings.ADMIN_URL else []
@@ -36,6 +36,12 @@ urlpatterns += [
     path('actividades/', include('colaboracion.urls_actividades')),
     path('proyectos/', include('colaboracion.urls_proyectos')),
     path('crm-web/<str:alias>/<str:clave>/', crm_web.formulario, name='crm_web'),  # formulario público (CRM-09)
+    # v1.107: canales del CRM (públicos; cada uno valida su firma o su clave)
+    path('crm-chat/<str:alias>/<str:clave>/', crm_canales.chat, name='crm_chat'),
+    path('crm-chat/<str:alias>/<str:clave>/widget.js', crm_canales.chat_widget, name='crm_chat_widget'),
+    path('crm-canal/meta/<str:alias>/', crm_canales.meta, name='crm_meta'),
+    path('crm-canal/telegram/<str:alias>/', crm_canales.telegram, name='crm_telegram'),
+    path('crm-canal/tiktok/<str:alias>/<str:clave>/', crm_canales.tiktok, name='crm_tiktok'),
     path('finanzas/', include('finanzas.urls')),
     path('logistica/', include('logistica.urls')),
     path('contabilidad/', include('contabilidad.urls')),

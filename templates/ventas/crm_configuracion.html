@@ -21,11 +21,32 @@
     <p>O desde el formulario propio de su página (envíe por POST a ese mismo enlace los campos <code>nombre</code>, <code>empresa</code>, <code>telefono</code>, <code>email</code>, <code>mensaje</code> y <code>consentimiento=1</code>; con <code>Accept: application/json</code> responde en JSON).</p>
     <p>Cada consulta crea la oportunidad con origen «Web», la asigna según la regla, agenda «Llamar hoy», avisa posibles duplicados y registra el consentimiento de datos personales. Un campo trampa y un tiempo mínimo filtran a los robots.</p>
     <form method="post" data-confirm="Las páginas con el enlace anterior dejarán de enviar consultas. ¿Continuar?">{% csrf_token %}<input type="hidden" name="accion" value="nueva_clave"><button class="btn btn-sm btn-outline-danger">Cambiar la clave del enlace</button></form>
-    <hr><p class="mb-1"><b>Configuración manual (fuera de Ceiba):</b></p>
-    <ul class="mb-0"><li>WhatsApp: el botón de la oportunidad abre el chat (click-to-chat) y deja la actividad; la conexión a la API oficial de WhatsApp de Meta (número de la empresa, plantillas aprobadas) requiere contratar la cuenta con Meta.</li>
-      <li>Formularios de anuncios de Facebook / Instagram: se conectan enviando sus datos al enlace del formulario (con una herramienta de integración o la API de Meta).</li>
-      <li>Recordatorios por correo: configure el correo saliente (Ajustes › Correo saliente) y programe la tarea diaria <code>python manage.py recordatorios_crm</code>.</li>
+    <hr><p class="mb-1"><b>Otras tareas:</b></p>
+    <ul class="mb-0"><li>Recordatorios por correo: configure el correo saliente (Ajustes › Correo saliente) y programe la tarea diaria <code>python manage.py recordatorios_crm</code>.</li>
       <li>Correo a oportunidad: complete el buzón comercial (IMAP) en esta pantalla y programe cada pocos minutos <code>python manage.py leer_correo_crm</code>: cada correo nuevo crea su oportunidad con origen «Correo».</li></ul>
-  </div></div></div>
+  </div></div>
+
+  <div class="card mt-3"><div class="card-header fw-semibold"><i class="bi bi-broadcast"></i> Canales de entrada</div>
+    <ul class="list-group list-group-flush small">{% for clave, nombre, activo, nota in canales %}
+      <li class="list-group-item d-flex justify-content-between align-items-start gap-2"><span><b>{{ nombre }}</b><br><span class="text-muted">{{ nota }}</span></span>
+        {% if activo %}<span class="badge text-bg-success">Activo</span>{% else %}<span class="badge text-bg-secondary">Inactivo</span>{% endif %}</li>{% endfor %}
+    </ul>
+    <div class="card-body small">
+      <p class="mb-1"><b>WhatsApp</b> (misma conexión oficial que Rendiciones › Integraciones): en la app de Meta, el webhook es <code class="text-break">{{ url_whatsapp }}</code>. Los números de usuarios del sistema siguen registrando gastos; los demás entran a la bandeja del CRM.</p>
+      <p class="mb-1"><b>Facebook Messenger, Instagram y anuncios</b> (app de Meta, producto «Messenger» / «Instagram» / «Webhooks» de la página, campos <code>messages</code> y <code>leadgen</code>):</p>
+      <div class="border rounded bg-body-tertiary p-2 mb-1 text-break">URL: <code id="url-meta">{{ url_meta }}</code><br>Token de verificación: <code id="verif-meta">{{ cfg.meta_verify_token }}</code></div>
+      <div class="d-flex gap-2 mb-2"><button type="button" class="btn btn-sm btn-outline-secondary" data-copiar="#url-meta"><i class="bi bi-clipboard"></i> URL</button><button type="button" class="btn btn-sm btn-outline-secondary" data-copiar="#verif-meta"><i class="bi bi-clipboard"></i> Token</button></div>
+      <p class="mb-1"><b>Chat en la página web</b>: pegue esta línea antes de <code>&lt;/body&gt;</code> en su página:</p>
+      <div class="border rounded bg-body-tertiary p-2 mb-1 text-break"><code id="url-chat">&lt;script src="{{ url_chat }}" async&gt;&lt;/script&gt;</code></div>
+      <button type="button" class="btn btn-sm btn-outline-secondary mb-2" data-copiar="#url-chat"><i class="bi bi-clipboard"></i> Copiar</button>
+      <p class="mb-1"><b>Telegram</b>: cree el bot con @BotFather, pegue su token en esta pantalla, guarde y conecte (el sistema debe estar publicado en https).</p>
+      <form method="post" class="mb-2">{% csrf_token %}<input type="hidden" name="accion" value="conectar_telegram"><button class="btn btn-sm btn-outline-primary" {% if not cfg.telegram_token %}disabled{% endif %}><i class="bi bi-telegram"></i> Conectar el bot</button></form>
+      <p class="mb-1"><b>Anuncios de TikTok</b> (formularios de clientes potenciales): en TikTok Ads Manager › Leads › CRM / Webhook, o con Zapier / Make, envíe cada formulario en JSON a:</p>
+      <div class="border rounded bg-body-tertiary p-2 mb-1 text-break"><code id="url-tiktok">{{ url_tiktok }}</code></div>
+      <div class="d-flex gap-2"><button type="button" class="btn btn-sm btn-outline-secondary" data-copiar="#url-tiktok"><i class="bi bi-clipboard"></i> Copiar</button>
+        <form method="post" data-confirm="El enlace anterior dejará de recibir formularios. ¿Continuar?">{% csrf_token %}<input type="hidden" name="accion" value="nueva_clave_tiktok"><button class="btn btn-sm btn-outline-danger">Cambiar la clave</button></form></div>
+      <p class="text-muted mt-2 mb-0">Los mensajes llegan a CRM › Bandeja de mensajes. WhatsApp, Messenger e Instagram solo permiten responder dentro de las 24 horas del último mensaje del cliente.</p>
+    </div></div>
+  </div>
 </div>
 {% endblock %}

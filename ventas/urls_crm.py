@@ -1,7 +1,7 @@
 """CRM como módulo propio (URL /crm/…). Las oportunidades y actividades siguen en la app ventas (sus tablas no cambian)."""
 from django.urls import path
 
-from . import crm, crm_gestion as g, crm_movil as movil, crm_reportes as rep
+from . import crm, crm_canales as canales, crm_gestion as g, crm_movil as movil, crm_reportes as rep
 
 app_name = 'crm'
 
@@ -15,6 +15,8 @@ urlpatterns = [
     path('<int:pk>/whatsapp/', crm.whatsapp, name='whatsapp'),
     path('<int:pk>/proforma/', crm.proforma, name='proforma'),
     # seguimiento
+    path('mensajes/', canales.bandeja, name='bandeja'),
+    path('mensajes/<int:pk>/', canales.conversacion, name='conversacion'),
     path('actividades/', crm.mis_actividades, name='actividades'),
     path('actividades/<int:pk>/hecha/', crm.actividad_hecha, name='actividad_hecha'),
     path('visitas/', crm.visitas, name='visitas'),

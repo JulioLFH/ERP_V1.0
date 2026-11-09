@@ -6,6 +6,7 @@
   <div class="d-flex flex-wrap gap-2">
     {% if not o.tercero and o.prospecto %}<a href="{% url 'crm:convertir' o.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-person-check"></i> Convertir en cliente</a>{% endif %}
     {% if o.tercero and con_ventas and puede.ventas_emitir %}<a href="{% url 'ventas:cot_nuevo' %}?oportunidad={{ o.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text"></i> Crear cotización</a>{% endif %}
+    {% for c in o.conversaciones.all %}<a href="{% url 'crm:conversacion' c.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi {{ c.icono }}"></i> Conversación{% if c.sin_leer %} <span class="badge text-bg-danger">{{ c.sin_leer }}</span>{% endif %}</a>{% endfor %}
     {% if whatsapp %}<form method="post" action="{% url 'crm:whatsapp' o.pk %}" target="_blank" class="d-inline">{% csrf_token %}<button class="btn btn-sm btn-outline-success"><i class="bi bi-whatsapp"></i> WhatsApp</button></form>{% endif %}
     {% if o.unidad %}<a href="{% url 'crm:proforma' o.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-ruled"></i> Proforma</a>{% if con_obras and o.tercero %}<a href="{% url 'obras:separar' o.unidad.obra_id %}?unidad={{ o.unidad_id }}&oportunidad={{ o.pk }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-bookmark-check"></i> Separar unidad</a>{% endif %}{% endif %}
     {% if licitacion %}<a href="{% url 'obras:licitacion' licitacion.obra_id %}" class="btn btn-sm btn-outline-warning"><i class="bi bi-trophy"></i> Licitación {{ licitacion.obra.codigo }}</a>

@@ -303,13 +303,17 @@ def procesar_mensaje(cfg, mensaje):
 
 @csrf_exempt
 def whatsapp(request):
-    """Webhook de WhatsApp Business Cloud API (verificación GET y mensajes POST firmados)."""
+    """Webhook de WhatsApp Business Cloud API (verificación GET y mensajes POST firmados). Una sola conexión para
+    dos usos (v1.107): el número de un usuario del sistema registra gastos; cualquier otro número es un prospecto y
+    entra a la bandeja del CRM (si «Recibir prospectos por WhatsApp» está activo)."""
     from erp.empresas import activar, empresas
+    from ventas.models import ConfigCRM
     alias = request.GET.get('empresa')
     if alias and alias in empresas():
         activar(alias)
     cfg = ConfigRendicion.actual()
-    if not cfg.whatsapp_activo:
+    crm = ConfigCRM.actual().whatsapp_activo
+    if not (cfg.whatsapp_activo or crm):
         return HttpResponseForbidden('WhatsApp no está activado.')
     if request.method == 'GET':
         if request.GET.get('hub.mode') == 'subscribe' and cfg.whatsapp_verify_token and \
@@ -326,9 +330,14 @@ def whatsapp(request):
         return HttpResponse(status=400)
     for entrada in cuerpo.get('entry', []):
         for cambio in entrada.get('changes', []):
-            for mensaje in cambio.get('value', {}).get('messages', []):
+            valor = cambio.get('value', {})
+            for mensaje in valor.get('messages', []):
                 try:
-                    procesar_mensaje(cfg, mensaje)
+                    if crm and (not cfg.whatsapp_activo or usuario_por_celular(mensaje.get('from', '')) is None):
+                        from ventas.crm_canales import whatsapp_entrante
+                        whatsapp_entrante(mensaje, valor.get('contacts', []))
+                    else:
+                        procesar_mensaje(cfg, mensaje)
                 except Exception as exc:  # un mensaje con error no debe frenar los demás
                     log.warning('WhatsApp: mensaje no procesado: %s', exc)
     return HttpResponse('ok')

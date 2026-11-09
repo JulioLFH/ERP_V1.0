@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}{{ conv }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h1 class="page-title mb-0"><i class="bi {{ conv.icono }}"></i> {{ conv.nombre|default:conv.externo }}</h1>
+  <div class="d-flex gap-2">
+    {% if conv.oportunidad %}<a href="{% url 'crm:oportunidad' conv.oportunidad.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-kanban"></i> {{ conv.oportunidad.nombre|truncatechars:40 }}</a>{% endif %}
+    <a href="{% url 'crm:bandeja' %}" class="btn btn-sm btn-outline-secondary">Bandeja</a>
+  </div>
+</div>
+<p class="small text-muted">{{ conv.get_canal_display }}{% if conv.telefono %} · {{ conv.telefono }}{% endif %}</p>
+<div class="card mb-3"><div class="card-body" id="hilo" style="max-height:60vh;overflow-y:auto">
+  {% for m in mensajes %}
+  <div class="d-flex {% if m.entrante %}justify-content-start{% else %}justify-content-end{% endif %} mb-2">
+    <div class="p-2 rounded {% if m.entrante %}bg-body-tertiary border{% elif m.estado == 'ERROR' %}border border-danger{% else %}text-bg-primary{% endif %}" style="max-width:75%">
+      <div style="white-space:pre-wrap">{{ m.texto }}</div>
+      <div class="small opacity-75 text-end">{% if not m.entrante %}{{ m.usuario.get_full_name|default:m.usuario.username|default:"Saludo automático" }} · {% endif %}{{ m.fecha|date:"d/m H:i" }}</div>
+      {% if m.error %}<div class="small text-danger">{{ m.error }}</div>{% endif %}
+    </div>
+  </div>
+  {% empty %}<p class="text-muted small mb-0">Sin mensajes.</p>{% endfor %}
+</div></div>
+{% if puede %}
+<form method="post" class="card"><div class="card-body">{% csrf_token %}
+  {{ form.texto }}
+  <div class="d-flex justify-content-between align-items-center mt-2"><small class="text-muted">Se envía por {{ conv.get_canal_display }}.</small><button class="btn btn-primary"><i class="bi bi-send"></i> Enviar</button></div>
+</div></form>
+{% else %}<div class="alert alert-warning small">{{ motivo }}</div>{% endif %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var hilo = document.getElementById('hilo'), ultimo = {{ ultimo_id }};
+  hilo.scrollTop = hilo.scrollHeight;
+  function burbuja(m) {
+    var fila = document.createElement('div'), caja = document.createElement('div'), t = document.createElement('div'),
+        pie = document.createElement('div');
+    fila.className = 'd-flex mb-2 ' + (m.entrante ? 'justify-content-start' : 'justify-content-end');
+    caja.className = 'p-2 rounded ' + (m.entrante ? 'bg-body-tertiary border' : (m.error ? 'border border-danger' : 'text-bg-primary'));
+    caja.style.maxWidth = '75%'; t.style.whiteSpace = 'pre-wrap'; t.textContent = m.texto;
+    pie.className = 'small opacity-75 text-end'; pie.textContent = (m.entrante ? '' : (m.usuario || 'Saludo automático') + ' · ') + m.hora;
+    caja.appendChild(t); caja.appendChild(pie); fila.appendChild(caja); hilo.appendChild(fila);
+  }
+  setInterval(function () {
+    if (document.hidden) return;
+    fetch('?json=1&desde=' + ultimo, {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (d) {
+      (d.mensajes || []).forEach(function (m) { burbuja(m); ultimo = Math.max(ultimo, m.id); });
+      if ((d.mensajes || []).length) hilo.scrollTop = hilo.scrollHeight;
+    }).catch(function () {});
+  }, 8000);
+})();
+</script>
+{% endblock %}

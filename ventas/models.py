@@ -143,8 +143,11 @@ class Oportunidad(models.Model):
                     'PERDIDA': 0}
     ORIGENES = [('', '---'), ('REFERIDO', 'Referido'), ('WEB', 'Web / redes'), ('LLAMADA', 'Llamada'),
                 ('VISITA', 'Visita'), ('FERIA', 'Feria / evento'), ('CARTERA', 'Cliente de la cartera'),
-                ('CORREO', 'Correo'), ('WHATSAPP', 'WhatsApp'), ('COTIZACION', 'Cotización sin oportunidad'),
-                ('RENOVACION', 'Renovación de contrato'), ('OTRO', 'Otro')]
+                ('CORREO', 'Correo'), ('WHATSAPP', 'WhatsApp'), ('MESSENGER', 'Facebook Messenger'),
+                ('INSTAGRAM', 'Instagram'), ('META_ADS', 'Anuncio de Facebook / Instagram'),
+                ('TELEGRAM', 'Telegram'), ('CHAT_WEB', 'Chat de la página web'), ('TIKTOK', 'Anuncio de TikTok'),
+                ('COTIZACION', 'Cotización sin oportunidad'), ('RENOVACION', 'Renovación de contrato'),
+                ('OTRO', 'Otro')]
     # CRM-07: motivos de pérdida en catálogo (con el competidor)
     MOTIVOS_PERDIDA = [('', '---'), ('PRECIO', 'Precio'), ('PLAZO', 'Plazo de entrega / ejecución'),
                        ('COMPETIDOR', 'Eligió a un competidor'), ('SIN_PRESUPUESTO', 'Sin presupuesto'),
@@ -251,4 +254,4 @@ class ActividadCRM(models.Model):
 
 from .models_crm import (  # noqa: E402,F401
     CambioEtapa, Campana, CarteraCliente, CasoPostventa, ConfigCRM, ConsentimientoDatos, ContactoCliente,
-    ContratoServicio, EncuestaSatisfaccion, EquipoVenta, MetaVenta, Reasignacion)
+    ContratoServicio, ConversacionCanal, EncuestaSatisfaccion, EquipoVenta, MensajeCanal, MetaVenta, Reasignacion)

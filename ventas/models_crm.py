@@ -45,6 +45,28 @@ class ConfigCRM(models.Model):
     correo_puerto = models.PositiveIntegerField('Puerto IMAP', default=993)
     correo_usuario = models.CharField('Usuario IMAP (ventas@…)', max_length=120, blank=True)
     correo_clave = CampoCifrado('Contraseña IMAP', max_length=200, blank=True)  # SEG-04: cifrada en la base
+    # v1.107: canales de mensajería. Cada mensaje entra a la bandeja del CRM; el primero de cada persona crea la
+    # oportunidad. WhatsApp usa la conexión oficial de Rendiciones (mismo número y mismo webhook).
+    whatsapp_activo = models.BooleanField(
+        'Recibir prospectos por WhatsApp', default=False,
+        help_text='Usa la conexión de WhatsApp Business de Rendiciones › Integraciones (los números de los usuarios '
+                  'siguen registrando gastos; los demás entran al CRM)')
+    meta_activo = models.BooleanField('Recibir mensajes de Facebook Messenger e Instagram', default=False)
+    meta_leads = models.BooleanField('Recibir formularios de anuncios de Facebook e Instagram', default=False)
+    meta_token = CampoCifrado('Token de la página de Facebook (Meta)', max_length=400, blank=True,
+                              help_text='Token de acceso de la página con permisos de mensajes (y de leads)')
+    meta_app_secret = CampoCifrado('App secret de Meta', max_length=120, blank=True,
+                                   help_text='Vacío = el de WhatsApp en Rendiciones (la misma app de Meta)')
+    meta_verify_token = CampoCifrado('Token de verificación (Meta)', max_length=80, default=_token, editable=False)
+    telegram_activo = models.BooleanField('Recibir mensajes de Telegram', default=False)
+    telegram_token = CampoCifrado('Token del bot de Telegram', max_length=120, blank=True,
+                                  help_text='El que entrega @BotFather al crear el bot')
+    telegram_secreto = CampoCifrado('Clave del webhook de Telegram', max_length=80, default=_token, editable=False)
+    chat_activo = models.BooleanField('Chat en la página web', default=False)
+    chat_saludo = models.CharField('Saludo del chat y del bot', max_length=200, blank=True,
+                                   default='Hola, gracias por escribirnos. Un asesor le responde en breve.')
+    tiktok_activo = models.BooleanField('Recibir formularios de anuncios de TikTok', default=False)
+    tiktok_clave = CampoCifrado('Clave del enlace de TikTok', max_length=80, default=_token, editable=False)
 
     class Meta:
         verbose_name = 'configuración del CRM'
@@ -140,8 +162,9 @@ class CarteraCliente(models.Model):
 class ConsentimientoDatos(models.Model):
     """Consentimiento para el tratamiento de datos personales (Ley 29733 y su reglamento): de un prospecto, un
     contacto o un cliente persona natural (CRM-20)."""
-    CANALES = [('WEB', 'Formulario web'), ('VERBAL', 'Verbal (registrado por el vendedor)'),
-               ('ESCRITO', 'Escrito / firmado'), ('CORREO', 'Correo'), ('WHATSAPP', 'WhatsApp'), ('OTRO', 'Otro')]
+    CANALES = [('WEB', 'Formulario web'), ('CHAT_WEB', 'Chat de la página web'),
+               ('VERBAL', 'Verbal (registrado por el vendedor)'), ('ESCRITO', 'Escrito / firmado'), ('CORREO', 'Correo'),
+               ('WHATSAPP', 'WhatsApp'), ('OTRO', 'Otro')]
     ESTADOS = [('OTORGADO', 'Otorgado'), ('REVOCADO', 'Revocado (baja de comunicaciones)'),
                ('SUPRIMIDO', 'Datos suprimidos')]
     titular = models.CharField('Titular de los datos', max_length=150)
@@ -176,6 +199,52 @@ class CambioEtapa(models.Model):
     a = models.CharField(max_length=12)
     fecha = models.DateTimeField(default=timezone.now)
     usuario = models.ForeignKey(USUARIO, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        ordering = ['fecha', 'id']
+
+
+class ConversacionCanal(models.Model):
+    """Conversación con una persona por un canal de mensajería (v1.107): la bandeja de mensajes del CRM."""
+    CANALES = [('WHATSAPP', 'WhatsApp'), ('MESSENGER', 'Facebook Messenger'), ('INSTAGRAM', 'Instagram'),
+               ('TELEGRAM', 'Telegram'), ('CHAT_WEB', 'Chat de la página web')]
+    ICONOS = {'WHATSAPP': 'bi-whatsapp', 'MESSENGER': 'bi-messenger', 'INSTAGRAM': 'bi-instagram',
+              'TELEGRAM': 'bi-telegram', 'CHAT_WEB': 'bi-chat-dots'}
+    canal = models.CharField(max_length=10, choices=CANALES)
+    externo = models.CharField('Identificador en el canal', max_length=120,
+                               help_text='Celular (WhatsApp), id de Meta o de Telegram, o clave del visitante (chat)')
+    nombre = models.CharField(max_length=150, blank=True)
+    telefono = models.CharField(max_length=40, blank=True)
+    oportunidad = models.ForeignKey('ventas.Oportunidad', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='conversaciones')
+    ultimo = models.DateTimeField('Último mensaje', default=timezone.now)
+    ultimo_entrante = models.DateTimeField('Último mensaje del cliente', null=True, blank=True)
+    sin_leer = models.PositiveIntegerField(default=0)
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-ultimo']
+        constraints = [models.UniqueConstraint(fields=['canal', 'externo'], name='conversacion_canal_unica')]
+        verbose_name = 'conversación de un canal'
+        verbose_name_plural = 'conversaciones de los canales'
+
+    def __str__(self):
+        return f'{self.get_canal_display()}: {self.nombre or self.externo}'
+
+    @property
+    def icono(self):
+        return self.ICONOS.get(self.canal, 'bi-chat')
+
+
+class MensajeCanal(models.Model):
+    ESTADOS = [('RECIBIDO', 'Recibido'), ('ENVIADO', 'Enviado'), ('ERROR', 'No se pudo enviar')]
+    conversacion = models.ForeignKey(ConversacionCanal, on_delete=models.CASCADE, related_name='mensajes')
+    entrante = models.BooleanField(default=True)
+    texto = models.TextField()
+    fecha = models.DateTimeField(default=timezone.now)
+    usuario = models.ForeignKey(USUARIO, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    estado = models.CharField(max_length=8, choices=ESTADOS, default='RECIBIDO')
+    error = models.CharField(max_length=250, blank=True)
 
     class Meta:
         ordering = ['fecha', 'id']

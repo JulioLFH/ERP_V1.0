@@ -25,7 +25,8 @@ MODULOS = [
                                ('Mis oportunidades', 'crm:lista?mias=1', 'bi-person-check'),
                                ('Nueva oportunidad', 'crm:nueva', 'bi-plus-circle'),
                                ('Lo que viene (operaciones)', 'crm:operaciones', 'bi-truck')]),
-            ('Seguimiento', [('Mis actividades', 'crm:actividades', 'bi-check2-square'),
+            ('Seguimiento', [('Bandeja de mensajes (WhatsApp, redes, chat)', 'crm:bandeja', 'bi-chat-dots'),
+                             ('Mis actividades', 'crm:actividades', 'bi-check2-square'),
                              ('Plan de visitas', 'crm:visitas', 'bi-geo-alt'),
                              ('En el celular (campo)', 'crm:movil', 'bi-phone')]),
             ('Clientes', [('Clientes (ficha 360)', 'crm:clientes', 'bi-person-vcard'),
@@ -827,7 +828,9 @@ RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'c
                 # cada usuario ve y resuelve lo que le toca aprobar y delega sus aprobaciones (cada acción valida)
                 'aprobaciones_bandeja', 'aprobaciones_delegaciones',
                 'mi_portal', 'mi_boleta',  # autoservicio: cada trabajador ve solo lo suyo
-                'crm_web'}  # formulario de la página web: público, protegido por la clave de la empresa (CRM-09)
+                'crm_web',  # formulario de la página web: público, protegido por la clave de la empresa (CRM-09)
+                # v1.107: canales del CRM (chat web, Meta, Telegram, TikTok): públicos, con firma o clave propia
+                'crm_chat', 'crm_chat_widget', 'crm_meta', 'crm_telegram', 'crm_tiktok'}
 
 
 # Permiso especial: ver costos de inventario (costo promedio, valorizado, kardex valorizado)
