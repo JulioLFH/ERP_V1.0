@@ -79,7 +79,8 @@ def crear_base_si_falta(alias):
 # usuarios corporativos son del grupo, no de una empresa)
 APPS_PRINCIPAL = {'sessions'}
 # REQ-02 y REQ-06: el cronograma SUNAT y el correo de Ceiba también son del grupo
-MODELOS_PRINCIPAL = {'empresagrupo', 'usuariocorporativo', 'cronogramasunat', 'correoceiba'}
+MODELOS_PRINCIPAL = {'empresagrupo', 'usuariocorporativo', 'cronogramasunat', 'correoceiba',
+                     'plangrupo', 'operadorplataforma'}  # REQ-03: el plan y la consola de la plataforma
 
 
 def _de_principal(model):

@@ -11,13 +11,19 @@
   </div>
 </div>
 <p class="small text-muted">{{ principal.get_full_name|default:principal.username }} · Ceiba ERP v{{ version }} · {{ tarjetas|length }} empresa{{ tarjetas|length|pluralize }}</p>
+<div class="card mb-3"><div class="card-body py-2 small">
+  <i class="bi bi-box-seam"></i> <b>Plan contratado: {{ plan_grupo }}</b>
+  {% if plan_todos %}· todos los módulos.{% else %}· {{ plan_modulos|length }} módulos para todas las empresas del grupo: {{ plan_modulos|join:', ' }}.
+  <div class="text-muted mt-1">Fuera del plan (no disponibles en ninguna empresa): {{ plan_fuera|join:', ' }}. Para ampliarlo, comuníquese con Ceiba.</div>{% endif %}
+</div></div>
 <div class="row g-3 mb-3">
   {% for t in tarjetas %}<div class="col-md-6 col-xl-4"><div class="card h-100 {% if t.actual %}border-success{% endif %}"><div class="card-body">
     <div class="d-flex justify-content-between align-items-start">
       <div><div class="fw-semibold">{{ t.nombre }}</div><div class="small text-muted">RUC {{ t.ruc|default:'—' }}{% if t.alias == 'default' %} · principal{% endif %}</div></div>
       {% if t.actual %}<span class="badge text-bg-success">actual</span>{% elif t.registro and t.registro.estado != 'LISTA' %}<span class="badge {% if t.registro.estado == 'ERROR' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ t.registro.get_estado_display }}</span>{% endif %}
     </div>
-    {% if t.registro and t.registro.estado != 'LISTA' %}<div class="small text-muted mt-2">{{ t.registro.mensaje|truncatechars:180 }}</div>
+    {% if t.registro and t.registro.estado != 'LISTA' %}<div class="small text-muted mt-2">{% if t.colgada %}La creación se interrumpió (el servidor se reinició). Pulse «Reintentar»: se conserva lo ya creado.{% else %}{{ t.registro.mensaje|truncatechars:180 }}{% endif %}</div>
+    {% if puede_crear %}{% if t.registro.estado == 'ERROR' or t.colgada %}<form method="post" action="{% url 'grupo_empresas' %}" class="mt-2">{% csrf_token %}<input type="hidden" name="accion" value="reintentar"><input type="hidden" name="volver" value="panel"><button name="id" value="{{ t.registro.pk }}" class="btn btn-sm btn-outline-warning"><i class="bi bi-arrow-clockwise"></i> Reintentar</button></form>{% endif %}{% endif %}
     {% elif t.error %}<div class="small text-danger mt-2">No disponible ({{ t.error }}).</div>
     {% else %}
     <div class="row g-2 small mt-2 text-center">

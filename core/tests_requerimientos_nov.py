@@ -71,6 +71,22 @@ class CopiadoAlCrearEmpresaTest(TestCase):
         banco = Cuenta.objects.using('empresa2').get(nombre='BCP soles')
         self.assertEqual((banco.numero, banco.cci, banco.saldo_inicial), ('', '', 0))  # datos propios: no
 
+    def test_creacion_cortada_por_un_reinicio_se_puede_reintentar(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from . import grupo
+        from .models import EmpresaGrupo
+        r = EmpresaGrupo.objects.create(alias='empresa9', base='erp_empresa9', razon_social='CORTADA S.A.C.',
+                                        ruc='20100066603')
+        self.assertFalse(grupo.colgada(r))  # recién creada: puede estar creándose en otro proceso
+        EmpresaGrupo.objects.filter(pk=r.pk).update(creado=timezone.now() - timedelta(minutes=10))
+        r.refresh_from_db()
+        self.assertTrue(grupo.colgada(r))  # sin tarea viva que la cree
+        r.estado = 'LISTA'
+        self.assertFalse(grupo.colgada(r))
+
     def test_modelo_sin_nada_marcado(self):
         from django.contrib.auth.models import User
 
@@ -348,6 +364,61 @@ class PerfilesPredefinidosTest(Base):
         self.assertEqual(self.client.get(reverse('ventas:lista')).status_code, 200)
         self.assertFalse(puede(gerente, 'ventas.emitir'))
         self.assertFalse(puede(gerente, 'contabilidad.asientos'))
+
+
+# ---------------------------------------------------------------- REQ-03 (plan del grupo y plataforma Ceiba)
+class PlanDelGrupoTest(Base):
+    def setUp(self):
+        super().setUp()
+        from . import plataforma
+        from .models import OperadorPlataforma
+        plataforma.invalidar()
+        self.addCleanup(plataforma.invalidar)  # el plan se memoriza unos segundos: no debe pasar a otras pruebas
+        self.op = OperadorPlataforma(usuario='ceiba', nombre='Equipo Ceiba')
+        self.op.fijar_clave(CLAVE)
+        self.op.save()
+
+    def test_consola_con_ingreso_propio(self):
+        url = reverse('plataforma_inicio')
+        admin = _usuario('admin', admin=True)
+        self.client.force_login(admin)  # un administrador del cliente no entra a la consola
+        self.assertRedirects(self.client.get(url), reverse('plataforma_ingresar'), fetch_redirect_response=False)
+        r = self.client.post(reverse('plataforma_ingresar'), {'usuario': 'ceiba', 'clave': 'otra'}, follow=True)
+        self.assertContains(r, 'incorrectos')
+        self.client.post(reverse('plataforma_ingresar'), {'usuario': 'CEIBA', 'clave': CLAVE})
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.client.get(reverse('plataforma_salir'))
+        self.assertEqual(self.client.get(url).status_code, 302)
+
+    def test_modulo_fuera_del_plan_no_existe_para_nadie(self):
+        from .modulos import modulos_del_usuario
+        from .plataforma import PLANES
+        self.client.post(reverse('plataforma_ingresar'), {'usuario': 'ceiba', 'clave': CLAVE})
+        basico = PLANES['basico'][1]
+        self.client.post(reverse('plataforma_inicio'), {'nombre': 'Básico', 'todos': '0', 'modulos': sorted(basico)})
+        admin = User.objects.create_superuser('admin', 'a@x.pe', CLAVE)
+        mods = modulos_del_usuario(admin)
+        self.assertIn('ventas', mods)
+        self.assertNotIn('manufactura', mods)  # ni el administrador del cliente
+        self.assertTrue({'tablero', 'ajustes'} <= mods)  # siempre
+        self.client.force_login(admin)
+        self.assertEqual(self.client.get(reverse('ventas:lista')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('planillas:lista')).status_code, 403)
+        r = self.client.get(reverse('grupo_panel'))
+        self.assertContains(r, 'Plan contratado: Básico')
+        # el cliente gestiona los módulos del plan; los de fuera no aparecen ni se pierden al guardar
+        from .usuarios import UsuarioForm
+        vendedor = _usuario('vendedor', ['ventas', 'planillas'])
+        f = UsuarioForm(instance=vendedor, editor=admin)
+        opciones = {c for c, _ in f.fields['modulos'].choices}
+        self.assertIn('ventas', opciones)
+        self.assertNotIn('planillas', opciones)
+        f = UsuarioForm({'username': 'vendedor', 'is_active': 'on', 'modulos': ['ventas', 'compras']},
+                        instance=vendedor, editor=admin)
+        self.assertTrue(f.is_valid(), f.errors)
+        f.save()
+        grupos = set(User.objects.get(pk=vendedor.pk).groups.values_list('name', flat=True))
+        self.assertTrue({GRUPOS['ventas'], GRUPOS['compras'], GRUPOS['planillas']} <= grupos)
 
 
 # ---------------------------------------------------------------- REQ-05

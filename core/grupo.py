@@ -433,4 +433,18 @@ def reintentar(registro, principal, sincrono=False):
     if sincrono:
         _crear(registro.pk, principal.pk)
     else:
-        threading.Thread(target=_crear, args=(registro.pk, principal.pk), daemon=True).start()
+        threading.Thread(target=_crear, args=(registro.pk, principal.pk), daemon=True,
+                         name=f'crear-{registro.alias}').start()
+
+
+def colgada(registro, minutos=2):
+    """«Creando» sin la tarea que la crea (el servidor se reinició a mitad de camino): se puede reintentar. Se espera
+    unos minutos desde el alta por si la crea otro proceso del servidor."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+    if registro is None or registro.estado != 'CREANDO':
+        return False
+    if any(t.name == f'crear-{registro.alias}' and t.is_alive() for t in threading.enumerate()):
+        return False
+    return registro.creado < timezone.now() - timedelta(minutes=minutos)

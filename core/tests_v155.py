@@ -133,8 +133,12 @@ class EmpresaModeloTest(Base):
             r = grupo.crear_empresa('Nueva Sur S.A.C.', '20100066603', admin, direccion='Av. Sol 100 Lima',
                                     ubigeo='150101', modelo='default')
         self.assertEqual(EmpresaGrupo.objects.get(pk=r.pk).datos,
-                         {'direccion': 'Av. Sol 100 Lima', 'ubigeo': '150101', 'modelo': 'default'})
+                         {'direccion': 'Av. Sol 100 Lima', 'ubigeo': '150101', 'modelo': 'default',
+                          'copiar': ['series', 'parametros']})  # REQ-01: sin indicar, series y parámetros
         self.ingresar('dueno')
-        r = self.client.get(reverse('grupo_panel'))
-        self.assertContains(r, 'Copiar series y parámetros de')
+        # sin sincronizar: la empresa recién registrada no tiene base en la prueba (no se conecta)
+        with patch('erp.empresas.sincronizar'):
+            r = self.client.get(reverse('grupo_panel'))
+        self.assertContains(r, 'Copiar de la empresa')  # REQ-01: con casillas de qué copiar
+        self.assertContains(r, 'name="copiar" value="plan_contable"')
         self.assertContains(r, 'consulta_ruc.js')

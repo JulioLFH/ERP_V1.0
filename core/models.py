@@ -2412,6 +2412,49 @@ class FirmaElectronica(models.Model):
         return f'{self.nombre} · {self.significado} · {timezone.localtime(self.fecha):%d/%m/%Y %H:%M}'
 
 
+class PlanGrupo(models.Model):
+    """REQ-03: plan contratado por el grupo: los módulos que como máximo puede usar cualquier empresa del grupo.
+    Lo define el operador de la plataforma Ceiba (consola /plataforma/), no los administradores del cliente. Vive en
+    la base principal. Sin plan (o modulos vacío y todos=True) = todos los módulos."""
+    nombre = models.CharField('Plan', max_length=60, default='Completo')
+    todos = models.BooleanField('Todos los módulos', default=True)
+    modulos = models.JSONField('Módulos habilitados', default=list, blank=True)
+    modificado = models.DateTimeField(auto_now=True)
+    modificado_por = models.CharField(max_length=150, blank=True)
+
+    class Meta:
+        verbose_name = 'plan del grupo'
+
+    def __str__(self):
+        return f'Plan {self.nombre}'
+
+
+class OperadorPlataforma(models.Model):
+    """REQ-03: usuario de la plataforma Ceiba (el proveedor del ERP), independiente de los usuarios del cliente: entra
+    solo a la consola /plataforma/ y administra el plan del grupo. Se crea en el servidor con
+    «python manage.py operador_plataforma <usuario>»."""
+    usuario = models.CharField(max_length=60, unique=True)
+    nombre = models.CharField(max_length=120, blank=True)
+    clave = models.CharField(max_length=128)  # hash de Django (make_password)
+    activo = models.BooleanField(default=True)
+    ultimo_ingreso = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'operador de la plataforma'
+        verbose_name_plural = 'operadores de la plataforma'
+
+    def __str__(self):
+        return self.usuario
+
+    def fijar_clave(self, clave):
+        from django.contrib.auth.hashers import make_password
+        self.clave = make_password(clave)
+
+    def clave_correcta(self, clave):
+        from django.contrib.auth.hashers import check_password
+        return bool(self.clave) and check_password(clave, self.clave)
+
+
 class CronogramaSunat(models.Model):
     """REQ-02: cronograma de obligaciones mensuales de SUNAT (IGV-Renta y PLE / SIRE) de un periodo, por último dígito
     del RUC. Es del grupo (vive en la base principal) y lo carga el administrador cada año; si falta un periodo se usa

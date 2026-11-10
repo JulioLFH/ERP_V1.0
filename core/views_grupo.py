@@ -38,10 +38,14 @@ def empresas(request):
                 messages.error(request, str(exc))
         return redirect('grupo_panel' if request.POST.get('volver') == 'panel' else 'grupo_empresas')
     if accion == 'reintentar' and grupo.puede_crear(request):
-        r = get_object_or_404(EmpresaGrupo.objects.using('default'), pk=request.POST.get('id'), estado='ERROR')
+        r = get_object_or_404(EmpresaGrupo.objects.using('default'), pk=request.POST.get('id'),
+                              estado__in=['ERROR', 'CREANDO'])
+        if r.estado == 'CREANDO' and not grupo.colgada(r):
+            messages.info(request, f'{r.razon_social} todavía se está creando.')
+            return redirect(request.POST.get('volver') == 'panel' and 'grupo_panel' or 'grupo_empresas')
         grupo.reintentar(r, principal)
         messages.info(request, f'Reintentando la creación de {r.razon_social}.')
-        return redirect('grupo_empresas')
+        return redirect('grupo_panel' if request.POST.get('volver') == 'panel' else 'grupo_empresas')
     if accion == 'corporativo' and principal.is_superuser:
         User = get_user_model()
         u = get_object_or_404(User.objects.using('default'), pk=request.POST.get('usuario'))
@@ -64,6 +68,8 @@ def empresas(request):
                       'actual': alias == reg.actual()})
     filas += [{'alias': e.alias, 'nombre': e.razon_social, 'registro': e, 'puede_entrar': False, 'actual': False}
               for e in registradas.values() if e.alias not in reg.empresas()]
+    for f in filas:  # creación cortada por un reinicio del servidor: se puede reintentar
+        f['colgada'] = grupo.colgada(f['registro'])
     corporativos = []
     if principal.is_superuser:
         User = get_user_model()
@@ -210,6 +216,8 @@ def panel(request):
                          **resumen, 'ruc': resumen.get('ruc') or (e.ruc if e else '')})
     tarjetas += [{'alias': e.alias, 'nombre': e.razon_social, 'registro': e, 'actual': False, 'listo': False,
                   'ruc': e.ruc} for e in registradas.values() if e.alias not in reg.empresas()]
+    for t in tarjetas:  # creación cortada por un reinicio del servidor: se puede reintentar
+        t['colgada'] = grupo.colgada(t['registro'])
     from . import estado_servicio as es
     from django.conf import settings
     from django.utils import timezone
@@ -220,8 +228,18 @@ def panel(request):
         'tarjetas': tarjetas, 'principal': principal, 'puede_crear': grupo.puede_crear(request),
         'aliases': list(reg.empresas()), 'version': settings.ERP_VERSION, 'disp_30': es.disponibilidad(30),
         'activas': activas, 'periodo_masivo': periodo_anterior(timezone.localdate()),
-        'copiables': grupo.COPIABLES, 'copia_defecto': grupo.COPIA_POR_DEFECTO,
+        'copiables': grupo.COPIABLES, 'copia_defecto': grupo.COPIA_POR_DEFECTO, **_plan_para_panel(),
         'creando': any(t['registro'] and t['registro'].estado == 'CREANDO' for t in tarjetas)})
+
+
+def _plan_para_panel():
+    """REQ-03: el plan del grupo (solo lectura para el cliente; lo cambia la plataforma Ceiba)."""
+    from .modulos import MODULOS
+    from .plataforma import FIJOS, modulos_permitidos, plan_actual
+    plan, permitidos = plan_actual(), modulos_permitidos()
+    return {'plan_grupo': plan.nombre if plan else 'Completo', 'plan_todos': plan is None or plan.todos,
+            'plan_modulos': [m['nombre'] for m in MODULOS if m['clave'] in permitidos and m['clave'] not in FIJOS],
+            'plan_fuera': [m['nombre'] for m in MODULOS if m['clave'] not in permitidos]}
 
 
 def _proceso_masivo(request):

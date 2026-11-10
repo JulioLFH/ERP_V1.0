@@ -12,7 +12,7 @@
       <td class="small">{% if f.registro %}<span class="badge {% if f.registro.estado == 'LISTA' %}text-bg-success{% elif f.registro.estado == 'ERROR' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ f.registro.get_estado_display }}</span>{% if f.registro.estado != 'LISTA' %}<div class="text-muted">{{ f.registro.mensaje|truncatechars:160 }}</div>{% endif %}{% else %}<span class="badge text-bg-success">Lista</span>{% endif %}</td>
       <td class="text-end text-nowrap">
         {% if f.puede_entrar and not f.actual %}<form method="post" action="{% url 'grupo_entrar' %}" class="d-inline">{% csrf_token %}<button name="empresa" value="{{ f.alias }}" class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-box-arrow-in-right"></i> Entrar</button></form>{% endif %}
-        {% if f.registro.estado == 'ERROR' and puede_crear %}<form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="accion" value="reintentar"><button name="id" value="{{ f.registro.pk }}" class="btn btn-sm btn-outline-warning py-0">Reintentar</button></form>{% endif %}
+        {% if puede_crear %}{% if f.registro.estado == 'ERROR' or f.colgada %}<form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="accion" value="reintentar"><button name="id" value="{{ f.registro.pk }}" class="btn btn-sm btn-outline-warning py-0">Reintentar</button></form>{% endif %}{% endif %}
       </td>
     </tr>{% endfor %}</tbody>
   </table></div></div></div>

@@ -86,7 +86,12 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         from .models import Almacen, PerfilUsuario, Serie
         from .permisos import ACCIONES
         self.fields['modulos'].widget.attrs.pop('class', None)
-        self.fields['acciones'].choices = [(f'{m}.{a}', d) for m, lista in ACCIONES.items() for a, d, _ in lista]
+        # REQ-03: solo los módulos del plan del grupo (los demás no se asignan ni se ven)
+        from .plataforma import modulos_permitidos
+        self.en_plan = modulos_permitidos()
+        self.fields['modulos'].choices = [(c, POR_CLAVE[c]['nombre']) for c in GRUPOS if c in self.en_plan]
+        self.fields['acciones'].choices = [(f'{m}.{a}', d) for m, lista in ACCIONES.items() for a, d, _ in lista
+                                           if m in self.en_plan or m == 'contactos']
         self.fields['almacenes'].queryset = Almacen.objects.filter(activo=True)
         self.fields['series'].queryset = Serie.objects.filter(activo=True, tipo__in=['01', '03', '07', '08', '12',
                                                                                       '00', '09', '31'])
@@ -122,7 +127,7 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
             self.initial['celular'] = perfil.celular
         if self.instance.pk:
             nombres = set(self.instance.groups.values_list('name', flat=True))
-            self.initial['modulos'] = [c for c, n in GRUPOS.items() if n in nombres]
+            self.initial['modulos'] = [c for c, n in GRUPOS.items() if n in nombres and c in self.en_plan]
             self.initial['es_admin'] = self.instance.is_superuser
             self.initial['ver_costos'] = GRUPO_COSTOS in nombres
             self.fields['clave1'].help_text = 'Déjela vacía para no cambiarla.'
@@ -132,7 +137,8 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
             self.fields['clave1'].help_text = ' '.join(password_validators_help_texts())
         self.pantallas_actuales = dict(perfil.pantallas or {}) if perfil else {}
         if perfil:
-            self.initial['acciones'] = perfil.acciones
+            visibles = {c for c, _ in self.fields['acciones'].choices}  # REQ-03: las del plan
+            self.initial['acciones'] = [a for a in perfil.acciones if a in visibles]
             self.initial['almacenes'] = list(perfil.almacenes.all())
             self.initial['series'] = list(perfil.series.all())
             self.initial['limite_aprobacion'] = perfil.limite_aprobacion
@@ -250,12 +256,16 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         grupos = [Group.objects.get_or_create(name=GRUPOS[c])[0] for c in self.cleaned_data.get('modulos', [])]
         if self.cleaned_data.get('ver_costos'):
             grupos.append(Group.objects.get_or_create(name=GRUPO_COSTOS)[0])
-        # conserva grupos ajenos a los módulos y al permiso de costos
-        otros = user.groups.exclude(name__in=list(GRUPOS.values()) + [GRUPO_COSTOS])
+        # conserva grupos ajenos a los módulos y al permiso de costos; REQ-03: también los módulos fuera del plan
+        # (no se ven ni se usan, pero vuelven si el plan los habilita)
+        otros = user.groups.exclude(name__in=[n for c, n in GRUPOS.items() if c in self.en_plan] + [GRUPO_COSTOS])
         user.groups.set(list(otros) + grupos)
         from .models import PerfilUsuario
         perfil, _ = PerfilUsuario.objects.get_or_create(usuario=user)
-        perfil.acciones = sorted(self.cleaned_data.get('acciones') or [])
+        # REQ-03: las acciones de módulos fuera del plan no se muestran, pero se conservan
+        visibles = {c for c, _ in self.fields['acciones'].choices}
+        perfil.acciones = sorted(set(self.cleaned_data.get('acciones') or [])
+                                 | {a for a in (perfil.acciones or []) if a not in visibles})
         perfil.limite_aprobacion = self.cleaned_data.get('limite_aprobacion') or 0
         perfil.trabajador, perfil.jefe = self.cleaned_data.get('trabajador'), self.cleaned_data.get('jefe')
         perfil.celular = (self.cleaned_data.get('celular') or '').strip()
@@ -330,7 +340,7 @@ def _guardar(request, usuario, titulo):
         {'valor': f'{m}.{a}', 'texto': d, 'sensible': s, 'marcada': f'{m}.{a}' in marcadas} for a, d, s in lista]}
         for m, lista in ACCIONES.items() if m in POR_CLAVE]
     return render(request, 'core/usuario_form.html', {'form': form, 'titulo': titulo,
-                                                       'modulos_info': [POR_CLAVE[c] for c in GRUPOS],
+                                                       'modulos_info': [POR_CLAVE[c] for c, _ in form.fields['modulos'].choices],
                                                        'grupos_acciones': grupos_acciones,
                                                        'grupos_pantallas': grupos_pantallas(form.pantallas_enviadas()),
                                                        'niveles': _niveles()})
@@ -367,11 +377,18 @@ class PerfilAccesoForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from .permisos import ACCIONES
-        self.fields['acciones'].choices = [(f'{m}.{a}', d) for m, lista in ACCIONES.items() for a, d, _ in lista]
+        from .plataforma import modulos_permitidos
+        en_plan = modulos_permitidos()  # REQ-03: los perfiles solo traen módulos del plan del grupo
+        self.fields['modulos'].choices = [(c, POR_CLAVE[c]['nombre']) for c in GRUPOS if c in en_plan]
+        self.fields['acciones'].choices = [(f'{m}.{a}', d) for m, lista in ACCIONES.items() for a, d, _ in lista
+                                           if m in en_plan or m == 'contactos']
         for nombre in ('modulos', 'acciones'):
             self.fields[nombre].widget.attrs.pop('class', None)
+        self.instance_modulos_previos = list(self.instance.modulos or [])
+        self.instance_acciones_previas = list(self.instance.acciones or [])
         if self.instance.pk:
-            self.initial['modulos'], self.initial['acciones'] = self.instance.modulos, self.instance.acciones
+            self.initial['modulos'] = [m for m in self.instance.modulos if m in en_plan]
+            self.initial['acciones'] = [a for a in self.instance.acciones if a in dict(self.fields['acciones'].choices)]
 
     def clean_modulos(self):
         if not self.cleaned_data.get('modulos'):
@@ -388,7 +405,11 @@ class PerfilAccesoForm(BootstrapMixin, forms.ModelForm):
     def save(self, commit=True):
         p = super().save(commit=False)
         p.modulos = sorted(self.cleaned_data.get('modulos') or [])
-        p.acciones = sorted(self.cleaned_data.get('acciones') or [])
+        # REQ-03: lo que está fuera del plan no se muestra, pero se conserva en el perfil
+        visibles_m, visibles_a = dict(self.fields['modulos'].choices), dict(self.fields['acciones'].choices)
+        p.modulos = sorted(set(p.modulos) | {m for m in (self.instance_modulos_previos or []) if m not in visibles_m})
+        p.acciones = sorted(set(self.cleaned_data.get('acciones') or [])
+                            | {a for a in (self.instance_acciones_previas or []) if a not in visibles_a})
         p.pantallas = self.pantallas_enviadas()
         p.save()
         if self.cleaned_data.get('actualizar_usuarios'):
@@ -439,7 +460,7 @@ def perfil_editar(request, pk=None):
         for m, lista in ACCIONES.items() if m in POR_CLAVE]
     return render(request, 'core/perfil_acceso_form.html', {
         'form': form, 'titulo': f'Perfil {perfil.nombre}' if pk else 'Nuevo perfil de acceso',
-        'modulos_info': [POR_CLAVE[c] for c in GRUPOS], 'grupos_acciones': grupos_acciones,
+        'modulos_info': [POR_CLAVE[c] for c, _ in form.fields['modulos'].choices], 'grupos_acciones': grupos_acciones,
         'grupos_pantallas': grupos_pantallas(form.pantallas_enviadas()), 'niveles': _niveles()})
 
 

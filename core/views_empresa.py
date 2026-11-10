@@ -30,11 +30,19 @@ class GiroForm(BootstrapMixin, forms.Form):
     def __init__(self, *args, administrador=True, **kwargs):
         super().__init__(*args, **kwargs)
         from .modulos import MODULOS
+        from .plataforma import modulos_permitidos
+        en_plan = modulos_permitidos()  # REQ-03: los módulos fuera del plan del grupo ya están apagados para todos
         self.fields['ocultos'].choices = [(m['clave'], m['nombre']) for m in MODULOS
-                                          if m['clave'] not in giro.SIEMPRE]
+                                          if m['clave'] not in giro.SIEMPRE and m['clave'] in en_plan]
         if not administrador:  # REQ-03: activar o desactivar módulos de la empresa es solo del administrador
             self.fields['ocultos'].disabled = True
             self.fields['ocultos'].help_text = 'Solo un administrador activa o desactiva módulos.'
+
+
+def _ocultos_fuera_del_plan(empresa):
+    """REQ-03: lo que la empresa ocultó entre los módulos que hoy están fuera del plan se conserva (no se ve aquí)."""
+    from .plataforma import modulos_permitidos
+    return {m for m in (empresa.modulos_ocultos or []) if m not in modulos_permitidos()}
 
 
 @login_required
@@ -80,7 +88,8 @@ def empresa_giro(request):
             d = form.cleaned_data
             mensajes = giro.aplicar(empresa, d['giros'], d['regimen'], d['sistema_costeo'], d.get('ciiu') or '',
                                     d.get('actividad') or '',
-                                    d.get('ocultos') if admin else empresa.modulos_ocultos)
+                                    sorted(set(d.get('ocultos') or []) | _ocultos_fuera_del_plan(empresa))
+                                    if admin else empresa.modulos_ocultos)
             messages.success(request, 'Giro y régimen guardados. ' + ' '.join(mensajes))
             return redirect('empresa_giro')
     else:

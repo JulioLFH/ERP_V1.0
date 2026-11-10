@@ -1,0 +1,11 @@
+{% extends 'registration/publico_base.html' %}
+{% block title %}Plataforma Ceiba{% endblock %}
+{% block tarjeta %}
+<h2>Consola de la plataforma</h2>
+<p class="small text-muted text-center">Solo para el equipo de Ceiba. Los usuarios de las empresas ingresan por la pantalla normal del ERP.</p>
+<form method="post">{% csrf_token %}
+  <div class="mb-3"><label for="p-usuario">Usuario de la plataforma</label><input id="p-usuario" name="usuario" class="form-control" autocomplete="username" required autofocus></div>
+  <div class="mb-3"><label for="p-clave">Contraseña</label><input id="p-clave" name="clave" type="password" class="form-control" autocomplete="current-password" required></div>
+  <button class="btn btn-ingresar w-100">Ingresar</button>
+</form>
+{% endblock %}

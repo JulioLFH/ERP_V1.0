@@ -871,6 +871,8 @@ def modulos_del_usuario(user):
                 if cache & origen:
                     cache.add(derivado)
         cache -= _ocultos_empresa()
+        from .plataforma import modulos_permitidos  # REQ-03: nunca más allá del plan del grupo (ni el administrador)
+        cache &= modulos_permitidos()
         user._modulos_cache = cache
     return cache
 
