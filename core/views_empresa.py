@@ -27,11 +27,14 @@ class GiroForm(BootstrapMixin, forms.Form):
     ocultos = forms.MultipleChoiceField(label='Módulos que la empresa no usa (no se muestran a nadie)',
                                         required=False, widget=forms.CheckboxSelectMultiple)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, administrador=True, **kwargs):
         super().__init__(*args, **kwargs)
         from .modulos import MODULOS
         self.fields['ocultos'].choices = [(m['clave'], m['nombre']) for m in MODULOS
                                           if m['clave'] not in giro.SIEMPRE]
+        if not administrador:  # REQ-03: activar o desactivar módulos de la empresa es solo del administrador
+            self.fields['ocultos'].disabled = True
+            self.fields['ocultos'].help_text = 'Solo un administrador activa o desactiva módulos.'
 
 
 @login_required
@@ -42,6 +45,9 @@ def empresa_giro(request):
                'regimen': empresa.regimen_tributario, 'sistema_costeo': empresa.sistema_costeo,
                'ocultos': empresa.modulos_ocultos}
     accion = request.POST.get('accion') if request.method == 'POST' else None
+    admin = request.user.is_superuser
+    from functools import partial
+    GiroForm_ = partial(GiroForm, administrador=admin)  # noqa: N806
     if accion == 'sunat':
         from .padron_ruc import ErrorPadron, consultar
         try:
@@ -56,9 +62,9 @@ def empresa_giro(request):
                                        f'proyecto: se marcó ese giro (pulse «Sugerir» para ver sus módulos).')
         except ErrorPadron as exc:
             messages.error(request, str(exc))
-        form = GiroForm(initial=inicial)
+        form = GiroForm_(initial=inicial)
     elif accion == 'sugerir':
-        form = GiroForm(request.POST)
+        form = GiroForm_(request.POST)
         if form.is_valid():
             datos = dict(form.cleaned_data)
             sugerido = giro.GIROS
@@ -66,18 +72,19 @@ def empresa_giro(request):
             inicial = {**datos, 'ocultos': giro.sugerir_ocultos(datos['giros']),
                        'sistema_costeo': 'PROCESOS' if 'PROCESOS' in costeos else
                        'ORDENES' if 'ORDENES' in costeos else 'NATURALEZA'}
-            form = GiroForm(initial=inicial)
+            form = GiroForm_(initial=inicial)
             messages.info(request, 'Módulos y costeo sugeridos según el giro: revise y guarde.')
     elif accion == 'guardar':
-        form = GiroForm(request.POST)
+        form = GiroForm_(request.POST)
         if form.is_valid():
             d = form.cleaned_data
             mensajes = giro.aplicar(empresa, d['giros'], d['regimen'], d['sistema_costeo'], d.get('ciiu') or '',
-                                    d.get('actividad') or '', d.get('ocultos'))
+                                    d.get('actividad') or '',
+                                    d.get('ocultos') if admin else empresa.modulos_ocultos)
             messages.success(request, 'Giro y régimen guardados. ' + ' '.join(mensajes))
             return redirect('empresa_giro')
     else:
-        form = GiroForm(initial=inicial)
+        form = GiroForm_(initial=inicial)
     regimen = form['regimen'].value() or empresa.regimen_tributario
     ingresos = form['ingresos_uit'].value()
     try:

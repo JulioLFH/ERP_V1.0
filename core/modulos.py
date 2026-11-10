@@ -642,6 +642,7 @@ MODULOS = [
                               ('Depósito masivo de detracciones', 'finanzas:detracciones_masivas', 'bi-send'),
                               ('Constancias de detracción de clientes', 'finanzas:constancias_clientes',
                                'bi-cloud-upload')]),
+            ('Vencimientos', [('Cronograma de vencimientos', 'cronograma_sunat', 'bi-calendar2-week')]),
             ('Consulta RUC', 'ruc_consulta'),
         ],
     },
@@ -719,7 +720,7 @@ def _agregar_log_de_modificaciones():
     Manufactura tiene el suyo propio y Ajustes la auditoría de todo el sistema. Las conversaciones son privadas y los
     módulos que solo reúnen pantallas de otros (SUNAT, Consulta RUC) usan el log del módulo de cada pantalla."""
     for m in MODULOS:
-        if m['clave'] in ('manufactura', 'ajustes', 'conversaciones', 'sunat', 'consulta_ruc'):
+        if m['clave'] in ('manufactura', 'ajustes', 'conversaciones', 'consulta_ruc'):
             continue
         item = ('Log de modificaciones', f'modificaciones?modulo={m["clave"]}', 'bi-journal-text')
         grupo = next((d for e, d in m['menu'] if e == 'Reportes' and isinstance(d, list)), None)
@@ -787,6 +788,7 @@ RUTAS_CORE = {
     # SU-01: el SIRE (propuestas de SUNAT) es de SUNAT y Contabilidad, no de quien solo compra o vende
     'sire_propuestas': ['sunat', 'contabilidad'],
     'sire_propuesta': ['sunat', 'contabilidad'],
+    'cronograma_sunat': ['sunat', 'contabilidad', 'ajustes'],  # REQ-02 (lo edita solo el administrador)
     'tercero_banco': ['contactos', 'tesoreria', 'compras', 'ventas', 'crm', 'finanzas'],
     'perfiles_acceso': ['ajustes'], 'sso_lista': ['ajustes'], 'sso_nuevo': ['ajustes'], 'sso_editar': ['ajustes'], 'perfil_acceso_nuevo': ['ajustes'], 'perfil_acceso_editar': ['ajustes'],
     'aprobaciones_reglas': ['ajustes', 'compras', 'rendiciones', 'planillas'],

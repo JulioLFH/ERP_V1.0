@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Correo de Ceiba{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title"><i class="bi bi-envelope-at"></i> Correo de Ceiba</h1>
+  <a href="{% url 'grupo_panel' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-buildings"></i> Panel del grupo</a>
+</div>
+<p class="small text-muted">Una sola cuenta de correo para todo el grupo. Las empresas que no configuraron su propio correo saliente envían con ella: recuperación de contraseñas, avisos de ingreso desde otro equipo, órdenes de compra, comprobantes y recordatorios.</p>
+{% if not cfg.activa %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> Aún no hay correo de Ceiba: {% if sin_propio %}{{ sin_propio|length }} empresa{{ sin_propio|length|pluralize }} sin correo propio ({{ sin_propio|join:', ' }}) no pueden enviar la recuperación de contraseña.{% else %}todas las empresas tienen su propio correo.{% endif %}</div>
+{% elif sin_propio %}<div class="alert alert-light border py-2 small"><i class="bi bi-info-circle"></i> Envían con este correo: {{ sin_propio|join:', ' }}.</div>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="card-body">
+    <form method="post" autocomplete="off">{% csrf_token %}
+      {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+      <div class="row g-3">{% for field in form %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}</div>
+      <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>
+    </form>
+  </div></div></div>
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-header">Probar envío</div><div class="card-body">
+      <form method="post" class="d-flex gap-2">{% csrf_token %}<input type="hidden" name="accion" value="probar">
+        <input type="email" name="destino" class="form-control form-control-sm" placeholder="{{ user.email|default:'correo@ejemplo.com' }}" aria-label="Correo de destino de la prueba">
+        <button class="btn btn-sm btn-outline-primary text-nowrap"><i class="bi bi-send"></i> Enviar prueba</button></form>
+    </div></div>
+    <div class="small text-muted">
+      <p class="mb-1"><b>Gmail / Google Workspace:</b> smtp.gmail.com, puerto 587, STARTTLS; usuario = el correo; contraseña = una «contraseña de aplicación» (requiere verificación en dos pasos).</p>
+      <p class="mb-1"><b>Outlook / Microsoft 365:</b> smtp.office365.com, puerto 587, STARTTLS.</p>
+      <p class="mb-0">La contraseña se guarda cifrada y no se vuelve a mostrar.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

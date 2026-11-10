@@ -14,7 +14,23 @@ from erp import empresas as reg
 from .cronograma_sunat import periodo_anterior, vencimiento
 
 
-def resumen_contable(ruc):
+DIAS_AVISO_SUNAT = 7
+
+
+def alerta_vencimiento(dias, sire, cerrado):
+    """REQ-02: texto de aviso si el vencimiento SUNAT está cerca y falta algo (SIRE sin aceptar o periodo abierto)."""
+    if dias is None or dias < 0 or dias > DIAS_AVISO_SUNAT:
+        return ''
+    faltan = [f'SIRE {n}' for n, estado in sire.items() if estado != 'aceptada']
+    if not cerrado:
+        faltan.append('cerrar el periodo')
+    if not faltan:
+        return ''
+    cuando = 'hoy' if dias == 0 else 'mañana' if dias == 1 else f'en {dias} días'
+    return f'Vence {cuando}: falta {", ".join(faltan)}.'
+
+
+def resumen_contable(ruc, buen_contribuyente=False):
     """Datos contables de la empresa activa para el periodo que se declara este mes."""
     from contabilidad.models import PeriodoContable
     from ventas.models import Venta
@@ -28,7 +44,8 @@ def resumen_contable(ruc):
         prop = PropuestaSIRE.objects.filter(libro=libro, periodo=periodo).first()
         sire[libro] = ('aceptada' if prop and prop.aceptada_en else prop.get_estado_display().lower() if prop
                        else 'sin traer')
-    vence = vencimiento(ruc, periodo)
+    vence = vencimiento(ruc, periodo, buen_contribuyente)
+    dias = (vence - hoy).days if vence else None
     observados = Venta.objects.filter(estado_sunat__in=['RECHAZADO', 'ERROR'], fecha_emision__gte=hoy - timedelta(60)) \
         .exclude(estado='ANULADO').count()
     sin_centralizar = list(PeriodoContable.objects.filter(pendiente=True, cerrado=False, periodo__lte=periodo)
@@ -36,8 +53,9 @@ def resumen_contable(ruc):
     return {'periodo': periodo, 'periodo_texto': f'{periodo[4:]}/{periodo[:4]}',
             'cerrado': bool(p and p.cerrado), 'centralizado': not sin_centralizar,
             'sin_centralizar': [f'{x[4:]}/{x[:4]}' for x in sin_centralizar], 'sire_ventas': sire['RVIE'],
-            'sire_compras': sire['RCE'], 'vence': vence, 'dias_vence': (vence - hoy).days if vence else None,
-            'observados': observados}
+            'sire_compras': sire['RCE'], 'vence': vence, 'dias_vence': dias, 'observados': observados,
+            'alerta': alerta_vencimiento(dias, {'ventas': sire['RVIE'], 'compras': sire['RCE']},
+                                         bool(p and p.cerrado))}
 
 
 def _sin_usuario_auditoria():

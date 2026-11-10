@@ -9,7 +9,7 @@
 <div class="text-center no-print mt-3"><button data-imprimir class="btn btn-primary btn-sm">Imprimir / Guardar PDF</button></div>
 <div class="doc-print">
   <div class="row align-items-center mb-3">
-    <div class="col-7"><h5 class="mb-0">{{ empresa.razon_social }}</h5><div class="small text-muted">{{ empresa.direccion }}{% if g.tipo == '31' and empresa.registro_mtc %}<br>Registro MTC: {{ empresa.registro_mtc }}{% endif %}</div></div>
+    <div class="col-7">{% include 'core/_logo_empresa.html' %}<h5 class="mb-0">{{ empresa.razon_social }}</h5><div class="small text-muted">{{ empresa.direccion }}{% if g.tipo == '31' and empresa.registro_mtc %}<br>Registro MTC: {{ empresa.registro_mtc }}{% endif %}</div></div>
     <div class="col-5"><div class="doc-box"><div class="fw-bold">RUC {{ empresa.ruc }}</div>
       <div class="fw-bold text-uppercase">Guía de remisión electrónica<br>{% if g.tipo == '09' %}remitente{% else %}transportista{% endif %}</div>
       <div class="fs-5">{{ g.numero_completo }}</div></div></div>

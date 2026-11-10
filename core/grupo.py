@@ -104,6 +104,38 @@ def _usuario_en(alias, principal):
     return local
 
 
+def autenticar_en(request, alias, username, password):
+    """Ingreso directo a otra empresa con el usuario y la contraseña de la principal: solo para un usuario corporativo
+    con acceso a esa empresa. Devuelve (usuario de esa empresa, usuario de la principal) o None. Corre con la empresa
+    elegida activa; la clave se verifica en la base principal."""
+    from django.contrib.auth.backends import ModelBackend
+
+    from .doble_factor import tiene_doble_factor
+    if alias == 'default' or alias not in reg.empresas() or not username or not password:
+        return None
+    token = reg.activar('default')  # la verificación (y una posible mejora del hash) va a la base principal
+    try:
+        principal = ModelBackend().authenticate(request, username=username, password=password)
+        if principal is None:
+            return None
+        es, todas, permitidas, _ = acceso_de(principal)
+        if not es or not (todas or alias in permitidas):
+            return None
+        if tiene_doble_factor(principal):
+            raise ErrorGrupo('Su usuario corporativo tiene doble factor: ingrese por la empresa principal y pase a '
+                             'esta empresa desde el Panel del grupo.')
+    finally:
+        reg.restaurar(token)
+    local = _usuario_en(alias, principal)  # misma regla que el Panel del grupo (crea el espejo si falta)
+    local.backend = BACKEND
+    return local, principal
+
+
+def marcar_corporativo(request, principal):
+    """Deja la sesión vinculada al usuario corporativo de la principal (para pasar entre empresas)."""
+    request.session[SESION] = {'id': principal.pk, 'username': principal.username}
+
+
 def entrar(request, alias):
     """Pasa la sesión a otra empresa del grupo sin volver a ingresar."""
     principal = corporativo(request)
@@ -137,9 +169,10 @@ def siguiente_alias():
     return f'empresa{n}'
 
 
-def crear_empresa(razon_social, ruc, principal, sincrono=False, direccion='', ubigeo='', modelo=''):
+def crear_empresa(razon_social, ruc, principal, sincrono=False, direccion='', ubigeo='', modelo='', copiar=None):
     """Registra la empresa y la crea (base, tablas, ficha y administrador). Con «modelo» (alias de otra empresa del
-    grupo) copia sus series y parámetros. Devuelve el registro EmpresaGrupo."""
+    grupo) copia de ella lo marcado en «copiar» (claves de COPIABLES; sin indicar: series y parámetros). Devuelve el
+    registro EmpresaGrupo."""
     from .forms import error_ruc
     from .models import EmpresaGrupo
     razon_social, ruc = (razon_social or '').strip().upper(), (ruc or '').strip()
@@ -162,9 +195,13 @@ def crear_empresa(razon_social, ruc, principal, sincrono=False, direccion='', ub
     if not re.fullmatch(r'[a-z][a-z0-9_]{0,62}', base):
         raise ErrorGrupo(f'Nombre de base no válido: {base}')
     from . import ubigeo as ubigeos
+    modelo = modelo if modelo in reg.empresas() else ''
+    copiar = [c for c in (COPIA_POR_DEFECTO if copiar is None else copiar) if c in COPIABLES]
+    if modelo and not copiar:
+        raise ErrorGrupo('Marque qué copiar de la empresa modelo, o elija «Empezar sin copiar».')
     datos = {'direccion': (direccion or '').strip()[:250],
              'ubigeo': ubigeo if ubigeos.existe(ubigeo or '') else '',
-             'modelo': modelo if modelo in reg.empresas() else ''}
+             'modelo': modelo, 'copiar': copiar if modelo else []}
     registro = EmpresaGrupo.objects.using('default').create(alias=alias, base=base, razon_social=razon_social,
                                                             ruc=ruc, creado_por=principal.username, datos=datos,
                                                             mensaje='Creando la base de datos…')
@@ -197,7 +234,11 @@ def _crear(registro_id, principal_id):
             e.ubigeo = datos.get('ubigeo') or e.ubigeo
             e.save(using=alias)
             if datos.get('modelo'):
-                copiar_configuracion(datos['modelo'], alias)
+                EmpresaGrupo.objects.using('default').filter(pk=registro_id).update(
+                    mensaje='Copiando la configuración de la empresa modelo…')
+                copiar_configuracion(datos['modelo'], alias, datos.get('copiar', COPIA_POR_DEFECTO))
+            from .perfiles_predefinidos import crear as crear_perfiles  # REQ-04: perfiles por jefatura
+            crear_perfiles(using=alias)
             principal = get_user_model().objects.using('default').get(pk=principal_id)
             _usuario_en(alias, principal)
         finally:
@@ -225,21 +266,164 @@ PARAMETROS_MODELO = (
     'aviso_equipo_nuevo', 'dias_escalamiento', 'segregacion_estricta')
 
 
-def copiar_configuracion(origen, destino):
-    """Copia de la empresa modelo sus series (con el correlativo en cero) y sus parámetros de Ajustes › Empresa."""
-    from .models import Empresa, Serie
-    modelo = Empresa.objects.using(origen).first()
-    nueva = Empresa.objects.using(destino).first()
-    if modelo is None or nueva is None:
-        return
+def copiar_configuracion(origen, destino, que=None):
+    """Copia de la empresa modelo lo indicado en «que» (claves de COPIABLES, en su orden; sin indicar: series y
+    parámetros). Nunca copia movimientos, saldos, correlativos, números de cuenta ni credenciales. Devuelve las
+    etiquetas de lo copiado."""
+    from .models import Empresa
+    if Empresa.objects.using(origen).first() is None or Empresa.objects.using(destino).first() is None:
+        return []
+    que = set(COPIA_POR_DEFECTO if que is None else que)
+    hechas = []
+    for clave, (etiqueta, _, funcion) in COPIABLES.items():  # en orden: el plan de cuentas antes que lo que lo usa
+        if clave in que:
+            funcion(origen, destino)
+            hechas.append(etiqueta)
+    return hechas
+
+
+def _copiar_parametros(origen, destino):
+    from .models import Empresa
+    modelo, nueva = Empresa.objects.using(origen).first(), Empresa.objects.using(destino).first()
     for campo in PARAMETROS_MODELO:
         if hasattr(modelo, campo):
             setattr(nueva, campo, getattr(modelo, campo))
     nueva.save(using=destino)
+
+
+def _copiar_series(origen, destino):
+    from .models import Serie
     existentes = set(Serie.objects.using(destino).values_list('tipo', 'serie'))
     Serie.objects.using(destino).bulk_create([
         Serie(tipo=s.tipo, serie=s.serie, correlativo=0, activo=s.activo)
         for s in Serie.objects.using(origen).all() if (s.tipo, s.serie) not in existentes])
+
+
+def _por_codigo(modelo, base):
+    return {o.codigo: o for o in modelo.objects.using(base).all()}
+
+
+def _copiar_plan_contable(origen, destino):
+    """Cuentas del modelo (las nuevas se crean y las existentes toman sus datos), con sus cuentas de destino."""
+    from contabilidad.models import CuentaContable
+    campos = ('nombre', 'naturaleza', 'imputable', 'activo', 'columna_balance', 'moneda', 'tipo_cambio', 'analisis',
+              'centro_costo_regla')
+    # select_related: el enrutador lee las relaciones de la empresa activa, no de la base del objeto
+    origenes = list(CuentaContable.objects.using(origen).select_related('destino_debe', 'destino_haber')
+                    .order_by('codigo'))
+    actuales = _por_codigo(CuentaContable, destino)
+    for c in origenes:
+        nueva = actuales.get(c.codigo) or CuentaContable(codigo=c.codigo)
+        for campo in campos:
+            if hasattr(c, campo):
+                setattr(nueva, campo, getattr(c, campo))
+        nueva.save(using=destino)
+        actuales[c.codigo] = nueva
+    for c in origenes:  # segunda vuelta: las cuentas de destino (debe/haber) apuntan a cuentas ya creadas
+        nueva = actuales[c.codigo]
+        debe = actuales.get(c.destino_debe.codigo) if c.destino_debe_id else None
+        haber = actuales.get(c.destino_haber.codigo) if c.destino_haber_id else None
+        if (nueva.destino_debe_id, nueva.destino_haber_id) != (getattr(debe, 'pk', None), getattr(haber, 'pk', None)):
+            nueva.destino_debe, nueva.destino_haber = debe, haber
+            nueva.save(using=destino)
+
+
+def _copiar_cuentas_operacion(origen, destino):
+    """Cuentas por operación y por tipo de producto: la misma cuenta (por código) si existe en la empresa nueva."""
+    from contabilidad.models import CuentaContable, CuentaDefecto
+    cuentas = _por_codigo(CuentaContable, destino)
+    for d in CuentaDefecto.objects.using(origen).select_related('cuenta'):
+        cuenta = cuentas.get(d.cuenta.codigo)
+        if cuenta is None:
+            continue
+        CuentaDefecto.objects.using(destino).update_or_create(
+            clave=d.clave, defaults={'descripcion': d.descripcion, 'cuenta': cuenta})
+    from .models import CuentasTipoProducto
+    campos = [f.name for f in CuentasTipoProducto._meta.fields
+              if f.is_relation and f.related_model is CuentaContable]
+    for t in CuentasTipoProducto.objects.using(origen).select_related(*campos):
+        valores = {}
+        for campo in campos:
+            c = getattr(t, campo)
+            valores[campo] = cuentas.get(c.codigo) if c is not None else None
+        CuentasTipoProducto.objects.using(destino).update_or_create(clase=t.clase, defaults=valores)
+
+
+def _copiar_centros(origen, destino):
+    """Centros de beneficio y de costo (con su jerarquía); sin responsables, que son usuarios de cada empresa."""
+    from contabilidad.models import CentroBeneficio, CentroCosto
+    beneficios = _por_codigo(CentroBeneficio, destino)
+    for b in CentroBeneficio.objects.using(origen).all():
+        nuevo = beneficios.get(b.codigo) or CentroBeneficio(codigo=b.codigo)
+        nuevo.nombre, nuevo.responsable, nuevo.activo = b.nombre, b.responsable, b.activo
+        nuevo.save(using=destino)
+        beneficios[b.codigo] = nuevo
+    centros, origenes = _por_codigo(CentroCosto, destino), list(CentroCosto.objects.using(origen).select_related(
+        'centro_beneficio', 'padre'))
+    for c in origenes:
+        nuevo = centros.get(c.codigo) or CentroCosto(codigo=c.codigo)
+        for campo in ('nombre', 'tipo', 'responsable', 'activo', 'valido_desde', 'valido_hasta'):
+            setattr(nuevo, campo, getattr(c, campo))
+        nuevo.centro_beneficio = beneficios.get(c.centro_beneficio.codigo) if c.centro_beneficio_id else None
+        nuevo.padre = None
+        nuevo.save(using=destino)
+        centros[c.codigo] = nuevo
+    for c in origenes:
+        if c.padre_id:
+            CentroCosto.objects.using(destino).filter(pk=centros[c.codigo].pk).update(
+                padre=centros.get(c.padre.codigo))
+
+
+def _copiar_almacenes(origen, destino):
+    """Almacenes (sin stock, responsables ni tercero). Solo uno queda como principal."""
+    from .models import Almacen
+    actuales = _por_codigo(Almacen, destino)
+    hay_principal = Almacen.objects.using(destino).filter(es_principal=True).exists()
+    for a in Almacen.objects.using(origen).all():
+        nuevo = actuales.get(a.codigo)
+        if nuevo is None:
+            nuevo = Almacen(codigo=a.codigo, es_principal=a.es_principal and not hay_principal)
+            hay_principal = hay_principal or nuevo.es_principal
+        for campo in ('nombre', 'direccion', 'ubigeo', 'codigo_sunat', 'uso', 'modelo_control', 'operaciones',
+                      'activo'):
+            if hasattr(a, campo):
+                setattr(nuevo, campo, getattr(a, campo))
+        nuevo.save(using=destino)
+
+
+def _copiar_cajas_bancos(origen, destino):
+    """Cajas y cuentas bancarias: nombre, banco, moneda y cuenta contable; sin número de cuenta, CCI ni saldo
+    inicial (son de cada empresa)."""
+    from contabilidad.models import CuentaContable
+    from finanzas.models import Cuenta
+    cuentas = _por_codigo(CuentaContable, destino)
+    existentes = set(Cuenta.objects.using(destino).values_list('tipo', 'nombre', 'moneda'))
+    for c in Cuenta.objects.using(origen).select_related('cuenta_contable'):
+        if (c.tipo, c.nombre, c.moneda) in existentes:
+            continue
+        nueva = Cuenta(tipo=c.tipo, nombre=c.nombre, banco=c.banco, moneda=c.moneda,
+                       es_detracciones=c.es_detracciones, activo=c.activo)
+        for campo in ('incluir_en_efe', 'tipo_efectivo', 'permite_sobregiro'):
+            if hasattr(c, campo):
+                setattr(nueva, campo, getattr(c, campo))
+        if c.cuenta_contable_id:
+            nueva.cuenta_contable = cuentas.get(c.cuenta_contable.codigo)
+        nueva.save(using=destino)
+
+
+# REQ-01: lo que se puede copiar de la empresa modelo al crear una empresa: clave -> (etiqueta, ayuda, función).
+# El orden importa: el plan de cuentas va antes de lo que apunta a sus cuentas.
+COPIABLES = {
+    'series': ('Series de comprobantes', 'con el correlativo en cero', _copiar_series),
+    'parametros': ('Parámetros de la empresa', 'IGV, tolerancias, crédito, aprobaciones y contraseñas',
+                   _copiar_parametros),
+    'plan_contable': ('Plan contable', 'sus cuentas, incluidas las que agregó o modificó', _copiar_plan_contable),
+    'cuentas_operacion': ('Cuentas por operación', 'y cuentas por tipo de producto', _copiar_cuentas_operacion),
+    'centros': ('Centros de costo', 'y centros de beneficio', _copiar_centros),
+    'almacenes': ('Almacenes', 'sin stock', _copiar_almacenes),
+    'cajas_bancos': ('Cajas y bancos', 'sin número de cuenta ni saldos', _copiar_cajas_bancos),
+}
+COPIA_POR_DEFECTO = ('series', 'parametros')
 
 
 def reintentar(registro, principal, sincrono=False):

@@ -15,20 +15,43 @@ class ErrorCorreo(Exception):
     pass
 
 
-def enviar(destinatarios, asunto, plantilla, contexto, adjuntos=None):
+def correo_ceiba():
+    """REQ-06: el correo general de Ceiba si está configurado y activo; si no, None."""
+    try:
+        from .models import CorreoCeiba
+        cfg = CorreoCeiba.objects.using('default').first()
+    except Exception:  # base sin la tabla todavía
+        return None
+    return cfg if cfg is not None and cfg.activo and cfg.activa else None
+
+
+def configuracion():
+    """(configuración con que se envía, 'empresa' | 'ceiba') o (None, None) si no hay ninguna."""
+    cfg = CorreoConfig.actual()
+    if cfg.activa:
+        return cfg, 'empresa'
+    general = correo_ceiba()
+    return (general, 'ceiba') if general else (None, None)
+
+
+def enviar(destinatarios, asunto, plantilla, contexto, adjuntos=None, solo_ceiba=False):
     """Envía un correo HTML. Lanza ErrorCorreo con un mensaje claro si no se pudo.
 
-    adjuntos: [(nombre, contenido en bytes, tipo MIME)]."""
-    cfg = CorreoConfig.actual()
-    if not cfg.activa:
-        raise ErrorCorreo('Configure el correo saliente en Ajustes > Correo saliente.')
+    Usa el correo saliente de la empresa; si no lo configuró, el correo de Ceiba (REQ-06). solo_ceiba: para probar
+    el correo de Ceiba. adjuntos: [(nombre, contenido en bytes, tipo MIME)]."""
+    cfg, origen = (correo_ceiba(), 'ceiba') if solo_ceiba else configuracion()
+    if cfg is None:
+        raise ErrorCorreo('Configure el correo saliente en Ajustes > Correo saliente (o el administrador del grupo, '
+                          'el correo de Ceiba en el Panel del grupo).')
     destinatarios = [d for d in destinatarios if d]
     if not destinatarios:
         raise ErrorCorreo('El destinatario no tiene correo electrónico registrado.')
     empresa = Empresa.actual()
     contexto = {'empresa': empresa, **contexto}
     html = render_to_string(plantilla, contexto)
-    remitente = formataddr((cfg.nombre_remitente or empresa.razon_social, cfg.remitente or cfg.usuario))
+    nombre = cfg.nombre_remitente or (empresa.razon_social if origen == 'empresa' else
+                                      f'Ceiba ERP · {empresa.razon_social}')
+    remitente = formataddr((nombre, cfg.remitente or cfg.usuario))
     conexion = get_connection('django.core.mail.backends.smtp.EmailBackend', host=cfg.servidor, port=cfg.puerto,
                               username=cfg.usuario or None, password=cfg.clave or None,
                               use_tls=cfg.seguridad == 'TLS', use_ssl=cfg.seguridad == 'SSL', timeout=20)

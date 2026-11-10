@@ -205,7 +205,8 @@ class _Motor:
         periodo = date(periodo.year - (periodo.month == 1), 12 if periodo.month == 1 else periodo.month - 1, 1)
         while True:
             clave = f'{periodo:%Y%m}'
-            vence = cronograma_sunat.vencimiento(ruc, clave) or (_mes_siguiente(periodo) + timedelta(days=14))
+            vence = (cronograma_sunat.vencimiento(ruc, clave, empresa.buen_contribuyente)
+                     or (_mes_siguiente(periodo) + timedelta(days=14)))
             if vence > self.fin:
                 break
             igv, ventas = reales.get(clave, (promedio_igv, promedio_ventas))

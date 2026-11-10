@@ -7,11 +7,13 @@
     <form method="post">{% csrf_token %}
       {{ formset.management_form }}
       <div class="card"><div class="table-responsive"><table class="table table-sm mb-0 align-middle">
-        <thead><tr><th>Operación</th><th style="width:55%">Cuenta contable</th></tr></thead>
+        <thead><tr><th>Operación</th><th style="width:50%">Cuenta contable</th><th class="text-end" style="width:1%"></th></tr></thead>
         <tbody>
         {% for f in formset %}
-          <tr><td class="small">{{ f.id }}{{ f.instance.descripcion }}</td><td>{{ f.cuenta }}{% for e in f.cuenta.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-            {% if f.detalle %}<div class="small text-muted mt-1"><i class="bi bi-arrow-return-right"></i> Se registra en {% for c in f.detalle %}<b>{{ c.codigo }}</b> {{ c.nombre }}{% if c.moneda == 'USD' %} (dólares){% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endif %}</td></tr>
+          <tr><td class="small">{{ f.id }}{% if puede.contabilidad_configurar %}{{ f.descripcion }}{% for e in f.descripcion.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}{% else %}{{ f.instance.descripcion }}{% endif %}</td>
+            <td>{{ f.cuenta }}{% for e in f.cuenta.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            {% if f.detalle %}<div class="small text-muted mt-1"><i class="bi bi-arrow-return-right"></i> Se registra en {% for c in f.detalle %}<b>{{ c.codigo }}</b> {{ c.nombre }}{% if c.moneda == 'USD' %} (dólares){% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endif %}</td>
+            <td class="text-end text-nowrap">{% if f.del_sistema %}<span class="text-muted small" title="Operación del sistema: la usa la centralización. Se puede cambiar su cuenta, no eliminarla."><i class="bi bi-lock"></i></span>{% elif puede.contabilidad_configurar %}<button form="f-eliminar" name="pk" value="{{ f.instance.pk }}" class="btn btn-sm btn-outline-danger py-0" title="Eliminar operación" aria-label="Eliminar {{ f.instance.descripcion }}" data-confirm="¿Eliminar la operación «{{ f.instance.descripcion }}»?"><i class="bi bi-trash"></i></button>{% endif %}</td></tr>
         {% endfor %}
         </tbody>
       </table></div></div>
@@ -19,6 +21,17 @@
         <button name="accion" value="detallar" class="btn btn-outline-secondary mt-3" formnovalidate><i class="bi bi-arrow-return-right"></i> Usar las cuentas más detalladas</button>
       {% else %}<div class="alert alert-light border small mt-3 mb-0"><i class="bi bi-eye"></i> Solo lectura: cambiar las cuentas exige el permiso «Plan de cuentas y configuración».</div>{% endif %}
     </form>
+    {% if puede.contabilidad_configurar %}
+    <form method="post" id="f-eliminar">{% csrf_token %}<input type="hidden" name="accion" value="eliminar"></form>
+    <div class="card mt-3"><div class="card-header"><i class="bi bi-plus-circle"></i> Agregar operación</div><div class="card-body">
+      <form method="post" class="row g-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="agregar">
+        <div class="col-md-5"><label class="form-label small" for="{{ nueva.descripcion.id_for_label }}">Operación</label>{{ nueva.descripcion }}{% for e in nueva.descripcion.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</div>
+        <div class="col-md-5"><label class="form-label small" for="{{ nueva.cuenta.id_for_label }}">Cuenta contable</label>{{ nueva.cuenta }}{% for e in nueva.cuenta.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</div>
+        <div class="col-md-2"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-plus-lg"></i> Agregar</button></div>
+      </form>
+      <p class="small text-muted mt-2 mb-0">Las operaciones que agregue quedan como referencia de cuentas para su equipo y se pueden editar o eliminar. La centralización automática usa las operaciones del sistema (<i class="bi bi-lock"></i>), que no se eliminan.</p>
+    </div></div>
+    {% endif %}
   </div>
   <div class="col-lg-4"><div class="card"><div class="card-header">Cómo se usa</div><div class="card-body small">
     <ul class="mb-0">

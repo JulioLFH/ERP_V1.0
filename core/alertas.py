@@ -237,10 +237,36 @@ def calcular(user):
             alertas.append(_alerta('info', 'bi-arrow-repeat', 'Periodos con cambios sin centralizar',
                                    'Centralice: ' + ', '.join(f'{p[4:]}/{p[:4]}' for p in pendientes) + '.',
                                    reverse('contabilidad:periodos'), len(pendientes)))
+    if any(m in mods for m in ('sunat', 'contabilidad')):
+        alertas += _alertas_sunat(hoy)
     if user.is_superuser:
         alertas += _alertas_seguridad()
     orden = {'danger': 0, 'warning': 1, 'info': 2}
     return sorted(alertas, key=lambda a: orden[a['nivel']])
+
+
+def _alertas_sunat(hoy):
+    """REQ-02: vencimiento SUNAT del periodo que se declara (con lo que falta: SIRE sin aceptar, periodo abierto) y
+    aviso si el cronograma del año siguiente aún no está cargado (desde diciembre)."""
+    from .cronograma_sunat import fechas, periodo_anterior
+    from .estudio import resumen_contable
+    from .models import Empresa
+    empresa = Empresa.actual()
+    alertas = []
+    c = resumen_contable(empresa.ruc, empresa.buen_contribuyente)
+    if c['alerta']:
+        alertas.append(_alerta('danger' if c['dias_vence'] <= 3 else 'warning', 'bi-alarm',
+                               f'Vencimiento SUNAT {c["periodo_texto"]} ({c["vence"]:%d/%m/%Y})', c['alerta'],
+                               reverse('sire_propuestas'), 1))
+    elif c['vence'] is None:
+        alertas.append(_alerta('warning', 'bi-calendar-x', 'Falta el cronograma SUNAT',
+                               f'No hay cronograma para {c["periodo_texto"]}: el sistema no puede avisar el vencimiento.',
+                               reverse('cronograma_sunat'), 1))
+    if hoy.month == 12 and fechas(f'{hoy.year + 1}01')[0] is None and fechas(periodo_anterior(hoy))[0]:
+        alertas.append(_alerta('info', 'bi-calendar2-week', f'Cargue el cronograma SUNAT {hoy.year + 1}',
+                               'SUNAT lo publica en diciembre; sin él no habrá avisos de vencimiento en enero.',
+                               reverse('cronograma_sunat') + f'?anio={hoy.year + 1}', 1))
+    return alertas
 
 
 def _alertas_servicios(user, hoy):

@@ -26,7 +26,7 @@
 {% endif %}
 <div class="card doc-print"><div class="card-body">
   <div class="row align-items-center mb-3">
-    <div class="col-7"><h4 class="mb-0">{{ empresa.razon_social }}</h4><div class="small text-muted">RUC {{ empresa.ruc }} · {{ empresa.direccion }}</div></div>
+    <div class="col-7">{% include 'core/_logo_empresa.html' %}<h4 class="mb-0">{{ empresa.razon_social }}</h4><div class="small text-muted">RUC {{ empresa.ruc }}{% if empresa.direccion %} · {{ empresa.direccion }}{% endif %}</div></div>
     <div class="col-5"><div class="doc-box"><div class="fw-bold">{{ plantilla.titulo|default:'CERTIFICADO DE ANÁLISIS' }}</div><div class="fs-5">{{ c.numero }}</div></div></div>
   </div>
   <table class="table table-sm table-borderless">

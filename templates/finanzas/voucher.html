@@ -7,7 +7,7 @@
 <div class="v">
   {% if m.estado == 'ANULADO' %}<div class="alert alert-danger text-center fw-bold py-1">ANULADO el {{ m.anulado_en|date:'d/m/Y H:i' }}{% if m.anulado_por %} por {{ m.anulado_por.username }}{% endif %}: {{ m.motivo_anulacion }}</div>{% endif %}
   <div class="d-flex justify-content-between mb-3">
-    <div><h5 class="mb-0">{{ empresa.razon_social }}</h5><small class="text-muted">RUC {{ empresa.ruc }}</small></div>
+    <div>{% include 'core/_logo_empresa.html' with alto='50' %}<h5 class="mb-0">{{ empresa.razon_social }}</h5><small class="text-muted">RUC {{ empresa.ruc }}{% if empresa.direccion %} · {{ empresa.direccion }}{% endif %}</small></div>
     <div class="text-end"><h5 class="mb-0">VOUCHER DE {{ m.get_tipo_display|upper }}</h5><div class="fs-5">{{ m.voucher }}</div></div>
   </div>
   <table class="table table-bordered">

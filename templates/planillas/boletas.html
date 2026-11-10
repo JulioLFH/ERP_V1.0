@@ -18,7 +18,7 @@
 <div class="barra"><button data-imprimir>Imprimir / guardar PDF</button></div>
 {% for f in filas %}{% with t=f.trabajador %}
 <div class="boleta">
-  <h1>{{ empresa.razon_social }} · RUC {{ empresa.ruc }}</h1>
+  {% include 'core/_logo_empresa.html' with alto='50' %}<h1>{{ empresa.razon_social }} · RUC {{ empresa.ruc }}</h1>{% if empresa.direccion %}<div style="font-size:11px">{{ empresa.direccion }}</div>{% endif %}
   <h2>Boleta de pago · {{ planilla.get_tipo_display }} · {{ planilla.periodo|slice:'4:' }}/{{ planilla.periodo|slice:':4' }}</h2>
   <table class="datos">
     <tr><td class="k">Trabajador</td><td>{{ t.nombre_completo }}</td><td class="k">{{ t.get_tipo_doc_display }}</td><td>{{ t.numero_doc }}</td></tr>

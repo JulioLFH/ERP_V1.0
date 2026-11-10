@@ -29,7 +29,9 @@ def empresas(request):
                 r = grupo.crear_empresa(request.POST.get('razon_social'), request.POST.get('ruc'), principal,
                                         direccion=request.POST.get('direccion', ''),
                                         ubigeo=request.POST.get('ubigeo', ''),
-                                        modelo=request.POST.get('modelo', ''))
+                                        modelo=request.POST.get('modelo', ''),
+                                        copiar=request.POST.getlist('copiar') if request.POST.get('con_copiado')
+                                        else None)
                 messages.success(request, f'Creando {r.razon_social}: tarda un par de minutos. Esta página se '
                                           f'actualiza sola.')
             except grupo.ErrorGrupo as exc:
@@ -71,7 +73,55 @@ def empresas(request):
     return render(request, 'core/grupo_empresas.html', {
         'filas': filas, 'puede_crear': grupo.puede_crear(request), 'principal': principal,
         'corporativos': corporativos, 'aliases': list(reg.empresas()),
+        'activas': [f for f in filas if f['alias'] in reg.empresas() and (
+            f['registro'] is None or f['registro'].estado == 'LISTA')],
+        'copiables': grupo.COPIABLES, 'copia_defecto': grupo.COPIA_POR_DEFECTO,
         'creando': any(f['registro'] and f['registro'].estado == 'CREANDO' for f in filas)})
+
+
+@login_required
+def correo_ceiba(request):
+    """REQ-06: correo general de Ceiba (respaldo de las empresas sin correo propio). Solo el administrador de la
+    empresa principal."""
+    _exigir_corporativo(request)
+    principal = grupo.corporativo(request)
+    if not principal.is_superuser:
+        return render(request, 'core/sin_acceso.html',
+                      {'motivo': 'Solo un administrador de la empresa principal configura el correo de Ceiba.'},
+                      status=403)
+    from django.conf import settings
+
+    from .correo import ErrorCorreo, enviar
+    from .forms import CorreoCeibaForm
+    from .models import CorreoCeiba
+    cfg = CorreoCeiba.actual()
+    if request.method == 'POST' and request.POST.get('accion') == 'probar':
+        destino = request.POST.get('destino', '').strip() or principal.email
+        try:
+            enviar([destino], f'Prueba del correo de {settings.ERP_NOMBRE}', 'proveedores/correo_prueba.html',
+                   {'usuario': principal}, solo_ceiba=True)
+            messages.success(request, f'Correo de prueba enviado a {destino}.')
+        except ErrorCorreo as exc:
+            messages.error(request, str(exc) if cfg.activa else 'Guarde primero el servidor y el usuario del correo.')
+        return redirect('correo_ceiba')
+    form = CorreoCeibaForm(request.POST or None, instance=cfg)
+    if request.method == 'POST' and form.is_valid():
+        form.instance.save(using='default')
+        messages.success(request, 'Correo de Ceiba guardado.')
+        return redirect('correo_ceiba')
+    sin_propio = []
+    for alias in reg.empresas():
+        token = reg.activar(alias)
+        try:
+            from .models import CorreoConfig
+            propio = CorreoConfig.objects.first()
+            if not (propio and propio.activa):
+                sin_propio.append(reg.razon_social(alias))
+        except Exception:  # base no disponible
+            pass
+        finally:
+            reg.restaurar(token)
+    return render(request, 'core/correo_ceiba.html', {'form': form, 'cfg': cfg, 'sin_propio': sin_propio})
 
 
 def _resumen(alias):
@@ -91,7 +141,9 @@ def _resumen(alias):
             pendientes.append('series')
         correo, facturacion = CorreoConfig.objects.first(), FacturacionConfig.objects.first()  # solo lectura
         if not (correo and correo.activa):
-            pendientes.append('correo')
+            from .correo import correo_ceiba
+            if correo_ceiba() is None:  # REQ-06: con el correo de Ceiba la empresa ya puede enviar
+                pendientes.append('correo')
         if not (facturacion and facturacion.activa):
             pendientes.append('facturación electrónica')
         if e and not (e.direccion or '').strip():
@@ -100,7 +152,7 @@ def _resumen(alias):
         return {'ruc': e.ruc if e else '', 'usuarios': get_user_model().objects.filter(is_active=True).count(),
                 'ventas_mes': ventas.aggregate(t=Sum('total_pen'))['t'] or 0,
                 'ultima_venta': Venta.objects.aggregate(f=Max('fecha_emision'))['f'], 'pendientes': pendientes,
-                'contable': resumen_contable(e.ruc if e else ''), 'error': ''}
+                'contable': resumen_contable(e.ruc if e else '', bool(e and e.buen_contribuyente)), 'error': ''}
     except Exception as exc:  # base no disponible o en creación
         return {'error': type(exc).__name__}
     finally:
@@ -168,6 +220,7 @@ def panel(request):
         'tarjetas': tarjetas, 'principal': principal, 'puede_crear': grupo.puede_crear(request),
         'aliases': list(reg.empresas()), 'version': settings.ERP_VERSION, 'disp_30': es.disponibilidad(30),
         'activas': activas, 'periodo_masivo': periodo_anterior(timezone.localdate()),
+        'copiables': grupo.COPIABLES, 'copia_defecto': grupo.COPIA_POR_DEFECTO,
         'creando': any(t['registro'] and t['registro'].estado == 'CREANDO' for t in tarjetas)})
 
 

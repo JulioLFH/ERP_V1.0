@@ -71,6 +71,10 @@ def _empresas_registradas():
 for _alias, _base, _nombre in _empresas_registradas():
     DATABASES.setdefault(_alias, {**_CONEXION, 'NAME': _base})
     EMPRESAS.setdefault(_alias, _nombre)
+# dominio público detrás de un proxy (p. ej. Cloudflare): sin esto el login responde «La verificación CSRF ha
+# fallado», porque la petición llega al servidor por http o con otro Host. Separados por coma, con https://
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(
+    [*CSRF_TRUSTED_ORIGINS, *(o.strip() for o in _dato('CSRF_TRUSTED_ORIGINS').split(',') if o.strip())]))
 # cada instalación con su propia cookie (PG_COOKIE): dos copias del sistema en el mismo equipo no cruzan sesiones
 _COOKIE = _dato('PG_COOKIE', 'ceiba_pg')
 SESSION_COOKIE_NAME = f'{_COOKIE}_sesion'  # no se mezcla con las sesiones de las bases SQLite

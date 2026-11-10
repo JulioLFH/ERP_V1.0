@@ -721,8 +721,30 @@ def configuracion(request):
         else:
             messages.info(request, 'Todas las operaciones ya usan la cuenta más detallada del plan.')
         return redirect('contabilidad:configuracion')
-    formset = CuentaDefectoFormSet(request.POST or None, queryset=CuentaDefecto.objects.select_related('cuenta'))
-    if request.method == 'POST' and formset.is_valid():
+    # REQ-10: agregar y eliminar operaciones (las del sistema no se eliminan: la centralización las usa)
+    from .forms import NuevaOperacionForm
+    del_sistema = {clave for clave, *_ in pcge.DEFECTOS}
+    accion = request.POST.get('accion') if request.method == 'POST' else None
+    nueva = NuevaOperacionForm(request.POST if accion == 'agregar' else None, prefix='nueva')
+    if accion == 'agregar':
+        if nueva.is_valid():
+            op = nueva.save()
+            messages.success(request, f'Operación «{op.descripcion}» agregada con la cuenta {op.cuenta.codigo}.')
+            return redirect('contabilidad:configuracion')
+    elif accion == 'eliminar':
+        op = CuentaDefecto.objects.filter(pk=request.POST.get('pk')).first()
+        if op is None:
+            messages.error(request, 'La operación ya no existe.')
+        elif op.clave in del_sistema:
+            messages.error(request, f'«{op.descripcion}» es una operación del sistema (la usa la centralización): '
+                                    f'puede cambiar su cuenta, pero no eliminarla.')
+        else:
+            op.delete()
+            messages.success(request, f'Operación «{op.descripcion}» eliminada.')
+        return redirect('contabilidad:configuracion')
+    formset = CuentaDefectoFormSet(request.POST if accion is None and request.method == 'POST' else None,
+                                   queryset=CuentaDefecto.objects.select_related('cuenta'))
+    if request.method == 'POST' and accion is None and formset.is_valid():
         formset.save()
         messages.success(request, 'Configuración contable guardada. Vuelva a centralizar los periodos abiertos '
                                   'para aplicar los cambios.')
@@ -732,7 +754,8 @@ def configuracion(request):
         cuenta = f.instance.cuenta if f.instance.cuenta_id else None
         mn, me = pcge.al_detalle(cuenta), pcge.al_detalle(cuenta, 'USD', emparejar=True)
         f.detalle = [c for c in dict.fromkeys((mn, me)) if c is not None and c != cuenta]
-    return render(request, 'contabilidad/configuracion.html', {'formset': formset})
+        f.del_sistema = f.instance.clave in del_sistema
+    return render(request, 'contabilidad/configuracion.html', {'formset': formset, 'nueva': nueva})
 
 
 class CentroCostoLista(ListaGenerica):

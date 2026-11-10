@@ -78,7 +78,8 @@ def crear_base_si_falta(alias):
 # tablas que siempre están en la base principal (la sesión dice qué empresa usar; el registro del grupo y los
 # usuarios corporativos son del grupo, no de una empresa)
 APPS_PRINCIPAL = {'sessions'}
-MODELOS_PRINCIPAL = {'empresagrupo', 'usuariocorporativo'}
+# REQ-02 y REQ-06: el cronograma SUNAT y el correo de Ceiba también son del grupo
+MODELOS_PRINCIPAL = {'empresagrupo', 'usuariocorporativo', 'cronogramasunat', 'correoceiba'}
 
 
 def _de_principal(model):

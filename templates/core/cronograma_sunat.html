@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Cronograma SUNAT {{ anio }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title"><i class="bi bi-calendar2-week"></i> Cronograma de vencimientos SUNAT</h1>
+  <div class="btn-group btn-group-sm">
+    <a href="?anio={{ anio|add:'-1' }}" class="btn btn-outline-secondary" aria-label="Año anterior"><i class="bi bi-chevron-left"></i></a>
+    <span class="btn btn-outline-secondary disabled fw-semibold">{{ anio }}</span>
+    <a href="?anio={{ anio|add:'1' }}" class="btn btn-outline-secondary" aria-label="Año siguiente"><i class="bi bi-chevron-right"></i></a>
+  </div>
+</div>
+<p class="small text-muted">Obligaciones mensuales (IGV-Renta, PLE y SIRE de ventas y compras) por último dígito del RUC. {{ empresa.razon_social }} (RUC {{ empresa.ruc }}) está en la columna <b>{% if mi_grupo == 'BC' %}buenos contribuyentes{% else %}{{ mi_grupo|default:'—' }}{% endif %}</b>{% if not empresa.buen_contribuyente %}; si SUNAT la calificó como buen contribuyente, márquelo en Ajustes › Empresa{% endif %}.</p>
+{% if faltan %}<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle"></i> {{ faltan }} mes{{ faltan|pluralize:'es' }} de {{ anio }} sin cronograma: el panel no puede avisar sus vencimientos. {% if admin %}Cópielos del cronograma que SUNAT publica cada diciembre y guarde.{% else %}Pida al administrador que lo cargue.{% endif %}</div>{% endif %}
+<form method="post">{% csrf_token %}<input type="hidden" name="anio" value="{{ anio }}">
+<div class="card"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
+  <thead><tr><th>Periodo</th>{% for c, nombre in grupos %}<th class="small">{{ nombre }}</th>{% endfor %}<th class="small">Origen</th></tr></thead>
+  <tbody>{% for f in filas %}<tr>
+    <td class="text-nowrap"><b>{{ f.mes }}</b>{% if f.mia and f.dias is not None and f.dias >= 0 and f.dias <= 31 %}<div class="small {% if f.dias <= 3 %}text-danger{% else %}text-muted{% endif %}">vence en {{ f.dias }} día{{ f.dias|pluralize }}</div>{% endif %}</td>
+    {% for c in f.celdas %}<td class="{% if c.mia %}table-success{% endif %}">{% if admin %}<input type="date" name="{{ f.periodo }}_{{ c.campo }}" value="{{ c.fecha|date:'Y-m-d' }}" class="form-control form-control-sm" style="min-width:8.5rem" aria-label="{{ f.mes }} {{ c.campo }}">{% else %}{{ c.fecha|date:'d/m/Y'|default:'—' }}{% endif %}</td>{% endfor %}
+    <td class="small">{% if f.origen == 'cargado' %}<span class="badge text-bg-success">cargado</span>{% elif f.origen == 'sistema' %}<span class="badge text-bg-light border">del sistema</span>{% else %}<span class="badge text-bg-warning">falta</span>{% endif %}</td>
+  </tr>{% endfor %}</tbody>
+</table></div></div>
+{% if admin %}<div class="d-flex flex-wrap gap-2 align-items-center mt-3"><button class="btn btn-primary"><i class="bi bi-check-lg"></i> Guardar cronograma {{ anio }}</button>
+  <span class="small text-muted">Una fila vacía vuelve a la tabla del sistema. Cada mes necesita sus 7 fechas.</span></div>
+{% else %}<p class="small text-muted mt-2">Solo un administrador carga o modifica el cronograma.</p>{% endif %}
+</form>
+{% endblock %}

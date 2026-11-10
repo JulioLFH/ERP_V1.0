@@ -30,13 +30,28 @@ def grupo(ruc, buen_contribuyente=False):
     return next((g for g in _GRUPOS if ultimo and ultimo in g), None)
 
 
+def fechas(periodo):
+    """REQ-02: (fechas de los 7 grupos, origen) del periodo AAAAMM. Origen: 'cargado' (Cronograma SUNAT que cargó el
+    administrador, en la base principal), 'sistema' (tabla incluida) o None si no hay cronograma para ese periodo."""
+    try:
+        from .models import CronogramaSunat
+        fila = CronogramaSunat.objects.using('default').filter(periodo=periodo).first()
+    except Exception:  # base sin la tabla todavía (antes de migrar)
+        fila = None
+    if fila is not None:
+        return tuple(getattr(fila, c) for c in fila.CAMPOS), 'cargado'
+    if periodo in _TABLA:
+        return tuple(date.fromisoformat(f) for f in _TABLA[periodo]), 'sistema'
+    return None, None
+
+
 def vencimiento(ruc, periodo, buen_contribuyente=False):
     """Fecha de vencimiento del periodo tributario (AAAAMM) para el RUC; None si el año no está cargado."""
-    fechas = _TABLA.get(periodo)
+    lista, _ = fechas(periodo)
     g = grupo(ruc, buen_contribuyente)
-    if not fechas or g is None:
+    if not lista or g is None:
         return None
-    return date.fromisoformat(fechas[_GRUPOS.index(g)])
+    return lista[_GRUPOS.index(g)]
 
 
 def periodo_anterior(hoy):

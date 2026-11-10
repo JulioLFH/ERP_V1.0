@@ -293,11 +293,12 @@ def items(user, mods, desde, hasta, capas):
     if 'sunat' in capas and (user.is_superuser or {'sunat', 'contabilidad'} & mods):
         from core.cronograma_sunat import vencimiento
         from core.models import Empresa
-        ruc = Empresa.actual().ruc
+        empresa = Empresa.actual()
+        ruc = empresa.ruc
         mes = desde.replace(day=1)
         while mes <= hasta:  # en cada mes vence el periodo anterior
             anterior = (mes - timedelta(days=1)).strftime('%Y%m')
-            fecha = vencimiento(ruc, anterior)
+            fecha = vencimiento(ruc, anterior, empresa.buen_contribuyente)
             if fecha:
                 poner(fecha, hora='', titulo=f'Vence IGV-Renta y PLE/SIRE de {anterior[4:]}/{anterior[:4]}',
                       url=reverse('sire_propuestas'), color=colores['sunat'], capa='sunat')

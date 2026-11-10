@@ -159,6 +159,10 @@ ACCIONES = {
                  False),
                 ('validar', 'Validar o aprobar registros de calidad (auditor, responsable del sistema de gestión)',
                  True)],
+    # REQ-05: el módulo SUNAT tiene permisos propios (antes dependía de Contabilidad y Tesorería para registrar)
+    'sunat': [('sire', 'Traer, revisar y aceptar las propuestas del SIRE (RVIE y RCE)', True),
+              ('detracciones', 'Registrar depósitos de detracción y constancias de clientes desde el módulo SUNAT',
+               True)],
 }
 TODAS = {f'{m}.{a}' for m, lista in ACCIONES.items() for a, _, _ in lista}
 # acciones sensibles nuevas: nunca se dan por defecto (ni a usuarios sin perfil); el administrador las asigna
@@ -176,7 +180,9 @@ EXPLICITAS = {'asistente.aprobar_ficha', 'requerimientos.aprobar', 'contabilidad
               # usuarios y permisos: solo el administrador o a quien se le asigna (AJ-01)
               'ajustes.usuarios',
               # v1.104: los agentes con IA tienen costo por uso: solo a quien se le asigna
-              'ventas.agente', 'ajustes.agentes'}
+              'ventas.agente', 'ajustes.agentes',
+              # REQ-05: SIRE y detracciones del módulo SUNAT, solo a quien se le asignan
+              'sunat.sire', 'sunat.detracciones'}
 
 # ruta -> acción exigida. Valor str = siempre; dict = según el método o un dato de la petición (función)
 RUTAS = {
@@ -227,8 +233,9 @@ RUTAS = {
     # TE-01 y SEG-10: alta y edición del maestro de terceros; aprobación del cambio de cuenta bancaria
     'tercero_nuevo': {'POST': 'contactos.registrar'}, 'tercero_editar': {'POST': 'contactos.registrar'},
     'tercero_banco': {'POST': 'tesoreria.datos_bancarios'},
-    # SU-01 y SU-02: el SIRE es tributario (contabilidad)
-    'sire_propuestas': {'POST': 'contabilidad.asientos'}, 'sire_propuesta': {'POST': 'contabilidad.asientos'},
+    # SU-01 y SU-02: el SIRE es tributario (contabilidad); REQ-05: o el permiso propio del módulo SUNAT
+    **{r: (lambda req: _una_de(req, 'sunat.sire', 'contabilidad.asientos') if req.method == 'POST' else None)
+       for r in ('sire_propuestas', 'sire_propuesta')},
     'compras:portal_factura_aprobar': 'portal_proveedores.aprobar',
     'compras:portal_factura_rechazar': 'portal_proveedores.aprobar', 'compras:liberar_pago': 'portal_proveedores.aprobar',
     'compras:portal_acceso_nuevo': 'portal_proveedores.aprobar',
@@ -256,10 +263,10 @@ RUTAS = {
     'finanzas:cheque_estado': lambda r: 'tesoreria.registrar' if r.POST.get('estado') == 'COBRADO' else 'tesoreria.anular',
     'finanzas:entrega_nueva': 'tesoreria.registrar', 'finanzas:entrega': {'POST': 'tesoreria.registrar'},
     'finanzas:pago_masivo_nuevo': {'POST': 'tesoreria.registrar'}, 'finanzas:pago_masivo': {'POST': 'tesoreria.registrar'},
-    'finanzas:detracciones_masivas_nuevo': {'POST': 'tesoreria.registrar'},
-    'finanzas:detraccion_masiva': {'POST': 'tesoreria.registrar'},
-    'finanzas:constancias_clientes': {'POST': 'tesoreria.registrar'},
-    'ventas:deposito_detraccion': {'POST': 'tesoreria.registrar'},
+    # REQ-05: detracciones con el permiso de Tesorería o con el del módulo SUNAT
+    **{r: (lambda req: _una_de(req, 'sunat.detracciones', 'tesoreria.registrar') if req.method == 'POST' else None)
+       for r in ('finanzas:detracciones_masivas_nuevo', 'finanzas:detraccion_masiva', 'finanzas:constancias_clientes',
+                 'ventas:deposito_detraccion')},
     'finanzas:saldo_inicial': {'POST': 'tesoreria.cuentas'}, 'finanzas:saldo_inicial_sustento': 'tesoreria.cuentas',
     # finanzas: anticipos, letras, canjes, préstamos y leasing
     'finanzas:anticipo_aplicar': {'POST': 'finanzas.registrar'},
@@ -449,6 +456,11 @@ RUTAS = {
     'rendiciones:integracion': {'POST': 'rendiciones.contabilizar'},
 }
 CAMPOS_ALMACEN = ('almacen', 'almacen_origen', 'almacen_destino', 'almacen_insumos')
+
+
+def _una_de(request, *acciones):
+    """La primera acción que el usuario tiene (basta una); si no tiene ninguna, la primera (para el aviso)."""
+    return next((a for a in acciones if puede(request.user, a)), acciones[0])
 
 
 def _aprobar_oc():

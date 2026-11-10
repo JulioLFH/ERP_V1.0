@@ -1,0 +1,1 @@
+{# REQ-09: logo de la empresa en los formatos impresos (Ajustes › Empresa); nada si no hay logo #}{% if empresa.logo_data_uri %}<img src="{{ empresa.logo_data_uri }}" alt="{{ empresa.razon_social }}" class="logo-empresa" style="max-height:{{ alto|default:'70' }}px;max-width:220px;object-fit:contain;display:block;margin-bottom:6px">{% endif %}

@@ -172,15 +172,46 @@ LineasPresupuestoFormSet = inlineformset_factory(Presupuesto, PresupuestoLinea, 
 class CuentaDefectoForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = CuentaDefecto
-        fields = ['cuenta']
+        fields = ['descripcion', 'cuenta']  # REQ-10: también se edita el nombre de la operación
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['cuenta'].queryset = cuentas_imputables()
+        remoto(self.fields['cuenta'], 'cuentas')
+        self.fields['descripcion'].widget.attrs['class'] = 'form-control form-control-sm'
+
+
+CuentaDefectoFormSet = modelformset_factory(CuentaDefecto, form=CuentaDefectoForm, extra=0)
+
+
+class NuevaOperacionForm(BootstrapMixin, forms.ModelForm):
+    """REQ-10: operación agregada por el usuario (clave propia, se puede eliminar)."""
+    class Meta:
+        model = CuentaDefecto
+        fields = ['descripcion', 'cuenta']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['cuenta'].queryset = cuentas_imputables()
         remoto(self.fields['cuenta'], 'cuentas')
 
+    def clean_descripcion(self):
+        texto = (self.cleaned_data.get('descripcion') or '').strip()
+        if CuentaDefecto.objects.filter(descripcion__iexact=texto).exists():
+            raise forms.ValidationError('Ya hay una operación con ese nombre.')
+        return texto
 
-CuentaDefectoFormSet = modelformset_factory(CuentaDefecto, form=CuentaDefectoForm, extra=0)
+    def save(self, commit=True):
+        from django.utils.text import slugify
+        op = super().save(commit=False)
+        base = 'usr_' + (slugify(op.descripcion).replace('-', '_')[:30] or 'operacion')
+        clave, n = base, 2
+        while CuentaDefecto.objects.filter(clave=clave).exists():
+            clave, n = f'{base}_{n}', n + 1
+        op.clave = clave
+        if commit:
+            op.save()
+        return op
 
 
 class AsientoForm(BootstrapMixin, forms.ModelForm):

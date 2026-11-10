@@ -34,7 +34,7 @@
 
 <div class="card doc-print">
   <div class="row align-items-center mb-4">
-    <div class="col-7"><h4 class="mb-0">{{ empresa.razon_social }}</h4><div class="small text-muted">RUC {{ empresa.ruc }} · {{ empresa.direccion }}</div></div>
+    <div class="col-7">{% include 'core/_logo_empresa.html' %}<h4 class="mb-0">{{ empresa.razon_social }}</h4><div class="small text-muted">RUC {{ empresa.ruc }}{% if empresa.direccion %} · {{ empresa.direccion }}{% endif %}{% if empresa.telefono or empresa.email %}<br>{{ empresa.telefono }} {{ empresa.email }}{% endif %}</div></div>
     <div class="col-5"><div class="doc-box"><div class="fw-bold">{{ titulo_doc }}</div><div class="fs-5">{{ doc.numero }}</div>
       <span class="badge badge-{{ doc.estado }}">{{ doc.get_estado_display }}</span></div></div>
   </div>

@@ -209,6 +209,14 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
             self.add_error(None, 'No puede cambiar sus propios módulos, acciones ni perfil de acceso: lo hace otro '
                                  'usuario que administre los permisos.')
             return
+        # REQ-03: los módulos los administra solo el administrador (también los que trae un perfil de acceso)
+        if modulos != antes_mod:
+            self.add_error('modulos', 'Solo un administrador asigna o quita módulos.')
+            return
+        if self._perfil_a_aplicar(data) is not None:
+            self.add_error('perfil_acceso', 'Solo un administrador aplica perfiles de acceso (traen módulos y '
+                                            'acciones).')
+            return
         nuevos_mod, nuevas_acc = modulos - antes_mod - mis_modulos, acciones - antes_acc - mis_acciones
         if nuevos_mod or nuevas_acc:
             self.add_error(None, 'Solo puede dar módulos y acciones que usted tiene: '
@@ -398,6 +406,16 @@ def perfiles(request):
     from django.db.models import Count
 
     from .models import PerfilAcceso
+    if request.method == 'POST' and request.POST.get('accion') == 'predefinidos':  # REQ-04
+        if not request.user.is_superuser:
+            messages.error(request, 'Solo un administrador crea perfiles de acceso.')
+        else:
+            from .perfiles_predefinidos import crear
+            creados = crear()
+            messages.success(request, f'{len(creados)} perfil(es) creados: {", ".join(creados)}. Revíselos y '
+                                      f'ajústelos a su empresa.' if creados else
+                             'Los perfiles predefinidos ya existen (no se modificaron).')
+        return redirect('perfiles_acceso')
     return render(request, 'core/perfiles_acceso.html', {
         'perfiles': PerfilAcceso.objects.annotate(n=Count('usuarios')), 'modulos': POR_CLAVE})
 
@@ -406,6 +424,9 @@ def perfiles(request):
 def perfil_editar(request, pk=None):
     from .models import PerfilAcceso
     from .permisos import ACCIONES
+    if not request.user.is_superuser:  # REQ-03: los perfiles traen módulos: solo el administrador los define
+        return render(request, 'core/sin_acceso.html',
+                      {'motivo': 'Solo un administrador crea o modifica perfiles de acceso.'}, status=403)
     perfil = get_object_or_404(PerfilAcceso, pk=pk) if pk else PerfilAcceso()
     form = PerfilAccesoForm(request.POST or None, instance=perfil)
     if request.method == 'POST' and form.is_valid():

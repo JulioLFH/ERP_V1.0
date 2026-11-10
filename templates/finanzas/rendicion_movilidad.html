@@ -6,7 +6,7 @@
 <div class="text-center no-print mt-3"><button data-imprimir class="btn btn-primary btn-sm">Imprimir / guardar como PDF</button></div>
 <div class="v">
   <div class="d-flex justify-content-between mb-3">
-    <div><h5 class="mb-0">{{ empresa.razon_social }}</h5><small class="text-muted">RUC {{ empresa.ruc }}</small></div>
+    <div>{% include 'core/_logo_empresa.html' with alto='50' %}<h5 class="mb-0">{{ empresa.razon_social }}</h5><small class="text-muted">RUC {{ empresa.ruc }}{% if empresa.direccion %} · {{ empresa.direccion }}{% endif %}</small></div>
     <div class="text-end"><h5 class="mb-0">PLANILLA DE GASTOS DE MOVILIDAD</h5><div>{{ r.numero }}</div></div>
   </div>
   <table class="table table-bordered table-sm">

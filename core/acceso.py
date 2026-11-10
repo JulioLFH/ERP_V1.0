@@ -47,6 +47,11 @@ class LoginSeguroForm(AuthenticationForm):
         try:
             datos = super().clean()
         except forms.ValidationError:
+            corporativo = self._corporativo(usuario)
+            if corporativo is not None:  # usuario corporativo: misma clave de la empresa principal
+                self.user_cache, self.principal_corporativo = corporativo
+                IntentoAcceso.objects.filter(usuario__iexact=usuario).delete()
+                return self.cleaned_data
             if usuario:
                 IntentoAcceso.objects.create(usuario=usuario[:150], ip=_ip(self.request) if self.request else '')
             if usuario and maximo:
@@ -59,6 +64,19 @@ class LoginSeguroForm(AuthenticationForm):
             raise
         IntentoAcceso.objects.filter(usuario__iexact=usuario).delete()
         return datos
+
+    def _corporativo(self, usuario):
+        """En otra empresa del grupo, el corporativo con acceso entra con su usuario y clave de la principal."""
+        from erp.empresas import actual
+
+        from .grupo import ErrorGrupo, autenticar_en
+        try:
+            res = autenticar_en(self.request, actual(), usuario, self.data.get('password') or '')
+        except ErrorGrupo as exc:
+            raise forms.ValidationError(str(exc), code='corporativo')
+        if res is not None:
+            self.confirm_login_allowed(res[0])
+        return res
 
 
 def cambiar_empresa(request):
@@ -137,6 +155,10 @@ class LoginSeguroView(LoginView):
         self.request.session['empresa'] = alias  # después de login(): si cambió de usuario, la sesión se limpió
         from .grupo import marcar
         marcar(self.request, usuario, alias)  # usuario corporativo: pasa a las demás empresas sin volver a ingresar
+        principal = getattr(form, 'principal_corporativo', None)
+        if principal is not None:  # entró directo a otra empresa con la clave de la principal
+            from .grupo import marcar_corporativo
+            marcar_corporativo(self.request, principal)
         from .politicas import revisar_equipo
         revisar_equipo(self.request, usuario, respuesta)
         return respuesta

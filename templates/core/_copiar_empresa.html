@@ -1,0 +1,13 @@
+{# REQ-01: empresa modelo y qué copiar de ella al crear una empresa (lo usan el Panel y Empresas del grupo) #}
+<div class="col-12"><input type="hidden" name="con_copiado" value="1">
+  <label class="form-label small">Copiar de la empresa</label>
+  <select name="modelo" class="form-select form-select-sm js-modelo"><option value="">— Empezar sin copiar —</option>{% for t in activas %}<option value="{{ t.alias }}">{{ t.nombre }}</option>{% endfor %}</select>
+  <fieldset class="js-copiar mt-2 border rounded p-2" disabled>
+    <legend class="form-label small mb-1 float-none w-auto px-1">Qué copiar</legend>
+    <div class="row row-cols-1 row-cols-md-2 g-1 small">{% for clave, c in copiables.items %}
+      <div class="col"><label class="d-flex gap-2"><input type="checkbox" name="copiar" value="{{ clave }}" class="form-check-input mt-1" {% if clave in copia_defecto %}checked{% endif %}><span>{{ c.0 }} <span class="text-muted">({{ c.1 }})</span></span></label></div>{% endfor %}
+    </div>
+    <div class="d-flex gap-3 small mt-1"><a href="#" class="js-copiar-todo">Marcar todo</a><a href="#" class="js-copiar-nada">Desmarcar todo</a></div>
+  </fieldset>
+  <div class="form-text">Nunca se copian movimientos, saldos, correlativos, números de cuenta bancaria ni claves de SUNAT o del correo.</div>
+</div>

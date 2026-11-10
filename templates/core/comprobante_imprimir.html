@@ -9,7 +9,7 @@
 <div class="doc-print">
   <div class="row align-items-center mb-4">
     <div class="col-7">
-      <h4 class="mb-0">{{ empresa.razon_social }}</h4>
+      {% include 'core/_logo_empresa.html' %}<h4 class="mb-0">{{ empresa.razon_social }}</h4>
       {% if empresa.nombre_comercial %}<div>{{ empresa.nombre_comercial }}</div>{% endif %}
       <div class="small text-muted">{{ empresa.direccion }}<br>{{ empresa.telefono }} {{ empresa.email }}</div>
     </div>

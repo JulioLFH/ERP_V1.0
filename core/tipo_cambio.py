@@ -102,6 +102,46 @@ def obtener(fecha=None, consultar=True):
     return TipoCambio.objects.filter(fecha__lte=fecha).first()
 
 
+def dias_del_periodo(periodo):
+    """Fechas del periodo AAAAMM hasta hoy (no hay tipo de cambio de fechas futuras)."""
+    import calendar
+    anio, mes = int(periodo[:4]), int(periodo[4:6])
+    hoy = timezone.localdate()
+    ultimo = calendar.monthrange(anio, mes)[1]
+    return [d for d in (date(anio, mes, dia) for dia in range(1, ultimo + 1)) if d <= hoy]
+
+
+def descargar_periodo(periodo, reemplazar_manual=False):
+    """REQ-07: descarga de la fuente configurada el tipo de cambio de cada día del periodo AAAAMM.
+
+    Devuelve {'ok': n, 'sin_publicar': [fechas], 'fuentes': {...}, 'error': texto}. Los días que SUNAT no publica
+    (fines de semana y feriados) no se guardan: usan el último día publicado. Los registrados a mano se respetan,
+    salvo reemplazar_manual."""
+    resultado = {'ok': 0, 'sin_publicar': [], 'fuentes': set(), 'error': ''}
+    manuales = set() if reemplazar_manual else set(
+        TipoCambio.objects.filter(fuente='MANUAL', fecha__in=dias_del_periodo(periodo)).values_list('fecha', flat=True))
+    for f in dias_del_periodo(periodo):
+        if f in manuales:
+            continue
+        try:
+            valores = _consultar(f)
+        except Exception as exc:
+            if getattr(exc, 'code', None) in (400, 404):
+                resultado['sin_publicar'].append(f)
+                continue
+            resultado['error'] = f'Sin respuesta de la fuente desde el {f:%d/%m/%Y} ({type(exc).__name__}).'
+            break  # sin conexión o límite de consultas: no insistir con los demás días
+        if not valores:
+            resultado['sin_publicar'].append(f)
+            continue
+        fuente = valores[2] if len(valores) > 2 else 'SUNAT'
+        TipoCambio.objects.update_or_create(fecha=f, defaults={'compra': valores[0], 'venta': valores[1],
+                                                               'fuente': fuente})
+        resultado['fuentes'].add(fuente)
+        resultado['ok'] += 1
+    return resultado
+
+
 def venta_del_dia(fecha=None, consultar=True):
     """Tipo de cambio venta (el que SUNAT exige para registrar compras y ventas). 1 si no hay dato."""
     tc = obtener(fecha, consultar)

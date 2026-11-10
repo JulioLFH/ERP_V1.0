@@ -11,7 +11,7 @@ from django.core.paginator import Paginator
 from django.db.models import F, Q, Sum
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, ListView, UpdateView
@@ -139,7 +139,7 @@ def buscar(request):
 @login_required
 def empresa_config(request):
     empresa = Empresa.actual()
-    form = EmpresaForm(request.POST or None, instance=empresa)
+    form = EmpresaForm(request.POST or None, request.FILES or None, instance=empresa)
     if request.method == 'POST' and form.is_valid():
         form.save()
         messages.success(request, 'Datos de la empresa actualizados.')
@@ -251,6 +251,8 @@ MODELOS_DEL_MODULO = {
                   'finanzas.DepositoDetraccion'],
     'finanzas': ['finanzas.Letra', 'finanzas.CanjeLetras', 'finanzas.Prestamo'],
     'contabilidad': ['contabilidad.'],
+    # REQ-05: el SIRE, las detracciones y el cronograma de vencimientos
+    'sunat': ['core.PropuestaSIRE', 'finanzas.DepositoDetraccion', 'core.CronogramaSunat'],
     'contactos': ['core.Tercero'],
     'ajustes': ['core.Empresa', 'core.FacturacionConfig', 'core.CorreoConfig', 'core.PerfilUsuario', 'auth.User',
                 'core.Serie'],
@@ -442,7 +444,25 @@ def carga_masiva(request):
 @login_required
 def tipos_cambio(request):
     form = TipoCambioForm(request.POST or None, initial={'fecha': timezone.localdate()})
+    periodo = (request.GET.get('periodo') or request.POST.get('periodo') or '').replace('-', '')
+    if not (len(periodo) == 6 and periodo.isdigit() and 1 <= int(periodo[4:]) <= 12):
+        periodo = ''
     if request.method == 'POST':
+        if request.POST.get('accion') == 'periodo':  # REQ-07: un mes completo de una vez
+            if not periodo or periodo > timezone.localdate().strftime('%Y%m'):
+                messages.error(request, 'Elija un mes que ya haya empezado.')
+                return redirect('tipos_cambio')
+            r = tipo_cambio.descargar_periodo(periodo, reemplazar_manual=bool(request.POST.get('reemplazar')))
+            texto = f'{periodo[4:]}/{periodo[:4]}'
+            if r['ok']:
+                messages.success(request, f'{texto}: {r["ok"]} día(s) descargados de {" / ".join(sorted(r["fuentes"]))}.'
+                                 + (f' {len(r["sin_publicar"])} día(s) sin publicación (fines de semana y feriados) '
+                                    f'usan el último día publicado.' if r['sin_publicar'] else ''))
+            if r['error']:
+                messages.error(request, r['error'] + ' Vuelva a intentar en unos minutos o regístrelo manualmente.')
+            elif not r['ok']:
+                messages.info(request, f'{texto}: no hubo días nuevos para descargar.')
+            return redirect(f'{reverse("tipos_cambio")}?periodo={periodo}')
         if 'actualizar' in request.POST:
             dias = int(request.POST.get('dias') or 7)
             ok, fuentes = 0, set()
@@ -484,9 +504,21 @@ def tipos_cambio(request):
                     messages.warning(request, f'Hay {n} comprobante(s) en dólares del {d["fecha"]:%d/%m/%Y}: conservan '
                                               f'el tipo de cambio con que se registraron; revíselos si deben cambiar.')
             return redirect('tipos_cambio')
+    dias = []
+    if periodo:  # REQ-07: el periodo completo, con los días sin publicación y el valor que usan
+        registrados = {t.fecha: t for t in TipoCambio.objects.filter(fecha__year=int(periodo[:4]),
+                                                                      fecha__month=int(periodo[4:]))}
+        previo = TipoCambio.objects.filter(fecha__lt=f'{periodo[:4]}-{periodo[4:]}-01').first()
+        for f in tipo_cambio.dias_del_periodo(periodo):
+            t = registrados.get(f)
+            dias.append({'fecha': f, 'tc': t, 'usa': None if t else previo})
+            previo = t or previo
+        dias.reverse()
     return render(request, 'core/tipos_cambio.html', {
-        'form': form, 'tipos': TipoCambio.objects.all()[:90], 'hoy': tipo_cambio.obtener(timezone.localdate()),
-        'fuente': tipo_cambio.fuente_actual()[0]})
+        'form': form, 'tipos': [] if periodo else TipoCambio.objects.all()[:90], 'dias': dias,
+        'periodo': periodo, 'periodo_input': f'{periodo[:4]}-{periodo[4:]}' if periodo else
+        timezone.localdate().strftime('%Y-%m'),
+        'hoy': tipo_cambio.obtener(timezone.localdate()), 'fuente': tipo_cambio.fuente_actual()[0]})
 
 
 @login_required

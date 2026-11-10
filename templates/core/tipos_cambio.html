@@ -13,7 +13,13 @@
         <div><label class="form-label small mb-1">Últimos días</label><input type="number" name="dias" value="7" min="1" max="60" class="form-control form-control-sm" style="width:90px"></div>
         <button name="actualizar" value="1" class="btn btn-sm btn-primary"><i class="bi bi-cloud-download"></i> Descargar</button>
       </form>
-      <p class="small text-muted mt-2 mb-0">Al elegir dólares en compras, ventas, órdenes o cotizaciones, el T.C. venta del día se completa solo.</p>
+      <hr class="my-3">
+      <form method="post" class="d-flex flex-wrap gap-2 align-items-end">{% csrf_token %}<input type="hidden" name="accion" value="periodo">
+        <div><label class="form-label small mb-1" for="tc-periodo">Periodo completo</label><input type="month" id="tc-periodo" name="periodo" value="{{ periodo_input }}" class="form-control form-control-sm" required></div>
+        <button class="btn btn-sm btn-primary"><i class="bi bi-calendar-month"></i> Descargar el mes</button>
+        <label class="small w-100"><input type="checkbox" name="reemplazar" value="1"> Reemplazar también los registrados a mano</label>
+      </form>
+      <p class="small text-muted mt-2 mb-0">Al elegir dólares en compras, ventas, órdenes o cotizaciones, el T.C. venta del día se completa solo. Los días sin publicación (fines de semana y feriados) usan el último día publicado.</p>
     </div></div>
     <div class="card"><div class="card-header">Registro manual</div><div class="card-body">
       <form method="post">{% csrf_token %}
@@ -22,11 +28,20 @@
       </form>
     </div></div>
   </div>
-  <div class="col-lg-8"><div class="card"><div class="table-responsive">
+  <div class="col-lg-8">
+    <form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-2">
+      <div><label class="form-label small mb-1" for="ver-periodo">Ver periodo</label><input type="month" id="ver-periodo" name="periodo" value="{{ periodo_input }}" class="form-control form-control-sm"></div>
+      <button class="btn btn-sm btn-outline-secondary">Ver</button>{% if periodo %}<a href="{% url 'tipos_cambio' %}" class="btn btn-sm btn-link">Últimos registros</a>{% endif %}
+    </form>
+    <div class="card"><div class="table-responsive">
     <table class="table table-sm table-hover mb-0">
       <thead><tr><th>Fecha</th><th class="num">Compra</th><th class="num">Venta</th><th>Fuente</th></tr></thead>
-      <tbody>{% for t in tipos %}<tr><td>{{ t.fecha|date:'D d/m/Y' }}</td><td class="num">{{ t.compra }}</td><td class="num">{{ t.venta }}</td><td><span class="badge text-bg-light">{{ t.fuente }}</span></td></tr>
-      {% empty %}<tr><td colspan="4" class="text-center text-muted py-4">Sin registros. Use "Descargar".</td></tr>{% endfor %}</tbody>
+      <tbody>{% if periodo %}{% for d in dias %}<tr class="{% if not d.tc %}text-muted{% endif %}"><td>{{ d.fecha|date:'D d/m/Y' }}</td>
+        {% if d.tc %}<td class="num">{{ d.tc.compra }}</td><td class="num">{{ d.tc.venta }}</td><td><span class="badge text-bg-light">{{ d.tc.fuente }}</span></td>
+        {% else %}<td class="num">{{ d.usa.compra|default:'—' }}</td><td class="num">{{ d.usa.venta|default:'—' }}</td><td class="small">{% if d.usa %}sin publicación: usa el {{ d.usa.fecha|date:'d/m' }}{% else %}sin dato{% endif %}</td>{% endif %}</tr>
+      {% empty %}<tr><td colspan="4" class="text-center text-muted py-4">El periodo aún no empieza.</td></tr>{% endfor %}
+      {% else %}{% for t in tipos %}<tr><td>{{ t.fecha|date:'D d/m/Y' }}</td><td class="num">{{ t.compra }}</td><td class="num">{{ t.venta }}</td><td><span class="badge text-bg-light">{{ t.fuente }}</span></td></tr>
+      {% empty %}<tr><td colspan="4" class="text-center text-muted py-4">Sin registros. Use "Descargar".</td></tr>{% endfor %}{% endif %}</tbody>
     </table>
   </div></div></div>
 </div>

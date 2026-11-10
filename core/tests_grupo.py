@@ -156,3 +156,51 @@ class PanelDelGrupoTest(Base):
         self.assertNotContains(r, 'Nuevo usuario corporativo')  # eso es solo del administrador
         self.client.post(reverse('grupo_panel'), {'accion': 'nuevo_corporativo', 'usuario': 'otro', 'clave': CLAVE})
         self.assertFalse(User.objects.filter(username='otro').exists())
+
+
+class IngresoDirectoCorporativoTest(Base):
+    """El corporativo entra a otra empresa desde el login con su mismo usuario y clave de la principal."""
+
+    def ingresar_en(self, usuario, clave=CLAVE, empresa='empresa2'):
+        return self.client.post(reverse('login'), {'username': usuario, 'password': clave, 'empresa': empresa})
+
+    def test_misma_clave_en_todas_sus_empresas(self):
+        User.objects.create_superuser('gerente', 'gerente@holding.pe', CLAVE)
+        r = self.ingresar_en('gerente')
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(self.client.session['empresa'], 'empresa2')
+        self.assertEqual(self.client.session['corporativo']['username'], 'gerente')
+        espejo = self.en_empresa2(lambda: User.objects.get(username='gerente'))
+        self.assertEqual(int(self.client.session['_auth_user_id']), espejo.pk)
+        self.assertFalse(espejo.has_usable_password())  # la clave sigue siendo solo la de la principal
+        self.assertContains(self.client.get(reverse('home')), 'FILIAL NORTE S.A.C.')
+        self.client.post(reverse('cambiar_empresa'), {'empresa': 'default'})  # y pasa a la principal sin clave
+        self.assertEqual(self.client.session['empresa'], 'default')
+
+    def test_clave_incorrecta_sin_acceso_o_no_corporativo(self):
+        User.objects.create_superuser('gerente', 'gerente@holding.pe', CLAVE)
+        self.assertEqual(self.ingresar_en('gerente', 'otra-Clave-9').status_code, 200)
+        self.assertNotIn('_auth_user_id', self.client.session)
+        limitado = User.objects.create_user('contador', 'c@holding.pe', CLAVE)
+        UsuarioCorporativo.objects.create(usuario=limitado, todas=False, empresas=[])
+        self.assertEqual(self.ingresar_en('contador').status_code, 200)  # corporativo sin esa empresa
+        User.objects.create_user('vendedor', 'v@holding.pe', CLAVE)
+        self.assertEqual(self.ingresar_en('vendedor').status_code, 200)  # usuario común de la principal
+        self.assertNotIn('_auth_user_id', self.client.session)
+        self.assertFalse(self.en_empresa2(lambda: User.objects.filter(username__in=['contador', 'vendedor'])
+                                          .exists()))
+        UsuarioCorporativo.objects.filter(usuario=limitado).update(empresas=['empresa2'])
+        self.assertEqual(self.ingresar_en('contador').status_code, 302)  # con acceso asignado, entra
+
+    def test_usuario_local_con_clave_propia_y_doble_factor(self):
+        from .models import SegundoFactor
+        local = self.en_empresa2(lambda: User.objects.create_user('jflores', 'j@filial.pe', 'Local-Clave-7'))
+        self.assertEqual(self.ingresar_en('jflores', 'Local-Clave-7').status_code, 302)  # sin cambios
+        self.assertEqual(int(self.client.session['_auth_user_id']), local.pk)
+        self.assertNotIn('corporativo', self.client.session)
+        self.client.logout()
+        jefe = User.objects.create_superuser('jefe', 'jefe@holding.pe', CLAVE)
+        SegundoFactor.objects.create(usuario=jefe, secreto='JBSWY3DPEHPK3PXP', activo=True)
+        r = self.ingresar_en('jefe')
+        self.assertContains(r, 'ingrese por la empresa principal')  # no se salta el doble factor
+        self.assertNotIn('_auth_user_id', self.client.session)

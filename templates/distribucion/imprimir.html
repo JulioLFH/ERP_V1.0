@@ -15,7 +15,7 @@
 </style></head>
 <body>
 <button class="no-imprimir" data-imprimir>Imprimir</button>
-<h1>{{ empresa.razon_social }} · Hoja de reparto {{ h.numero }}</h1>
+{% include 'core/_logo_empresa.html' with alto='50' %}<h1>{{ empresa.razon_social }} · Hoja de reparto {{ h.numero }}</h1><div>RUC {{ empresa.ruc }}{% if empresa.direccion %} · {{ empresa.direccion }}{% endif %}</div>
 <div>Fecha: {{ h.fecha|date:'d/m/Y' }} · Vehículo: {{ h.vehiculo|default:'—' }} · Conductor: {{ h.conductor|default:'—' }}{% if h.ayudante %} · Ayudante: {{ h.ayudante }}{% endif %}{% if h.zona %} · Zona: {{ h.zona }}{% endif %}{% if h.almacen %} · Sale de: {{ h.almacen }}{% endif %}</div>
 {% if h.observaciones %}<div>Observaciones: {{ h.observaciones }}</div>{% endif %}
 <table>

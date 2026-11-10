@@ -241,6 +241,10 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
         label='SIRE: clave SOL', required=False, widget=forms.PasswordInput,
         help_text='Se guarda cifrada y el SIRE la usa solo al conectarse con SUNAT. Vacío = no cambia')
     sire_quitar_clave = forms.BooleanField(label='Borrar la clave SOL guardada del SIRE', required=False)
+    # REQ-09: logo de los formatos impresos (facturas, guías, órdenes, vouchers, reportes)
+    logo_archivo = forms.FileField(label='Logo de la empresa', required=False,
+                                   help_text='PNG, JPG, GIF o WEBP de hasta 1 MB. Sale en los formatos impresos')
+    quitar_logo = forms.BooleanField(label='Quitar el logo actual', required=False)
 
     class Meta:
         model = Empresa
@@ -260,9 +264,30 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
                                                          'cambiarla')
         else:
             self.fields.pop('sire_quitar_clave')
+        if not self.instance.logo:
+            self.fields.pop('quitar_logo')
+
+    def clean_logo_archivo(self):
+        archivo = self.cleaned_data.get('logo_archivo')
+        if archivo:
+            from .variantes import tipo_imagen
+            if archivo.size > 1024 * 1024:
+                raise forms.ValidationError('El logo supera 1 MB: use una imagen más liviana.')
+            inicio = archivo.read(16)
+            archivo.seek(0)
+            if tipo_imagen(inicio) is None:
+                raise forms.ValidationError('El logo debe ser PNG, JPG, GIF o WEBP.')
+        return archivo
 
     def save(self, commit=True):
         empresa = super().save(commit=False)
+        archivo = self.cleaned_data.get('logo_archivo')
+        if archivo:
+            from .variantes import tipo_imagen
+            datos = archivo.read()
+            empresa.logo, empresa.logo_tipo = datos, tipo_imagen(datos[:16])
+        elif self.cleaned_data.get('quitar_logo'):
+            empresa.logo, empresa.logo_tipo = None, ''
         if self.cleaned_data.get('sire_clave_nueva'):
             from .cifrado import cifrar
             empresa.sire_clave_sol = cifrar(self.cleaned_data['sire_clave_nueva'])
@@ -743,6 +768,24 @@ class CorreoConfigForm(BootstrapMixin, forms.ModelForm):
         model = CorreoConfig
         fields = '__all__'
         widgets = {'clave': forms.PasswordInput(render_value=True)}
+
+
+class CorreoCeibaForm(BootstrapMixin, forms.ModelForm):
+    """REQ-06: la contraseña no se vuelve a mostrar; vacía = se conserva la guardada."""
+    class Meta:
+        from .models import CorreoCeiba
+        model = CorreoCeiba
+        fields = '__all__'
+        widgets = {'clave': forms.PasswordInput(render_value=False)}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['clave'].required = False
+        if self.instance.pk and self.instance.clave:
+            self.fields['clave'].help_text = 'Hay una contraseña guardada (cifrada). Escriba otra solo para cambiarla'
+
+    def clean_clave(self):
+        return self.cleaned_data.get('clave') or (self.instance.clave if self.instance.pk else '')
 
 
 class AjusteInventarioForm(BootstrapMixin, forms.Form):

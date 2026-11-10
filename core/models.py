@@ -210,12 +210,27 @@ class Empresa(models.Model):
     sistema_costeo = models.CharField('Sistema de costeo', max_length=10, choices=COSTEOS, default='PROCESOS',
                                       editable=False)
     modulos_ocultos = models.JSONField('Módulos que no usa la empresa', default=list, blank=True, editable=False)
+    # REQ-09: logo que sale en los formatos impresos (se guarda en la base, como la imagen de los productos)
+    logo = models.BinaryField(null=True, blank=True, editable=False)
+    logo_tipo = models.CharField(max_length=20, blank=True, editable=False)
+    # REQ-02: buen contribuyente (SUNAT le da un día de vencimiento propio, la columna «BC» del cronograma)
+    buen_contribuyente = models.BooleanField(
+        'Buen contribuyente', default=False,
+        help_text='Si SUNAT la calificó como buen contribuyente: vence en la fecha de la columna «BC» del cronograma')
 
     class Meta:
         verbose_name = 'empresa'
 
     def __str__(self):
         return self.razon_social
+
+    @property
+    def logo_data_uri(self):
+        """El logo como «data:» para los formatos impresos (no depende de archivos en el servidor)."""
+        if not self.logo or not self.logo_tipo:
+            return ''
+        import base64
+        return f'data:{self.logo_tipo};base64,{base64.b64encode(bytes(self.logo)).decode("ascii")}'
 
     @classmethod
     def actual(cls):
@@ -1661,6 +1676,35 @@ class CorreoConfig(models.Model):
         return bool(self.servidor and (self.remitente or self.usuario))
 
 
+class CorreoCeiba(models.Model):
+    """REQ-06: correo general de Ceiba (del grupo, en la base principal). Se usa cuando una empresa no configuró su
+    propio correo saliente: recuperación de contraseñas, avisos de seguridad y demás correos del sistema."""
+    activo = models.BooleanField('Usar como respaldo', default=True,
+                                 help_text='Las empresas sin correo propio envían con esta cuenta')
+    servidor = models.CharField('Servidor SMTP', max_length=120, blank=True, help_text='Ej. smtp.gmail.com')
+    puerto = models.PositiveIntegerField(default=587)
+    seguridad = models.CharField(max_length=4, choices=[('TLS', 'STARTTLS (587)'), ('SSL', 'SSL (465)'),
+                                                        ('', 'Ninguna')], default='TLS', blank=True)
+    usuario = models.CharField(max_length=120, blank=True)
+    clave = CampoCifrado('Contraseña', max_length=200, blank=True,
+                         help_text='En Gmail u Outlook use una "contraseña de aplicación"')
+    remitente = models.EmailField('Correo remitente', blank=True, help_text='Vacío = el usuario')
+    nombre_remitente = models.CharField('Nombre del remitente', max_length=100, blank=True,
+                                        help_text='Vacío = «Ceiba ERP · razón social de la empresa»')
+    copia = models.EmailField('Enviar copia a', blank=True, help_text='Opcional: copia oculta de cada envío')
+
+    class Meta:
+        verbose_name = 'correo de Ceiba'
+
+    @classmethod
+    def actual(cls):
+        return cls.objects.using('default').first() or cls.objects.using('default').create()
+
+    @property
+    def activa(self):
+        return bool(self.servidor and (self.remitente or self.usuario))
+
+
 class Kardex(models.Model):
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name='kardex')
     almacen = models.ForeignKey(Almacen, on_delete=models.PROTECT, null=True, related_name='kardex')
@@ -2366,3 +2410,29 @@ class FirmaElectronica(models.Model):
 
     def __str__(self):
         return f'{self.nombre} · {self.significado} · {timezone.localtime(self.fecha):%d/%m/%Y %H:%M}'
+
+
+class CronogramaSunat(models.Model):
+    """REQ-02: cronograma de obligaciones mensuales de SUNAT (IGV-Renta y PLE / SIRE) de un periodo, por último dígito
+    del RUC. Es del grupo (vive en la base principal) y lo carga el administrador cada año; si falta un periodo se usa
+    la tabla incluida en el sistema (core/cronograma_sunat.py)."""
+    periodo = models.CharField('Periodo (AAAAMM)', max_length=6, unique=True)
+    d0 = models.DateField('RUC termina en 0')
+    d1 = models.DateField('RUC termina en 1')
+    d23 = models.DateField('RUC termina en 2 o 3')
+    d45 = models.DateField('RUC termina en 4 o 5')
+    d67 = models.DateField('RUC termina en 6 o 7')
+    d89 = models.DateField('RUC termina en 8 o 9')
+    bc = models.DateField('Buenos contribuyentes')
+    modificado = models.DateTimeField(auto_now=True)
+    modificado_por = models.CharField(max_length=150, blank=True)
+
+    CAMPOS = ('d0', 'd1', 'd23', 'd45', 'd67', 'd89', 'bc')
+
+    class Meta:
+        ordering = ['periodo']
+        verbose_name = 'cronograma SUNAT'
+        verbose_name_plural = 'cronograma SUNAT'
+
+    def __str__(self):
+        return f'Cronograma SUNAT {self.periodo[4:]}/{self.periodo[:4]}'

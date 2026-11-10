@@ -199,7 +199,10 @@ def recuperar(request):
             try:
                 correo.enviar([u.email], 'Recuperación de contraseña', 'registration/correo_recuperar.html',
                               {'usuario': u, 'enlace': enlace})
-            except correo.ErrorCorreo:
-                pass  # no se revela al visitante; el administrador ve el error en el registro del servidor
+            except correo.ErrorCorreo as exc:
+                # no se revela al visitante; REQ-06: queda en el registro de errores para el administrador
+                import logging
+                logging.getLogger('django.request').error('Recuperación de contraseña de %s sin enviar: %s',
+                                                          u.username, exc)
         return render(request, 'registration/recuperar_enviado.html')
     return render(request, 'registration/recuperar.html', {'form': form})
