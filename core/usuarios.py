@@ -171,8 +171,7 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
             if self.instance.is_superuser and not data.get('es_admin'):
                 self.add_error('es_admin', 'No puede quitarse a sí mismo el rol de administrador.')
         self._sin_escalada(data)
-        if not data.get('es_admin') and not data.get('modulos') and not self._perfil_a_aplicar(data):
-            self.add_error('modulos', 'Asigne al menos un módulo (o un perfil de acceso).')
+        # sin módulos se puede guardar: el usuario no ve esa empresa (un corporativo no la tiene entre las suyas)
         # SEG-01: una acción nueva no tiene efecto sin su módulo: se avisa antes de guardar
         if not data.get('es_admin') and not self._perfil_a_aplicar(data):
             nuevas = set(data.get('acciones') or []) - set(self.initial.get('acciones') or [])

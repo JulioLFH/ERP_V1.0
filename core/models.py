@@ -1382,6 +1382,9 @@ class UsuarioCorporativo(models.Model):
     todas = models.BooleanField('Todas las empresas del grupo', default=True)
     empresas = models.JSONField(default=list, blank=True, help_text='Alias de las empresas si no son todas')
     puede_crear = models.BooleanField('Puede crear empresas', default=False)
+    # módulos con que se le crea el usuario en cada empresa la primera vez que entra (luego se ajustan en cada
+    # empresa, en Ajustes › Usuarios). Vacío (None) = administrador de cada empresa, como antes.
+    modulos = models.JSONField(null=True, blank=True, help_text='Claves de módulos; vacío = administrador')
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:

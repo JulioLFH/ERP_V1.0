@@ -178,12 +178,23 @@ def panel(request):
             return redirect('grupo_panel')
         from django.contrib.auth.password_validation import validate_password
         from django.core.exceptions import ValidationError
+        from .modulos import GRUPOS
+        from .plataforma import modulos_permitidos
         User = get_user_model()
         usuario = (request.POST.get('usuario') or '').strip()
         clave = request.POST.get('clave') or ''
+        admin = bool(request.POST.get('admin'))
+        en_plan = modulos_permitidos()
+        modulos = [c for c in GRUPOS if c in en_plan] if admin else \
+            [c for c in request.POST.getlist('modulos') if c in GRUPOS and c in en_plan]
+        empresas_elegidas = [a for a in request.POST.getlist('empresas') if a in reg.empresas()]
         try:
             if not usuario or User.objects.using('default').filter(username__iexact=usuario).exists():
                 raise ValidationError('Indique un usuario que no exista.')
+            if not modulos:
+                raise ValidationError('Elija los módulos que verá (o márquelo como administrador).')
+            if not request.POST.get('todas') and not empresas_elegidas:
+                raise ValidationError('Elija las empresas que verá (o marque todas).')
             validate_password(clave)
         except ValidationError as exc:
             messages.error(request, ' '.join(exc.messages))
@@ -193,14 +204,17 @@ def panel(request):
             nombres = (request.POST.get('nombre') or '').strip().split(' ', 1)
             u = User.objects.create_user(usuario, (request.POST.get('email') or '').strip(), clave,
                                          first_name=nombres[0], last_name=nombres[1] if len(nombres) > 1 else '')
+            from django.contrib.auth.models import Group
+            u.groups.set([Group.objects.get_or_create(name=GRUPOS[c])[0] for c in modulos])  # en la principal
             UsuarioCorporativo.objects.create(usuario=u, todas=bool(request.POST.get('todas')),
-                                              empresas=[a for a in request.POST.getlist('empresas')
-                                                        if a in reg.empresas()],
-                                              puede_crear=bool(request.POST.get('puede_crear')))
+                                              empresas=empresas_elegidas,
+                                              puede_crear=bool(request.POST.get('puede_crear')),
+                                              modulos=None if admin else modulos)
         finally:
             reg.restaurar(token)
         messages.success(request, f'Usuario corporativo {u.username} creado: ingresa en la empresa principal y '
-                                  f'pasa a sus empresas desde el menú de usuario.')
+                                  f'pasa a sus empresas desde el menú de usuario. Sus módulos en cada empresa se '
+                                  f'ajustan allí, en Ajustes › Usuarios.')
         return redirect('grupo_panel')
     registradas = {e.alias: e for e in EmpresaGrupo.objects.using('default')}
     permitidas = dict(grupo.empresas_de(request))
@@ -226,10 +240,20 @@ def panel(request):
     activas = [t for t in tarjetas if t.get('listo')]
     return render(request, 'core/grupo_panel.html', {
         'tarjetas': tarjetas, 'principal': principal, 'puede_crear': grupo.puede_crear(request),
-        'aliases': list(reg.empresas()), 'version': settings.ERP_VERSION, 'disp_30': es.disponibilidad(30),
+        'aliases': list(reg.empresas()), 'version': settings.ERP_VERSION,
+        'empresas_nombres': [(a, reg.razon_social(a)) for a in reg.empresas() if a != 'default'],
+        'modulos_elegibles': _modulos_elegibles(), 'disp_30': es.disponibilidad(30),
         'activas': activas, 'periodo_masivo': periodo_anterior(timezone.localdate()),
         'copiables': grupo.COPIABLES, 'copia_defecto': grupo.COPIA_POR_DEFECTO, **_plan_para_panel(),
         'creando': any(t['registro'] and t['registro'].estado == 'CREANDO' for t in tarjetas)})
+
+
+def _modulos_elegibles():
+    """[(clave, nombre)] de los módulos del plan que se pueden dar a un usuario corporativo nuevo."""
+    from .modulos import GRUPOS, POR_CLAVE
+    from .plataforma import modulos_permitidos
+    en_plan = modulos_permitidos()
+    return [(c, POR_CLAVE[c]['nombre']) for c in GRUPOS if c in en_plan]
 
 
 def _plan_para_panel():

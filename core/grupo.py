@@ -73,8 +73,44 @@ def empresas_de(request):
     u = corporativo(request)
     if u is None:
         return []
-    _, todas, permitidas, _ = acceso_de(u)
-    return [(a, reg.razon_social(a)) for a in reg.empresas() if todas or a == 'default' or a in permitidas]
+    if not hasattr(request, '_empresas_de'):  # se calcula una vez por petición (el menú la usa en cada página)
+        _, todas, permitidas, _ = acceso_de(u)
+        request._empresas_de = [(a, reg.razon_social(a)) for a in reg.empresas()
+                                if (todas or a == 'default' or a in permitidas) and tiene_modulos_en(a, u)]
+    return request._empresas_de
+
+
+def modulos_iniciales(principal):
+    """Módulos con que se crea el corporativo en una empresa nueva para él (None = administrador). Los
+    administradores de la principal y los corporativos creados antes de elegir módulos entran como administrador."""
+    from .models import UsuarioCorporativo
+    if principal.is_superuser:
+        return None
+    c = UsuarioCorporativo.objects.using('default').filter(usuario_id=principal.pk).first()
+    return None if c is None or c.modulos is None else list(c.modulos)
+
+
+def tiene_modulos_en(alias, principal):
+    """Si el corporativo tiene algún módulo en esa empresa: con su usuario de allí o, si aún no existe, como el
+    administrador que se le crearía. Sin módulos la empresa no se le muestra ni se puede entrar."""
+    from .modulos import modulos_del_usuario
+    User = get_user_model()
+    token = reg.activar(alias)
+    try:
+        local = principal if alias == 'default' else User.objects.using(alias).filter(
+            username=principal.username).first()
+        if local is not None:
+            return bool(modulos_del_usuario(local))
+        modulos = modulos_iniciales(principal)  # aún no entró: los módulos con que se le crearía allí
+        if modulos is None:
+            return bool(modulos_del_usuario(User(username=principal.username, is_superuser=True, is_active=True)))
+        from .modulos import _ocultos_empresa
+        from .plataforma import modulos_permitidos
+        return bool(set(modulos) & modulos_permitidos() - _ocultos_empresa())
+    except Exception:  # base no disponible o en creación: se deja como antes (la entrada avisa si falla)
+        return True
+    finally:
+        reg.restaurar(token)
 
 
 def puede_crear(request):
@@ -89,14 +125,22 @@ def _usuario_en(alias, principal):
     User = get_user_model()
     local = User.objects.using(alias).filter(username=principal.username).first()
     if local is None:
+        modulos = modulos_iniciales(principal)
+        admin = modulos is None
         local = User(username=principal.username, email=principal.email, first_name=principal.first_name,
-                     last_name=principal.last_name, is_superuser=True, is_staff=True, is_active=True)
+                     last_name=principal.last_name, is_superuser=admin, is_staff=admin, is_active=True)
         local.set_unusable_password()
         # en la bitácora de esa empresa el alta la hace el sistema (el usuario de la principal no existe allí)
         autor = getattr(_local, 'usuario', None)
         _local.usuario = None
         try:
             local.save(using=alias)
+            if not admin:  # los módulos elegidos al crear el corporativo; luego se ajustan en esa empresa
+                from django.contrib.auth.models import Group
+
+                from .modulos import GRUPOS
+                local.groups.set([Group.objects.using(alias).get_or_create(name=GRUPOS[c])[0]
+                                  for c in modulos if c in GRUPOS])
         finally:
             _local.usuario = autor
     if not local.is_active:
@@ -121,6 +165,8 @@ def autenticar_en(request, alias, username, password):
         es, todas, permitidas, _ = acceso_de(principal)
         if not es or not (todas or alias in permitidas):
             return None
+        if not tiene_modulos_en(alias, principal):
+            raise ErrorGrupo('Su usuario no tiene módulos asignados en esta empresa.')
         if tiene_doble_factor(principal):
             raise ErrorGrupo('Su usuario corporativo tiene doble factor: ingrese por la empresa principal y pase a '
                              'esta empresa desde el Panel del grupo.')

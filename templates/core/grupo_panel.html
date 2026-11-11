@@ -75,14 +75,20 @@
       <div class="col-md-6"><label class="form-label small">Nombres y apellidos</label><input name="nombre" class="form-control form-control-sm" maxlength="150"></div>
       <div class="col-md-6"><label class="form-label small">Correo</label><input name="email" type="email" class="form-control form-control-sm"></div>
       <div class="col-md-6"><label class="form-label small">Contraseña</label><input name="clave" type="password" class="form-control form-control-sm" required></div>
-      <div class="col-12 small d-flex flex-wrap gap-3">
-        <label><input type="checkbox" name="todas" value="1" checked> Todas las empresas</label>
-        {% for a in aliases %}<label><input type="checkbox" name="empresas" value="{{ a }}"> {{ a }}</label>{% endfor %}
-        <label class="fw-semibold"><input type="checkbox" name="puede_crear" value="1"> Puede crear empresas</label>
-      </div>
+      <div class="col-12 small"><div class="form-label small fw-semibold mb-1">Empresas que verá (además de la principal)</div>
+        <div class="d-flex flex-wrap gap-3">
+          <label><input type="checkbox" name="todas" value="1" checked> Todas las empresas</label>
+          {% for a, nombre in empresas_nombres %}<label><input type="checkbox" name="empresas" value="{{ a }}"> {{ nombre }}</label>{% endfor %}
+        </div></div>
+      <div class="col-12 small"><div class="form-label small fw-semibold mb-1">Módulos que verá</div>
+        <label class="d-block mb-1"><input type="checkbox" name="admin" value="1"> Administrador (todos los módulos en cada empresa)</label>
+        <div class="d-flex flex-wrap gap-3">
+          {% for clave, nombre in modulos_elegibles %}<label><input type="checkbox" name="modulos" value="{{ clave }}"> {{ nombre }}</label>{% endfor %}
+        </div></div>
+      <div class="col-12 small"><label class="fw-semibold"><input type="checkbox" name="puede_crear" value="1"> Puede crear empresas</label></div>
       <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-person-plus"></i> Crear usuario corporativo</button></div>
     </form>
-    <p class="small text-muted mt-2 mb-0">Se crea en la empresa principal. Ingresa eligiendo la principal y pasa a sus empresas desde el menú de usuario, sin volver a iniciar sesión; en cada una actúa como administrador.</p>
+    <p class="small text-muted mt-2 mb-0">Se crea en la empresa principal. Ingresa eligiendo la principal y pasa a sus empresas desde el menú de usuario, sin volver a iniciar sesión. Entra a cada empresa con los módulos elegidos aquí; después se ajustan en cada empresa, en Ajustes › Usuarios. Una empresa donde no tenga ningún módulo no se le muestra.</p>
   </div></div></div>{% endif %}
 </div>
 {% endblock %}

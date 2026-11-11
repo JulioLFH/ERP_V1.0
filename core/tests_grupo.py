@@ -72,6 +72,7 @@ class AccesoLimitadoTest(Base):
         UsuarioCorporativo.objects.filter(usuario=u).update(empresas=['empresa2'])
         # ya existe en la filial con otros permisos: usa los de allí (no se vuelve administrador)
         local = self.en_empresa2(lambda: User.objects.create_user('contador', 'c@filial.pe', 'otra-Clave-1'))
+        self.en_empresa2(lambda: local.groups.add(Group.objects.get_or_create(name=GRUPOS['ventas'])[0]))
         self.client.post(reverse('grupo_entrar'), {'empresa': 'empresa2'})
         self.assertEqual(self.client.session['empresa'], 'empresa2')
         self.assertEqual(int(self.client.session['_auth_user_id']), local.pk)
@@ -144,7 +145,7 @@ class PanelDelGrupoTest(Base):
         self.assertContains(r, 'Falta configurar')
         self.client.post(reverse('grupo_panel'), {'accion': 'nuevo_corporativo', 'usuario': 'socia',
                                                   'nombre': 'Rosa Pérez', 'email': 'rosa@holding.pe', 'clave': CLAVE,
-                                                  'todas': '1', 'puede_crear': '1'})
+                                                  'todas': '1', 'puede_crear': '1', 'admin': '1'})
         socia = User.objects.get(username='socia')
         c = UsuarioCorporativo.objects.get(usuario=socia)
         self.assertTrue(c.todas and c.puede_crear)
@@ -204,3 +205,57 @@ class IngresoDirectoCorporativoTest(Base):
         r = self.ingresar_en('jefe')
         self.assertContains(r, 'ingrese por la empresa principal')  # no se salta el doble factor
         self.assertNotIn('_auth_user_id', self.client.session)
+
+
+class EmpresaSinModulosTest(Base):
+    """Un usuario se guarda sin módulos; el corporativo no ve ni entra a la empresa donde no tiene ninguno."""
+
+    def test_guardar_sin_modulos_y_empresa_oculta(self):
+        from .usuarios import UsuarioForm
+        admin = User.objects.create_superuser('jefe', 'jefe@holding.pe', CLAVE)
+        form = UsuarioForm({'username': 'sinmod', 'is_active': 'on', 'clave1': CLAVE, 'clave2': CLAVE},
+                           editor=admin)
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        self.assertFalse(User.objects.get(username='sinmod').groups.exists())
+        u = User.objects.create_user('corp', 'corp@holding.pe', CLAVE)
+        u.groups.add(Group.objects.get_or_create(name=GRUPOS['ventas'])[0])
+        UsuarioCorporativo.objects.create(usuario=u, todas=True, empresas=[])
+        local = self.en_empresa2(lambda: User.objects.create_user('corp', 'corp@filial.pe', None))
+        self.ingresar('corp')
+        self.assertNotContains(self.client.get(reverse('home')), 'Ir a FILIAL NORTE')
+        self.client.post(reverse('cambiar_empresa'), {'empresa': 'empresa2'})
+        self.assertEqual(self.client.session['empresa'], 'default')  # no puede pasar
+        self.client.logout()
+        r = self.client.post(reverse('login'), {'username': 'corp', 'password': CLAVE, 'empresa': 'empresa2'})
+        self.assertContains(r, 'no tiene módulos asignados')  # ni entrar directo
+        self.en_empresa2(lambda: local.groups.add(Group.objects.get_or_create(name=GRUPOS['compras'])[0]))
+        self.ingresar('corp')
+        self.assertContains(self.client.get(reverse('home')), 'Ir a FILIAL NORTE')  # con un módulo, la ve
+
+
+class CorporativoConModulosTest(Base):
+    """Al crear el corporativo se eligen sus módulos y empresas; en cada empresa entra con esos módulos y luego se
+    ajustan allí."""
+
+    def test_alta_con_modulos_y_empresas(self):
+        User.objects.create_superuser('jefe', 'jefe@holding.pe', CLAVE)
+        self.ingresar('jefe')
+        self.client.post(reverse('grupo_panel'), {'accion': 'nuevo_corporativo', 'usuario': 'sinnada', 'clave': CLAVE,
+                                                  'todas': '1'})
+        self.assertFalse(User.objects.filter(username='sinnada').exists())  # sin módulos no se crea
+        self.client.post(reverse('grupo_panel'), {'accion': 'nuevo_corporativo', 'usuario': 'ana', 'clave': CLAVE,
+                                                  'modulos': ['ventas', 'compras'], 'empresas': ['empresa2']})
+        ana = User.objects.get(username='ana')
+        c = UsuarioCorporativo.objects.get(usuario=ana)
+        self.assertEqual((c.todas, c.empresas, sorted(c.modulos)), (False, ['empresa2'], ['compras', 'ventas']))
+        self.assertEqual(set(ana.groups.values_list('name', flat=True)), {GRUPOS['ventas'], GRUPOS['compras']})
+        self.client.logout()
+        self.ingresar('ana')
+        self.assertContains(self.client.get(reverse('home')), 'Ir a FILIAL NORTE')
+        self.client.post(reverse('cambiar_empresa'), {'empresa': 'empresa2'})
+        self.assertEqual(self.client.session['empresa'], 'empresa2')
+        espejo = self.en_empresa2(lambda: User.objects.get(username='ana'))
+        self.assertFalse(espejo.is_superuser)  # no es administrador: solo sus módulos
+        self.assertEqual(set(self.en_empresa2(lambda: list(espejo.groups.values_list('name', flat=True)))),
+                         {GRUPOS['ventas'], GRUPOS['compras']})
