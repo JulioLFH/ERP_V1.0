@@ -79,6 +79,7 @@ def empresas(request):
     return render(request, 'core/grupo_empresas.html', {
         'filas': filas, 'puede_crear': grupo.puede_crear(request), 'principal': principal,
         'corporativos': corporativos, 'aliases': list(reg.empresas()),
+        'empresas_nombres': [(a, reg.razon_social(a)) for a in reg.empresas() if a != 'default'],
         'activas': [f for f in filas if f['alias'] in reg.empresas() and (
             f['registro'] is None or f['registro'].estado == 'LISTA')],
         'copiables': grupo.COPIABLES, 'copia_defecto': grupo.COPIA_POR_DEFECTO,
@@ -311,3 +312,104 @@ def estado(request):
     _exigir_corporativo(request)
     return JsonResponse({e.alias: {'estado': e.estado, 'mensaje': e.mensaje}
                          for e in EmpresaGrupo.objects.using('default')})
+
+
+@login_required
+def corporativo_editar(request, pk):
+    """Editar un usuario corporativo: datos, contraseña, empresas que ve, módulos y si crea empresas. Los módulos se
+    aplican en la principal y son con los que entra por primera vez a otra empresa; en las empresas donde ya entró se
+    ajustan allí (Ajustes › Usuarios), como siempre."""
+    from django.contrib.auth.models import Group
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+
+    from .modulos import GRUPOS, POR_CLAVE, modulos_del_usuario
+    from .plataforma import modulos_permitidos
+    _exigir_corporativo(request)
+    principal = grupo.corporativo(request)
+    if not principal.is_superuser:
+        return render(request, 'core/sin_acceso.html',
+                      {'motivo': 'Solo un administrador de la empresa principal edita usuarios corporativos.'},
+                      status=403)
+    User = get_user_model()
+    token = reg.activar('default')  # el usuario corporativo y su registro viven en la base principal
+    try:
+        u = get_object_or_404(User.objects.using('default'), pk=pk, is_superuser=False)
+        c = get_object_or_404(UsuarioCorporativo.objects.using('default'), usuario_id=u.pk)
+        en_plan = modulos_permitidos()
+        elegibles = [(k, POR_CLAVE[k]['nombre']) for k in GRUPOS if k in en_plan]
+        actuales_principal = [k for k in GRUPOS if k in en_plan and GRUPOS[k] in
+                              set(u.groups.values_list('name', flat=True))]
+        error = ''
+        if request.method == 'POST':
+            admin = bool(request.POST.get('admin'))
+            modulos = [k for k, _ in elegibles] if admin else \
+                [k for k in request.POST.getlist('modulos') if k in GRUPOS and k in en_plan]
+            todas = bool(request.POST.get('todas'))
+            empresas_elegidas = [a for a in request.POST.getlist('empresas') if a in reg.empresas() and a != 'default']
+            clave = request.POST.get('clave') or ''
+            try:
+                if not modulos:
+                    raise ValidationError('Elija los módulos que verá (o márquelo como administrador).')
+                if not todas and not empresas_elegidas:
+                    raise ValidationError('Elija las empresas que verá (o marque todas).')
+                if clave:
+                    if clave != (request.POST.get('clave2') or ''):
+                        raise ValidationError('Las contraseñas no coinciden.')
+                    validate_password(clave, u)
+            except ValidationError as exc:
+                error = ' '.join(exc.messages)
+            if not error:
+                nombres = (request.POST.get('nombre') or '').strip().split(' ', 1)
+                u.first_name, u.last_name = nombres[0], nombres[1] if len(nombres) > 1 else ''
+                u.email = (request.POST.get('email') or '').strip()
+                u.is_active = bool(request.POST.get('activo'))
+                if clave:
+                    u.set_password(clave)
+                u.save(using='default')
+                # en la principal: los módulos elegidos (conserva grupos ajenos a los módulos del plan)
+                otros = u.groups.exclude(name__in=[GRUPOS[k] for k, _ in elegibles])
+                u.groups.set(list(otros) + [Group.objects.get_or_create(name=GRUPOS[k])[0] for k in modulos])
+                c.todas, c.empresas = todas, empresas_elegidas
+                c.puede_crear = bool(request.POST.get('puede_crear'))
+                c.modulos = None if admin else modulos
+                c.save(using='default')
+                from .auditoria import registrar
+                registrar('MODIFICAR', u, {'empresas': ['', 'todas' if todas else ', '.join(empresas_elegidas)],
+                                           'modulos': [', '.join(actuales_principal),
+                                                       'administrador' if admin else ', '.join(modulos)]},
+                          f'Usuario corporativo {u.username} editado por {principal.username}')
+                messages.success(request, f'Usuario corporativo {u.username} guardado.')
+                return redirect('grupo_empresas')
+    finally:
+        reg.restaurar(token)
+    # lo que tiene hoy en cada empresa (solo lectura: allí se ajusta en Ajustes › Usuarios)
+    por_empresa = []
+    for alias in reg.empresas():
+        if alias == 'default':
+            continue
+        t = reg.activar(alias)
+        try:
+            local = User.objects.filter(username=u.username).first()
+            fila = {'nombre': reg.razon_social(alias), 've': c.todas or alias in (c.empresas or []), 'local': local}
+            if local is not None:
+                fila['admin'] = local.is_superuser
+                fila['activo'] = local.is_active
+                fila['modulos'] = sorted(POR_CLAVE[k]['nombre'] for k in modulos_del_usuario(local) if k in GRUPOS)
+        except Exception:  # base no disponible
+            fila = {'nombre': reg.razon_social(alias), 've': False, 'local': None, 'error': True}
+        finally:
+            reg.restaurar(t)
+        por_empresa.append(fila)
+    datos = request.POST if request.method == 'POST' else None
+    return render(request, 'core/grupo_corporativo.html', {
+        'u': u, 'c': c, 'elegibles': elegibles, 'error': error, 'por_empresa': por_empresa,
+        'empresas_nombres': [(a, reg.razon_social(a)) for a in reg.empresas() if a != 'default'],
+        'marcados': datos.getlist('modulos') if datos else actuales_principal,
+        'es_admin': bool(datos.get('admin')) if datos else c.modulos is None,
+        'todas': bool(datos.get('todas')) if datos else c.todas,
+        'empresas_marcadas': datos.getlist('empresas') if datos else (c.empresas or []),
+        'puede_crear': bool(datos.get('puede_crear')) if datos else c.puede_crear,
+        'nombre': datos.get('nombre') if datos else u.get_full_name(),
+        'email': datos.get('email') if datos else u.email,
+        'activo': bool(datos.get('activo')) if datos else u.is_active})

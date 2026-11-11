@@ -31,6 +31,7 @@ urlpatterns = [
     path('panel/', views_grupo.panel, name='grupo_panel'),
     path('grupo/', views_grupo.empresas, name='grupo_empresas'),
     path('grupo/entrar/', views_grupo.entrar, name='grupo_entrar'),
+    path('grupo/corporativos/<int:pk>/', views_grupo.corporativo_editar, name='grupo_corporativo'),
     path('grupo/estado/', views_grupo.estado, name='grupo_estado'),
     path('sso/<int:pk>/', sso.iniciar, name='sso_iniciar'),
     path('sso/callback/', sso.callback, name='sso_callback'),

@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Usuario corporativo {{ u.username }}{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2"><i class="bi bi-person-badge"></i> Usuario corporativo: {{ u.username }}</h1>
+<p class="small text-muted"><a href="{% url 'grupo_empresas' %}"><i class="bi bi-arrow-left"></i> Empresas del grupo</a></p>
+{% if error %}<div class="alert alert-danger py-2 small">{{ error }}</div>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card"><div class="card-body">
+    <form method="post" class="row g-2" autocomplete="off">{% csrf_token %}
+      <div class="col-md-6"><label class="form-label small">Nombres y apellidos</label><input name="nombre" value="{{ nombre }}" class="form-control form-control-sm" maxlength="150"></div>
+      <div class="col-md-6"><label class="form-label small">Correo</label><input name="email" type="email" value="{{ email }}" class="form-control form-control-sm"></div>
+      <div class="col-md-6"><label class="form-label small">Nueva contraseña</label><input name="clave" type="password" class="form-control form-control-sm" autocomplete="new-password"><div class="form-text">Déjela vacía para no cambiarla. Vale en todas sus empresas.</div></div>
+      <div class="col-md-6"><label class="form-label small">Repetir contraseña</label><input name="clave2" type="password" class="form-control form-control-sm" autocomplete="new-password"></div>
+      <div class="col-12 small"><label class="fw-semibold"><input type="checkbox" name="activo" value="1" {% if activo %}checked{% endif %}> Activo</label> <span class="text-muted">(desactivado no ingresa a ninguna empresa)</span></div>
+      <div class="col-12 small"><div class="form-label small fw-semibold mb-1">Empresas que verá (además de la principal)</div>
+        <div class="d-flex flex-wrap gap-3">
+          <label><input type="checkbox" name="todas" value="1" {% if todas %}checked{% endif %}> Todas las empresas</label>
+          {% for a, n in empresas_nombres %}<label><input type="checkbox" name="empresas" value="{{ a }}" {% if a in empresas_marcadas %}checked{% endif %}> {{ n }}</label>{% endfor %}
+        </div></div>
+      <div class="col-12 small"><div class="form-label small fw-semibold mb-1">Módulos que verá</div>
+        <label class="d-block mb-1"><input type="checkbox" name="admin" value="1" {% if es_admin %}checked{% endif %}> Administrador (todos los módulos en cada empresa)</label>
+        <div class="d-flex flex-wrap gap-3">
+          {% for k, n in elegibles %}<label><input type="checkbox" name="modulos" value="{{ k }}" {% if k in marcados %}checked{% endif %}> {{ n }}</label>{% endfor %}
+        </div>
+        <div class="form-text">Se aplican en la empresa principal y son los módulos con que entra por primera vez a otra empresa. En las empresas donde ya entró se ajustan allí, en Ajustes › Usuarios.</div></div>
+      <div class="col-12 small"><label class="fw-semibold"><input type="checkbox" name="puede_crear" value="1" {% if puede_crear %}checked{% endif %}> Puede crear empresas</label></div>
+      <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> Guardar</button></div>
+    </form>
+  </div></div></div>
+  <div class="col-lg-5"><div class="card"><div class="card-header small">Lo que tiene hoy en cada empresa</div>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0 small">
+      <thead><tr><th>Empresa</th><th>Módulos</th></tr></thead>
+      <tbody>{% for f in por_empresa %}<tr class="{% if not f.ve %}text-muted{% endif %}">
+        <td>{{ f.nombre }}{% if not f.ve %}<div><span class="badge text-bg-light border">sin acceso</span></div>{% endif %}</td>
+        <td>{% if f.error %}<span class="text-danger">base no disponible</span>
+          {% elif not f.local %}Aún no entró: tendrá {% if es_admin %}todos (administrador){% else %}los módulos elegidos{% endif %}
+          {% elif not f.activo %}<span class="badge text-bg-secondary">desactivado en esta empresa</span>
+          {% elif f.admin %}Administrador
+          {% elif f.modulos %}{{ f.modulos|join:', ' }}
+          {% else %}<span class="badge text-bg-warning">ninguno: no ve esta empresa</span>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+  </div></div>
+</div>
+{% endblock %}

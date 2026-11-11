@@ -259,3 +259,38 @@ class CorporativoConModulosTest(Base):
         self.assertFalse(espejo.is_superuser)  # no es administrador: solo sus módulos
         self.assertEqual(set(self.en_empresa2(lambda: list(espejo.groups.values_list('name', flat=True)))),
                          {GRUPOS['ventas'], GRUPOS['compras']})
+
+
+class EditarCorporativoTest(Base):
+    """El administrador de la principal edita datos, clave, empresas y módulos de un usuario corporativo."""
+
+    def test_editar(self):
+        User.objects.create_superuser('jefe', 'jefe@holding.pe', CLAVE)
+        ana = User.objects.create_user('ana', 'ana@holding.pe', CLAVE)
+        ana.groups.add(Group.objects.get_or_create(name=GRUPOS['ventas'])[0])
+        UsuarioCorporativo.objects.create(usuario=ana, todas=True, empresas=[], modulos=['ventas'])
+        self.ingresar('jefe')
+        url = reverse('grupo_corporativo', args=[ana.pk])
+        self.assertContains(self.client.get(reverse('grupo_empresas')), url)
+        r = self.client.get(url)
+        self.assertContains(r, 'FILIAL NORTE S.A.C.')
+        self.assertContains(r, 'Aún no entró')
+        r = self.client.post(url, {'nombre': 'Ana Ruiz', 'email': 'ana@holding.pe', 'activo': '1',
+                                   'empresas': ['empresa2']})
+        self.assertContains(r, 'Elija los módulos')  # sin módulos no se guarda
+        r = self.client.post(url, {'nombre': 'Ana Ruiz', 'email': 'ana2@holding.pe', 'activo': '1',
+                                   'empresas': ['empresa2'], 'modulos': ['compras'], 'puede_crear': '1',
+                                   'clave': 'Nueva-Clave-8', 'clave2': 'Nueva-Clave-8'})
+        self.assertRedirects(r, reverse('grupo_empresas'), fetch_redirect_response=False)
+        ana.refresh_from_db()
+        c = UsuarioCorporativo.objects.get(usuario=ana)
+        self.assertEqual((ana.first_name, ana.last_name, ana.email), ('Ana', 'Ruiz', 'ana2@holding.pe'))
+        self.assertTrue(ana.check_password('Nueva-Clave-8'))
+        self.assertEqual((c.todas, c.empresas, c.modulos, c.puede_crear), (False, ['empresa2'], ['compras'], True))
+        self.assertEqual(list(ana.groups.values_list('name', flat=True)), [GRUPOS['compras']])
+        self.client.post(url, {'activo': '1', 'todas': '1', 'admin': '1'})
+        self.assertIsNone(UsuarioCorporativo.objects.get(usuario=ana).modulos)  # administrador en cada empresa
+        # un corporativo que no es administrador no edita a otros
+        self.client.logout()
+        self.client.post(reverse('login'), {'username': 'ana', 'password': 'Nueva-Clave-8', 'empresa': 'default'})
+        self.assertEqual(self.client.get(url).status_code, 403)
