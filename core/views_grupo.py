@@ -385,17 +385,22 @@ def corporativo_editar(request, pk):
         reg.restaurar(token)
     # lo que tiene hoy en cada empresa (solo lectura: allí se ajusta en Ajustes › Usuarios)
     por_empresa = []
+    from .modulos import _ocultos_empresa
     for alias in reg.empresas():
-        if alias == 'default':
-            continue
         t = reg.activar(alias)
         try:
             local = User.objects.filter(username=u.username).first()
-            fila = {'nombre': reg.razon_social(alias), 've': c.todas or alias in (c.empresas or []), 'local': local}
+            fila = {'nombre': reg.razon_social(alias), 'principal': alias == 'default', 'local': local,
+                    've': alias == 'default' or c.todas or alias in (c.empresas or [])}
             if local is not None:
                 fila['admin'] = local.is_superuser
                 fila['activo'] = local.is_active
                 fila['modulos'] = sorted(POR_CLAVE[k]['nombre'] for k in modulos_del_usuario(local) if k in GRUPOS)
+                # módulos que tiene asignados pero la empresa oculta (Ajustes › Giro y régimen): no los ve
+                asignados = set(POR_CLAVE) if local.is_superuser else {
+                    k for k, n in GRUPOS.items() if n in set(local.groups.values_list('name', flat=True))}
+                fila['ocultos'] = sorted(POR_CLAVE[k]['nombre'] for k in asignados & _ocultos_empresa()
+                                         if k in GRUPOS)
         except Exception:  # base no disponible
             fila = {'nombre': reg.razon_social(alias), 've': False, 'local': None, 'error': True}
         finally:

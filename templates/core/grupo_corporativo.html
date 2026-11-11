@@ -31,13 +31,14 @@
     <div class="table-responsive"><table class="table table-sm align-middle mb-0 small">
       <thead><tr><th>Empresa</th><th>Módulos</th></tr></thead>
       <tbody>{% for f in por_empresa %}<tr class="{% if not f.ve %}text-muted{% endif %}">
-        <td>{{ f.nombre }}{% if not f.ve %}<div><span class="badge text-bg-light border">sin acceso</span></div>{% endif %}</td>
+        <td>{{ f.nombre }}{% if f.principal %} <span class="badge text-bg-light border">principal</span>{% endif %}{% if not f.ve %}<div><span class="badge text-bg-light border">sin acceso</span></div>{% endif %}</td>
         <td>{% if f.error %}<span class="text-danger">base no disponible</span>
           {% elif not f.local %}Aún no entró: tendrá {% if es_admin %}todos (administrador){% else %}los módulos elegidos{% endif %}
           {% elif not f.activo %}<span class="badge text-bg-secondary">desactivado en esta empresa</span>
           {% elif f.admin %}Administrador
           {% elif f.modulos %}{{ f.modulos|join:', ' }}
-          {% else %}<span class="badge text-bg-warning">ninguno: no ve esta empresa</span>{% endif %}</td>
+          {% else %}<span class="badge text-bg-warning">ninguno: no ve esta empresa</span>{% endif %}
+          {% if f.ocultos and f.activo %}<div class="text-muted mt-1"><i class="bi bi-eye-slash"></i> La empresa oculta: {{ f.ocultos|join:', ' }} <span class="fst-italic">(Ajustes › Giro y régimen de esa empresa)</span></div>{% endif %}</td>
       </tr>{% endfor %}</tbody>
     </table></div>
   </div></div>
