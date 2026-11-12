@@ -12,8 +12,9 @@ SIRE Compras» (v28) publicados en cpe.sunat.gob.pe:
 5. Aceptar la propuesta: POST .../rvie/propuesta/web/propuesta/{periodo}/aceptapropuesta (ventas) o
    .../rce/propuesta/web/registroslibros/{periodo}/aceptarpropuesta (compras) → numTicket.
 
-La clave SOL se registra una vez en Ajustes › Empresa (cifrada) y se usa sola para pedir el token cuando vence; el
-token queda en la caché mientras SUNAT lo da por válido. Sin clave guardada se pide en la pantalla.
+El usuario y la clave SOL se registran una vez en Ajustes › Empresa (la clave cifrada) y se usan solos para pedir el
+token cada vez que vence: la sesión se mantiene sin pedir nada. Solo si faltan allí, o SUNAT no los acepta, se avisa
+para corregirlos en Ajustes › Empresa (el módulo SUNAT no pide la clave).
 """
 import json
 import urllib.error
@@ -69,9 +70,13 @@ def clave_guardada(empresa=None):
 
 
 def hay_token():
-    """¿Se puede trabajar sin pedir la clave? (sesión activa o clave guardada)."""
+    """¿Se puede trabajar con SUNAT? (sesión activa o clave guardada en Ajustes › Empresa)."""
     e = Empresa.actual()
     return bool(cache.get(_clave_cache(e)) or clave_guardada(e))
+
+
+FALTA_CLAVE = ('Falta la clave SOL del SIRE en Ajustes › Empresa. Regístrela allí una vez (con el usuario SOL) y el '
+               'sistema mantiene la sesión con SUNAT solo.')
 
 
 def _http(metodo, url, datos=None, cabeceras=None, binario=False):
@@ -104,15 +109,15 @@ def _mensaje(texto):
     return errores or datos.get('msg') or datos.get('error_description') or texto
 
 
-def iniciar_sesion(clave_sol=None):
-    """Pide el token con la clave SOL escrita o, si no se escribe, con la guardada en Ajustes › Empresa. Lo deja en
-    la caché por el tiempo que SUNAT indique."""
+def iniciar_sesion():
+    """Pide el token con el usuario y la clave SOL de Ajustes › Empresa. Lo deja en la caché por el tiempo que SUNAT
+    indique."""
     e = Empresa.actual()
     if not configurada(e):
         raise ErrorSIRE('Registre en Ajustes › Empresa el client_id, el client_secret y el usuario SOL del SIRE.')
-    clave_sol = clave_sol or clave_guardada(e)
+    clave_sol = clave_guardada(e)
     if not clave_sol:
-        raise ErrorSIRE('Registre la clave SOL del SIRE en Ajustes › Empresa (o escríbala aquí).')
+        raise ErrorSIRE(FALTA_CLAVE)
     cid, secreto = _credenciales(e)
     datos = urllib.parse.urlencode({'grant_type': 'password', 'scope': SCOPE, 'client_id': cid,
                                     'client_secret': secreto, 'username': f'{e.ruc}{e.sire_usuario_sol}',
@@ -132,7 +137,7 @@ def _token():
     if not token and clave_guardada(e):  # con la clave guardada no se vuelve a pedir
         token = iniciar_sesion()
     if not token:
-        raise ErrorSIRE('La sesión con SUNAT venció: ingrese la clave SOL (o regístrela en Ajustes › Empresa).')
+        raise ErrorSIRE(FALTA_CLAVE)
     return token
 
 

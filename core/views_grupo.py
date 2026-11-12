@@ -176,6 +176,24 @@ def panel(request):
                       {'motivo': 'Su usuario corporativo no tiene acceso al Panel del grupo.'}, status=403)
     if request.method == 'POST' and request.POST.get('accion') in ('centralizar', 'cerrar', 'ple'):
         return _proceso_masivo(request)
+    if request.method == 'POST' and request.POST.get('accion') == 'licencia':
+        if not principal.is_superuser:
+            messages.error(request, 'Solo el administrador de la empresa principal activa o desactiva módulos del grupo.')
+            return redirect('grupo_panel')
+        from .modulos import POR_CLAVE
+        from .plataforma import FIJOS, guardar_apagados, modulos_del_plan, modulos_permitidos
+        antes = modulos_permitidos()
+        prendidos = set(request.POST.getlist('modulos'))
+        plan = guardar_apagados(modulos_del_plan() - FIJOS - prendidos, principal)
+        despues = modulos_permitidos()
+        from .auditoria import registrar
+        registrar('MODIFICAR', plan, {'apagados': [', '.join(sorted(POR_CLAVE[k]['nombre'] for k in antes - despues)),
+                                                   ', '.join(sorted(POR_CLAVE[k]['nombre'] for k in despues - antes))]},
+                  f'Módulos del grupo cambiados por {principal.username}')
+        apagados = [POR_CLAVE[k]['nombre'] for k in plan.apagados]
+        messages.success(request, 'Módulos del grupo guardados.' + (
+            f' Desactivados en todas las empresas: {", ".join(apagados)}.' if apagados else ' Todos los del plan activos.'))
+        return redirect('grupo_panel')
     if request.method == 'POST' and request.POST.get('accion') == 'nuevo_corporativo':
         if not principal.is_superuser:
             messages.error(request, 'Solo un administrador de la empresa principal crea usuarios corporativos.')
@@ -215,6 +233,8 @@ def panel(request):
                                               puede_crear=bool(request.POST.get('puede_crear')),
                                               ve_panel=bool(request.POST.get('ve_panel')),
                                               modulos=None if admin else modulos)
+            if admin:
+                _admin_en_principal(u)
         finally:
             reg.restaurar(token)
         messages.success(request, f'Usuario corporativo {u.username} creado: ingresa en la empresa principal y '
@@ -253,6 +273,16 @@ def panel(request):
         'creando': any(t['registro'] and t['registro'].estado == 'CREANDO' for t in tarjetas)})
 
 
+def _admin_en_principal(u):
+    """Corporativo administrador (sin ser superusuario de la principal): allí tiene todas las acciones de sus módulos,
+    también las sensibles. Se sigue editando como cualquier corporativo."""
+    from .models import PerfilUsuario
+    from .permisos import TODAS
+    perfil, _ = PerfilUsuario.objects.using('default').get_or_create(usuario=u)
+    perfil.acciones = sorted(TODAS)
+    perfil.save(using='default')
+
+
 def _modulos_elegibles():
     """[(clave, nombre)] de los módulos del plan que se pueden dar a un usuario corporativo nuevo."""
     from .modulos import GRUPOS, POR_CLAVE
@@ -264,11 +294,16 @@ def _modulos_elegibles():
 def _plan_para_panel():
     """REQ-03: el plan del grupo (solo lectura para el cliente; lo cambia la plataforma Ceiba)."""
     from .modulos import MODULOS
-    from .plataforma import FIJOS, modulos_permitidos, plan_actual
-    plan, permitidos = plan_actual(), modulos_permitidos()
+    from .plataforma import FIJOS, modulos_del_plan, modulos_permitidos, plan_actual
+    plan, del_plan, activos = plan_actual(), modulos_del_plan(), modulos_permitidos()
     return {'plan_grupo': plan.nombre if plan else 'Completo', 'plan_todos': plan is None or plan.todos,
-            'plan_modulos': [m['nombre'] for m in MODULOS if m['clave'] in permitidos and m['clave'] not in FIJOS],
-            'plan_fuera': [m['nombre'] for m in MODULOS if m['clave'] not in permitidos]}
+            'plan_modulos': [m['nombre'] for m in MODULOS if m['clave'] in del_plan and m['clave'] not in FIJOS],
+            'plan_fuera': [m['nombre'] for m in MODULOS if m['clave'] not in del_plan],
+            # licencia del grupo: los del plan que el administrador deja activos o apaga para todas las empresas
+            'licencia': [{'clave': m['clave'], 'nombre': m['nombre'], 'icono': m.get('icono', 'bi-grid'),
+                          'activo': m['clave'] in activos} for m in MODULOS
+                         if m['clave'] in del_plan and m['clave'] not in FIJOS],
+            'plan_apagados': [m['nombre'] for m in MODULOS if m['clave'] in del_plan - activos]}
 
 
 def _proceso_masivo(request):
@@ -379,6 +414,8 @@ def corporativo_editar(request, pk):
                 c.ve_panel = bool(request.POST.get('ve_panel'))
                 c.modulos = None if admin else modulos
                 c.save(using='default')
+                if admin:
+                    _admin_en_principal(u)
                 from .auditoria import registrar
                 registrar('MODIFICAR', u, {'empresas': ['', 'todas' if todas else ', '.join(empresas_elegidas)],
                                            'modulos': [', '.join(actuales_principal),

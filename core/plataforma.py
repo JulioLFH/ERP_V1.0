@@ -38,19 +38,43 @@ def plan_actual():
         return None
 
 
-def modulos_permitidos():
-    """Claves de los módulos que el plan permite (incluye los FIJOS). Se recalcula cada SEGUNDOS_MEMO segundos."""
-    if _MEMO['valor'] is not None and time.monotonic() - _MEMO['hora'] < SEGUNDOS_MEMO:
-        return _MEMO['valor']
+def _calcular():
     plan = plan_actual()
     todos = todos_los_modulos()
-    valor = todos if plan is None or plan.todos else (set(plan.modulos or []) & todos) | FIJOS
-    _MEMO.update(hora=time.monotonic(), valor=valor)
-    return valor
+    del_plan = todos if plan is None or plan.todos else (set(plan.modulos or []) & todos) | FIJOS
+    apagados = (set(getattr(plan, 'apagados', None) or []) & del_plan) - FIJOS
+    _MEMO.update(hora=time.monotonic(), valor=del_plan - apagados, del_plan=del_plan)
+
+
+def modulos_del_plan():
+    """El tope que fija Ceiba (incluye los FIJOS), sin descontar lo que apagó el administrador del grupo."""
+    if _MEMO['valor'] is None or time.monotonic() - _MEMO['hora'] >= SEGUNDOS_MEMO:
+        _calcular()
+    return _MEMO['del_plan']
+
+
+def modulos_permitidos():
+    """Claves de los módulos que se usan en el grupo: los del plan de Ceiba menos los que apagó el administrador del
+    grupo (los FIJOS siempre). Un módulo fuera de aquí no aparece en ninguna empresa. Se recalcula cada SEGUNDOS_MEMO
+    segundos."""
+    if _MEMO['valor'] is None or time.monotonic() - _MEMO['hora'] >= SEGUNDOS_MEMO:
+        _calcular()
+    return _MEMO['valor']
 
 
 def invalidar():
     _MEMO.update(hora=0.0, valor=None)
+
+
+def guardar_apagados(apagados, usuario):
+    """El administrador del grupo apaga (o vuelve a prender) módulos del plan para todas sus empresas."""
+    from .models import PlanGrupo
+    plan = plan_actual() or PlanGrupo()
+    plan.apagados = sorted((set(apagados) & modulos_del_plan()) - FIJOS)
+    plan.modificado_por = usuario.username
+    plan.save(using='default')
+    invalidar()
+    return plan
 
 
 def guardar_plan(nombre, modulos, todos, operador):

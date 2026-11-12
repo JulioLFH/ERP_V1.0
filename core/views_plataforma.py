@@ -62,12 +62,12 @@ def inicio(request):
         todos = request.POST.get('todos') == '1'
         elegidos = request.POST.getlist('modulos')
         plan = plataforma.guardar_plan(request.POST.get('nombre'), elegidos, todos, op)
-        n = len(plataforma.modulos_permitidos())
+        n = len(plataforma.modulos_del_plan())
         messages.success(request, f'Plan «{plan.nombre}» guardado: {"todos los módulos" if plan.todos else f"{n} módulos"}'
                                   f' para todas las empresas del grupo.')
         return redirect('plataforma_inicio')
     plan = plataforma.plan_actual()
-    permitidos = plataforma.modulos_permitidos()
+    permitidos = plataforma.modulos_del_plan()  # el tope de Ceiba (el grupo puede apagar algunos dentro de él)
     empresas = []
     for alias in reg.empresas():
         empresas.append({'alias': alias, 'nombre': reg.razon_social(alias), 'principal': alias == 'default'})

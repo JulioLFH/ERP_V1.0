@@ -15,6 +15,15 @@
   <i class="bi bi-box-seam"></i> <b>Plan contratado: {{ plan_grupo }}</b>
   {% if plan_todos %}· todos los módulos.{% else %}· {{ plan_modulos|length }} módulos para todas las empresas del grupo: {{ plan_modulos|join:', ' }}.
   <div class="text-muted mt-1">Fuera del plan (no disponibles en ninguna empresa): {{ plan_fuera|join:', ' }}. Para ampliarlo, comuníquese con Ceiba.</div>{% endif %}
+  {% if principal.is_superuser %}
+  <details class="mt-2" {% if plan_apagados %}open{% endif %}><summary class="fw-semibold">Módulos del grupo{% if plan_apagados %} · {{ plan_apagados|length }} desactivado{{ plan_apagados|length|pluralize }}{% endif %}</summary>
+    <form method="post" class="mt-2">{% csrf_token %}<input type="hidden" name="accion" value="licencia">
+      <div class="text-muted mb-2">Desmarque un módulo para desactivarlo en todas las empresas del grupo: nadie lo ve ni lo abre, ni sus administradores, y no aparece en el menú, el inicio ni en la asignación de usuarios. Al volver a marcarlo, cada usuario recupera lo que tenía.</div>
+      <div class="d-flex flex-wrap gap-3">{% for m in licencia %}<label class="{% if not m.activo %}text-muted{% endif %}"><input type="checkbox" name="modulos" value="{{ m.clave }}" {% if m.activo %}checked{% endif %}> <i class="bi {{ m.icono }}"></i> {{ m.nombre }}</label>{% endfor %}</div>
+      <button class="btn btn-sm btn-primary mt-2" data-confirm="¿Guardar los módulos del grupo? Los desmarcados dejan de verse en todas las empresas."><i class="bi bi-check-lg"></i> Guardar módulos</button>
+    </form>
+  </details>
+  {% elif plan_apagados %}<div class="text-muted mt-1">Desactivados por el administrador del grupo: {{ plan_apagados|join:', ' }}.</div>{% endif %}
 </div></div>
 <div class="row g-3 mb-3">
   {% for t in tarjetas %}<div class="col-md-6 col-xl-4"><div class="card h-100 {% if t.actual %}border-success{% endif %}"><div class="card-body">

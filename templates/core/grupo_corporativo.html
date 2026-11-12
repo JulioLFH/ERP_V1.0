@@ -18,7 +18,7 @@
           {% for a, n in empresas_nombres %}<label><input type="checkbox" name="empresas" value="{{ a }}" {% if a in empresas_marcadas %}checked{% endif %}> {{ n }}</label>{% endfor %}
         </div></div>
       <div class="col-12 small"><div class="form-label small fw-semibold mb-1">Módulos que verá</div>
-        <label class="d-block mb-1"><input type="checkbox" name="admin" value="1" {% if es_admin %}checked{% endif %}> Administrador (todos los módulos en cada empresa)</label>
+        <label class="d-block mb-1"><input type="checkbox" name="admin" value="1" {% if es_admin %}checked{% endif %}> Administrador (todos los módulos en cada empresa; en la principal, todas sus acciones)</label>
         <div class="d-flex flex-wrap gap-3">
           {% for k, n in elegibles %}<label><input type="checkbox" name="modulos" value="{{ k }}" {% if k in marcados %}checked{% endif %}> {{ n }}</label>{% endfor %}
         </div>

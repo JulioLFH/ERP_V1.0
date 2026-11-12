@@ -290,6 +290,13 @@ class EditarCorporativoTest(Base):
         self.assertEqual(list(ana.groups.values_list('name', flat=True)), [GRUPOS['compras']])
         self.client.post(url, {'activo': '1', 'todas': '1', 'admin': '1'})
         self.assertIsNone(UsuarioCorporativo.objects.get(usuario=ana).modulos)  # administrador en cada empresa
+        # administrador editable: no es superusuario, pero en la principal tiene todas las acciones (también sensibles)
+        from .permisos import TODAS, puede
+        ana = User.objects.get(pk=ana.pk)
+        self.assertFalse(ana.is_superuser)
+        self.assertEqual(set(ana.perfil.acciones), TODAS)
+        self.assertTrue(puede(ana, 'contabilidad.reabrir'))
+        self.assertContains(self.client.get(reverse('grupo_empresas')), url)  # sigue editable
         # un corporativo que no es administrador no edita a otros
         self.client.logout()
         self.client.post(reverse('login'), {'username': 'ana', 'password': 'Nueva-Clave-8', 'empresa': 'default'})
@@ -322,3 +329,55 @@ class PermisoPanelTest(Base):
         self.ingresar('ana')
         self.assertContains(self.client.get(reverse('home')), 'Panel del grupo')
         self.assertEqual(self.client.get(reverse('grupo_panel')).status_code, 200)
+
+
+class LicenciaGrupoTest(Base):
+    """El administrador de la principal apaga módulos del plan para todo el grupo (Panel del grupo): nadie los ve, ni
+    otros administradores; dentro del tope de Ceiba, que no cambia."""
+
+    def setUp(self):
+        super().setUp()
+        from . import plataforma
+        plataforma.invalidar()
+        self.addCleanup(plataforma.invalidar)
+
+    def test_apagar_crm(self):
+        from .models import PlanGrupo
+        from .modulos import modulos_del_usuario
+        from .plataforma import FIJOS, modulos_del_plan
+        User.objects.create_superuser('jefe', 'jefe@holding.pe', CLAVE)
+        otro = User.objects.create_superuser('otro', 'otro@holding.pe', CLAVE)
+        ana = User.objects.create_user('ana', 'ana@holding.pe', CLAVE)
+        ana.groups.add(Group.objects.get_or_create(name=GRUPOS['crm'])[0])
+        UsuarioCorporativo.objects.create(usuario=ana, todas=True, empresas=[], modulos=['crm'], ve_panel=True)
+        self.ingresar('jefe')
+        prendidos = sorted(modulos_del_plan() - FIJOS - {'crm'})
+        r = self.client.post(reverse('grupo_panel'), {'accion': 'licencia', 'modulos': prendidos})
+        self.assertRedirects(r, reverse('grupo_panel'), fetch_redirect_response=False)
+        self.assertEqual(PlanGrupo.objects.get().apagados, ['crm'])
+        self.assertIn('crm', modulos_del_plan())  # el tope de Ceiba no cambia
+        self.assertNotIn('crm', modulos_del_usuario(User.objects.get(pk=otro.pk)))  # ni el administrador lo ve
+        self.assertNotIn('/crm/', self.client.get(reverse('home')).content.decode())
+        self.assertContains(self.client.get('/crm/'), 'Solicite la cotización de este módulo', status_code=403)
+        # fuera del plan de Ceiba: se pide la cotización (no «pida al administrador»)
+        from . import plataforma
+        plan = PlanGrupo.objects.get()
+        PlanGrupo.objects.filter(pk=plan.pk).update(todos=False, modulos=sorted(modulos_del_plan() - {'crm'}))
+        plataforma.invalidar()
+        r = self.client.get('/crm/')
+        self.assertContains(r, 'Solicite la cotización de este módulo', status_code=403)
+        self.assertNotContains(r, 'pida al administrador', status_code=403)
+        PlanGrupo.objects.filter(pk=plan.pk).update(todos=True)
+        plataforma.invalidar()
+        # un corporativo que no es superusuario no cambia la licencia
+        self.client.logout()
+        self.ingresar('ana')
+        self.client.post(reverse('grupo_panel'), {'accion': 'licencia', 'modulos': prendidos + ['crm']})
+        self.assertEqual(PlanGrupo.objects.get().apagados, ['crm'])
+        self.assertContains(self.client.get(reverse('grupo_panel')), 'Desactivados por el administrador del grupo: CRM')
+        # se vuelve a prender y cada uno recupera lo suyo
+        self.client.logout()
+        self.ingresar('jefe')
+        self.client.post(reverse('grupo_panel'), {'accion': 'licencia', 'modulos': prendidos + ['crm']})
+        self.assertEqual(PlanGrupo.objects.get().apagados, [])
+        self.assertIn('crm', modulos_del_usuario(User.objects.get(pk=ana.pk)))

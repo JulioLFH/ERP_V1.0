@@ -106,8 +106,14 @@ class AccesoModulosMiddleware:
         mods = modulos_del_usuario(request.user)
         accesibles = [m for m in permitidos if m in mods]
         if not accesibles:
+            from .plataforma import modulos_permitidos
+            motivo, cotizar = '', False
+            # fuera del plan de Ceiba o apagado en el Panel del grupo: no se asigna, se cotiza
+            if not any(m in modulos_permitidos() for m in permitidos):
+                motivo, cotizar = 'Este módulo no está habilitado en su plan. Solicite la cotización de este módulo.', True
             return render(request, 'core/sin_acceso.html',
-                          {'modulo_bloqueado': POR_CLAVE.get(permitidos[0])}, status=403)
+                          {'modulo_bloqueado': POR_CLAVE.get(permitidos[0]), 'motivo': motivo, 'cotizar': cotizar},
+                          status=403)
         ultimo = request.session.get('modulo')
         actual = ultimo if ultimo in accesibles else accesibles[0]
         if ultimo != actual:

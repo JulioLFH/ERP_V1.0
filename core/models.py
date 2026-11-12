@@ -2423,6 +2423,9 @@ class PlanGrupo(models.Model):
     nombre = models.CharField('Plan', max_length=60, default='Completo')
     todos = models.BooleanField('Todos los módulos', default=True)
     modulos = models.JSONField('Módulos habilitados', default=list, blank=True)
+    # dentro del plan, el administrador del grupo apaga módulos para todas sus empresas (Panel del grupo)
+    apagados = models.JSONField('Apagados por el grupo', default=list, null=True, blank=True,
+                                help_text='Módulos del plan que el administrador del grupo desactivó')
     modificado = models.DateTimeField(auto_now=True)
     modificado_por = models.CharField(max_length=150, blank=True)
 

@@ -84,7 +84,9 @@ class Base(TestCase):
         p.start()
         self.addCleanup(p.stop)
         cache.clear()
-        Empresa.objects.update(sire_client_id='cid-sire', sire_client_secret='secreto-sire', sire_usuario_sol='CONTA01')
+        from .cifrado import cifrar  # usuario y clave SOL de Ajustes › Empresa: la pantalla no los pide
+        Empresa.objects.update(sire_client_id='cid-sire', sire_client_secret='secreto-sire', sire_usuario_sol='CONTA01',
+                               sire_clave_sol=cifrar('MiClaveSol'))
         self.prov = Tercero.objects.create(numero_doc='20600000022', nombre='ANDINA SAC', tipo='PROVEEDOR')
         self.client.force_login(self.admin)
 
@@ -108,13 +110,13 @@ class TraerComprasPorAPITest(Base):
                        ('205', '20611111111', 'PROVEEDOR NUEVO SAC', '50.00', '9.00', '59.00'))
         sunat = SunatSimulado(zip_txt('propuesta.txt', txt))
         with patch('core.sire_api._http', sunat):
-            r = self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-09',
-                                                              'clave_sol': 'MiClaveSol'})
+            r = self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-09'})
         p = PropuestaSIRE.objects.get()
         self.assertRedirects(r, reverse('sire_propuesta', args=[p.pk]), fetch_redirect_response=False)
         self.assertEqual((p.estado, p.ticket, len(p.registros)), ('LISTA', '20260300000777', 2))
-        # token con RUC + usuario SOL; la clave viaja solo en esa llamada y no queda guardada
+        # token con RUC + usuario SOL y la clave de Ajustes › Empresa, que no queda en la propuesta
         token = urllib.parse.parse_qs(sunat.llamadas[0][2].decode())
+        self.assertEqual(token['password'], ['MiClaveSol'])
         self.assertEqual(token['username'], [Empresa.actual().ruc + 'CONTA01'])
         self.assertEqual(token['scope'], ['https://api-sire.sunat.gob.pe'])
         self.assertNotIn('MiClaveSol', json.dumps(p.registros) + p.mensaje)
@@ -149,7 +151,7 @@ class TicketEnProcesoTest(Base):
         sunat = SunatSimulado(zip_txt('p.txt', self.rce(('300', '20600000022', 'ANDINA SAC', '10', '1.80', '11.80'))),
                               terminado_tras=1)
         with patch('core.sire_api._http', sunat):
-            self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-09', 'clave_sol': 'x'})
+            self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-09'})
             p = PropuestaSIRE.objects.get()
             self.assertEqual(p.estado, 'SOLICITADA')
             self.assertContains(self.client.get(reverse('sire_propuesta', args=[p.pk])), 'Consultar a SUNAT de nuevo')
@@ -187,7 +189,7 @@ class AceptarPropuestaTest(Base):
     def test_solo_con_permiso_de_cierre(self):
         sunat = SunatSimulado(zip_txt('p.txt', self.rce(('400', '20600000022', 'ANDINA SAC', '10', '1.80', '11.80'))))
         with patch('core.sire_api._http', sunat):
-            self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-09', 'clave_sol': 'x'})
+            self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-09'})
             p = PropuestaSIRE.objects.get()
             comprador = User.objects.create_user('comprador_sire', password='Clave-segura-9')
             comprador.groups.add(Group.objects.get_or_create(name=GRUPOS['compras'])[0])
@@ -215,4 +217,31 @@ class SinCredencialesTest(Base):
         self.assertContains(r, 'Suba el archivo de la propuesta')
         self.assertFalse(PropuestaSIRE.objects.exists())
         with self.assertRaises(sire_api.ErrorSIRE):
-            sire_api.iniciar_sesion('x')
+            sire_api.iniciar_sesion()
+
+
+class SesionConClaveDeLaEmpresaTest(Base):
+    """El módulo SUNAT no pide la clave SOL: usa la de Ajustes › Empresa y renueva la sesión sola; si falta, avisa."""
+
+    def test_renueva_sola_y_avisa_si_falta(self):
+        sunat = SunatSimulado(zip_txt('p.txt', self.rce(('500', '20600000022', 'ANDINA SAC', '10', '1.80', '11.80'))),
+                              terminado_tras=1)
+        r = self.client.get(reverse('sire_propuestas'))
+        self.assertNotContains(r, 'name="clave_sol"')
+        self.assertNotContains(r, 'Falta la clave SOL')
+        with patch('core.sire_api._http', sunat):
+            self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-09'})
+            p = PropuestaSIRE.objects.get()
+            cache.clear()  # la sesión con SUNAT venció: se pide otra con la clave guardada, sin preguntar
+            self.assertNotContains(self.client.get(reverse('sire_propuesta', args=[p.pk])), 'name="clave_sol"')
+            self.client.post(reverse('sire_propuesta', args=[p.pk]), {'accion': 'consultar'})
+        p.refresh_from_db()
+        self.assertEqual(p.estado, 'LISTA')
+        self.assertEqual(sum(1 for m, u, _ in sunat.llamadas if 'oauth2/token' in u), 2)
+        # sin clave en Ajustes › Empresa: aviso para registrarla allí
+        Empresa.objects.update(sire_clave_sol='')
+        cache.clear()
+        self.assertContains(self.client.get(reverse('sire_propuestas')), 'Falta la clave SOL del SIRE')
+        r = self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-10'}, follow=True)
+        self.assertContains(r, 'Falta la clave SOL del SIRE en Ajustes › Empresa')
+        self.assertEqual(PropuestaSIRE.objects.count(), 1)

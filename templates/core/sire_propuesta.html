@@ -12,10 +12,10 @@
 <div class="alert {% if p.estado == 'LISTA' %}alert-success{% elif p.estado == 'ERROR' %}alert-danger{% else %}alert-warning{% endif %} small py-2">
   <b>{{ p.get_estado_display }}</b> · {{ p.mensaje }}{% if p.ticket %} · Ticket {{ p.ticket }}{% endif %}{% if p.aceptada_en %} · <b>Aceptada en SUNAT</b> el {{ p.aceptada_en|date:'d/m/Y H:i' }}{% if p.ticket_aceptacion %} (ticket {{ p.ticket_aceptacion }}){% endif %}{% endif %}
 </div>
+{% if configurada and not sesion %}<div class="alert alert-warning small py-2"><i class="bi bi-key"></i> Falta la clave SOL del SIRE. Regístrela una vez en <a href="{% url 'empresa' %}">Ajustes › Empresa</a>, junto al usuario SOL: el sistema mantiene la sesión con SUNAT solo.</div>{% endif %}
 {% if p.estado == 'SOLICITADA' %}
 <form method="post" class="card card-body mb-3 row g-2 align-items-end flex-row" autocomplete="off">{% csrf_token %}
   <input type="hidden" name="accion" value="consultar">
-  {% if not sesion %}<div class="col-md-4"><label class="form-label small">Clave SOL (la sesión con SUNAT venció)</label><input type="password" name="clave_sol" class="form-control form-control-sm" required></div>{% endif %}
   <div class="col-md-4"><button class="btn btn-sm btn-primary"><i class="bi bi-arrow-repeat"></i> Consultar a SUNAT de nuevo</button></div>
 </form>
 {% endif %}
@@ -63,7 +63,6 @@
 <form method="post" class="card border-primary mb-3" autocomplete="off">{% csrf_token %}<input type="hidden" name="accion" value="aceptar">
   <div class="card-body row g-2 align-items-end">
     <div class="col-md-7 small"><b>Aceptar la propuesta en SUNAT.</b> Hágalo cuando el cruce esté conforme: SUNAT la toma como el registro preliminar del periodo. Si la propuesta tiene errores, corríjalos antes en el portal SIRE.</div>
-    {% if not sesion %}<div class="col-md-3"><input type="password" name="clave_sol" class="form-control form-control-sm" placeholder="Clave SOL" required></div>{% endif %}
     <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100" data-confirm="¿Aceptar en SUNAT la propuesta {{ p }}? Esta acción se registra en SUNAT."><i class="bi bi-check2-circle"></i> Aceptar</button></div>
   </div>
 </form>

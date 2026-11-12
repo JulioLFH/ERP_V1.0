@@ -36,8 +36,6 @@ def _periodo_anterior():
 class PropuestaForm(BootstrapMixin, forms.Form):
     libro = forms.ChoiceField(label='Registro', choices=PropuestaSIRE.LIBROS)
     periodo = forms.CharField(label='Periodo', widget=forms.TextInput(attrs={'type': 'month'}))
-    clave_sol = forms.CharField(label='Clave SOL', required=False, widget=forms.PasswordInput,
-                                help_text='Solo si no la registró en Ajustes › Empresa (allí se guarda cifrada)')
     archivo = forms.FileField(label='O suba el archivo de la propuesta', required=False,
                               help_text='TXT, ZIP, CSV o Excel descargado del SIRE. En compras puede agregarle las '
                                         'columnas Orden de compra, Clasificación (1 a 8) y Cuenta contable')
@@ -109,8 +107,6 @@ def lista(request):
                                     'Empresa para traerla de SUNAT.')
             return redirect(request.get_full_path())
         try:
-            if form.cleaned_data.get('clave_sol'):
-                sire_api.iniciar_sesion(form.cleaned_data['clave_sol'])
             ticket = sire_api.solicitar_propuesta(libro, periodo)
         except sire_api.ErrorSIRE as exc:
             messages.error(request, str(exc))
@@ -155,8 +151,6 @@ def detalle(request, pk):
         resp['Content-Disposition'] = f'attachment; filename="{p.nombre_archivo or "propuesta.zip"}"'
         return resp
     try:
-        if accion in ('consultar', 'aceptar') and request.POST.get('clave_sol'):
-            sire_api.iniciar_sesion(request.POST['clave_sol'])
         if accion == 'consultar' and p.estado == 'SOLICITADA':
             _actualizar(p)
             (messages.success if p.estado == 'LISTA' else messages.info)(request, p.mensaje)
