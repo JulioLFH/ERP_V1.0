@@ -171,6 +171,9 @@ def panel(request):
     """Panel del administrador del grupo: todas las empresas, su estado y lo que les falta configurar."""
     _exigir_corporativo(request)
     principal = grupo.corporativo(request)
+    if not grupo.ve_panel(request):
+        return render(request, 'core/sin_acceso.html',
+                      {'motivo': 'Su usuario corporativo no tiene acceso al Panel del grupo.'}, status=403)
     if request.method == 'POST' and request.POST.get('accion') in ('centralizar', 'cerrar', 'ple'):
         return _proceso_masivo(request)
     if request.method == 'POST' and request.POST.get('accion') == 'nuevo_corporativo':
@@ -210,6 +213,7 @@ def panel(request):
             UsuarioCorporativo.objects.create(usuario=u, todas=bool(request.POST.get('todas')),
                                               empresas=empresas_elegidas,
                                               puede_crear=bool(request.POST.get('puede_crear')),
+                                              ve_panel=bool(request.POST.get('ve_panel')),
                                               modulos=None if admin else modulos)
         finally:
             reg.restaurar(token)
@@ -372,6 +376,7 @@ def corporativo_editar(request, pk):
                 u.groups.set(list(otros) + [Group.objects.get_or_create(name=GRUPOS[k])[0] for k in modulos])
                 c.todas, c.empresas = todas, empresas_elegidas
                 c.puede_crear = bool(request.POST.get('puede_crear'))
+                c.ve_panel = bool(request.POST.get('ve_panel'))
                 c.modulos = None if admin else modulos
                 c.save(using='default')
                 from .auditoria import registrar
@@ -415,6 +420,7 @@ def corporativo_editar(request, pk):
         'todas': bool(datos.get('todas')) if datos else c.todas,
         'empresas_marcadas': datos.getlist('empresas') if datos else (c.empresas or []),
         'puede_crear': bool(datos.get('puede_crear')) if datos else c.puede_crear,
+        've_panel': bool(datos.get('ve_panel')) if datos else c.ve_panel,
         'nombre': datos.get('nombre') if datos else u.get_full_name(),
         'email': datos.get('email') if datos else u.email,
         'activo': bool(datos.get('activo')) if datos else u.is_active})

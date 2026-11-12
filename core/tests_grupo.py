@@ -145,7 +145,7 @@ class PanelDelGrupoTest(Base):
         self.assertContains(r, 'Falta configurar')
         self.client.post(reverse('grupo_panel'), {'accion': 'nuevo_corporativo', 'usuario': 'socia',
                                                   'nombre': 'Rosa Pérez', 'email': 'rosa@holding.pe', 'clave': CLAVE,
-                                                  'todas': '1', 'puede_crear': '1', 'admin': '1'})
+                                                  'todas': '1', 'puede_crear': '1', 'admin': '1', 've_panel': '1'})
         socia = User.objects.get(username='socia')
         c = UsuarioCorporativo.objects.get(usuario=socia)
         self.assertTrue(c.todas and c.puede_crear)
@@ -294,3 +294,31 @@ class EditarCorporativoTest(Base):
         self.client.logout()
         self.client.post(reverse('login'), {'username': 'ana', 'password': 'Nueva-Clave-8', 'empresa': 'default'})
         self.assertEqual(self.client.get(url).status_code, 403)
+
+
+class PermisoPanelTest(Base):
+    """«Ve el Panel del grupo» se marca al crear y al editar el corporativo; sin él no ve ni abre el panel, pero sigue
+    pasando entre sus empresas."""
+
+    def test_ve_panel(self):
+        User.objects.create_superuser('jefe', 'jefe@holding.pe', CLAVE)
+        self.ingresar('jefe')
+        self.client.post(reverse('grupo_panel'), {'accion': 'nuevo_corporativo', 'usuario': 'ana', 'clave': CLAVE,
+                                                  'todas': '1', 'modulos': ['ventas']})  # sin marcar el panel
+        ana = User.objects.get(username='ana')
+        self.assertFalse(UsuarioCorporativo.objects.get(usuario=ana).ve_panel)
+        self.client.logout()
+        self.ingresar('ana')
+        r = self.client.get(reverse('home'))
+        self.assertNotContains(r, 'Panel del grupo')
+        self.assertContains(r, 'Ir a FILIAL NORTE')  # igual pasa entre sus empresas
+        self.assertEqual(self.client.get(reverse('grupo_panel')).status_code, 403)
+        self.client.logout()
+        self.ingresar('jefe')
+        self.client.post(reverse('grupo_corporativo', args=[ana.pk]),
+                         {'activo': '1', 'todas': '1', 'modulos': ['ventas'], 've_panel': '1'})
+        self.assertTrue(UsuarioCorporativo.objects.get(usuario=ana).ve_panel)
+        self.client.logout()
+        self.ingresar('ana')
+        self.assertContains(self.client.get(reverse('home')), 'Panel del grupo')
+        self.assertEqual(self.client.get(reverse('grupo_panel')).status_code, 200)

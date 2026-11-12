@@ -1385,6 +1385,7 @@ class UsuarioCorporativo(models.Model):
     # módulos con que se le crea el usuario en cada empresa la primera vez que entra (luego se ajustan en cada
     # empresa, en Ajustes › Usuarios). Vacío (None) = administrador de cada empresa, como antes.
     modulos = models.JSONField(null=True, blank=True, help_text='Claves de módulos; vacío = administrador')
+    ve_panel = models.BooleanField('Ve el Panel del grupo', default=True, db_default=True)
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:

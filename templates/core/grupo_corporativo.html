@@ -23,7 +23,11 @@
           {% for k, n in elegibles %}<label><input type="checkbox" name="modulos" value="{{ k }}" {% if k in marcados %}checked{% endif %}> {{ n }}</label>{% endfor %}
         </div>
         <div class="form-text">Se aplican en la empresa principal y son los módulos con que entra por primera vez a otra empresa. En las empresas donde ya entró se ajustan allí, en Ajustes › Usuarios.</div></div>
-      <div class="col-12 small"><label class="fw-semibold"><input type="checkbox" name="puede_crear" value="1" {% if puede_crear %}checked{% endif %}> Puede crear empresas</label></div>
+      <div class="col-12 small d-flex flex-wrap gap-3">
+        <label class="fw-semibold"><input type="checkbox" name="ve_panel" value="1" {% if ve_panel %}checked{% endif %}> Ve el Panel del grupo</label>
+        <label class="fw-semibold"><input type="checkbox" name="puede_crear" value="1" {% if puede_crear %}checked{% endif %}> Puede crear empresas</label>
+      </div>
+      <div class="col-12 form-text mt-0">Sin el Panel del grupo igual pasa entre sus empresas desde el menú de la empresa (arriba), pero no ve los indicadores de todas.</div>
       <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-check-lg"></i> Guardar</button></div>
     </form>
   </div></div></div>

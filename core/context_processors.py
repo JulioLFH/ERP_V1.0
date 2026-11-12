@@ -20,7 +20,7 @@ def empresa(request):
     modulo = POR_CLAVE.get(clave)
     from erp.empresas import actual, empresas, es_multiempresa, razon_social
 
-    from .grupo import corporativo, empresas_de
+    from .grupo import corporativo, empresas_de, ve_panel
     es_corporativo = corporativo(request) is not None
     if es_corporativo:  # solo las empresas a las que puede pasar sin volver a ingresar
         otras = [(a, n) for a, n in empresas_de(request) if a != actual()]
@@ -30,6 +30,7 @@ def empresa(request):
         otras = [(a, razon_social(a)) for a in empresas() if a != actual()] if es_multiempresa() else []
     return {
         'otras_empresas': otras, 'corporativo': es_corporativo,
+        've_panel_grupo': es_corporativo and ve_panel(request),
         'empresa': Empresa.actual(),
         'admin_django': bool(settings.ADMIN_URL) and request.user.is_superuser,
         'erp_version': settings.ERP_VERSION,

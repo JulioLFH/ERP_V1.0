@@ -113,6 +113,18 @@ def tiene_modulos_en(alias, principal):
         reg.restaurar(token)
 
 
+def ve_panel(request):
+    """Si el corporativo de la sesión ve el Panel del grupo (los administradores de la principal, siempre)."""
+    from .models import UsuarioCorporativo
+    u = corporativo(request)
+    if u is None:
+        return False
+    if u.is_superuser:
+        return True
+    c = UsuarioCorporativo.objects.using('default').filter(usuario_id=u.pk).first()
+    return bool(c and c.ve_panel)
+
+
 def puede_crear(request):
     u = corporativo(request)
     return bool(u and acceso_de(u)[3])
