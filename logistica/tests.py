@@ -1,4 +1,5 @@
 """Pruebas de v1.1: guías de remisión, almacenes, tipo de cambio, notas y facturación electrónica."""
+from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -13,6 +14,9 @@ from finanzas.models import Cuenta
 from ventas.models import Venta
 
 from .models import Conductor, GuiaRemision, Vehiculo
+
+# los datos demo cargan el stock con la fecha de hoy: los movimientos van con la misma fecha
+HOY = date.today().isoformat()
 
 ITEMS_MGMT = {'items-INITIAL_FORMS': '0', 'items-MIN_NUM_FORMS': '1', 'items-MAX_NUM_FORMS': '1000'}
 
@@ -118,19 +122,19 @@ class NuevasFuncionesTest(TestCase):
         from django.core.files.uploadedfile import SimpleUploadedFile
         acta = SimpleUploadedFile('acta.pdf', b'%PDF-1.4 acta', content_type='application/pdf')
         r = self.client.post(reverse('inv_ajuste'), {'producto': p.pk, 'almacen': self.callao.pk, 'tipo': 'ENTRADA',
-                                                     'cantidad': '4', 'costo_unitario': '500', 'fecha': '2026-10-01',
+                                                     'cantidad': '4', 'costo_unitario': '500', 'fecha': HOY,
                                                      'motivo': 'Inventario inicial', 'sustento': acta})
         self.assertEqual(r.status_code, 302)
         p.refresh_from_db()
         self.assertEqual(p.stock, stock0 + 4)
         self.assertEqual(stock_en(p, self.callao), 4)
         r = self.client.post(reverse('inv_ajuste'), {'producto': p.pk, 'almacen': self.callao.pk, 'tipo': 'SALIDA',
-                                                     'cantidad': '9', 'fecha': '2026-10-01', 'motivo': 'Merma'})
+                                                     'cantidad': '9', 'fecha': HOY, 'motivo': 'Merma'})
         self.assertIn('cantidad', r.context['form'].errors)  # no hay 9 en Callao
-        r = self.client.get(reverse('inv_valorizacion') + '?mes=2026-10')
+        r = self.client.get(reverse('inv_valorizacion') + f'?mes={HOY[:7]}')
         fila = next(f for f in r.context['filas'] if f['p'] == p)
         self.assertEqual(fila['cantidad'], stock0 + 4)
-        self.assertEqual(self.client.get(reverse('inv_valorizacion') + '?mes=2026-10&formato=excel').status_code, 200)
+        self.assertEqual(self.client.get(reverse('inv_valorizacion') + f'?mes={HOY[:7]}&formato=excel').status_code, 200)
         r = self.client.get(reverse('inv_kardex') + f'?producto={p.pk}&almacen={self.callao.pk}')
         self.assertEqual(r.context['final'], 4)
 

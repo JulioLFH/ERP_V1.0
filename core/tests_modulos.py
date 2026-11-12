@@ -85,10 +85,12 @@ class ModulosTest(TestCase):
         u = User.objects.get(username='contador')
         self.assertEqual(set(u.groups.values_list('name', flat=True)), {'Contabilidad', 'Finanzas'})
         self.assertTrue(u.check_password('ClaveSegura2026'))
-        # sin módulos ni admin: error
+        # sin módulos ni admin: se crea igual (v1.109), pero no ve ningún módulo hasta que se le asigne
         r = self.client.post(reverse('usuario_nuevo'), {'username': 'x', 'is_active': 'on',
                                                         'clave1': 'ClaveSegura2026', 'clave2': 'ClaveSegura2026'})
-        self.assertIn('modulos', r.context['form'].errors)
+        self.assertEqual(r.status_code, 302)
+        from core.modulos import modulos_del_usuario
+        self.assertFalse(set(modulos_del_usuario(User.objects.get(username='x'))) - {'tablero', 'ajustes'})
         # no puede quitarse su propio rol de administrador
         r = self.client.post(reverse('usuario_editar', args=[self.admin.pk]), {
             'username': 'jefe', 'is_active': 'on', 'modulos': ['ventas']})

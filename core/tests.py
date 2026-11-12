@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -11,6 +12,9 @@ from core.models import Producto, Tercero
 from finanzas.models import Cuenta, Movimiento
 from logistica.models import GuiaRemision
 from ventas.models import Venta
+
+# los datos demo cargan el stock con la fecha de hoy: los movimientos van con la misma fecha
+HOY = date.today().isoformat()
 
 
 class SmokeTest(TestCase):
@@ -79,7 +83,7 @@ class SmokeTest(TestCase):
         stock0 = p.stock
         cli = Tercero.objects.filter(tipo='CLIENTE', tipo_doc='6').first()
         data = {
-            'tipo_comprobante': '01', 'serie': '', 'numero': '', 'tercero': cli.pk, 'fecha_emision': '2026-10-01',
+            'tipo_comprobante': '01', 'serie': '', 'numero': '', 'tercero': cli.pk, 'fecha_emision': HOY,
             'fecha_vencimiento': '', 'forma_pago': 'CREDITO', 'moneda': 'PEN', 'tipo_cambio': '1',
             'tipo_operacion': 'GRAVADA', 'detraccion_pct': '0', 'retencion_pct': '0', 'percepcion_pct': '0',
             'icbper': '0', 'vendedor': '', 'descontar_stock': 'on', 'glosa': '',
@@ -97,7 +101,7 @@ class SmokeTest(TestCase):
 
         cuenta = Cuenta.objects.filter(tipo='BANCO').first()
         r = self.client.post(reverse('finanzas:cobranza') + f'?doc={venta.pk}', {
-            'cuenta': cuenta.pk, 'fecha': '2026-10-01', 'medio_pago': 'TRANSFERENCIA', f'monto_{venta.pk}': '100'})
+            'cuenta': cuenta.pk, 'fecha': HOY, 'medio_pago': 'TRANSFERENCIA', f'monto_{venta.pk}': '100'})
         self.assertEqual(r.status_code, 302)
         self.assertEqual(venta.saldo, Decimal('136.00'))
 
