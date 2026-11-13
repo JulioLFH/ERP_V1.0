@@ -313,15 +313,47 @@ def plan(alias=None):
 
 # ---------------------------------------------------------------- la cuenta más detallada del plan cargado
 _DETALLE = {}  # base -> {prefijo: [cuentas de último nivel (imputables, sin subcuentas) que empiezan con él]}
+_VERSION = {}  # base -> (versión del plan con la que se armó, hora de la última revisión)
+REVISAR_CADA = 5  # segundos: cada cuánto un proceso del servidor mira si otro cambió el plan de cuentas
+
+
+def _clave_version(alias):
+    return f'grupo_pcge_version_{alias}'  # «grupo_»: la misma clave sea cual sea la empresa activa
 
 
 def limpiar_detalle(**kwargs):
-    """Se llama al cambiar el plan de cuentas (también como receptor de post_save / post_delete)."""
+    """Se llama al cambiar el plan de cuentas (también como receptor de post_save / post_delete). Con varios procesos
+    del servidor (servir.py), la versión en la caché compartida hace que los demás también lo rearmen."""
+    import time
+
+    from django.core.cache import cache
+
+    from erp.empresas import actual
     _DETALLE.clear()
+    _VERSION.clear()
+    cache.set(_clave_version(kwargs.get('using') or actual()), time.time(), None)
+
+
+def _vigente(alias):
+    """¿El índice armado en este proceso sigue al día con el plan de cuentas? (lo revisa cada REVISAR_CADA s)"""
+    import time
+
+    from django.core.cache import cache
+    version, revisado = _VERSION.get(alias, (None, 0.0))
+    if time.monotonic() - revisado < REVISAR_CADA:
+        return True
+    actual_version = cache.get(_clave_version(alias))
+    _VERSION[alias] = (version, time.monotonic())
+    return actual_version == version
 
 
 def _subcuentas(alias):
+    if alias in _DETALLE and not _vigente(alias):
+        _DETALLE.pop(alias, None)
     if alias not in _DETALLE:
+        from django.core.cache import cache
+        import time
+        _VERSION[alias] = (cache.get(_clave_version(alias)), time.monotonic())
         from .models import CuentaContable
         codigos = list(CuentaContable.objects.using(alias).filter(imputable=True, activo=True).order_by('codigo'))
         indice = {}

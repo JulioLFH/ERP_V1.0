@@ -62,6 +62,30 @@ Iniciar el ERP sobre PostgreSQL (puerto 8002):
 
 En la app de Claude también está la configuración `erp-postgres` en `.claude/launch.json`.
 
+### Servidor de producción (`servir.py`, desde v1.110)
+
+`iniciar.bat` ya no usa `runserver` con PostgreSQL: arranca `servir.py`, que atiende con **waitress** en varios
+procesos sobre el mismo puerto (Windows reparte las visitas entre ellos). IIS sigue apuntando al mismo puerto.
+
+```bash
+.venv\Scripts\python.exe servir.py --puerto 8030 --settings=erp.settings_postgres
+```
+
+- **Procesos:** uno por núcleo, hasta 4 (`PROCESOS=4` en `.env.postgres` o `--procesos N`); 8 hilos cada uno
+  (`--hilos`). `runserver` usaba un solo núcleo.
+- **Capacidad medida (13/11/2026, copia de la base, 8 núcleos):** `runserver` llega a ~25 pantallas por segundo y
+  con 80 clics simultáneos tarda 3–7 s y da errores; con 4 procesos, ~80–105 pantallas por segundo, 0 errores y
+  menos de 2 s con 80 clics simultáneos (unas 400–600 personas trabajando a la vez).
+- **Actualizar el código:** al cambiar un `.py`, una plantilla o un archivo de `static/` (un `git pull`), los procesos
+  se reinician de a uno: el nuevo empieza a atender antes de que el viejo termine lo que tenía en curso, sin cortar a
+  nadie (probado con 80 usuarios: 0 errores). Si cambió `static/`, antes corre `collectstatic`. Si el código nuevo no
+  arranca, siguen los procesos anteriores y el error queda en la ventana.
+- **Migraciones:** no se aplican solas. Aplíquelas (o reinicie con `iniciar.bat`) **antes** de subir el código que usa
+  las columnas nuevas.
+- Si un proceso se cae, se levanta otro. Cerrar la ventana detiene el ERP.
+- La caché (tokens de SUNAT, inicio de sesión corporativo, avisos de envío repetido) es compartida por los procesos:
+  carpeta `.cache_ceiba/` (no se sube al repositorio).
+
 Después de actualizar el código, aplique las migraciones **en las dos empresas**:
 
 ```bash

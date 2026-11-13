@@ -3,6 +3,14 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.110.0 — 13/11/2026 · Servidor de producción con varios procesos; aviso claro del SIRE
+- **Servidor de producción (`servir.py`)**: `iniciar.bat` con PostgreSQL ya no usa `runserver` (un solo núcleo): atiende con waitress en varios procesos (uno por núcleo, hasta 4; `PROCESOS=` en `.env.postgres`) sobre el mismo puerto, así que IIS no cambia. Medido sobre una copia de la base: de ~25 a ~80–105 pantallas por segundo; con 80 clics simultáneos, de 3–7 s y errores a menos de 2 s y 0 errores.
+- **Actualizar sin cortar a nadie**: al cambiar el código (un `git pull`), los procesos se reinician de a uno; el nuevo atiende antes de que el anterior termine lo que tenía en curso (probado con 80 usuarios: 0 errores). Si cambian los estilos o scripts, antes corre `collectstatic`. Si el código nuevo no arranca, siguen los procesos anteriores. Un proceso caído se reemplaza solo. Las migraciones siguen aplicándose antes de subir el código.
+- **Caché compartida entre procesos** (`.cache_ceiba/`): tokens de SUNAT, inicio de sesión corporativo, avisos de envío repetido y límites de intentos valen igual en todos los procesos. El índice del plan de cuentas se rearma en todos cuando uno lo cambia.
+- **IP del cliente**: las cabeceras que envía IIS (X-Forwarded-For/Proto/Host) llegan igual que antes; la bitácora sigue registrando la IP real.
+- **SIRE: aviso según lo que rechaza SUNAT**: si SUNAT acepta el usuario y la clave SOL pero no deja entrar al SIRE (client_id sin el SIRE o usuario secundario sin el perfil), el aviso lo dice y explica qué revisar, en vez de culpar a la clave SOL. Si rechaza la clave, dice eso.
+- **Pruebas**: usan la fecha de hoy en lugar de una fecha fija (fallaban desde noviembre) y reflejan que un usuario puede crearse sin módulos.
+
 ## v1.109.0 — 11/11/2026 · Usuarios corporativos con módulos, empresas y permisos propios; módulos del grupo
 - **Módulos del grupo (licencia)**: en el Panel del grupo › Módulos del grupo, el administrador de la empresa principal desmarca un módulo del plan y queda desactivado en todas las empresas: nadie lo ve ni lo abre, tampoco sus administradores, y no aparece en el menú, el inicio ni la asignación de usuarios. Al volver a marcarlo, cada usuario recupera lo que tenía. El tope sigue siendo el plan que fija Ceiba en `/plataforma/`.
 - **Crear usuario corporativo con módulos y empresas**: en el Panel del grupo se eligen las empresas que verá (o todas) y sus módulos (o Administrador). Son los módulos con que entra la primera vez a otra empresa; luego se ajustan en cada empresa, en Ajustes › Usuarios, como siempre.

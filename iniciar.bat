@@ -88,7 +88,17 @@ echo Iniciando Ceiba ERP en http://127.0.0.1:%PUERTO% ... ^(no cierre esta venta
 for /f "tokens=2 delims=:" %%i in ('ipconfig ^| findstr /c:"IPv4"') do for /f "tokens=*" %%j in ("%%i") do echo Desde otra PC de la red: http://%%j:%PUERTO%
 rem abre el navegador recien cuando el servidor contesta (evita la pagina "no se puede conectar")
 start "" /b powershell -NoProfile -WindowStyle Hidden -Command "for($i=0;$i -lt 90;$i++){try{Invoke-WebRequest http://127.0.0.1:%PUERTO%/login/ -UseBasicParsing -TimeoutSec 2 | Out-Null; Start-Process http://127.0.0.1:%PUERTO%; break}catch{Start-Sleep 1}}"
-.venv\Scripts\python.exe manage.py runserver 0.0.0.0:%PUERTO% %AJUSTES%
+rem PostgreSQL (uso real): servidor de produccion con varios procesos (servir.py). Atiende varias visitas a la vez
+rem con todos los nucleos y, si cambia el codigo, reinicia los procesos de a uno sin cortar a los usuarios.
+rem Procesos: linea PROCESOS=4 en .env.postgres (sin ella, uno por nucleo hasta 4). SQLite y demo: runserver.
+if "%MODO%"=="PostgreSQL" (
+  for /f "tokens=2 delims== " %%p in ('findstr /b /c:"PROCESOS=" ".env.postgres"') do set PROCESOS=%%p
+  rem equipos actualizados con git pull que aun no tienen el servidor (waitress): se instala una vez
+  .venv\Scripts\python.exe -c "import waitress" 2>nul || .venv\Scripts\python.exe -m pip install -q "waitress>=3.0"
+  .venv\Scripts\python.exe servir.py --puerto %PUERTO% %AJUSTES%
+) else (
+  .venv\Scripts\python.exe manage.py runserver 0.0.0.0:%PUERTO% %AJUSTES%
+)
 
 :fin
 echo.

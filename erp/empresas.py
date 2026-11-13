@@ -166,8 +166,9 @@ def razon_social(alias):
 
 
 def clave_cache(key, key_prefix, version):
-    """Las claves de caché se separan por empresa (ej. listas del historial, razón social)."""
-    if key.startswith('razon_social_'):
+    """Las claves de caché se separan por empresa (ej. listas del historial). Las que empiezan con «razon_social_» o
+    «grupo_» son del grupo: la misma clave sea cual sea la empresa activa."""
+    if key.startswith(('razon_social_', 'grupo_')):
         return f'{key_prefix}:{version}:{key}'
     return f'{actual()}:{key_prefix}:{version}:{key}'
 

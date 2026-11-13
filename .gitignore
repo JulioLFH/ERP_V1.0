@@ -13,3 +13,4 @@ server.log
 *.sqlite3
 migracion_local/
 observaciones_migracion*.xlsx
+.cache_ceiba/

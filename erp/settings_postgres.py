@@ -79,3 +79,11 @@ CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(
 _COOKIE = _dato('PG_COOKIE', 'ceiba_pg')
 SESSION_COOKIE_NAME = f'{_COOKIE}_sesion'  # no se mezcla con las sesiones de las bases SQLite
 CSRF_COOKIE_NAME = f'{_COOKIE}_csrf'
+# caché compartida por los procesos del servidor (servir.py atiende con varios): el inicio de sesión corporativo,
+# los tokens de SUNAT, los avisos de envío repetido y los límites de intentos valen igual en todos. Una carpeta por
+# instalación (PG_COOKIE), como las cookies.
+CACHES = {'default': {'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+                      'LOCATION': str(BASE_DIR / '.cache_ceiba' / (
+                          'pruebas' if 'test' in __import__('sys').argv[1:2] else _COOKIE)),
+                      'KEY_FUNCTION': 'erp.empresas.clave_cache',
+                      'OPTIONS': {'MAX_ENTRIES': 20000}}}
