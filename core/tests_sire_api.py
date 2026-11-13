@@ -245,3 +245,20 @@ class SesionConClaveDeLaEmpresaTest(Base):
         r = self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-10'}, follow=True)
         self.assertContains(r, 'Falta la clave SOL del SIRE en Ajustes › Empresa')
         self.assertEqual(PropuestaSIRE.objects.count(), 1)
+
+    def test_mensaje_segun_lo_que_rechaza_sunat(self):
+        """Clave rechazada al pedir el token vs. sesión válida que SUNAT no deja entrar al SIRE (client_id sin SIRE)."""
+        def token_rechazado(metodo, url, *a, **k):
+            raise sire_api.SesionVencida('401')
+
+        def sin_sire(metodo, url, *a, **k):
+            if 'oauth2/token' in url:
+                return {'access_token': 'T', 'expires_in': 3600}
+            raise sire_api.SesionVencida('401')
+        for simulado, texto in ((token_rechazado, 'SUNAT rechazó el ingreso con el usuario SOL'),
+                                (sin_sire, 'no da acceso al SIRE con esas credenciales')):
+            cache.clear()
+            with patch('core.sire_api._http', simulado):
+                r = self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-10'}, follow=True)
+            self.assertContains(r, texto)
+        self.assertEqual(PropuestaSIRE.objects.count(), 0)

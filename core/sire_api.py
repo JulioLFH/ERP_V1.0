@@ -79,6 +79,14 @@ FALTA_CLAVE = ('Falta la clave SOL del SIRE en Ajustes › Empresa. Regístrela 
                'sistema mantiene la sesión con SUNAT solo.')
 
 
+CLAVE_RECHAZADA = ('SUNAT rechazó el ingreso con el usuario SOL y la clave SOL del SIRE (o con el client_id y el '
+                   'client_secret). Revíselos en Ajustes › Empresa.')
+SIN_PERMISO_SIRE = ('SUNAT aceptó el usuario y la clave SOL, pero no da acceso al SIRE con esas credenciales. En SUNAT '
+                    'Operaciones en Línea revise que la aplicación del client_id (Credenciales de API SUNAT) tenga el '
+                    'SIRE y, si es un usuario secundario, que tenga el perfil del SIRE; luego registre en Ajustes › '
+                    'Empresa el client_id y el client_secret del SIRE.')
+
+
 def _http(metodo, url, datos=None, cabeceras=None, binario=False):
     req = urllib.request.Request(url, data=datos, method=metodo,
                                  headers={'User-Agent': 'Ceiba-ERP', 'Accept': 'application/json', **(cabeceras or {})})
@@ -122,8 +130,11 @@ def iniciar_sesion():
     datos = urllib.parse.urlencode({'grant_type': 'password', 'scope': SCOPE, 'client_id': cid,
                                     'client_secret': secreto, 'username': f'{e.ruc}{e.sire_usuario_sol}',
                                     'password': clave_sol}).encode()
-    resp = _http('POST', TOKEN_URL.format(client_id=cid), datos,
-                 {'Content-Type': 'application/x-www-form-urlencoded'})
+    try:
+        resp = _http('POST', TOKEN_URL.format(client_id=cid), datos,
+                     {'Content-Type': 'application/x-www-form-urlencoded'})
+    except SesionVencida as exc:
+        raise ErrorSIRE(CLAVE_RECHAZADA) from exc
     token = resp.get('access_token')
     if not token:
         raise ErrorSIRE(f'SUNAT no entregó el token: {resp.get("error_description") or resp}')
@@ -152,7 +163,11 @@ def _api(metodo, ruta, binario=False):
         if not clave_guardada(e):
             raise
         cache.delete(_clave_cache(e))  # el token pudo vencer antes de lo indicado: una nueva sesión y un reintento
-        return llamar()
+        try:
+            return llamar()
+        except SesionVencida as exc:
+            # el usuario y la clave SOL valen (SUNAT acaba de dar la sesión), pero esa sesión no entra al SIRE
+            raise ErrorSIRE(SIN_PERMISO_SIRE) from exc
 
 
 def solicitar_propuesta(libro, periodo):
