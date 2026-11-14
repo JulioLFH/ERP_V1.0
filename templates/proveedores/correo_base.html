@@ -1,12 +1,68 @@
+{% comment %}Plantilla base de TODOS los correos de Ceiba ERP: cabecera con el logo de ceiba, cuerpo y firma del
+administrador. Hecha con tablas y estilos en línea para que se vea igual en Gmail, Outlook y el celular.
+El logo es un PNG público (Gmail no muestra SVG): https://ceiba-tecnologic.com/img/ceiba-correo.png{% endcomment %}
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"></head>
-<body style="font-family: Arial, Helvetica, sans-serif; color: #1d2b3a; font-size: 14px; background: #f3f5f8; padding: 16px;">
-<div style="max-width: 680px; margin: 0 auto; background: #ffffff; border: 1px solid #dfe3ea; border-radius: 8px; padding: 24px;">
-  <div style="border-bottom: 3px solid #0b7285; padding-bottom: 8px; margin-bottom: 16px;">
-    <b style="font-size: 16px;">{{ empresa.razon_social }}</b><br>
-    <span style="color: #6b7785; font-size: 12px;">RUC {{ empresa.ruc }}{% if empresa.direccion %} · {{ empresa.direccion }}{% endif %}</span>
-  </div>
-  {% block cuerpo %}{% endblock %}
-  <p style="color: #6b7785; font-size: 12px; margin-top: 24px;">Correo enviado automáticamente desde el sistema de {{ empresa.razon_social }}.{% if empresa.email %} Consultas: {{ empresa.email }}{% endif %}</p>
-</div>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light"><title>Ceiba ERP</title></head>
+<body style="margin:0; padding:0; background:#F4F6F2; -webkit-text-size-adjust:100%;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F6F2;">
+<tr><td align="center" style="padding:24px 12px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="max-width:640px; background:#FFFFFF; border:1px solid #E1E6E2; border-radius:12px; overflow:hidden;
+                font-family:'Segoe UI', Arial, Helvetica, sans-serif; color:#1D2B25;">
+    {# ---------- cabecera: logo + marca + empresa ---------- #}
+    <tr><td style="background:#0F3D2E; padding:18px 28px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td style="vertical-align:middle;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td style="vertical-align:middle; padding-right:10px;">
+              <img src="https://ceiba-tecnologic.com/img/ceiba-correo.png" width="46" height="40" alt="ceiba"
+                   style="display:block; border:0; width:46px; height:40px;">
+            </td>
+            <td style="vertical-align:middle; font-size:26px; font-weight:700; letter-spacing:-0.5px; color:#F4F6F2;">
+              ceiba<span style="font-size:13px; font-weight:600; letter-spacing:4px; color:#2E9E66; padding-left:6px;">ERP</span>
+            </td>
+          </tr></table>
+        </td>
+        <td align="right" style="vertical-align:middle; font-size:12px; line-height:17px; color:#C6D6CD;">
+          <span style="color:#FFFFFF; font-weight:600;">{{ empresa.razon_social }}</span><br>
+          {% if empresa.ruc %}RUC {{ empresa.ruc }}{% endif %}
+        </td>
+      </tr></table>
+    </td></tr>
+    <tr><td style="height:4px; line-height:4px; font-size:0; background:#1F7A52;">&nbsp;</td></tr>
+
+    {# ---------- cuerpo de cada correo ---------- #}
+    <tr><td style="padding:30px 32px 8px 32px; font-size:15px; line-height:23px; color:#1D2B25;">
+      {% block cuerpo %}{% endblock %}
+    </td></tr>
+
+    {# ---------- firma ---------- #}
+    <tr><td style="padding:16px 32px 28px 32px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E1E6E2; width:100%;">
+        <tr><td style="padding-top:18px; font-size:14px; line-height:21px; color:#1D2B25;">
+          <span style="color:#6B7A72;">Atentamente,</span><br>
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:10px;"><tr>
+            <td style="width:4px; background:#1F7A52; border-radius:2px;">&nbsp;</td>
+            <td style="padding-left:12px; font-size:14px; line-height:21px;">
+              <b style="color:#0F3D2E; font-size:15px;">Administrador de Ceiba ERP</b><br>
+              <span style="color:#6B7A72;">Teléfono / WhatsApp:</span>
+              <a href="tel:+51928248648" style="color:#1F7A52; text-decoration:none; font-weight:600;">928 248 648</a><br>
+              <span style="color:#6B7A72;">Correo:</span>
+              <a href="mailto:juliochroli@gmail.com" style="color:#1F7A52; text-decoration:none; font-weight:600;">juliochroli@gmail.com</a>
+            </td>
+          </tr></table>
+        </td></tr>
+      </table>
+    </td></tr>
+
+    {# ---------- pie ---------- #}
+    <tr><td style="background:#F4F6F2; border-top:1px solid #E1E6E2; padding:14px 32px; font-size:11px; line-height:16px; color:#7D8B84;">
+      Mensaje automático de Ceiba ERP para {{ empresa.razon_social }}{% if empresa.direccion %} · {{ empresa.direccion }}{% endif %}.
+      {% if empresa.email %}Consultas: <a href="mailto:{{ empresa.email }}" style="color:#7D8B84;">{{ empresa.email }}</a>.{% endif %}
+      Si recibió este correo por error, puede ignorarlo.
+    </td></tr>
+  </table>
+</td></tr>
+</table>
 </body></html>

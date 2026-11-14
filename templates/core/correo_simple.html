@@ -1,5 +1,5 @@
-<div style="font-family:Arial,sans-serif;font-size:14px;color:#1d2b25">
-  <p style="font-size:16px;font-weight:bold;color:#0F3D2E">{{ asunto }}</p>
-  {{ texto|linebreaks }}
-  <p style="color:#5f6f67;font-size:12px">{{ empresa.razon_social }} · Ceiba ERP</p>
-</div>
+{% extends 'proveedores/correo_base.html' %}
+{% block cuerpo %}
+<p style="margin:0 0 14px 0; font-size:18px; font-weight:700; color:#0F3D2E;">{{ asunto }}</p>
+{{ texto|linebreaks }}
+{% endblock %}

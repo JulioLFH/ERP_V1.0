@@ -24,6 +24,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8090", "--directory", "C:\\Users\\Julio\\Desktop\\MotorsRun"],
       "port": 8090
+    },
+    {
+      "name": "ceiba-go",
+      "runtimeExecutable": "C:\\Users\\Administrator\\Desktop\\Ceiba_GO\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["C:\\Users\\Administrator\\Desktop\\Ceiba_GO\\servir.py"],
+      "port": 8040
     }
   ]
 }
