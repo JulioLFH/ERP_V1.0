@@ -153,4 +153,4 @@ class ConversacionTest(Base):
         self.ingresar('vendedor')
         r = self.client.get(reverse('home'))
         self.assertContains(r, 'Soporte y tickets')
-        self.assertContains(r, reverse('soporte:reportar'))
+        self.assertNotContains(r, 'Reportar un problema')  # v1.111.2: todo va por Soporte y tickets

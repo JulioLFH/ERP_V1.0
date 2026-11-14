@@ -62,7 +62,7 @@ M['tablero'] = {
         ('Alertas', 'La campana muestra lo pendiente: aprobaciones, vencimientos, conteos abiertos, documentos por validar, accidentes por notificar, etc.'),
         ('Mis aprobaciones', 'Bandeja única de todo lo que espera su aprobación, con la ruta y el historial de cada nivel.'),
         ('Log de modificaciones', 'Cada módulo tiene su historial de cambios (quién, cuándo, valor anterior y nuevo).'),
-        ('Reportar un problema', 'Desde cualquier pantalla se puede reportar un error; queda como incidencia para el administrador.'),
+        ('Soporte y tickets', 'Menú del usuario: tickets de problemas, desarrollos o consultas para el equipo de soporte, con adjuntos y respuesta.'),
         ('Claves de API', 'Menú del usuario: claves para conectar Power BI, una tienda u otro sistema con la API REST.'),
         ('Celular', 'Las pantallas se adaptan al celular; rendiciones, liberación de solicitudes, conteos y avance de obra tienen vistas móviles.'),
     ])],

@@ -68,7 +68,7 @@ class ReportarYRevisarTest(TestCase):
         self.client.post(reverse('incidencia', args=[inc.pk]), {'estado': 'RESUELTA', 'nota': 'Corregido en v1.33'})
         inc.refresh_from_db()
         self.assertEqual((inc.estado, inc.revisado_por, inc.nota), ('RESUELTA', admin, 'Corregido en v1.33'))
-        self.assertContains(self.client.get('/'), 'Reportar un problema')
+        self.assertContains(self.client.get('/'), 'Soporte y tickets')  # v1.111.2: reemplaza «Reportar un problema»
 
 
 class SaludTest(TestCase):

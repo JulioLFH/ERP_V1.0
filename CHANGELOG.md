@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.111.2 — 14/11/2026 · Un solo lugar para pedir ayuda
+- **Se quita «Reportar un problema»** del menú del usuario: los problemas, desarrollos y consultas se registran en **Soporte y tickets**, que permite adjuntar capturas y seguir la respuesta de soporte.
+
 ## v1.111.1 — 14/11/2026 · Conexiones a un PostgreSQL remoto compartido
 - **Conexiones con el servidor remoto**: con la base en un PostgreSQL remoto (compartido por varias instalaciones), cada pedido abre su conexión y la cierra al terminar. Las conexiones persistentes (una por hilo y por base, abiertas 10 minutos aunque el hilo no atendiera) agotaban el máximo de conexiones del servidor y los ERP respondían con error («too many clients»). En un PostgreSQL local siguen siendo persistentes; `PG_CONN_MAX_AGE` fija los segundos en ambos casos.
 
