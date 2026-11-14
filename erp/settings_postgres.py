@@ -71,6 +71,12 @@ def _empresas_registradas():
 for _alias, _base, _nombre in _empresas_registradas():
     DATABASES.setdefault(_alias, {**_CONEXION, 'NAME': _base})
     EMPRESAS.setdefault(_alias, _nombre)
+# detrás de IIS (proxy en el mismo servidor): el dominio real llega en X-Forwarded-Host y el protocolo en
+# X-Forwarded-Proto (https/http). Sin esto los enlaces que se arman para los correos (recuperar contraseña, clave de
+# instalación) salen con 127.0.0.1:<puerto>. PROXY_IIS=0 lo desactiva (instalación sin IIS delante).
+if _dato('PROXY_IIS', '1') == '1':
+    USE_X_FORWARDED_HOST = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # dominio público detrás de un proxy (p. ej. Cloudflare): sin esto el login responde «La verificación CSRF ha
 # fallado», porque la petición llega al servidor por http o con otro Host. Separados por coma, con https://
 CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(

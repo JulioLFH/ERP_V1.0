@@ -28,6 +28,7 @@ urlpatterns = [
     path('sugerencias/', opciones.sugerencias, name='sugerencias'),
     path('estado/', monitoreo.estado, name='estado_servicio'),
     path('instalacion/', instalacion.instalar, name='instalacion'),
+    path('instalacion/solicitar-clave/', instalacion.solicitar_clave, name='instalacion_solicitar_clave'),
     path('panel/', views_grupo.panel, name='grupo_panel'),
     path('grupo/', views_grupo.empresas, name='grupo_empresas'),
     path('grupo/entrar/', views_grupo.entrar, name='grupo_entrar'),

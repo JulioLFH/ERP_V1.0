@@ -14,6 +14,7 @@
   </div>
   <button class="btn btn-ingresar w-100">Continuar</button>
 </form>
+{% if puede_solicitar %}<div class="text-center small mt-3"><a href="{% url 'instalacion_solicitar_clave' %}">¿No tiene la clave? Volver a solicitar clave</a></div>{% endif %}
 {% else %}
 <p class="small text-muted">Registre la empresa principal y cree el administrador del sistema. Desde su Panel del grupo podrá crear las demás empresas y sus usuarios.</p>
 <form method="post" autocomplete="off">{% csrf_token %}

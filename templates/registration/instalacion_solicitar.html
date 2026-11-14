@@ -1,0 +1,20 @@
+{% extends 'registration/publico_base.html' %}
+{% block title %}Solicitar clave de instalación{% endblock %}
+{% block tarjeta %}
+<h2>Solicitar clave de instalación</h2>
+{% if enviado %}
+<div class="alert alert-success small">Le enviamos la clave de instalación a su correo. Revise también la carpeta de spam.</div>
+<a href="{% url 'instalacion' %}" class="btn btn-ingresar w-100">Ingresar la clave</a>
+{% else %}
+<p class="small text-muted">Ingrese el correo autorizado para esta instalación. Le enviaremos la clave para continuar.</p>
+{% for e in form.non_field_errors %}<div class="alert alert-danger py-2 small">{{ e }}</div>{% endfor %}
+<form method="post" autocomplete="off">{% csrf_token %}
+  <div class="mb-3">
+    <label for="{{ form.correo.id_for_label }}">{{ form.correo.label }}</label>{{ form.correo }}
+    {% for e in form.correo.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+  </div>
+  <button class="btn btn-ingresar w-100">Enviar clave</button>
+</form>
+<div class="text-center small mt-3"><a href="{% url 'instalacion' %}">Volver a ingresar la clave</a></div>
+{% endif %}
+{% endblock %}

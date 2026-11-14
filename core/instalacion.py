@@ -65,7 +65,9 @@ def instalar(request):
     if not pendiente():
         raise Http404
     if not permitido(request):
-        return render(request, 'registration/instalacion.html', {'bloqueado': True}, status=403)
+        puede_solicitar = bool(os.environ.get('CLAVE_INSTALACION') and os.environ.get('CORREO_INSTALACION'))
+        return render(request, 'registration/instalacion.html',
+                      {'bloqueado': True, 'puede_solicitar': puede_solicitar}, status=403)
     form = InstalacionForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         from django.db import transaction
@@ -98,3 +100,46 @@ def instalar(request):
             restaurar(token)
         return redirect('grupo_panel')
     return render(request, 'registration/instalacion.html', {'form': form})
+
+
+class SolicitarClaveForm(BootstrapMixin, forms.Form):
+    correo = forms.EmailField(label='Correo autorizado para esta instalación')
+
+
+def solicitar_clave(request):
+    """«Volver a solicitar clave»: envía la clave de instalación al correo autorizado (variable de entorno
+    CORREO_INSTALACION). Si el correo escrito no es ese, pide ingresar el correcto; la clave solo viaja a ese correo,
+    así que confirmar cuál es no la expone. Máximo 5 pedidos por hora desde la misma dirección."""
+    if not pendiente():
+        raise Http404
+    clave = os.environ.get('CLAVE_INSTALACION', '')
+    autorizado = os.environ.get('CORREO_INSTALACION', '').strip().lower()
+    if not clave or not autorizado:
+        raise Http404
+    form = SolicitarClaveForm(request.POST or None)
+    enviado = False
+    if request.method == 'POST' and form.is_valid():
+        from django.core.cache import cache
+
+        from . import correo
+        from .acceso import _ip
+        llave = f'instalacion-clave:{_ip(request)}'
+        if cache.get(llave, 0) >= 5:
+            form.add_error(None, 'Demasiadas solicitudes. Intente de nuevo en una hora.')
+        else:
+            cache.set(llave, cache.get(llave, 0) + 1, 3600)
+            if form.cleaned_data['correo'].strip().lower() != autorizado:
+                form.add_error('correo', 'Ese correo no está autorizado para esta instalación. '
+                                         'Ingrese nuevamente el correo correcto.')
+            else:
+                enlace = request.build_absolute_uri(f"{redirect('instalacion').url}?clave={clave}")
+                try:
+                    correo.enviar([autorizado], 'Ceiba ERP · Clave de instalación',
+                                  'registration/correo_clave_instalacion.html',
+                                  {'clave': clave, 'enlace': enlace, 'dominio': request.get_host()})
+                    enviado = True
+                except correo.ErrorCorreo as exc:
+                    import logging
+                    logging.getLogger('django.request').error('Clave de instalación sin enviar: %s', exc)
+                    form.add_error(None, 'No se pudo enviar el correo. Avise al administrador de Ceiba ERP.')
+    return render(request, 'registration/instalacion_solicitar.html', {'form': form, 'enviado': enviado})
