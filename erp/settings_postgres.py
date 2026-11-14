@@ -38,7 +38,11 @@ _CONEXION = {
     'PASSWORD': _dato('PG_CLAVE'),
     'HOST': _dato('PG_HOST', '127.0.0.1'),
     'PORT': _dato('PG_PUERTO', '5432'),
-    'CONN_MAX_AGE': 600,
+    # conexión persistente por hilo: en un PostgreSQL local, 10 minutos (más rápido). En uno remoto compartido por
+    # varias instalaciones, 0 = cada pedido abre su conexión y la cierra al terminar, porque las persistentes (una por
+    # hilo y por base, aunque el hilo no atienda) agotaban max_connections del servidor. PG_CONN_MAX_AGE la fija.
+    'CONN_MAX_AGE': int(_dato('PG_CONN_MAX_AGE') or (600 if _dato('PG_HOST', '127.0.0.1') in ('127.0.0.1', 'localhost')
+                                                     else 0)),
     'CONN_HEALTH_CHECKS': True,
 }
 DATABASES = {'default': {**_CONEXION, 'NAME': _dato('PG_BASE_PRINCIPAL', 'ceiba_principal')},

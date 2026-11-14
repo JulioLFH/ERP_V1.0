@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.111.1 — 14/11/2026 · Conexiones a un PostgreSQL remoto compartido
+- **Conexiones con el servidor remoto**: con la base en un PostgreSQL remoto (compartido por varias instalaciones), cada pedido abre su conexión y la cierra al terminar. Las conexiones persistentes (una por hilo y por base, abiertas 10 minutos aunque el hilo no atendiera) agotaban el máximo de conexiones del servidor y los ERP respondían con error («too many clients»). En un PostgreSQL local siguen siendo persistentes; `PG_CONN_MAX_AGE` fija los segundos en ambos casos.
+
 ## v1.111.0 — 14/11/2026 · Soporte y tickets en una central para todas las empresas
 - **Soporte y tickets** (menú del usuario › Soporte y tickets): cualquier usuario de cualquier empresa crea un ticket de **Problema o error, Desarrollo o mejora, Consulta u Otro tema**, con prioridad, módulo, descripción y hasta 5 adjuntos (capturas, PDF, Excel, Word, texto o ZIP de hasta 5 MB). Conversa con soporte en el mismo ticket, lo cierra cuando quedó resuelto o lo reabre. Estados: Abierto, En revisión, En desarrollo, Esperando su respuesta, Resuelto y Cerrado.
 - **Central de tickets**: los tickets de todas las instalaciones, grupos y empresas van a una sola base de datos (`ceiba_tickets`, alias `tickets`, en el mismo servidor PostgreSQL; `TICKETS_BASE` o `TICKETS_URL` la cambian), con la instalación (`INSTALACION`), el grupo, la empresa (RUC y razón social), el usuario, la página y la versión, para revisarlos en una plataforma única. La base de cada empresa no guarda tickets.
