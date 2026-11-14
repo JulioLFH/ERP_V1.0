@@ -3,7 +3,17 @@
 {% block tarjeta %}
 <h2>Primera instalación</h2>
 {% if bloqueado %}
-<div class="alert alert-warning small">El sistema aún no tiene usuarios. Por seguridad, la instalación se completa desde el mismo equipo del servidor (http://127.0.0.1) o con la clave de instalación (variable de entorno <code>CLAVE_INSTALACION</code>, en la dirección <code>/instalacion/?clave=…</code>).</div>
+{# sin clave (o con una incorrecta): se pide la clave de instalación en un campo, en vez de escribirla en la dirección #}
+<p class="small text-muted">El sistema aún no tiene usuarios. Por seguridad, ingrese la clave de instalación para continuar.</p>
+{% if request.GET.clave %}<div class="alert alert-danger py-2 small">La clave de instalación no es correcta.</div>{% endif %}
+<form method="get" autocomplete="off">
+  <div class="mb-3">
+    <label for="id_clave_instalacion">Clave de instalación</label>
+    <input type="password" name="clave" id="id_clave_instalacion" class="form-control" required autofocus
+           autocomplete="off" spellcheck="false">
+  </div>
+  <button class="btn btn-ingresar w-100">Continuar</button>
+</form>
 {% else %}
 <p class="small text-muted">Registre la empresa principal y cree el administrador del sistema. Desde su Panel del grupo podrá crear las demás empresas y sus usuarios.</p>
 <form method="post" autocomplete="off">{% csrf_token %}
