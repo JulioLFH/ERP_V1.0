@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}{{ t.codigo }} · {{ t.titulo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-start mb-3">
+  <div>
+    <div class="small text-muted">{{ t.codigo }} · {{ t.get_tipo_display }} · prioridad {{ t.get_prioridad_display|lower }}</div>
+    <h1 class="page-title mb-0">{{ t.titulo }}</h1>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    <span class="badge fs-6 {% if t.estado == 'ESPERA' %}text-bg-warning{% elif t.estado == 'RESUELTO' %}text-bg-success{% elif t.estado == 'CERRADO' %}text-bg-secondary{% else %}text-bg-primary{% endif %}">{{ t.get_estado_display }}</span>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'soporte:lista' %}"><i class="bi bi-arrow-left"></i> Tickets</a>
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card mb-3"><div class="card-body">
+      <div class="small text-muted mb-2">{{ t.usuario_nombre|default:t.usuario }} · {{ t.creado|date:'d/m/Y H:i' }}</div>
+      <div style="white-space:pre-wrap">{{ t.descripcion }}</div>
+      {% if adjuntos %}<div class="mt-3 d-flex flex-wrap gap-2">{% for a in adjuntos %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'soporte:adjunto' a.pk %}"><i class="bi bi-paperclip"></i> {{ a.nombre }} <span class="text-muted">({{ a.tamano|filesizeformat }})</span></a>{% endfor %}</div>{% endif %}
+    </div></div>
+
+    <h6 class="fw-semibold">Conversación</h6>
+    {% for c in comentarios %}
+    <div class="card mb-2 {% if c.de_soporte %}border-primary{% endif %}"><div class="card-body py-2">
+      <div class="small mb-1">{% if c.de_soporte %}<span class="badge text-bg-primary">Soporte Ceiba</span> {% endif %}<b>{{ c.autor_nombre|default:c.autor }}</b> <span class="text-muted">· {{ c.creado|date:'d/m/Y H:i' }}</span></div>
+      <div style="white-space:pre-wrap">{{ c.texto }}</div>
+      {% for a in c.adjuntos.all %}<a class="btn btn-sm btn-outline-secondary mt-2 me-1" href="{% url 'soporte:adjunto' a.pk %}"><i class="bi bi-paperclip"></i> {{ a.nombre }}</a>{% endfor %}
+    </div></div>
+    {% empty %}<p class="small text-muted">Todavía no hay respuestas. Soporte le responderá aquí.</p>{% endfor %}
+
+    {% if t.estado != 'CERRADO' %}
+    <form method="post" enctype="multipart/form-data" class="card mt-3"><div class="card-body">{% csrf_token %}
+      <input type="hidden" name="accion" value="comentar">
+      <label class="form-label fw-semibold" for="texto">Escribir a soporte</label>
+      <textarea name="texto" id="texto" rows="4" class="form-control mb-2" maxlength="20000" placeholder="Agregue información, responda una pregunta de soporte o confirme si quedó resuelto."></textarea>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <input type="file" name="adjuntos" class="form-control form-control-sm" style="max-width:340px" multiple accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.csv,.log,.xlsx,.xls,.docx,.doc,.zip,.xml,.json">
+        <button class="btn btn-primary btn-sm ms-auto"><i class="bi bi-send"></i> Enviar</button>
+      </div>
+    </div></form>
+    {% endif %}
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3"><div class="card-body small">
+      <h6 class="fw-semibold">Datos del ticket</h6>
+      <dl class="row mb-0">
+        <dt class="col-5 fw-normal text-muted">Empresa</dt><dd class="col-7">{{ t.empresa_nombre }}{% if t.empresa_ruc %}<br><span class="text-muted">RUC {{ t.empresa_ruc }}</span>{% endif %}</dd>
+        <dt class="col-5 fw-normal text-muted">Creado por</dt><dd class="col-7">{{ t.usuario_nombre|default:t.usuario }}</dd>
+        <dt class="col-5 fw-normal text-muted">Módulo</dt><dd class="col-7">{{ modulo_nombre }}</dd>
+        {% if t.url %}<dt class="col-5 fw-normal text-muted">Página</dt><dd class="col-7 text-break">{{ t.url }}</dd>{% endif %}
+        <dt class="col-5 fw-normal text-muted">Creado</dt><dd class="col-7">{{ t.creado|date:'d/m/Y H:i' }}</dd>
+        <dt class="col-5 fw-normal text-muted">Actualizado</dt><dd class="col-7">{{ t.actualizado|date:'d/m/Y H:i' }}</dd>
+        {% if t.asignado_a %}<dt class="col-5 fw-normal text-muted">Atiende</dt><dd class="col-7">{{ t.asignado_a }}</dd>{% endif %}
+      </dl>
+    </div></div>
+    <form method="post" class="card"><div class="card-body small">{% csrf_token %}
+      {% if t.estado == 'CERRADO' or t.estado == 'RESUELTO' %}
+        <p class="mb-2">{% if t.estado == 'RESUELTO' %}Soporte lo marcó como resuelto. Si quedó bien, ciérrelo; si no, reábralo.{% else %}El ticket está cerrado.{% endif %}</p>
+        {% if t.estado == 'RESUELTO' %}<button class="btn btn-success btn-sm w-100 mb-2" name="accion" value="cerrar"><i class="bi bi-check2-circle"></i> Quedó resuelto: cerrar</button>{% endif %}
+        <button class="btn btn-outline-secondary btn-sm w-100" name="accion" value="reabrir"><i class="bi bi-arrow-counterclockwise"></i> Reabrir</button>
+      {% else %}
+        <p class="mb-2 text-muted">¿Ya no lo necesita o lo resolvió por su cuenta?</p>
+        <button class="btn btn-outline-secondary btn-sm w-100" name="accion" value="cerrar" onclick="return confirm('¿Cerrar el ticket {{ t.codigo }}?')"><i class="bi bi-x-circle"></i> Cerrar ticket</button>
+      {% endif %}
+    </div></form>
+  </div>
+</div>
+{% endblock %}

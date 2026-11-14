@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Nuevo ticket{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Nuevo ticket de soporte</h1>
+  <a class="btn btn-sm btn-outline-secondary" href="{% url 'soporte:lista' %}"><i class="bi bi-arrow-left"></i> Mis tickets</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <form method="post" enctype="multipart/form-data" class="card"><div class="card-body">{% csrf_token %}
+      <input type="hidden" name="url" value="{{ desde }}">
+      <div class="mb-3">
+        <label class="form-label fw-semibold">¿Qué tipo de tema es?</label>
+        <div class="row g-2">
+          {% for v, t in form.fields.tipo.choices %}
+          <div class="col-6 col-md-3"><input type="radio" class="btn-check" name="tipo" id="tipo-{{ v }}" value="{{ v }}" {% if form.tipo.value == v %}checked{% endif %}>
+            <label class="btn btn-outline-secondary w-100 py-2" for="tipo-{{ v }}">
+              <i class="bi {% if v == 'PROBLEMA' %}bi-bug{% elif v == 'DESARROLLO' %}bi-lightbulb{% elif v == 'CONSULTA' %}bi-question-circle{% else %}bi-chat-left-text{% endif %} d-block fs-5"></i>{{ t }}</label></div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="row g-2 mb-2">
+        <div class="col-md-6"><label class="form-label" for="{{ form.prioridad.id_for_label }}">Prioridad</label>{{ form.prioridad }}</div>
+        <div class="col-md-6"><label class="form-label" for="{{ form.modulo.id_for_label }}">Módulo</label>{{ form.modulo }}</div>
+      </div>
+      <div class="mb-2"><label class="form-label" for="{{ form.titulo.id_for_label }}">Asunto</label>{{ form.titulo }}{% for e in form.titulo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</div>
+      <div class="mb-2"><label class="form-label" for="{{ form.descripcion.id_for_label }}">Descripción</label>{{ form.descripcion }}{% for e in form.descripcion.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</div>
+      <div class="mb-3"><label class="form-label" for="adjuntos">Adjuntos <span class="text-muted small">(opcional: capturas, PDF, Excel… hasta 5 archivos de 5 MB)</span></label>
+        <input type="file" name="adjuntos" id="adjuntos" class="form-control" multiple accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.csv,.log,.xlsx,.xls,.docx,.doc,.zip,.xml,.json"></div>
+      <button class="btn btn-primary"><i class="bi bi-send"></i> Enviar ticket</button>
+    </div></form>
+  </div>
+  <div class="col-lg-4">
+    <div class="card"><div class="card-body small">
+      <h6 class="fw-semibold">Para que lo resolvamos rápido</h6>
+      <ul class="mb-0 ps-3">
+        <li><b>Problema:</b> qué hizo, qué esperaba y qué salió. Adjunte una captura de la pantalla con el error.</li>
+        <li><b>Desarrollo:</b> para qué lo necesita y cómo lo imagina (un ejemplo o un formato ayuda mucho).</li>
+        <li>Indique el documento o registro afectado (ej.: factura F001-120).</li>
+        <li><b>Urgente</b> solo si no puede trabajar o afecta a muchas personas.</li>
+      </ul>
+      {% if desde %}<div class="mt-2 text-muted">Página donde estaba: <span class="text-break">{{ desde }}</span></div>{% endif %}
+    </div></div>
+  </div>
+</div>
+{% endblock %}

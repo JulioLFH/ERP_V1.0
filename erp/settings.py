@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Versión visible en el menú del usuario; actualizarla junto con CHANGELOG.md y la etiqueta de git
 ERP_NOMBRE = 'Ceiba ERP'
-ERP_VERSION = '1.110.0'
+ERP_VERSION = '1.111.0'
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-insegura-cambiar-en-produccion')
 DEBUG = os.environ.get('DEBUG', '1') == '1'
@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'distribucion',
     'asistente',
     'agentes',
+    'soporte',
 ]
 
 MIDDLEWARE = [
@@ -121,6 +122,15 @@ EMPRESAS = {'default': os.environ.get('EMPRESA_PRINCIPAL', 'Empresa principal')}
 for _alias, _cfg in leer_empresas_extra(os.environ.get('EMPRESAS_EXTRA')).items():
     DATABASES[_alias] = config_base(_cfg, DATABASES['default'])
     EMPRESAS[_alias] = _cfg.get('nombre', _alias)
+# Tickets de soporte: base CENTRAL compartida por todas las instalaciones (erp/empresas.py · EmpresaRouter). En local,
+# un archivo SQLite; con PostgreSQL, la base TICKETS_BASE del mismo servidor (settings_postgres) o TICKETS_URL.
+DATABASES['tickets'] = dj_database_url.parse(os.environ['TICKETS_URL'], conn_max_age=600)     if os.environ.get('TICKETS_URL') else {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'tickets.sqlite3'}
+DATABASES['tickets'].setdefault('TEST', {'NAME': None} if 'sqlite' in DATABASES['tickets']['ENGINE'] else {})
+# nombre de esta instalación en los tickets (cada ERP: rotonda, forward-capital…); si no, su base principal
+TICKETS_INSTALACION = os.environ.get('INSTALACION', '')
+# a quién avisar por correo de cada ticket nuevo o respondido por el cliente (el administrador de Ceiba)
+TICKETS_AVISO = [c.strip() for c in os.environ.get('TICKETS_AVISO', os.environ.get('CORREO_INSTALACION', '')).split(',')
+                 if c.strip()]
 MONITOREO_SINCRONO = 'test' in sys.argv[1:2]  # en las pruebas el aviso de errores no usa otro hilo
 if 'test' in sys.argv[1:2]:  # una segunda empresa para las pruebas de multiempresa
     DATABASES.setdefault('empresa2', {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'empresa2.sqlite3',

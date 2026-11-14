@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.111.0 — 14/11/2026 · Soporte y tickets en una central para todas las empresas
+- **Soporte y tickets** (menú del usuario › Soporte y tickets): cualquier usuario de cualquier empresa crea un ticket de **Problema o error, Desarrollo o mejora, Consulta u Otro tema**, con prioridad, módulo, descripción y hasta 5 adjuntos (capturas, PDF, Excel, Word, texto o ZIP de hasta 5 MB). Conversa con soporte en el mismo ticket, lo cierra cuando quedó resuelto o lo reabre. Estados: Abierto, En revisión, En desarrollo, Esperando su respuesta, Resuelto y Cerrado.
+- **Central de tickets**: los tickets de todas las instalaciones, grupos y empresas van a una sola base de datos (`ceiba_tickets`, alias `tickets`, en el mismo servidor PostgreSQL; `TICKETS_BASE` o `TICKETS_URL` la cambian), con la instalación (`INSTALACION`), el grupo, la empresa (RUC y razón social), el usuario, la página y la versión, para revisarlos en una plataforma única. La base de cada empresa no guarda tickets.
+- **Quién ve qué**: cada usuario ve sus tickets; el administrador de la empresa, todos los de su empresa; el usuario corporativo, además, los de todas las empresas del grupo («Todo el grupo»).
+- **Reportar un problema** (menú del usuario) crea ahora un ticket en la central con la página donde estaba; si la central no responde, queda como incidencia local para no perderlo.
+- **Aviso por correo** de cada ticket nuevo o respondido por el cliente a `TICKETS_AVISO` (o `CORREO_INSTALACION`), con el correo de Ceiba.
+
 ## v1.110.0 — 13/11/2026 · Servidor de producción con varios procesos; aviso claro del SIRE
 - **Servidor de producción (`servir.py`)**: `iniciar.bat` con PostgreSQL ya no usa `runserver` (un solo núcleo): atiende con waitress en varios procesos (uno por núcleo, hasta 4; `PROCESOS=` en `.env.postgres`) sobre el mismo puerto, así que IIS no cambia. Medido sobre una copia de la base: de ~25 a ~80–105 pantallas por segundo; con 80 clics simultáneos, de 3–7 s y errores a menos de 2 s y 0 errores.
 - **Actualizar sin cortar a nadie**: al cambiar el código (un `git pull`), los procesos se reinician de a uno; el nuevo atiende antes de que el anterior termine lo que tenía en curso (probado con 80 usuarios: 0 errores). Si cambian los estilos o scripts, antes corre `collectstatic`. Si el código nuevo no arranca, siguen los procesos anteriores. Un proceso caído se reemplaza solo. Las migraciones siguen aplicándose antes de subir el código.

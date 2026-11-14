@@ -220,19 +220,29 @@ def parchar_transacciones():
     transaction.atomic, transaction.on_commit, transaction.set_rollback = atomic, on_commit, set_rollback
 
 
+TICKETS = 'tickets'  # base central de tickets de soporte (la misma para todas las instalaciones y empresas)
+
+
 class EmpresaRouter:
-    """Todas las consultas van a la base de la empresa activa; las sesiones, a la principal."""
+    """Todas las consultas van a la base de la empresa activa; las sesiones, a la principal; los tickets de soporte,
+    a la base central «tickets»."""
 
     def db_for_read(self, model, **hints):
+        if model._meta.app_label == 'soporte':
+            return TICKETS
         return 'default' if _de_principal(model) else actual()
 
     def db_for_write(self, model, **hints):
+        if model._meta.app_label == 'soporte':
+            return TICKETS
         return 'default' if _de_principal(model) else actual()
 
     def allow_relation(self, obj1, obj2, **hints):
         return True
 
     def allow_migrate(self, db, app_label, **hints):
+        if app_label == 'soporte' or db == TICKETS:  # la base central solo tiene los tickets, y solo ella
+            return app_label == 'soporte' and db == TICKETS
         if db not in empresas():
             return None  # otras bases (ej. 'origen' de la migración) se manejan por su cuenta
         return True  # cada empresa tiene todas las tablas

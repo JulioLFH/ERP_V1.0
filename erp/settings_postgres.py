@@ -41,7 +41,13 @@ _CONEXION = {
     'CONN_MAX_AGE': 600,
     'CONN_HEALTH_CHECKS': True,
 }
-DATABASES = {'default': {**_CONEXION, 'NAME': _dato('PG_BASE_PRINCIPAL', 'ceiba_principal')}}
+DATABASES = {'default': {**_CONEXION, 'NAME': _dato('PG_BASE_PRINCIPAL', 'ceiba_principal')},
+             # tickets de soporte: base central del mismo servidor, compartida por todas las instalaciones
+             'tickets': {**_CONEXION, 'NAME': _dato('TICKETS_BASE', 'ceiba_tickets')}}
+if 'test' in __import__('sys').argv[1:2]:  # las pruebas no tocan la base central: usan una de prueba
+    DATABASES['tickets'] = {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'tickets.sqlite3',
+                            'TEST': {'NAME': None}}
+TICKETS_INSTALACION = _dato('INSTALACION') or DATABASES['default']['NAME']
 EMPRESAS = {'default': os.environ.get('EMPRESA_PRINCIPAL', 'Empresa principal')}
 # segunda empresa configurada a mano (PG_BASE_EMPRESA2=- para una instalación sin ella; las demás empresas se crean
 # desde el Panel del grupo). Las pruebas siempre la usan.
