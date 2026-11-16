@@ -38,6 +38,12 @@ def normalizar_periodo(texto):
     return f'{anio}{int(mes):02d}' if 1 <= int(mes) <= 12 else ''
 
 
+def _codigo(v):
+    """Texto de una celda de código (serie, número, RUC): sin espacios ni el «.0» de los números de Excel."""
+    texto = str(v if v is not None else '').strip()
+    return texto[:-2] if texto.endswith('.0') and texto[:-2].isdigit() else texto
+
+
 def _dec(v):
     if v in (None, ''):
         return D0
@@ -505,14 +511,20 @@ class ComprobanteViews:
             filas=filas, desde=desde, hasta=hasta, agrupar=agrupar, agrupaciones=self.agrupaciones, total=total))
 
     # ------------------------------------------------------------ importación Excel
+    # v1.113: detracción, retención y percepción (montos del comprobante) y, para notas de crédito/débito, el
+    # comprobante que modifican (ref_tipo, ref_serie, ref_numero: obligatorio y debe estar registrado)
     COLUMNAS_IMPORT = ['tipo', 'serie', 'numero', 'fecha', 'vencimiento', 'tipo_doc', 'ruc', 'nombre',
-                       'moneda', 'tc', 'base', 'no_gravado', 'igv', 'total', 'glosa']
+                       'moneda', 'tc', 'base', 'no_gravado', 'igv', 'total', 'detraccion', 'retencion', 'percepcion',
+                       'ref_tipo', 'ref_serie', 'ref_numero', 'glosa']
 
     def importar(self, request):
         if request.GET.get('plantilla'):
-            ejemplo = ['01', 'F001', '123', timezone.localdate().strftime('%d/%m/%Y'), '', '6', '20123456786',
-                       'EMPRESA EJEMPLO SAC', 'PEN', 1, 100, 0, 18, 118, 'Importado']
-            return excel_response(f'Plantilla_{self.titulo}', 'plantilla', self.COLUMNAS_IMPORT, [ejemplo])
+            hoy = timezone.localdate().strftime('%d/%m/%Y')
+            ejemplos = [['01', 'F001', '123', hoy, '', '6', '20123456786', 'EMPRESA EJEMPLO SAC', 'PEN', 1, 1000, 0,
+                         180, 1180, 141.6, 0, 0, '', '', '', 'Factura con detracción 12%'],
+                        ['07', 'F001', '5', hoy, '', '6', '20123456786', 'EMPRESA EJEMPLO SAC', 'PEN', 1, 100, 0, 18,
+                         118, 0, 0, 0, '01', 'F001', '123', 'Nota de crédito de la F001-123']]
+            return excel_response(f'Plantilla_{self.titulo}', 'plantilla', self.COLUMNAS_IMPORT, ejemplos)
         resultado = None
         if request.method == 'POST' and request.FILES.get('archivo'):
             resultado = self._procesar_import(request.FILES['archivo'])
@@ -522,34 +534,72 @@ class ComprobanteViews:
             resultado=resultado, columnas=self.COLUMNAS_IMPORT,
             titulo=f'Importar registro de {self.titulo.lower()} desde Excel'))
 
+    def _doc_modificado(self, tercero, tipo, serie, numero):
+        """Comprobante (vigente, del mismo cliente/proveedor) que modifica una nota de crédito o débito."""
+        numero = _codigo(numero)
+        return (self.modelo.objects.filter(tercero=tercero, tipo_comprobante=_codigo(tipo).zfill(2),
+                                           serie=_codigo(serie).upper(),
+                                           numero__in={numero, numero.lstrip('0') or '0', numero.zfill(8)})
+                .exclude(estado='ANULADO').exclude(tipo_comprobante__in=['07', '08']).first())
+
     def _procesar_import(self, archivo):
         ok, errores = 0, []
         try:
             filas = leer_excel(archivo)
         except Exception as exc:  # archivo corrupto / formato no soportado
             return {'ok': 0, 'errores': [f'No se pudo leer el archivo: {exc}']}
-        for n, f in enumerate(filas, 2):
+        # las notas al final: así pueden referirse a comprobantes que vienen en el mismo archivo
+        filas = sorted(enumerate(filas, 2), key=lambda x: (_codigo(x[1].get('tipo')) or '01').zfill(2) in ('07', '08'))
+        for n, f in filas:
             try:
                 with transaction.atomic():
-                    num_doc = str(f.get('ruc') or '').strip()
+                    num_doc = _codigo(f.get('ruc'))
                     tercero, _ = Tercero.objects.get_or_create(
                         numero_doc=num_doc,
                         defaults={'nombre': f.get('nombre') or num_doc, 'tipo': self.tipo_tercero,
                                   'tipo_doc': str(f.get('tipo_doc') or ('6' if len(num_doc) == 11 else '1'))})
+                    tipo = (_codigo(f.get('tipo')) or '01').zfill(2)
                     fecha = a_fecha(f.get('fecha'))
-                    total = _dec(f.get('total'))
-                    base, igv, nograv = _dec(f.get('base')), _dec(f.get('igv')), _dec(f.get('no_gravado'))
+                    # Las notas de crédito se guardan en positivo (los registros y saldos ya las restan): SUNAT y el
+                    # SIRE las muestran en negativo, y guardarlas así las restaba dos veces.
+                    total, base, igv, nograv = (abs(_dec(f.get(c))) for c in ('total', 'base', 'igv', 'no_gravado'))
+                    detr, ret, perc = (abs(_dec(f.get(c))) for c in ('detraccion', 'retencion', 'percepcion'))
                     if not total:
                         total = base + igv + nograv
+                    if not total:
+                        raise ValueError('el total es cero.')
+                    if detr + ret + perc > total:
+                        raise ValueError('la detracción, retención o percepción supera el total.')
+                    if detr and tipo != '01':
+                        raise ValueError('la detracción solo va en facturas (tipo 01).')
+                    ref = None
+                    if tipo in ('07', '08'):
+                        datos_ref = [_codigo(f.get(c)) for c in ('ref_tipo', 'ref_serie', 'ref_numero')]
+                        if not all(datos_ref):
+                            raise ValueError('una nota de crédito o débito necesita el comprobante que modifica '
+                                             '(ref_tipo, ref_serie y ref_numero).')
+                        ref = self._doc_modificado(tercero, *datos_ref)
+                        if ref is None:
+                            raise ValueError(f'el comprobante que modifica ({datos_ref[0].zfill(2)} '
+                                             f'{datos_ref[1].upper()}-{datos_ref[2]}) no está registrado para '
+                                             f'{num_doc}. Impórtelo o regístrelo primero.')
+                        if tipo == '07' and total > ref.total_documento + Decimal('0.01'):
+                            raise ValueError(f'la nota de crédito ({total}) supera el saldo del comprobante '
+                                             f'{ref.numero_completo} ({ref.total_documento}).')
+
+                    def pct(monto):
+                        return r2(monto * 100 / total) if monto else D0
                     self.modelo.objects.create(
-                        tipo_comprobante=str(f.get('tipo') or '01').zfill(2), serie=str(f.get('serie') or ''),
-                        numero=str(f.get('numero') or '').strip(), fecha_emision=fecha,
+                        tipo_comprobante=tipo, serie=_codigo(f.get('serie')).upper(),
+                        numero=_codigo(f.get('numero')), fecha_emision=fecha,
                         fecha_vencimiento=a_fecha(f['vencimiento']) if f.get('vencimiento') else fecha,
                         tercero=tercero, moneda=(f.get('moneda') or 'PEN').upper(),
                         tipo_cambio=_dec(f.get('tc')) or Decimal('1'),
                         tipo_operacion='GRAVADA' if igv else 'EXONERADA',
                         base_imponible=base, no_gravado=nograv, exonerado=nograv, igv=igv, total=total,
-                        glosa=f.get('glosa') or 'Importado desde Excel')
+                        detraccion_monto=detr, detraccion_pct=pct(detr), retencion_monto=ret,
+                        retencion_pct=pct(ret), percepcion_monto=perc, percepcion_pct=pct(perc),
+                        doc_referencia=ref, glosa=f.get('glosa') or 'Importado desde Excel')
                 ok += 1
             except IntegrityError:
                 errores.append(f'Fila {n}: comprobante duplicado.')

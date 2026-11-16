@@ -3,6 +3,12 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.113.0 — 16/11/2026 · Carga masiva con detracción, retención y percepción; notas de crédito amarradas
+- **Importar desde Excel (compras y ventas)**: nuevas columnas **detraccion, retencion y percepcion** (montos del comprobante; el % se calcula). La detracción solo va en facturas y la suma no puede superar el total. La plantilla trae un ejemplo de factura con detracción y de nota de crédito.
+- **Notas de crédito y débito con el comprobante que modifican**: columnas **ref_tipo, ref_serie y ref_numero**, obligatorias para tipos 07 y 08. El comprobante debe estar registrado para el mismo cliente o proveedor, o venir en el mismo archivo (las notas se procesan al final). Una nota de crédito no puede superar lo que queda del comprobante.
+- **Sin doble negativo**: las notas de crédito se guardan siempre en positivo, aunque vengan en negativo como las muestra SUNAT (el registro, los saldos y la contabilidad ya las restan). Antes, una nota importada en negativo se restaba dos veces.
+- **Propuesta SIRE**: se leen las columnas del comprobante modificado (tipo, serie y número) y el tipo de nota. Las notas en negativo se leen en positivo, por lo que el cruce ya no marca como diferencia una nota bien registrada. Al crear lo que falta, cada nota queda amarrada a su comprobante (en ventas también con su motivo); si ese comprobante no está registrado, la nota no se crea y se avisa. Si se marcan juntos, primero se crea el comprobante y después la nota.
+
 ## v1.112.1 — 16/11/2026 · SUNAT: «Existe un Documento igual en Proceso» (0140)
 - Cuando SUNAT responde **0140** (aún procesa un envío anterior del mismo comprobante), el comprobante queda **«Pendiente SUNAT»** en vez de «Error de envío»: no se edita ni se reenvía mientras tanto, y se usa **«Consultar estado»**.
 - Al consultar: si SUNAT tiene la constancia (CDR), queda aceptado o rechazado según ella; si pasaron 15 minutos y SUNAT no lo tiene registrado, vuelve a «Error de envío» con la indicación de que se puede corregir y reenviar.

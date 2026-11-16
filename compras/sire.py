@@ -234,7 +234,10 @@ def leer_completo(archivo):
          'tipo_doc': col('tipo doc identidad', 'tipo de documento de identidad'),
          'vencimiento': col('fecha vcto', 'fecha de vencimiento'), 'moneda': col('moneda', 'cod moneda'),
          'tc': col('tipo cambio', 'tipo de cambio'), 'exonerado': col('mto exonerado', 'valor adq. ng', 'adq no grav'),
-         'inafecto': col('mto inafecto')}
+         'inafecto': col('mto inafecto'),
+         # notas de crédito/débito: el comprobante que modifican (v1.113)
+         'ref_tipo': col('tipo cp modificado'), 'ref_serie': col('serie cp modificado'),
+         'ref_numero': col('nro cp modificado'), 'tipo_nota': col('tipo de nota')}
     for campo, claves in PROPIAS.items():  # columnas propias agregadas en el Excel (opcionales)
         c[campo] = next((j for j, e in enumerate(enc) if _es_columna(e, claves)), None)
     if None in (c['serie'], c['numero'], c['ruc'], c['total']):
@@ -250,17 +253,25 @@ def leer_completo(archivo):
             numero = numero[:-2]
         if not serie or not numero:
             continue
-        tipo = str(valor(fila, 'tipo') or '01').strip()
+        tipo = _texto(valor(fila, 'tipo')) or '01'
+        tipo = tipo.zfill(2) if tipo.isdigit() else tipo
+        # SUNAT entrega las notas de crédito en negativo; en el ERP se guardan en positivo (el registro ya las resta)
+        signo = (lambda x: abs(x)) if tipo == '07' else (lambda x: x)
+        ref_numero = _texto(valor(fila, 'ref_numero'))
         registros.append({'ruc': str(valor(fila, 'ruc') or '').strip(), 'nombre': str(valor(fila, 'nombre') or ''),
-                          'tipo': tipo.zfill(2) if tipo.isdigit() else tipo, 'serie': serie,
+                          'tipo': tipo, 'serie': serie,
                           'numero': numero.lstrip('0') or '0', 'fecha': _fecha(valor(fila, 'fecha')),
-                          'base': _dec(valor(fila, 'base')), 'igv': _dec(valor(fila, 'igv')),
-                          'total': _dec(valor(fila, 'total')),
+                          'base': signo(_dec(valor(fila, 'base'))), 'igv': signo(_dec(valor(fila, 'igv'))),
+                          'total': signo(_dec(valor(fila, 'total'))),
                           'tipo_doc': str(valor(fila, 'tipo_doc') or '').strip(),
                           'vencimiento': _fecha(valor(fila, 'vencimiento')),
                           'moneda': str(valor(fila, 'moneda') or 'PEN').strip().upper() or 'PEN',
                           'tc': _dec(valor(fila, 'tc')),
-                          'no_gravado': _dec(valor(fila, 'exonerado')) + _dec(valor(fila, 'inafecto')),
+                          'no_gravado': signo(_dec(valor(fila, 'exonerado')) + _dec(valor(fila, 'inafecto'))),
+                          'ref_tipo': (_texto(valor(fila, 'ref_tipo')) or '').zfill(2) if ref_numero else '',
+                          'ref_serie': (_texto(valor(fila, 'ref_serie')) or '').upper(),
+                          'ref_numero': ref_numero.lstrip('0') or ('0' if ref_numero else ''),
+                          'tipo_nota': (_texto(valor(fila, 'tipo_nota')) or '').zfill(2) if valor(fila, 'tipo_nota') else '',
                           **{campo: _texto(valor(fila, campo)) for campo in PROPIAS},
                           'sunat': [_crudo(v) for v in fila]})
     encabezados = [str(e if e is not None else '').strip() for e in filas[i]]
@@ -471,6 +482,24 @@ def _tercero(r, tipo_tercero):
     return tercero
 
 
+def doc_modificado(modelo, r):
+    """(comprobante, error) que modifica la nota de crédito/débito r de la propuesta: vigente, del mismo cliente o
+    proveedor. Sin él la nota no se crea (quedaría suelta, sin rebajar el saldo del comprobante)."""
+    if not (r.get('ref_tipo') and r.get('ref_serie') and r.get('ref_numero')):
+        return None, 'La propuesta no indica el comprobante que modifica la nota.'
+    texto = f'{r["ref_tipo"]} {r["ref_serie"]}-{r["ref_numero"]}'
+    doc = (modelo.objects.filter(tipo_comprobante=r['ref_tipo'], serie=r['ref_serie'],
+                                 numero__in=[r['ref_numero'], r['ref_numero'].zfill(8)])
+           .exclude(estado='ANULADO').select_related('tercero'))
+    doc = next((d for d in doc if (d.tercero.numero_doc or '').strip() == (r.get('ruc') or '').strip()), None)
+    if doc is None:
+        return None, f'El comprobante que modifica ({texto}) no está registrado: créelo primero (o márquelo también).'
+    if r['tipo'] == '07' and r['total'] > doc.total_documento + TOLERANCIA:
+        return None, (f'La nota ({r["total"]}) supera el total del comprobante que modifica ({texto}: '
+                      f'{doc.total_documento}).')
+    return doc, None
+
+
 def crear_faltantes(libro, registros, periodo, claves, usuario=None):
     """Crea en el ERP los comprobantes de la propuesta marcados (los que están solo en SUNAT). Las ventas quedan
     como ya informadas a SUNAT (emitidas fuera del sistema): no se reenvían al OSE ni mueven stock. Las compras toman
@@ -485,10 +514,18 @@ def crear_faltantes(libro, registros, periodo, claves, usuario=None):
     faltan = {f'{r["tipo"]}|{r["serie"]}|{r["numero"]}|{r["ruc"]}': r for r in resultado['solo_sunat']
               if not r['otro_periodo']}
     creados, errores = 0, []
-    for clave in claves:
+    modelo = Venta if libro == 'RVIE' else Compra
+    # las notas al final: así se amarran a comprobantes marcados en la misma creación
+    for clave in sorted(claves, key=lambda k: k.split('|')[0] in ('07', '08')):
         r = faltan.get(clave)
         if r is None:
             continue
+        ref = None
+        if r['tipo'] in ('07', '08'):
+            ref, error = doc_modificado(modelo, r)
+            if error:
+                errores.append(f'{r["serie"]}-{r["numero"]}: no se creó. {error}')
+                continue
         if libro != 'RVIE':
             p = propios([r])[0]['propios']
             if p['errores']:
@@ -504,8 +541,10 @@ def crear_faltantes(libro, registros, periodo, claves, usuario=None):
                              tercero=tercero, moneda=r.get('moneda') or 'PEN',
                              tipo_cambio=r.get('tc') or Decimal('1'), tipo_operacion='GRAVADA' if igv else 'EXONERADA',
                              base_imponible=base, no_gravado=no_grav, exonerado=no_grav, igv=igv, total=total,
-                             periodo=periodo, glosa=f'Creado desde la propuesta SIRE {periodo}')
+                             periodo=periodo, glosa=f'Creado desde la propuesta SIRE {periodo}', doc_referencia=ref)
                 if libro == 'RVIE':
+                    if ref is not None and r.get('tipo_nota'):
+                        datos['motivo_nota'] = r['tipo_nota']
                     Venta.objects.create(**datos, descontar_stock=False, estado_sunat='ACEPTADO',
                                          sunat_descripcion='Informado en SUNAT (propuesta SIRE): emitido fuera del '
                                                            'sistema')
