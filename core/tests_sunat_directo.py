@@ -187,3 +187,62 @@ class ConfiguracionTest(Base):
             'certificado_clave_nueva': 'clave-incorrecta'})
         self.assertContains(r, 'No se pudo abrir el certificado')
         self.assertContains(self.client.get(reverse('facturacion')), 'SUNAT directo')
+
+
+class DocumentoEnProcesoTest(Base):
+    """v1.112.1: 0140 «Existe un Documento igual en Proceso» deja el comprobante pendiente (no error) y se consulta."""
+
+    def setUp(self):
+        super().setUp()
+        FacturacionConfig.objects.filter(pk=self.cfg.pk).update(entorno='PRODUCCION')
+        p = patch.object(FacturacionConfig, 'activa', True)  # credenciales SOL de producción simuladas
+        p.start()
+        self.addCleanup(p.stop)
+
+    def sin_constancia(self):
+        return respuesta('<ns2:getStatusCdrResponse xmlns:ns2="http://service.sunat.gob.pe"><statusCdr>'
+                         '<statusCode>0127</statusCode><statusMessage>El ticket no existe</statusMessage>'
+                         '</statusCdr></ns2:getStatusCdrResponse>')
+
+    def test_0140_queda_pendiente_sin_editar_y_se_consulta(self):
+        v = self.venta()
+        with patch('core.sunat_directo._soap', side_effect=sunat_directo.ErrorSunatDirecto(
+                'SUNAT rechazó el envío (0140): Existe un Documento igual en Proceso', '0140')):
+            sunat.enviar_comprobante(v)
+        v.refresh_from_db()
+        self.assertEqual(v.estado_sunat, 'PENDIENTE')
+        self.assertIn('Consultar estado', v.sunat_descripcion)
+        self.assertIsNotNone(v.fecha_envio)
+        from ventas.views import VentasViews
+        self.assertFalse(VentasViews().puede_editar(v))
+        # aún dentro de la espera: sigue pendiente
+        with patch('core.sunat_directo._soap', return_value=self.sin_constancia()):
+            sunat.consultar_comprobante(v)
+        v.refresh_from_db()
+        self.assertEqual(v.estado_sunat, 'PENDIENTE')
+        # pasada la espera y sin constancia: no quedó registrado, se puede reenviar
+        from datetime import timedelta
+
+        from django.utils import timezone
+        Venta.objects.filter(pk=v.pk).update(fecha_envio=timezone.now() - timedelta(minutes=20))
+        v.refresh_from_db()
+        with patch('core.sunat_directo._soap', return_value=self.sin_constancia()):
+            sunat.consultar_comprobante(v)
+        v.refresh_from_db()
+        self.assertEqual(v.estado_sunat, 'ERROR')
+        self.assertIn('no tiene registrado', v.sunat_descripcion)
+        # si SUNAT sí la tiene, queda aceptada con su CDR
+        with patch('core.sunat_directo._soap', return_value=respuesta(
+                f'<ns2:getStatusCdrResponse xmlns:ns2="http://service.sunat.gob.pe"><statusCdr><content>{cdr_zip()}'
+                f'</content><statusCode>0004</statusCode></statusCdr></ns2:getStatusCdrResponse>')):
+            sunat.consultar_comprobante(v)
+        v.refresh_from_db()
+        self.assertEqual(v.estado_sunat, 'ACEPTADO')
+
+    def test_error_de_envio_muestra_consultar_y_reenviar(self):
+        self.client.force_login(self.admin)
+        v = self.venta()
+        Venta.objects.filter(pk=v.pk).update(estado_sunat='ERROR')
+        r = self.client.get(reverse('ventas:detalle', args=[v.pk]))
+        self.assertContains(r, 'Consultar estado')
+        self.assertContains(r, 'Reenviar')

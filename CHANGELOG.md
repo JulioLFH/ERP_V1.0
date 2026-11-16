@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.112.1 — 16/11/2026 · SUNAT: «Existe un Documento igual en Proceso» (0140)
+- Cuando SUNAT responde **0140** (aún procesa un envío anterior del mismo comprobante), el comprobante queda **«Pendiente SUNAT»** en vez de «Error de envío»: no se edita ni se reenvía mientras tanto, y se usa **«Consultar estado»**.
+- Al consultar: si SUNAT tiene la constancia (CDR), queda aceptado o rechazado según ella; si pasaron 15 minutos y SUNAT no lo tiene registrado, vuelve a «Error de envío» con la indicación de que se puede corregir y reenviar.
+- Un comprobante con **error de envío** muestra también **«Consultar estado»** junto a «Reenviar».
+
 ## v1.112.0 — 16/11/2026 · Usuario administrador de Ceiba en cada implementación
 - **Administrador de Ceiba**: al terminar la primera instalación (el cliente crea su propio administrador en el asistente), el sistema crea además el usuario **«administrador»** de Ceiba —superusuario de la empresa principal y, por eso, corporativo de todo el grupo— con una contraseña segura que se envía **solo por correo** a `CORREO_INSTALACION` (el dueño de las implementaciones), con la plantilla de correo del sistema. La contraseña no queda guardada en ningún archivo: si el correo no sale, el usuario no se crea.
 - **Ya instaladas**: `python manage.py admin_ceiba --url https://<dominio>` lo crea y envía su acceso; con `--reponer`, le pone una contraseña nueva.

@@ -162,6 +162,7 @@
             {% if doc.estado_sunat == 'ACEPTADO' or doc.estado_sunat == 'PENDIENTE' %}
               <button name="accion" value="consultar" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Consultar estado</button>
             {% else %}
+              {% if doc.estado_sunat == 'ERROR' %}<button name="accion" value="consultar" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Consultar estado</button>{% endif %}
               <button class="btn btn-sm btn-primary"><i class="bi bi-send"></i> {% if doc.estado_sunat == 'NO_ENVIADO' %}Enviar a SUNAT{% else %}Reenviar{% endif %}</button>
             {% endif %}
           </form>{% endif %}

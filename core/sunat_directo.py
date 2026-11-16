@@ -27,6 +27,7 @@ from .numeros_letras import monto_en_letras
 
 SERVICIO = {'BETA': 'https://e-beta.sunat.gob.pe/ol-ti-itcpfegem-beta/billService',
             'PRODUCCION': 'https://e-factura.sunat.gob.pe/ol-ti-itcpfegem/billService'}
+ESPERA_0140 = 15  # minutos que SUNAT pide esperar ante «Existe un Documento igual en Proceso»
 CONSULTA_CDR = 'https://e-factura.sunat.gob.pe/ol-it-wsconscpegem/billConsultService'
 CLAVE_BETA = 'moddatos'
 
@@ -510,6 +511,15 @@ def enviar(venta):
             venta.fecha_envio = timezone.now()
             venta.save(update_fields=['estado_sunat', 'sunat_descripcion', 'fecha_envio'])
             return venta
+        if codigo == '0140' and cfg.entorno != 'BETA':
+            # v1.112.1: SUNAT aún procesa un envío anterior de este mismo comprobante. No es un error: queda
+            # pendiente (no se edita ni se reenvía) hasta consultar su constancia.
+            venta.estado_sunat = 'PENDIENTE'
+            venta.sunat_descripcion = (f'SUNAT está procesando un envío anterior de este comprobante (0140). Use '
+                                       f'«Consultar estado» en {ESPERA_0140} minutos; no lo edite ni lo reenvíe.')
+            venta.fecha_envio = timezone.now()
+            venta.save(update_fields=['estado_sunat', 'sunat_descripcion', 'fecha_envio'])
+            return venta
         raise ErrorFacturacion(str(exc), codigo) from exc
     cdr = leer_cdr(_local(arbol, 'applicationResponse'))
     codigo = int(cdr['codigo'] or 0) if (cdr['codigo'] or '0').isdigit() else -1
@@ -557,6 +567,16 @@ def consultar(venta):
         venta.sunat_descripcion = cdr['descripcion']
         _guardar_cdr(venta, nombre_archivo(venta.tipo_comprobante, venta.serie, venta.numero), cdr['xml'],
                      'CDR de SUNAT (consulta)')
+    elif venta.estado_sunat in ('PENDIENTE', 'ERROR'):
+        # SUNAT no tiene constancia de este comprobante: si pasó la espera, no quedó registrado y se puede reenviar
+        espera = venta.fecha_envio and timezone.now() - venta.fecha_envio < timedelta(minutes=ESPERA_0140)
+        if venta.estado_sunat == 'PENDIENTE' and espera:
+            venta.sunat_descripcion = (f'SUNAT aún no tiene la constancia de este comprobante '
+                                       f'({mensaje or "en proceso"}). Vuelva a consultar en unos minutos.')
+        else:
+            venta.estado_sunat = 'ERROR'
+            venta.sunat_descripcion = (f'SUNAT no tiene registrado este comprobante ({mensaje or "sin constancia"}). '
+                                       f'Puede corregirlo si hace falta y volver a enviarlo con «Reenviar».')
     else:
         venta.sunat_descripcion = mensaje or venta.sunat_descripcion
     venta.save(update_fields=['estado_sunat', 'sunat_descripcion', 'enlace_cdr'])
