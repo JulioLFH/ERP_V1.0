@@ -168,3 +168,42 @@ class PropuestaSireNotasTest(Base):
         nota = Compra.objects.get(tipo_comprobante='07', numero='41')
         self.assertEqual((nota.total, nota.doc_referencia), (D('1180'), factura))
         self.assertEqual(factura.total_documento, D('4720'))
+
+
+class PropuestaSireMontosTest(Base):
+    """v1.114: Detracción, Retención y Percepción como columnas propias del Excel de la propuesta (compras y ventas)."""
+    RUC = '20519000222'
+
+    def fila(self, tipo, numero, total, detr='', ret='', perc=''):
+        return ['20100000001', 'MI EMPRESA', '202610', 'X', '06/10/2026', '', tipo, 'E001', '', numero, '', '6',
+                self.RUC, 'PROVEEDOR SAC', round(total / 1.18, 2), round(total - total / 1.18, 2), total, 'PEN', 1,
+                '', '', '', '', '', '', detr, ret, perc]
+
+    def test_se_leen_validan_y_guardan_al_crear(self):
+        cab = CAB_SIRE + ['Detracción', 'Retención', 'Percepción']
+        regs = sire.leer(xlsx([cab, self.fila('01', 1, 1180, 141.6), self.fila('01', 2, 2360, '', 70.8),
+                               self.fila('03', 3, 118, 10), self.fila('01', 4, 118, 100, 50)], 'p.xlsx'))
+        self.assertEqual((regs[0]['detraccion'], regs[1]['retencion']), (D('141.6'), D('70.8')))
+        errores = {r['numero']: r['montos_error'] for r in sire.montos(regs)}
+        self.assertEqual((errores['1'], errores['2']), ('', ''))
+        self.assertIn('solo va en facturas', errores['3'])
+        self.assertIn('supera el total', errores['4'])
+        claves = [f'{r["tipo"]}|{r["serie"]}|{r["numero"]}|{r["ruc"]}' for r in regs]
+        creados, errores = sire.crear_faltantes('RCE', regs, '202610', claves)
+        self.assertEqual((creados, len(errores)), (2, 2))
+        c1, c2 = Compra.objects.get(numero='1', tercero__numero_doc=self.RUC), Compra.objects.get(
+            numero='2', tercero__numero_doc=self.RUC)
+        self.assertEqual((c1.detraccion_monto, c1.detraccion_pct), (D('141.60'), D('12.00')))
+        self.assertEqual((c2.retencion_monto, c2.retencion_pct), (D('70.80'), D('3.00')))
+        regs_venta = sire.leer(xlsx([cab, self.fila('01', 9, 1180, '', '', 23.6)], 'v.xlsx'))
+        creados, _ = sire.crear_faltantes('RVIE', regs_venta, '202610', [f'01|E001|9|{self.RUC}'])
+        self.assertEqual(Venta.objects.get(serie='E001', numero='9').percepcion_monto, D('23.60'))
+
+    def test_el_excel_del_cruce_trae_las_tres_columnas(self):
+        regs = sire.leer(xlsx([CAB_SIRE, self.fila('01', 1, 1180)], 'p.xlsx'))
+        for propias in (True, False):  # compras y ventas
+            enc, filas = sire.filas_cruce_completo([], regs, sire.cruzar('RCE', regs, '202610'), propias=propias)
+            self.assertEqual(enc[-3:], ['Detracción', 'Retención', 'Percepción'])
+            self.assertEqual(len(filas[0]), len(enc))
+        rojas = sire.celdas_en_rojo(enc, filas)  # las de montos vacías no se marcan en rojo
+        self.assertFalse([j for _, j in rojas if j >= len(enc) - 3])

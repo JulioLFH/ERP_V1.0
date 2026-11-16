@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.114.0 — 16/11/2026 · Propuesta SIRE con detracción, retención y percepción
+- **Propuesta SIRE (compras y ventas)**: columnas propias **Detracción, Retención y Percepción** (montos). El Excel del cruce las trae al final, con los montos del comprobante si ya está registrado; se llenan, se vuelve a subir el archivo y se guardan al crear el comprobante (el % se deduce del monto). Son opcionales y no se marcan en rojo si faltan.
+- La pantalla de la propuesta muestra las 3 columnas en «Solo en SUNAT». Un comprobante con detracción que no es factura, o cuyos montos superan el total, no se puede marcar ni crear, y se indica por qué.
+
 ## v1.113.0 — 16/11/2026 · Carga masiva con detracción, retención y percepción; notas de crédito amarradas
 - **Importar desde Excel (compras y ventas)**: nuevas columnas **detraccion, retencion y percepcion** (montos del comprobante; el % se calcula). La detracción solo va en facturas y la suma no puede superar el total. La plantilla trae un ejemplo de factura con detracción y de nota de crédito.
 - **Notas de crédito y débito con el comprobante que modifican**: columnas **ref_tipo, ref_serie y ref_numero**, obligatorias para tipos 07 y 08. El comprobante debe estar registrado para el mismo cliente o proveedor, o venir en el mismo archivo (las notas se procesan al final). Una nota de crédito no puede superar lo que queda del comprobante.

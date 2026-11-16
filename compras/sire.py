@@ -104,14 +104,35 @@ PROPIAS = {'oc': (('orden de compra', 'nro oc', 'n oc', 'nro. oc', 'numero de oc
            'cuenta': (('cuenta contable', 'cta contable', 'cta. contable'), ('cuenta', 'cta'))}
 
 
+# montos propios (opcionales, compras y ventas; v1.114): no vienen en la propuesta de SUNAT, se agregan al Excel y se
+# toman al crear el comprobante. No se marcan en rojo si faltan (la mayoría de comprobantes no los tiene).
+MONTOS = {'detraccion': (('detraccion',), ()), 'retencion': (('retencion',), ()),
+          'percepcion': (('percepcion',), ())}
+TITULOS_MONTOS = ['Detracción', 'Retención', 'Percepción']
+
+
 def _es_columna(encabezado, claves):
     prefijos, exactos = claves
     return encabezado.startswith(prefijos) or encabezado in exactos
 
 
-def _es_propia(encabezado):
+def _es_propia(encabezado, montos=True):
     e = _norm(encabezado)
-    return any(_es_columna(e, claves) for claves in PROPIAS.values())
+    return any(_es_columna(e, claves) for claves in (list(PROPIAS.values()) + (list(MONTOS.values()) if montos else [])))
+
+
+def montos(filas):
+    """Valida la detracción, retención y percepción de cada comprobante por crear: r['montos_error'] ('' si están
+    bien). La detracción solo va en facturas y la suma no puede superar el total."""
+    for r in filas:
+        detr, ret, perc = (r.get(c) or D0 for c in MONTOS)
+        error = ''
+        if detr and r.get('tipo') != '01':
+            error = 'La detracción solo va en facturas (tipo 01).'
+        elif detr + ret + perc > (r.get('total') or D0):
+            error = 'La detracción, retención o percepción supera el total.'
+        r['montos_error'] = error
+    return filas
 
 
 def clasificaciones():
@@ -238,7 +259,7 @@ def leer_completo(archivo):
          # notas de crédito/débito: el comprobante que modifican (v1.113)
          'ref_tipo': col('tipo cp modificado'), 'ref_serie': col('serie cp modificado'),
          'ref_numero': col('nro cp modificado'), 'tipo_nota': col('tipo de nota')}
-    for campo, claves in PROPIAS.items():  # columnas propias agregadas en el Excel (opcionales)
+    for campo, claves in list(PROPIAS.items()) + list(MONTOS.items()):  # columnas propias del Excel (opcionales)
         c[campo] = next((j for j, e in enumerate(enc) if _es_columna(e, claves)), None)
     if None in (c['serie'], c['numero'], c['ruc'], c['total']):
         raise ErrorSIRE('Faltan columnas en la propuesta (serie, número, documento del proveedor o total).')
@@ -273,6 +294,7 @@ def leer_completo(archivo):
                           'ref_numero': ref_numero.lstrip('0') or ('0' if ref_numero else ''),
                           'tipo_nota': (_texto(valor(fila, 'tipo_nota')) or '').zfill(2) if valor(fila, 'tipo_nota') else '',
                           **{campo: _texto(valor(fila, campo)) for campo in PROPIAS},
+                          **{campo: abs(_dec(valor(fila, campo))) for campo in MONTOS},
                           'sunat': [_crudo(v) for v in fila]})
     encabezados = [str(e if e is not None else '').strip() for e in filas[i]]
     return encabezados, registros
@@ -314,6 +336,15 @@ def _propias_de(g, compra):
             compra.cuenta_contable.codigo if compra.cuenta_contable_id else None]
 
 
+def _montos_de(g, doc):
+    """Detracción, retención y percepción: las del archivo o, si ya está registrado, las del comprobante."""
+    if any(g.get(c) for c in MONTOS):
+        return [g.get(c) or None for c in MONTOS]
+    if doc is None:
+        return [None, None, None]
+    return [getattr(doc, f'{c}_monto') or None for c in MONTOS]
+
+
 def filas_cruce_completo(encabezados, registros, r, extra=None, rendiciones=False, propias=False):
     """(encabezados, filas) del cruce con las columnas de la propuesta SUNAT (sin las técnicas de _SIN_EXPORTAR): el
     resultado del cruce, las columnas de SUNAT en su orden y al final el comprobante del ERP, su total y la diferencia. `extra` = (títulos, función(x))
@@ -321,12 +352,12 @@ def filas_cruce_completo(encabezados, registros, r, extra=None, rendiciones=Fals
     nadie rindió ni registró; `propias` agrega al final Orden de compra, Clasificación y Cuenta contable (se llenan
     antes de precargar las compras)."""
     titulos_extra, valor_extra = extra or ([], lambda x: [])
-    if propias:
-        titulos_extra = list(titulos_extra) + titulos_propios()
-        valor_base = valor_extra
+    valor_base = valor_extra
+    titulos_extra = list(titulos_extra) + (titulos_propios() if propias else []) + TITULOS_MONTOS
 
-        def valor_extra(x, g=None, compra=None):
-            return list(valor_base(x)) + _propias_de(g or {}, compra)
+    def valor_extra(x, g=None, compra=None):
+        return (list(valor_base(x)) + (_propias_de(g or {}, compra) if propias else [])
+                + _montos_de(g or {}, compra))
     if not registros:  # sin el archivo original: las columnas que el ERP leyó de la propuesta
         encabezados = ['Nro Doc Identidad', 'Apellidos Nombres/ Razón Social', 'Tipo CP/Doc.', 'Serie del CDP',
                        'Nro CP', 'Fecha de emisión', 'BI Gravado', 'IGV', 'Total CP', 'Moneda']
@@ -355,16 +386,15 @@ def filas_cruce_completo(encabezados, registros, r, extra=None, rendiciones=Fals
         valores = [_celda(v) for v in g.get('sunat') or []]
         valores += [None] * (ancho - len(valores))
         filas.append([texto] + [valores[j] for j in van] + _erp(d) + [dif] +
-                     list(valor_extra(x, g, d) if propias else valor_extra(x)))
+                     list(valor_extra(x, g, d)))
     for d in r['solo_erp']:
-        filas.append(['Solo en el ERP'] + [None] * len(van) + _erp(d) + [None] +
-                     list(valor_extra(None, None, d) if propias else valor_extra(None)))
+        filas.append(['Solo en el ERP'] + [None] * len(van) + _erp(d) + [None] + list(valor_extra(None, None, d)))
     return ['Resultado del cruce'] + sunat + erp + list(titulos_extra), filas
 
 
 def celdas_en_rojo(encabezados, filas):
     """[(fila, columna)] de las columnas propias vacías en los comprobantes por precargar (solo en SUNAT)."""
-    columnas = [j for j, e in enumerate(encabezados) if _es_propia(e)]
+    columnas = [j for j, e in enumerate(encabezados) if _es_propia(e, montos=False)]
     return [(i, j) for i, f in enumerate(filas) if str(f[0] or '').startswith('Solo en SUNAT')
             and 'otro periodo' not in str(f[0]) for j in columnas if f[j] in (None, '')]
 
@@ -375,7 +405,7 @@ def _erp(d):
     return [d.tercero.numero_doc, d.tercero.nombre, d.tipo_comprobante, d.serie, d.numero, d.total]
 
 
-FECHAS, IMPORTES = ('fecha', 'vencimiento'), ('base', 'igv', 'total', 'tc', 'no_gravado')
+FECHAS, IMPORTES = ('fecha', 'vencimiento'), ('base', 'igv', 'total', 'tc', 'no_gravado', *MONTOS)
 
 
 def a_json(registros):
@@ -520,6 +550,10 @@ def crear_faltantes(libro, registros, periodo, claves, usuario=None):
         r = faltan.get(clave)
         if r is None:
             continue
+        error = montos([r])[0]['montos_error']
+        if error:
+            errores.append(f'{r["serie"]}-{r["numero"]}: no se creó. {error}')
+            continue
         ref = None
         if r['tipo'] in ('07', '08'):
             ref, error = doc_modificado(modelo, r)
@@ -542,6 +576,10 @@ def crear_faltantes(libro, registros, periodo, claves, usuario=None):
                              tipo_cambio=r.get('tc') or Decimal('1'), tipo_operacion='GRAVADA' if igv else 'EXONERADA',
                              base_imponible=base, no_gravado=no_grav, exonerado=no_grav, igv=igv, total=total,
                              periodo=periodo, glosa=f'Creado desde la propuesta SIRE {periodo}', doc_referencia=ref)
+                for campo in MONTOS:  # detracción, retención y percepción del Excel (el % se deduce del monto)
+                    monto = r.get(campo) or D0
+                    datos[f'{campo}_monto'] = monto
+                    datos[f'{campo}_pct'] = (monto * 100 / total).quantize(Decimal('0.01')) if monto and total else D0
                 if libro == 'RVIE':
                     if ref is not None and r.get('tipo_nota'):
                         datos['motivo_nota'] = r['tipo_nota']

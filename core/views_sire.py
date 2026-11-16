@@ -195,6 +195,7 @@ def detalle(request, pk):
             return _excel(p, resultado)
         for x in resultado['solo_sunat']:
             x['clave'] = f'{x["tipo"]}|{x["serie"]}|{x["numero"]}|{x["ruc"]}'
+        sire.montos(resultado['solo_sunat'])  # detracción, retención y percepción del Excel (compras y ventas)
         if p.libro == 'RCE':  # orden de compra, clasificación y cuenta del Excel: lo que falta se ve en rojo
             sire.propios([x for x in resultado['solo_sunat'] if not x['otro_periodo']])
             resultado['sin_propios'] = sum(1 for x in resultado['solo_sunat'] if x.get('propios') and
