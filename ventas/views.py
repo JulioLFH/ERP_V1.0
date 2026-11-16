@@ -205,9 +205,10 @@ class VentasViews(ComprobanteViews):
         return redirect('ventas:detalle', pk)
 
     def puede_editar(self, doc):
-        # el comprobante emitido es inmutable: se corrige con nota de crédito o anulación. Solo se edita el que
-        # falló al enviarse (no llegó a SUNAT) para corregirlo y reenviarlo.
-        return super().puede_editar(doc) and doc.estado_sunat == 'ERROR'
+        # lo que SUNAT ya recibió es inmutable: se corrige con nota de crédito o anulación. Se edita mientras no llegó a
+        # SUNAT: aún no enviado (v1.112) o con error de envío, para corregirlo y enviarlo. El número no cambia; si
+        # cambian productos o almacén se rehace el kardex y los asientos se regeneran con el periodo.
+        return super().puede_editar(doc) and doc.estado_sunat in ('NO_ENVIADO', 'ERROR')
 
     def anular(self, request, pk):
         doc = get_object_or_404(Venta, pk=pk)

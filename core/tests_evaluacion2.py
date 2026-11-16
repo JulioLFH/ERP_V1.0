@@ -58,12 +58,16 @@ class EvaluacionDosTest(TestCase):
     # ---------------------------------------------------------------- 13. comprobante inmutable
     def test_comprobante_emitido_no_se_edita(self):
         self.client.force_login(self.admin)
-        v = Venta.objects.filter(estado='REGISTRADO', tipo_comprobante='01').exclude(estado_sunat='ERROR').first()
-        r = self.client.get(reverse('ventas:editar', args=[v.pk]))
-        self.assertRedirects(r, reverse('ventas:detalle', args=[v.pk]))
-        Venta.objects.filter(pk=v.pk).update(estado_sunat='ERROR')
+        v = Venta.objects.filter(estado='REGISTRADO', tipo_comprobante='01').first()
+        for estado in ('ACEPTADO', 'PENDIENTE', 'RECHAZADO', 'BAJA'):  # ya llegó a SUNAT: inmutable
+            Venta.objects.filter(pk=v.pk).update(estado_sunat=estado)
+            r = self.client.get(reverse('ventas:editar', args=[v.pk]))
+            self.assertRedirects(r, reverse('ventas:detalle', args=[v.pk]), msg_prefix=estado)
         if not v.movimientos.exists() and not v.notas.exists():
-            self.assertEqual(self.client.get(reverse('ventas:editar', args=[v.pk])).status_code, 200)
+            for estado in ('NO_ENVIADO', 'ERROR'):  # v1.112: aún no enviado o con error de envío: se edita
+                Venta.objects.filter(pk=v.pk).update(estado_sunat=estado)
+                self.assertEqual(self.client.get(reverse('ventas:editar', args=[v.pk])).status_code, 200, estado)
+                self.assertContains(self.client.get(reverse('ventas:detalle', args=[v.pk])), 'bi-pencil')
 
     # ---------------------------------------------------------------- 11. exportar listas
     def test_listas_exportan_a_excel(self):

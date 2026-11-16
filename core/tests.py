@@ -69,7 +69,8 @@ class SmokeTest(TestCase):
         ]
         for url in extras:
             self.assertEqual(self.client.get(url).status_code, 200, url)
-        # un comprobante emitido no se edita: se corrige con nota de crédito
+        # un comprobante que ya llegó a SUNAT no se edita: se corrige con nota de crédito
+        type(v).objects.filter(pk=v.pk).update(estado_sunat='ACEPTADO')
         self.assertRedirects(self.client.get(reverse('ventas:editar', args=[v.pk])),
                              reverse('ventas:detalle', args=[v.pk]))
         for app in ('compras', 'ventas'):

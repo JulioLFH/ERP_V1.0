@@ -43,6 +43,13 @@ class InstalacionForm(BootstrapMixin, forms.Form):
     clave1 = forms.CharField(label='Contraseña', widget=forms.PasswordInput)
     clave2 = forms.CharField(label='Repetir contraseña', widget=forms.PasswordInput)
 
+    def clean_usuario(self):
+        from . import admin_ceiba
+        u = self.cleaned_data['usuario'].strip()
+        if admin_ceiba.correo_ceiba() and u.lower() == admin_ceiba.nombre_usuario().lower():
+            raise forms.ValidationError(f'«{u}» está reservado para el administrador de Ceiba: use otro nombre.')
+        return u
+
     def clean_ruc(self):
         ruc = self.cleaned_data['ruc'].strip()
         if error_ruc(ruc):
@@ -98,6 +105,14 @@ def instalar(request):
             marcar(request, u, 'default')
         finally:
             restaurar(token)
+        # el acceso de Ceiba a esta implementación: usuario «administrador» con su contraseña enviada por correo al
+        # dueño (CORREO_INSTALACION). Si el correo no sale, se registra y se reintenta con «manage.py admin_ceiba».
+        from . import admin_ceiba
+        if admin_ceiba.correo_ceiba():
+            ok, mensaje = admin_ceiba.crear(request.build_absolute_uri('/'))
+            if not ok:
+                import logging
+                logging.getLogger('django.request').error('Administrador de Ceiba sin crear: %s', mensaje)
         return redirect('grupo_panel')
     return render(request, 'registration/instalacion.html', {'form': form})
 

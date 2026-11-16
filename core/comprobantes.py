@@ -179,9 +179,9 @@ class ComprobanteViews:
     def editar(self, request, pk):
         doc = get_object_or_404(self.modelo, pk=pk)
         if not self.puede_editar(doc):
-            messages.error(request, 'No se puede editar: el comprobante ya fue emitido (corríjalo con nota de crédito '
-                                    'o anúlelo), está anulado, tiene pagos/notas asociadas o su periodo contable '
-                                    'está cerrado.' if self.modelo._meta.model_name == 'venta' else
+            messages.error(request, 'No se puede editar: el comprobante ya fue enviado a SUNAT (corríjalo con nota de '
+                                    'crédito o anúlelo), está anulado, tiene pagos/notas asociadas o su periodo '
+                                    'contable está cerrado.' if self.modelo._meta.model_name == 'venta' else
                            'No se puede editar: el comprobante está anulado, tiene pagos/notas asociadas '
                            'o su periodo contable está cerrado.')
             return redirect(self._url('detalle', pk))

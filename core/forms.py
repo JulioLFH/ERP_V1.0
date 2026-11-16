@@ -31,6 +31,8 @@ def validar_periodo_abierto(form, campo_fecha, periodo=None):
         form.add_error(campo_fecha, f'El periodo contable {periodo[4:]}/{periodo[:4]} está cerrado.')
 
 
+LOGO_MAXIMO = 5 * 1024 * 1024  # logo de la empresa (Ajustes › Empresa)
+
 class SelectRemoto(forms.Select):
     """Selector de listas grandes (productos, clientes, cuentas…): la página solo trae la opción elegida y el navegador
     llena el resto desde /opciones/<fuente>/ (una vez por página, compartido por todas las filas). La validación
@@ -243,7 +245,7 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
     sire_quitar_clave = forms.BooleanField(label='Borrar la clave SOL guardada del SIRE', required=False)
     # REQ-09: logo de los formatos impresos (facturas, guías, órdenes, vouchers, reportes)
     logo_archivo = forms.FileField(label='Logo de la empresa', required=False,
-                                   help_text='PNG, JPG, GIF o WEBP de hasta 1 MB. Sale en los formatos impresos')
+                                   help_text='PNG, JPG, GIF o WEBP de hasta 5 MB. Sale en los formatos impresos')
     quitar_logo = forms.BooleanField(label='Quitar el logo actual', required=False)
 
     class Meta:
@@ -267,12 +269,12 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
         if not self.instance.logo:
             self.fields.pop('quitar_logo')
 
-    def clean_logo_archivo(self):
+    def clean_logo_archivo(self):  # hasta LOGO_MAXIMO (5 MB)
         archivo = self.cleaned_data.get('logo_archivo')
         if archivo:
             from .variantes import tipo_imagen
-            if archivo.size > 1024 * 1024:
-                raise forms.ValidationError('El logo supera 1 MB: use una imagen más liviana.')
+            if archivo.size > LOGO_MAXIMO:
+                raise forms.ValidationError('El logo supera 5 MB: use una imagen más liviana.')
             inicio = archivo.read(16)
             archivo.seek(0)
             if tipo_imagen(inicio) is None:

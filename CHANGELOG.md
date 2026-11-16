@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.112.0 — 16/11/2026 · Usuario administrador de Ceiba en cada implementación
+- **Administrador de Ceiba**: al terminar la primera instalación (el cliente crea su propio administrador en el asistente), el sistema crea además el usuario **«administrador»** de Ceiba —superusuario de la empresa principal y, por eso, corporativo de todo el grupo— con una contraseña segura que se envía **solo por correo** a `CORREO_INSTALACION` (el dueño de las implementaciones), con la plantilla de correo del sistema. La contraseña no queda guardada en ningún archivo: si el correo no sale, el usuario no se crea.
+- **Ya instaladas**: `python manage.py admin_ceiba --url https://<dominio>` lo crea y envía su acceso; con `--reponer`, le pone una contraseña nueva.
+- En el asistente, el nombre «administrador» queda reservado para Ceiba.
+- **Logo de la empresa hasta 5 MB** (antes 1 MB), en Ajustes › Empresa.
+- **Ventas: editar lo que aún no se envió a SUNAT**: un comprobante «No enviado» (además de los que tuvieron error de envío) se puede editar para corregirlo antes de enviarlo. El número no cambia; si cambian productos o almacén se rehace el kardex, y los asientos se regeneran con el periodo. Lo que SUNAT ya recibió (aceptado, pendiente, rechazado o de baja) sigue sin editarse: se corrige con nota de crédito o anulación. Siguen las demás condiciones: periodo abierto y sin cobros ni notas asociadas.
+
 ## v1.111.2 — 14/11/2026 · Un solo lugar para pedir ayuda
 - **Se quita «Reportar un problema»** del menú del usuario: los problemas, desarrollos y consultas se registran en **Soporte y tickets**, que permite adjuntar capturas y seguir la respuesta de soporte.
 
