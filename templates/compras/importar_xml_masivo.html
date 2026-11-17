@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Cargar XML de compras (varios){% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-files"></i> Cargar XML de compras (varios)</h1>
+  <a href="{% url 'compras:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Compras</a>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-lg-6"><div class="card"><div class="card-body">
+    <form method="post" enctype="multipart/form-data">{% csrf_token %}
+      <label class="form-label">Archivos XML o ZIP</label>
+      <input type="file" name="archivos" class="form-control mb-2" accept=".xml,.zip" multiple required>
+      <div class="row g-2">
+        <div class="col-md-6"><label class="form-label small">Clasificación (compras nuevas)</label>
+          <select name="clasificacion" class="form-select form-select-sm">{% for v, t in clasificaciones %}<option value="{{ v }}"{% if v == 'GASTO' %} selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+        <div class="col-md-6"><label class="form-label small">Forma de pago (compras nuevas)</label>
+          <select name="forma_pago" class="form-select form-select-sm">{% for v, t in formas_pago %}<option value="{{ v }}">{{ t }}</option>{% endfor %}</select></div>
+      </div>
+      <button class="btn btn-primary mt-3" data-confirm="¿Cargar los XML? Se completarán los productos de las compras ya registradas y se registrarán las que falten."><i class="bi bi-upload"></i> Cargar</button>
+    </form>
+  </div></div></div>
+  <div class="col-lg-6"><div class="card"><div class="card-header">Qué hace</div><div class="card-body small text-muted">
+    <ul class="mb-0 ps-3">
+      <li>Acepta varios <b>.xml</b> a la vez o un <b>.zip</b> con muchos (también un ZIP de ZIP, como los descarga SUNAT). Las constancias de SUNAT (R-…xml) se omiten.</li>
+      <li><b>Compra ya registrada sin productos</b> (p. ej. creada desde la propuesta SIRE): le agrega las líneas del XML <b>sin cambiar sus totales</b>; si el total del XML no cuadra, lo avisa.</li>
+      <li><b>Compra con productos</b>: no se toca. <b>No registrada</b>: se registra completa, como «Registrar desde XML».</li>
+      <li>Cada línea se relaciona con un producto por el código del proveedor, compras anteriores o el nombre; las demás quedan con su descripción para asignarles el producto en la compra.</li>
+      <li>No mueve el almacén ni envía nada a SUNAT. El XML queda como sustento de la compra.</li>
+    </ul>
+  </div></div></div>
+</div>
+{% if r %}
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="small text-muted">Productos completados</div><div class="fs-5 fw-semibold text-success">{{ r.resumen.completada }}</div></div></div></div>
+  <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="small text-muted">Compras registradas</div><div class="fs-5 fw-semibold text-success">{{ r.resumen.creada }}</div></div></div></div>
+  <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="small text-muted">Ya tenían productos</div><div class="fs-5 fw-semibold">{{ r.resumen.ya_tenia }}</div></div></div></div>
+  <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="small text-muted">Con error</div><div class="fs-5 fw-semibold {% if r.resumen.error %}text-danger{% endif %}">{{ r.resumen.error }}</div></div></div></div>
+  <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="small text-muted">Líneas sin producto</div><div class="fs-5 fw-semibold {% if r.resumen.sin_producto %}text-warning{% endif %}">{{ r.resumen.sin_producto }}</div></div></div></div>
+</div>
+<div class="card"><div class="table-responsive"><table class="table table-sm align-middle mb-0">
+  <thead><tr><th>Archivo</th><th>Comprobante</th><th>Proveedor</th><th>Resultado</th><th class="text-center">Líneas</th><th class="text-center">Sin producto</th><th>Aviso</th></tr></thead>
+  <tbody>{% for f in r.filas %}<tr>
+    <td class="small font-monospace">{{ f.archivo }}</td>
+    <td>{% if f.compra %}<a href="{% url 'compras:detalle' f.compra.pk %}">{{ f.comprobante }}</a>{% else %}{{ f.comprobante|default:'—' }}{% endif %}</td>
+    <td class="small">{{ f.proveedor }}</td>
+    <td>{% if f.accion == 'completada' %}<span class="badge text-bg-success">Productos completados</span>{% elif f.accion == 'creada' %}<span class="badge text-bg-success">Compra registrada</span>{% elif f.accion == 'ya_tenia' %}<span class="badge text-bg-secondary">Ya tenía productos</span>{% else %}<span class="badge text-bg-danger">Error</span>{% endif %}</td>
+    <td class="text-center">{{ f.lineas }}</td>
+    <td class="text-center {% if f.sin_producto %}text-warning fw-semibold{% endif %}">{{ f.sin_producto }}</td>
+    <td class="small {% if f.accion == 'error' %}text-danger{% else %}text-muted{% endif %}">{{ f.aviso }}</td>
+  </tr>{% endfor %}</tbody>
+</table></div></div>
+{% endif %}
+{% endblock %}

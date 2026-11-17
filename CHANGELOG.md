@@ -3,6 +3,14 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.115.7 — 17/11/2026 · Carga masiva de XML de compras (productos de los comprobantes electrónicos)
+- **Compras › Cargar XML (varios) · productos**: se suben varios XML o un ZIP (también un ZIP de ZIP, como los descarga SUNAT; las constancias R-… se omiten). Por cada comprobante: si la compra ya está registrada sin productos (p. ej. creada desde la propuesta SIRE), se le agregan las líneas del XML **sin cambiar sus totales** (si el total del XML no cuadra, se avisa); si ya tiene productos, no se toca; si no está registrada, se registra completa. Cada línea se relaciona con un producto por código del proveedor, compras anteriores o nombre; las demás quedan con su descripción. Muestra el resumen (completadas, registradas, ya tenían productos, errores, líneas sin producto), guarda el XML como sustento y no mueve almacén ni envía nada a SUNAT.
+
+## v1.115.6 — 17/11/2026 · Vencimiento de los registros electrónicos (SIRE), logo de fondo en los documentos y logo en la firma de los correos
+- **SIRE: fecha de vencimiento** del registro electrónico de cada periodo según el cronograma de SUNAT para registros electrónicos 2026 (por último dígito del RUC; columna propia para buenos contribuyentes / UESP). Sale junto al estado en la lista de propuestas, en el detalle de la propuesta y en «Enviar al SIRE», con aviso de «vence hoy», «en N días» (3 o menos) o «vencido»; en verde si la propuesta ya se aceptó o se registró el preliminar. Es distinto del cronograma de obligaciones mensuales (IGV-Renta).
+- **Correos**: la firma «Administrador de Ceiba ERP» lleva el logo de ceiba a la izquierda.
+- **Logo de fondo (marca de agua)**: si la empresa tiene logo, sale también en el fondo de facturas, boletas, notas, guías, órdenes, vouchers, boletas de pago y demás documentos impresos o guardados en PDF (centrado y tenue, en cada hoja). En las pantallas del sistema solo aparece al imprimir.
+
 ## v1.115.5 — 17/11/2026 · Otros tributos y cargos en compras y ventas
 - **Nuevo campo «Otros tributos y cargos»** en compras y ventas (p. ej. recargo al consumo de restaurantes, ISC): forma parte del total pero no es base, IGV, no gravado ni ICBPER. Se puede ingresar en el formulario (suma al total como el ICBPER) y se toma de la propuesta SIRE (columnas «Otros Trib/ Cargos» e «ISC»), igual que el ICBPER.
 - **Registros**: columna «Otros trib./cargos S/» en el registro de compras y ventas; en el Excel 8.1 va en «Otros tributos y cargos» (columna S); en el PLE 8.1 y en el archivo del SIRE (RCE y RVIE), en su campo. Antes ese importe quedaba sin lugar y la fila no sumaba el total (p. ej. F002-1545 de Rotonda 3: base 299,59 + IGV 31,45 + 29,96 = 361,00).

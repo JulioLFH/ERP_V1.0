@@ -52,6 +52,23 @@ def _xml_de_sesion(request):
 
 
 @login_required
+def importar_varios(request):
+    """v1.115.7: varios XML (o un ZIP): completa los productos de las compras registradas o registra las que faltan."""
+    from . import xml_masivo
+    resultado = None
+    if request.method == 'POST' and request.FILES.getlist('archivos'):
+        opciones = {'clasificacion': request.POST.get('clasificacion') or 'GASTO',
+                    'forma_pago': request.POST.get('forma_pago') or 'CONTADO'}
+        resultado = xml_masivo.procesar(request.FILES.getlist('archivos'), opciones, request.user)
+        r = resultado['resumen']
+        messages.info(request, f'{r["total"]} XML: {r["completada"]} con productos completados, {r["creada"]} '
+                               f'compras registradas, {r["ya_tenia"]} ya tenían productos y {r["error"]} con error.')
+    return render(request, 'compras/importar_xml_masivo.html', {
+        'r': resultado, 'clasificaciones': Compra.CLASIFICACION,
+        'formas_pago': Compra._meta.get_field('forma_pago').choices})
+
+
+@login_required
 def importar(request):
     if request.method == 'POST' and 'archivo' in request.FILES:
         form = SubirXMLForm(request.POST, request.FILES)

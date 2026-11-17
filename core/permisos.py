@@ -209,7 +209,7 @@ RUTAS = {
     'crm:datos_personales': {'POST': 'crm.datos_personales'},
     'ventas:cot_nuevo': 'ventas.emitir','ventas:cot_editar': 'ventas.emitir', 'ventas:cot_estado': lambda r: _estado_pedido(r),
     'compras:nuevo': 'compras.registrar', 'compras:editar': 'compras.registrar', 'compras:importar': 'compras.registrar',
-    'compras:importar_xml': 'compras.registrar', 'compras:importar_xml_revisar': 'compras.registrar',
+    'compras:importar_xml': 'compras.registrar', 'compras:importar_xml_varios': 'compras.registrar', 'compras:importar_xml_revisar': 'compras.registrar',
     'compras:trasladar': 'compras.registrar', 'compras:notas': 'compras.registrar',
     'compras:ingresar_almacen': 'compras.registrar',
     'compras:importacion_nueva': 'compras.registrar', 'compras:importacion': {'POST': 'compras.registrar'},

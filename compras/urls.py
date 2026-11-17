@@ -39,6 +39,7 @@ urlpatterns = views.compras_views.urls() + [
     path('importaciones/nueva/', views_importacion.importacion_nueva, name='importacion_nueva'),
     path('importaciones/<int:pk>/', views_importacion.importacion, name='importacion'),
     path('importar-xml/', views_xml.importar, name='importar_xml'),
+    path('importar-xml/varios/', views_xml.importar_varios, name='importar_xml_varios'),
     path('importar-xml/revisar/', views_xml.revisar, name='importar_xml_revisar'),
     path('sire/', views_sire.comparar, name='sire'),
     path('ordenes/', views.oc_lista, name='oc_lista'),
