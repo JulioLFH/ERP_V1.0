@@ -63,21 +63,44 @@ def _leer(contenido, nombre):
     return sire.leer(_archivo(contenido, nombre))
 
 
+def _sin_filas(contenido, nombre):
+    """El archivo de SUNAT no trae filas de comprobantes (vacío o solo títulos)."""
+    try:
+        filas = sire._filas(_archivo(contenido, nombre))
+    except Exception:
+        return False
+    return sum(1 for f in filas if any(str(v or '').strip() for v in f)) <= 1
+
+
+def sin_datos(libro, periodo):
+    """v1.115.3: mensaje cuando la propuesta no trae comprobantes."""
+    registro = 'compras' if libro == 'RCE' else 'ventas'
+    return f'No se encontraron datos: la propuesta de {registro} de {periodo[4:]}/{periodo[:4]} no trae comprobantes.'
+
+
 def _actualizar(p):
     """Consulta el ticket; si SUNAT terminó, descarga el archivo y lee los comprobantes."""
     estado = sire_api.estado_ticket(p.libro, p.periodo, p.ticket)
     if estado['error']:
         p.estado, p.mensaje = 'ERROR', f'SUNAT: {estado["descripcion"]}'
     elif estado['terminado']:
+        if not (estado['registro'] or {}).get('archivoReporte'):  # SUNAT terminó sin archivo: no hay comprobantes
+            p.registros, p.estado, p.mensaje = [], 'LISTA', sin_datos(p.libro, p.periodo)
+            p.save()
+            return
         nombre, contenido = sire_api.descargar_archivo(p.libro, estado['registro'])
         p.archivo, p.nombre_archivo = contenido, nombre[:200]
         try:
             registros = _leer(contenido, nombre)
         except sire.ErrorSIRE as exc:
-            p.estado, p.mensaje = 'ERROR', str(exc)
+            if _sin_filas(contenido, nombre):  # archivo vacío o solo con títulos: no hay comprobantes
+                p.registros, p.estado, p.mensaje = [], 'LISTA', sin_datos(p.libro, p.periodo)
+            else:
+                p.estado, p.mensaje = 'ERROR', str(exc)
         else:
             p.registros, p.estado = sire.a_json(registros), 'LISTA'
-            p.mensaje = f'{len(registros)} comprobantes en la propuesta.'
+            p.mensaje = (f'{len(registros)} comprobantes en la propuesta.' if registros
+                         else sin_datos(p.libro, p.periodo))
     else:
         p.mensaje = f'SUNAT está preparando el archivo ({estado["descripcion"]}).'
     p.save()
@@ -96,6 +119,9 @@ def lista(request):
                 registros = sire.leer(archivo)
             except sire.ErrorSIRE as exc:
                 messages.error(request, str(exc))
+                return redirect(request.get_full_path())
+            if not registros:  # v1.115.3
+                messages.warning(request, f'{sin_datos(libro, periodo)} Revise que sea el archivo correcto.')
                 return redirect(request.get_full_path())
             aviso = sire.otro_periodo(registros, periodo)
             if aviso:  # v1.115: no se carga una propuesta de otro periodo

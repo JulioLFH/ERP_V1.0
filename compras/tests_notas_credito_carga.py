@@ -286,3 +286,62 @@ class PropuestaEnSolesTest(Base):
         from core import sire_envio
         fila_txt = sire_envio.generar('080400', '202610')['txt'].splitlines()[0].split('|')
         self.assertEqual(fila_txt[24], '183805.65')  # el archivo para SUNAT, también en soles
+
+
+class RegistroComprasFormato81Test(Base):
+    """v1.115.3: Excel del Registro de Compras con el formato 8.1 de la contabilidad (modelo de Aresol)."""
+
+    def test_formato(self):
+        from datetime import date
+
+        from openpyxl import load_workbook
+        prov = Tercero.objects.create(numero_doc='20519000555', nombre='PROVEEDOR USD SAC', tipo='PROVEEDOR')
+        f = Compra.objects.create(tercero=prov, tipo_comprobante='01', serie='E001', numero='10', periodo='202610',
+                                  fecha_emision=date(2026, 10, 5), moneda='USD', tipo_cambio=D('3.450'),
+                                  base_imponible=D('45150.00'), igv=D('8127.00'), total=D('53277.00'),
+                                  detraccion_monto=D('6393.24'), detraccion_constancia='319162082',
+                                  detraccion_fecha=date(2026, 10, 27))
+        Compra.objects.create(tercero=prov, tipo_comprobante='07', serie='E001', numero='11', periodo='202610',
+                              fecha_emision=date(2026, 10, 6), base_imponible=D('100'), igv=D('18'), total=D('118'),
+                              doc_referencia=f)
+        r = self.client.get(reverse('compras:registro') + '?periodo=202610&formato=excel')
+        ws = load_workbook(io.BytesIO(r.content)).active
+        self.assertEqual(ws.title, 'Periodo 10-2026')
+        self.assertEqual((ws['A1'].value, ws['E2'].value), ('FORMATO 8.1: REGISTRO DE COMPRAS', 'Octubre-2026'))
+        filas = {ws[f'G{i}'].value: i for i in range(10, ws.max_row + 1) if ws[f'G{i}'].value}
+        i = filas['10']
+        self.assertEqual((ws[f'K{i}'].value, ws[f'L{i}'].value, ws[f'T{i}'].value), (155767.5, 28038.15, 183805.65))
+        self.assertEqual((ws[f'V{i}'].value, ws[f'W{i}'].value, ws[f'X{i}'].value), ('319162082', '27/10/2026', 3.45))
+        j = filas['11']  # nota de crédito: en negativo y con el comprobante que modifica
+        self.assertEqual((ws[f'T{j}'].value, ws[f'Z{j}'].value, ws[f'AA{j}'].value, ws[f'AB{j}'].value),
+                         (-118.0, '01', 'E001', '10'))
+        self.assertEqual(ws[f'X{j}'].value, 0)
+        total = ws.max_row
+        self.assertIn('T O T A L E S', ws[f'J{total}'].value)
+        self.assertTrue(ws[f'T{total}'].value.startswith('=SUM(T10:'))
+        self.assertEqual(ws['A10'].font.name, 'Arial Narrow')
+
+
+class PropuestaSinDatosTest(Base):
+    """v1.115.3: al importar una propuesta sin comprobantes sale «No se encontraron datos»."""
+
+    def test_archivo_sin_comprobantes(self):
+        from core.models import PropuestaSIRE
+        r = self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-10',
+                                                          'archivo': xlsx([CAB_SIRE], 'vacia.xlsx')}, follow=True)
+        self.assertContains(r, 'No se encontraron datos')
+        self.assertFalse(PropuestaSIRE.objects.exists())
+
+    def test_propuesta_de_sunat_sin_comprobantes(self):
+        from unittest.mock import patch
+
+        from core.models import PropuestaSIRE
+        from core.views_sire import _actualizar
+        p = PropuestaSIRE.objects.create(libro='RCE', periodo='202610', ticket='123')
+        terminado = {'terminado': True, 'error': False, 'descripcion': 'Terminado', 'registro': {'archivoReporte': []}}
+        with patch('core.sire_api.estado_ticket', return_value=terminado):
+            _actualizar(p)
+        p.refresh_from_db()
+        self.assertEqual(p.estado, 'LISTA')
+        self.assertIn('No se encontraron datos', p.mensaje)
+        self.assertContains(self.client.get(reverse('sire_propuesta', args=[p.pk])), 'No se encontraron datos')

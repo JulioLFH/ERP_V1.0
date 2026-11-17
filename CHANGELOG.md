@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.115.3 — 17/11/2026 · Registro de Compras 8.1 con el formato de la contabilidad y «No se encontraron datos» en propuestas
+- **Propuestas SIRE sin comprobantes**: al importar una propuesta (archivo subido o traída de SUNAT) que no trae comprobantes, sale «No se encontraron datos» con el registro y el periodo. Un archivo subido sin comprobantes no se guarda.
+- **Compras › Registro de compras › Excel**: sale con el formato 8.1 que usa la contabilidad (modelo «RCompras 202610 - Aresol - sunat»): cabecera con periodo, RUC y razón social; títulos en 5 filas con celdas combinadas; columnas A a AB (CUO, fechas, comprobante, proveedor, base e IGV según destino, no gravadas, ISC, otros tributos, total, constancia de detracción, tipo de cambio y comprobante que modifica); importes en soles con las notas de crédito en negativo; tipo de cambio 0 en soles; fila de totales con fórmulas; Arial Narrow 8 y A4 horizontal.
+
 ## v1.115.2 — 16/11/2026 · SIRE: fecha de vencimiento de SUNAT y textos sin tildes en el archivo
 - **Propuesta SIRE de compras en dólares**: SUNAT entrega los importes ya en soles. El ERP los guardaba como si fueran dólares y luego los volvía a convertir (p. ej. E001-193 de ML: US$ 183 805,65 = S/ 634 129,49, cuando era S/ 183 805,65 = US$ 53 277,00). Ahora los guarda en la moneda del comprobante (soles / T.C.), el cruce compara en soles y el archivo para SUNAT va en soles.
 - **Enviar al SIRE**: la «Fecha Vcto/Pago» va con la que SUNAT tiene en su propuesta de compras para ese comprobante. Sin ella SUNAT rechazaba la fila por «número de campos incorrecto»: eran los 7 recibos del BBVA de ML en octubre.

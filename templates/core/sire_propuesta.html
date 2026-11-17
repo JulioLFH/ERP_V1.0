@@ -27,6 +27,7 @@
   <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Solo en SUNAT (faltan en el ERP)</div><div class="fs-5 fw-semibold {% if r.solo_sunat %}text-warning{% endif %}">{{ r.solo_sunat|length }}</div></div></div></div>
   <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Solo en el ERP</div><div class="fs-5 fw-semibold">{{ r.solo_erp|length }}</div></div></div></div>
 </div>
+{% if p.estado == 'LISTA' and not p.registros %}<div class="alert alert-warning"><i class="bi bi-inbox"></i> <b>No se encontraron datos.</b> {{ p.mensaje }}</div>{% endif %}
 {% if r.otro_periodo %}<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> {{ r.otro_periodo }} No se puede aceptar ni crear comprobantes desde esta propuesta.</div>{% endif %}
 {% if r.solo_sunat %}
 <form method="post" class="card mb-3">{% csrf_token %}<input type="hidden" name="accion" value="crear">

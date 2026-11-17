@@ -65,7 +65,9 @@ def comparar(request):
         except sire.ErrorSIRE as exc:
             messages.error(request, str(exc))
         else:
-            aviso = sire.otro_periodo(registros, form.cleaned_data['periodo'])
+            if not registros:  # v1.115.3
+                messages.warning(request, 'No se encontraron datos en el archivo de la propuesta: no trae comprobantes.')
+            aviso = sire.otro_periodo(registros, form.cleaned_data['periodo']) if registros else ''
             if aviso:  # v1.115: el archivo debe ser del periodo que se carga
                 messages.error(request, aviso)
                 registros = None

@@ -208,6 +208,11 @@ class ComprasViews(ComprobanteViews):
         # el comprobante de no domiciliado (91) no va en el Registro de Compras 8.1 (es del 8.2)
         return super()._registro_qs(periodo).exclude(tipo_comprobante='91')
 
+    def _registro_excel(self, periodo, docs):
+        """Excel del Registro de Compras con el formato 8.1 de la contabilidad (compras/registro_81.py)."""
+        from .registro_81 import respuesta
+        return respuesta(periodo, docs)
+
     def linea_ple(self, periodo, n, d):
         """Registro de Compras 8.1 (estructura PLE SUNAT)."""
         ref = d.doc_referencia
