@@ -286,7 +286,8 @@ def leer_completo(archivo):
          'periodo': col('periodo'),  # periodo tributario de la propuesta (v1.115: debe ser el que se carga)
          'vencimiento': col('fecha vcto', 'fecha de vencimiento'), 'moneda': col('moneda', 'cod moneda'),
          'tc': col('tipo cambio', 'tipo de cambio'), 'exonerado': col('mto exonerado', 'valor adq. ng', 'adq no grav'),
-         'inafecto': col('mto inafecto'),
+         'inafecto': col('mto inafecto'), 'icbper': col('icbper'), 'isc': col('isc'),
+         'otros': col('otros trib', 'otros tributos', 'otros cargos'),
          # notas de crédito/débito: el comprobante que modifican (v1.113)
          'ref_tipo': col('tipo cp modificado'), 'ref_serie': col('serie cp modificado'),
          'ref_numero': col('nro cp modificado'), 'tipo_nota': col('tipo de nota')}
@@ -321,6 +322,8 @@ def leer_completo(archivo):
                           'moneda': str(valor(fila, 'moneda') or 'PEN').strip().upper() or 'PEN',
                           'tc': _dec(valor(fila, 'tc')),
                           'no_gravado': signo(_dec(valor(fila, 'exonerado')) + _dec(valor(fila, 'inafecto'))),
+                          'icbper': signo(_dec(valor(fila, 'icbper'))),
+                          'otros': signo(_dec(valor(fila, 'otros')) + _dec(valor(fila, 'isc'))),
                           'ref_tipo': (_texto(valor(fila, 'ref_tipo')) or '').zfill(2) if ref_numero else '',
                           'ref_serie': (_texto(valor(fila, 'ref_serie')) or '').upper(),
                           'ref_numero': ref_numero.lstrip('0') or ('0' if ref_numero else ''),
@@ -440,7 +443,8 @@ def _erp(d):
     return [d.tercero.numero_doc, d.tercero.nombre, d.tipo_comprobante, d.serie, d.numero, d.total]
 
 
-FECHAS, IMPORTES = ('fecha', 'vencimiento', 'det_fecha'), ('base', 'igv', 'total', 'tc', 'no_gravado', *MONTOS)
+FECHAS, IMPORTES = ('fecha', 'vencimiento', 'det_fecha'), ('base', 'igv', 'total', 'tc', 'no_gravado', 'icbper',
+                                                           'otros', *MONTOS)
 
 
 def a_json(registros):
@@ -621,15 +625,18 @@ def crear_faltantes(libro, registros, periodo, claves, usuario=None):
                 if libro == 'RCE':  # importes de la propuesta en soles -> moneda del comprobante
                     base, igv, no_grav = (a_moneda_original(r, x) for x in (r['base'], r['igv'],
                                                                            r.get('no_gravado') or D0))
-                    total = a_moneda_original(r, r['total']) if r['total'] else base + igv + no_grav
+                    icbper, otros = (a_moneda_original(r, r.get(x) or D0) for x in ('icbper', 'otros'))
+                    total = a_moneda_original(r, r['total']) if r['total'] else base + igv + no_grav + icbper + otros
                 else:
                     base, igv, no_grav = r['base'], r['igv'], r.get('no_gravado') or D0
-                    total = r['total'] or base + igv + no_grav
+                    icbper, otros = r.get('icbper') or D0, r.get('otros') or D0
+                    total = r['total'] or base + igv + no_grav + icbper + otros
                 datos = dict(tipo_comprobante=r['tipo'], serie=r['serie'], numero=r['numero'],
                              fecha_emision=r['fecha'], fecha_vencimiento=r.get('vencimiento') or r['fecha'],
                              tercero=tercero, moneda=r.get('moneda') or 'PEN',
                              tipo_cambio=r.get('tc') or Decimal('1'), tipo_operacion='GRAVADA' if igv else 'EXONERADA',
                              base_imponible=base, no_gravado=no_grav, exonerado=no_grav, igv=igv, total=total,
+                             icbper=icbper, otros_cargos=otros,
                              periodo=periodo, glosa=f'Creado desde la propuesta SIRE {periodo}', doc_referencia=ref)
                 for campo in MONTOS:  # detracción, retención y percepción del Excel (el % se deduce del monto)
                     monto = a_moneda_original(r, r.get(campo) or D0) if libro == 'RCE' else (r.get(campo) or D0)

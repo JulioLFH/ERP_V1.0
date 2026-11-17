@@ -415,13 +415,14 @@ class ComprobanteViews:
     def registro(self, request):
         periodo = periodo_actual(request, self.modelo.objects.all())
         docs = list(self._registro_qs(periodo))
-        tot = {k: D0 for k in ('base', 'nograv', 'igv', 'icbper', 'total', 'detr', 'ret', 'perc')}
+        tot = {k: D0 for k in ('base', 'nograv', 'igv', 'icbper', 'otros', 'total', 'detr', 'ret', 'perc')}
         for d in docs:
             # v1.115: cada fila en soles (como el total y la contabilidad) y con signo: antes las filas iban en la
             # moneda del comprobante y el total en soles, y con compras en dólares la columna no sumaba el total
             s = d.signo
             d.fila_pen = {'base': s * d.base_pen, 'nograv': s * d.nograv_pen, 'igv': s * d.igv_pen,
-                          'icbper': s * d.icbper_pen, 'total': s * d.total_pen, 'detr': s * d.detr_pen,
+                          'icbper': s * d.icbper_pen, 'otros': s * d.otros_pen, 'total': s * d.total_pen,
+                          'detr': s * d.detr_pen,
                           'ret': s * d.ret_pen, 'perc': s * d.perc_pen}
             if d.estado == 'ANULADO':
                 continue

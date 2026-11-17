@@ -17,7 +17,7 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         model = Compra
         fields = ['tipo_comprobante', 'serie', 'numero', 'tercero', 'fecha_emision', 'fecha_vencimiento', 'periodo',
                   'clasificacion', 'forma_pago', 'moneda', 'tipo_cambio', 'tipo_operacion', 'detraccion_pct',
-                  'detraccion_constancia', 'detraccion_fecha', 'retencion_pct', 'percepcion_pct', 'icbper', 'orden_compra', 'doc_referencia',
+                  'detraccion_constancia', 'detraccion_fecha', 'retencion_pct', 'percepcion_pct', 'icbper', 'otros_cargos', 'orden_compra', 'doc_referencia',
                   'ingresar_almacen', 'almacen', 'centro_costo', 'cuenta_contable', 'destino_igv', 'valor_aduana',
                   'igv_importacion', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2})}

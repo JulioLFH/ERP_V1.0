@@ -135,9 +135,10 @@
     });
     if (!document.getElementById('t-total')) return;
     const icbper = num(document.getElementById('id_icbper'));
+    const otros = num(document.getElementById('id_otros_cargos'));  // v1.115.5: otros tributos y cargos
     const base = sumas.GRAVADA;
     const igv = Math.round(base * igvTasa) / 100;
-    const total = base + sumas.EXONERADA + sumas.INAFECTA + sumas.EXPORTACION + igv + icbper;
+    const total = base + sumas.EXONERADA + sumas.INAFECTA + sumas.EXPORTACION + igv + icbper + otros;
     setText('t-base', fmt(base));
     setText('t-exo', fmt(sumas.EXONERADA));
     setText('t-nograv', fmt(sumas.INAFECTA + sumas.EXPORTACION));
@@ -250,7 +251,7 @@
     enlazar(tr);
     tr.querySelector('.js-producto').focus();
   });
-  ['id_tipo_operacion', 'id_tipo_comprobante', 'id_icbper', 'id_detraccion_pct', 'id_retencion_pct', 'id_percepcion_pct']
+  ['id_tipo_operacion', 'id_tipo_comprobante', 'id_icbper', 'id_otros_cargos', 'id_detraccion_pct', 'id_retencion_pct', 'id_percepcion_pct']
     .forEach((id) => {
       const el = document.getElementById(id);
       if (el) { el.addEventListener('input', recalcular); el.addEventListener('change', recalcular); }

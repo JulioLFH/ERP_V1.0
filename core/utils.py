@@ -357,6 +357,8 @@ def _reglas_sunat(doc, d, emision, historico):
         errores.append('Percepción del IGV: 0 %, 0.5 %, 1 % o 2 %.')
     if (d.get('icbper') or 0) < 0:
         errores.append('El ICBPER (impuesto a las bolsas) no puede ser negativo.')
+    if (d.get('otros_cargos') or 0) < 0:
+        errores.append('Otros tributos y cargos no puede ser negativo.')
     tercero = d.get('tercero') or getattr(doc, 'tercero', None)
     if honorarios and not venta and tercero is not None and not (
             tercero.tipo_doc == '6' and tercero.numero_doc[:2] in ('10', '15', '17')):

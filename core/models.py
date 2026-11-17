@@ -2060,6 +2060,11 @@ class ComprobanteBase(TotalesMixin):
     nograv_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
     igv_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
     icbper_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
+    # v1.115.5: «otros tributos y cargos» del comprobante (p. ej. recargo al consumo, ISC): parte del total que no es
+    # base, IGV, no gravado ni ICBPER. Antes no tenía dónde ir y la fila del registro no sumaba el total.
+    otros_cargos = models.DecimalField('Otros tributos y cargos', max_digits=14, decimal_places=2, default=D0,
+                                       blank=True)
+    otros_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
     ret_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
     perc_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
     detr_pen = models.DecimalField(max_digits=14, decimal_places=2, default=D0, editable=False)
@@ -2086,7 +2091,8 @@ class ComprobanteBase(TotalesMixin):
         tc = self.tc_efectivo
         self.total_pen, self.igv_pen = r2(self.total * tc), r2(self.igv * tc)
         self.icbper_pen, self.nograv_pen = r2(self.icbper * tc), r2(self.no_gravado * tc)
-        self.base_pen = self.total_pen - self.igv_pen - self.icbper_pen - self.nograv_pen
+        self.otros_pen = r2((self.otros_cargos or D0) * tc)
+        self.base_pen = self.total_pen - self.igv_pen - self.icbper_pen - self.nograv_pen - self.otros_pen
         self.ret_pen, self.perc_pen = r2(self.retencion_monto * tc), r2(self.percepcion_monto * tc)
         self.detr_pen = r2(self.detraccion_monto * tc)
 
@@ -2211,6 +2217,7 @@ class ComprobanteBase(TotalesMixin):
 
     def calcular_totales(self):
         super().calcular_totales()
+        self.total += self.otros_cargos or D0  # no salen de los ítems: se suman aparte
         self.detraccion_monto = r2(self.total * self.detraccion_pct / 100)
         self.retencion_monto = r2(self.total * self.retencion_pct / 100)
         self.percepcion_monto = r2(self.total * self.percepcion_pct / 100)
@@ -2223,7 +2230,8 @@ class ComprobanteBase(TotalesMixin):
         self.calcular_pen()
         if kwargs.get('update_fields') is not None and 'total' in kwargs['update_fields']:
             kwargs['update_fields'] = list(kwargs['update_fields']) + [
-                'total_pen', 'base_pen', 'nograv_pen', 'igv_pen', 'icbper_pen', 'ret_pen', 'perc_pen', 'detr_pen']
+                'total_pen', 'base_pen', 'nograv_pen', 'igv_pen', 'icbper_pen', 'otros_pen', 'ret_pen', 'perc_pen',
+                'detr_pen']
         super().save(*args, **kwargs)
 
     # ---- saldos (usan las anotaciones de .con_saldos() si existen; si no, consultan)

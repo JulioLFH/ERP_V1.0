@@ -346,3 +346,27 @@ class PropuestaSinDatosTest(Base):
         self.assertEqual(p.estado, 'LISTA')
         self.assertIn('No se encontraron datos', p.mensaje)
         self.assertContains(self.client.get(reverse('sire_propuesta', args=[p.pk])), 'No se encontraron datos')
+
+
+class OtrosCargosTest(Base):
+    """v1.115.5: «Otros tributos y cargos» de la propuesta SIRE (p. ej. recargo al consumo) se guardan y el registro
+    suma el total (antes la fila no cuadraba)."""
+    RUC = '20609188732'
+
+    def test_recargo_al_consumo(self):
+        cab = CAB_SIRE[:16] + ['Otros Trib/ Cargos'] + CAB_SIRE[16:]
+        fila = ['20100000001', 'MI EMPRESA', '202608', 'X', '13/08/2026', '', '01', 'F002', '', 1545, '', '6', self.RUC,
+                'RESTAURANTE SAC', 299.59, 31.45, 29.96, 361, 'PEN', 1, '', '', '', '', '', '']
+        regs = sire.leer(xlsx([cab, fila], 'p.xlsx'))
+        self.assertEqual(regs[0]['otros'], D('29.96'))
+        creados, _ = sire.crear_faltantes('RCE', regs, '202608', [f'01|F002|1545|{self.RUC}'])
+        c = Compra.objects.get(tercero__numero_doc=self.RUC)
+        self.assertEqual((c.base_imponible, c.igv, c.otros_cargos, c.total), (D('299.59'), D('31.45'), D('29.96'), D('361')))
+        self.assertEqual((c.base_pen, c.otros_pen), (D('299.59'), D('29.96')))  # antes la base en soles salía 329.55
+        r = self.client.get(reverse('compras:registro') + '?periodo=202608')
+        self.assertEqual(r.context['tot']['otros'], D('29.96'))
+        t = r.context['tot']
+        self.assertEqual(t['base'] + t['nograv'] + t['igv'] + t['icbper'] + t['otros'], t['total'])
+        from openpyxl import load_workbook
+        ws = load_workbook(io.BytesIO(self.client.get(reverse('compras:registro') + '?periodo=202608&formato=excel').content)).active
+        self.assertEqual((ws['K10'].value, ws['L10'].value, ws['S10'].value, ws['T10'].value), (299.59, 31.45, 29.96, 361.0))

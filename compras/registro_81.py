@@ -68,7 +68,7 @@ def fila(n, d):
         'D': d.tipo_comprobante, 'E': d.serie, 'F': str(d.fecha_emision.year) if d.es_dua else '', 'G': d.numero,
         'H': d.tercero.tipo_doc, 'I': d.tercero.numero_doc, 'J': d.tercero.nombre,
         'K': None, 'L': None, 'M': None, 'N': None, 'O': None, 'P': None,
-        'Q': soles(D0 if d.es_dua else d.no_gravado) or None, 'R': Decimal('0'), 'S': soles(d.icbper) or None,
+        'Q': soles(D0 if d.es_dua else d.no_gravado) or None, 'R': Decimal('0'), 'S': soles((d.icbper or D0) + (d.otros_cargos or D0)) or None,
         'T': soles(d.total), 'U': '',
         'V': d.detraccion_constancia or '', 'W': fmt_fecha(d.detraccion_fecha) if d.detraccion_fecha else '',
         'X': d.tipo_cambio if d.moneda != 'PEN' else Decimal('0'),

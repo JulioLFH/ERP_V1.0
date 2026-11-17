@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.115.5 — 17/11/2026 · Otros tributos y cargos en compras y ventas
+- **Nuevo campo «Otros tributos y cargos»** en compras y ventas (p. ej. recargo al consumo de restaurantes, ISC): forma parte del total pero no es base, IGV, no gravado ni ICBPER. Se puede ingresar en el formulario (suma al total como el ICBPER) y se toma de la propuesta SIRE (columnas «Otros Trib/ Cargos» e «ISC»), igual que el ICBPER.
+- **Registros**: columna «Otros trib./cargos S/» en el registro de compras y ventas; en el Excel 8.1 va en «Otros tributos y cargos» (columna S); en el PLE 8.1 y en el archivo del SIRE (RCE y RVIE), en su campo. Antes ese importe quedaba sin lugar y la fila no sumaba el total (p. ej. F002-1545 de Rotonda 3: base 299,59 + IGV 31,45 + 29,96 = 361,00).
+
 ## v1.115.4 — 17/11/2026 · % de IGV en el Registro de Compras 8.1 y respuesta de SUNAT en el error del SIRE
 - **Registro de Compras 8.1 (Excel)**: nueva columna **% de IGV** al final (AC), con la tasa de cada comprobante (IGV / base gravada: 18, 10 en restaurantes MYPE…); vacía si no tiene gravadas.
 - Cuando SUNAT da la sesión pero niega el SIRE (401/403), el mensaje agrega «Respuesta de SUNAT: …» con el código y el texto que devolvió, para saber la causa exacta. Los mensajes del SIRE apuntan a Ajustes › Credenciales SUNAT y SIRE.
