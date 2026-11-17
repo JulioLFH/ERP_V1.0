@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.116.1 — 17/11/2026 · Agregar productos a las compras importadas de SUNAT
+- **Compras › «Agregar productos a compras de SUNAT»** (botón en el Registro de compras): lista las compras del periodo que vinieron de la propuesta SIRE sin productos y las completa **de a una con barra de avance**, mostrando por cada comprobante sus productos, cantidades, precios e importes:
+  1. **Desde los XML** (del portal SOL › Consulta de comprobantes de pago › «Recibido», o de los proveedores): se suben todos juntos (.xml o .zip). **Solo se guarda lo que cuadra** con lo registrado (valor de las líneas = base + no gravado y total del XML = total de la compra, ±0,10); si no cuadra, se avisa y la compra no se toca.
+  2. **Sin XML**: una línea por compra con la descripción del comprobante y su importe exacto (cuadra siempre), para gastos donde no se necesita el detalle.
+  Los totales registrados no cambian, no se mueve almacén y el XML queda como sustento.
+- Conector del servicio «consultacpe» de SUNAT (core/sunat_cpe.py) listo para cuando SUNAT habilite la descarga de XML por API a la aplicación de la empresa (hoy no la ofrece en Credenciales de API SUNAT).
+
 ## v1.116.0 — 17/11/2026 · Libros electrónicos de SUNAT completos
 - **Libro Caja y Bancos (formatos 1.1 y 1.2)** — Tesorería › Caja y bancos, Contabilidad › Libros y SUNAT › Registros y libros: por periodo y cuenta, con saldo inicial, movimientos (medio de pago, tercero, N° de operación) y saldo final; Excel con el formato de SUNAT (1.1 caja y 1.2 por cuenta corriente) y TXT del PLE (010100 y 010200). Importes en soles; las cuentas en dólares con el tipo de cambio de su asiento. Excluye anulados y respeta las cuentas que puede ver cada usuario.
 - **TXT del PLE de Inventarios y Balances (3.x)**: botón «TXT PLE» en cada formato y un ZIP con todos (3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.9, 3.11, 3.12, 3.13, 3.14, 3.15, 3.16.1, 3.16.2, 3.17, 3.18 y 3.20), con oportunidad (al 31/12 o libre) y valor nominal para 3.16.

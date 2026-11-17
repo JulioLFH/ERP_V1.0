@@ -2,7 +2,7 @@ from django.urls import path
 
 from proveedores import views_erp as portal
 
-from . import (views, views_abastecimiento, views_compradores, views_hes, views_importacion, views_registro_info,
+from . import (productos_sunat, views, views_abastecimiento, views_compradores, views_hes, views_importacion, views_registro_info,
                views_sire, views_solped, views_stock, views_xml)
 
 app_name = 'compras'
@@ -40,6 +40,11 @@ urlpatterns = views.compras_views.urls() + [
     path('importaciones/<int:pk>/', views_importacion.importacion, name='importacion'),
     path('importar-xml/', views_xml.importar, name='importar_xml'),
     path('importar-xml/varios/', views_xml.importar_varios, name='importar_xml_varios'),
+    # v1.116.1: agregar los productos a las compras importadas de SUNAT (con barra de avance)
+    path('productos-sunat/', productos_sunat.pagina, name='productos_sunat'),
+    path('productos-sunat/subir/', productos_sunat.subir, name='productos_sunat_subir'),
+    path('productos-sunat/procesar/', productos_sunat.procesar, name='productos_sunat_procesar'),
+    path('productos-sunat/linea/', productos_sunat.una_linea, name='productos_sunat_linea'),
     path('importar-xml/revisar/', views_xml.revisar, name='importar_xml_revisar'),
     path('sire/', views_sire.comparar, name='sire'),
     path('ordenes/', views.oc_lista, name='oc_lista'),

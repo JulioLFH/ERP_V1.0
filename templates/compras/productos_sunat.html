@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% block title %}Agregar productos a compras de SUNAT{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h1 class="page-title mb-0"><i class="bi bi-list-check"></i> Agregar productos a compras de SUNAT</h1>
+  <form method="get" class="d-flex gap-2 align-items-center">
+    <label class="small text-muted">Periodo</label>
+    <input type="month" name="periodo" value="{{ periodo|slice:':4' }}-{{ periodo|slice:'4:' }}" class="form-control form-control-sm" style="width:auto">
+    <button class="btn btn-sm btn-outline-secondary">Ver</button>
+    <a href="{% url 'compras:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Compras</a>
+  </form>
+</div>
+<p class="text-muted small">Las compras creadas desde la propuesta del SIRE solo traen totales. Aquí se les agregan los productos sin cambiar esos totales: <b>solo se guarda lo que cuadra</b> con lo registrado.</p>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header"><b>1.</b> Desde los XML de los comprobantes</div><div class="card-body small">
+    <p class="text-muted mb-2">Descárguelos del portal SOL (Comprobantes de pago › Consulta de comprobantes de pago › «Recibido» › ícono XML) o use los que envían los proveedores. Puede subir varios .xml o un .zip.</p>
+    <input type="file" id="xmls" class="form-control form-control-sm mb-2" accept=".xml,.zip" multiple>
+    <button type="button" id="btn-xml" class="btn btn-primary btn-sm"><i class="bi bi-upload"></i> Cargar productos desde los XML</button>
+  </div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header"><b>2.</b> Sin XML: una línea por compra</div><div class="card-body small">
+    <p class="text-muted mb-2">Para gastos donde no se necesita el detalle: a cada compra pendiente del periodo se le pone una línea con la descripción del comprobante y su importe exacto (cuadra siempre).</p>
+    <button type="button" id="btn-linea" class="btn btn-outline-primary btn-sm" {% if not compras %}disabled{% endif %}><i class="bi bi-list-ol"></i> Poner una línea a las {{ compras|length }} compras pendientes</button>
+  </div></div></div>
+</div>
+
+<div id="avance" class="card mb-3 d-none"><div class="card-body">
+  <div class="d-flex justify-content-between small mb-1"><span id="avance-texto">Preparando…</span><span id="avance-cuenta"></span></div>
+  <div class="progress" style="height:18px"><div id="barra" class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width:0%">0%</div></div>
+  <div class="small mt-2" id="avance-resumen"></div>
+</div></div>
+<div id="resultados" class="mb-3"></div>
+
+<div class="card"><div class="card-header d-flex justify-content-between"><span>Compras del periodo {{ periodo|slice:'4:' }}/{{ periodo|slice:':4' }} sin productos</span><span class="text-muted small">{{ compras|length }} · S/ {{ total|floatformat:2 }}</span></div>
+<div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+  <thead><tr><th>Comprobante</th><th>Proveedor</th><th>Emisión</th><th>Mon.</th><th class="text-end">Total</th></tr></thead>
+  <tbody>{% for c in compras %}<tr id="fila-{{ c.pk }}" data-compra="{{ c.pk }}">
+    <td><a href="{% url 'compras:detalle' c.pk %}">{{ c.tipo_comprobante }} {{ c.serie }}-{{ c.numero }}</a></td>
+    <td class="small">{{ c.tercero.numero_doc }} {{ c.tercero.nombre|truncatechars:45 }}</td>
+    <td class="small">{{ c.fecha_emision|date:'d/m/Y' }}</td><td>{{ c.moneda }}</td>
+    <td class="text-end">{{ c.total|floatformat:2 }}</td>
+  </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">No hay compras sin productos en el periodo.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+
+<script>
+(function () {
+  const csrf = '{{ csrf_token }}';
+  const ESTADOS = {guardada: ['success', 'Guardada'], ya_tenia: ['secondary', 'Ya tenía productos'],
+                   no_cuadra: ['danger', 'No cuadra'], sin_compra: ['warning', 'No registrada'], error: ['danger', 'Error']};
+  const cuenta = {guardada: 0, ya_tenia: 0, no_cuadra: 0, sin_compra: 0, error: 0};
+  function esc(t) { const d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+  function avance(hechos, total, texto) {
+    const pct = total ? Math.round(hechos * 100 / total) : 100;
+    const b = document.getElementById('barra');
+    b.style.width = pct + '%'; b.textContent = pct + '%';
+    document.getElementById('avance-cuenta').textContent = hechos + ' de ' + total;
+    document.getElementById('avance-texto').textContent = texto;
+    document.getElementById('avance-resumen').innerHTML =
+      '<span class="text-success">Guardadas: ' + cuenta.guardada + '</span> · Ya tenían: ' + cuenta.ya_tenia +
+      ' · <span class="text-danger">No cuadran: ' + cuenta.no_cuadra + '</span> · No registradas: ' + cuenta.sin_compra +
+      ' · <span class="text-danger">Errores: ' + cuenta.error + '</span>';
+  }
+  function mostrar(r) {
+    const e = ESTADOS[r.estado] || ESTADOS.error;
+    cuenta[r.estado in cuenta ? r.estado : 'error'] += 1;
+    const lineas = (r.lineas || []).map(l => '<tr><td>' + esc(l.descripcion) + (l.producto ? ' <span class="text-muted">(' + esc(l.producto) + ')</span>' : '') +
+      '</td><td class="text-end">' + esc(l.cantidad) + '</td><td class="text-end">' + esc(l.precio) + '</td><td class="text-end">' + esc(l.importe) + '</td></tr>').join('');
+    const div = document.createElement('div');
+    div.className = 'card mb-2 border-' + e[0];
+    div.innerHTML = '<div class="card-body py-2 small"><span class="badge text-bg-' + e[0] + '">' + e[1] + '</span> <b>' + esc(r.comprobante || r.archivo) +
+      '</b> · ' + esc(r.proveedor) + (r.total ? ' · Total ' + esc(r.total) : '') + '<div class="text-muted">' + esc(r.mensaje) + '</div>' +
+      (lineas ? '<table class="table table-sm mb-0 mt-1"><thead><tr><th>Producto / descripción</th><th class="text-end">Cant.</th><th class="text-end">P. unit.</th><th class="text-end">Importe</th></tr></thead><tbody>' + lineas + '</tbody></table>' : '') + '</div>';
+    document.getElementById('resultados').prepend(div);
+    if (r.compra && r.estado === 'guardada') { const f = document.getElementById('fila-' + r.compra); if (f) f.classList.add('table-success'); }
+  }
+  async function post(url, datos) {
+    const f = new FormData();
+    Object.entries(datos).forEach(([k, v]) => f.append(k, v));
+    const resp = await fetch(url, {method: 'POST', body: f, headers: {'X-CSRFToken': csrf}});
+    return resp.json();
+  }
+  function iniciar() {
+    Object.keys(cuenta).forEach(k => cuenta[k] = 0);
+    document.getElementById('resultados').innerHTML = '';
+    document.getElementById('avance').classList.remove('d-none');
+    document.getElementById('btn-xml').disabled = document.getElementById('btn-linea').disabled = true;
+  }
+  function terminar(total) {
+    avance(total, total, 'Terminado');
+    document.getElementById('barra').classList.remove('progress-bar-animated');
+    document.getElementById('btn-xml').disabled = document.getElementById('btn-linea').disabled = false;
+  }
+  document.getElementById('btn-xml').addEventListener('click', async function () {
+    const archivos = document.getElementById('xmls').files;
+    if (!archivos.length) { alert('Elija los XML o el ZIP.'); return; }
+    iniciar(); avance(0, 0, 'Subiendo los archivos…');
+    const f = new FormData();
+    [...archivos].forEach(a => f.append('archivos', a));
+    const r = await (await fetch('{% url "compras:productos_sunat_subir" %}', {method: 'POST', body: f, headers: {'X-CSRFToken': csrf}})).json();
+    const lista = r.archivos || [];
+    for (let n = 0; n < lista.length; n++) {
+      avance(n, lista.length, 'Procesando ' + lista[n].archivo + '…');
+      try { mostrar(await post('{% url "compras:productos_sunat_procesar" %}', {token: r.token, i: lista[n].i})); }
+      catch (e) { mostrar({estado: 'error', archivo: lista[n].archivo, mensaje: 'No se pudo procesar.'}); }
+    }
+    terminar(lista.length);
+  });
+  document.getElementById('btn-linea').addEventListener('click', async function () {
+    const filas = [...document.querySelectorAll('tr[data-compra]')];
+    if (!confirm('¿Poner una línea con el importe del comprobante a las ' + filas.length + ' compras pendientes?')) return;
+    iniciar();
+    for (let n = 0; n < filas.length; n++) {
+      avance(n, filas.length, 'Guardando ' + filas[n].querySelector('td').textContent.trim() + '…');
+      try { mostrar(await post('{% url "compras:productos_sunat_linea" %}', {compra: filas[n].dataset.compra})); }
+      catch (e) { mostrar({estado: 'error', mensaje: 'No se pudo guardar.'}); }
+    }
+    terminar(filas.length);
+  });
+})();
+</script>
+{% endblock %}

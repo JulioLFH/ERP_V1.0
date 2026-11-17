@@ -98,6 +98,7 @@ MODULOS = [
                          ('Registrar compra', 'compras:nuevo', 'bi-plus-circle'),
                          ('Registrar desde XML', 'compras:importar_xml', 'bi-filetype-xml'),
                          ('Cargar XML (varios) · productos', 'compras:importar_xml_varios', 'bi-files'),
+                         ('Agregar productos a compras de SUNAT', 'compras:productos_sunat', 'bi-list-check'),
                          ('Importaciones y costeo', 'compras:importaciones', 'bi-globe-americas')]),
             ('Abastecimiento', [('Licitaciones y cuadro comparativo', 'compras:licitaciones', 'bi-trophy'),
                                 ('Nueva licitación', 'compras:licitacion_nueva', 'bi-plus-circle'),
