@@ -29,7 +29,7 @@
 {% if avisos %}<div class="card border-warning mb-3"><div class="card-header text-warning-emphasis">Avisos ({{ avisos|length }})</div>
   <ul class="list-group list-group-flush small">{% for x in avisos %}<li class="list-group-item py-1">{{ x }}</li>{% endfor %}</ul></div>{% endif %}
 <div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
-  <thead><tr><th>Registro</th><th>Periodo</th><th>Oportunidad</th><th>Archivo</th><th class="text-center">Comprobantes</th><th>Estado</th><th>Ticket</th><th>Por</th></tr></thead>
+  <thead><tr><th>Registro</th><th>Periodo</th><th>Oportunidad</th><th>Archivo</th><th class="text-center">Comprobantes</th><th>Estado</th><th>Vence</th><th>Ticket</th><th>Por</th></tr></thead>
   <tbody>{% for e in envios %}<tr>
     <td><a href="{% url 'sire_envio' e.pk %}">{{ e.get_registro_display }}</a></td>
     <td>{{ e.periodo|slice:'4:' }}/{{ e.periodo|slice:':4' }}</td>
@@ -37,8 +37,9 @@
     <td class="small font-monospace">{{ e.nombre_archivo }}</td>
     <td class="text-center">{{ e.filas }}</td>
     <td><span class="badge {% if e.estado == 'TERMINADO' %}text-bg-success{% elif e.estado == 'ERROR' %}text-bg-danger{% elif e.estado == 'OBSERVADO' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ e.get_estado_display }}</span>{% if e.registrado_en %} <span class="badge text-bg-primary">Preliminar registrado</span>{% endif %}</td>
+    <td class="small">{% with x=e %}{% if x.vence %}<span class="badge {% if x.vence_estado == 'vencido' %}text-bg-danger{% elif x.vence_estado == 'hoy' or x.vence_estado == 'por_vencer' %}text-bg-warning{% elif x.vence_estado == 'cumplido' %}text-bg-light text-success border{% else %}text-bg-light border{% endif %}" title="Vencimiento del registro electrónico (cronograma SUNAT, último dígito del RUC)">{{ x.vence|date:'d/m/Y' }}{% if x.vence_estado == 'vencido' %} · vencido{% elif x.vence_estado == 'hoy' %} · vence hoy{% elif x.vence_estado == 'por_vencer' %} · en {{ x.vence_dias }} día(s){% endif %}</span>{% else %}<span class="text-muted small">—</span>{% endif %}{% endwith %}</td>
     <td class="small">{{ e.ticket|default:'—' }}</td>
     <td class="small">{{ e.usuario|default:'' }} · {{ e.creado|date:'d/m/Y H:i' }}</td>
-  </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Aún no se ha enviado ningún archivo al SIRE.</td></tr>{% endfor %}</tbody>
+  </tr>{% empty %}<tr><td colspan="9" class="text-center text-muted py-4">Aún no se ha enviado ningún archivo al SIRE.</td></tr>{% endfor %}</tbody>
 </table></div></div>
 {% endblock %}

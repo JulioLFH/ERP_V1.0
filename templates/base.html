@@ -9,6 +9,7 @@
   <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
   {% include 'core/_head_marca.html' %}
   <link href="{% static 'css/app.css' %}?v={{ erp_version }}" rel="stylesheet">
+  <style>@media screen{.principal .marca-agua-logo{display:none}}</style>{# v1.115.6: en las pantallas del sistema (orden de compra, HES…) la marca de agua del logo solo sale al imprimir #}
 </head>
 <body class="{% if menu_modulo %}con-lateral{% endif %}{% if solo_lectura %} solo-lectura{% endif %}"{% if user.is_authenticated %} data-usuario="{{ user.pk }}" data-usuario-nombre="{{ user.username }}"{% endif %} data-erp-version="{{ erp_version }}" data-empresa="{{ empresa.razon_social|default:'' }}">
 <nav class="navbar navbar-dark topnav d-print-none" {% if modulo %}style="--mod-color: {{ modulo.color }}"{% endif %}>

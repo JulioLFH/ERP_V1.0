@@ -23,6 +23,49 @@ _TABLA = {
 }
 
 
+# v1.115.6 · Cronograma de atraso de los REGISTROS ELECTRÓNICOS (Registro de Ventas e Ingresos y de Compras, SIRE /
+# PLE), 2026: fecha máxima de atraso del registro del periodo. Es distinto del de obligaciones mensuales (IGV-Renta).
+# Fuente: https://www.sunat.gob.pe/orientacion/cronogramas/cronoRegistroC-V-2026.html
+_REGISTROS = {
+    '202601': ('2026-02-13', '2026-02-16', '2026-02-17', '2026-02-18', '2026-02-19', '2026-02-20', '2026-02-23'),
+    '202602': ('2026-03-13', '2026-03-16', '2026-03-17', '2026-03-18', '2026-03-19', '2026-03-20', '2026-03-23'),
+    '202603': ('2026-04-16', '2026-04-17', '2026-04-20', '2026-04-21', '2026-04-22', '2026-04-23', '2026-04-24'),
+    '202604': ('2026-05-15', '2026-05-18', '2026-05-19', '2026-05-20', '2026-05-21', '2026-05-22', '2026-05-25'),
+    '202605': ('2026-06-12', '2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-22'),
+    '202606': ('2026-07-14', '2026-07-15', '2026-07-16', '2026-07-17', '2026-07-20', '2026-07-21', '2026-07-22'),
+    '202607': ('2026-08-17', '2026-08-18', '2026-08-19', '2026-08-20', '2026-08-21', '2026-08-24', '2026-08-25'),
+    '202608': ('2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-21', '2026-09-22'),
+    '202609': ('2026-10-15', '2026-10-16', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23'),
+    '202610': ('2026-11-13', '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-23'),
+    '202611': ('2026-12-16', '2026-12-17', '2026-12-18', '2026-12-21', '2026-12-22', '2026-12-23', '2026-12-24'),
+    '202612': ('2027-01-15', '2027-01-18', '2027-01-19', '2027-01-20', '2027-01-21', '2027-01-22', '2027-01-25'),
+}
+
+
+def vencimiento_registros(ruc, periodo, buen_contribuyente=False):
+    """Fecha de vencimiento (máximo atraso) del registro electrónico de ventas o compras del periodo AAAAMM para el
+    RUC; None si el año no está en la tabla."""
+    g = grupo(ruc, buen_contribuyente)
+    if periodo not in _REGISTROS or g is None:
+        return None
+    return date.fromisoformat(_REGISTROS[periodo][_GRUPOS.index(g)])
+
+
+def estado_vencimiento(fecha, cumplido=False, hoy=None):
+    """('vencido' | 'hoy' | 'por_vencer' | 'a_tiempo' | 'cumplido', días que faltan) para mostrar la fecha."""
+    if fecha is None:
+        return None, None
+    from django.utils import timezone
+    dias = (fecha - (hoy or timezone.localdate())).days
+    if cumplido:
+        return 'cumplido', dias
+    if dias < 0:
+        return 'vencido', dias
+    if dias == 0:
+        return 'hoy', dias
+    return ('por_vencer' if dias <= 3 else 'a_tiempo'), dias
+
+
 def grupo(ruc, buen_contribuyente=False):
     if buen_contribuyente:
         return 'BC'

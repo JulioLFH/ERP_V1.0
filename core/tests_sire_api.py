@@ -296,3 +296,28 @@ class SinPermisoConRespuestaTest(TestCase):
                 sire_api._api('GET', '/x')
         self.assertIn('Respuesta de SUNAT: 403: No autorizado al servicio', str(ctx.exception))
         self.assertIn('Ajustes › Credenciales SUNAT y SIRE', str(ctx.exception))
+
+
+class VencimientoRegistrosTest(TestCase):
+    """v1.115.6: fecha de vencimiento del registro electrónico (cronoRegistroC-V-2026) en las pantallas del SIRE."""
+
+    def test_cronograma_y_pantalla(self):
+        from datetime import date
+
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        from core.cronograma_sunat import estado_vencimiento, vencimiento_registros
+        from core.models import Empresa, PropuestaSIRE
+        self.assertEqual(vencimiento_registros('20616318854', '202608'), date(2026, 9, 17))  # termina en 4
+        self.assertEqual(vencimiento_registros('20611158522', '202610'), date(2026, 11, 17))  # termina en 2
+        self.assertEqual(vencimiento_registros('20611158520', '202612'), date(2027, 1, 15))  # termina en 0
+        self.assertEqual(vencimiento_registros('20611158522', '202610', True), date(2026, 11, 23))  # buen contrib.
+        self.assertIsNone(vencimiento_registros('20611158522', '202710'))
+        self.assertEqual(estado_vencimiento(date(2026, 11, 17), hoy=date(2026, 11, 18))[0], 'vencido')
+        self.assertEqual(estado_vencimiento(date(2026, 11, 17), hoy=date(2026, 11, 15)), ('por_vencer', 2))
+        Empresa.objects.create(ruc='20616318854', razon_social='ROTONDA 3 SAC')
+        PropuestaSIRE.objects.create(libro='RCE', periodo='202608', origen='ARCHIVO', estado='LISTA')
+        self.client.force_login(User.objects.create_superuser('adm_venc', 'a@a.pe', 'Clave-segura-9'))
+        r = self.client.get(reverse('sire_propuestas'))
+        self.assertContains(r, '17/09/2026')

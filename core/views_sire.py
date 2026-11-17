@@ -13,7 +13,7 @@ from compras import sire
 
 from . import sire_api, sire_envio
 from .forms import BootstrapMixin
-from .models import EnvioSIRE, PropuestaSIRE
+from .models import Empresa, EnvioSIRE, PropuestaSIRE
 from .modulos import modulos_del_usuario
 from .permisos import puede
 from .utils import excel_response
@@ -70,6 +70,19 @@ def _sin_filas(contenido, nombre):
     except Exception:
         return False
     return sum(1 for f in filas if any(str(v or '').strip() for v in f)) <= 1
+
+
+def _con_vencimiento(objetos):
+    """v1.115.6: a cada propuesta o envío le pone la fecha de vencimiento del registro electrónico de su periodo
+    (cronograma de SUNAT por último dígito del RUC) y su estado (vencido, vence hoy, por vencer, a tiempo)."""
+    from .cronograma_sunat import estado_vencimiento, vencimiento_registros
+    e = Empresa.actual()
+    lista = list(objetos)
+    for o in lista:
+        o.vence = vencimiento_registros(e.ruc, o.periodo, e.buen_contribuyente)
+        cumplido = bool(getattr(o, 'aceptada_en', None) or getattr(o, 'registrado_en', None))
+        o.vence_estado, o.vence_dias = estado_vencimiento(o.vence, cumplido)
+    return lista
 
 
 def sin_datos(libro, periodo):
@@ -135,7 +148,7 @@ def lista(request):
             return redirect('sire_propuesta', p.pk)
         if not sire_api.configurada():
             messages.error(request, 'Suba el archivo de la propuesta, o registre las credenciales del SIRE en Ajustes › '
-                                    'Empresa para traerla de SUNAT.')
+                                    'Credenciales SUNAT y SIRE para traerla de SUNAT.')
             return redirect(request.get_full_path())
         try:
             ticket = sire_api.solicitar_propuesta(libro, periodo)
@@ -151,7 +164,8 @@ def lista(request):
         return redirect('sire_propuesta', p.pk)
     claves = [k for k, _ in libros]
     return render(request, 'core/sire_lista.html', {
-        'form': form, 'propuestas': PropuestaSIRE.objects.filter(libro__in=claves).select_related('usuario')[:60],
+        'form': form, 'propuestas': _con_vencimiento(PropuestaSIRE.objects.filter(libro__in=claves)
+                                                     .select_related('usuario')[:60]),
         'configurada': sire_api.configurada(), 'sesion': sire_api.hay_token()})
 
 
@@ -237,7 +251,8 @@ def detalle(request, pk):
             resultado['sin_propios'] = sum(1 for x in resultado['solo_sunat'] if x.get('propios') and
                                            (x['propios']['faltan'] or x['propios']['errores']))
     return render(request, 'core/sire_propuesta.html', {
-        'p': p, 'r': resultado, 'sesion': sire_api.hay_token(), 'configurada': sire_api.configurada(),
+        'p': _con_vencimiento([p])[0], 'r': resultado, 'sesion': sire_api.hay_token(),
+        'configurada': sire_api.configurada(),
         'clasificaciones': sire.clasificaciones(),
         'puede_crear': puede(request.user, PERMISO_CREAR[p.libro]), 'puede_aceptar': puede(request.user,
                                                                                             PERMISO_ACEPTAR)})
@@ -378,7 +393,7 @@ def envios(request):
     return render(request, 'core/sire_envios.html', {
         'form': form, 'errores': errores, 'avisos': avisos, 'configurada': sire_api.configurada(),
         'sesion': sire_api.hay_token(), 'puede_enviar': puede(request.user, PERMISO_ENVIAR),
-        'envios': EnvioSIRE.objects.filter(registro__in=registros).select_related('usuario')[:60]})
+        'envios': _con_vencimiento(EnvioSIRE.objects.filter(registro__in=registros).select_related('usuario')[:60])})
 
 
 def _enviar(request, datos, archivo, correlativo):

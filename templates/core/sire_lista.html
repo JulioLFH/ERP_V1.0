@@ -18,16 +18,17 @@
   </form>
 </div></div>
 <div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
-  <thead><tr><th>Registro</th><th>Periodo</th><th>Origen</th><th>Estado</th><th class="text-center">Comprobantes</th><th class="text-center">Creados</th><th>Aceptada en SUNAT</th><th>Por</th></tr></thead>
+  <thead><tr><th>Registro</th><th>Periodo</th><th>Origen</th><th>Estado</th><th>Vence</th><th class="text-center">Comprobantes</th><th class="text-center">Creados</th><th>Aceptada en SUNAT</th><th>Por</th></tr></thead>
   <tbody>{% for p in propuestas %}<tr>
     <td><a href="{% url 'sire_propuesta' p.pk %}">{{ p.get_libro_display }}</a></td>
     <td>{{ p.periodo|slice:'4:' }}/{{ p.periodo|slice:':4' }}</td>
     <td class="small">{{ p.get_origen_display }}{% if p.ticket %} · ticket {{ p.ticket }}{% endif %}</td>
     <td><span class="badge {% if p.estado == 'LISTA' %}text-bg-success{% elif p.estado == 'ERROR' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ p.get_estado_display }}</span></td>
+    <td class="small">{% with x=p %}{% if x.vence %}<span class="badge {% if x.vence_estado == 'vencido' %}text-bg-danger{% elif x.vence_estado == 'hoy' or x.vence_estado == 'por_vencer' %}text-bg-warning{% elif x.vence_estado == 'cumplido' %}text-bg-light text-success border{% else %}text-bg-light border{% endif %}" title="Vencimiento del registro electrónico (cronograma SUNAT, último dígito del RUC)">{{ x.vence|date:'d/m/Y' }}{% if x.vence_estado == 'vencido' %} · vencido{% elif x.vence_estado == 'hoy' %} · vence hoy{% elif x.vence_estado == 'por_vencer' %} · en {{ x.vence_dias }} día(s){% endif %}</span>{% else %}<span class="text-muted small">—</span>{% endif %}{% endwith %}</td>
     <td class="text-center">{{ p.registros|length }}</td>
     <td class="text-center">{{ p.creados }}</td>
     <td class="small">{% if p.aceptada_en %}{{ p.aceptada_en|date:'d/m/Y H:i' }}{% else %}—{% endif %}</td>
     <td class="small">{{ p.usuario|default:'' }} · {{ p.creado|date:'d/m/Y H:i' }}</td>
-  </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Aún no se ha traído ninguna propuesta.</td></tr>{% endfor %}</tbody>
+  </tr>{% empty %}<tr><td colspan="9" class="text-center text-muted py-4">Aún no se ha traído ninguna propuesta.</td></tr>{% endfor %}</tbody>
 </table></div></div>
 {% endblock %}
