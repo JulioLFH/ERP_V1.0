@@ -25,6 +25,9 @@ from ventas.models import Venta
 
 ITEMS = {'items-INITIAL_FORMS': '0', 'items-MIN_NUM_FORMS': '1', 'items-MAX_NUM_FORMS': '1000'}
 TC = (Decimal('3.441'), Decimal('3.450'))
+# fecha de las operaciones: hoy (el seed_demo carga el stock con fechas relativas a hoy; una fecha fija queda
+# antes de esos ingresos con el paso del tiempo y la venta se rechaza por stock insuficiente)
+FECHA = timezone.localdate().isoformat()
 
 
 def saldo_cuenta(prefijo):
@@ -44,14 +47,14 @@ class HallazgosQATest(TestCase):
         p = patch('core.tipo_cambio._consultar', return_value=TC)
         p.start()
         self.addCleanup(p.stop)
-        plazo = patch('core.utils.DIAS_ENVIO_SUNAT', 3650)  # ventas con fechas fijas de octubre (VEN-20)
+        plazo = patch('core.utils.DIAS_ENVIO_SUNAT', 3650)  # ventas sin enviar a SUNAT dentro de la prueba (VEN-20)
         plazo.start()
         self.addCleanup(plazo.stop)
         self.cli = Tercero.objects.filter(tipo='CLIENTE', tipo_doc='6').first()
 
     def _venta(self, producto, cantidad, precio='100', **extra):
         data = {'tipo_comprobante': '01', 'serie': '', 'numero': '', 'tercero': self.cli.pk,
-                'fecha_emision': '2026-10-03', 'fecha_vencimiento': '', 'forma_pago': 'CONTADO', 'moneda': 'PEN',
+                'fecha_emision': FECHA, 'fecha_vencimiento': '', 'forma_pago': 'CONTADO', 'moneda': 'PEN',
                 'tipo_cambio': '1', 'tipo_operacion': 'GRAVADA', 'detraccion_pct': '0', 'retencion_pct': '0',
                 'percepcion_pct': '0', 'icbper': '0', 'detraccion_codigo': '35', 'vendedor': '',
                 'descontar_stock': 'on', 'almacen': Almacen.principal().pk, 'glosa': '', 'items-TOTAL_FORMS': '1',
@@ -93,7 +96,7 @@ class HallazgosQATest(TestCase):
         p = Producto.objects.get(codigo='P003')
         data = {'serie': '', 'motivo_traslado': '01', 'descripcion_motivo': '', 'modalidad': '02', 'venta': '',
                 'compra': '', 'transportista': '', 'efecto_stock': 'SALIDA', 'almacen_origen': Almacen.principal().pk,
-                'almacen_destino': '', 'fecha_emision': '2026-10-03', 'fecha_traslado': '2026-10-03',
+                'almacen_destino': '', 'fecha_emision': FECHA, 'fecha_traslado': FECHA,
                 'destinatario': self.cli.pk, 'partida_ubigeo': '150131', 'partida_direccion': 'Lima',
                 'llegada_ubigeo': '150101', 'llegada_direccion': 'Lima', 'vehiculo': Vehiculo.objects.first().pk,
                 'conductor': Conductor.objects.first().pk, 'peso_bruto': '5', 'unidad_peso': 'KGM',
@@ -158,7 +161,7 @@ class HallazgosQATest(TestCase):
     # NEW-05 ------------------------------------------------------------------------------------------------
     def test_new05_no_permite_saldo_bancario_negativo(self):
         banco = Cuenta.objects.get(nombre='BCP Cta. Cte. Soles')
-        datos = {'cuenta': banco.pk, 'fecha': '2026-10-03', 'tipo': 'EGRESO', 'concepto': 'OTRO',
+        datos = {'cuenta': banco.pk, 'fecha': FECHA, 'tipo': 'EGRESO', 'concepto': 'OTRO',
                  'medio_pago': 'TRANSFERENCIA', 'monto': str(banco.saldo + 1)}
         r = self.client.post(reverse('finanzas:movimiento_nuevo'), datos)
         self.assertIn('monto', r.context['form'].errors)
@@ -206,7 +209,7 @@ class HallazgosQATest(TestCase):
         v = Venta.objects.latest('id')
         usd = Cuenta.objects.get(nombre='BCP Cta. Cte. Dólares')
         self.client.post(reverse('finanzas:cobranza') + f'?doc={v.pk}', {
-            'cuenta': usd.pk, 'fecha': '2026-10-03', 'medio_pago': 'TRANSFERENCIA', f'monto_{v.pk}': str(v.total)})
+            'cuenta': usd.pk, 'fecha': FECHA, 'medio_pago': 'TRANSFERENCIA', f'monto_{v.pk}': str(v.total)})
         actualizar_pendientes()
         a = Movimiento.objects.get(venta=v).asientos.get()
         self.assertEqual(a.lineas.get(cuenta__codigo='1212').haber, v.total_pen)
@@ -221,7 +224,7 @@ class HallazgosQATest(TestCase):
         bn = Cuenta.objects.get(es_detracciones=True)
         saldo_bn = bn.saldo
         self.client.post(reverse('finanzas:cobranza') + f'?doc={v.pk}&detraccion=1', {
-            'cuenta': bn.pk, 'fecha': '2026-10-03', 'medio_pago': 'DEPOSITO', 'es_detraccion': 'on',
+            'cuenta': bn.pk, 'fecha': FECHA, 'medio_pago': 'DEPOSITO', 'es_detraccion': 'on',
             f'monto_{v.pk}': str(v.detraccion_monto)})
         m = Movimiento.objects.get(venta=v)
         self.assertEqual(m.monto_doc, v.detraccion_monto)  # US$ 141.60 aplicados a la factura

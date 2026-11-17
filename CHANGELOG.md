@@ -3,6 +3,12 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.116.2 — 17/11/2026 · Pruebas integrales de los ERP (correcciones)
+- Prueba de todas las páginas de cada empresa (Madeleyne, Rotonda ×5, Forward Capital ×2): sin errores del servidor. Cuadre de montos e integración (comprobantes, notas de crédito, asientos, centralización, cuentas 12/42): todo cuadra o tiene su explicación.
+- **Libro Caja y Bancos 1.1 / 1.2** agregado a la tabla de pantallas de Tesorería (acceso por módulo completo).
+- **Soporte › detalle del ticket**: el botón «Cerrar ticket» usa la confirmación del sistema en lugar de un script en línea (lo bloqueaba la política de seguridad del navegador, CSP).
+- Pruebas automáticas de contabilidad con la fecha de hoy (una fecha fija quedaba antes del stock de los datos de demostración).
+
 ## v1.116.1 — 17/11/2026 · Agregar productos a las compras importadas de SUNAT
 - **Compras › «Agregar productos a compras de SUNAT»** (botón en el Registro de compras): lista las compras del periodo que vinieron de la propuesta SIRE sin productos y las completa **de a una con barra de avance**, mostrando por cada comprobante sus productos, cantidades, precios e importes:
   1. **Desde los XML** (del portal SOL › Consulta de comprobantes de pago › «Recibido», o de los proveedores): se suben todos juntos (.xml o .zip). **Solo se guarda lo que cuadra** con lo registrado (valor de las líneas = base + no gravado y total del XML = total de la compra, ±0,10); si no cuadra, se avisa y la compra no se toca.

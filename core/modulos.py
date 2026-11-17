@@ -953,6 +953,8 @@ RUTAS_FINANZAS = {
     # detracciones: también desde el módulo SUNAT (registrar sigue exigiendo la acción de Tesorería)
     **{nombre: ['tesoreria', 'sunat'] for nombre in (
         'detracciones_masivas', 'detracciones_masivas_nuevo', 'detraccion_masiva', 'constancias_clientes')},
+    # v1.116: Libro Caja y Bancos 1.1 / 1.2 (manda RUTAS_COMPARTIDAS, que además lo abre a Contabilidad)
+    'libro_caja': ['tesoreria', 'sunat'],
 }
 # pantallas de un módulo que también abre otro (vista: módulos; el primero es el principal)
 RUTAS_COMPARTIDAS = {'contabilidad:reparto_resultado': ['contabilidad', 'obras'],

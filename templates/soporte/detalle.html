@@ -60,7 +60,7 @@
         <button class="btn btn-outline-secondary btn-sm w-100" name="accion" value="reabrir"><i class="bi bi-arrow-counterclockwise"></i> Reabrir</button>
       {% else %}
         <p class="mb-2 text-muted">¿Ya no lo necesita o lo resolvió por su cuenta?</p>
-        <button class="btn btn-outline-secondary btn-sm w-100" name="accion" value="cerrar" onclick="return confirm('¿Cerrar el ticket {{ t.codigo }}?')"><i class="bi bi-x-circle"></i> Cerrar ticket</button>
+        <button class="btn btn-outline-secondary btn-sm w-100" name="accion" value="cerrar" data-confirm="¿Cerrar el ticket {{ t.codigo }}?"><i class="bi bi-x-circle"></i> Cerrar ticket</button>
       {% endif %}
     </div></form>
   </div>
