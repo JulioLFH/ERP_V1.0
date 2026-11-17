@@ -108,7 +108,14 @@ PROPIAS = {'oc': (('orden de compra', 'nro oc', 'n oc', 'nro. oc', 'numero de oc
 # toman al crear el comprobante. No se marcan en rojo si faltan (la mayoría de comprobantes no los tiene).
 MONTOS = {'detraccion': (('detraccion',), ()), 'retencion': (('retencion',), ()),
           'percepcion': (('percepcion',), ())}
-TITULOS_MONTOS = ['Detracción', 'Retención', 'Percepción']
+# constancia del depósito de la detracción: N° de operación y fecha (v1.114.1). Sus encabezados no empiezan por
+# «detraccion» para no confundirse con el monto.
+CONSTANCIA = {'det_constancia': (('constancia', 'nro de operacion', 'n de operacion', 'numero de operacion',
+                                  'nro operacion', 'nro. operacion'), ()),
+              'det_fecha': (('fecha de constancia', 'fecha constancia', 'fecha de la constancia',
+                             'fecha de deposito', 'fecha deposito'), ())}
+TITULOS_MONTOS = ['Detracción', 'Retención', 'Percepción', 'Constancia de detracción (N° de operación)',
+                  'Fecha de constancia']
 
 
 def _es_columna(encabezado, claves):
@@ -118,7 +125,8 @@ def _es_columna(encabezado, claves):
 
 def _es_propia(encabezado, montos=True):
     e = _norm(encabezado)
-    return any(_es_columna(e, claves) for claves in (list(PROPIAS.values()) + (list(MONTOS.values()) if montos else [])))
+    extra = list(MONTOS.values()) + list(CONSTANCIA.values()) if montos else []
+    return any(_es_columna(e, claves) for claves in list(PROPIAS.values()) + extra)
 
 
 def montos(filas):
@@ -127,10 +135,17 @@ def montos(filas):
     for r in filas:
         detr, ret, perc = (r.get(c) or D0 for c in MONTOS)
         error = ''
+        constancia, fecha = r.get('det_constancia') or '', r.get('det_fecha')
         if detr and r.get('tipo') != '01':
             error = 'La detracción solo va en facturas (tipo 01).'
         elif detr + ret + perc > (r.get('total') or D0):
             error = 'La detracción, retención o percepción supera el total.'
+        elif (constancia or fecha) and not detr:
+            error = 'Tiene constancia de detracción pero no el monto de la detracción.'
+        elif bool(constancia) != bool(fecha):
+            error = 'La constancia de detracción necesita su N° de operación y su fecha.'
+        elif len(constancia) > 40:
+            error = 'El N° de constancia de detracción admite hasta 40 caracteres.'
         r['montos_error'] = error
     return filas
 
@@ -259,7 +274,7 @@ def leer_completo(archivo):
          # notas de crédito/débito: el comprobante que modifican (v1.113)
          'ref_tipo': col('tipo cp modificado'), 'ref_serie': col('serie cp modificado'),
          'ref_numero': col('nro cp modificado'), 'tipo_nota': col('tipo de nota')}
-    for campo, claves in list(PROPIAS.items()) + list(MONTOS.items()):  # columnas propias del Excel (opcionales)
+    for campo, claves in list(PROPIAS.items()) + list(MONTOS.items()) + list(CONSTANCIA.items()):  # propias (opc.)
         c[campo] = next((j for j, e in enumerate(enc) if _es_columna(e, claves)), None)
     if None in (c['serie'], c['numero'], c['ruc'], c['total']):
         raise ErrorSIRE('Faltan columnas en la propuesta (serie, número, documento del proveedor o total).')
@@ -295,6 +310,8 @@ def leer_completo(archivo):
                           'tipo_nota': (_texto(valor(fila, 'tipo_nota')) or '').zfill(2) if valor(fila, 'tipo_nota') else '',
                           **{campo: _texto(valor(fila, campo)) for campo in PROPIAS},
                           **{campo: abs(_dec(valor(fila, campo))) for campo in MONTOS},
+                          'det_constancia': _texto(valor(fila, 'det_constancia')),
+                          'det_fecha': _fecha(valor(fila, 'det_fecha')) if valor(fila, 'det_fecha') else None,
                           'sunat': [_crudo(v) for v in fila]})
     encabezados = [str(e if e is not None else '').strip() for e in filas[i]]
     return encabezados, registros
@@ -338,11 +355,12 @@ def _propias_de(g, compra):
 
 def _montos_de(g, doc):
     """Detracción, retención y percepción: las del archivo o, si ya está registrado, las del comprobante."""
-    if any(g.get(c) for c in MONTOS):
-        return [g.get(c) or None for c in MONTOS]
+    if any(g.get(c) for c in list(MONTOS) + list(CONSTANCIA)):
+        return [g.get(c) or None for c in list(MONTOS) + list(CONSTANCIA)]
     if doc is None:
-        return [None, None, None]
-    return [getattr(doc, f'{c}_monto') or None for c in MONTOS]
+        return [None] * 5
+    return [getattr(doc, f'{c}_monto') or None for c in MONTOS] + [doc.detraccion_constancia or None,
+                                                                   doc.detraccion_fecha]
 
 
 def filas_cruce_completo(encabezados, registros, r, extra=None, rendiciones=False, propias=False):
@@ -405,7 +423,7 @@ def _erp(d):
     return [d.tercero.numero_doc, d.tercero.nombre, d.tipo_comprobante, d.serie, d.numero, d.total]
 
 
-FECHAS, IMPORTES = ('fecha', 'vencimiento'), ('base', 'igv', 'total', 'tc', 'no_gravado', *MONTOS)
+FECHAS, IMPORTES = ('fecha', 'vencimiento', 'det_fecha'), ('base', 'igv', 'total', 'tc', 'no_gravado', *MONTOS)
 
 
 def a_json(registros):
@@ -580,6 +598,8 @@ def crear_faltantes(libro, registros, periodo, claves, usuario=None):
                     monto = r.get(campo) or D0
                     datos[f'{campo}_monto'] = monto
                     datos[f'{campo}_pct'] = (monto * 100 / total).quantize(Decimal('0.01')) if monto and total else D0
+                if r.get('det_constancia'):  # depósito de la detracción ya hecho (N° de operación y fecha)
+                    datos.update(detraccion_constancia=r['det_constancia'], detraccion_fecha=r['det_fecha'])
                 if libro == 'RVIE':
                     if ref is not None and r.get('tipo_nota'):
                         datos['motivo_nota'] = r['tipo_nota']

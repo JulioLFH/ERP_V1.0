@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.114.1 — 16/11/2026 · Constancia de la detracción en la propuesta SIRE y en la carga masiva
+- **Propuesta SIRE**: columnas **Constancia de detracción (N° de operación)** y **Fecha de constancia** junto a Detracción, Retención y Percepción. El Excel del cruce las trae con las del comprobante si ya está registrado; al crear, el comprobante queda con su constancia. Van juntas y solo si hay monto de detracción.
+- **Importar desde Excel (compras y ventas)**: columnas **detraccion_constancia** y **detraccion_fecha**, con las mismas validaciones.
+
 ## v1.114.0 — 16/11/2026 · Propuesta SIRE con detracción, retención y percepción
 - **Propuesta SIRE (compras y ventas)**: columnas propias **Detracción, Retención y Percepción** (montos). El Excel del cruce las trae al final, con los montos del comprobante si ya está registrado; se llenan, se vuelve a subir el archivo y se guardan al crear el comprobante (el % se deduce del monto). Son opcionales y no se marcan en rojo si faltan.
 - La pantalla de la propuesta muestra las 3 columnas en «Solo en SUNAT». Un comprobante con detracción que no es factura, o cuyos montos superan el total, no se puede marcar ni crear, y se indica por qué.

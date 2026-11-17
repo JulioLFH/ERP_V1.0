@@ -86,10 +86,12 @@ class PrecargaConColumnasPropiasTest(TestCase):
         from openpyxl import load_workbook
         hoja = load_workbook(io.BytesIO(resp.content)).active
         titulos = [c.value for c in hoja[3]]
-        self.assertEqual(titulos[-6], 'Orden de compra')
-        self.assertTrue(titulos[-5].startswith('Clasificación (1 Mercadería, 2 Materia prima'))
-        self.assertEqual(titulos[-4], 'Cuenta contable')
-        self.assertEqual(titulos[-3:], ['Detracción', 'Retención', 'Percepción'])  # v1.114
+        self.assertEqual(titulos[-8], 'Orden de compra')
+        self.assertTrue(titulos[-7].startswith('Clasificación (1 Mercadería, 2 Materia prima'))
+        self.assertEqual(titulos[-6], 'Cuenta contable')
+        self.assertEqual(titulos[-5:-2], ['Detracción', 'Retención', 'Percepción'])  # v1.114
+        self.assertTrue(titulos[-2].startswith('Constancia de detracción'))  # v1.114.1
+        self.assertEqual(titulos[-1], 'Fecha de constancia')
         self.assertEqual(titulos.count('Orden de compra'), 1)  # la del archivo no se repite entre las de SUNAT
         rojas = [(c.row, c.column) for fila in hoja.iter_rows(min_row=4) for c in fila
                  if c.fill and c.fill.fgColor and c.fill.fgColor.rgb == '00FFC7CE']

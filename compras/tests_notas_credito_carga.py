@@ -203,7 +203,35 @@ class PropuestaSireMontosTest(Base):
         regs = sire.leer(xlsx([CAB_SIRE, self.fila('01', 1, 1180)], 'p.xlsx'))
         for propias in (True, False):  # compras y ventas
             enc, filas = sire.filas_cruce_completo([], regs, sire.cruzar('RCE', regs, '202610'), propias=propias)
-            self.assertEqual(enc[-3:], ['Detracción', 'Retención', 'Percepción'])
+            self.assertEqual(enc[-5:-2], ['Detracción', 'Retención', 'Percepción'])
+            self.assertEqual(enc[-1], 'Fecha de constancia')
             self.assertEqual(len(filas[0]), len(enc))
-        rojas = sire.celdas_en_rojo(enc, filas)  # las de montos vacías no se marcan en rojo
-        self.assertFalse([j for _, j in rojas if j >= len(enc) - 3])
+        rojas = sire.celdas_en_rojo(enc, filas)  # las de montos y constancia vacías no se marcan en rojo
+        self.assertFalse([j for _, j in rojas if j >= len(enc) - 5])
+
+    def test_constancia_de_detraccion(self):
+        """v1.114.1: N° de operación y fecha del depósito de la detracción, en la propuesta y en la carga masiva."""
+        from datetime import date
+        cab = CAB_SIRE + ['Detracción', 'Retención', 'Percepción', 'Constancia de detracción (N° de operación)',
+                          'Fecha de constancia']
+        regs = sire.leer(xlsx([cab, self.fila('01', 1, 1180, 141.6) + [987654, '20/10/2026'],
+                               self.fila('01', 2, 1180, 141.6) + ['555', ''],
+                               self.fila('01', 3, 1180) + ['777', '20/10/2026']], 'p.xlsx'))
+        self.assertEqual((regs[0]['det_constancia'], regs[0]['det_fecha']), ('987654', date(2026, 10, 20)))
+        errores = {r['numero']: r['montos_error'] for r in sire.montos(regs)}
+        self.assertEqual(errores['1'], '')
+        self.assertIn('N° de operación y su fecha', errores['2'])
+        self.assertIn('no el monto de la detracción', errores['3'])
+        datos = sire.de_json(sire.a_json(regs))  # se guarda en la propuesta y se vuelve a leer igual
+        self.assertEqual(datos[0]['det_fecha'], date(2026, 10, 20))
+        creados, _ = sire.crear_faltantes('RCE', regs, '202610', [f'01|E001|1|{self.RUC}'])
+        c = Compra.objects.get(numero='1', tercero__numero_doc=self.RUC)
+        self.assertEqual((c.detraccion_constancia, c.detraccion_fecha), ('987654', date(2026, 10, 20)))
+        # Importar desde Excel
+        cols = COLUMNAS[:15] + ['detraccion_constancia', 'detraccion_fecha'] + COLUMNAS[15:]
+        fila = ['01', 'E009', 1, '10/10/2026', '', 6, 20600000101, 'X SAC', 'PEN', 1, 1000, 0, 180, 1180, 141.6,
+                112233, '21/10/2026', 0, 0, '', '', '', '']
+        r = self.client.post(reverse('compras:importar'), {'archivo': xlsx([cols, fila])})
+        self.assertEqual(r.context['resultado']['errores'], [])
+        c = Compra.objects.get(serie='E009')
+        self.assertEqual((c.detraccion_constancia, c.detraccion_fecha), ('112233', date(2026, 10, 21)))

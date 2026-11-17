@@ -514,16 +514,16 @@ class ComprobanteViews:
     # v1.113: detracción, retención y percepción (montos del comprobante) y, para notas de crédito/débito, el
     # comprobante que modifican (ref_tipo, ref_serie, ref_numero: obligatorio y debe estar registrado)
     COLUMNAS_IMPORT = ['tipo', 'serie', 'numero', 'fecha', 'vencimiento', 'tipo_doc', 'ruc', 'nombre',
-                       'moneda', 'tc', 'base', 'no_gravado', 'igv', 'total', 'detraccion', 'retencion', 'percepcion',
-                       'ref_tipo', 'ref_serie', 'ref_numero', 'glosa']
+                       'moneda', 'tc', 'base', 'no_gravado', 'igv', 'total', 'detraccion', 'detraccion_constancia',
+                       'detraccion_fecha', 'retencion', 'percepcion', 'ref_tipo', 'ref_serie', 'ref_numero', 'glosa']
 
     def importar(self, request):
         if request.GET.get('plantilla'):
             hoy = timezone.localdate().strftime('%d/%m/%Y')
             ejemplos = [['01', 'F001', '123', hoy, '', '6', '20123456786', 'EMPRESA EJEMPLO SAC', 'PEN', 1, 1000, 0,
-                         180, 1180, 141.6, 0, 0, '', '', '', 'Factura con detracción 12%'],
+                         180, 1180, 141.6, '123456789', hoy, 0, 0, '', '', '', 'Factura con detracción 12%'],
                         ['07', 'F001', '5', hoy, '', '6', '20123456786', 'EMPRESA EJEMPLO SAC', 'PEN', 1, 100, 0, 18,
-                         118, 0, 0, 0, '01', 'F001', '123', 'Nota de crédito de la F001-123']]
+                         118, 0, '', '', 0, 0, '01', 'F001', '123', 'Nota de crédito de la F001-123']]
             return excel_response(f'Plantilla_{self.titulo}', 'plantilla', self.COLUMNAS_IMPORT, ejemplos)
         resultado = None
         if request.method == 'POST' and request.FILES.get('archivo'):
@@ -572,6 +572,14 @@ class ComprobanteViews:
                         raise ValueError('la detracción, retención o percepción supera el total.')
                     if detr and tipo != '01':
                         raise ValueError('la detracción solo va en facturas (tipo 01).')
+                    constancia = _codigo(f.get('detraccion_constancia'))
+                    fecha_const = a_fecha(f['detraccion_fecha']) if f.get('detraccion_fecha') else None
+                    if (constancia or fecha_const) and not detr:
+                        raise ValueError('tiene constancia de detracción pero no el monto de la detracción.')
+                    if bool(constancia) != bool(fecha_const):
+                        raise ValueError('la constancia de detracción necesita su N° de operación y su fecha.')
+                    if len(constancia) > 40:
+                        raise ValueError('el N° de constancia de detracción admite hasta 40 caracteres.')
                     ref = None
                     if tipo in ('07', '08'):
                         datos_ref = [_codigo(f.get(c)) for c in ('ref_tipo', 'ref_serie', 'ref_numero')]
@@ -597,7 +605,8 @@ class ComprobanteViews:
                         tipo_cambio=_dec(f.get('tc')) or Decimal('1'),
                         tipo_operacion='GRAVADA' if igv else 'EXONERADA',
                         base_imponible=base, no_gravado=nograv, exonerado=nograv, igv=igv, total=total,
-                        detraccion_monto=detr, detraccion_pct=pct(detr), retencion_monto=ret,
+                        detraccion_monto=detr, detraccion_pct=pct(detr), detraccion_constancia=constancia,
+                        detraccion_fecha=fecha_const, retencion_monto=ret,
                         retencion_pct=pct(ret), percepcion_monto=perc, percepcion_pct=pct(perc),
                         doc_referencia=ref, glosa=f.get('glosa') or 'Importado desde Excel')
                 ok += 1

@@ -24,6 +24,7 @@
       <li><b>ruc</b>: si el {{ etiqueta_tercero|lower }} no existe, se crea automáticamente.</li>
       <li><b>total</b>: si se deja vacío se calcula como base + no_gravado + igv.</li>
       <li><b>detraccion / retencion / percepcion</b>: montos del comprobante (opcionales; la detracción solo en facturas).</li>
+      <li><b>detraccion_constancia / detraccion_fecha</b>: N° de operación y fecha del depósito de la detracción, si ya se depositó (van juntos).</li>
       <li><b>Notas de crédito y débito (07, 08)</b>: <b>ref_tipo, ref_serie y ref_numero</b> del comprobante que modifican son obligatorios, y ese comprobante debe estar registrado (o venir en el mismo archivo). Los montos negativos, como los muestra SUNAT, se guardan en positivo: el registro ya resta la nota.</li>
       <li>Las filas duplicadas se omiten y se reportan.</li>
     </ul>
