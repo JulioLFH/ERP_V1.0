@@ -43,6 +43,8 @@ urlpatterns = [
     path('sire/<int:pk>/', views_sire.detalle, name='sire_propuesta'),
     path('sire/enviar/', views_sire.envios, name='sire_envios'),
     path('sire/enviar/<int:pk>/', views_sire.envio, name='sire_envio'),
+    path('sire/libro-oficial/', views_sire.libro_oficial, name='sire_libro_oficial'),
+    path('sire/libro-oficial/<int:pk>/', views_sire.libro_oficial_detalle, name='sire_libro_oficial_detalle'),
     path('sunat/cronograma/', views_cronograma.cronograma, name='cronograma_sunat'),  # REQ-02
     path('grupo/correo/', views_grupo.correo_ceiba, name='correo_ceiba'),  # REQ-06
     # REQ-03: consola de la plataforma Ceiba (ingreso propio, no es un usuario del ERP del cliente)

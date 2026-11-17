@@ -6,6 +6,7 @@
   <div class="d-flex gap-2">
     <form method="get"><select name="anio" class="form-select form-select-sm" data-autoenvio>{% for y in anios %}<option value="{{ y }}" {% if y == anio %}selected{% endif %}>Ejercicio {{ y }}</option>{% endfor %}</select></form>
     <a href="?anio={{ anio }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel (formato completo)</a>
+    <a href="?anio={{ anio }}&formato=txt" class="btn btn-sm btn-outline-secondary" title="Libro electrónico 7.1 (070100) para el PLE de SUNAT"><i class="bi bi-filetype-txt"></i> TXT PLE</a>
   </div>
 </div>
 <div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">

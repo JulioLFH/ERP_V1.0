@@ -1402,6 +1402,37 @@ class EnvioSIRE(models.Model):
         return self.oportunidad in ('03', '04', '05')
 
 
+class RegistroSIRE(models.Model):
+    """Libro oficial: el registro de ventas (RVIE 14.4) o de compras (RCE 8.4) ya generado en el SIRE para un periodo,
+    descargado de SUNAT (ticket → ZIP con el TXT) junto con su constancia de recepción (PDF). Se guardan como sustento y
+    se comparan con lo registrado en el ERP (cantidad y totales por tipo de comprobante y las diferencias)."""
+    LIBROS = PropuestaSIRE.LIBROS
+    ESTADOS = [('SOLICITADO', 'Solicitado a SUNAT'), ('DESCARGADO', 'Descargado'), ('ERROR', 'Error')]
+    libro = models.CharField(max_length=4, choices=LIBROS)
+    periodo = models.CharField('Periodo (AAAAMM)', max_length=6)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='SOLICITADO')
+    ticket = models.CharField(max_length=20, blank=True)
+    mensaje = models.TextField(blank=True)
+    archivo = models.BinaryField(null=True, blank=True, editable=False)
+    nombre_archivo = models.CharField(max_length=200, blank=True)
+    constancia = models.BinaryField('Constancia de recepción (PDF)', null=True, blank=True, editable=False)
+    nombre_constancia = models.CharField(max_length=200, blank=True)
+    constancia_en = models.DateTimeField('Constancia descargada', null=True, blank=True)
+    registros = models.JSONField(default=list, blank=True)
+    comparacion = models.JSONField('Comparación con el ERP', default=dict, blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-creado', '-id']
+        verbose_name = 'registro SIRE (libro oficial)'
+        verbose_name_plural = 'registros SIRE (libro oficial)'
+
+    def __str__(self):
+        return f'{self.libro} {self.periodo[4:]}/{self.periodo[:4]}'
+
+
 class EmpresaGrupo(models.Model):
     """Registro de las empresas del grupo creadas desde el sistema (vive siempre en la base principal). Cada una tiene
     su propia base de datos en el mismo servidor; al arrancar y cada minuto el sistema las agrega a sus conexiones."""

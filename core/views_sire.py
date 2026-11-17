@@ -1,7 +1,9 @@
 """SIRE: propuestas de los registros de ventas (RVIE) y compras (RCE) traídas de SUNAT por la API o subidas a mano;
 cruce con lo registrado, creación de lo que falta y aceptación de la propuesta en SUNAT. «Enviar al SIRE» (SIR-01/02):
-reemplazo de la propuesta, no domiciliados 8.5 y ajustes posteriores armados con lo registrado."""
+reemplazo de la propuesta, no domiciliados 8.5 y ajustes posteriores armados con lo registrado. «Libro oficial SIRE»:
+el registro generado en SUNAT y su constancia, guardados como sustento y comparados con el ERP."""
 import io
+from decimal import Decimal
 
 from django import forms
 from django.contrib import messages
@@ -13,7 +15,7 @@ from compras import sire
 
 from . import sire_api, sire_envio
 from .forms import BootstrapMixin
-from .models import Empresa, EnvioSIRE, PropuestaSIRE
+from .models import TIPO_COMPROBANTE, Empresa, EnvioSIRE, PropuestaSIRE, RegistroSIRE
 from .modulos import modulos_del_usuario
 from .permisos import puede
 from .utils import excel_response
@@ -463,3 +465,265 @@ def envio(request, pk):
     return render(request, 'core/sire_envio.html', {
         'e': e, 'puede_enviar': puede(request.user, PERMISO_ENVIAR), 'sesion': sire_api.hay_token(),
         'registra': e.libro in (sire_api.REGISTRAR_AJUSTES if e.es_ajuste else sire_api.REGISTRAR_PRELIMINAR)})
+
+
+# ---------------------------------------------------------------- libro oficial: el registro generado en el SIRE
+# El registro del periodo ya generado en SUNAT (RVIE 14.4 / RCE 8.4) se baja con un ticket (sire_api.solicitar_registro),
+# se guarda como sustento con su constancia de recepción (PDF) y se compara con lo registrado en el ERP: cantidad y
+# totales por tipo de comprobante (en soles) y la lista de diferencias (mismas claves que compras/sire.py cruzar).
+# Mismos permisos que las propuestas: el registro se ve con su módulo (ventas / compras / contabilidad).
+
+class LibroOficialForm(BootstrapMixin, forms.Form):
+    libro = forms.ChoiceField(label='Registro', choices=RegistroSIRE.LIBROS)
+    periodo = forms.CharField(label='Periodo', widget=forms.TextInput(attrs={'type': 'month'}))
+
+    def __init__(self, *args, libros=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if libros is not None:
+            self.fields['libro'].choices = libros
+
+    def clean_periodo(self):
+        valor = self.cleaned_data['periodo'].replace('-', '')
+        if len(valor) != 6 or not valor.isdigit() or not 1 <= int(valor[4:]) <= 12:
+            raise forms.ValidationError('Periodo no válido.')
+        return valor
+
+
+def _texto_registro(datos):
+    for codificacion in ('utf-8-sig', 'latin-1'):
+        try:
+            return datos.decode(codificacion)
+        except UnicodeDecodeError:
+            continue
+    return ''
+
+
+def leer_registro(libro, contenido, nombre=''):
+    """(registros, nombre del TXT) del archivo del registro generado que entrega SUNAT (ZIP con el TXT o el TXT). Si
+    el TXT viene sin títulos, se leen sus columnas con la estructura del SIRE (14.4 / 8.4, core/sire_envio.py)."""
+    import zipfile
+    codigo = sire_api.CODIGO_REGISTRO[libro]
+    datos, nombre_txt = bytes(contenido or b''), nombre or 'registro.txt'
+    if datos[:2] == b'PK':
+        try:
+            with zipfile.ZipFile(io.BytesIO(datos)) as z:
+                txts = [n for n in z.namelist() if n.lower().endswith(('.txt', '.csv'))]
+                if not txts:
+                    raise sire.ErrorSIRE('El ZIP de SUNAT no contiene el TXT del registro.')
+                nombre_txt = next((n for n in txts if codigo in n), txts[0])
+                datos = z.read(nombre_txt)
+        except zipfile.BadZipFile as exc:
+            raise sire.ErrorSIRE('El ZIP del registro que entregó SUNAT está dañado.') from exc
+    texto = _texto_registro(datos)
+    primera = sire._norm(texto.splitlines()[0] if texto.strip() else '')
+    if 'serie' not in primera or 'total' not in primera:  # TXT plano, sin la fila de títulos
+        texto = '|'.join(sire_envio.COLUMNAS[codigo]) + '\n' + texto
+    return sire.leer(_archivo(texto.encode('utf-8'), 'registro.txt')), nombre_txt
+
+
+def _soles_sunat(libro, r):
+    """Total del comprobante del registro de SUNAT en soles: el RCE ya viene en soles; el RVIE viene en la moneda
+    del comprobante con su tipo de cambio."""
+    total = r.get('total') or sire.D0
+    if libro == 'RVIE' and (r.get('moneda') or 'PEN') != 'PEN' and r.get('tc'):
+        return (total * r['tc']).quantize(Decimal('0.01'))
+    return total
+
+
+def _signo(tipo):
+    return -1 if tipo == '07' else 1  # las notas de crédito restan en el total del registro
+
+
+def comparar_registro(libro, registros, periodo):
+    """Compara el registro generado en SUNAT con el del ERP (datos guardables en JSON): {'tipos': [{tipo, nombre,
+    sunat_n, sunat_total, erp_n, erp_total, dif_n, dif_total}], 'totales': {...}, 'coinciden', 'diferencias': [...]}.
+    Importes en soles; las notas de crédito restan en los totales generales."""
+    r = sire.cruzar(libro, registros, periodo)
+    nombres = dict(TIPO_COMPROBANTE)
+    tipos = {}
+
+    def fila(tipo):
+        return tipos.setdefault(tipo, {'tipo': tipo, 'nombre': nombres.get(tipo, tipo), 'sunat_n': 0,
+                                       'sunat_total': sire.D0, 'erp_n': 0, 'erp_total': sire.D0})
+    for x in registros:
+        f = fila(x['tipo'])
+        f['sunat_n'] += 1
+        f['sunat_total'] += _soles_sunat(libro, x)
+    for d in [x['compra'] for x in r['coinciden'] + r['diferencias']] + list(r['solo_erp']):
+        f = fila(d.tipo_comprobante)
+        f['erp_n'] += 1
+        f['erp_total'] += sire.soles_del_erp(d)
+    totales = {'sunat_n': 0, 'sunat_total': sire.D0, 'erp_n': 0, 'erp_total': sire.D0}
+    lista = []
+    for tipo in sorted(tipos):
+        f = tipos[tipo]
+        f['dif_n'], f['dif_total'] = f['erp_n'] - f['sunat_n'], f['erp_total'] - f['sunat_total']
+        for k in totales:
+            totales[k] += f[k] * (_signo(tipo) if k.endswith('total') else 1)
+        lista.append({**f, **{k: str(f[k]) for k in ('sunat_total', 'erp_total', 'dif_total')}})
+    totales['dif_n'], totales['dif_total'] = (totales['erp_n'] - totales['sunat_n'],
+                                              totales['erp_total'] - totales['sunat_total'])
+    diferencias = []
+    for x in r['diferencias']:
+        d = x['compra']
+        sunat, erp = _soles_sunat(libro, x), sire.soles_del_erp(d)
+        diferencias.append({'resultado': 'Diferencia de importe', 'tipo': x['tipo'], 'serie': x['serie'],
+                            'numero': x['numero'], 'ruc': x['ruc'], 'nombre': x['nombre'], 'sunat_total': str(sunat),
+                            'erp_total': str(erp), 'dif': str(erp - sunat), 'id': d.pk})
+    for x in r['solo_sunat']:
+        otro = x.get('otro_periodo')
+        sunat = _soles_sunat(libro, x)
+        diferencias.append({'resultado': 'Solo en SUNAT' + (f' (registrado en {otro.periodo})' if otro else ''),
+                            'tipo': x['tipo'], 'serie': x['serie'], 'numero': x['numero'], 'ruc': x['ruc'],
+                            'nombre': x['nombre'], 'sunat_total': str(sunat), 'erp_total': None,
+                            'dif': str(-sunat), 'id': None})
+    for d in r['solo_erp']:
+        erp = sire.soles_del_erp(d)
+        diferencias.append({'resultado': 'Solo en el ERP', 'tipo': d.tipo_comprobante, 'serie': d.serie,
+                            'numero': d.numero, 'ruc': d.tercero.numero_doc, 'nombre': d.tercero.nombre,
+                            'sunat_total': None, 'erp_total': str(erp), 'dif': str(erp), 'id': d.pk})
+    return {'tipos': lista, 'totales': {k: str(v) for k, v in totales.items()}, 'coinciden': len(r['coinciden']),
+            'con_diferencia': len(r['diferencias']), 'solo_sunat': len(r['solo_sunat']),
+            'solo_erp': len(r['solo_erp']), 'diferencias': diferencias,
+            'fecha': timezone.localtime().strftime('%d/%m/%Y %H:%M')}
+
+
+def _bajar_constancia(x):
+    """Descarga la constancia de recepción del registro y la guarda."""
+    x.constancia = sire_api.descargar_constancia(x.libro, x.nombre_constancia)
+    x.constancia_en = timezone.now()
+
+
+def _actualizar_registro(x):
+    """Consulta el ticket; si SUNAT terminó, baja el registro (ZIP con el TXT), lo lee, lo compara con el ERP y baja
+    su constancia de recepción."""
+    estado = sire_api.estado_ticket(x.libro, x.periodo, x.ticket)
+    if estado['error']:
+        x.estado, x.mensaje = 'ERROR', f'SUNAT: {estado["descripcion"]}'
+    elif estado['terminado']:
+        ticket = estado['registro'] or {}
+        if not ticket.get('archivoReporte'):
+            x.estado = 'ERROR'
+            x.mensaje = ('SUNAT terminó sin entregar el archivo del registro: revise en el portal SIRE que el '
+                         f'registro de {x.periodo[4:]}/{x.periodo[:4]} esté generado.')
+            x.save()
+            return
+        nombre, contenido = sire_api.descargar_archivo(x.libro, ticket)
+        x.archivo, x.nombre_archivo = contenido, nombre[:200]
+        try:
+            registros, nombre_txt = leer_registro(x.libro, contenido, nombre)
+        except sire.ErrorSIRE as exc:
+            x.estado, x.mensaje = 'ERROR', str(exc)
+        else:
+            x.registros, x.estado = sire.a_json(registros), 'DESCARGADO'
+            x.nombre_constancia = (x.nombre_constancia or sire_api.nombre_constancia(
+                nombre_txt, nombre, *[a.get('nomArchivoContenido') for a in ticket['archivoReporte']]))[:200]
+            x.comparacion = comparar_registro(x.libro, registros, x.periodo)
+            x.mensaje = f'{len(registros)} comprobantes en el registro generado en SUNAT.'
+            if x.nombre_constancia and not x.constancia:
+                try:
+                    _bajar_constancia(x)
+                except sire_api.ErrorSIRE as exc:
+                    x.mensaje += f' No se pudo bajar la constancia de recepción: {exc}'
+    else:
+        x.mensaje = f'SUNAT está preparando el archivo del registro ({estado["descripcion"]}).'
+    x.save()
+
+
+@login_required
+def libro_oficial(request):
+    """«Libro oficial SIRE»: baja de SUNAT el registro generado del periodo y su constancia, y lo compara con el ERP."""
+    libros = _libros(request.user)
+    form = LibroOficialForm(request.POST or None, libros=libros, initial={
+        'periodo': _periodo_inicial(request), 'libro': request.GET.get('libro') or 'RCE'})
+    if request.method == 'POST' and form.is_valid():
+        libro, periodo = form.cleaned_data['libro'], form.cleaned_data['periodo']
+        if not sire_api.configurada():
+            messages.error(request, 'Registre las credenciales del SIRE en Ajustes › Credenciales SUNAT y SIRE para '
+                                    'descargar el registro de SUNAT.')
+            return redirect(request.get_full_path())
+        try:
+            ticket = sire_api.solicitar_registro(libro, periodo)
+        except sire_api.ErrorSIRE as exc:
+            messages.error(request, str(exc))
+            return redirect(request.get_full_path())
+        x = RegistroSIRE.objects.create(libro=libro, periodo=periodo, ticket=ticket, usuario=request.user,
+                                        mensaje='Solicitado a SUNAT.')
+        from .auditoria import registrar
+        registrar('CREAR', x, {'Libro oficial SIRE': ['', f'Solicitado a SUNAT (ticket {ticket})']})
+        try:
+            _actualizar_registro(x)
+        except sire_api.ErrorSIRE as exc:
+            messages.warning(request, f'Ticket {ticket} creado; aún no se pudo consultar: {exc}')
+        return redirect('sire_libro_oficial_detalle', x.pk)
+    claves = [k for k, _ in libros]
+    return render(request, 'core/sire_libro_oficial.html', {
+        'form': form, 'configurada': sire_api.configurada(), 'sesion': sire_api.hay_token(),
+        'registros': RegistroSIRE.objects.filter(libro__in=claves).select_related('usuario')
+        .defer('archivo', 'constancia')[:60]})
+
+
+def _excel_registro(x, comparacion):
+    filas = [[t['tipo'], t['nombre'], t['sunat_n'], Decimal(t['sunat_total']), t['erp_n'], Decimal(t['erp_total']),
+              t['dif_n'], Decimal(t['dif_total'])] for t in comparacion.get('tipos', [])]
+    tot = comparacion.get('totales') or {}
+    if tot:
+        filas.append(['', 'Total (las notas de crédito restan)', tot['sunat_n'], Decimal(tot['sunat_total']),
+                      tot['erp_n'], Decimal(tot['erp_total']), tot['dif_n'], Decimal(tot['dif_total'])])
+    filas.append([])
+    filas.append(['Resultado', 'Tipo', 'Serie', 'Número', 'Doc. tercero', 'Nombre', 'Total SUNAT (S/)',
+                  'Total ERP (S/)', 'Diferencia (ERP - SUNAT)'])
+    for d in comparacion.get('diferencias', []):
+        filas.append([d['resultado'], d['tipo'], d['serie'], d['numero'], d['ruc'], d['nombre'],
+                      Decimal(d['sunat_total']) if d['sunat_total'] is not None else None,
+                      Decimal(d['erp_total']) if d['erp_total'] is not None else None, Decimal(d['dif'])])
+    return excel_response(f'Libro_oficial_SIRE_{x.libro}_{x.periodo}', f'LIBRO OFICIAL SIRE {x.libro} {x.periodo}',
+                          ['Tipo', 'Comprobante', 'SUNAT: cantidad', 'SUNAT: total (S/)', 'ERP: cantidad',
+                           'ERP: total (S/)', 'Diferencia: cantidad', 'Diferencia: total (S/)'], filas)
+
+
+@login_required
+def libro_oficial_detalle(request, pk):
+    x = get_object_or_404(RegistroSIRE, pk=pk)
+    if x.libro not in dict(_libros(request.user)):
+        messages.error(request, 'Su usuario no tiene el módulo de este registro.')
+        return redirect('sire_libro_oficial')
+    descargar = request.GET.get('descargar')
+    contenido = {'archivo': x.archivo, 'constancia': x.constancia}.get(descargar)
+    if contenido:
+        from django.http import HttpResponse
+        if descargar == 'archivo':
+            resp = HttpResponse(bytes(contenido), content_type='application/zip')
+            nombre = x.nombre_archivo or f'registro_{x.libro}_{x.periodo}.zip'
+        else:
+            resp = HttpResponse(bytes(contenido), content_type='application/pdf')
+            nombre = x.nombre_constancia or f'constancia_{x.libro}_{x.periodo}.pdf'
+        resp['Content-Disposition'] = f'attachment; filename="{nombre}"'
+        return resp
+    accion = request.POST.get('accion') if request.method == 'POST' else None
+    try:
+        if accion == 'consultar' and x.ticket and x.estado == 'SOLICITADO':
+            _actualizar_registro(x)
+            (messages.success if x.estado == 'DESCARGADO' else messages.info)(request, x.mensaje)
+        elif accion == 'constancia' and x.estado == 'DESCARGADO':
+            nombre = (request.POST.get('nombre_constancia') or x.nombre_constancia or '').strip()
+            if not nombre.lower().endswith('.pdf'):
+                messages.error(request, 'Indique el nombre de la constancia como lo muestra el portal SIRE (LE….pdf).')
+            else:
+                x.nombre_constancia = nombre[:200]
+                _bajar_constancia(x)
+                x.save(update_fields=['nombre_constancia', 'constancia', 'constancia_en', 'actualizado'])
+                messages.success(request, 'Constancia de recepción descargada de SUNAT y guardada como sustento.')
+        elif accion == 'comparar' and x.estado == 'DESCARGADO':
+            x.comparacion = comparar_registro(x.libro, sire.de_json(x.registros), x.periodo)
+            x.save(update_fields=['comparacion', 'actualizado'])
+            messages.success(request, 'Comparación con el ERP actualizada.')
+    except sire_api.ErrorSIRE as exc:
+        messages.error(request, str(exc))
+    if accion:
+        return redirect('sire_libro_oficial_detalle', pk)
+    if request.GET.get('formato') == 'excel' and x.comparacion:
+        return _excel_registro(x, x.comparacion)
+    return render(request, 'core/sire_libro_oficial_detalle.html', {
+        'x': x, 'c': x.comparacion or None, 'sesion': sire_api.hay_token(),
+        'configurada': sire_api.configurada()})

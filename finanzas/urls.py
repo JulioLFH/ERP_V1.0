@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views, views_extractos, views_gestion as vg, views_prestamos as vp, views_tesoreria as vt
+from . import libro_caja, views, views_extractos,views_gestion as vg, views_prestamos as vp, views_tesoreria as vt
 
 app_name = 'finanzas'
 
@@ -74,4 +74,5 @@ urlpatterns = [
     path('importar/', views.importar_extracto, name='importar'),
     path('flujo/', views.flujo_caja, name='flujo'),
     path('flujo/proyectado/', views.flujo_proyectado, name='flujo_proyectado'),
+    path('libro-caja/', libro_caja.libro_caja, name='libro_caja'),  # Libro Caja y Bancos 1.1 / 1.2 (PLE)
 ]

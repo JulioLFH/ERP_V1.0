@@ -7,8 +7,13 @@
     <div class="col-md-7"><label class="small">Formato</label><select name="formato" class="form-select form-select-sm" data-autoenvio>
       {% for c, t, p, r in formatos %}<option value="{{ c }}" {% if c == formato %}selected{% endif %}>{{ c }} {{ t }}</option>{% endfor %}</select></div>
     <div class="col-auto"><label class="small">Al cierre de</label><input type="month" name="periodo" value="{{ mes }}" class="form-control form-control-sm"></div>
+    <div class="col-auto"><label class="small" title="Oportunidad de presentación del PLE (01 = al 31 de diciembre)">Oportunidad PLE</label><select name="oportunidad" class="form-select form-select-sm">
+      <option value="">Automática (01 en diciembre, 07 otro mes)</option>{% for c, t in oportunidades %}<option value="{{ c }}" {% if c == oportunidad %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+    {% if formato == '3.16' %}<div class="col-auto"><label class="small" title="Para el número de acciones o participaciones del PLE 3.16">Valor nominal S/</label><input type="number" step="0.01" min="0.01" name="valor_nominal" value="{{ request.GET.valor_nominal|default:'1.00' }}" class="form-control form-control-sm" style="width:110px"></div>{% endif %}
     <div class="col-auto"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i></button>
-      {% if prefijos %}<button name="formato_salida" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i> Excel</button>{% endif %}</div>
+      {% if prefijos %}<button name="formato_salida" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i> Excel</button>{% endif %}
+      {% for c, etiqueta in ples %}<button name="ple" value="{{ c }}" class="btn btn-sm btn-outline-primary" title="TXT del PLE, formato {{ c }}"><i class="bi bi-filetype-txt"></i> {{ etiqueta }}</button>{% endfor %}
+      <button name="ple" value="zip" class="btn btn-sm btn-outline-primary" title="Todos los formatos 3.x del PLE en un ZIP"><i class="bi bi-file-earmark-zip"></i> ZIP con todos los 3.x</button></div>
   </form>
 </div></div>
 <h2 class="h6 mb-2">Formato {{ formato }}: {{ titulo }} — al {{ periodo|slice:'4:' }}/{{ periodo|slice:':4' }}</h2>

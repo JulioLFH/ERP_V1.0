@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Libro oficial SIRE{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title"><i class="bi bi-journal-check"></i> Libro oficial SIRE</h1>
+  <div class="d-flex gap-2">
+    <a href="{% url 'sire_propuestas' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-cloud-download"></i> Propuestas</a>
+    <a href="{% url 'sire_envios' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-cloud-upload"></i> Enviar al SIRE</a>
+  </div>
+</div>
+<p class="small text-muted mb-3">Cuando el registro de ventas (RVIE) o de compras (RCE) del periodo ya está generado en el SIRE, descárguelo de SUNAT junto con su constancia de recepción: quedan guardados como sustento (el libro oficial del periodo) y se comparan con lo registrado en el sistema, por tipo de comprobante.</p>
+{% if not configurada %}<div class="alert alert-info small py-2"><i class="bi bi-info-circle"></i> Para descargar el registro de SUNAT registre el client_id, el client_secret y el usuario SOL del SIRE en <a href="{% url 'empresa' %}">Ajustes › Empresa</a>.</div>
+{% elif not sesion %}<div class="alert alert-warning small py-2"><i class="bi bi-key"></i> Falta la clave SOL del SIRE. Regístrela una vez en <a href="{% url 'empresa' %}">Ajustes › Empresa</a>, junto al usuario SOL: el sistema mantiene la sesión con SUNAT solo.</div>{% endif %}
+<div class="card mb-3"><div class="card-body">
+  <form method="post" class="row g-3 align-items-end" autocomplete="off">
+    {% csrf_token %}
+    <div class="col-md-3">{% with field=form.libro %}{% include 'core/_campo.html' %}{% endwith %}</div>
+    <div class="col-md-2">{% with field=form.periodo %}{% include 'core/_campo.html' %}{% endwith %}</div>
+    <div class="col-md-4"><button class="btn btn-primary" {% if not configurada %}disabled{% endif %}><i class="bi bi-cloud-download"></i> Descargar de SUNAT</button></div>
+  </form>
+</div></div>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+  <thead><tr><th>Registro</th><th>Periodo</th><th>Estado</th><th class="text-center">Comprobantes</th><th>Comparación con el ERP</th><th>Sustento</th><th>Por</th></tr></thead>
+  <tbody>{% for x in registros %}<tr>
+    <td><a href="{% url 'sire_libro_oficial_detalle' x.pk %}">{{ x.get_libro_display }}</a></td>
+    <td>{{ x.periodo|slice:'4:' }}/{{ x.periodo|slice:':4' }}</td>
+    <td><span class="badge {% if x.estado == 'DESCARGADO' %}text-bg-success{% elif x.estado == 'ERROR' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ x.get_estado_display }}</span>{% if x.ticket %} <span class="small text-muted">ticket {{ x.ticket }}</span>{% endif %}</td>
+    <td class="text-center">{% if x.estado == 'DESCARGADO' %}{{ x.registros|length }}{% else %}—{% endif %}</td>
+    <td class="small">{% with c=x.comparacion %}{% if c.fecha %}{% if c.con_diferencia or c.solo_sunat or c.solo_erp %}<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> {{ c.diferencias|length }} diferencia(s)</span>{% else %}<span class="text-success"><i class="bi bi-check-circle"></i> Coincide</span>{% endif %} · {{ c.fecha }}{% else %}—{% endif %}{% endwith %}</td>
+    <td class="small">{% if x.nombre_archivo %}<i class="bi bi-file-earmark-zip" title="Registro"></i>{% endif %} {% if x.constancia_en %}<i class="bi bi-file-earmark-pdf text-danger" title="Constancia de recepción"></i>{% endif %}</td>
+    <td class="small">{{ x.usuario|default:'' }} · {{ x.creado|date:'d/m/Y H:i' }}</td>
+  </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">Aún no se ha descargado ningún registro de SUNAT.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

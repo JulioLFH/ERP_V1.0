@@ -13,6 +13,8 @@ SIRE Compras» (v28) publicados en cpe.sunat.gob.pe:
    .../rce/propuesta/web/registroslibros/{periodo}/aceptarpropuesta (compras) → numTicket.
 6. Enviar lo registrado (SIR-01/02): reemplazo de la propuesta, no domiciliados y ajustes posteriores se suben como
    ZIP con TUS (subir_archivo) → numTicket; luego se registra el preliminar (registrar_preliminar).
+7. Libro oficial: el registro ya generado del periodo (solicitar_registro → numTicket → archivoreporte) y su constancia
+   de recepción en PDF (descargar_constancia).
 
 El usuario y la clave SOL se registran una vez en Ajustes › Empresa (la clave cifrada) y se usan solos para pedir el
 token cada vez que vence: la sesión se mantiene sin pedir nada. Solo si faltan allí, o SUNAT no los acepta, se avisa
@@ -342,3 +344,88 @@ def registrar_preliminar(libro, periodo, ajuste=False):
         raise ErrorSIRE('Los ajustes posteriores del RVIE se generan en el portal SIRE después de la carga.')
     resp = _api('POST', rutas[libro].format(periodo=periodo))
     return str((resp or {}).get('numTicket') or '') if isinstance(resp, dict) else ''
+
+
+# ---------------------------------------------------------------- libro oficial: el registro generado en el SIRE
+# Según los manuales «Servicios Web API SIRE Compras» (v29, servicios 5.49, 5.51, 5.31 y 5.32) y «Servicios Web API
+# SIRE Ventas» (v32, servicios 5.26, 5.27, 5.16 y 5.17) de cpe.sunat.gob.pe: el registro ya generado del periodo se pide
+# con un servicio que devuelve numTicket; el ticket se sigue con consultaestadotickets (estado_ticket) y el ZIP se baja
+# con archivoreporte (descargar_archivo), como la propuesta. La constancia de recepción (PDF) se baja con su nombre
+# (LE + RUC + periodo + 00 + registro + indicadores + .pdf: el mismo nombre del TXT del registro con .pdf).
+#
+# VERIFICAR codProceso: el manual de compras describe codProceso como «00 / 01 / 02» pero su ejemplo usa 70 («Descarga
+# RCE» del Anexo I); el de ventas usa en su ejemplo 23 («Generar reporte Libro RVIE»; el Anexo I también trae 74
+# «Descarga RVIE»). Se toman los de los ejemplos de cada servicio: si SUNAT responde 1139 «Código de Proceso no
+# permitido», cambie solo PROCESO_REGISTRO.
+DESCARGAR_REGISTRO = {
+    # RCE 5.51 «Descargar RCE por periodo»
+    'RCE': '/rce/ajustesposteriores/web/ajustesposteriores/{periodo}/solicitardescarga',
+    # RVIE 5.27 «Descargar RVIE por periodo»
+    'RVIE': '/rvierce/gestionlibro/web/registroslibros/descarga',
+}
+PROCESO_REGISTRO = {'RCE': '70', 'RVIE': '23'}
+# constancia de recepción: RCE 5.49 (devuelve los bytes del PDF) y RVIE 5.26 (devuelve el PDF en base64)
+CONSTANCIA = {'RCE': '/rvierce/gestionlibro/web/registroslibros/constancia/constanciarecepcion?nomConstanciaRecepcion=',
+              'RVIE': '/rvierce/gestionlibro/web/registroslibros/constancia/archivo?nomArchivo='}
+CODIGO_REGISTRO = {'RCE': '080400', 'RVIE': '140400'}
+
+
+def solicitar_registro(libro, periodo):
+    """Pide a SUNAT el archivo del registro generado (libro oficial) del periodo; devuelve el número de ticket."""
+    if libro == 'RCE':
+        params = {'codTipoArchivo': 0, 'codMoneda': 'PEN', 'codProceso': PROCESO_REGISTRO[libro],
+                  'codOrigen': ORIGEN_SERVICIO_WEB, 'lisPeriodos': periodo}
+        ruta = DESCARGAR_REGISTRO[libro].format(periodo=periodo)
+    else:
+        params = {'perTributario': periodo, 'codOrigenEnvio': ORIGEN_SERVICIO_WEB, 'codTipoArchivo': 0,
+                  'codProceso': PROCESO_REGISTRO[libro], 'codLibro': COD_LIBRO[libro]}
+        ruta = DESCARGAR_REGISTRO[libro]
+    resp = _api('GET', f'{ruta}?{urllib.parse.urlencode(params)}')
+    ticket = resp.get('numTicket') if isinstance(resp, dict) else resp
+    if not ticket or not str(ticket).strip().isdigit():
+        raise ErrorSIRE(f'SUNAT no devolvió ticket del registro: {resp}')
+    return str(ticket).strip()
+
+
+def nombre_constancia(*nombres):
+    """Nombre del PDF de la constancia de recepción a partir del nombre del TXT o ZIP del registro generado
+    (LE…080400… / LE…140400…); '' si ninguno tiene esa forma."""
+    for nombre in nombres:
+        m = re.search(r'(LE\d{11}\d{6}00(?:080400|140400)\d+)', str(nombre or ''))
+        if m:
+            return m.group(1) + '.pdf'
+    return ''
+
+
+def _pdf(contenido):
+    """Los bytes del PDF de la constancia: SUNAT lo entrega crudo, como arreglo de bytes o en base64 (en JSON o no)."""
+    import base64
+    datos = contenido or b''
+    if datos[:4] == b'%PDF':
+        return datos
+    texto = datos.decode('utf-8', 'ignore').strip()
+    try:
+        valor = json.loads(texto)
+    except ValueError:
+        valor = texto
+    if isinstance(valor, dict):
+        valor = valor.get('archivoPdf') or valor.get('archivo') or valor.get('contenido') or ''
+    if isinstance(valor, list):
+        try:
+            return bytes(b & 0xFF for b in valor)
+        except TypeError:
+            valor = ''
+    try:
+        pdf = base64.b64decode(str(valor or ''), validate=False)
+    except ValueError:
+        pdf = b''
+    if pdf[:4] != b'%PDF':
+        raise ErrorSIRE(f'SUNAT no entregó la constancia en PDF: {texto[:200] or "respuesta vacía"}')
+    return pdf
+
+
+def descargar_constancia(libro, nombre):
+    """Bytes del PDF de la constancia de recepción del registro generado."""
+    if not nombre:
+        raise ErrorSIRE('Falta el nombre de la constancia (LE….pdf).')
+    return _pdf(_api('GET', CONSTANCIA[libro] + urllib.parse.quote(nombre), binario=True))

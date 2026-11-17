@@ -1,0 +1,65 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Libro oficial SIRE {{ x }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-journal-check"></i> {{ x.get_libro_display }} · {{ x.periodo|slice:'4:' }}/{{ x.periodo|slice:':4' }}</h1>
+  <div class="d-flex flex-wrap gap-2">
+    {% if x.nombre_archivo %}<a href="?descargar=archivo" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-zip"></i> Registro de SUNAT</a>{% endif %}
+    {% if x.constancia_en %}<a href="?descargar=constancia" class="btn btn-sm btn-outline-danger"><i class="bi bi-file-earmark-pdf"></i> Constancia de recepción</a>{% endif %}
+    {% if c %}<a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Comparación en Excel</a>{% endif %}
+    <a href="{% url 'sire_libro_oficial' %}?libro={{ x.libro }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Libro oficial</a>
+  </div>
+</div>
+<div class="alert {% if x.estado == 'DESCARGADO' %}alert-success{% elif x.estado == 'ERROR' %}alert-danger{% else %}alert-warning{% endif %} small py-2">
+  <b>{{ x.get_estado_display }}</b> · {{ x.mensaje }}{% if x.ticket %} · Ticket {{ x.ticket }}{% endif %}
+</div>
+{% if configurada and not sesion %}<div class="alert alert-warning small py-2"><i class="bi bi-key"></i> Falta la clave SOL del SIRE. Regístrela una vez en <a href="{% url 'empresa' %}">Ajustes › Empresa</a>, junto al usuario SOL: el sistema mantiene la sesión con SUNAT solo.</div>{% endif %}
+<dl class="row small mb-3">
+  <dt class="col-sm-3">Archivo del registro</dt><dd class="col-sm-9 font-monospace">{{ x.nombre_archivo|default:'—' }}</dd>
+  <dt class="col-sm-3">Constancia de recepción</dt><dd class="col-sm-9">{% if x.constancia_en %}<span class="font-monospace">{{ x.nombre_constancia }}</span> · descargada el {{ x.constancia_en|date:'d/m/Y H:i' }}{% else %}Aún no descargada{% endif %}</dd>
+  <dt class="col-sm-3">Solicitado por</dt><dd class="col-sm-9">{{ x.usuario|default:'' }} · {{ x.creado|date:'d/m/Y H:i' }}</dd>
+</dl>
+{% if x.estado == 'SOLICITADO' %}
+<form method="post" class="mb-3">{% csrf_token %}<input type="hidden" name="accion" value="consultar">
+  <button class="btn btn-sm btn-primary"><i class="bi bi-arrow-repeat"></i> Consultar a SUNAT</button>
+</form>
+{% endif %}
+{% if x.estado == 'DESCARGADO' and not x.constancia_en %}
+<form method="post" class="card border-danger mb-3" autocomplete="off">{% csrf_token %}<input type="hidden" name="accion" value="constancia">
+  <div class="card-body row g-2 align-items-end">
+    <div class="col-md-7"><label class="form-label small" for="id_nombre_constancia">Nombre de la constancia (como la muestra el portal SIRE)</label>
+      <input type="text" name="nombre_constancia" id="id_nombre_constancia" class="form-control form-control-sm font-monospace" value="{{ x.nombre_constancia }}" placeholder="LE…pdf"></div>
+    <div class="col-md-4"><button class="btn btn-sm btn-outline-danger w-100"><i class="bi bi-file-earmark-pdf"></i> Descargar la constancia de SUNAT</button></div>
+  </div>
+</form>
+{% endif %}
+{% if c %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Coinciden</div><div class="fs-5 fw-semibold text-success">{{ c.coinciden }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Con diferencia de importe</div><div class="fs-5 fw-semibold {% if c.con_diferencia %}text-danger{% endif %}">{{ c.con_diferencia }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Solo en SUNAT</div><div class="fs-5 fw-semibold {% if c.solo_sunat %}text-warning{% endif %}">{{ c.solo_sunat }}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Solo en el ERP</div><div class="fs-5 fw-semibold {% if c.solo_erp %}text-warning{% endif %}">{{ c.solo_erp }}</div></div></div></div>
+</div>
+<div class="card mb-3">
+  <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2"><span>Registro de SUNAT frente al del sistema, por tipo de comprobante (S/)</span>
+    <form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="accion" value="comparar"><button class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Comparar de nuevo</button></form></div>
+  <div class="table-responsive"><table class="table table-sm mb-0 align-middle">
+    <thead><tr><th>Tipo</th><th class="num">SUNAT: cantidad</th><th class="num">SUNAT: total</th><th class="num">ERP: cantidad</th><th class="num">ERP: total</th><th class="num">Diferencia: cantidad</th><th class="num">Diferencia: total</th></tr></thead>
+    <tbody>{% for t in c.tipos %}<tr>
+      <td>{{ t.tipo }} {{ t.nombre }}</td><td class="num">{{ t.sunat_n }}</td><td class="num">{{ t.sunat_total|money }}</td><td class="num">{{ t.erp_n }}</td><td class="num">{{ t.erp_total|money }}</td>
+      <td class="num {% if t.dif_n %}text-danger{% endif %}">{{ t.dif_n }}</td><td class="num {% if t.dif_total|money != '0.00' %}text-danger{% endif %}">{{ t.dif_total|money }}</td>
+    </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-3">Ni el registro de SUNAT ni el sistema tienen comprobantes en el periodo.</td></tr>{% endfor %}</tbody>
+    {% if c.tipos %}<tfoot><tr class="fw-semibold"><td>Total <span class="small text-muted fw-normal">(las notas de crédito restan)</span></td><td class="num">{{ c.totales.sunat_n }}</td><td class="num">{{ c.totales.sunat_total|money }}</td><td class="num">{{ c.totales.erp_n }}</td><td class="num">{{ c.totales.erp_total|money }}</td><td class="num">{{ c.totales.dif_n }}</td><td class="num">{{ c.totales.dif_total|money }}</td></tr></tfoot>{% endif %}
+  </table></div>
+  <div class="card-body py-2 small text-muted">Importes en soles: el RCE los trae en soles; en el RVIE los comprobantes en dólares se convierten con el tipo de cambio que informa SUNAT. Comparado el {{ c.fecha }}.</div>
+</div>
+{% if c.diferencias %}<div class="card mb-3"><div class="card-header text-danger">Diferencias ({{ c.diferencias|length }})</div><div class="table-responsive"><table class="table table-sm mb-0">
+  <thead><tr><th>Resultado</th><th>{% if x.libro == 'RVIE' %}Cliente{% else %}Proveedor{% endif %}</th><th>Comprobante</th><th class="num">Total SUNAT</th><th class="num">Total ERP</th><th class="num">Diferencia</th></tr></thead>
+  <tbody>{% for d in c.diferencias %}<tr>
+    <td class="small">{{ d.resultado }}</td><td>{{ d.ruc }} {{ d.nombre }}</td>
+    <td>{% if d.id %}<a href="{% if x.libro == 'RVIE' %}{% url 'ventas:detalle' d.id %}{% else %}{% url 'compras:detalle' d.id %}{% endif %}">{{ d.tipo }} {{ d.serie }}-{{ d.numero }}</a>{% else %}{{ d.tipo }} {{ d.serie }}-{{ d.numero }}{% endif %}</td>
+    <td class="num">{% if d.sunat_total is not None %}{{ d.sunat_total|money }}{% else %}—{% endif %}</td><td class="num">{% if d.erp_total is not None %}{{ d.erp_total|money }}{% else %}—{% endif %}</td><td class="num text-danger">{{ d.dif|money }}</td>
+  </tr>{% endfor %}</tbody>
+</table></div></div>{% elif x.estado == 'DESCARGADO' %}<div class="alert alert-success small py-2"><i class="bi bi-check-circle"></i> El registro generado en SUNAT coincide con el del sistema.</div>{% endif %}
+{% endif %}
+{% endblock %}

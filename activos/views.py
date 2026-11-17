@@ -222,6 +222,9 @@ def registro(request):
     from core.utils import anio_param
     anio = anio_param(request)
     filas, totales = servicios.registro(anio)
+    if request.GET.get('formato') == 'txt':  # PLE 7.1 (070100)
+        from .ple import respuesta
+        return respuesta(anio, filas)
     if request.GET.get('formato') == 'excel':
         datos = [[f['a'].codigo, f['a'].categoria.cuenta_activo.codigo, f['a'].nombre, f['a'].marca, f['a'].modelo,
                   f['a'].serie, f['saldo_inicial'], f['adquisiciones'], 0, f['retiros'], 0, f['historico'], 0,

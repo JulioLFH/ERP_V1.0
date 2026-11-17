@@ -1,0 +1,72 @@
+{% extends 'base.html' %}{% load erp_tags %}
+{% block title %}Libro Caja y Bancos{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <div><h1 class="page-title">Libro Caja y Bancos — {{ periodo|slice:"4:" }}/{{ periodo|slice:":4" }}</h1>
+    <div class="text-muted small">{{ empresa.razon_social }} · RUC {{ empresa.ruc }} · Formatos 1.1 y 1.2 (R.S. 234-2006/SUNAT) · Importes en S/</div></div>
+  <form class="d-flex flex-wrap gap-2" method="get">
+    <input type="month" name="periodo" value="{{ mes }}" class="form-control form-control-sm" aria-label="Periodo">
+    <select name="cuenta" class="form-select form-select-sm" aria-label="Cuenta"><option value="">Todas las cuentas</option>
+      {% for c in cuentas %}<option value="{{ c.pk }}" {% if c.pk|stringformat:'s' == elegida %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+    <button class="btn btn-sm btn-outline-secondary">Ver</button>
+    <button name="formato" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i> Excel</button>
+    <button name="formato" value="ple11" class="btn btn-sm btn-dark" title="Todas las cajas del periodo"><i class="bi bi-filetype-txt"></i> TXT PLE 1.1</button>
+    <button name="formato" value="ple12" class="btn btn-sm btn-dark" title="Todas las cuentas corrientes del periodo"><i class="bi bi-filetype-txt"></i> TXT PLE 1.2</button>
+  </form>
+</div>
+
+<h2 class="h6 text-uppercase text-muted mt-2">Formato 1.1: Detalle de los movimientos del efectivo</h2>
+{% for b in cajas %}
+<div class="card mb-3">
+  <div class="card-header py-2 small"><strong>{{ b.cuenta.nombre }}</strong> ({{ b.cuenta.moneda }})
+    · Cuenta contable {{ b.cuenta_contable.codigo }} {{ b.cuenta_contable.nombre }}
+    {% if b.usd %}· US$ {{ b.inicial_me|money }} al inicio, US$ {{ b.final_me|money }} al cierre{% endif %}</div>
+  <div class="table-responsive"><table class="table table-sm table-registro mb-0">
+    <thead><tr><th>CUO / correlativo</th><th>Fecha</th><th>Descripción de la operación</th><th>Cuenta asociada</th>{% if b.usd %}<th class="num">US$</th>{% endif %}<th class="num">Deudor</th><th class="num">Acreedor</th><th class="num">Saldo</th></tr></thead>
+    <tbody>
+      <tr class="table-light"><td></td><td></td><td class="fw-semibold">SALDO INICIAL</td><td></td>{% if b.usd %}<td></td>{% endif %}
+        <td class="num">{% if b.inicial_deudor %}{{ b.inicial_deudor|money }}{% endif %}</td><td class="num">{% if b.inicial_acreedor %}{{ b.inicial_acreedor|money }}{% endif %}</td><td class="num">{{ b.inicial|money }}</td></tr>
+      {% for f in b.filas %}
+      <tr><td class="small">{% if f.asiento %}<a href="{% url 'contabilidad:asiento_detalle' f.asiento.pk %}">{{ f.cuo }}</a>{% else %}{{ f.cuo }}{% endif %} <span class="text-muted">{{ f.correlativo }}</span></td>
+        <td>{{ f.fecha|date:'d/m/Y' }}</td>
+        <td class="small"><a href="{% url 'finanzas:voucher' f.m.pk %}" target="_blank">{{ f.m.voucher }}</a> {{ f.descripcion|truncatechars:60 }}</td>
+        <td class="small">{{ f.contra_codigo }} {{ f.contra_nombre|truncatechars:30 }}</td>
+        {% if b.usd %}<td class="num">{{ f.importe_me|money }}</td>{% endif %}
+        <td class="num">{% if f.deudor %}{{ f.deudor|money }}{% endif %}</td><td class="num">{% if f.acreedor %}{{ f.acreedor|money }}{% endif %}</td><td class="num">{{ f.saldo|money }}</td></tr>
+      {% empty %}<tr><td colspan="8" class="text-center text-muted">Sin movimientos en el periodo.</td></tr>{% endfor %}
+    </tbody>
+    <tfoot class="fw-bold"><tr><td colspan="{% if b.usd %}5{% else %}4{% endif %}" class="text-end">TOTALES</td><td class="num">{{ b.total_deudor|money }}</td><td class="num">{{ b.total_acreedor|money }}</td><td class="num">{{ b.final|money }}</td></tr></tfoot>
+  </table></div>
+</div>
+{% empty %}<p class="text-muted small">Sin cuentas de caja con saldo o movimientos en el periodo.</p>{% endfor %}
+
+<h2 class="h6 text-uppercase text-muted mt-4">Formato 1.2: Detalle de los movimientos de la cuenta corriente</h2>
+{% for b in bancos %}
+<div class="card mb-3">
+  <div class="card-header py-2 small"><strong>{{ b.cuenta.nombre }}</strong> ({{ b.cuenta.moneda }})
+    · Entidad financiera {{ b.entidad }} {{ b.entidad_nombre }} · Cuenta corriente {{ b.cuenta.numero|default:'(sin número)' }}
+    · Cuenta contable {{ b.cuenta_contable.codigo }} {{ b.cuenta_contable.nombre }}
+    {% if b.usd %}· US$ {{ b.inicial_me|money }} al inicio, US$ {{ b.final_me|money }} al cierre{% endif %}</div>
+  <div class="table-responsive"><table class="table table-sm table-registro mb-0">
+    <thead><tr><th>CUO / correlativo</th><th>Fecha</th><th title="Tabla 1">Medio de pago</th><th>Descripción</th><th>Girador / beneficiario</th><th>N° transacción</th><th>Cuenta asociada</th>{% if b.usd %}<th class="num">US$</th>{% endif %}<th class="num">Deudor</th><th class="num">Acreedor</th><th class="num">Saldo</th></tr></thead>
+    <tbody>
+      <tr class="table-light"><td></td><td></td><td></td><td class="fw-semibold">SALDO INICIAL</td><td></td><td></td><td></td>{% if b.usd %}<td></td>{% endif %}
+        <td class="num">{% if b.inicial_deudor %}{{ b.inicial_deudor|money }}{% endif %}</td><td class="num">{% if b.inicial_acreedor %}{{ b.inicial_acreedor|money }}{% endif %}</td><td class="num">{{ b.inicial|money }}</td></tr>
+      {% for f in b.filas %}
+      <tr><td class="small">{% if f.asiento %}<a href="{% url 'contabilidad:asiento_detalle' f.asiento.pk %}">{{ f.cuo }}</a>{% else %}{{ f.cuo }}{% endif %} <span class="text-muted">{{ f.correlativo }}</span></td>
+        <td>{{ f.fecha|date:'d/m/Y' }}</td>
+        <td class="small">{{ f.medio }} <span class="text-muted">{{ f.medio_nombre }}</span></td>
+        <td class="small"><a href="{% url 'finanzas:voucher' f.m.pk %}" target="_blank">{{ f.m.voucher }}</a> {{ f.descripcion|truncatechars:50 }}</td>
+        <td class="small">{% if f.tercero_doc %}<span class="text-muted">{{ f.tercero_doc }}</span> {% endif %}{{ f.tercero|truncatechars:30 }}</td>
+        <td class="small">{{ f.operacion }}</td>
+        <td class="small">{{ f.contra_codigo }} {{ f.contra_nombre|truncatechars:25 }}</td>
+        {% if b.usd %}<td class="num">{{ f.importe_me|money }}</td>{% endif %}
+        <td class="num">{% if f.deudor %}{{ f.deudor|money }}{% endif %}</td><td class="num">{% if f.acreedor %}{{ f.acreedor|money }}{% endif %}</td><td class="num">{{ f.saldo|money }}</td></tr>
+      {% empty %}<tr><td colspan="11" class="text-center text-muted">Sin movimientos en el periodo.</td></tr>{% endfor %}
+    </tbody>
+    <tfoot class="fw-bold"><tr><td colspan="{% if b.usd %}8{% else %}7{% endif %}" class="text-end">TOTALES</td><td class="num">{{ b.total_deudor|money }}</td><td class="num">{{ b.total_acreedor|money }}</td><td class="num">{{ b.final|money }}</td></tr></tfoot>
+  </table></div>
+</div>
+{% empty %}<p class="text-muted small">Sin cuentas corrientes con saldo o movimientos en el periodo.</p>{% endfor %}
+<p class="text-muted small">Solo movimientos vigentes (los anulados no entran). Las cuentas en dólares se expresan en soles con el tipo de cambio de su asiento (o el T.C. venta del día si aún no se contabilizó). El TXT del PLE incluye el saldo inicial solo en enero (correlativo «A»).</p>
+{% endblock %}

@@ -460,7 +460,7 @@ class ComprobanteViews:
             return respuesta_registro(self.codigo_sire, periodo)
         lineas = [self.linea_ple(periodo, n, d) for n, d in enumerate(docs, 1)]
         indicador = '1' if lineas else '0'
-        nombre = f'LE{empresa.ruc}{periodo}00{self.codigo_ple}00{indicador}11.txt'
+        nombre = f'LE{empresa.ruc}{periodo}00{self.codigo_ple}001{indicador}11.txt'
         return txt_response(nombre, lineas)
 
     def linea_ple(self, periodo, n, d):

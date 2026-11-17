@@ -123,7 +123,7 @@ def ple_zip(aliases, periodo):
                     docs = list(vista._registro_qs(periodo))
                     lineas = [vista.linea_ple(periodo, n, d) for n, d in enumerate(docs, 1)]
                     indicador = '1' if lineas else '0'
-                    nombre = f'LE{empresa.ruc}{periodo}00{vista.codigo_ple}00{indicador}11.txt'
+                    nombre = f'LE{empresa.ruc}{periodo}00{vista.codigo_ple}001{indicador}11.txt'
                     z.writestr(f'{carpeta}/{nombre}', '\r\n'.join(lineas) +
                                ('\r\n' if lineas else ''))
                 notas.append((alias, f'{empresa.razon_social}: PLE de ventas y compras generados'))

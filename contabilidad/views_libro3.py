@@ -1,14 +1,16 @@
 """Libro de Inventarios y Balances (formatos 3.x de la R.S. 234-2006/SUNAT) desde los asientos contables.
 
 Los formatos de detalle muestran el saldo al cierre del periodo de las cuentas del formato, por cuenta, por tercero o
-por documento (según el formato). Los formatos que son estados financieros enlazan a sus reportes."""
+por documento (según el formato). Los formatos que son estados financieros enlazan a sus reportes. Cada formato se
+descarga también como TXT del PLE (ple_libro3), uno por uno o todos en un ZIP."""
 from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Max, Min, Sum
+from django.http import HttpResponse
 from django.shortcuts import render
 
-from core.utils import excel_response
+from core.utils import excel_response, txt_response
 
 from .models import AsientoLinea
 from .views import al_dia
@@ -33,6 +35,7 @@ FORMATOS = [
     ('3.15', 'Detalle del saldo de la cuenta 37 y 49 - Activo y pasivo diferido', ('37', '49'), 'cuenta'),
     ('3.16', 'Detalle del saldo de la cuenta 50 - Capital', ('50',), 'cuenta'),
     ('3.17', 'Balance de comprobación', None, 'contabilidad:balance'),
+    ('3.18', 'Estado de flujos de efectivo', None, 'contabilidad:flujo_efectivo'),
     ('3.20', 'Estado de resultados', None, 'contabilidad:resultados'),
 ]
 POR_CODIGO = {f[0]: f for f in FORMATOS}
@@ -58,7 +61,7 @@ def detalle(formato, periodo):
         campos += ['documento']
     filas = []
     for r in (qs.values(*campos).annotate(d=Sum('debe'), h=Sum('haber'), desde=Min('asiento__fecha'),
-                                          hasta=Max('asiento__fecha'))
+                                          hasta=Max('asiento__fecha'), linea=Min('id'))
               .order_by(*campos)):
         saldo = (r['d'] or 0) - (r['h'] or 0)
         if saldo:
@@ -75,7 +78,11 @@ def libro_inventarios(request):
     if formato not in POR_CODIGO:
         formato = '3.3'
     periodo = (request.GET.get('periodo') or _ultimo_mes()).replace('-', '')
+    if not (len(periodo) == 6 and periodo.isdigit() and 1 <= int(periodo[4:]) <= 12):
+        periodo = _ultimo_mes()
     codigo, titulo, prefijos, por = POR_CODIGO[formato]
+    if request.GET.get('ple'):
+        return _descarga_ple(request, periodo)
     filas = detalle(formato, periodo) if prefijos else []
     tot = {'d': sum(f['deudor'] for f in filas), 'a': sum(f['acreedor'] for f in filas)}
     if request.GET.get('formato_salida') == 'excel' and prefijos:
@@ -97,6 +104,31 @@ def libro_inventarios(request):
         datos.append(['TOTAL', ''] + [''] * (len(enc) - 4) + [tot['d'], tot['a']])
         return excel_response(f'Libro_3_{formato}_{periodo}', f'FORMATO {codigo}: {titulo.upper()} AL {periodo[4:]}/'
                                                               f'{periodo[:4]}', enc, datos)
+    from . import ple_libro3
+    ples = [(c, ple_libro3.ETIQUETAS.get(c, 'TXT PLE')) for c in ple_libro3.PLE_DE_FORMATO.get(formato, [])]
     return render(request, 'contabilidad/libro_inventarios.html', {
         'formatos': FORMATOS, 'formato': formato, 'titulo': titulo, 'periodo': periodo, 'por': por,
-        'prefijos': prefijos, 'filas': filas, 'tot': tot, 'mes': f'{periodo[:4]}-{periodo[4:]}'})
+        'prefijos': prefijos, 'filas': filas, 'tot': tot, 'mes': f'{periodo[:4]}-{periodo[4:]}', 'ples': ples,
+        'oportunidades': ple_libro3.OPORTUNIDADES,
+        'oportunidad': request.GET.get('oportunidad', '')})
+
+
+def _descarga_ple(request, periodo):
+    """?ple=<código del libro> (030100, 031601...) descarga ese TXT; ?ple=zip todos los 3.x en un ZIP."""
+    from core.inventario import _sin_permiso_costos
+    from core.modulos import puede_ver_costos
+
+    from . import ple_libro3
+    ctx = ple_libro3.contexto(periodo, request.GET.get('oportunidad'), request.GET.get('valor_nominal'))
+    codigo = request.GET['ple']
+    con_costos = puede_ver_costos(request.user)
+    if codigo == 'zip':
+        nombre, datos = ple_libro3.generar_zip(ctx, con_costos)
+        resp = HttpResponse(datos, content_type='application/zip')
+        resp['Content-Disposition'] = f'attachment; filename="{nombre}"'
+        return resp
+    if codigo not in ple_libro3.CONSTRUCTORES:
+        return HttpResponse('Formato del PLE no disponible.', status=404, content_type='text/plain; charset=utf-8')
+    if codigo in ple_libro3.REQUIEREN_COSTOS and not con_costos:
+        return _sin_permiso_costos(request)
+    return txt_response(*ple_libro3.generar(codigo, ctx))

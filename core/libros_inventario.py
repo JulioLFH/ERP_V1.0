@@ -41,7 +41,7 @@ def registro(desde, hasta):
             'producto_id', 'saldo', 'costo_promedio'):
         previos[k.producto_id] = (k.saldo, k.costo_promedio)
     movimientos = {}
-    for k in Kardex.objects.filter(fecha__range=[desde, hasta]).order_by('fecha', 'id'):
+    for k in Kardex.objects.filter(fecha__range=[desde, hasta]).select_related('almacen').order_by('fecha', 'id'):
         movimientos.setdefault(k.producto_id, []).append(k)
     bloques = []
     for pid in sorted(set(previos) | set(movimientos), key=lambda x: productos[x].codigo if x in productos else ''):
@@ -154,6 +154,111 @@ def excel(bloques, desde, hasta, valorizado):
     return resp
 
 
+# ---------------------------------------------------------------- PLE 12.1 (120100) y 13.1 (130100)
+# Libros mensuales del PLE con las mismas filas que el Excel (registro()). Supuestos (no validados con el PLE):
+# - Estructuras del Anexo 2 de la R.S. 286-2009/SUNAT y modificatorias: 19 campos (12.1) y 27 campos (13.1); los
+#   campos de libre utilización no se envían.
+# - Catálogo propio (tabla 13 = 9) y sin código de existencia OSCE/GS1 (campos 8 y 9 vacíos).
+# - Establecimiento anexo: el código SUNAT del almacén del movimiento ('0000' = domicilio fiscal y para el saldo
+#   inicial); el registro suma todos los almacenes, como el Excel.
+# - El saldo inicial va como primera fila de cada producto (tipo de operación 16, documento '00', correlativo A),
+#   igual que en el Excel, cuando hay cantidad o valor al inicio del mes.
+# - Serie o número de documento vacíos van como '0'; cantidades e importes con 2 decimales (el PLE admite
+#   hasta 2 decimales como mínimo común en estos campos); método de valuación 1 = promedio ponderado (tabla 14).
+CODIGO_PLE = {'12.1': '120100', '13.1': '130100'}
+CATALOGO_PROPIO = '9'     # tabla 13: otros (catálogo propio)
+METODO_VALUACION = '1'    # tabla 14: promedio ponderado
+ESTADO_OPERACION = '1'    # la operación corresponde al periodo
+CAMPOS_12_1 = [
+    'periodo',            # 1  AAAAMM00
+    'cuo',                # 2  código único de la operación (movimiento del kardex)
+    'correlativo',        # 3  A (saldo inicial) / M (movimiento) + número
+    'establecimiento',    # 4  código de establecimiento anexo (4 dígitos)
+    'catalogo',           # 5  código del catálogo utilizado (tabla 13)
+    'tipo_existencia',    # 6  tipo de existencia (tabla 5)
+    'codigo',             # 7  código propio de la existencia
+    'catalogo_osce',      # 8  catálogo del código de existencia (OSCE / GS1), opcional
+    'codigo_osce',        # 9  código de existencia (OSCE / GS1), opcional
+    'fecha',              # 10 fecha de emisión del documento (dd/mm/aaaa)
+    'tipo_doc',           # 11 tipo de documento (tabla 10)
+    'serie',              # 12 serie del documento
+    'numero',             # 13 número del documento
+    'operacion',          # 14 tipo de operación (tabla 12)
+    'descripcion',        # 15 descripción de la existencia
+    'unidad',             # 16 unidad de medida (tabla 6)
+    'ent_cant',           # 17 entradas en unidades físicas
+    'sal_cant',           # 18 salidas en unidades físicas
+    'estado',             # 19 estado de la operación
+]
+CAMPOS_13_1 = CAMPOS_12_1[:16] + [
+    'metodo',             # 17 método de valuación (tabla 14)
+    'ent_cant',           # 18 entradas: cantidad
+    'ent_costo',          # 19 entradas: costo unitario
+    'ent_total',          # 20 entradas: costo total
+    'sal_cant',           # 21 salidas: cantidad
+    'sal_costo',          # 22 salidas: costo unitario
+    'sal_total',          # 23 salidas: costo total
+    'saldo_cant',         # 24 saldo final: cantidad
+    'saldo_costo',        # 25 saldo final: costo unitario
+    'saldo_total',        # 26 saldo final: costo total
+    'estado',             # 27 estado de la operación
+]
+
+
+def _txt(valor, largo, vacio=''):
+    return ' '.join(str(valor or '').replace('|', ' ').split())[:largo].strip() or vacio
+
+
+def _num(valor):
+    return f'{(valor or D0):.2f}'
+
+
+def nombre_ple(ruc, desde, formato, con_datos):
+    """LE + RUC + AAAAMM + 00 + libro + 00 (oportunidad) + operaciones + contenido + moneda + PLE (como el 5.1)."""
+    return f'LE{ruc}{desde:%Y%m}00{CODIGO_PLE[formato]}001{"1" if con_datos else "0"}11.txt'
+
+
+def lineas_ple(bloques, desde, valorizado):
+    campos = CAMPOS_13_1 if valorizado else CAMPOS_12_1
+    periodo = f'{desde:%Y%m}00'
+    lineas = []
+    for b in bloques:
+        p = b['p']
+        comun = {'periodo': periodo, 'catalogo': CATALOGO_PROPIO, 'tipo_existencia': b['tipo_existencia'],
+                 'codigo': _txt(p.codigo, 24), 'catalogo_osce': '', 'codigo_osce': '',
+                 'descripcion': _txt(p.nombre, 80, '-'), 'unidad': p.unidad, 'metodo': METODO_VALUACION,
+                 'estado': ESTADO_OPERACION}
+        ini = b['inicial']
+        filas = []
+        if ini['cantidad'] or ini['total']:
+            filas.append(dict(comun, cuo=f'SI{p.pk}', correlativo='A1', establecimiento='0000',
+                              fecha=desde.strftime('%d/%m/%Y'), tipo_doc='00', serie='0', numero='0',
+                              operacion='16', ent_cant=_num(ini['cantidad']), ent_costo=_num(ini['costo']),
+                              ent_total=_num(ini['total']), sal_cant=_num(D0), sal_costo=_num(D0),
+                              sal_total=_num(D0), saldo_cant=_num(ini['cantidad']), saldo_costo=_num(ini['costo']),
+                              saldo_total=_num(ini['total'])))
+        for f in b['filas']:
+            k = f['k']
+            numero = re.sub(r'[^A-Za-z0-9-]', '', f['numero'] or '')[:20]
+            filas.append(dict(comun, cuo=f'K{k.pk}', correlativo='M1',
+                              establecimiento=(k.almacen.codigo_sunat if k.almacen_id else '') or '0000',
+                              fecha=k.fecha.strftime('%d/%m/%Y'), tipo_doc=f['tipo_doc'] or '00',
+                              serie=_txt(f['serie'], 20, '0'), numero=numero or '0', operacion=f['operacion'],
+                              **{c: _num(f[c]) for c in ('ent_cant', 'ent_costo', 'ent_total', 'sal_cant',
+                                                         'sal_costo', 'sal_total', 'saldo_cant', 'saldo_costo',
+                                                         'saldo_total')}))
+        lineas += ['|'.join(fila[c] for c in campos) + '|' for fila in filas]
+    return lineas
+
+
+def ple(bloques, desde, valorizado):
+    """Archivo TXT del PLE 12.1 / 13.1 del mes."""
+    from .utils import txt_response
+    lineas = lineas_ple(bloques, desde, valorizado)
+    formato = '13.1' if valorizado else '12.1'
+    return txt_response(nombre_ple(Empresa.actual().ruc, desde, formato, bool(lineas)), lineas)
+
+
 @login_required
 def libro(request):
     from .inventario import _sin_permiso_costos
@@ -172,7 +277,16 @@ def libro(request):
     else:
         desde = date(anio, int(mes), 1)
         hasta = _fin_de_mes(desde)
+    if request.GET.get('formato') == 'txt' and mes == 'anual':
+        from django.contrib import messages
+        from django.shortcuts import redirect
+        messages.warning(request, 'El TXT del PLE es mensual: elija un mes.')
+        params = request.GET.copy()
+        params.pop('formato')
+        return redirect(f'{request.path}?{params.urlencode()}')
     bloques = registro(desde, hasta)
+    if request.GET.get('formato') == 'txt':  # PLE 12.1 (120100) / 13.1 (130100)
+        return ple(bloques, desde, valorizado)
     if request.GET.get('descargar'):
         return excel(bloques, desde, hasta, valorizado)
     return render(request, 'inventario/libro_sunat.html', {

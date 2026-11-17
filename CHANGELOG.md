@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.116.0 — 17/11/2026 · Libros electrónicos de SUNAT completos
+- **Libro Caja y Bancos (formatos 1.1 y 1.2)** — Tesorería › Caja y bancos, Contabilidad › Libros y SUNAT › Registros y libros: por periodo y cuenta, con saldo inicial, movimientos (medio de pago, tercero, N° de operación) y saldo final; Excel con el formato de SUNAT (1.1 caja y 1.2 por cuenta corriente) y TXT del PLE (010100 y 010200). Importes en soles; las cuentas en dólares con el tipo de cambio de su asiento. Excluye anulados y respeta las cuentas que puede ver cada usuario.
+- **TXT del PLE de Inventarios y Balances (3.x)**: botón «TXT PLE» en cada formato y un ZIP con todos (3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.9, 3.11, 3.12, 3.13, 3.14, 3.15, 3.16.1, 3.16.2, 3.17, 3.18 y 3.20), con oportunidad (al 31/12 o libre) y valor nominal para 3.16.
+- **TXT del PLE del Registro de Activos Fijos (7.1)** y del **Inventario Permanente (12.1 y 13.1)**, junto a sus Excel.
+- **Libro oficial SIRE** — SUNAT › SIRE: pide a SUNAT el registro generado del periodo (RCE compras / RVIE ventas), lo descarga con su constancia de recepción (PDF), los guarda como sustento y los compara con el registro del ERP (cantidad y total en soles por tipo, y diferencias), con Excel de la comparación.
+- **Corrección**: el nombre del TXT del PLE de los registros de compras 8.1 y ventas 14.1 tenía un carácter menos (faltaba el indicador de operaciones); ahora sigue el estándar de SUNAT, igual que el Diario 5.1.
+
 ## v1.115.7 — 17/11/2026 · Carga masiva de XML de compras (productos de los comprobantes electrónicos)
 - **Compras › Cargar XML (varios) · productos**: se suben varios XML o un ZIP (también un ZIP de ZIP, como los descarga SUNAT; las constancias R-… se omiten). Por cada comprobante: si la compra ya está registrada sin productos (p. ej. creada desde la propuesta SIRE), se le agregan las líneas del XML **sin cambiar sus totales** (si el total del XML no cuadra, se avisa); si ya tiene productos, no se toca; si no está registrada, se registra completa. Cada línea se relaciona con un producto por código del proveedor, compras anteriores o nombre; las demás quedan con su descripción. Muestra el resumen (completadas, registradas, ya tenían productos, errores, líneas sin producto), guarda el XML como sustento y no mueve almacén ni envía nada a SUNAT.
 

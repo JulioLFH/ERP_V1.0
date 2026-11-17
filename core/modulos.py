@@ -529,7 +529,8 @@ MODULOS = [
                                ('Movimientos', 'finanzas:movimientos', 'bi-arrow-left-right'),
                                ('Transferencias', 'finanzas:transferencia', 'bi-shuffle'),
                                ('Cheques', 'finanzas:cheques', 'bi-credit-card-2-front'),
-                               ('Entregas a rendir y caja chica', 'finanzas:entregas', 'bi-wallet2')]),
+                               ('Entregas a rendir y caja chica', 'finanzas:entregas', 'bi-wallet2'),
+                               ('Libro Caja y Bancos 1.1 / 1.2', 'finanzas:libro_caja', 'bi-journal-text')]),
             ('Cobranzas y pagos', [('Cobranzas', 'finanzas:cobranza', 'bi-cash-coin'),
                                    ('Cobranza múltiple (varios clientes)', 'finanzas:cobranza_multiple',
                                     'bi-cash-stack'),
@@ -593,6 +594,7 @@ MODULOS = [
                           ('Cierre guiado del mes', 'contabilidad:cierre', 'bi-list-check')]),
             ('Libros', [('Libro diario', 'contabilidad:diario', 'bi-journal-text'),
                         ('Libro mayor', 'contabilidad:mayor', 'bi-journal-bookmark'),
+                        ('Libro Caja y Bancos 1.1 / 1.2', 'finanzas:libro_caja', 'bi-journal-text'),
                         ('Inventarios y Balances (3.x)', 'contabilidad:libro_inventarios', 'bi-journal-richtext'),
                         ('Inventario permanente 12.1 / 13.1', 'inv_libro_sunat', 'bi-boxes')]),
             ('Reportes', [('Balance de comprobación', 'contabilidad:balance', 'bi-table'),
@@ -631,11 +633,13 @@ MODULOS = [
                       ('Propuesta de compras (RCE)', 'sire_propuestas?libro=RCE', 'bi-cloud-download'),
                       # SIR-01/02: reemplazo de la propuesta (14.4 / 8.4), no domiciliados 8.5 y ajustes posteriores
                       ('Enviar al SIRE (reemplazo, 8.5, ajustes)', 'sire_envios', 'bi-cloud-upload'),
+                      ('Libro oficial SIRE (registro generado y constancia)', 'sire_libro_oficial', 'bi-journal-check'),
                       ('Cruce de compras con la propuesta', 'compras:sire', 'bi-arrow-left-right')]),
             ('Registros y libros (PLE)', [('Registro de ventas 14.1', 'ventas:registro', 'bi-journal-text'),
                                           ('Registro de compras 8.1', 'compras:registro', 'bi-journal-text'),
                                           ('Libro diario', 'contabilidad:diario', 'bi-journal-text'),
                                           ('Libro mayor', 'contabilidad:mayor', 'bi-journal-bookmark'),
+                                          ('Libro Caja y Bancos 1.1 / 1.2', 'finanzas:libro_caja', 'bi-journal-text'),
                                           ('Inventarios y Balances (3.x)', 'contabilidad:libro_inventarios',
                                            'bi-journal-richtext'),
                                           ('Inventario permanente 12.1 / 13.1', 'inv_libro_sunat', 'bi-boxes'),
@@ -793,6 +797,9 @@ RUTAS_CORE = {
     'sire_propuestas': ['sunat', 'contabilidad'],
     'sire_propuesta': ['sunat', 'contabilidad'],
     'sire_envios': ['sunat', 'contabilidad'], 'sire_envio': ['sunat', 'contabilidad'],  # SIR-01/02
+    # v1.116: libro oficial del SIRE (registro generado en SUNAT, constancia y comparación)
+    'sire_libro_oficial': ['sunat', 'contabilidad', 'ventas', 'compras'],
+    'sire_libro_oficial_detalle': ['sunat', 'contabilidad', 'ventas', 'compras'],
     'cronograma_sunat': ['sunat', 'contabilidad', 'ajustes'],  # REQ-02 (lo edita solo el administrador)
     'tercero_banco': ['contactos', 'tesoreria', 'compras', 'ventas', 'crm', 'finanzas'],
     'perfiles_acceso': ['ajustes'], 'sso_lista': ['ajustes'], 'sso_nuevo': ['ajustes'], 'sso_editar': ['ajustes'], 'perfil_acceso_nuevo': ['ajustes'], 'perfil_acceso_editar': ['ajustes'],
@@ -948,6 +955,8 @@ RUTAS_FINANZAS = {
 }
 # pantallas de un módulo que también abre otro (vista: módulos; el primero es el principal)
 RUTAS_COMPARTIDAS = {'contabilidad:reparto_resultado': ['contabilidad', 'obras'],
+                     # v1.116: Libro Caja y Bancos 1.1 / 1.2 (lo ven tesorería, contabilidad y SUNAT)
+                     'finanzas:libro_caja': ['tesoreria', 'contabilidad', 'sunat'],
                      # v1.104: agentes con IA: cada uno en su módulo; la configuración y la bitácora en Ajustes
                      'agentes:ventas': ['ventas'],
                      **{f'agentes:{n}': ['ajustes'] for n in ('configuracion', 'conversaciones', 'conversacion')},
