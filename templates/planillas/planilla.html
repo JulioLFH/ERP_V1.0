@@ -11,6 +11,7 @@
     {% if planilla.tipo == 'MENSUAL' and planilla.estado != 'BORRADOR' %}
       <a href="{% url 'planillas:plame' planilla.periodo %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-zip"></i> PLAME</a>
       <a href="{% url 'planillas:afp' planilla.periodo %}" class="btn btn-sm btn-outline-secondary">Aportes AFP</a>
+      <a href="{% url 'planillas:afp' planilla.periodo %}?formato=afpnet" class="btn btn-sm btn-outline-secondary" title="Planilla para cargar en AFPnet (Excel sin títulos, 17 columnas)">Archivo AFPnet</a>
     {% endif %}
     <a href="{% url 'planillas:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
   </div>

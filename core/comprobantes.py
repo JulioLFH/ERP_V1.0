@@ -415,19 +415,18 @@ class ComprobanteViews:
     def registro(self, request):
         periodo = periodo_actual(request, self.modelo.objects.all())
         docs = list(self._registro_qs(periodo))
-        tot = {k: D0 for k in ('base', 'nograv', 'igv', 'total', 'detr', 'ret', 'perc')}
+        tot = {k: D0 for k in ('base', 'nograv', 'igv', 'icbper', 'total', 'detr', 'ret', 'perc')}
         for d in docs:
+            # v1.115: cada fila en soles (como el total y la contabilidad) y con signo: antes las filas iban en la
+            # moneda del comprobante y el total en soles, y con compras en dólares la columna no sumaba el total
+            s = d.signo
+            d.fila_pen = {'base': s * d.base_pen, 'nograv': s * d.nograv_pen, 'igv': s * d.igv_pen,
+                          'icbper': s * d.icbper_pen, 'total': s * d.total_pen, 'detr': s * d.detr_pen,
+                          'ret': s * d.ret_pen, 'perc': s * d.perc_pen}
             if d.estado == 'ANULADO':
                 continue
-            # mismos importes en soles que la contabilidad (calculados una vez por documento)
-            s = d.signo
-            tot['base'] += s * d.base_pen
-            tot['nograv'] += s * d.nograv_pen
-            tot['igv'] += s * d.igv_pen
-            tot['total'] += s * d.total_pen
-            tot['detr'] += d.detr_pen
-            tot['ret'] += d.ret_pen
-            tot['perc'] += d.perc_pen
+            for k, v in d.fila_pen.items():
+                tot[k] += v
         if request.GET.get('formato') == 'excel':
             return self._registro_excel(periodo, docs)
         if request.GET.get('formato') == 'ple':
@@ -436,17 +435,17 @@ class ComprobanteViews:
 
     def _registro_excel(self, periodo, docs):
         enc = ['N°', 'Fecha emisión', 'Fecha venc.', 'Tipo', 'Serie', 'Número', 'Tipo doc', 'N° doc',
-               self.etiqueta_tercero, 'Moneda', 'T.C.', 'Base imponible', 'Exon./Inaf.', 'IGV', 'ICBPER', 'Total',
-               'Total S/', 'Detracción', 'Retención', 'Percepción', 'Ref. fecha', 'Ref. tipo', 'Ref. serie-número',
-               'Estado']
+               self.etiqueta_tercero, 'Moneda', 'T.C.', 'Total moneda original', 'Base imponible S/',
+               'Exon./Inaf. S/', 'IGV S/', 'ICBPER S/', 'Total S/', 'Detracción S/', 'Retención S/', 'Percepción S/',
+               'Ref. fecha', 'Ref. tipo', 'Ref. serie-número', 'Estado']
         filas = []
         for n, d in enumerate(docs, 1):
             s = d.signo
             ref = d.doc_referencia
             filas.append([n, fmt_fecha(d.fecha_emision), fmt_fecha(d.fecha_vencimiento), d.tipo_comprobante,
                           d.serie, d.numero, d.tercero.tipo_doc, d.tercero.numero_doc, d.tercero.nombre, d.moneda,
-                          d.tipo_cambio, s * d.base_imponible, s * d.no_gravado, s * d.igv, d.icbper, s * d.total,
-                          s * d.total_pen, d.detraccion_monto, d.retencion_monto, d.percepcion_monto,
+                          d.tipo_cambio, s * d.total, s * d.base_pen, s * d.nograv_pen, s * d.igv_pen,
+                          s * d.icbper_pen, s * d.total_pen, s * d.detr_pen, s * d.ret_pen, s * d.perc_pen,
                           fmt_fecha(ref.fecha_emision) if ref else '', ref.tipo_comprobante if ref else '',
                           ref.numero_completo if ref else '', d.get_estado_display()])
         empresa = Empresa.actual()
@@ -455,6 +454,9 @@ class ComprobanteViews:
 
     def _registro_ple(self, periodo, docs):
         empresa = Empresa.actual()
+        if empresa.obligado_sire:  # SIR-03: obligada al SIRE: el registro sale en el formato del SIRE (14.4 / 8.4)
+            from .sire_envio import respuesta_registro
+            return respuesta_registro(self.codigo_sire, periodo)
         lineas = [self.linea_ple(periodo, n, d) for n, d in enumerate(docs, 1)]
         indicador = '1' if lineas else '0'
         nombre = f'LE{empresa.ruc}{periodo}00{self.codigo_ple}00{indicador}11.txt'

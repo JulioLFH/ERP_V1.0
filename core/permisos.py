@@ -235,7 +235,7 @@ RUTAS = {
     'tercero_banco': {'POST': 'tesoreria.datos_bancarios'},
     # SU-01 y SU-02: el SIRE es tributario (contabilidad); REQ-05: o el permiso propio del módulo SUNAT
     **{r: (lambda req: _una_de(req, 'sunat.sire', 'contabilidad.asientos') if req.method == 'POST' else None)
-       for r in ('sire_propuestas', 'sire_propuesta')},
+       for r in ('sire_propuestas', 'sire_propuesta', 'sire_envios', 'sire_envio')},
     'compras:portal_factura_aprobar': 'portal_proveedores.aprobar',
     'compras:portal_factura_rechazar': 'portal_proveedores.aprobar', 'compras:liberar_pago': 'portal_proveedores.aprobar',
     'compras:portal_acceso_nuevo': 'portal_proveedores.aprobar',

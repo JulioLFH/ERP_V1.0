@@ -21,7 +21,7 @@ class ComprasViews(ComprobanteViews):
     modelo, item_modelo, form_class = Compra, CompraItem, CompraForm
     titulo = 'Compras'
     tipo_tercero, etiqueta_tercero = 'PROVEEDOR', 'Proveedor'
-    libro, codigo_ple = '8.1', '080100'
+    libro, codigo_ple, codigo_sire = '8.1', '080100', '080400'  # SIRE: 8.4 (y el 8.5 de no domiciliados)
     agrupaciones = [('tercero', 'Proveedor'), ('producto', 'Producto / concepto'),
                     ('clasificacion', 'Clasificación'), ('periodo', 'Periodo'), ('tipo_comprobante', 'Tipo comprobante')]
 

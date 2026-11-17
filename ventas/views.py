@@ -38,7 +38,7 @@ class VentasViews(ComprobanteViews):
     modelo, item_modelo, form_class = Venta, VentaItem, VentaForm
     titulo = 'Ventas'
     tipo_tercero, etiqueta_tercero = 'CLIENTE', 'Cliente'
-    libro, codigo_ple = '14.1', '140100'
+    libro, codigo_ple, codigo_sire = '14.1', '140100', '140400'
     agrupaciones = [('tercero', 'Cliente'), ('producto', 'Producto'), ('vendedor', 'Vendedor'),
                     ('zona', 'Zona'), ('periodo', 'Periodo'), ('tipo_comprobante', 'Tipo comprobante')]
 

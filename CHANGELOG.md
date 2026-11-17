@@ -3,6 +3,20 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.115.0 — 16/11/2026 · Credenciales SUNAT que no se borran, matriz de verificación y periodo de la propuesta SIRE
+- **Ajustes › Credenciales SUNAT y SIRE** (nuevo): en una sola pantalla, usuario y clave SOL secundario, SIRE (usuario SOL, clave, client_id y client_secret), API SUNAT y guías de remisión. Se guardan cifrados en la base y no se vuelven a mostrar; un campo vacío conserva lo guardado y para quitar uno hay que marcar «Borrar». Cada cambio queda en la auditoría, sin los valores.
+- **Las credenciales ya no «se borran solas»**: la causa era que un comando ejecutado sin la variable SECRET_KEY trabajaba sobre la base real con la llave de desarrollo; lo que guardaba quedaba ilegible para el ERP y, al volver a guardar Ajustes, se reemplazaba por vacío. Ahora cada instalación toma su llave también de su `.env.postgres` (o `.env.clave`) y no arranca sin ella, y un valor que no se puede leer se conserva tal cual (la pantalla pide volver a ingresarlo) en vez de perderse.
+- **Propuesta SIRE de otro periodo**: si el archivo trae comprobantes de un periodo distinto al que se carga, aparece «Se están cargando datos de otro periodo» y no se puede cargar, aceptar ni crear comprobantes desde ella.
+- **Registro de compras y ventas: los totales cuadran**: cada fila se muestra en soles (base, exonerado/inafecto, IGV, ICBPER, total, detracción, retención y percepción), igual que la fila de TOTALES S/, con una columna del total en la moneda original para los comprobantes en dólares. Antes las filas iban en la moneda del comprobante y el total en soles, y con compras en dólares la suma de la columna no daba el total. Igual en el Excel del registro.
+- **SEG-05**: el chat web y el formulario web aceptan como máximo 5 conversaciones nuevas por IP y 60 por empresa en una hora (respuesta 429).
+- **SEG-06**: una IP que falla 10 contraseñas en 15 minutos queda frenada 15 minutos aunque la empresa no bloquee usuarios; otra IP sigue entrando. La IP del visitante se toma bien detrás de IIS y Cloudflare (antes todos salían como 127.0.0.1).
+- **DAT-03**: `revisar_datos --corregir` ya no se cae en la consola de Windows, y las órdenes anuladas sin número (con fecha y motivo) dejan de aparecer.
+- **PLA-01**: el .rem del PLAME ya no incluye los conceptos que calcula el PDT (ONP 0607, EsSalud 0804 y los demás de la estructura 18).
+- **PLA-04**: el ZIP del PLAME trae los archivos de 4.ª categoría (.ps4 y .4ta) con los recibos por honorarios pagados en el periodo.
+- **PLA-05**: archivos de importación del T-Registro (RP_RUC .ide, .tra, .per, .est, .edu) y archivo de carga de AFPnet (17 columnas).
+- **SIR-01 / SIR-02**: pantalla **Enviar al SIRE**: genera el TXT del RCE 8.4 / RVIE 14.4 (reemplazo de la propuesta), el 8.5 de no domiciliados y los ajustes posteriores, lo valida y lo envía por la API de SUNAT mostrando el ticket y sus inconsistencias.
+- **SIR-03**: con «Obligado al SIRE» (Ajustes › Empresa) el registro de compras y ventas se exporta en formato SIRE; sin él, sigue el PLE 8.1 / 14.1.
+
 ## v1.114.1 — 16/11/2026 · Constancia de la detracción en la propuesta SIRE y en la carga masiva
 - **Propuesta SIRE**: columnas **Constancia de detracción (N° de operación)** y **Fecha de constancia** junto a Detracción, Retención y Percepción. El Excel del cruce las trae con las del comprobante si ya está registrado; al crear, el comprobante queda con su constancia. Van juntas y solo si hay monto de detracción.
 - **Importar desde Excel (compras y ventas)**: columnas **detraccion_constancia** y **detraccion_fecha**, con las mismas validaciones.

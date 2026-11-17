@@ -143,8 +143,119 @@ class PlanillaTest(TestCase):
         z = zipfile.ZipFile(io.BytesIO(datos))
         rem = z.read('0601202509' + '20100000001.rem').decode()
         self.assertIn('01|45678912|0121|3000.00|3000.00|', rem)
-        self.assertIn('01|41234567|0607|195.00|195.00|', rem)
+        # PLA-01: ONP (0607) y EsSalud (0804) los calcula el PDT: no van en el .rem; los de la AFP sí
+        self.assertNotIn('|0607|', rem)
+        self.assertNotIn('|0804|', rem)
+        for codigo in ('0601', '0606', '0608'):
+            self.assertIn(f'01|45678912|{codigo}|', rem)
+        self.assertIn('01|45678912|0608|311.30|311.30|', rem)
         self.assertIn('01|45678912|240|0|0|0|', z.read('0601202509' + '20100000001.jor').decode())
+        # sin recibos por honorarios pagados en el mes no van los archivos de 4ta
+        self.assertFalse([n for n in z.namelist() if n.endswith(('.ps4', '.4ta'))])
+
+    def test_plame_cuarta_categoria(self):
+        """PLA-04: .ps4 y .4ta con los recibos por honorarios pagados en el periodo (con y sin retención); el
+        recibo con saldo no va."""
+        from compras.models import Compra, CompraItem
+        from core.models import Tercero
+        from finanzas.models import Movimiento
+        self._planilla('MENSUAL', '202509')
+        banco = Cuenta.objects.filter(tipo='BANCO', moneda='PEN').first()
+        banco.permite_sobregiro = True
+        banco.save()
+
+        def recibo(tipo_doc, doc, nombre, numero, monto, emision):
+            prov = Tercero.objects.create(tipo='PROVEEDOR', tipo_doc=tipo_doc, numero_doc=doc, nombre=nombre)
+            r = Compra.objects.create(tipo_comprobante='02', serie='E001', numero=numero, tercero=prov,
+                                      fecha_emision=emision, periodo='202509', clasificacion='GASTO')
+            CompraItem.objects.create(documento=r, descripcion='Servicio', cantidad=1, precio_unitario=D(monto))
+            r.calcular_totales()
+            r.save()
+            return r
+
+        def pagar(r, monto, fecha):
+            Movimiento.objects.create(cuenta=banco, fecha=fecha, tipo='EGRESO', concepto='PAGO', monto=D(monto),
+                                      compra=r)
+
+        con_ret = recibo('6', '10406080901', 'PEREZ GOMEZ JUAN CARLOS', '1', '2000', date(2025, 9, 10))
+        self.assertEqual(con_ret.retencion_monto, D('160.00'))  # 8 % (supera S/ 1,500)
+        pagar(con_ret, '1000', date(2025, 9, 12))
+        pagar(con_ret, '840', date(2025, 9, 15))  # completa el neto 1,840 el 15
+        sin_ret = recibo('1', '40111222', 'RUIZ DIAZ, MARIA', '2', '1000', date(2025, 9, 12))
+        self.assertEqual(sin_ret.retencion_monto, D('0'))
+        pagar(sin_ret, '1000', date(2025, 9, 20))
+        pendiente = recibo('1', '40999888', 'SALAS PINO ROSA', '3', '500', date(2025, 9, 5))
+        pagar(pendiente, '100', date(2025, 9, 6))  # pago parcial: no va
+        _, datos = servicios.archivos_plame('202509', '20100000001')
+        z = zipfile.ZipFile(io.BytesIO(datos))
+        ps4 = z.read('0601202509' + '20100000001.ps4').decode('cp1252').splitlines()
+        cuarta = z.read('0601202509' + '20100000001.4ta').decode('cp1252').splitlines()
+        self.assertEqual(ps4, ['01|40111222|RUIZ|DIAZ|MARIA|1|0|', '01|40608090|PEREZ|GOMEZ|JUAN CARLOS|1|0|'])
+        self.assertEqual(cuarta, ['01|40608090|R|E001|1|2000.00|10/09/2025|15/09/2025|1|||',
+                                  '01|40111222|R|E001|2|1000.00|12/09/2025|20/09/2025|0|||'])
+        self.assertNotIn('40999888', ''.join(ps4 + cuarta))
+
+    def test_t_registro_archivos(self):
+        """PLA-05: RP_<RUC>.ide/.tra/.per/.est/.edu con las altas y bajas del rango."""
+        from core.models import Empresa
+        ruc = Empresa.actual().ruc
+        self.luis.sexo, self.luis.direccion = 'M', 'Av. Los Olivos 123'
+        self.luis.save()
+        r = self.client.get(reverse('planillas:t_registro'), {'formato': 'zip', 'desde': '2025-01-01',
+                                                              'hasta': '2025-01-31'})
+        self.assertEqual(r['Content-Type'], 'application/zip')
+        z = zipfile.ZipFile(io.BytesIO(r.content))
+        self.assertEqual(sorted(z.namelist()), sorted(f'RP_{ruc}.{e}' for e in ('ide', 'tra', 'per', 'est', 'edu')))
+        leer = lambda e: z.read(f'RP_{ruc}.{e}').decode('cp1252').splitlines()  # noqa: E731
+        ide, tra, per, est = leer('ide'), leer('tra'), leer('per'), leer('est')
+        # solo Luis ingresó en el rango (Ana ingresó en 2024)
+        self.assertEqual(len(ide), 1)
+        self.assertNotIn('45678912', ''.join(ide + tra + per + est))
+        campos = ide[0].split('|')[:-1]
+        self.assertEqual(len(campos), 41)
+        self.assertEqual(campos[:9], ['01', '41234567', '', '', 'ROJAS', '', 'LUIS', '1', '9589'])
+        self.assertEqual(campos[12:14], ['01', 'LOS OLIVOS 123'])
+        campos = tra[0].split('|')[:-1]
+        self.assertEqual(len(campos), 23)
+        self.assertEqual((campos[3], campos[15], campos[20]), ('01', '1500.00', '03'))
+        self.assertEqual(per, ['01|41234567||1|1|16/01/2025||||', '01|41234567||1|2|16/01/2025||21||',
+                               '01|41234567||1|3|16/01/2025||00||', '01|41234567||1|4|16/01/2025||02||'])
+        self.assertEqual(est, [f'01|41234567||{ruc}|0000|'])
+        self.assertEqual(leer('edu'), [])
+        # baja en el rango: solo sus periodos, con la fecha de fin y el motivo
+        self.ana.fecha_cese, self.ana.motivo_cese = date(2025, 2, 28), 'Renuncia voluntaria'
+        self.ana.save()
+        r = self.client.get(reverse('planillas:t_registro'), {'formato': 'zip', 'desde': '2025-02-01',
+                                                              'hasta': '2025-02-28'})
+        z = zipfile.ZipFile(io.BytesIO(r.content))
+        self.assertEqual(leer('ide'), [])
+        self.assertIn('01|45678912||1|1|01/03/2024|28/02/2025|01||', leer('per'))
+        self.assertIn('01|45678912||1|4|01/03/2024|28/02/2025|21||', leer('per'))  # AFP Integra
+        # la pantalla sigue dando el Excel
+        self.assertIn('spreadsheetml', self.client.get(reverse('planillas:t_registro'))['Content-Type'])
+
+    def test_archivo_afpnet(self):
+        """PLA-05: Excel de AFPnet sin títulos, 17 columnas y una fila por afiliado del mes."""
+        from openpyxl import load_workbook
+        Trabajador.objects.create(
+            numero_doc='70123456', apellido_paterno='ALVA', apellido_materno='SOTO', nombres='PEDRO',
+            fecha_ingreso=date(2025, 9, 10), sueldo=D('2000'), sistema_pensiones='AFP',
+            afp=AFP.objects.get(codigo='PRIMA'), cuspp='654321ZYXWV9', centro_costo=self.planta)
+        self._planilla('MENSUAL', '202509')
+        r = self.client.get(reverse('planillas:afp', args=['202509']), {'formato': 'afpnet'})
+        self.assertIn('spreadsheetml', r['Content-Type'])
+        filas = [list(f) for f in load_workbook(io.BytesIO(r.content)).active.iter_rows(values_only=True)]
+        self.assertEqual(len(filas), 2)  # Ana y Pedro (Luis es de la ONP); sin filas de título
+        self.assertTrue(all(len(f) == 17 for f in filas))
+        self.assertEqual([f[0] for f in filas], [1, 2])
+        pedro, ana = filas
+        self.assertEqual(ana[1:10], ['123456ABCDE1', '0', '45678912', 'QUISPE', 'MAMANI', 'ANA', 'S', 'N', 'N'])
+        self.assertIn(ana[10], (None, ''))
+        self.assertEqual((ana[11], ana[15], ana[16]), (3113.0, 'N', 'INTEGRA'))
+        self.assertEqual((pedro[3], pedro[8], pedro[16]), ('70123456', 'S', 'PRIMA'))
+        # el Excel de consulta se mantiene
+        r = self.client.get(reverse('planillas:afp', args=['202509']))
+        self.assertIn('spreadsheetml', r['Content-Type'])
 
     def test_pantallas(self):
         r = self.client.post(reverse('planillas:nueva'), {'tipo': 'MENSUAL', 'mes': '2025-10'})

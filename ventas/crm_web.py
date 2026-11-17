@@ -121,7 +121,17 @@ def formulario(request, alias, clave):
                 return JsonResponse({'ok': False, 'errores': errores}, status=400)
             return render(request, 'ventas/crm_web.html', {'empresa': empresa, 'errores': errores, 'd': request.POST,
                                                            't': int(time.time()), 'finalidad': cfg.finalidad_datos})
-        ip = (request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or request.META.get('REMOTE_ADDR', ''))
+        from core.acceso_ip import ip_cliente
+
+        from .crm_canales import demasiadas_nuevas
+        if demasiadas_nuevas(request, 'Formulario web'):  # SEG-05: mismo límite que el chat
+            mensaje = 'Recibimos muchas solicitudes: intente de nuevo en unos minutos.'
+            if quiere_json:
+                return JsonResponse({'ok': False, 'errores': [mensaje]}, status=429)
+            return render(request, 'ventas/crm_web.html', {'empresa': empresa, 'errores': [mensaje], 'd': request.POST,
+                                                           't': int(time.time()), 'finalidad': cfg.finalidad_datos},
+                          status=429)
+        ip = ip_cliente(request)
         o = registrar({'nombre': nombre, 'empresa': _limpio(request, 'empresa', 150), 'telefono': telefono,
                        'email': email, 'mensaje': (request.POST.get('mensaje') or '')[:1500]}, ip[:45])
         if quiere_json:

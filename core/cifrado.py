@@ -35,6 +35,11 @@ def descifrar(valor):
         return ''
 
 
+def ilegible(valor):
+    """El valor quedó cifrado con otra SECRET_KEY: está guardado, pero esta instalación no lo puede leer."""
+    return bool(valor) and str(valor).startswith(PREFIJO) and not descifrar(valor)
+
+
 def cifrar_guardados(app, modelo, campos):
     """Para una migración (RunPython): vuelve a guardar los valores existentes de CampoCifrado, así los antiguos sin
     cifrar quedan cifrados."""
@@ -52,10 +57,16 @@ class CampoCifrado(models.TextField):
     sin cifrar se lee igual y se cifra al volver a guardarse. Las copias de respaldo (JSON) lo llevan cifrado."""
 
     def from_db_value(self, value, expression, connection):
-        return descifrar(value) if value else value
+        # v1.115: si no se puede descifrar (se guardó con otra SECRET_KEY) se conserva el valor cifrado tal cual en
+        # vez de leerlo vacío: antes, al volver a guardar el registro, ese vacío reemplazaba el dato («se borraba
+        # solo»). El código que lo usa lo reconoce con ilegible() y pide volver a ingresarlo.
+        if not value:
+            return value
+        return descifrar(value) or (value if value.startswith(PREFIJO) else '')
 
     def to_python(self, value):
-        return descifrar(value) if isinstance(value, str) and value.startswith(PREFIJO) else value
+        # también aquí: lo que no se puede descifrar se conserva cifrado (get_prep_value pasa por to_python)
+        return (descifrar(value) or value) if isinstance(value, str) and value.startswith(PREFIJO) else value
 
     def get_prep_value(self, value):
         value = super().get_prep_value(value)

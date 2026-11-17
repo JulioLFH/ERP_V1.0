@@ -14,6 +14,11 @@ D0 = Decimal('0')
 TIPO_DOC_PLAME = {'01': '01', '04': '04', '07': '07'}
 # indemnizaciones (no remunerativas): sin código propio, no se exigen en el PLAME
 NO_PLAME = {'INDEMNIZACION', 'INDEMN_VACACIONAL'}
+# PLA-01: códigos que el PDT PLAME calcula y que la estructura 18 (.rem) dice no incluir: los encabezados de rubro
+# de la tabla 22 (0100, 0200, 0300, 0400, 0500, 0600 y 0800; no son conceptos con monto), 0603, 0604, 0607 (ONP),
+# 0610, 0612, 0616, 0802, 0804 (EsSalud), 0806 y 0808
+CALCULA_EL_PDT = {'0100', '0200', '0300', '0400', '0500', '0600', '0603', '0604', '0607', '0610', '0612', '0616',
+                  '0800', '0802', '0804', '0806', '0808'}
 
 
 def _marcar(periodo):
@@ -168,7 +173,8 @@ def asiento_planillas(periodo, cta):
 # ---------------------------------------------------------------- PLAME
 def archivos_plame(periodo, ruc):
     """(nombre del zip, bytes) con los archivos de importación del PDT PLAME del periodo:
-    .rem (conceptos por trabajador), .jor (horas ordinarias y sobretiempo) y .snl (días no laborados)."""
+    .rem (conceptos por trabajador), .jor (horas ordinarias y sobretiempo), .snl (días no laborados) y, si hay
+    recibos por honorarios pagados en el periodo, .ps4 (prestadores de 4ta categoría) y .4ta (sus comprobantes)."""
     from .models import Parametro
     planillas = Planilla.objects.filter(periodo=periodo, estado__in=('CALCULADA', 'CERRADA', 'PAGADA'))
     if not planillas.exists():
@@ -185,6 +191,8 @@ def archivos_plame(periodo, ruc):
             if not l.concepto.codigo_plame:
                 if l.concepto.clave not in NO_PLAME:
                     sin_codigo.add(l.concepto.nombre)
+                continue
+            if l.concepto.codigo_plame in CALCULA_EL_PDT:
                 continue
             rem[(doc, l.concepto.codigo_plame)] += l.monto
         if fila.planilla.tipo == 'MENSUAL':
@@ -208,4 +216,95 @@ def archivos_plame(periodo, ruc):
         z.writestr(f'{base}.jor', '\r\n'.join(jor) + ('\r\n' if jor else ''))
         if snl:
             z.writestr(f'{base}.snl', '\r\n'.join(snl) + '\r\n')
+        ps4, cuarta = archivos_cuarta(periodo)
+        if cuarta:  # nombres con Ñ y tildes: en ANSI (Windows-1252), como los lee el PDT
+            z.writestr(f'{base}.ps4', ('\r\n'.join(ps4) + '\r\n').encode('cp1252', 'replace'))
+            z.writestr(f'{base}.4ta', ('\r\n'.join(cuarta) + '\r\n').encode('cp1252', 'replace'))
     return f'PLAME_{periodo}.zip', buf.getvalue()
+
+
+# ---------------------------------------------------------------- PLAME: rentas de 4ta categoría (PLA-04)
+# Estructuras de importación del PDT PLAME (SUNAT), campos separados por «|» (también al final de la línea):
+#
+# Estructura 7 · .ps4 · «Prestadores de servicios con rentas de 4ta categoría» (una línea por prestador):
+#   1 tipo de documento (tabla 3: 01 DNI, 04 carné de extranjería, 06 RUC, 07 pasaporte) | 2 número de documento |
+#   3 apellido paterno | 4 apellido materno | 5 nombres | 6 domiciliado (1 sí / 0 no) |
+#   7 convenio para evitar la doble tributación (0 ninguno)
+#
+# Estructura 20 · .4ta · «Detalle de comprobantes - 4ta categoría» (una línea por comprobante):
+#   1 tipo de documento del prestador | 2 número de documento | 3 tipo de comprobante (R recibo por honorarios /
+#   N nota de crédito) | 4 serie | 5 número | 6 monto total del servicio (S/) | 7 fecha de emisión (dd/mm/aaaa) |
+#   8 fecha de pago (dd/mm/aaaa) | 9 indicador de retención de 4ta categoría (1 sí / 0 no) |
+#   10 indicador de retención del régimen pensionario | 11 importe del aporte al régimen pensionario
+#   (10 y 11: aporte obligatorio de los independientes, Ley 29903, sin aplicación: van vacíos)
+#
+# El prestador con RUC 10 (persona natural con DNI) se declara con su DNI (dígitos 3 a 10 del RUC); el resto con
+# su RUC (06) o el documento que tenga. Entran los recibos (tipo 02) cuyo pago se completó dentro del periodo
+# (caja y bancos y lo cancelado sin caja), con las notas de crédito que los modifican.
+DOC_PRESTADOR = {'1': '01', '4': '04', '6': '06', '7': '07'}
+
+
+def _doc_prestador(tercero):
+    numero = (tercero.numero_doc or '').strip()
+    if tercero.tipo_doc == '6' and len(numero) == 11 and numero.startswith('10'):
+        return '01', numero[2:10]
+    return DOC_PRESTADOR.get(tercero.tipo_doc, '01'), numero
+
+
+def _apellidos_nombres(nombre):
+    """(paterno, materno, nombres) del nombre del proveedor: «PATERNO MATERNO, NOMBRES» o, como lo da el padrón
+    de la SUNAT, «PATERNO MATERNO NOMBRES»."""
+    nombre = ' '.join((nombre or '').upper().split())
+    if ',' in nombre:
+        apellidos, nombres = nombre.split(',', 1)
+        partes = apellidos.split()
+        return (partes[0] if partes else ''), ' '.join(partes[1:]), nombres.strip()
+    partes = nombre.split()
+    if len(partes) >= 3:
+        return partes[0], partes[1], ' '.join(partes[2:])
+    if len(partes) == 2:
+        return partes[0], '', partes[1]
+    return nombre, '', ''
+
+
+def _fecha_pago(compra):
+    """Fecha en que lo pagado completa el neto del recibo (None si aún tiene saldo)."""
+    pagos = sorted([(m.fecha, m.monto_doc) for m in compra.movimientos.all()] +
+                   [(a.fecha, a.monto_doc) for a in compra.aplicaciones.all()], key=lambda x: x[0])
+    acumulado, tope = compra.pagado_anterior, compra.neto - Decimal('0.01')
+    for fecha, monto in pagos:
+        acumulado += monto
+        if acumulado >= tope:
+            return fecha
+    return None
+
+
+def archivos_cuarta(periodo):
+    """(líneas .ps4, líneas .4ta) de los recibos por honorarios pagados en el periodo."""
+    from django.db.models import Q
+    from compras.models import Compra
+    desde, hasta = rango(periodo)
+    recibos = (Compra.objects.filter(tipo_comprobante='02', estado='REGISTRADO', es_historico=False)
+               .filter(Q(movimientos__fecha__range=(desde, hasta), movimientos__estado='VIGENTE') |
+                       Q(aplicaciones__fecha__range=(desde, hasta), aplicaciones__estado='VIGENTE'))
+               .distinct().select_related('tercero'))
+    pagados = []
+    for r in recibos:
+        fecha = _fecha_pago(r)
+        if fecha and desde <= fecha <= hasta:
+            pagados.append((r, fecha))
+    notas = defaultdict(list)
+    for nc in Compra.objects.filter(tipo_comprobante='07', estado='REGISTRADO',
+                                    doc_referencia__in=[r for r, _ in pagados]):
+        notas[nc.doc_referencia_id].append(nc)
+    prestadores, cuarta = {}, []
+    for r, fecha in sorted(pagados, key=lambda x: (x[0].tercero.nombre, x[0].fecha_emision, x[0].pk)):
+        tipo, numero = _doc_prestador(r.tercero)
+        if (tipo, numero) not in prestadores:
+            paterno, materno, nombres = _apellidos_nombres(r.tercero.nombre)
+            domiciliado = '1' if (r.tercero.pais or '').strip().upper() in ('', 'PERU', 'PERÚ') else '0'
+            prestadores[(tipo, numero)] = f'{tipo}|{numero}|{paterno}|{materno}|{nombres}|{domiciliado}|0|'
+        for c, clase in [(r, 'R')] + [(nc, 'N') for nc in notas[r.pk]]:
+            cuarta.append(f'{tipo}|{numero}|{clase}|{c.serie}|{c.numero}|{r2(c.total_pen):.2f}|'
+                          f'{c.fecha_emision:%d/%m/%Y}|{fecha:%d/%m/%Y}|{1 if c.retencion_monto > 0 else 0}|||')
+    return [prestadores[k] for k in sorted(prestadores)], cuarta

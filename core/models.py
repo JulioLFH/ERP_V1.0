@@ -217,6 +217,12 @@ class Empresa(models.Model):
     buen_contribuyente = models.BooleanField(
         'Buen contribuyente', default=False,
         help_text='Si SUNAT la calificó como buen contribuyente: vence en la fecha de la columna «BC» del cronograma')
+    # SIR-03: obligada a llevar los registros de ventas y compras en el SIRE (RS 112-2021/SUNAT y modificatorias): los
+    # registros se exportan en el formato del SIRE (14.4 / 8.4 / 8.5); sin marcar, en el del PLE (14.1 / 8.1)
+    obligado_sire = models.BooleanField(
+        'Obligado al SIRE', default=False,
+        help_text='Lleva el Registro de Ventas (RVIE) y el de Compras (RCE) en el SIRE: los registros se exportan en '
+                  'el formato del SIRE en lugar del PLE')
 
     class Meta:
         verbose_name = 'empresa'
@@ -1347,6 +1353,53 @@ class PropuestaSIRE(models.Model):
 
     def __str__(self):
         return f'{self.libro} {self.periodo[4:]}/{self.periodo[:4]}'
+
+
+class EnvioSIRE(models.Model):
+    """Archivo que el ERP arma con lo registrado y envía al SIRE (SIR-01 y SIR-02): reemplazo de la propuesta
+    (oportunidad 02) del RVIE 14.4 o del RCE 8.4, registro de no domiciliados 8.5 y ajustes posteriores (03 a 05).
+    Guarda el ZIP enviado, el ticket de SUNAT y las inconsistencias que devuelve (core/sire_envio.py)."""
+    LIBROS = PropuestaSIRE.LIBROS
+    REGISTROS = [('140400', 'Registro de Ventas e Ingresos (RVIE) 14.4'), ('080400', 'Registro de Compras (RCE) 8.4'),
+                 ('080500', 'Compras con sujetos no domiciliados (RCE) 8.5')]
+    OPORTUNIDADES = [('02', '02 Reemplazo de la propuesta'), ('03', '03 Ajuste posterior'),
+                     ('04', '04 Ajuste posterior de periodos anteriores (general)'),
+                     ('05', '05 Ajuste posterior de periodos anteriores (simplificado)')]
+    ESTADOS = [('GENERADO', 'Generado (sin enviar)'), ('ENVIADO', 'Enviado: SUNAT lo procesa'),
+               ('TERMINADO', 'Recibido por SUNAT'), ('OBSERVADO', 'Con inconsistencias'), ('ERROR', 'Error')]
+    libro = models.CharField(max_length=4, choices=LIBROS)
+    registro = models.CharField(max_length=6, choices=REGISTROS)
+    periodo = models.CharField('Periodo (AAAAMM)', max_length=6)
+    oportunidad = models.CharField(max_length=2, choices=OPORTUNIDADES, default='02')
+    correlativo = models.PositiveSmallIntegerField('Correlativo del ajuste', null=True, blank=True)
+    ind_operaciones = models.CharField('Indicador de operaciones', max_length=1, default='1')
+    ind_moneda = models.CharField('Moneda', max_length=1, default='1')
+    nombre_archivo = models.CharField(max_length=80)
+    archivo = models.BinaryField(null=True, blank=True, editable=False)
+    filas = models.PositiveIntegerField('Comprobantes', default=0)
+    estado = models.CharField(max_length=10, choices=ESTADOS, default='GENERADO')
+    ticket = models.CharField(max_length=20, blank=True)
+    mensaje = models.TextField(blank=True)
+    inconsistencias = models.JSONField(default=list, blank=True)
+    archivo_respuesta = models.BinaryField(null=True, blank=True, editable=False)
+    nombre_respuesta = models.CharField(max_length=200, blank=True)
+    ticket_registro = models.CharField('Ticket del registro del preliminar', max_length=20, blank=True)
+    registrado_en = models.DateTimeField('Preliminar registrado en SUNAT', null=True, blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='+')
+    creado = models.DateTimeField(auto_now_add=True)
+    actualizado = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-creado', '-id']
+        verbose_name = 'envío al SIRE'
+        verbose_name_plural = 'envíos al SIRE'
+
+    def __str__(self):
+        return f'{self.registro} {self.periodo[4:]}/{self.periodo[:4]} ({self.oportunidad})'
+
+    @property
+    def es_ajuste(self):
+        return self.oportunidad in ('03', '04', '05')
 
 
 class EmpresaGrupo(models.Model):

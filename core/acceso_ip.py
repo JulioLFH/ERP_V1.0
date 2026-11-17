@@ -26,11 +26,23 @@ _pendientes = {}       # ip -> [veces, bloqueos, ruta, navegador, usuario, permi
 _candado = threading.Lock()
 
 
-def ip_cliente(request):
+def _detras_de_proxy(request):
+    """La conexión viene del proxy del mismo servidor (IIS con PROXY_IIS, que activa USE_X_FORWARDED_HOST) o se
+    configuró CONFIAR_PROXY=1: solo entonces se creen las cabeceras con la IP del visitante."""
+    from django.conf import settings
     if os.environ.get('CONFIAR_PROXY') == '1':
-        reenviada = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
-        if reenviada:
-            return reenviada[:45]
+        return True
+    return getattr(settings, 'USE_X_FORWARDED_HOST', False) and request.META.get('REMOTE_ADDR') in LOCALES
+
+
+def ip_cliente(request):
+    """IP del visitante. Detrás de IIS (v1.115): la que entrega Cloudflare (CF-Connecting-IP) o la primera de
+    X-Forwarded-For; sin proxy, la de la conexión. Antes, detrás de IIS todos los visitantes salían como 127.0.0.1."""
+    if _detras_de_proxy(request):
+        for cabecera in ('HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR'):
+            reenviada = request.META.get(cabecera, '').split(',')[0].strip()
+            if reenviada:
+                return reenviada[:45]
     return (request.META.get('REMOTE_ADDR') or '')[:45]
 
 

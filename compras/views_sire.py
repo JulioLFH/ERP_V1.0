@@ -65,8 +65,13 @@ def comparar(request):
         except sire.ErrorSIRE as exc:
             messages.error(request, str(exc))
         else:
-            periodo = form.cleaned_data['periodo']
-            _guardar(request, periodo, encabezados, registros)
+            aviso = sire.otro_periodo(registros, form.cleaned_data['periodo'])
+            if aviso:  # v1.115: el archivo debe ser del periodo que se carga
+                messages.error(request, aviso)
+                registros = None
+            else:
+                periodo = form.cleaned_data['periodo']
+                _guardar(request, periodo, encabezados, registros)
     elif request.method == 'GET' and request.GET.get('ultimo'):
         periodo, _, registros = _de_sesion(request)
     resultado = None

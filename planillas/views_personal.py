@@ -259,6 +259,13 @@ def t_registro(request):
     hoy = timezone.localdate()
     desde = _fecha(request.GET.get('desde')) or hoy.replace(day=1)
     hasta = _fecha(request.GET.get('hasta')) or hoy
+    if request.GET.get('formato') == 'zip':  # PLA-05: archivos de importación RP_<RUC>.ide/.tra/.per/.est/.edu
+        from django.http import HttpResponse
+        from .declaraciones import archivos_t_registro
+        nombre, datos, _ = archivos_t_registro(desde, hasta, Empresa.actual().ruc)
+        resp = HttpResponse(datos, content_type='application/zip')
+        resp['Content-Disposition'] = f'attachment; filename="{nombre}"'
+        return resp
     filas = []
     for t in Trabajador.objects.filter(fecha_ingreso__isnull=False).select_related('afp', 'puesto').order_by(
             'apellido_paterno', 'nombres'):

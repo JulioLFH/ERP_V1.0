@@ -628,6 +628,8 @@ MODULOS = [
         'menu': [
             ('SIRE', [('Propuesta de ventas (RVIE)', 'sire_propuestas?libro=RVIE', 'bi-cloud-download'),
                       ('Propuesta de compras (RCE)', 'sire_propuestas?libro=RCE', 'bi-cloud-download'),
+                      # SIR-01/02: reemplazo de la propuesta (14.4 / 8.4), no domiciliados 8.5 y ajustes posteriores
+                      ('Enviar al SIRE (reemplazo, 8.5, ajustes)', 'sire_envios', 'bi-cloud-upload'),
                       ('Cruce de compras con la propuesta', 'compras:sire', 'bi-arrow-left-right')]),
             ('Registros y libros (PLE)', [('Registro de ventas 14.1', 'ventas:registro', 'bi-journal-text'),
                                           ('Registro de compras 8.1', 'compras:registro', 'bi-journal-text'),
@@ -704,6 +706,7 @@ MODULOS = [
             ('Configuración', [('Correlativos / series', 'series', 'bi-123'),
                                ('Tipo de cambio', 'tipos_cambio', 'bi-currency-exchange'),
                                ('Facturación electrónica', 'facturacion', 'bi-cloud-upload'),
+                               ('Credenciales SUNAT y SIRE', 'credenciales_sunat', 'bi-key'),
                                ('Correo saliente', 'correo', 'bi-envelope'),
                                ('Agentes con IA', 'agentes:configuracion', 'bi-stars'),
                                ('Carga masiva (Excel)', 'carga_masiva', 'bi-file-earmark-arrow-up'),
@@ -776,7 +779,7 @@ RUTAS_CORE = {
     'validacion_reglas': ['sst', 'calidad', 'ajustes'],
     'consulta_ruc': ['ajustes', 'contactos', 'crm', 'ventas', 'compras', 'consulta_ruc'],  # datos para las fichas
     'ruc_consulta': ['consulta_ruc'], 'ruc_historial': ['consulta_ruc'],
-    'facturacion': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
+    'facturacion': ['ajustes'], 'credenciales_sunat': ['ajustes'], 'correo': ['ajustes'], 'respaldo': ['ajustes'],
     'auditoria': ['ajustes'], 'manuales': ['ajustes'], 'manual_pdf': ['ajustes'], 'manual_proceso_pdf': ['ajustes'],
     'incidencias': ['ajustes'], 'incidencia': ['ajustes'], 'acceso_ip': ['ajustes'],
     'modificaciones': [m['clave'] for m in MODULOS],  # se ve dentro del módulo; la vista exige ser administrador
@@ -788,6 +791,7 @@ RUTAS_CORE = {
     # SU-01: el SIRE (propuestas de SUNAT) es de SUNAT y Contabilidad, no de quien solo compra o vende
     'sire_propuestas': ['sunat', 'contabilidad'],
     'sire_propuesta': ['sunat', 'contabilidad'],
+    'sire_envios': ['sunat', 'contabilidad'], 'sire_envio': ['sunat', 'contabilidad'],  # SIR-01/02
     'cronograma_sunat': ['sunat', 'contabilidad', 'ajustes'],  # REQ-02 (lo edita solo el administrador)
     'tercero_banco': ['contactos', 'tesoreria', 'compras', 'ventas', 'crm', 'finanzas'],
     'perfiles_acceso': ['ajustes'], 'sso_lista': ['ajustes'], 'sso_nuevo': ['ajustes'], 'sso_editar': ['ajustes'], 'perfil_acceso_nuevo': ['ajustes'], 'perfil_acceso_editar': ['ajustes'],

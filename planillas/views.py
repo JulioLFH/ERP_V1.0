@@ -237,8 +237,15 @@ def plame(request, periodo):
 
 @login_required
 def aportes_afp(request, periodo):
-    """Retenciones por AFP y trabajador del periodo (para declarar y pagar en AFPnet)."""
-    filas = FilaPlanilla.objects.filter(planilla__periodo=periodo, planilla__tipo='MENSUAL',
+    """Retenciones por AFP y trabajador del periodo (para declarar y pagar en AFPnet). Con formato=afpnet, el
+    archivo de carga de AFPnet (Excel sin títulos, 17 columnas)."""
+    if request.GET.get('formato') == 'afpnet':
+        from .declaraciones import excel_afpnet
+        resp = HttpResponse(excel_afpnet(periodo),
+                            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        resp['Content-Disposition'] = f'attachment; filename="AFPnet_{periodo}.xlsx"'
+        return resp
+    filas =FilaPlanilla.objects.filter(planilla__periodo=periodo, planilla__tipo='MENSUAL',
                                         planilla__estado__in=('CALCULADA', 'CERRADA', 'PAGADA'),
                                         trabajador__sistema_pensiones='AFP') \
         .select_related('trabajador__afp').prefetch_related('lineas__concepto')

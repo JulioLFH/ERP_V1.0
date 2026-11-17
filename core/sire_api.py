@@ -11,6 +11,8 @@ SIRE Compras» (v28) publicados en cpe.sunat.gob.pe:
 4. Descargar el archivo: GET .../rvierce/gestionprocesosmasivos/web/masivo/archivoreporte → ZIP con el TXT.
 5. Aceptar la propuesta: POST .../rvie/propuesta/web/propuesta/{periodo}/aceptapropuesta (ventas) o
    .../rce/propuesta/web/registroslibros/{periodo}/aceptarpropuesta (compras) → numTicket.
+6. Enviar lo registrado (SIR-01/02): reemplazo de la propuesta, no domiciliados y ajustes posteriores se suben como
+   ZIP con TUS (subir_archivo) → numTicket; luego se registra el preliminar (registrar_preliminar).
 
 El usuario y la clave SOL se registran una vez en Ajustes › Empresa (la clave cifrada) y se usan solos para pedir el
 token cada vez que vence: la sesión se mantiene sin pedir nada. Solo si faltan allí, o SUNAT no los acepta, se avisa
@@ -121,8 +123,13 @@ def iniciar_sesion():
     """Pide el token con el usuario y la clave SOL de Ajustes › Empresa. Lo deja en la caché por el tiempo que SUNAT
     indique."""
     e = Empresa.actual()
+    from .cifrado import ilegible
+    if ilegible(_credenciales(e)[1]):  # v1.115: guardado con otra llave del servidor; no se borra, se pide de nuevo
+        raise ErrorSIRE('El client_secret del SIRE está guardado con otra llave del servidor y no se puede leer: '
+                        'vuelva a ingresarlo en Ajustes › Credenciales SUNAT y SIRE.')
     if not configurada(e):
-        raise ErrorSIRE('Registre en Ajustes › Empresa el client_id, el client_secret y el usuario SOL del SIRE.')
+        raise ErrorSIRE('Registre en Ajustes › Credenciales SUNAT y SIRE el client_id, el client_secret y el usuario '
+                        'SOL del SIRE.')
     clave_sol = clave_guardada(e)
     if not clave_sol:
         raise ErrorSIRE(FALTA_CLAVE)
@@ -156,6 +163,11 @@ def _api(metodo, ruta, binario=False):
     def llamar():
         return _http(metodo, BASE + ruta, b'' if metodo == 'POST' else None,
                      {'Authorization': f'Bearer {_token()}', 'Content-Type': 'application/json'}, binario=binario)
+    return _con_sesion(llamar)
+
+
+def _con_sesion(llamar):
+    """Llama a SUNAT con el token vigente; si lo rechaza, pide otro con la clave guardada y reintenta una vez."""
     try:
         return llamar()
     except SesionVencida:
@@ -215,3 +227,94 @@ def aceptar_propuesta(libro, periodo):
     """Acepta la propuesta en SUNAT (queda como preliminar del registro del periodo). Devuelve el ticket."""
     resp = _api('POST', ACEPTAR[libro].format(periodo=periodo))
     return str(resp.get('numTicket') or '')
+
+
+# ---------------------------------------------------------------- envío de archivos al SIRE (SIR-01 y SIR-02)
+# Según los manuales «Servicios Web API SIRE Compras» (v28, servicios 5.3, 5.4, 5.5, 5.18, 5.19, 5.21) y «Servicio API
+# del RVIE» (v31, servicios 5.3 y de ajustes posteriores): el ZIP con el TXT se sube con el protocolo TUS 1.0.0 (POST
+# que crea la carga con los metadatos en «Upload-Metadata» y PATCH con el contenido); SUNAT responde el numTicket,
+# que se sigue con consultaestadotickets (estado_ticket) como la propuesta.
+SUBIR = {'propuesta': '/rvierce/receptorpropuesta/web/propuesta/upload',  # 5.3 reemplazo de la propuesta
+         'preliminar': '/rvierce/receptorpreliminar/web/preliminar/upload',  # 5.5 no domiciliados (RCE)
+         'ajustes': '/rvierce/receptorajustesposteriores/web/ajustesposteriores/upload'}  # 5.18 / 5.21
+# (código de registro, oportunidad) -> (servicio, codProceso del Anexo I «Indicador de carga masiva»). Los de ajustes
+# de periodos anteriores (04 y 05) se tomaron del Anexo I (general / simplificado): verifíquelos con el manual vigente.
+PROCESO_CARGA = {
+    ('080400', '02'): ('propuesta', '61'), ('140400', '02'): ('propuesta', '3'), ('080500', '02'): ('preliminar', '56'),
+    ('080400', '03'): ('ajustes', '6'), ('140400', '03'): ('ajustes', '87'), ('080500', '03'): ('ajustes', '60'),
+    ('080400', '04'): ('ajustes', '94'), ('140400', '04'): ('ajustes', '88'), ('080500', '04'): ('ajustes', '95'),
+    ('080400', '05'): ('ajustes', '93'), ('140400', '05'): ('ajustes', '89'), ('080500', '05'): ('ajustes', '95'),
+}
+ORIGEN_SERVICIO_WEB = '2'
+CORRELATIVO_MASIVO = '01'
+# después de la carga: 5.4 registrar preliminar (reemplazo 8.4 y no domiciliados 8.5; en ventas, el de gestionlibro) y
+# 5.19 enviar ajustes posteriores (RCE). Los ajustes del RVIE se generan luego en el portal SIRE.
+REGISTRAR_PRELIMINAR = {'RCE': '/rce/preliminar/web/registroslibros/{periodo}/registrapreliminares',
+                        'RVIE': '/rvierce/gestionlibro/web/registroslibros/{periodo}/registrapreliminar'}
+REGISTRAR_AJUSTES = {'RCE': '/rce/ajustesposteriores/web/comprobantesajuspost/{periodo}/1/registrarajustesposterioresrc'}
+
+
+def _http_crudo(metodo, url, datos, cabeceras):
+    """(cabeceras, cuerpo) de la respuesta; los errores como en _http (401/403 = sesión vencida)."""
+    req = urllib.request.Request(url, data=datos, method=metodo,
+                                 headers={'User-Agent': 'Ceiba-ERP', 'Accept': 'application/json', **cabeceras})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return dict(resp.headers.items()), resp.read()
+    except urllib.error.HTTPError as exc:
+        detalle = exc.read().decode('utf-8', 'ignore')[:500]
+        if exc.code in (401, 403):
+            raise SesionVencida('SUNAT no aceptó la sesión al subir el archivo.') from exc
+        raise ErrorSIRE(f'SUNAT respondió {exc.code}: {_mensaje(detalle)}') from exc
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise ErrorSIRE(f'No se pudo conectar con SUNAT: {exc}') from exc
+
+
+def _tus_subir(url, contenido, metadatos):
+    """Sube el archivo con TUS 1.0.0: crea la carga (POST) y envía todo el contenido en un PATCH. Devuelve el ticket."""
+    import base64
+    meta = ','.join(f'{k} {base64.b64encode(str(v).encode()).decode()}' for k, v in metadatos.items())
+
+    def subir():
+        cab = {'Authorization': f'Bearer {_token()}', 'Tus-Resumable': '1.0.0'}
+        encabezados, _ = _http_crudo('POST', url, b'', {**cab, 'Upload-Length': str(len(contenido)),
+                                                         'Upload-Metadata': meta})
+        destino = {k.lower(): v for k, v in encabezados.items()}.get('location')
+        if not destino:
+            raise ErrorSIRE('SUNAT no indicó dónde subir el archivo (falta Location en la respuesta).')
+        encabezados, cuerpo = _http_crudo('PATCH', urllib.parse.urljoin(url, destino), contenido, {
+            **cab, 'Upload-Offset': '0', 'Content-Type': 'application/offset+octet-stream'})
+        texto = (cuerpo or b'').decode('utf-8', 'ignore').strip()
+        try:
+            datos = json.loads(texto) if texto else {}
+        except ValueError:
+            datos = {}
+        ticket = (datos.get('numTicket') if isinstance(datos, dict) else None) or \
+            {k.lower(): v for k, v in encabezados.items()}.get('numticket')
+        if not ticket:
+            raise ErrorSIRE(f'SUNAT recibió el archivo pero no devolvió ticket: {texto[:300] or "respuesta vacía"}')
+        return str(ticket)
+    return _con_sesion(subir)
+
+
+def subir_archivo(libro, registro, oportunidad, periodo, nombre_zip, contenido):
+    """Envía al SIRE el ZIP con el TXT (reemplazo, no domiciliados o ajuste posterior). Devuelve el número de ticket."""
+    clave = PROCESO_CARGA.get((registro, oportunidad))
+    if clave is None:
+        raise ErrorSIRE(f'SUNAT no recibe el registro {registro} con la oportunidad {oportunidad}.')
+    servicio, proceso = clave
+    e = Empresa.actual()
+    return _tus_subir(BASE + SUBIR[servicio], contenido, {
+        'filename': nombre_zip, 'filetype': 'application/zip', 'numRuc': e.ruc, 'perTributario': periodo,
+        'codOrigenEnvio': ORIGEN_SERVICIO_WEB, 'codProceso': proceso, 'codTipoCorrelativo': CORRELATIVO_MASIVO,
+        'nomArchivoImportacion': nombre_zip, 'codLibro': COD_LIBRO[libro]})
+
+
+def registrar_preliminar(libro, periodo, ajuste=False):
+    """Registra en SUNAT el preliminar (5.4) o los ajustes posteriores (5.19) ya cargados. Devuelve el ticket ('' si
+    SUNAT terminó sin ticket)."""
+    rutas = REGISTRAR_AJUSTES if ajuste else REGISTRAR_PRELIMINAR
+    if libro not in rutas:
+        raise ErrorSIRE('Los ajustes posteriores del RVIE se generan en el portal SIRE después de la carga.')
+    resp = _api('POST', rutas[libro].format(periodo=periodo))
+    return str((resp or {}).get('numTicket') or '') if isinstance(resp, dict) else ''

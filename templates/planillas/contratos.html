@@ -6,6 +6,12 @@
   <div class="d-flex gap-2">
     <a href="?filtro={{ filtro }}&formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Excel</a>
     <a href="{% url 'planillas:t_registro' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-excel"></i> Datos para el T-Registro</a>
+    <form method="get" action="{% url 'planillas:t_registro' %}" class="d-flex gap-1 align-items-center" title="Archivos de importación del T-Registro (RP_RUC.ide, .tra, .per, .est, .edu) con las altas y bajas del rango">
+      <input type="hidden" name="formato" value="zip">
+      <input type="date" name="desde" class="form-control form-control-sm" aria-label="Desde">
+      <input type="date" name="hasta" class="form-control form-control-sm" aria-label="Hasta">
+      <button class="btn btn-sm btn-outline-secondary text-nowrap"><i class="bi bi-file-zip"></i> Archivos T-Registro</button>
+    </form>
   </div>
 </div>
 <p class="small text-muted">Contrato vigente de cada trabajador con su modalidad y vencimiento (se avisa 30 días antes en la campana), y los documentos del legajo por vencer o que faltan. Para registrar un contrato, su renovación o un documento, abra el legajo del trabajador.</p>

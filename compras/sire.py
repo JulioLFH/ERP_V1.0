@@ -129,6 +129,21 @@ def _es_propia(encabezado, montos=True):
     return any(_es_columna(e, claves) for claves in list(PROPIAS.values()) + extra)
 
 
+OTRO_PERIODO = 'Se están cargando datos de otro periodo'
+
+
+def otro_periodo(registros, periodo):
+    """(v1.115) Mensaje si el archivo trae comprobantes de un periodo distinto al que se está cargando ('' si todo
+    coincide o el archivo no tiene la columna Periodo)."""
+    otros = sorted({r.get('periodo') for r in registros if r.get('periodo') and r['periodo'] != periodo})
+    if not otros:
+        return ''
+    n = sum(1 for r in registros if r.get('periodo') in otros)
+    texto = ', '.join(f'{p[4:]}/{p[:4]}' for p in otros)
+    return (f'{OTRO_PERIODO}: el archivo trae {n} comprobante(s) del periodo {texto} y se está cargando '
+            f'{periodo[4:]}/{periodo[:4]}. Revise el archivo o elija el periodo correcto.')
+
+
 def montos(filas):
     """Valida la detracción, retención y percepción de cada comprobante por crear: r['montos_error'] ('' si están
     bien). La detracción solo va en facturas y la suma no puede superar el total."""
@@ -268,6 +283,7 @@ def leer_completo(archivo):
          'fecha': col('fecha de emision', 'fecha emision'), 'base': col('bi grav', 'base imponible'),
          'igv': col('igv / ipm', 'igv'), 'total': col('total cp', 'importe total', 'total'),
          'tipo_doc': col('tipo doc identidad', 'tipo de documento de identidad'),
+         'periodo': col('periodo'),  # periodo tributario de la propuesta (v1.115: debe ser el que se carga)
          'vencimiento': col('fecha vcto', 'fecha de vencimiento'), 'moneda': col('moneda', 'cod moneda'),
          'tc': col('tipo cambio', 'tipo de cambio'), 'exonerado': col('mto exonerado', 'valor adq. ng', 'adq no grav'),
          'inafecto': col('mto inafecto'),
@@ -294,7 +310,8 @@ def leer_completo(archivo):
         # SUNAT entrega las notas de crédito en negativo; en el ERP se guardan en positivo (el registro ya las resta)
         signo = (lambda x: abs(x)) if tipo == '07' else (lambda x: x)
         ref_numero = _texto(valor(fila, 'ref_numero'))
-        registros.append({'ruc': str(valor(fila, 'ruc') or '').strip(), 'nombre': str(valor(fila, 'nombre') or ''),
+        per = re.sub(r'\D', '', _texto(valor(fila, 'periodo')))[:6]
+        registros.append({'periodo': per if len(per) == 6 else '','ruc': str(valor(fila, 'ruc') or '').strip(), 'nombre': str(valor(fila, 'nombre') or ''),
                           'tipo': tipo, 'serie': serie,
                           'numero': numero.lstrip('0') or '0', 'fecha': _fecha(valor(fila, 'fecha')),
                           'base': signo(_dec(valor(fila, 'base'))), 'igv': signo(_dec(valor(fila, 'igv'))),

@@ -99,7 +99,8 @@ def ejecutar(aliases, accion, periodo):
 
 
 def ple_zip(aliases, periodo):
-    """ZIP con el PLE de ventas (14.1) y compras (8.1) del periodo de cada empresa. (bytes, [(alias, mensaje)])"""
+    """ZIP con el PLE de ventas (14.1) y compras (8.1) del periodo de cada empresa; las obligadas al SIRE (SIR-03), con
+    los TXT del SIRE (14.4, 8.4 y el 8.5 si hay no domiciliados). (bytes, [(alias, mensaje)])"""
     from compras.views import compras_views
     from ventas.views import ventas_views
 
@@ -110,12 +111,20 @@ def ple_zip(aliases, periodo):
             token = reg.activar(alias)
             try:
                 empresa = Empresa.actual()
+                carpeta = f'{empresa.ruc} {empresa.razon_social[:40]}'
+                if empresa.obligado_sire:
+                    from .sire_envio import archivos_registro
+                    for vista in (ventas_views, compras_views):
+                        for nombre, txt in archivos_registro(vista.codigo_sire, periodo, empresa):
+                            z.writestr(f'{carpeta}/{nombre}', txt)
+                    notas.append((alias, f'{empresa.razon_social}: registros de ventas y compras del SIRE generados'))
+                    continue
                 for vista in (ventas_views, compras_views):
                     docs = list(vista._registro_qs(periodo))
                     lineas = [vista.linea_ple(periodo, n, d) for n, d in enumerate(docs, 1)]
                     indicador = '1' if lineas else '0'
                     nombre = f'LE{empresa.ruc}{periodo}00{vista.codigo_ple}00{indicador}11.txt'
-                    z.writestr(f'{empresa.ruc} {empresa.razon_social[:40]}/{nombre}', '\r\n'.join(lineas) +
+                    z.writestr(f'{carpeta}/{nombre}', '\r\n'.join(lineas) +
                                ('\r\n' if lineas else ''))
                 notas.append((alias, f'{empresa.razon_social}: PLE de ventas y compras generados'))
             except Exception as exc:

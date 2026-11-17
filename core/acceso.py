@@ -10,6 +10,9 @@ from .models import IntentoAcceso
 
 MAX_INTENTOS = 5  # códigos del doble factor (siempre); la contraseña, según Ajustes › Empresa › Seguridad
 MINUTOS_BLOQUEO = 15
+# SEG-06 (v1.115): aunque la empresa no bloquee usuarios (0 intentos), una misma IP no puede probar más de 10
+# contraseñas en 15 minutos: se rechaza esa IP (no el usuario) hasta que pase la ventana.
+MAX_INTENTOS_IP = 10
 
 
 def max_intentos():
@@ -24,8 +27,20 @@ def max_intentos_codigo():
 
 
 def _ip(request):
-    return (request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
-            or request.META.get('REMOTE_ADDR', ''))[:45]
+    from .acceso_ip import ip_cliente
+    return ip_cliente(request)
+
+
+def intentos_ip(ip):
+    desde = timezone.now() - timedelta(minutes=MINUTOS_BLOQUEO)
+    return IntentoAcceso.objects.filter(ip=ip, creado__gte=desde).count()
+
+
+def ip_frenada(request):
+    """La IP superó los intentos fallidos permitidos (la propia PC del servidor nunca se frena)."""
+    from .acceso_ip import LOCALES
+    ip = _ip(request) if request else ''
+    return bool(ip) and ip not in LOCALES and intentos_ip(ip) >= MAX_INTENTOS_IP
 
 
 def intentos_recientes(usuario):
@@ -41,6 +56,10 @@ class LoginSeguroForm(AuthenticationForm):
 
     def clean(self):
         usuario = (self.data.get('username') or '').strip()
+        if ip_frenada(self.request):  # SEG-06: antes de probar la contraseña (aunque sea la correcta)
+            raise forms.ValidationError(
+                f'Demasiados intentos fallidos desde su conexión. Intente de nuevo en {MINUTOS_BLOQUEO} minutos.',
+                code='ip_frenada')
         maximo = max_intentos()
         if maximo and usuario and intentos_recientes(usuario) >= maximo:
             raise self._bloqueado(maximo)

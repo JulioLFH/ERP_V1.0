@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Envío SIRE {{ e }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title"><i class="bi bi-cloud-upload"></i> {{ e.get_registro_display }} · {{ e.periodo|slice:'4:' }}/{{ e.periodo|slice:':4' }}</h1>
+  <div class="d-flex gap-2">
+    {% if e.archivo %}<a href="?descargar=archivo" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-zip"></i> Archivo enviado</a>{% endif %}
+    {% if e.archivo_respuesta %}<a href="?descargar=respuesta" class="btn btn-sm btn-outline-warning"><i class="bi bi-file-earmark-text"></i> Reporte de SUNAT</a>{% endif %}
+    <a href="{% url 'sire_envios' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Envíos</a>
+  </div>
+</div>
+<div class="alert {% if e.estado == 'TERMINADO' %}alert-success{% elif e.estado == 'ERROR' %}alert-danger{% else %}alert-warning{% endif %} small py-2">
+  <b>{{ e.get_estado_display }}</b> · {{ e.mensaje }}{% if e.ticket %} · Ticket {{ e.ticket }}{% endif %}{% if e.registrado_en %} · <b>Preliminar registrado</b> el {{ e.registrado_en|date:'d/m/Y H:i' }}{% if e.ticket_registro %} (ticket {{ e.ticket_registro }}){% endif %}{% endif %}
+</div>
+<dl class="row small mb-3">
+  <dt class="col-sm-3">Archivo</dt><dd class="col-sm-9 font-monospace">{{ e.nombre_archivo }}</dd>
+  <dt class="col-sm-3">Oportunidad</dt><dd class="col-sm-9">{{ e.get_oportunidad_display }}{% if e.correlativo %} · correlativo {{ e.correlativo|stringformat:'02d' }}{% endif %}</dd>
+  <dt class="col-sm-3">Comprobantes</dt><dd class="col-sm-9">{{ e.filas }}</dd>
+  <dt class="col-sm-3">Enviado por</dt><dd class="col-sm-9">{{ e.usuario|default:'' }} · {{ e.creado|date:'d/m/Y H:i' }}</dd>
+</dl>
+{% if e.estado == 'ENVIADO' %}
+<form method="post" class="mb-3">{% csrf_token %}<input type="hidden" name="accion" value="consultar">
+  <button class="btn btn-sm btn-primary"><i class="bi bi-arrow-repeat"></i> Consultar el ticket a SUNAT</button>
+</form>
+{% endif %}
+{% if e.inconsistencias %}<div class="card border-warning mb-3"><div class="card-header text-warning-emphasis">Inconsistencias que informa SUNAT ({{ e.inconsistencias|length }})</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 small font-monospace">{% for x in e.inconsistencias %}<tr><td>{{ x }}</td></tr>{% endfor %}</table></div>
+  <div class="card-body py-2 small text-muted">Corrija los comprobantes en el sistema y vuelva a enviar el archivo desde «Enviar al SIRE».</div></div>{% endif %}
+{% if e.estado == 'TERMINADO' or e.estado == 'OBSERVADO' %}{% if not e.registrado_en and puede_enviar and registra %}
+<form method="post" class="card border-primary mb-3" autocomplete="off">{% csrf_token %}<input type="hidden" name="accion" value="registrar">
+  <div class="card-body row g-2 align-items-end">
+    <div class="col-md-8 small"><b>Registrar el preliminar en SUNAT.</b> Cuando SUNAT terminó de cargar el archivo{% if e.inconsistencias %} y revisó las inconsistencias{% endif %}, regístrelo como preliminar {% if e.es_ajuste %}de los ajustes posteriores{% else %}del registro{% endif %} del periodo; la generación final se completa en el portal SIRE.</div>
+    <div class="col-md-3"><button class="btn btn-sm btn-outline-primary w-100" data-confirm="¿Registrar en SUNAT el preliminar de {{ e }}?"><i class="bi bi-check2-circle"></i> Registrar preliminar</button></div>
+  </div>
+</form>
+{% elif not registra and not e.registrado_en %}<div class="alert alert-info small py-2">Complete los ajustes posteriores en el portal SIRE: SUNAT los genera allí después de la carga.</div>{% endif %}{% endif %}
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Enviar al SIRE{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title"><i class="bi bi-cloud-upload"></i> Enviar al SIRE</h1>
+  <a href="{% url 'sire_propuestas' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-cloud-download"></i> Propuestas de SUNAT</a>
+</div>
+<p class="small text-muted mb-3">Arma con lo registrado en el sistema el archivo del SIRE (TXT dentro de un ZIP, con el nombre LE + RUC + periodo + registro + oportunidad que pide SUNAT), lo valida y lo envía: <b>reemplazo de la propuesta</b> del Registro de Ventas (14.4) o de Compras (8.4), las <b>compras con no domiciliados (8.5)</b> y los <b>ajustes posteriores</b> (03, 04 y 05). Luego muestra el ticket y las inconsistencias que devuelva SUNAT.</p>
+{% if not configurada %}<div class="alert alert-info small py-2"><i class="bi bi-info-circle"></i> Para enviarlo directamente a SUNAT registre el client_id, el client_secret y el usuario SOL del SIRE en <a href="{% url 'empresa' %}">Ajustes › Empresa</a>. Mientras tanto puede descargar el ZIP y subirlo en el portal SIRE.</div>
+{% elif not sesion %}<div class="alert alert-warning small py-2"><i class="bi bi-key"></i> Falta la clave SOL del SIRE. Regístrela una vez en <a href="{% url 'empresa' %}">Ajustes › Empresa</a>.</div>{% endif %}
+<div class="card mb-3"><div class="card-body">
+  <form method="post" class="row g-3 align-items-end" autocomplete="off">{% csrf_token %}
+    {% if form.non_field_errors %}<div class="col-12"><div class="alert alert-danger small py-2 mb-0">{{ form.non_field_errors|join:' ' }}</div></div>{% endif %}
+    <div class="col-md-3">{% with field=form.registro %}{% include 'core/_campo.html' %}{% endwith %}</div>
+    <div class="col-md-2">{% with field=form.periodo %}{% include 'core/_campo.html' %}{% endwith %}</div>
+    <div class="col-md-3">{% with field=form.oportunidad %}{% include 'core/_campo.html' %}{% endwith %}</div>
+    <div class="col-md-2">{% with field=form.ind_operaciones %}{% include 'core/_campo.html' %}{% endwith %}</div>
+    <div class="col-md-2">{% with field=form.ind_moneda %}{% include 'core/_campo.html' %}{% endwith %}</div>
+    <div class="col-12">{% with field=form.solo_nuevos %}{% include 'core/_campo.html' %}{% endwith %}</div>
+    <div class="col-12 d-flex flex-wrap gap-2">
+      <button name="accion" value="validar" class="btn btn-outline-secondary"><i class="bi bi-check2-square"></i> Validar</button>
+      <button name="accion" value="descargar" class="btn btn-outline-dark"><i class="bi bi-file-earmark-zip"></i> Generar y descargar el ZIP</button>
+      {% if puede_enviar and configurada %}<button name="accion" value="enviar" class="btn btn-primary" data-confirm="¿Enviar el archivo a SUNAT? Reemplaza la propuesta (o registra el ajuste) del periodo en el SIRE."><i class="bi bi-cloud-upload"></i> Enviar a SUNAT</button>{% elif not puede_enviar %}<span class="small text-muted align-self-center">Enviar a SUNAT exige el permiso de cerrar periodos contables.</span>{% endif %}
+    </div>
+  </form>
+</div></div>
+{% if errores %}<div class="card border-danger mb-3"><div class="card-header text-danger">Errores a corregir antes de generar el archivo ({{ errores|length }})</div>
+  <ul class="list-group list-group-flush small">{% for x in errores %}<li class="list-group-item py-1">{{ x }}</li>{% endfor %}</ul></div>{% endif %}
+{% if avisos %}<div class="card border-warning mb-3"><div class="card-header text-warning-emphasis">Avisos ({{ avisos|length }})</div>
+  <ul class="list-group list-group-flush small">{% for x in avisos %}<li class="list-group-item py-1">{{ x }}</li>{% endfor %}</ul></div>{% endif %}
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+  <thead><tr><th>Registro</th><th>Periodo</th><th>Oportunidad</th><th>Archivo</th><th class="text-center">Comprobantes</th><th>Estado</th><th>Ticket</th><th>Por</th></tr></thead>
+  <tbody>{% for e in envios %}<tr>
+    <td><a href="{% url 'sire_envio' e.pk %}">{{ e.get_registro_display }}</a></td>
+    <td>{{ e.periodo|slice:'4:' }}/{{ e.periodo|slice:':4' }}</td>
+    <td class="small">{{ e.get_oportunidad_display }}{% if e.correlativo %} · N° {{ e.correlativo }}{% endif %}</td>
+    <td class="small font-monospace">{{ e.nombre_archivo }}</td>
+    <td class="text-center">{{ e.filas }}</td>
+    <td><span class="badge {% if e.estado == 'TERMINADO' %}text-bg-success{% elif e.estado == 'ERROR' %}text-bg-danger{% elif e.estado == 'OBSERVADO' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ e.get_estado_display }}</span>{% if e.registrado_en %} <span class="badge text-bg-primary">Preliminar registrado</span>{% endif %}</td>
+    <td class="small">{{ e.ticket|default:'—' }}</td>
+    <td class="small">{{ e.usuario|default:'' }} · {{ e.creado|date:'d/m/Y H:i' }}</td>
+  </tr>{% empty %}<tr><td colspan="8" class="text-center text-muted py-4">Aún no se ha enviado ningún archivo al SIRE.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

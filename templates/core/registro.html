@@ -10,27 +10,28 @@
     <input name="periodo" value="{{ periodo }}" class="form-control form-control-sm" maxlength="6" size="8" placeholder="AAAAMM">
     <button class="btn btn-sm btn-outline-secondary">Ver</button>
     <button name="formato" value="excel" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-excel"></i> Excel</button>
-    <button name="formato" value="ple" class="btn btn-sm btn-dark" title="Archivo TXT para PLE / SIRE"><i class="bi bi-filetype-txt"></i> TXT PLE</button>
+    {% if empresa.obligado_sire %}<button name="formato" value="ple" class="btn btn-sm btn-dark" title="ZIP con el TXT en el formato del SIRE (la empresa está obligada al SIRE)"><i class="bi bi-filetype-txt"></i> TXT SIRE</button>{% else %}<button name="formato" value="ple" class="btn btn-sm btn-dark" title="Archivo TXT para PLE"><i class="bi bi-filetype-txt"></i> TXT PLE</button>{% endif %}
   </form>
 </div>
 <div class="card"><div class="table-responsive">
   <table class="table table-sm table-bordered table-registro mb-0">
     <thead><tr><th>N°</th><th>Emisión</th><th>Venc.</th><th>Tipo</th><th>Serie</th><th>Número</th><th>Doc.</th><th>N° doc.</th><th>{{ etiqueta_tercero }}</th><th>Mon.</th><th>T.C.</th>
-      <th class="num">Base imp.</th><th class="num">Exon./Inaf.</th><th class="num">IGV</th><th class="num">Total</th><th class="num">Detracción</th><th class="num">Retención</th><th class="num">Percepción</th><th>Ref.</th><th>Estado</th></tr></thead>
+      <th class="num">Total mon. orig.</th><th class="num">Base imp. S/</th><th class="num">Exon./Inaf. S/</th><th class="num">IGV S/</th><th class="num">ICBPER S/</th><th class="num">Total S/</th><th class="num">Detracción</th><th class="num">Retención</th><th class="num">Percepción</th><th>Ref.</th><th>Estado</th></tr></thead>
     <tbody>
     {% for d in docs %}
       <tr {% if d.estado == 'ANULADO' %}class="text-decoration-line-through text-muted"{% endif %}>
         <td>{{ forloop.counter }}</td><td>{{ d.fecha_emision|date:'d/m/Y' }}</td><td>{{ d.fecha_vencimiento|date:'d/m/Y' }}</td><td>{{ d.tipo_comprobante }}</td><td>{{ d.serie }}</td>
         <td><a href="{% url app|add:':detalle' d.pk %}">{{ d.numero }}</a></td><td>{{ d.tercero.tipo_doc }}</td><td>{{ d.tercero.numero_doc }}</td><td>{{ d.tercero.nombre|truncatechars:35 }}</td><td>{{ d.moneda }}</td><td>{{ d.tipo_cambio }}</td>
-        <td class="num">{% if d.es_nota_credito %}-{% endif %}{{ d.base_imponible|money }}</td><td class="num">{% if d.es_nota_credito %}-{% endif %}{{ d.no_gravado|money }}</td>
-        <td class="num">{% if d.es_nota_credito %}-{% endif %}{{ d.igv|money }}</td><td class="num fw-semibold">{% if d.es_nota_credito %}-{% endif %}{{ d.total|money }}</td>
-        <td class="num">{{ d.detraccion_monto|money }}</td><td class="num">{{ d.retencion_monto|money }}</td><td class="num">{{ d.percepcion_monto|money }}</td>
+        <td class="num text-muted">{% if d.moneda != 'PEN' %}{% if d.es_nota_credito %}-{% endif %}{{ d.total|money }}{% endif %}</td>
+        <td class="num">{{ d.fila_pen.base|money }}</td><td class="num">{{ d.fila_pen.nograv|money }}</td>
+        <td class="num">{{ d.fila_pen.igv|money }}</td><td class="num">{{ d.fila_pen.icbper|money }}</td><td class="num fw-semibold">{{ d.fila_pen.total|money }}</td>
+        <td class="num">{{ d.fila_pen.detr|money }}</td><td class="num">{{ d.fila_pen.ret|money }}</td><td class="num">{{ d.fila_pen.perc|money }}</td>
         <td>{% if d.doc_referencia %}{{ d.doc_referencia.tipo_comprobante }} {{ d.doc_referencia.numero_completo }}{% endif %}</td><td>{{ d.get_estado_display }}</td>
       </tr>
-    {% empty %}<tr><td colspan="20" class="text-center text-muted py-4">Sin comprobantes en el periodo.</td></tr>{% endfor %}
+    {% empty %}<tr><td colspan="22" class="text-center text-muted py-4">Sin comprobantes en el periodo.</td></tr>{% endfor %}
     </tbody>
-    <tfoot class="fw-bold"><tr><td colspan="11" class="text-end">TOTALES S/</td><td class="num">{{ tot.base|money }}</td><td class="num">{{ tot.nograv|money }}</td><td class="num">{{ tot.igv|money }}</td><td class="num">{{ tot.total|money }}</td><td class="num">{{ tot.detr|money }}</td><td class="num">{{ tot.ret|money }}</td><td class="num">{{ tot.perc|money }}</td><td colspan="2"></td></tr></tfoot>
+    <tfoot class="fw-bold"><tr><td colspan="12" class="text-end">TOTALES S/</td><td class="num">{{ tot.base|money }}</td><td class="num">{{ tot.nograv|money }}</td><td class="num">{{ tot.igv|money }}</td><td class="num">{{ tot.icbper|money }}</td><td class="num">{{ tot.total|money }}</td><td class="num">{{ tot.detr|money }}</td><td class="num">{{ tot.ret|money }}</td><td class="num">{{ tot.perc|money }}</td><td colspan="2"></td></tr></tfoot>
   </table>
 </div></div>
-<p class="small text-muted mt-2">El TXT sigue la estructura del PLE ({{ libro }}). Valídelo con el aplicativo PLE / SIRE de SUNAT antes de presentarlo.</p>
+<p class="small text-muted mt-2">{% if empresa.obligado_sire %}La empresa está obligada al SIRE (Ajustes › Empresa): el TXT sigue la estructura del SIRE ({% if app == 'ventas' %}14.4{% else %}8.4 y, si hay comprobantes de no domiciliados, 8.5{% endif %}) y se descarga en un ZIP; para enviarlo use <a href="{% url 'sire_envios' %}">Enviar al SIRE</a>.{% else %}El TXT sigue la estructura del PLE ({{ libro }}). Valídelo con el aplicativo PLE de SUNAT antes de presentarlo.{% endif %}</p>
 {% endblock %}

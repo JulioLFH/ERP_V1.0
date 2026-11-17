@@ -6,6 +6,7 @@
   <div class="d-flex gap-2">
     {% if p.archivo %}<a href="?descargar=1" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-zip"></i> Archivo de SUNAT</a>{% endif %}
     {% if r %}<a href="?formato=excel" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i> Exportar a Excel (todas las columnas SUNAT)</a>{% endif %}
+    <a href="{% url 'sire_envios' %}?registro={% if p.libro == 'RVIE' %}140400{% else %}080400{% endif %}&periodo={{ p.periodo }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-cloud-upload"></i> Reemplazar con lo registrado</a>
     <a href="{% url 'sire_propuestas' %}?libro={{ p.libro }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Propuestas</a>
   </div>
 </div>
@@ -26,6 +27,7 @@
   <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Solo en SUNAT (faltan en el ERP)</div><div class="fs-5 fw-semibold {% if r.solo_sunat %}text-warning{% endif %}">{{ r.solo_sunat|length }}</div></div></div></div>
   <div class="col-6 col-md-3"><div class="card"><div class="card-body py-2"><div class="small text-muted">Solo en el ERP</div><div class="fs-5 fw-semibold">{{ r.solo_erp|length }}</div></div></div></div>
 </div>
+{% if r.otro_periodo %}<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> {{ r.otro_periodo }} No se puede aceptar ni crear comprobantes desde esta propuesta.</div>{% endif %}
 {% if r.solo_sunat %}
 <form method="post" class="card mb-3">{% csrf_token %}<input type="hidden" name="accion" value="crear">
   <div class="card-header text-warning-emphasis d-flex flex-wrap justify-content-between gap-2"><span>En la propuesta de SUNAT pero no registrados en el periodo</span>

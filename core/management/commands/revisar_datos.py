@@ -67,9 +67,10 @@ def revisiones():
             [f'id {k.pk} {k.fecha:%d/%m/%Y} {k.referencia}' for k in Kardex.objects.filter(fecha__gt=hoy)[:200]])
     agregar('DAT-02', 'Periodos contables de meses futuros',
             [p.periodo for p in PeriodoContable.objects.filter(periodo__gt=(hoy + timedelta(days=31)).strftime('%Y%m'))])
-    agregar('DAT-02', 'Órdenes de producción anuladas sin número, fecha o motivo (regla MAN-R02)',
+    # DAT-03 (v1.115): a una anulada se le exige fecha y motivo; el número no (hay anuladas que nunca lo tuvieron)
+    agregar('DAT-02', 'Órdenes de producción anuladas sin fecha o motivo de anulación (regla MAN-R02)',
             [f'id {o.pk} {o.numero or "(sin número)"}' for o in OrdenProduccion.objects.filter(estado='ANULADA').filter(
-                Q(numero='') | Q(anulado_en__isnull=True) | Q(motivo_anulacion=''))])
+                Q(anulado_en__isnull=True) | Q(motivo_anulacion=''))])
     # DAT-01: lo migrado del sistema anterior (es_historico) que no cuadra
     historicas = Compra.objects.filter(es_historico=True).exclude(estado='ANULADO')
     agregar('DAT-01', 'Compras migradas cuyo total no es la suma de sus componentes',
@@ -79,7 +80,7 @@ def revisiones():
             [f'id {c.pk} {c}: IGV {c.igv} sobre base {c.base_imponible}'
              for c in historicas.filter(base_imponible__gt=0, igv__gt=F('base_imponible') / 2)[:500]])
     agregar('DAT-01', 'Órdenes de producción migradas que terminan antes de empezar',
-            [f'id {o.pk} {o.numero}: {o.fecha_inicio} → {o.fecha_fin}' for o in OrdenProduccion.objects.filter(
+            [f'id {o.pk} {o.numero}: {o.fecha_inicio} -> {o.fecha_fin}' for o in OrdenProduccion.objects.filter(
                 fecha_inicio__isnull=False, fecha_fin__lt=F('fecha_inicio'))[:500]])
     agregar('DAT-01', 'Órdenes terminadas con 0 unidades',
             [f'id {o.pk} {o.numero}' for o in OrdenProduccion.objects.filter(estado='TERMINADA',
@@ -105,13 +106,13 @@ def corregir():
                     setattr(c, campo, D0)
             c.save(update_fields=list(cambios))
             registrar('MODIFICAR', c, cambios, 'MAN-05: tarifa por hora negativa llevada a 0 (revisar_datos)')
-            hechas.append(f'MAN-05 puesto {c.codigo}: ' + ', '.join(f'{k} {v[0]} → 0' for k, v in cambios.items()))
+            hechas.append(f'MAN-05 puesto {c.codigo}: ' + ', '.join(f'{k} {v[0]} -> 0' for k, v in cambios.items()))
         for a in Almacen.objects.filter(Q(nombre__contains='<') | Q(nombre__contains='>')):
             nuevo = re.sub(r'\s+', ' ', re.sub(r'<[^>]*>|[<>]', ' ', a.nombre)).strip()[:100] or f'Almacén {a.codigo}'
             anterior, a.nombre = a.nombre, nuevo
             a.save(update_fields=['nombre'])
             registrar('MODIFICAR', a, {'nombre': [anterior, nuevo]}, 'SEG-02: código HTML quitado del nombre')
-            hechas.append(f'SEG-02 almacén id {a.pk}: {anterior!r} → {nuevo!r}')
+            hechas.append(f'SEG-02 almacén id {a.pk}: {anterior!r} -> {nuevo!r}')
         for o in OrdenProduccion.objects.filter(estado='ANULADA').filter(Q(anulado_en__isnull=True) |
                                                                          Q(motivo_anulacion='')):
             campos = []
@@ -138,6 +139,13 @@ class Command(BaseCommand):
                             help='Arregla tarifas negativas, HTML en nombres de almacén y anulaciones sin fecha o motivo')
 
     def handle(self, *args, **opciones):
+        # DAT-03 (v1.115): en la consola de Windows (cp1252) un carácter que no existe en ella (≠, m², «») hacía caer
+        # el comando al mostrar el resumen, después de haber corregido: se reemplaza en vez de fallar.
+        for flujo in (getattr(self.stdout, '_out', None), getattr(self.stderr, '_out', None)):
+            try:
+                flujo.reconfigure(errors='replace')
+            except (AttributeError, ValueError):
+                pass
         from erp.empresas import activar, restaurar
         token = activar(opciones['database'])
         try:

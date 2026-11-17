@@ -32,6 +32,24 @@ def _dato(clave, defecto=''):
     return os.environ.get(clave) or _ENV.get(clave) or defecto
 
 
+def _llave_instalacion():
+    """SECRET_KEY de esta instalación (v1.115): la del proceso, la de .env.postgres o la de .env.clave. Antes solo se
+    leía del proceso: un comando ejecutado a mano o por una tarea, sin esa variable, trabajaba sobre la base real con
+    la llave de desarrollo, y lo que guardaba cifrado (claves SOL, client_secret del SIRE...) la instalación ya no lo
+    podía leer y terminaba «borrándose» al volver a guardar."""
+    llave = _dato('SECRET_KEY')
+    if not llave and (BASE_DIR / '.env.clave').exists():
+        llave = (BASE_DIR / '.env.clave').read_text(encoding='utf-8-sig').strip()
+    if not llave and 'test' not in __import__('sys').argv[1:2]:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured('Falta SECRET_KEY de la instalación (variable SECRET_KEY, .env.postgres o '
+                                   '.env.clave): sin ella las claves guardadas cifradas no se pueden leer.')
+    return llave or SECRET_KEY  # noqa: F405 (pruebas: la de settings)
+
+
+SECRET_KEY = _llave_instalacion()
+
+
 _CONEXION = {
     'ENGINE': 'django.db.backends.postgresql',
     'USER': _dato('PG_USUARIO', 'ceiba'),

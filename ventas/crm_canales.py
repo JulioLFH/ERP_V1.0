@@ -36,6 +36,22 @@ VENTANA_META = timedelta(hours=24)
 CON_VENTANA = ('WHATSAPP', 'MESSENGER', 'INSTAGRAM')
 MAX_TEXTO = 2000
 MAX_POR_HORA_CHAT = 30  # mensajes de un visitante del chat por hora (frena el abuso del enlace público)
+# SEG-05 (v1.115): conversaciones NUEVAS (cada una crea una oportunidad y una tarea) por hora: por IP y por empresa
+MAX_NUEVAS_POR_IP = 5
+MAX_NUEVAS_POR_HORA = 60
+
+
+def demasiadas_nuevas(request, origen):
+    """Cuenta una conversación u oportunidad nueva desde lo público (chat o formulario web) y dice si se pasó del
+    límite por IP o del total de la empresa en la última hora."""
+    from core.acceso_ip import ip_cliente
+    from core.limite import excede
+    ip = ip_cliente(request) or 'sin-ip'
+    por_ip = excede(f'crm-nuevas-ip:{ip}', MAX_NUEVAS_POR_IP)
+    total = excede('crm-nuevas-total', MAX_NUEVAS_POR_HORA)
+    if por_ip or total:
+        log.warning('%s: límite de conversaciones nuevas (%s) desde %s', origen, 'IP' if por_ip else 'empresa', ip)
+    return por_ip or total
 
 
 class ErrorCanal(Exception):
@@ -453,9 +469,12 @@ def chat(request, alias, clave):
                 errores.append('Debe autorizar el uso de sus datos para que podamos responderle.')
             if errores:
                 return _cors(JsonResponse({'ok': False, 'errores': errores}, status=400))
+            if demasiadas_nuevas(request, 'Chat web'):
+                return _cors(JsonResponse({'ok': False, 'errores': ['Recibimos muchos mensajes nuevos: intente de '
+                                                                    'nuevo en unos minutos.']}, status=429))
             c = secrets.token_urlsafe(24)
-            ip = (request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or
-                  request.META.get('REMOTE_ADDR', ''))[:45]
+            from core.acceso_ip import ip_cliente
+            ip = ip_cliente(request)
             conv = recibir('CHAT_WEB', c, texto, nombre=nombre, telefono=telefono, email=email, ip=ip)
         else:
             hace_una_hora = timezone.now() - timedelta(hours=1)

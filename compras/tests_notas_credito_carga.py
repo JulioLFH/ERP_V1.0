@@ -235,3 +235,33 @@ class PropuestaSireMontosTest(Base):
         self.assertEqual(r.context['resultado']['errores'], [])
         c = Compra.objects.get(serie='E009')
         self.assertEqual((c.detraccion_constancia, c.detraccion_fecha), ('112233', date(2026, 10, 21)))
+
+
+class PeriodoDelArchivoTest(Base):
+    """v1.115: la propuesta subida debe ser del periodo que se carga; si no: «Se están cargando datos de otro periodo»."""
+    RUC = '20519000333'
+
+    def fila(self, periodo, numero):
+        return ['20100000001', 'MI EMPRESA', periodo, 'X', '06/10/2026', '', '01', 'E001', '', numero, '', '6',
+                self.RUC, 'PROVEEDOR SAC', 100, 18, 118, 'PEN', 1, '', '', '', '', '', '']
+
+    def test_bloquea_otro_periodo_al_subir_aceptar_y_crear(self):
+        from core.models import PropuestaSIRE
+        regs = sire.leer(xlsx([CAB_SIRE, self.fila('202609', 1), self.fila(202610, 2)], 'p.xlsx'))
+        self.assertEqual([r['periodo'] for r in regs], ['202609', '202610'])
+        aviso = sire.otro_periodo(regs, '202610')
+        self.assertIn('Se están cargando datos de otro periodo', aviso)
+        self.assertIn('09/2026', aviso)
+        self.assertEqual(sire.otro_periodo(regs[1:], '202610'), '')
+        r = self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-10',
+                                                     'archivo': xlsx([CAB_SIRE, self.fila('202609', 1)], 'p.xlsx')},
+                             follow=True)
+        self.assertContains(r, 'Se están cargando datos de otro periodo')
+        self.assertFalse(PropuestaSIRE.objects.exists())
+        # una propuesta ya guardada con datos de otro periodo: no deja crear comprobantes
+        p = PropuestaSIRE.objects.create(libro='RCE', periodo='202610', origen='ARCHIVO', estado='LISTA',
+                                         registros=sire.a_json(regs))
+        r = self.client.post(reverse('sire_propuesta', args=[p.pk]),
+                             {'accion': 'crear', 'falta': [f'01|E001|1|{self.RUC}']}, follow=True)
+        self.assertContains(r, 'Se están cargando datos de otro periodo')
+        self.assertFalse(Compra.objects.filter(tercero__numero_doc=self.RUC).exists())
