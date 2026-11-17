@@ -255,7 +255,7 @@ def _alertas_sunat(hoy):
     alertas = []
     c = resumen_contable(empresa.ruc, empresa.buen_contribuyente)
     if c['alerta']:
-        alertas.append(_alerta('danger' if c['dias_vence'] <= 3 else 'warning', 'bi-alarm',
+        alertas.append(_alerta('danger' if (c['dias_alerta'] or 0) <= 3 else 'warning', 'bi-alarm',
                                f'Vencimiento SUNAT {c["periodo_texto"]} ({c["vence"]:%d/%m/%Y})', c['alerta'],
                                reverse('sire_propuestas'), 1))
     elif c['vence'] is None:

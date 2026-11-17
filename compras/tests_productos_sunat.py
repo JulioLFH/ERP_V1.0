@@ -82,3 +82,18 @@ class ProductosSunatTest(TestCase):
         self.assertEqual(importes, [D('30'), D('100')])  # base y no gravado: suman lo registrado
         self.assertEqual(c.total, D('148.00'))
         self.assertIn('Según comprobante F001-80', c.items.first().descripcion)
+
+    def test_boton_en_la_factura_de_compra_sin_productos(self):
+        """v1.116.3: la compra que vino de la propuesta (sin productos) tiene su botón «Agregar productos»."""
+        c = self.compra('90', '100', '18', '118')
+        otra = self.compra('91', '50', '9', '59')
+        url = reverse('compras:productos_sunat') + f'?periodo={self.periodo}&compra={c.pk}'
+        boton = f'compra={c.pk}'
+        self.assertContains(self.client.get(reverse('compras:detalle', args=[c.pk])), boton)
+        r = self.client.get(url)
+        self.assertContains(r, 'F001-90')
+        self.assertNotContains(r, 'F001-91')
+        self.assertContains(r, 'Poner una línea a esta compra')
+        self.client.post(reverse('compras:productos_sunat_linea'), {'compra': c.pk})
+        self.assertNotContains(self.client.get(reverse('compras:detalle', args=[c.pk])), boton)
+        self.assertTrue(otra.items.count() == 0)

@@ -64,8 +64,12 @@ def pagina(request):
     if not periodo:
         ultimo = Compra.objects.filter(items__isnull=True).exclude(estado='ANULADO').order_by('-periodo').first()
         periodo = ultimo.periodo if ultimo else ''
-    lista = list(pendientes(periodo)) if periodo else []
-    return render(request, 'compras/productos_sunat.html', {'periodo': periodo, 'compras': lista,
+    qs = pendientes(periodo) if periodo else Compra.objects.none()
+    una = request.GET.get('compra', '')
+    if una.isdigit():  # v1.116.3: desde el botón de la factura de compra: solo esa compra
+        qs = qs.filter(pk=una)
+    lista = list(qs)
+    return render(request, 'compras/productos_sunat.html', {'periodo': periodo, 'compras': lista, 'una': una.isdigit(),
                                                             'total': sum((c.total_pen for c in lista), Decimal('0'))})
 
 

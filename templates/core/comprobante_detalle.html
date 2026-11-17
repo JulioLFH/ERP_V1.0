@@ -13,6 +13,7 @@
     <a href="{% url app|add:':lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Lista</a>
     <a href="{% url app|add:':imprimir' doc.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Imprimir</a>
     {% if puede_editar %}<a href="{% url app|add:':editar' doc.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
+    {% if app == 'compras' and not items and doc.estado != 'ANULADO' and not doc.es_historico %}<a href="{% url 'compras:productos_sunat' %}?periodo={{ doc.periodo }}&amp;compra={{ doc.pk }}" class="btn btn-sm btn-primary" title="La compra solo tiene totales (p. ej. vino de la propuesta del SIRE): agregue sus productos desde el XML o con una línea que cuadra"><i class="bi bi-list-check"></i> Agregar productos</a>{% endif %}
     {% if app == 'ventas' and doc.estado == 'REGISTRADO' %}
       <div class="dropdown">
         <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside"><i class="bi bi-send"></i> Enviar</button>

@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.116.3 — 17/11/2026 · Vencimiento del SIRE en el panel del grupo y botón en las compras de la propuesta
+- **Panel del grupo**: cada empresa muestra además «Vence SIRE (registros electrónicos)» con su fecha y días según el cronograma de registros electrónicos (suele ser antes que el vencimiento mensual). El aviso mide el SIRE con esa fecha y «cerrar el periodo» con la mensual, y avisa si el SIRE ya venció.
+- **Compras › detalle**: la compra sin productos (p. ej. creada desde la propuesta del SIRE) tiene el botón **«Agregar productos»**, que abre «Agregar productos a compras de SUNAT» solo con esa compra (desde su XML o con una línea que cuadra).
+
 ## v1.116.2 — 17/11/2026 · Pruebas integrales de los ERP (correcciones)
 - Prueba de todas las páginas de cada empresa (Madeleyne, Rotonda ×5, Forward Capital ×2): sin errores del servidor. Cuadre de montos e integración (comprobantes, notas de crédito, asientos, centralización, cuentas 12/42): todo cuadra o tiene su explicación.
 - **Libro Caja y Bancos 1.1 / 1.2** agregado a la tabla de pantallas de Tesorería (acceso por módulo completo).

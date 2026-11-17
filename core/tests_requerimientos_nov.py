@@ -132,6 +132,17 @@ class CronogramaSunatTest(Base):
         self.assertEqual(alerta_vencimiento(20, sire, False), '')  # aún lejos
         self.assertEqual(alerta_vencimiento(-1, sire, False), '')  # ya venció
 
+    def test_alerta_con_vencimiento_propio_del_sire(self):
+        """v1.116.3: el SIRE vence según el cronograma de registros electrónicos; cerrar el periodo, con el mensual."""
+        from .estudio import alerta_con_sire
+        sire = {'ventas': 'sin traer', 'compras': 'aceptada'}
+        self.assertEqual(alerta_con_sire(2, 1, sire, False),
+                         'Vence en 2 días: falta cerrar el periodo. SIRE vence mañana: falta SIRE ventas.')
+        self.assertEqual(alerta_con_sire(1, -1, sire, True), 'SIRE vencido hace 1 día: falta SIRE ventas.')
+        self.assertEqual(alerta_con_sire(10, 9, sire, True), '')
+        self.assertEqual(alerta_con_sire(2, None, sire, False),  # sin cronograma de registros: como antes
+                         'Vence en 2 días: falta SIRE ventas, cerrar el periodo.')
+
 
 # ---------------------------------------------------------------- REQ-03
 class ModulosSoloAdministradorTest(Base):

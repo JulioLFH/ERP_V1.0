@@ -10,6 +10,7 @@
     <a href="{% url 'compras:lista' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Compras</a>
   </form>
 </div>
+{% if una %}<div class="alert alert-info small py-2">Mostrando solo esta compra. <a href="{% url 'compras:productos_sunat' %}?periodo={{ periodo }}">Ver todas las pendientes del periodo</a></div>{% endif %}
 <p class="text-muted small">Las compras creadas desde la propuesta del SIRE solo traen totales. Aquí se les agregan los productos sin cambiar esos totales: <b>solo se guarda lo que cuadra</b> con lo registrado.</p>
 
 <div class="row g-3 mb-3">
@@ -20,7 +21,7 @@
   </div></div></div>
   <div class="col-lg-6"><div class="card h-100"><div class="card-header"><b>2.</b> Sin XML: una línea por compra</div><div class="card-body small">
     <p class="text-muted mb-2">Para gastos donde no se necesita el detalle: a cada compra pendiente del periodo se le pone una línea con la descripción del comprobante y su importe exacto (cuadra siempre).</p>
-    <button type="button" id="btn-linea" class="btn btn-outline-primary btn-sm" {% if not compras %}disabled{% endif %}><i class="bi bi-list-ol"></i> Poner una línea a las {{ compras|length }} compras pendientes</button>
+    <button type="button" id="btn-linea" class="btn btn-outline-primary btn-sm" {% if not compras %}disabled{% endif %}><i class="bi bi-list-ol"></i> {% if una %}Poner una línea a esta compra{% else %}Poner una línea a las {{ compras|length }} compras pendientes{% endif %}</button>
   </div></div></div>
 </div>
 

@@ -11,13 +11,13 @@ from django.utils import timezone
 
 from erp import empresas as reg
 
-from .cronograma_sunat import periodo_anterior, vencimiento
+from .cronograma_sunat import periodo_anterior, vencimiento, vencimiento_registros
 
 
 DIAS_AVISO_SUNAT = 7
 
 
-def alerta_vencimiento(dias, sire, cerrado):
+def alerta_vencimiento(dias, sire, cerrado, que='Vence'):
     """REQ-02: texto de aviso si el vencimiento SUNAT está cerca y falta algo (SIRE sin aceptar o periodo abierto)."""
     if dias is None or dias < 0 or dias > DIAS_AVISO_SUNAT:
         return ''
@@ -27,7 +27,19 @@ def alerta_vencimiento(dias, sire, cerrado):
     if not faltan:
         return ''
     cuando = 'hoy' if dias == 0 else 'mañana' if dias == 1 else f'en {dias} días'
-    return f'Vence {cuando}: falta {", ".join(faltan)}.'
+    return f'{que} {cuando}: falta {", ".join(faltan)}.'
+
+
+def alerta_con_sire(dias, dias_sire, sire, cerrado):
+    """v1.116.3: el SIRE tiene su propio vencimiento (cronograma de registros electrónicos); cerrar el periodo sigue
+    el vencimiento mensual. Sin cronograma de registros, todo se mide con el mensual (como antes)."""
+    if dias_sire is None:
+        return alerta_vencimiento(dias, sire, cerrado)
+    partes = [alerta_vencimiento(dias, {}, cerrado), alerta_vencimiento(dias_sire, sire, True, 'SIRE vence')]
+    faltan = [f'SIRE {n}' for n, estado in sire.items() if estado != 'aceptada']
+    if dias_sire < 0 and faltan:
+        partes.append(f'SIRE vencido hace {-dias_sire} día{"s" if dias_sire < -1 else ""}: falta {", ".join(faltan)}.')
+    return ' '.join(p for p in partes if p)
 
 
 def resumen_contable(ruc, buen_contribuyente=False):
@@ -46,6 +58,8 @@ def resumen_contable(ruc, buen_contribuyente=False):
                        else 'sin traer')
     vence = vencimiento(ruc, periodo, buen_contribuyente)
     dias = (vence - hoy).days if vence else None
+    vence_sire = vencimiento_registros(ruc, periodo, buen_contribuyente)
+    dias_sire = (vence_sire - hoy).days if vence_sire else None
     observados = Venta.objects.filter(estado_sunat__in=['RECHAZADO', 'ERROR'], fecha_emision__gte=hoy - timedelta(60)) \
         .exclude(estado='ANULADO').count()
     sin_centralizar = list(PeriodoContable.objects.filter(pendiente=True, cerrado=False, periodo__lte=periodo)
@@ -54,8 +68,11 @@ def resumen_contable(ruc, buen_contribuyente=False):
             'cerrado': bool(p and p.cerrado), 'centralizado': not sin_centralizar,
             'sin_centralizar': [f'{x[4:]}/{x[:4]}' for x in sin_centralizar], 'sire_ventas': sire['RVIE'],
             'sire_compras': sire['RCE'], 'vence': vence, 'dias_vence': dias, 'observados': observados,
-            'alerta': alerta_vencimiento(dias, {'ventas': sire['RVIE'], 'compras': sire['RCE']},
-                                         bool(p and p.cerrado))}
+            'vence_sire': vence_sire, 'dias_sire': dias_sire,
+            'sire_cumplido': sire['RVIE'] == 'aceptada' and sire['RCE'] == 'aceptada',
+            'dias_alerta': min((d for d in (dias, dias_sire) if d is not None and d >= 0), default=dias),
+            'alerta': alerta_con_sire(dias, dias_sire, {'ventas': sire['RVIE'], 'compras': sire['RCE']},
+                                      bool(p and p.cerrado))}
 
 
 def _sin_usuario_auditoria():
