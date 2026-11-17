@@ -9,8 +9,9 @@
     .caja { max-width: 520px; margin: 12vh auto; background: #fff; border-radius: 10px; padding: 32px;
             box-shadow: 0 2px 12px rgba(0, 0, 0, .06); text-align: center; }
     .codigo { font-size: 48px; font-weight: 700; color: #a61e1e; margin: 0; }
-    a { display: inline-block; margin-top: 18px; padding: 8px 18px; border-radius: 6px; background: #0f3d2e;
-        color: #fff; text-decoration: none; }
+    a, button { display: inline-block; margin-top: 18px; padding: 8px 18px; border-radius: 6px; background: #0f3d2e;
+        color: #fff; text-decoration: none; border: 0; font: inherit; cursor: pointer; }
+    button { background: #fff; color: #0f3d2e; border: 1px solid #0f3d2e; margin-left: 6px; }
   </style>
 </head>
 <body>
@@ -20,6 +21,21 @@
     <p>El error quedó registrado para el administrador (Ajustes › Incidencias). Intente de nuevo en un momento; si se
       repite, créelo en su menú › Soporte y tickets.</p>
     <a href="/">Ir al inicio</a>
+    <button type="button" id="copiar">Copiar error</button>
   </div>
+  <script>
+    // v1.115.1: copia el error con la pantalla y la hora para crear el ticket de soporte sin transcribir nada
+    document.getElementById('copiar').addEventListener('click', function () {
+      var texto = 'Error en Ceiba ERP
+Mensaje: 500 · Ocurrió un error inesperado
+Pantalla: ' + location.pathname +
+        location.search + '
+Fecha: ' + new Date().toLocaleString('es-PE');
+      var b = this, listo = function () { b.textContent = 'Copiado'; };
+      if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(texto).then(listo); return; }
+      var a = document.createElement('textarea'); a.value = texto; document.body.appendChild(a); a.select();
+      try { document.execCommand('copy'); } catch (e) {} a.remove(); listo();
+    });
+  </script>
 </body>
 </html>

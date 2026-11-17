@@ -19,6 +19,7 @@ token cada vez que vence: la sesión se mantiene sin pedir nada. Solo si faltan 
 para corregirlos en Ajustes › Empresa (el módulo SUNAT no pide la clave).
 """
 import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -100,7 +101,7 @@ def _http(metodo, url, datos=None, cabeceras=None, binario=False):
         if exc.code in (401, 403):
             raise SesionVencida('SUNAT no aceptó la sesión (token vencido, clave SOL errada o usuario sin permiso al '
                                 'SIRE). Revise la clave SOL en Ajustes › Empresa.') from exc
-        raise ErrorSIRE(f'SUNAT respondió {exc.code}: {_mensaje(detalle)}') from exc
+        raise ErrorSIRE(_error_http(exc.code, detalle)) from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise ErrorSIRE(f'No se pudo conectar con SUNAT: {exc}') from exc
     if binario:
@@ -109,12 +110,29 @@ def _http(metodo, url, datos=None, cabeceras=None, binario=False):
     return json.loads(texto) if texto else {}
 
 
+DEMASIADAS_CONSULTAS = ('SUNAT está limitando las consultas de esta cuenta al SIRE (429: demasiadas solicitudes en '
+                        'poco tiempo). No es un error de los datos: espere 15 minutos y vuelva a intentarlo una sola '
+                        'vez, sin repetir el botón.')
+
+
+def _error_http(codigo, detalle):
+    """Mensaje para un error HTTP de SUNAT (v1.115.1): el 429 explica que hay que esperar; nunca muestra HTML."""
+    if codigo == 429:
+        return DEMASIADAS_CONSULTAS
+    return f'SUNAT respondió {codigo}: {_mensaje(detalle)}'
+
+
 def _mensaje(texto):
-    """El mensaje legible de una respuesta de error de SUNAT ({cod, msg, errors: [{cod, msg}]})."""
+    """El mensaje legible de una respuesta de error de SUNAT ({cod, msg, errors: [{cod, msg}]}). Si SUNAT responde
+    una página HTML (balanceador, mantenimiento), solo su título."""
+    texto = texto or ''
+    if texto.lstrip().startswith('<'):
+        titulo = re.search(r'<title>(.*?)</title>', texto, re.I | re.S)
+        return (titulo.group(1).strip() if titulo else 'respuesta no válida del servidor')[:200]
     try:
         datos = json.loads(texto)
     except ValueError:
-        return texto
+        return texto[:500]
     errores = '; '.join(f'{e.get("cod")} {e.get("msg")}' for e in datos.get('errors') or [])
     return errores or datos.get('msg') or datos.get('error_description') or texto
 
@@ -265,7 +283,7 @@ def _http_crudo(metodo, url, datos, cabeceras):
         detalle = exc.read().decode('utf-8', 'ignore')[:500]
         if exc.code in (401, 403):
             raise SesionVencida('SUNAT no aceptó la sesión al subir el archivo.') from exc
-        raise ErrorSIRE(f'SUNAT respondió {exc.code}: {_mensaje(detalle)}') from exc
+        raise ErrorSIRE(_error_http(exc.code, detalle)) from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise ErrorSIRE(f'No se pudo conectar con SUNAT: {exc}') from exc
 
@@ -289,8 +307,11 @@ def _tus_subir(url, contenido, metadatos):
             datos = json.loads(texto) if texto else {}
         except ValueError:
             datos = {}
-        ticket = (datos.get('numTicket') if isinstance(datos, dict) else None) or \
-            {k.lower(): v for k, v in encabezados.items()}.get('numticket')
+        if isinstance(datos, dict):
+            ticket = datos.get('numTicket')
+        else:  # v1.115.1: SUNAT responde el ticket solo, como número («20260100000016»)
+            ticket = str(datos) if str(datos).isdigit() else None
+        ticket = ticket or {k.lower(): v for k, v in encabezados.items()}.get('numticket')
         if not ticket:
             raise ErrorSIRE(f'SUNAT recibió el archivo pero no devolvió ticket: {texto[:300] or "respuesta vacía"}')
         return str(ticket)

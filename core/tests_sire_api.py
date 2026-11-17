@@ -262,3 +262,15 @@ class SesionConClaveDeLaEmpresaTest(Base):
                 r = self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-10'}, follow=True)
             self.assertContains(r, texto)
         self.assertEqual(PropuestaSIRE.objects.count(), 0)
+
+
+class ErroresHttpTest(TestCase):
+    """v1.115.1: el 429 de SUNAT (demasiadas solicitudes) se explica y nunca se muestra el HTML de su respuesta."""
+
+    def test_mensajes(self):
+        from core import sire_api
+        html = '<html> <head><title>429 Too Many Requests</title><script src="/x.js"></script></head></html>'
+        self.assertEqual(sire_api._error_http(429, html), sire_api.DEMASIADAS_CONSULTAS)
+        self.assertEqual(sire_api._error_http(502, '<html><title>502 Bad Gateway</title></html>'),
+                         'SUNAT respondió 502: 502 Bad Gateway')
+        self.assertEqual(sire_api._error_http(422, '{"msg": "Periodo no válido"}'), 'SUNAT respondió 422: Periodo no válido')

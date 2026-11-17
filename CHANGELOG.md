@@ -3,6 +3,12 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.115.1 — 16/11/2026 · Copiar error y mensaje claro cuando SUNAT limita las consultas (429)
+- **«Copiar error»** en todo el sistema: cada mensaje de error o advertencia (y las listas de errores de los formularios, y la página de error 500) lleva un botón que copia el mensaje con la pantalla, la empresa, el usuario, la fecha y la versión, para pegarlo en un ticket de soporte e identificarlo rápido.
+- **Enviar al SIRE**: el TXT va en ISO-8859-1, como lo lee SUNAT. En UTF-8, un nombre con tilde (p. ej. «BANCO BBVA PERÚ») hacía que SUNAT rechazara la fila por «número de campos incorrecto».
+- **Enviar al SIRE**: SUNAT devuelve el ticket de la carga como un número solo; el ERP lo tomaba como «sin ticket» y marcaba el envío con error aunque SUNAT sí lo había recibido. Ahora lo reconoce y hace el seguimiento.
+- Si SUNAT responde **429** (demasiadas solicitudes al SIRE en poco tiempo), el ERP lo explica y pide esperar 15 minutos antes de reintentar una sola vez, en vez de mostrar la página HTML de SUNAT. Cualquier otra respuesta en HTML se resume con su título.
+
 ## v1.115.0 — 16/11/2026 · Credenciales SUNAT que no se borran, matriz de verificación y periodo de la propuesta SIRE
 - **Ajustes › Credenciales SUNAT y SIRE** (nuevo): en una sola pantalla, usuario y clave SOL secundario, SIRE (usuario SOL, clave, client_id y client_secret), API SUNAT y guías de remisión. Se guardan cifrados en la base y no se vuelven a mostrar; un campo vacío conserva lo guardado y para quitar uno hay que marcar «Borrar». Cada cambio queda en la auditoría, sin los valores.
 - **Las credenciales ya no «se borran solas»**: la causa era que un comando ejecutado sin la variable SECRET_KEY trabajaba sobre la base real con la llave de desarrollo; lo que guardaba quedaba ilegible para el ERP y, al volver a guardar Ajustes, se reemplazaba por vacío. Ahora cada instalación toma su llave también de su `.env.postgres` (o `.env.clave`) y no arranca sin ella, y un valor que no se puede leer se conserva tal cual (la pantalla pide volver a ingresarlo) en vez de perderse.

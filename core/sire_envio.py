@@ -276,9 +276,15 @@ def generar(registro, periodo, oportunidad='02', operaciones='1', moneda='1', co
     txt = ''.join(f'{x}\r\n' for x in lineas)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
-        z.writestr(nombre, txt.encode('utf-8'))
+        z.writestr(nombre, a_bytes(txt))
     return {'nombre_txt': nombre, 'nombre_zip': nombre[:-4] + '.zip', 'txt': txt, 'zip': buf.getvalue(),
             'filas': len(lineas), 'docs': docs}
+
+
+def a_bytes(txt):
+    """v1.115.1: el TXT del SIRE va en ISO-8859-1 (texto de Windows), como lo lee SUNAT. En UTF-8, una letra con
+    tilde (la «Ú» de «BANCO BBVA PERÚ») hacía que SUNAT rechazara la fila: «número de campos incorrecto»."""
+    return txt.encode('iso-8859-1', errors='replace')
 
 
 # ---------------------------------------------------------------- SIR-03: exportar el registro en formato SIRE
@@ -296,7 +302,7 @@ def respuesta_registro(codigo, periodo):
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         for nombre, txt in archivos:
-            z.writestr(nombre, txt.encode('utf-8'))
+            z.writestr(nombre, a_bytes(txt))
     resp = HttpResponse(buf.getvalue(), content_type='application/zip')
     resp['Content-Disposition'] = f'attachment; filename="{archivos[0][0][:-4]}.zip"'
     return resp

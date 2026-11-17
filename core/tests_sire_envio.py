@@ -26,7 +26,7 @@ RUC = '20100000001'
 
 def leer_zip(contenido):
     with zipfile.ZipFile(io.BytesIO(contenido)) as z:
-        return {n: z.read(n).decode('utf-8') for n in z.namelist()}
+        return {n: z.read(n).decode('iso-8859-1') for n in z.namelist()}
 
 
 class SunatSimulado:
@@ -371,3 +371,23 @@ class ExportarRegistroTest(Base):
     def test_obligado_editable_en_ajustes_empresa(self):
         from .forms import EmpresaForm
         self.assertIn('obligado_sire', EmpresaForm().fields)
+
+
+class CodificacionTest(Base):
+    def test_txt_en_iso_8859_1_con_tildes(self):
+        """v1.115.1: «BANCO BBVA PERÚ» iba en UTF-8 y SUNAT rechazaba la fila (número de campos incorrecto)."""
+        self.prov.nombre = 'BANCO BBVA PERÚ'
+        self.prov.save()
+        self.compra('77')
+        arch = sire_envio.generar('080400', PERIODO)
+        crudo = next(iter(leer_zip_bytes(arch['zip']).values()))
+        self.assertIn('PERÚ'.encode('iso-8859-1'), crudo)
+        self.assertNotIn('PERÚ'.encode('utf-8'), crudo)
+        self.assertEqual(crudo.decode('iso-8859-1').count('|'), arch['txt'].count('|'))
+
+
+def leer_zip_bytes(datos):
+    import io
+    import zipfile
+    with zipfile.ZipFile(io.BytesIO(datos)) as z:
+        return {n: z.read(n) for n in z.namelist()}

@@ -10,7 +10,7 @@
   {% include 'core/_head_marca.html' %}
   <link href="{% static 'css/app.css' %}?v={{ erp_version }}" rel="stylesheet">
 </head>
-<body class="{% if menu_modulo %}con-lateral{% endif %}{% if solo_lectura %} solo-lectura{% endif %}"{% if user.is_authenticated %} data-usuario="{{ user.pk }}"{% endif %}>
+<body class="{% if menu_modulo %}con-lateral{% endif %}{% if solo_lectura %} solo-lectura{% endif %}"{% if user.is_authenticated %} data-usuario="{{ user.pk }}" data-usuario-nombre="{{ user.username }}"{% endif %} data-erp-version="{{ erp_version }}" data-empresa="{{ empresa.razon_social|default:'' }}">
 <nav class="navbar navbar-dark topnav d-print-none" {% if modulo %}style="--mod-color: {{ modulo.color }}"{% endif %}>
   <div class="container-fluid flex-nowrap">
     {% if menu_modulo %}

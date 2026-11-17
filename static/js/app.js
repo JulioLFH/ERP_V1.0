@@ -954,3 +954,83 @@ document.querySelectorAll('input[data-ver-numero]').forEach((inp) => {
       aplicar();
     });
 })();
+
+// v1.115.1 · «Copiar error»: cada mensaje de error o advertencia lleva un botón que copia el texto con la pantalla,
+// la empresa, el usuario, la fecha y la versión, para reportarlo (soporte y tickets) sin transcribir nada.
+(function () {
+  const SELECTOR = '.alert-danger, .alert-warning, .errorlist, .invalid-feedback.d-block, [data-copiar-error]';
+
+  function reporte(texto) {
+    const b = document.body.dataset;
+    return ['Error en Ceiba ERP',
+      'Mensaje: ' + texto.replace(/\s+/g, ' ').trim(),
+      'Pantalla: ' + document.title + ' (' + location.pathname + location.search + ')',
+      'Empresa: ' + (b.empresa || '-'),
+      'Usuario: ' + (b.usuarioNombre || '-'),
+      'Fecha: ' + new Date().toLocaleString('es-PE'),
+      'Versión: ' + (b.erpVersion || '-')].join('\n');
+  }
+
+  function copiar(texto, boton) {
+    const listo = function () {
+      const antes = boton.innerHTML;
+      boton.innerHTML = '<i class="bi bi-check2"></i> Copiado';
+      setTimeout(function () { boton.innerHTML = antes; }, 1800);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(texto).then(listo, function () { respaldo(texto); listo(); });
+    } else { respaldo(texto); listo(); }
+  }
+
+  function respaldo(texto) {  // sin https (acceso por IP): el método antiguo
+    const area = document.createElement('textarea');
+    area.value = texto;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    try { document.execCommand('copy'); } catch (e) { /* sin portapapeles: el texto queda visible igual */ }
+    area.remove();
+  }
+
+  function agregar(el) {
+    if (el.dataset.copiarListo || el.closest('.d-print-none.no-copiar') || !el.textContent.trim()) return;
+    el.dataset.copiarListo = '1';
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.className = 'btn btn-sm btn-link p-0 ms-2 align-baseline copiar-error d-print-none';
+    boton.title = 'Copia el mensaje con la pantalla, la empresa, la fecha y la versión';
+    boton.innerHTML = '<i class="bi bi-clipboard"></i> Copiar error';
+    boton.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      const copia = el.cloneNode(true);
+      copia.querySelectorAll('.copiar-error, .btn-close, button').forEach(function (x) { x.remove(); });
+      copiar(reporte(copia.textContent), boton);
+    });
+    const cerrar = el.querySelector(':scope > .btn-close');
+    if (el.tagName === 'UL') {
+      const li = document.createElement('li');
+      li.className = 'list-unstyled';
+      li.appendChild(boton);
+      el.appendChild(li);
+    } else if (cerrar) {
+      el.insertBefore(boton, cerrar);
+    } else {
+      el.appendChild(boton);
+    }
+  }
+
+  function revisar(raiz) {
+    if (raiz.nodeType !== 1) return;
+    if (raiz.matches && raiz.matches(SELECTOR)) agregar(raiz);
+    raiz.querySelectorAll && raiz.querySelectorAll(SELECTOR).forEach(agregar);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    revisar(document.body);
+    new MutationObserver(function (cambios) {  // errores que aparecen después (consultas, formularios dinámicos)
+      cambios.forEach(function (c) { c.addedNodes.forEach(revisar); });
+    }).observe(document.body, {childList: true, subtree: true});
+  });
+})();
