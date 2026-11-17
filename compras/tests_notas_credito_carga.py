@@ -312,6 +312,7 @@ class RegistroComprasFormato81Test(Base):
         i = filas['10']
         self.assertEqual((ws[f'K{i}'].value, ws[f'L{i}'].value, ws[f'T{i}'].value), (155767.5, 28038.15, 183805.65))
         self.assertEqual((ws[f'V{i}'].value, ws[f'W{i}'].value, ws[f'X{i}'].value), ('319162082', '27/10/2026', 3.45))
+        self.assertEqual((ws['AC9'].value, ws[f'AC{i}'].value), ('IGV', 18.0))  # v1.115.4: % de IGV
         j = filas['11']  # nota de crédito: en negativo y con el comprobante que modifica
         self.assertEqual((ws[f'T{j}'].value, ws[f'Z{j}'].value, ws[f'AA{j}'].value, ws[f'AB{j}'].value),
                          (-118.0, '01', 'E001', '10'))

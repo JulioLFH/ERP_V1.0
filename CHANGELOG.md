@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.115.4 — 17/11/2026 · % de IGV en el Registro de Compras 8.1 y respuesta de SUNAT en el error del SIRE
+- **Registro de Compras 8.1 (Excel)**: nueva columna **% de IGV** al final (AC), con la tasa de cada comprobante (IGV / base gravada: 18, 10 en restaurantes MYPE…); vacía si no tiene gravadas.
+- Cuando SUNAT da la sesión pero niega el SIRE (401/403), el mensaje agrega «Respuesta de SUNAT: …» con el código y el texto que devolvió, para saber la causa exacta. Los mensajes del SIRE apuntan a Ajustes › Credenciales SUNAT y SIRE.
+
 ## v1.115.3 — 17/11/2026 · Registro de Compras 8.1 con el formato de la contabilidad y «No se encontraron datos» en propuestas
 - **Propuestas SIRE sin comprobantes**: al importar una propuesta (archivo subido o traída de SUNAT) que no trae comprobantes, sale «No se encontraron datos» con el registro y el periodo. Un archivo subido sin comprobantes no se guarda.
 - **Compras › Registro de compras › Excel**: sale con el formato 8.1 que usa la contabilidad (modelo «RCompras 202610 - Aresol - sunat»): cabecera con periodo, RUC y razón social; títulos en 5 filas con celdas combinadas; columnas A a AB (CUO, fechas, comprobante, proveedor, base e IGV según destino, no gravadas, ISC, otros tributos, total, constancia de detracción, tipo de cambio y comprobante que modifica); importes en soles con las notas de crédito en negativo; tipo de cambio 0 en soles; fila de totales con fórmulas; Arial Narrow 8 y A4 horizontal.

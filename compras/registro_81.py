@@ -1,6 +1,6 @@
 """Registro de Compras · Formato 8.1 en Excel (v1.115.3), con el diseño del formato que usa la contabilidad (modelo
 «RCompras 202610 - Aresol - sunat.xlsx»): cabecera con periodo, RUC y razón social; títulos en 5 filas con celdas
-combinadas; columnas A a AB; importes en soles (las notas de crédito en negativo); tipo de cambio 0 en soles; fila de
+combinadas; columnas A a AB más el % de IGV (AC); importes en soles (las notas de crédito en negativo); tipo de cambio 0 en soles; fila de
 totales con fórmulas; Arial Narrow 8 y A4 horizontal ajustado a una página de ancho."""
 import io
 from decimal import Decimal
@@ -31,21 +31,21 @@ TITULOS = {
     7: {'A': 'DEL REGISTRO O', 'B': 'COMPROBANTE', 'C': 'VENCIMIENTO', 'F': 'AÑO DE', 'G': 'O DOCUMENTO',
         'H': 'DOCUMENTO DE IDENTIDAD', 'J': 'APELLIDOS Y NOMBRES', 'K': 'GRAVADAS Y/O DE EXPORTACIÓN',
         'M': 'Y A OPERACIONES NO GRAVADAS', 'O': 'NO GRAVADAS', 'Q': 'ADQUISICIONES', 'S': 'TRIBUTOS Y',
-        'T': 'IMPORTE', 'U': 'EMITIDO POR', 'W': 'FECHA', 'X': 'TIPO', 'AB': 'N° COMPROBANTE'},
+        'T': 'IMPORTE', 'U': 'EMITIDO POR', 'W': 'FECHA', 'X': 'TIPO', 'AB': 'N° COMPROBANTE', 'AC': '%'},
     8: {'A': 'CÓDIGO ÚNICO', 'B': 'DE PAGO', 'C': 'O FECHA', 'D': 'TIPO', 'E': 'SERIE', 'F': 'EMISIÓN DE', 'H': 'TIPO',
         'I': 'NÚMERO', 'J': 'DENOMINACIÓN O RAZÓN SOCIAL', 'K': 'BASE', 'L': 'IGV', 'M': 'BASE', 'N': 'IGV',
         'O': 'BASE', 'P': 'IGV', 'Q': 'NO', 'R': 'ISC', 'S': 'CARGOS', 'T': 'TOTAL', 'U': 'SUJETO NO', 'V': 'NÚMERO',
-        'W': 'DE', 'X': 'DE', 'Y': 'FECHA', 'Z': 'TIPO', 'AA': 'SERIE', 'AB': 'DE PAGO O'},
+        'W': 'DE', 'X': 'DE', 'Y': 'FECHA', 'Z': 'TIPO', 'AA': 'SERIE', 'AB': 'DE PAGO O', 'AC': 'DE'},
     9: {'A': 'DE LA OPERACIÓN', 'B': 'O DOCUMENTO', 'C': 'DE PAGO(1)', 'F': 'DUA O DSI', 'K': 'IMPONIBLE',
         'M': 'IMPONIBLE', 'O': 'IMPONIBLE', 'Q': 'GRAVADAS', 'U': 'DOMICILIADO(2)', 'W': 'EMISIÓN', 'X': 'CAMBIO',
-        'AB': 'DOCUMENTO'},
+        'AB': 'DOCUMENTO', 'AC': 'IGV'},
 }
 COMBINADAS = ['A1:D1', 'A2:D2', 'E2:J2', 'A3:D3', 'E3:J3', 'A4:D4', 'E4:O4', 'D5:F5', 'H5:J5', 'K5:L5', 'M5:N5',
               'O5:P5', 'V5:W5', 'Y5:AB5', 'D6:F6', 'H6:J6', 'K6:L6', 'M6:N6', 'O6:P6', 'V6:W6', 'Y6:AB6', 'H7:I7',
               'K7:L7', 'M7:N7', 'O7:P7']
 ANCHOS = {'A': 11.7, 'B': 10.1, 'C': 9.1, 'D': 3.6, 'E': 4.3, 'F': 7.8, 'G': 10.1, 'H': 4.2, 'I': 8.1, 'J': 61.6,
           'K': 11.2, 'L': 9.5, 'M': 16.2, 'N': 9.5, 'O': 11.2, 'P': 9.5, 'Q': 10.2, 'R': 3.1, 'S': 8.0, 'T': 11.0,
-          'U': 11.4, 'V': 11.8, 'W': 9.0, 'X': 5.4, 'Y': 9.0, 'Z': 3.6, 'AA': 4.3, 'AB': 11.4}
+          'U': 11.4, 'V': 11.8, 'W': 9.0, 'X': 5.4, 'Y': 9.0, 'Z': 3.6, 'AA': 4.3, 'AB': 11.4, 'AC': 5.5}
 IMPORTES = 'KLMNOPQRST'  # columnas con formato de número y suma en la fila de totales
 PRIMERA = 10
 
@@ -74,6 +74,8 @@ def fila(n, d):
         'X': d.tipo_cambio if d.moneda != 'PEN' else Decimal('0'),
         'Y': fmt_fecha(ref.fecha_emision) if ref else '', 'Z': ref.tipo_comprobante if ref else '',
         'AA': ref.serie if ref else '', 'AB': ref.numero if ref else '',
+        # v1.115.4: % de IGV del comprobante (IGV / base gravada; 18, 10 en restaurantes MYPE…); vacío sin gravadas
+        'AC': (r2(d.igv * 100 / d.base_imponible) if d.base_imponible and d.igv else None),
     }
     siguiente = get_column_letter(_columna(destino) + 1)
     if base or igv:  # como el modelo: base e IGV solo en la columna de su destino; sin gravadas, en blanco
@@ -107,7 +109,7 @@ def libro(periodo, docs, empresa=None):
     for rango in COMBINADAS:
         ws.merge_cells(rango)
     for numero_fila in range(5, 10):  # caja de títulos: bordes a los lados, arriba en la 5 y abajo en la 9
-        for c in range(1, 29):
+        for c in range(1, 30):
             celda = ws.cell(numero_fila, c)
             celda.font = normal
             celda.alignment = Alignment(horizontal='center', vertical='center')
@@ -126,6 +128,8 @@ def libro(periodo, docs, empresa=None):
                 celda.number_format = NUMERO
             elif letra == 'X':
                 celda.number_format = '##0.000'
+            elif letra == 'AC':
+                celda.number_format = '0.00'
     total = PRIMERA + n
     ws[f'J{total}'] = '----------------T O T A L E S--------------'
     ws[f'J{total}'].font = negrita

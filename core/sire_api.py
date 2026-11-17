@@ -83,11 +83,11 @@ FALTA_CLAVE = ('Falta la clave SOL del SIRE en Ajustes › Empresa. Regístrela 
 
 
 CLAVE_RECHAZADA = ('SUNAT rechazó el ingreso con el usuario SOL y la clave SOL del SIRE (o con el client_id y el '
-                   'client_secret). Revíselos en Ajustes › Empresa.')
+                   'client_secret). Revíselos en Ajustes › Credenciales SUNAT y SIRE.')
 SIN_PERMISO_SIRE = ('SUNAT aceptó el usuario y la clave SOL, pero no da acceso al SIRE con esas credenciales. En SUNAT '
                     'Operaciones en Línea revise que la aplicación del client_id (Credenciales de API SUNAT) tenga el '
                     'SIRE y, si es un usuario secundario, que tenga el perfil del SIRE; luego registre en Ajustes › '
-                    'Empresa el client_id y el client_secret del SIRE.')
+                    'Credenciales SUNAT y SIRE el client_id y el client_secret del SIRE.')
 
 
 def _http(metodo, url, datos=None, cabeceras=None, binario=False):
@@ -99,8 +99,10 @@ def _http(metodo, url, datos=None, cabeceras=None, binario=False):
     except urllib.error.HTTPError as exc:
         detalle = exc.read().decode('utf-8', 'ignore')[:500]
         if exc.code in (401, 403):
-            raise SesionVencida('SUNAT no aceptó la sesión (token vencido, clave SOL errada o usuario sin permiso al '
-                                'SIRE). Revise la clave SOL en Ajustes › Empresa.') from exc
+            error = SesionVencida('SUNAT no aceptó la sesión (token vencido, clave SOL errada o usuario sin permiso al '
+                                  'SIRE). Revise la clave SOL en Ajustes › Credenciales SUNAT y SIRE.')
+            error.respuesta = f'{exc.code}: {_mensaje(detalle) or "sin detalle"}'  # v1.115.4: lo que dijo SUNAT
+            raise error from exc
         raise ErrorSIRE(_error_http(exc.code, detalle)) from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise ErrorSIRE(f'No se pudo conectar con SUNAT: {exc}') from exc
@@ -197,7 +199,8 @@ def _con_sesion(llamar):
             return llamar()
         except SesionVencida as exc:
             # el usuario y la clave SOL valen (SUNAT acaba de dar la sesión), pero esa sesión no entra al SIRE
-            raise ErrorSIRE(SIN_PERMISO_SIRE) from exc
+            respuesta = getattr(exc, 'respuesta', '')
+            raise ErrorSIRE(SIN_PERMISO_SIRE + (f' Respuesta de SUNAT: {respuesta}' if respuesta else '')) from exc
 
 
 def solicitar_propuesta(libro, periodo):

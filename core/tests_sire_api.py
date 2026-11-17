@@ -274,3 +274,25 @@ class ErroresHttpTest(TestCase):
         self.assertEqual(sire_api._error_http(502, '<html><title>502 Bad Gateway</title></html>'),
                          'SUNAT respondió 502: 502 Bad Gateway')
         self.assertEqual(sire_api._error_http(422, '{"msg": "Periodo no válido"}'), 'SUNAT respondió 422: Periodo no válido')
+
+
+class SinPermisoConRespuestaTest(TestCase):
+    """v1.115.4: si SUNAT niega el SIRE (401/403), el mensaje incluye lo que respondió SUNAT."""
+
+    def test_incluye_la_respuesta(self):
+        import io
+        import urllib.error
+        from unittest.mock import patch
+
+        from core import sire_api
+        from core.models import Empresa
+        from core.cifrado import cifrar
+        Empresa.objects.create(ruc='20100000001', razon_social='EMPRESA SAC', sire_client_id='id',
+                               sire_client_secret='sec', sire_usuario_sol='USU', sire_clave_sol=cifrar('clave'))
+        errores = [urllib.error.HTTPError('u', 403, 'Forbidden', {}, io.BytesIO(b'{"msg": "No autorizado al servicio"}'))
+                   for _ in range(2)]  # la llamada y su reintento con sesión nueva
+        with patch('core.sire_api._token', return_value='t'), patch('urllib.request.urlopen', side_effect=errores):
+            with self.assertRaises(sire_api.ErrorSIRE) as ctx:
+                sire_api._api('GET', '/x')
+        self.assertIn('Respuesta de SUNAT: 403: No autorizado al servicio', str(ctx.exception))
+        self.assertIn('Ajustes › Credenciales SUNAT y SIRE', str(ctx.exception))
