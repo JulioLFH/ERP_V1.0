@@ -381,8 +381,8 @@ class CodificacionTest(Base):
         self.compra('77')
         arch = sire_envio.generar('080400', PERIODO)
         crudo = next(iter(leer_zip_bytes(arch['zip']).values()))
-        self.assertIn('PERÚ'.encode('iso-8859-1'), crudo)
-        self.assertNotIn('PERÚ'.encode('utf-8'), crudo)
+        self.assertIn(b'BANCO BBVA PERU|', crudo)  # v1.115.2: sin tildes (SUNAT rechaza la fila)
+        self.assertTrue(all(c < 128 for c in crudo))
         self.assertEqual(crudo.decode('iso-8859-1').count('|'), arch['txt'].count('|'))
 
 
@@ -391,3 +391,20 @@ def leer_zip_bytes(datos):
     import zipfile
     with zipfile.ZipFile(io.BytesIO(datos)) as z:
         return {n: z.read(n) for n in z.namelist()}
+
+
+class VencimientoDeSunatTest(Base):
+    def test_toma_la_fecha_vcto_de_la_propuesta(self):
+        """v1.115.2: si la propuesta de SUNAT trae «Fecha Vcto/Pago» para el comprobante, el archivo la lleva (sin ella
+        SUNAT rechaza la fila por «número de campos incorrecto», como los recibos del BBVA)."""
+        from datetime import date
+
+        from compras import sire as sire_compras
+        from core.models import PropuestaSIRE
+        c1, c2 = self.compra('501'), self.compra('502')
+        PropuestaSIRE.objects.create(libro='RCE', periodo=PERIODO, origen='API', estado='LISTA', registros=sire_compras.a_json([
+            {'ruc': self.prov.numero_doc, 'tipo': '01', 'serie': c1.serie, 'numero': '501', 'fecha': c1.fecha_emision,
+             'vencimiento': date(2026, 10, 12), 'base': c1.base_imponible, 'igv': c1.igv, 'total': c1.total}]))
+        filas = {l.split('|')[9]: l.split('|') for l in sire_envio.generar('080400', PERIODO)['txt'].splitlines()}
+        self.assertEqual(filas['501'][5], '12/10/2026')
+        self.assertEqual(filas['502'][5], '')  # SUNAT no la tiene: vacía, como antes

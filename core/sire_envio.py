@@ -19,6 +19,7 @@ Importes en la moneda del comprobante (con su tipo de cambio). En el TXT las not
 las entrega SUNAT), aunque en el ERP se guardan en positivo (el signo lo da el tipo 07).
 """
 import io
+import unicodedata
 import zipfile
 from datetime import date
 from decimal import Decimal
@@ -75,8 +76,10 @@ def num(valor):
 
 
 def _t(texto):
-    """Texto sin «|» ni saltos de línea (romperían las columnas del TXT)."""
-    return ' '.join(str(texto or '').replace('|', ' ').split())
+    """Texto sin «|» ni saltos de línea (romperían las columnas del TXT) y sin tildes ni Ñ (v1.115.2): SUNAT rechazaba
+    toda fila con un carácter fuera de ASCII («BANCO BBVA PERÚ») por «número de campos incorrecto»."""
+    texto = unicodedata.normalize('NFKD', str(texto or '')).encode('ascii', 'ignore').decode('ascii')
+    return ' '.join(texto.replace('|', ' ').split())
 
 
 def _tc(d):
@@ -118,7 +121,9 @@ def _fila_rvie(empresa, periodo, d):
 
 
 def _fila_rce(empresa, periodo, d):
-    s = d.signo
+    # v1.115.2: los importes del RCE van en soles aunque el comprobante sea en dólares (como la propuesta de SUNAT)
+    tc = d.tc_efectivo
+    s = d.signo * tc
     ref = _referencia(d)
     # DUA (50): la base del IGV de importación es el valor en aduana más los tributos (como el PLE 8.1)
     base = s * (d.base_imponible + (d.valor_aduana + d.no_gravado if d.es_dua else 0))
@@ -128,7 +133,8 @@ def _fila_rce(empresa, periodo, d):
     fila = {
         'RUC': empresa.ruc, 'Apellidos y Nombres o Razón social': _t(empresa.razon_social), 'Periodo': periodo,
         'CAR SUNAT': car(d), 'Fecha de emisión': fmt_fecha(d.fecha_emision),
-        'Fecha Vcto/Pago': fmt_fecha(d.fecha_vencimiento) if d.tipo_comprobante == '14' else '',
+        'Fecha Vcto/Pago': fmt_fecha(d.fecha_vencimiento) if d.tipo_comprobante == '14' else
+        fmt_fecha(getattr(d, 'vcto_sunat', None)) if getattr(d, 'vcto_sunat', None) else '',
         'Tipo CP/Doc.': d.tipo_comprobante, 'Serie del CDP': d.serie,
         'Año': str(d.fecha_emision.year) if d.es_dua else '', 'Nro CP o Doc. Nro Inicial (Rango)': d.numero,
         'Tipo Doc Identidad': d.tercero.tipo_doc, 'Nro Doc Identidad': d.tercero.numero_doc,
@@ -265,11 +271,33 @@ def validar(registro, periodo, docs):
     return errores, avisos
 
 
+def _vencimientos_sunat(periodo, docs):
+    """v1.115.2: la «Fecha Vcto/Pago» que SUNAT tiene en su propuesta de compras del periodo (la última guardada). Si
+    SUNAT la tiene y el archivo no la trae, rechaza la fila por «número de campos incorrecto» (p. ej. los recibos
+    del BBVA). Se marca en cada comprobante como d.vcto_sunat."""
+    from compras import sire
+
+    from .models import PropuestaSIRE
+    fechas = {}
+    for p in PropuestaSIRE.objects.filter(libro='RCE', periodo=periodo, estado='LISTA').order_by('-creado'):
+        for r in sire.de_json(p.registros or []):
+            clave = (r.get('ruc'), r.get('tipo'), (r.get('serie') or '').upper(), str(r.get('numero') or '').lstrip('0'))
+            if r.get('vencimiento') and clave not in fechas:
+                fechas[clave] = r['vencimiento']
+        if fechas and p.origen == 'API':  # la de SUNAT manda; las subidas a mano pueden venir recortadas
+            break
+    for d in docs:
+        clave = (d.tercero.numero_doc, d.tipo_comprobante, d.serie.upper(), str(d.numero).lstrip('0'))
+        d.vcto_sunat = fechas.get(clave)
+
+
 def generar(registro, periodo, oportunidad='02', operaciones='1', moneda='1', correlativo=None, docs=None,
             empresa=None):
     """{'nombre_txt', 'nombre_zip', 'txt', 'zip', 'filas', 'docs'} del registro del periodo."""
     empresa = empresa or Empresa.actual()
     docs = documentos(registro, periodo) if docs is None else docs
+    if registro == '080400':
+        _vencimientos_sunat(periodo, docs)
     lineas = [linea(registro, empresa, periodo, d) for d in docs]
     nombre = nombre_archivo(empresa.ruc, periodo, registro, oportunidad, operaciones, '1' if lineas else '0', moneda,
                             correlativo)

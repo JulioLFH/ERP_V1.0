@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.115.2 — 16/11/2026 · SIRE: fecha de vencimiento de SUNAT y textos sin tildes en el archivo
+- **Propuesta SIRE de compras en dólares**: SUNAT entrega los importes ya en soles. El ERP los guardaba como si fueran dólares y luego los volvía a convertir (p. ej. E001-193 de ML: US$ 183 805,65 = S/ 634 129,49, cuando era S/ 183 805,65 = US$ 53 277,00). Ahora los guarda en la moneda del comprobante (soles / T.C.), el cruce compara en soles y el archivo para SUNAT va en soles.
+- **Enviar al SIRE**: la «Fecha Vcto/Pago» va con la que SUNAT tiene en su propuesta de compras para ese comprobante. Sin ella SUNAT rechazaba la fila por «número de campos incorrecto»: eran los 7 recibos del BBVA de ML en octubre.
+- **Enviar al SIRE**: los textos del TXT (razón social del proveedor o cliente) van sin tildes ni Ñ. SUNAT rechazaba toda fila con un carácter fuera de ASCII (p. ej. «BANCO BBVA PERÚ») por «Fila no cumple con estructura (número de campos incorrecto)»; así se cargaban 13 de 20 comprobantes de ML en octubre.
+
 ## v1.115.1 — 16/11/2026 · Copiar error y mensaje claro cuando SUNAT limita las consultas (429)
 - **«Copiar error»** en todo el sistema: cada mensaje de error o advertencia (y las listas de errores de los formularios, y la página de error 500) lleva un botón que copia el mensaje con la pantalla, la empresa, el usuario, la fecha y la versión, para pegarlo en un ticket de soporte e identificarlo rápido.
 - **Enviar al SIRE**: el TXT va en ISO-8859-1, como lo lee SUNAT. En UTF-8, un nombre con tilde (p. ej. «BANCO BBVA PERÚ») hacía que SUNAT rechazara la fila por «número de campos incorrecto».

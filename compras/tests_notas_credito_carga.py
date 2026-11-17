@@ -265,3 +265,24 @@ class PeriodoDelArchivoTest(Base):
                              {'accion': 'crear', 'falta': [f'01|E001|1|{self.RUC}']}, follow=True)
         self.assertContains(r, 'Se están cargando datos de otro periodo')
         self.assertFalse(Compra.objects.filter(tercero__numero_doc=self.RUC).exists())
+
+
+class PropuestaEnSolesTest(Base):
+    """v1.115.2: la propuesta del RCE trae los importes en soles aunque el comprobante sea en dólares."""
+    RUC = '20519000444'
+
+    def test_dolares_se_guardan_en_su_moneda(self):
+        cab = CAB_SIRE
+        fila = ['20100000001', 'MI EMPRESA', '202610', 'X', '30/09/2026', '', '01', 'E001', '', 193, '', '6', self.RUC,
+                'ARQUITECTOS SAC', 155767.50, 28038.15, 183805.65, 'USD', 3.450, '', '', '', '', '', '']
+        regs = sire.leer(xlsx([cab, fila], 'p.xlsx'))
+        creados, errores = sire.crear_faltantes('RCE', regs, '202610', [f'01|E001|193|{self.RUC}'])
+        self.assertEqual((creados, errores), (1, []))
+        c = Compra.objects.get(tercero__numero_doc=self.RUC)
+        self.assertEqual((c.moneda, c.total, c.base_imponible, c.igv), ('USD', D('53277.00'), D('45150.00'), D('8127.00')))
+        self.assertEqual(c.total_pen, D('183805.65'))  # en soles, igual que SUNAT
+        r = sire.cruzar('RCE', regs, '202610')
+        self.assertEqual((len(r['coinciden']), len(r['diferencias'])), (1, 0))
+        from core import sire_envio
+        fila_txt = sire_envio.generar('080400', '202610')['txt'].splitlines()[0].split('|')
+        self.assertEqual(fila_txt[24], '183805.65')  # el archivo para SUNAT, también en soles

@@ -486,8 +486,8 @@ def comparar(registros, periodo):
                 .exclude(estado='ANULADO').first()
             solo_sunat.append({**r, 'otro_periodo': otra, 'rendicion': rendida,
                                'nadie_rindio': otra is None and rendida is None})
-        elif abs(c.total - r['total']) > TOLERANCIA:
-            diferencias.append({**r, 'compra': c, 'dif': c.total - r['total'], 'rendicion': rendida})
+        elif abs(soles_del_erp(c) - r['total']) > TOLERANCIA:  # la propuesta viene en soles
+            diferencias.append({**r, 'compra': c, 'dif': soles_del_erp(c) - r['total'], 'rendicion': rendida})
         else:
             coinciden.append({**r, 'compra': c, 'rendicion': rendida})
     for clave, c in erp.items():
@@ -547,6 +547,21 @@ def _tercero(r, tipo_tercero):
     return tercero
 
 
+def a_moneda_original(r, monto):
+    """v1.115.2: la propuesta del RCE trae los importes EN SOLES aunque el comprobante sea en dólares (SUNAT ya los
+    convirtió con su tipo de cambio). El ERP guarda el comprobante en su moneda: soles / T.C. (vuelve exacto: SUNAT
+    convirtió un importe de 2 decimales)."""
+    tc = r.get('tc') or D0
+    if (r.get('moneda') or 'PEN') == 'PEN' or not tc:
+        return monto
+    return (monto / tc).quantize(Decimal('0.01'))
+
+
+def soles_del_erp(doc):
+    """Total del comprobante del ERP en soles, para compararlo con la propuesta (que viene en soles)."""
+    return doc.total if doc.moneda == 'PEN' else doc.total_pen
+
+
 def doc_modificado(modelo, r):
     """(comprobante, error) que modifica la nota de crédito/débito r de la propuesta: vigente, del mismo cliente o
     proveedor. Sin él la nota no se crea (quedaría suelta, sin rebajar el saldo del comprobante)."""
@@ -559,7 +574,7 @@ def doc_modificado(modelo, r):
     doc = next((d for d in doc if (d.tercero.numero_doc or '').strip() == (r.get('ruc') or '').strip()), None)
     if doc is None:
         return None, f'El comprobante que modifica ({texto}) no está registrado: créelo primero (o márquelo también).'
-    if r['tipo'] == '07' and r['total'] > doc.total_documento + TOLERANCIA:
+    if r['tipo'] == '07' and a_moneda_original(r, r['total']) > doc.total_documento + TOLERANCIA:
         return None, (f'La nota ({r["total"]}) supera el total del comprobante que modifica ({texto}: '
                       f'{doc.total_documento}).')
     return doc, None
@@ -603,8 +618,13 @@ def crear_faltantes(libro, registros, periodo, claves, usuario=None):
         try:
             with transaction.atomic():
                 tercero = _tercero(r, 'CLIENTE' if libro == 'RVIE' else 'PROVEEDOR')
-                base, igv, no_grav = r['base'], r['igv'], r.get('no_gravado') or D0
-                total = r['total'] or base + igv + no_grav
+                if libro == 'RCE':  # importes de la propuesta en soles -> moneda del comprobante
+                    base, igv, no_grav = (a_moneda_original(r, x) for x in (r['base'], r['igv'],
+                                                                           r.get('no_gravado') or D0))
+                    total = a_moneda_original(r, r['total']) if r['total'] else base + igv + no_grav
+                else:
+                    base, igv, no_grav = r['base'], r['igv'], r.get('no_gravado') or D0
+                    total = r['total'] or base + igv + no_grav
                 datos = dict(tipo_comprobante=r['tipo'], serie=r['serie'], numero=r['numero'],
                              fecha_emision=r['fecha'], fecha_vencimiento=r.get('vencimiento') or r['fecha'],
                              tercero=tercero, moneda=r.get('moneda') or 'PEN',
@@ -612,7 +632,7 @@ def crear_faltantes(libro, registros, periodo, claves, usuario=None):
                              base_imponible=base, no_gravado=no_grav, exonerado=no_grav, igv=igv, total=total,
                              periodo=periodo, glosa=f'Creado desde la propuesta SIRE {periodo}', doc_referencia=ref)
                 for campo in MONTOS:  # detracción, retención y percepción del Excel (el % se deduce del monto)
-                    monto = r.get(campo) or D0
+                    monto = a_moneda_original(r, r.get(campo) or D0) if libro == 'RCE' else (r.get(campo) or D0)
                     datos[f'{campo}_monto'] = monto
                     datos[f'{campo}_pct'] = (monto * 100 / total).quantize(Decimal('0.01')) if monto and total else D0
                 if r.get('det_constancia'):  # depósito de la detracción ya hecho (N° de operación y fecha)
