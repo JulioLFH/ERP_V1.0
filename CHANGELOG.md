@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.116.4 — 17/11/2026 · Mensaje claro cuando SUNAT rechaza el usuario SOL de facturación
+- **Facturación electrónica**: cuando SUNAT responde «Authentication Failed» (no acepta el usuario SOL y su clave), el ERP ya no dice «SUNAT respondió algo no reconocible»: indica qué usuario rechazó (nunca la clave), las causas comunes (clave no actual, usuario secundario nuevo que no cambió su clave inicial, usuario dado de baja o sin perfil de emisión) y dónde corregirlo (Ajustes › Credenciales SUNAT y SIRE). El comprobante queda en «error» para reenviarlo.
+
 ## v1.116.3 — 17/11/2026 · Vencimiento del SIRE en el panel del grupo y botón en las compras de la propuesta
 - **Panel del grupo**: cada empresa muestra además «Vence SIRE (registros electrónicos)» con su fecha y días según el cronograma de registros electrónicos (suele ser antes que el vencimiento mensual). El aviso mide el SIRE con esa fecha y «cerrar el periodo» con la mensual, y avisa si el SIRE ya venció.
 - **Compras › detalle**: la compra sin productos (p. ej. creada desde la propuesta del SIRE) tiene el botón **«Agregar productos»**, que abre «Agregar productos a compras de SUNAT» solo con esa compra (desde su XML o con una línea que cuadra).

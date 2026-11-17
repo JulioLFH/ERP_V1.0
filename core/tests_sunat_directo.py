@@ -141,6 +141,27 @@ class RechazoTest(Base):
         self.assertEqual(con_bolsas.estado_sunat, 'NO_ENVIADO')
 
 
+class AutenticacionRechazadaTest(Base):
+    def test_authentication_failed_se_explica_y_no_marca_rechazo(self):
+        """v1.116.4: «Authentication Failed» (HTTP 401 sin SOAP) es usuario/clave SOL rechazados, no un rechazo del CPE."""
+        import urllib.error
+        error = urllib.error.HTTPError('https://e-factura.sunat.gob.pe', 401, 'Unauthorized', {},
+                                       io.BytesIO(b'Authentication Failed'))
+        with patch('urllib.request.urlopen', side_effect=error):
+            with self.assertRaises(sunat_directo.ErrorSunatDirecto) as ctx:
+                sunat_directo._soap('sendBill', '')
+        self.assertIn('Authentication Failed', str(ctx.exception))
+        self.assertIn('MODDATOS', str(ctx.exception))  # dice qué usuario rechazó (nunca la clave)
+        self.assertNotIn('no reconocible', str(ctx.exception))
+        v = self.venta()
+        with patch('urllib.request.urlopen', side_effect=urllib.error.HTTPError(
+                'https://e-factura.sunat.gob.pe', 401, 'Unauthorized', {}, io.BytesIO(b'Authentication Failed'))):
+            with self.assertRaises(sunat.ErrorFacturacion):
+                sunat.enviar_comprobante(v)
+        v.refresh_from_db()
+        self.assertEqual(v.estado_sunat, 'ERROR')  # se puede reenviar al corregir la clave
+
+
 class BajaConTicketTest(Base):
     def test_comunicacion_de_baja(self):
         v = self.venta()

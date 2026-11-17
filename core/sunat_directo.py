@@ -421,9 +421,23 @@ def _soap(operacion, cuerpo, url=None, cfg=None):
             texto = resp.read()
     except urllib.error.HTTPError as exc:
         texto = exc.read()  # los rechazos llegan como SOAP Fault con HTTP 500
+        if exc.code == 401 or texto.strip().lower().startswith(b'authentication failed'):
+            raise ErrorSunatDirecto(autenticacion_rechazada(usuario)) from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise ErrorSunatDirecto(f'No se pudo conectar con SUNAT: {exc}') from exc
+    if texto.strip().lower().startswith(b'authentication failed'):
+        raise ErrorSunatDirecto(autenticacion_rechazada(usuario))
     return _respuesta(texto)
+
+
+def autenticacion_rechazada(usuario):
+    """v1.116.4: SUNAT responde «Authentication Failed» (HTTP 401, sin SOAP) cuando no acepta el usuario y la clave."""
+    return (f'SUNAT rechazó el usuario SOL {usuario} y su clave (Authentication Failed): el comprobante no se envió. '
+            'Revise en Ajustes › Credenciales SUNAT y SIRE el usuario secundario y su clave. Causas comunes: la clave '
+            'no es la actual; el usuario secundario es nuevo y aún no ingresó a SOL para cambiar su clave inicial; o '
+            'el usuario está dado de baja o bloqueado. Si la clave es correcta, en SOL › Administración de usuarios '
+            'secundarios confirme que el usuario esté activo y tenga el perfil de emisión de comprobantes '
+            'electrónicos.')
 
 
 def _escapar(texto):
