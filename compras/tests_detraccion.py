@@ -118,6 +118,31 @@ class DetraccionTest(TestCase):
             self.assertContains(r, texto)
         self.assertEqual([c[2] for c in v.cronograma_cuotas], [D('1038.40'), D('1038.40')])
 
+    def test_detraccion_sobre_el_valor_referencial(self):
+        """v1.116.6: transporte de carga: la detracción es el % del mayor entre el total y el valor referencial."""
+        cli = Tercero.objects.filter(tipo='CLIENTE', tipo_doc='6').first()
+
+        def emitir(valor_referencial):
+            r = self.client.post(reverse('ventas:nuevo'), {
+                'tipo_comprobante': '01', 'serie': '', 'numero': '', 'tercero': cli.pk, 'fecha_emision': '2026-10-01',
+                'fecha_vencimiento': '', 'forma_pago': 'CONTADO', 'moneda': 'PEN', 'tipo_cambio': '1',
+                'tipo_operacion': 'GRAVADA', 'detraccion_pct': '4', 'retencion_pct': '0', 'percepcion_pct': '0',
+                'icbper': '0', 'detraccion_codigo': '25', 'valor_referencial': valor_referencial, 'vendedor': '',
+                'glosa': '', 'items-TOTAL_FORMS': '1', 'items-INITIAL_FORMS': '0', 'items-MIN_NUM_FORMS': '1',
+                'items-MAX_NUM_FORMS': '1000', 'items-0-producto': self.servicio.pk, 'items-0-descripcion': 'Flete',
+                'items-0-cantidad': '1', 'items-0-precio_unitario': '2000'})
+            self.assertEqual(r.status_code, 302, r.content[:3000] if r.status_code == 200 else '')
+            return Venta.objects.latest('id')
+
+        v = emitir('3000')  # total 2,360 < valor referencial 3,000: 4% de 3,000
+        self.assertEqual((v.total, v.detraccion_monto, v.usa_valor_referencial), (D('2360.00'), D('120.00'), True))
+        self.assertContains(self.client.get(reverse('ventas:detalle', args=[v.pk])), 'sobre el valor referencial')
+        self.assertContains(self.client.get(reverse('ventas:imprimir', args=[v.pk])), 'Valor referencial: S/ 3,000.00')
+        v = emitir('1500')  # el total es mayor: 4% de 2,360
+        self.assertEqual((v.detraccion_monto, v.usa_valor_referencial), (D('94.40'), False))
+        v = emitir('0')
+        self.assertEqual(v.detraccion_monto, D('94.40'))
+
     def venta(self):
         cli = Tercero.objects.filter(tipo='CLIENTE', tipo_doc='6').first()
         r = self.client.post(reverse('ventas:nuevo'), {

@@ -204,7 +204,7 @@
         <tr><td>IGV</td><td class="num">{{ doc.igv|money }}</td></tr>
         {% if doc.icbper %}<tr><td>ICBPER</td><td class="num">{{ doc.icbper|money }}</td></tr>{% endif %}
         <tr class="fw-bold fs-6"><td>TOTAL {{ doc.simbolo }}</td><td class="num">{{ doc.total|money }}</td></tr>
-        {% if doc.detraccion_monto %}<tr class="text-muted"><td>Detracción {{ doc.detraccion_pct|floatformat:0 }}%</td><td class="num">{{ doc.detraccion_monto|money }}</td></tr>
+        {% if doc.detraccion_monto %}<tr class="text-muted"><td>Detracción {{ doc.detraccion_pct|floatformat:0 }}%{% if doc.usa_valor_referencial %} <span class="small">(sobre el valor referencial {{ doc.valor_referencial|money }})</span>{% endif %}</td><td class="num">{{ doc.detraccion_monto|money }}</td></tr>
         {% if detraccion %}<tr class="text-muted small"><td>Constancia de depósito</td><td class="text-end">{% if doc.detraccion_constancia %}N° {{ doc.detraccion_constancia }}{% if doc.detraccion_fecha %} · {{ doc.detraccion_fecha|date:'d/m/Y' }}{% endif %}{% else %}<span class="text-danger">Pendiente</span>{% endif %}</td></tr>{% endif %}{% endif %}
         {% if doc.retencion_monto %}<tr class="text-muted"><td>Retención</td><td class="num">-{{ doc.retencion_monto|money }}</td></tr>{% endif %}
         {% if doc.percepcion_monto %}<tr class="text-muted"><td>Percepción</td><td class="num">+{{ doc.percepcion_monto|money }}</td></tr>{% endif %}

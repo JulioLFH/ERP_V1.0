@@ -86,6 +86,10 @@ class Venta(ComprobanteBase, ElectronicoMixin):
     vendedor = models.CharField(max_length=80, blank=True)
     detraccion_codigo = models.CharField('Bien/servicio con detracción', max_length=3, blank=True, default='35',
                                          help_text='Catálogo 54 SUNAT; solo si la venta tiene detracción')
+    valor_referencial = models.DecimalField(
+        'Valor referencial', max_digits=14, decimal_places=2, default=0,
+        help_text='Transporte de carga u otro servicio con valor referencial (en la moneda del comprobante): la '
+                  'detracción se calcula sobre el mayor entre el total y este valor. 0 = sobre el total.')
     # el cliente pagó el total: la empresa (proveedor) depositó la detracción en su cuenta del BN (transferencia)
     detraccion_deposito = models.ForeignKey('finanzas.Movimiento', on_delete=models.SET_NULL, null=True, blank=True,
                                             related_name='+', editable=False,

@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.116.6 — 17/11/2026 · Valor referencial en la factura de venta (detracción del transporte de carga)
+- **Ventas › Emitir comprobante**: nuevo campo **«Valor referencial»**. La detracción se calcula sobre el **mayor** entre el total de la factura y el valor referencial (regla del SPOT para el transporte de carga y otros servicios con valor referencial); con 0 se calcula sobre el total, como antes. El formulario muestra al momento la detracción y si sale del valor referencial; el detalle y la representación impresa indican el valor referencial cuando es el que se usó. La propuesta automática de detracción (más de S/ 700) también mira ese mayor valor.
+
 ## v1.116.5 — 17/11/2026 · El envío al SIRE acepta las compras con otros cargos (recargo al consumo)
 - **SIRE › Enviar al SIRE**: la validación previa ya suma «otros tributos y cargos» (p. ej. el recargo al consumo de los restaurantes) al cuadrar el total de cada comprobante. Antes marcaba como error compras correctas (total = base + IGV + otros cargos) y no dejaba generar el archivo, aunque el TXT ya enviaba ese importe en su columna.
 

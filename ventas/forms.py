@@ -62,7 +62,7 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         model = Venta
         fields = ['tipo_comprobante', 'serie', 'numero', 'tercero', 'fecha_emision', 'fecha_vencimiento',
                   'forma_pago', 'cuotas', 'dias_entre_cuotas', 'moneda', 'tipo_cambio', 'tipo_operacion',
-                  'detraccion_pct', 'retencion_pct', 'percepcion_pct', 'icbper', 'otros_cargos', 'detraccion_codigo', 'vendedor', 'cotizacion', 'doc_referencia',
+                  'detraccion_pct', 'retencion_pct', 'percepcion_pct', 'icbper', 'otros_cargos', 'detraccion_codigo', 'valor_referencial', 'vendedor', 'cotizacion', 'doc_referencia',
                   'motivo_nota', 'descontar_stock', 'almacen', 'centro_costo', 'lista_precios', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2}),
                    'detraccion_codigo': forms.Select(choices=[('', '---')] + DETRACCION_TIPOS)}
@@ -101,6 +101,8 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
                 data['vendedor'] = limpiar_vendedor(self, data['vendedor'])
             except forms.ValidationError as exc:
                 self.add_error('vendedor', exc)
+        if (data.get('valor_referencial') or 0) < 0:  # v1.116.6
+            self.add_error('valor_referencial', 'No puede ser negativo.')
         # VEN-18: el número de cuotas en una variable (add_error quita el campo de cleaned_data: antes daba error 500)
         escrito = data.get('cuotas')
         cuotas = escrito or 1

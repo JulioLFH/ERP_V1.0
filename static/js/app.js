@@ -150,7 +150,9 @@
       const r = num(document.getElementById('id_retencion_pct'));
       const p = num(document.getElementById('id_percepcion_pct'));
       const partes = [];
-      if (d) partes.push(`Detracción ${d}%: ${fmt(total * d / 100)}`);
+      const vr = num(document.getElementById('id_valor_referencial'));  // v1.116.6: el mayor entre total y V.R.
+      if (d) partes.push(`Detracción ${d}%: ${fmt(Math.max(total, vr) * d / 100)}` +
+        (vr > total ? ` (sobre el valor referencial ${fmt(vr)})` : ''));
       if (r) partes.push(`Retención ${r}%: ${fmt(total * r / 100)}`);
       if (p) partes.push(`Percepción ${p}%: ${fmt(total * p / 100)}`);
       extra.textContent = partes.join(' · ');
@@ -251,7 +253,7 @@
     enlazar(tr);
     tr.querySelector('.js-producto').focus();
   });
-  ['id_tipo_operacion', 'id_tipo_comprobante', 'id_icbper', 'id_otros_cargos', 'id_detraccion_pct', 'id_retencion_pct', 'id_percepcion_pct']
+  ['id_tipo_operacion', 'id_tipo_comprobante', 'id_icbper', 'id_otros_cargos', 'id_detraccion_pct', 'id_retencion_pct', 'id_percepcion_pct', 'id_valor_referencial']
     .forEach((id) => {
       const el = document.getElementById(id);
       if (el) { el.addEventListener('input', recalcular); el.addEventListener('change', recalcular); }

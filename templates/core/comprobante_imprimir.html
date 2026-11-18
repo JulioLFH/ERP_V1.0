@@ -37,10 +37,11 @@
       <div class="border rounded p-2 mb-2 text-body">
         <div class="fw-bold">Operación sujeta al Sistema de Pago de Obligaciones Tributarias con el Gobierno Central (SPOT)</div>
         <div>Bien o servicio: {{ detraccion.bien }}</div>
+        {% if doc.usa_valor_referencial %}<div>Valor referencial: {{ doc.simbolo }} {{ doc.valor_referencial|money }} (mayor que el importe de la operación: la detracción se calcula sobre él)</div>{% endif %}
         <div>Porcentaje: {{ doc.detraccion_pct|floatformat:2 }}% · Monto de la detracción: <b>S/ {{ detraccion.monto_pen|money }}</b>{% if doc.moneda != 'PEN' %} ({{ doc.simbolo }} {{ doc.detraccion_monto|money }} al T.C. {{ doc.tipo_cambio }}){% endif %}</div>
         <div>Cta. de detracciones Banco de la Nación: <b>{{ detraccion.cuenta|default:'(registre la cuenta en Tesorería › Caja y bancos)' }}</b></div>
       </div>
-      {% elif doc.detraccion_monto %}<p>Operación sujeta al SPOT ({{ doc.detraccion_pct|floatformat:0 }}%): {{ doc.simbolo }} {{ doc.detraccion_monto|money }}.</p>{% endif %}
+      {% elif doc.detraccion_monto %}<p>Operación sujeta al SPOT ({{ doc.detraccion_pct|floatformat:0 }}%{% if doc.usa_valor_referencial %} sobre el valor referencial {{ doc.simbolo }} {{ doc.valor_referencial|money }}{% endif %}): {{ doc.simbolo }} {{ doc.detraccion_monto|money }}.</p>{% endif %}
       {% if cuotas %}
       <div class="text-body mb-2"><div class="fw-bold">Forma de pago: Crédito · Monto neto pendiente de pago: {{ doc.simbolo }} {{ cuotas_total|money }}</div>
         <table class="table table-sm table-bordered mb-0 mt-1" style="max-width:360px"><thead class="table-light"><tr><th>Cuota</th><th>Vencimiento</th><th class="num">Importe</th></tr></thead>

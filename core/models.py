@@ -2153,7 +2153,7 @@ class ComprobanteBase(TotalesMixin):
         """Factura nueva sin % de detracción: toma el de sus productos (el más alto) si el total supera S/ 700.
         En ventas también el código del bien o servicio. Devuelve True si la aplicó."""
         if self.detraccion_pct or self.tipo_comprobante != '01' or \
-                self.total * self.tc_efectivo <= self.UMBRAL_DETRACCION:
+                self.base_detraccion * self.tc_efectivo <= self.UMBRAL_DETRACCION:
             return False
         sujetos = [i.producto for i in self.items.select_related('producto')
                    if i.producto_id and i.producto.detraccion_pct]
@@ -2246,10 +2246,20 @@ class ComprobanteBase(TotalesMixin):
                 habiles += 1
         return fecha
 
+    @property
+    def base_detraccion(self):
+        """v1.116.6: importe sobre el que se calcula la detracción: el mayor entre el total y el valor referencial
+        (transporte de carga y otros servicios con valor referencial). Sin valor referencial, el total."""
+        return max(self.total, getattr(self, 'valor_referencial', None) or D0)
+
+    @property
+    def usa_valor_referencial(self):
+        return bool(self.detraccion_monto) and (getattr(self, 'valor_referencial', None) or D0) > self.total
+
     def calcular_totales(self):
         super().calcular_totales()
         self.total += self.otros_cargos or D0  # no salen de los ítems: se suman aparte
-        self.detraccion_monto = r2(self.total * self.detraccion_pct / 100)
+        self.detraccion_monto = r2(self.base_detraccion * self.detraccion_pct / 100)
         self.retencion_monto = r2(self.total * self.retencion_pct / 100)
         self.percepcion_monto = r2(self.total * self.percepcion_pct / 100)
 
