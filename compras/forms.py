@@ -45,6 +45,9 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
     def clean_valor_aduana(self):
         return self.cleaned_data.get('valor_aduana') or 0
 
+    def clean_otros_cargos(self):  # v1.116.7: vacío = 0 (antes se guardaba nulo y la base rechazaba la compra)
+        return self.cleaned_data.get('otros_cargos') or 0
+
     def clean_destino_igv(self):
         return self.cleaned_data.get('destino_igv') or 'GRAVADA'
 

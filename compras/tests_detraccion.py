@@ -55,6 +55,28 @@ class DetraccionTest(TestCase):
         self.assertEqual(r.status_code, 302, r.content[:3000] if r.status_code == 200 else '')
         return Compra.objects.get(serie='F700', numero=numero), data
 
+    def test_otros_cargos_vacio_se_guarda_en_cero(self):
+        """v1.116.7: el campo «Otros tributos y cargos» vacío (recibo por honorarios, etc.) se guarda como 0; antes
+        llegaba nulo y la base rechazaba la compra (IntegrityError)."""
+        data = {
+            'tipo_comprobante': '01', 'serie': 'F701', 'numero': '1', 'tercero': self.prov.pk,
+            'fecha_emision': '2026-10-01', 'fecha_vencimiento': '', 'periodo': '', 'clasificacion': 'MERCADERIA',
+            'forma_pago': 'CONTADO', 'moneda': 'PEN', 'tipo_cambio': '1', 'tipo_operacion': 'GRAVADA',
+            'detraccion_pct': '0', 'retencion_pct': '0', 'percepcion_pct': '0', 'icbper': '0', 'otros_cargos': '',
+            'glosa': '', 'items-TOTAL_FORMS': '1', 'items-INITIAL_FORMS': '0', 'items-MIN_NUM_FORMS': '1',
+            'items-MAX_NUM_FORMS': '1000', 'items-0-producto': self.servicio.pk, 'items-0-descripcion': 'Servicio',
+            'items-0-cantidad': '1', 'items-0-precio_unitario': '100',
+        }
+        r = self.client.post(reverse('compras:nuevo'), data)
+        self.assertEqual(r.status_code, 302, r.content[:3000] if r.status_code == 200 else '')
+        c = Compra.objects.get(serie='F701', numero='1')
+        self.assertEqual((c.otros_cargos, c.total), (0, D('118.00')))
+        item = c.items.first()  # al editar, igual
+        edit = dict(data, **{'items-INITIAL_FORMS': '1', 'items-0-id': item.pk, 'items-0-documento': c.pk})
+        self.assertEqual(self.client.post(reverse('compras:editar', args=[c.pk]), edit).status_code, 302)
+        c.refresh_from_db()
+        self.assertEqual(c.otros_cargos, 0)
+
     def test_el_porcentaje_sale_del_producto(self):
         c, data = self.compra('1', '1000')  # 1180 > 700
         self.assertEqual((c.detraccion_pct, c.detraccion_monto), (D('12'), D('141.60')))

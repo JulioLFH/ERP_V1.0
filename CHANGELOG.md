@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.116.7 — 18/11/2026 · Compras: se guardan con «Otros tributos y cargos» vacío
+- **Compras › Registrar / Editar**: con el campo «Otros tributos y cargos» vacío (recibos por honorarios y otros comprobantes sin ese importe) la compra daba «Error del sistema» y no se guardaba. Ahora el vacío se toma como 0.
+
 ## v1.116.6 — 17/11/2026 · Valor referencial en la factura de venta (detracción del transporte de carga)
 - **Ventas › Emitir comprobante**: nuevo campo **«Valor referencial»**. La detracción se calcula sobre el **mayor** entre el total de la factura y el valor referencial (regla del SPOT para el transporte de carga y otros servicios con valor referencial); con 0 se calcula sobre el total, como antes. El formulario muestra al momento la detracción y si sale del valor referencial; el detalle y la representación impresa indican el valor referencial cuando es el que se usó. La propuesta automática de detracción (más de S/ 700) también mira ese mayor valor.
 

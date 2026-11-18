@@ -2258,7 +2258,8 @@ class ComprobanteBase(TotalesMixin):
 
     def calcular_totales(self):
         super().calcular_totales()
-        self.total += self.otros_cargos or D0  # no salen de los ítems: se suman aparte
+        self.otros_cargos = self.otros_cargos or D0  # v1.116.7: nunca nulo (la columna no lo admite)
+        self.total += self.otros_cargos  # no salen de los ítems: se suman aparte
         self.detraccion_monto = r2(self.base_detraccion * self.detraccion_pct / 100)
         self.retencion_monto = r2(self.total * self.retencion_pct / 100)
         self.percepcion_monto = r2(self.total * self.percepcion_pct / 100)
