@@ -262,7 +262,9 @@ def validar(registro, periodo, docs):
         if d.moneda == 'USD' and not d.tipo_cambio:
             e.append('falta el tipo de cambio')
         if d.estado != 'ANULADO':
-            esperado = d.base_imponible + d.no_gravado + d.igv + d.icbper + getattr(d, 'ajuste_redondeo', D0)
+            # v1.116.5: con «otros tributos y cargos» (recargo al consumo de restaurantes, etc.), que el TXT ya envía
+            esperado = (d.base_imponible + d.no_gravado + d.igv + d.icbper + (d.otros_cargos or D0)
+                        + getattr(d, 'ajuste_redondeo', D0))
             if abs(d.total - esperado) > TOLERANCIA:
                 e.append(f'el total {d.total:,.2f} no es base + IGV + otros ({esperado:,.2f})')
             if d.total <= 0 and d.tipo_comprobante not in ('07',):

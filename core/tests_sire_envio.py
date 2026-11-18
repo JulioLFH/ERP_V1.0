@@ -216,6 +216,15 @@ class ValidacionTest(Base):
         self.assertContains(r, 'Errores a corregir antes de generar el archivo (3)')
         self.assertFalse(EnvioSIRE.objects.exists())
 
+    def test_otros_cargos_cuadran_el_total(self):
+        """v1.116.5: factura de restaurante con recargo al consumo (otros cargos): no es error y va en el TXT."""
+        c = self.compra('5', base='139.52', otros_cargos=D('8.37'))
+        Compra.objects.filter(pk=c.pk).update(igv=D('25.11'), total=D('173.00'))
+        docs = sire_envio.documentos('080400', PERIODO)
+        self.assertEqual(sire_envio.validar('080400', PERIODO, docs), ([], []))
+        linea = sire_envio.generar('080400', PERIODO, '02', '1', '1', None, docs=docs)['txt'].splitlines()[0]
+        self.assertIn('|8.37|', linea)
+
     def test_validar_sin_errores_y_descargar(self):
         self.compra('1')
         r = self.client.post(reverse('sire_envios'), {**self.datos(), 'accion': 'validar'}, follow=True)
