@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.116.8 — 19/11/2026 · El tipo de cambio se carga solo cada día
+- **Tipo de cambio diario**: hasta ahora solo se consultaba al abrir un comprobante, y la API gratuita (apis.net.pe) rechaza las consultas seguidas (429: demasiadas consultas), así que casi nunca se guardaba y el sistema usaba el último valor registrado (en algunas empresas, el del 31/10). Ahora el ERP lo carga solo **cada hora**: completa los días que falten del mes en curso en todas las empresas, consulta cada día una sola vez para todo el grupo, espacia las consultas y, si la API limita, deja el resto para la hora siguiente. Los registrados a mano no se tocan.
+- **Con el token de Decolecta** (Ajustes › Empresa), aunque la fuente sea SUNAT, el tipo de cambio SUNAT se toma primero de Decolecta (el mes completo en una consulta); si no responde, de la API gratuita. «Descargar el periodo» también usa esa consulta por mes.
+
 ## v1.116.7 — 18/11/2026 · Compras: se guardan con «Otros tributos y cargos» vacío
 - **Compras › Registrar / Editar**: con el campo «Otros tributos y cargos» vacío (recibos por honorarios y otros comprobantes sin ese importe) la compra daba «Error del sistema» y no se guardaba. Ahora el vacío se toma como 0.
 

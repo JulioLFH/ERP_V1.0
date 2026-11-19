@@ -11,10 +11,13 @@
   actualización no corta a los usuarios. Si cambian los archivos de static/ primero se corre collectstatic.
   Las migraciones NO se aplican solas: se aplican con iniciar.bat (o manage.py migrate) antes de subir el código que
   las usa.
+- v1.116.8: cada hora (la primera, unos minutos después de encender) carga el tipo de cambio de los días que falten
+  en todas las empresas (manage.py cargar_tipo_cambio --diario --todas). TIPO_CAMBIO_DIARIO=0 lo desactiva.
 """
 import argparse
 import multiprocessing as mp
 import os
+import random
 import socket
 import subprocess
 import sys
@@ -27,6 +30,7 @@ VIGILAR = ('.py', '.html', '.txt', '.css', '.js', '.svg', '.json')
 EXCLUIR = {'.venv', 'staticfiles', '__pycache__', '.git', 'media', 'logs', 'respaldos', 'node_modules', '.cache_ceiba',
            'migracion_local', 'docs'}
 ESPERA_FIN = 60  # segundos que un proceso viejo tiene para terminar lo que estaba atendiendo
+CADA_TIPO_CAMBIO = 3600  # segundos entre cargas del tipo de cambio
 
 
 def log(texto):
@@ -149,6 +153,16 @@ def collectstatic(settings):
     return r.returncode == 0
 
 
+def cargar_tipo_cambio(settings):
+    """v1.116.8: lanza la carga del tipo de cambio en segundo plano (no demora el servidor). Su salida va al registro."""
+    try:
+        return subprocess.Popen([sys.executable, 'manage.py', 'cargar_tipo_cambio', '--diario', '--todas',
+                                 f'--settings={settings}'], cwd=BASE)
+    except OSError as exc:
+        log(f'No se pudo lanzar la carga del tipo de cambio: {exc}')
+        return None
+
+
 def principal():
     p = argparse.ArgumentParser(description='Servidor de producción de Ceiba ERP')
     p.add_argument('--puerto', type=int, default=int(os.environ.get('PUERTO', 8030)))
@@ -174,9 +188,15 @@ def principal():
 
     siguiente = a.procesos + 1
     ultima = huella(BASE)
+    tc_activo = os.environ.get('TIPO_CAMBIO_DIARIO', '1') != '0'
+    tc_siguiente = time.time() + random.randint(120, 900)  # cada ERP a una hora distinta: la API limita por equipo
+    tc_proceso = None
     try:
         while True:
             time.sleep(2)
+            if tc_activo and time.time() >= tc_siguiente and (tc_proceso is None or tc_proceso.poll() is not None):
+                tc_siguiente = time.time() + CADA_TIPO_CAMBIO
+                tc_proceso = cargar_tipo_cambio(a.settings)
             for i, t in enumerate(trabajadores):  # proceso caído: se reemplaza
                 if not t.vivo():
                     log(f'El proceso {t.n} se detuvo (código {t.proceso.exitcode}): se inicia otro.')
