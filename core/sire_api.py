@@ -42,6 +42,7 @@ ACEPTAR = {'RVIE': '/rvie/propuesta/web/propuesta/{periodo}/aceptapropuesta',
 TICKETS = '/rvierce/gestionprocesosmasivos/web/masivo/consultaestadotickets'
 ARCHIVO = '/rvierce/gestionprocesosmasivos/web/masivo/archivoreporte'
 TERMINADO = '06'
+FINALES = ('terminado', 'procesado', 'finalizado')  # estado del ticket ya resuelto en SUNAT (por su descripción)
 
 
 class ErrorSIRE(Exception):
@@ -226,9 +227,12 @@ def estado_ticket(libro, periodo, ticket):
         return {'terminado': False, 'error': False, 'descripcion': 'SUNAT aún no registra el ticket', 'registro': None}
     codigo = str(r.get('codEstadoProceso') or '')
     descripcion = r.get('desEstadoProceso') or codigo
-    error = 'error' in descripcion.lower() or 'rechaz' in descripcion.lower()
-    return {'terminado': codigo == TERMINADO or descripcion.lower().startswith('terminado'), 'error': error,
-            'descripcion': descripcion, 'registro': r}
+    texto = descripcion.lower()
+    error = 'error' in texto or 'rechaz' in texto
+    # v1.116.9: los envíos (reemplazo, 8.5, ajustes) terminan en «Procesado» (o «Procesado con Errores»), no en
+    # «Terminado» como la propuesta: antes «Procesado» se quedaba para siempre en «SUNAT lo procesa»
+    terminado = codigo == TERMINADO or texto.startswith(FINALES)
+    return {'terminado': terminado, 'error': error, 'descripcion': descripcion, 'registro': r}
 
 
 def descargar_archivo(libro, registro):
