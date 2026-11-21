@@ -9,7 +9,7 @@
   <label class="form-label small" for="rucs">RUC a consultar (uno o varios, hasta {{ maximo }}: puede pegar una columna de Excel)</label>
   <textarea name="rucs" id="rucs" class="form-control" rows="3" placeholder="20100070970&#10;20601234567" autofocus>{{ texto }}</textarea>
   <button class="btn btn-primary mt-2"><i class="bi bi-search"></i> Consultar en SUNAT</button>
-  <div class="form-text">Usa el token de Decolecta de Ajustes › Empresa (el mismo del tipo de cambio). Cada RUC consultado queda en el historial.</div>
+  <div class="form-text">Usa el token de Decolecta del panel de servicios (el mismo del tipo de cambio, para todos los ERP). Cada RUC consultado queda en el historial.</div>
 </div></form>
 {% if resultados %}
 {% if con_alerta %}<div class="alert alert-danger small py-2"><i class="bi bi-exclamation-triangle"></i> {{ con_alerta }} RUC con estado o condición observada (no activo o no habido): revise antes de comprarle o venderle a crédito.</div>{% endif %}

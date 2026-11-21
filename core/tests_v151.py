@@ -276,11 +276,10 @@ class ListaProduccionTest(Base):
         self.client.force_login(self.admin)
         r = self.client.get(reverse('facturacion'))
         self.assertContains(r, 'Para emitir en producción')
-        self.assertContains(r, 'Guías: client_id')
-        r = self.client.post(reverse('facturacion'), {'proveedor': 'SUNAT', 'entorno': 'BETA',
-                                                       'gre_client_id': ' id-123 ',
-                                                       'gre_client_secret_nuevo': 'secreto-xyz'})
-        self.assertRedirects(r, reverse('facturacion'), fetch_redirect_response=False)
+        self.assertContains(r, 'Guías (API GRE)')  # v1.117.1: se registran en Credenciales SUNAT y SIRE
+        r = self.client.post(reverse('credenciales_sunat'), {'gre_client_id': ' id-123 ',
+                                                             'gre_client_secret': 'secreto-xyz'})
+        self.assertRedirects(r, reverse('credenciales_sunat'), fetch_redirect_response=False)
         self.cfg.refresh_from_db()
         self.assertEqual(self.cfg.gre_client_id, 'id-123')
         self.assertNotIn('secreto-xyz', self.cfg.gre_client_secret)

@@ -64,8 +64,7 @@ def consultar(ruc, token=''):
     token = compartido() or (token or '').strip() or de_la_empresa()
     if not token:
         raise ErrorPadron('Para traer los datos de SUNAT falta el token de Decolecta: regístrelo en el panel de '
-                          'servicios (Ajustes, para todos los ERP) o en Ajustes › Empresa («Token Decolecta», cuenta '
-                          'gratuita en decolecta.com).')
+                          'servicios (pestaña Ajustes, para todos los ERP; cuenta gratuita en decolecta.com).')
     clave = f'padron-ruc-{ruc}'
     r = cache.get(clave)
     if r is None:

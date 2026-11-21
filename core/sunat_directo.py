@@ -397,8 +397,8 @@ def _credenciales(cfg):
     if cfg.entorno == 'BETA':
         return f'{ruc}MODDATOS', CLAVE_BETA
     if not (cfg.sol_usuario and cfg.sol_clave):
-        raise ErrorSunatDirecto('Registre el usuario SOL secundario y su clave en Ajustes › Facturación '
-                                'electrónica.')
+        raise ErrorSunatDirecto('Registre el usuario SOL secundario y su clave en Ajustes › Credenciales '
+                                'SUNAT y SIRE.')
     return f'{ruc}{cfg.sol_usuario.strip().upper()}', descifrar(cfg.sol_clave)
 
 
@@ -759,7 +759,7 @@ def lista_produccion(cfg=None):
         texto += f' — vence el {cfg.certificado_vence:%d/%m/%Y}: renuévelo'
     item(vigente, texto + '.')
     item(bool(cfg.sol_usuario and cfg.sol_clave), 'Usuario SOL secundario y su clave (perfil de emisión '
-                                                  'electrónica).')
+                                                  'electrónica) — Ajustes › Credenciales SUNAT y SIRE.')
     series = set(Serie.objects.filter(activo=True).values_list('tipo', 'serie'))
     for tipo, letra, nombre in (('01', 'F', 'facturas'), ('03', 'B', 'boletas')):
         item(any(t == tipo and s.startswith(letra) for t, s in series),
@@ -767,7 +767,8 @@ def lista_produccion(cfg=None):
     item(any(t == '09' and s.startswith('T') for t, s in series),
          'Serie de guías remitente que empiece con T (solo si emite guías).', opcional=True)
     item(bool(cfg.gre_client_id and cfg.gre_client_secret),
-         'Credenciales de la API de guías (client_id y client_secret, solo si emite guías).', opcional=True)
+         'Credenciales de la API de guías (client_id y client_secret, solo si emite guías) — '
+         'Ajustes › Credenciales SUNAT y SIRE.', opcional=True)
     item(bool(cuenta_detracciones()), 'Cuenta de detracciones del Banco de la Nación en Tesorería › Caja y bancos (solo si '
                                       'factura servicios con detracción).', opcional=True)
     item(bool(e.registro_mtc), 'Registro MTC de la empresa (solo si emite guías transportista).', opcional=True)

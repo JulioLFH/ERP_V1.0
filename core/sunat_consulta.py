@@ -1,7 +1,7 @@
 """Consulta integrada de validez de comprobantes de pago (API SUNAT).
 
 Credenciales: SUNAT Operaciones en Línea > Empresas > Comprobantes de pago > Consulta de validez >
-Credenciales de API SUNAT (client_id y client_secret), registradas en Ajustes > Empresa.
+Credenciales de API SUNAT (client_id y client_secret), registradas en Ajustes › Credenciales SUNAT y SIRE.
 """
 import json
 import urllib.parse
@@ -60,7 +60,7 @@ def validar(ruc_emisor, tipo, serie, numero, fecha, monto):
     """Consulta el comprobante. Devuelve {'codigo', 'estado', 'valido', 'detalle'}; lanza ErrorConsulta."""
     empresa = Empresa.actual()
     if not configurada():
-        raise ErrorConsulta('Registre las credenciales de la API SUNAT en Ajustes > Empresa.')
+        raise ErrorConsulta('Registre las credenciales de la API SUNAT en Ajustes › Credenciales SUNAT y SIRE.')
     cuerpo = {'numRuc': ruc_emisor, 'codComp': tipo, 'numeroSerie': serie, 'numero': str(int(numero)),
               'fechaEmision': fecha.strftime('%d/%m/%Y'), 'monto': f'{monto:.2f}'}
     try:

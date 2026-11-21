@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.1 — 21/11/2026 · Credenciales de SUNAT y del SIRE en una sola pantalla; el token de Decolecta solo en el panel
+- **Token de Decolecta**: ya no aparece en Ajustes › Empresa de ningún ERP; se registra una sola vez en el panel de servicios (pestaña Ajustes) para todos. La fuente del tipo de cambio indica si el token está activo.
+- **Credenciales en Ajustes › Credenciales SUNAT y SIRE**: el usuario SOL y la clave del SIRE, su client_id y client_secret y los de la API SUNAT salieron de Ajustes › Empresa; el usuario SOL secundario, su clave y las credenciales de guías salieron de Facturación electrónica (que ahora muestra si están registradas, con el enlace). Lo ya guardado se conserva.
+- Los avisos del SIRE, de la consulta de validez y de la facturación directa llevan a la pantalla de credenciales.
+
 ## v1.117.0 — 21/11/2026 · Tesorería con aprobación de pagos, cobranzas con sustento, XML conectado a la orden de compra y token de Decolecta para todos los ERP
 - **Token de Decolecta compartido**: el panel de servicios (pestaña «Ajustes») guarda un solo token para todos los Ceiba ERP del servidor; tipo de cambio, consulta RUC y lectura de comprobantes lo usan sin reiniciar. Si el panel no tiene token, cada ERP usa el de su empresa, como antes.
 - **Movimientos masivos desde el estado de cuenta**: en la conciliación automática se marcan varias líneas del banco y se crean de una vez sus movimientos en tesorería (con concepto automático o elegido), o se ignoran juntas.

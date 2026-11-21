@@ -230,10 +230,10 @@ def _token(cfg):
     ruc = Empresa.actual().ruc
     if not (cfg.gre_client_id and cfg.gre_client_secret):
         raise ErrorSunatDirecto('Registre el client_id y el client_secret de la API de guías en Ajustes › '
-                                'Facturación electrónica.')
+                                'Credenciales SUNAT y SIRE.')
     if not (cfg.sol_usuario and cfg.sol_clave):
-        raise ErrorSunatDirecto('Registre el usuario SOL secundario y su clave en Ajustes › Facturación '
-                                'electrónica.')
+        raise ErrorSunatDirecto('Registre el usuario SOL secundario y su clave en Ajustes › Credenciales '
+                                'SUNAT y SIRE.')
     clave_cache = f'gre-token:{ruc}:{cfg.gre_client_id}'
     token = cache.get(clave_cache)
     if token:

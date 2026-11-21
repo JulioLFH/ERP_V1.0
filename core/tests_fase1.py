@@ -193,10 +193,12 @@ class Fase1Test(TestCase):
         self.assertEqual((tc.venta, tc.fuente), (D('3.390'), 'SUNAT'))
 
     def test_sbs_exige_token(self):
+        Empresa.objects.update(token_tipo_cambio='')  # v1.117.1: sin token en el panel ni en la empresa
         e = Empresa.actual()
         datos = {'ruc': e.ruc, 'razon_social': e.razon_social, 'nombre_comercial': '', 'direccion': 'Av. 1',
                  'telefono': '', 'email': '', 'igv_tasa': '18', 'ubigeo': '150131', 'registro_mtc': '',
                  'fuente_tipo_cambio': 'SBS', 'token_tipo_cambio': ''}
         form = EmpresaForm(data=datos, instance=e)
         self.assertFalse(form.is_valid())
-        self.assertIn('token_tipo_cambio', form.errors)
+        self.assertIn('fuente_tipo_cambio', form.errors)
+        self.assertNotIn('token_tipo_cambio', form.fields)  # el token se registra en el panel de servicios

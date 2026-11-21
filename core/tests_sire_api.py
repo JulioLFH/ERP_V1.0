@@ -212,7 +212,7 @@ class SinCredencialesTest(Base):
     def test_pide_configurar_o_subir_archivo(self):
         Empresa.objects.update(sire_client_id='', sire_client_secret='', sire_usuario_sol='', sunat_client_id='')
         r = self.client.get(reverse('sire_propuestas'))
-        self.assertContains(r, 'Ajustes › Empresa')
+        self.assertContains(r, 'Ajustes › Credenciales SUNAT y SIRE')
         r = self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-09'}, follow=True)
         self.assertContains(r, 'Suba el archivo de la propuesta')
         self.assertFalse(PropuestaSIRE.objects.exists())
@@ -243,7 +243,7 @@ class SesionConClaveDeLaEmpresaTest(Base):
         cache.clear()
         self.assertContains(self.client.get(reverse('sire_propuestas')), 'Falta la clave SOL del SIRE')
         r = self.client.post(reverse('sire_propuestas'), {'libro': 'RCE', 'periodo': '2026-10'}, follow=True)
-        self.assertContains(r, 'Falta la clave SOL del SIRE en Ajustes › Empresa')
+        self.assertContains(r, 'Falta la clave SOL del SIRE en Ajustes › Credenciales SUNAT y SIRE')
         self.assertEqual(PropuestaSIRE.objects.count(), 1)
 
     def test_mensaje_segun_lo_que_rechaza_sunat(self):

@@ -118,7 +118,9 @@ class FichaEmpresaTest(Base):
     def test_direccion_y_correo_obligatorios_y_ruc_validado(self):
         r = self.client.get(reverse('empresa'))
         self.assertContains(r, 'consulta_ruc.js')
-        self.assertContains(r, "token: 'id_token_tipo_cambio'")
+        self.assertNotContains(r, 'id_token_tipo_cambio')  # v1.117.1: el token va en el panel de servicios
+        for campo in ('sire_usuario_sol', 'sire_client_id', 'sunat_client_id', 'sire_clave_nueva'):
+            self.assertNotContains(r, f'name="{campo}"')  # v1.117.1: en Ajustes › Credenciales SUNAT y SIRE
         e = Empresa.actual()
         datos = {'ruc': '20100070971', 'razon_social': 'MI EMPRESA SAC', 'direccion': '', 'email': '',
                  'igv_tasa': '18.00', 'fuente_tipo_cambio': 'SUNAT', 'dias_gracia': 0,

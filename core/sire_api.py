@@ -16,9 +16,9 @@ SIRE Compras» (v28) publicados en cpe.sunat.gob.pe:
 7. Libro oficial: el registro ya generado del periodo (solicitar_registro → numTicket → archivoreporte) y su constancia
    de recepción en PDF (descargar_constancia).
 
-El usuario y la clave SOL se registran una vez en Ajustes › Empresa (la clave cifrada) y se usan solos para pedir el
+El usuario y la clave SOL se registran una vez en Ajustes › Credenciales SUNAT y SIRE (la clave cifrada) y se usan solos para pedir el
 token cada vez que vence: la sesión se mantiene sin pedir nada. Solo si faltan allí, o SUNAT no los acepta, se avisa
-para corregirlos en Ajustes › Empresa (el módulo SUNAT no pide la clave).
+para corregirlos en Ajustes › Credenciales SUNAT y SIRE (el módulo SUNAT no pide la clave).
 """
 import json
 import re
@@ -69,19 +69,19 @@ def _clave_cache(e):
 
 
 def clave_guardada(empresa=None):
-    """La clave SOL del SIRE registrada en Ajustes › Empresa ('' si no hay o no se puede leer)."""
+    """La clave SOL del SIRE registrada en Ajustes › Credenciales SUNAT y SIRE ('' si no hay o no se puede leer)."""
     from .cifrado import descifrar
     e = empresa or Empresa.actual()
     return descifrar(e.sire_clave_sol)
 
 
 def hay_token():
-    """¿Se puede trabajar con SUNAT? (sesión activa o clave guardada en Ajustes › Empresa)."""
+    """¿Se puede trabajar con SUNAT? (sesión activa o clave guardada en Ajustes › Credenciales SUNAT y SIRE)."""
     e = Empresa.actual()
     return bool(cache.get(_clave_cache(e)) or clave_guardada(e))
 
 
-FALTA_CLAVE = ('Falta la clave SOL del SIRE en Ajustes › Empresa. Regístrela allí una vez (con el usuario SOL) y el '
+FALTA_CLAVE = ('Falta la clave SOL del SIRE en Ajustes › Credenciales SUNAT y SIRE. Regístrela allí una vez (con el usuario SOL) y el '
                'sistema mantiene la sesión con SUNAT solo.')
 
 
@@ -143,7 +143,7 @@ def _mensaje(texto):
 
 
 def iniciar_sesion():
-    """Pide el token con el usuario y la clave SOL de Ajustes › Empresa. Lo deja en la caché por el tiempo que SUNAT
+    """Pide el token con el usuario y la clave SOL de Ajustes › Credenciales SUNAT y SIRE. Lo deja en la caché por el tiempo que SUNAT
     indique."""
     e = Empresa.actual()
     from .cifrado import ilegible

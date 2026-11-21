@@ -479,7 +479,7 @@ def tipos_cambio(request):
                 messages.success(request, f'{ok} días actualizados desde {" / ".join(sorted(fuentes))}.')
                 if tipo_cambio.fuente_actual()[0] == 'SBS' and fuentes == {'SUNAT'}:
                     messages.warning(request, 'La SBS (Decolecta) no respondió: se usó SUNAT. Revise el token en '
-                                              'Ajustes > Empresa.')
+                                              'el panel de servicios (pestaña Ajustes).')
             else:
                 messages.error(request, 'No se pudo consultar el tipo de cambio (sin conexión o servicio no '
                                         'disponible). Puede registrarlo manualmente.')

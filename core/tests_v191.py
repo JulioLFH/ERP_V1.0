@@ -446,24 +446,20 @@ class VentasPedidoTest(TestCase):
 
 class ClaveSolSireTest(TestCase):
     def test_se_guarda_cifrada_y_no_se_vuelve_a_pedir(self):
-        """La clave SOL del SIRE se registra una vez en Ajustes › Empresa y la API la usa sola."""
+        """La clave SOL del SIRE se registra una vez en Ajustes › Credenciales SUNAT y SIRE y la API la usa sola."""
         from django.core.cache import cache
 
         from core import sire_api
         from core.cifrado import descifrar
-        from core.forms import EmpresaForm
+        from core.credenciales_sunat import CredencialesForm
         from core.models import Empresa
         e = Empresa.actual()
         Empresa.objects.filter(pk=e.pk).update(ruc='20100070970', sire_client_id='cid', sire_client_secret='sec',
                                                sire_usuario_sol='SIRE01', direccion=e.direccion or 'Av. Lima 1',
                                                email=e.email or 'a@a.com')
-        e.refresh_from_db()
-        from django.forms.models import model_to_dict
-        datos = {k: v for k, v in model_to_dict(e).items() if v is not None}
-        datos['sire_clave_nueva'] = 'MiClaveSol'
-        f = EmpresaForm(datos, instance=e)
+        f = CredencialesForm({'sire_usuario_sol': 'SIRE01', 'sire_client_id': 'cid', 'sire_clave_sol': 'MiClaveSol'})
         self.assertTrue(f.is_valid(), f.errors)
-        f.save()
+        f.guardar()
         e.refresh_from_db()
         self.assertNotIn('MiClaveSol', e.sire_clave_sol)
         self.assertEqual(descifrar(e.sire_clave_sol), 'MiClaveSol')

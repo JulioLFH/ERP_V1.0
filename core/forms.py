@@ -238,11 +238,8 @@ class UbigeoMixin:
 
 
 class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
-    # la clave SOL del SIRE se guarda cifrada y no se vuelve a mostrar (vacío = la guardada no cambia)
-    sire_clave_nueva = forms.CharField(
-        label='SIRE: clave SOL', required=False, widget=forms.PasswordInput,
-        help_text='Se guarda cifrada y el SIRE la usa solo al conectarse con SUNAT. Vacío = no cambia')
-    sire_quitar_clave = forms.BooleanField(label='Borrar la clave SOL guardada del SIRE', required=False)
+    # v1.117.1: las credenciales de SUNAT y del SIRE están solo en Ajustes › Credenciales SUNAT y SIRE
+    # (core/credenciales_sunat.py) y el token de Decolecta en el panel de servicios, para todos los ERP (Meta.exclude)
     # REQ-09: logo de los formatos impresos (facturas, guías, órdenes, vouchers, reportes)
     logo_archivo = forms.FileField(label='Logo de la empresa', required=False,
                                    help_text='PNG, JPG, GIF o WEBP de hasta 5 MB. Sale en los formatos impresos')
@@ -250,10 +247,8 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
 
     class Meta:
         model = Empresa
-        fields = '__all__'
-        widgets = {'token_tipo_cambio': forms.PasswordInput(render_value=True),
-                   'sunat_client_secret': forms.PasswordInput(render_value=True),
-                   'sire_client_secret': forms.PasswordInput(render_value=True)}
+        exclude = ('token_tipo_cambio', 'sunat_client_id', 'sunat_client_secret', 'sire_client_id',
+                   'sire_client_secret', 'sire_usuario_sol')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -261,16 +256,12 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
         self.fields['direccion'].required = True
         self.fields['email'].required = True
         self.fields['ruc'].help_text = 'Al escribirlo se traen de SUNAT la razón social, la dirección y el ubigeo'
-        from .token_decolecta import compartido, oculto
-        if 'token_tipo_cambio' in self.fields and compartido():  # v1.117.0
-            self.fields['token_tipo_cambio'].help_text = (
-                f'Se usa el token compartido del panel de servicios ({oculto(compartido())}) para todos los ERP; '
-                f'este campo queda solo de respaldo')
-        if self.instance.sire_clave_sol:
-            self.fields['sire_clave_nueva'].help_text = ('Hay una clave guardada (cifrada). Escriba otra solo para '
-                                                         'cambiarla')
-        else:
-            self.fields.pop('sire_quitar_clave')
+        if 'fuente_tipo_cambio' in self.fields:
+            from .token_decolecta import token
+            self.fields['fuente_tipo_cambio'].help_text = (
+                'SBS: promedio ponderado publicado por la SBS; si no responde se usa SUNAT. El token de Decolecta se '
+                'administra en el panel de servicios para todos los ERP' + (
+                    ' (activo).' if token() else ': todavía no hay uno registrado.'))
         if not self.instance.logo:
             self.fields.pop('quitar_logo')
 
@@ -295,11 +286,6 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
             empresa.logo, empresa.logo_tipo = datos, tipo_imagen(datos[:16])
         elif self.cleaned_data.get('quitar_logo'):
             empresa.logo, empresa.logo_tipo = None, ''
-        if self.cleaned_data.get('sire_clave_nueva'):
-            from .cifrado import cifrar
-            empresa.sire_clave_sol = cifrar(self.cleaned_data['sire_clave_nueva'])
-        elif self.cleaned_data.get('sire_quitar_clave'):
-            empresa.sire_clave_sol = ''
         if commit:
             empresa.save()
             self.save_m2m()
@@ -313,10 +299,11 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
 
     def clean(self):
         datos = super().clean()
-        from .token_decolecta import compartido
-        if datos.get('fuente_tipo_cambio') == 'SBS' and not datos.get('token_tipo_cambio') and not compartido():
-            self.add_error('token_tipo_cambio', 'Para usar el tipo de cambio SBS indique el token de Decolecta (o '
-                                                'regístrelo en el panel de servicios para todos los ERP).')
+        from .token_decolecta import token
+        if datos.get('fuente_tipo_cambio') == 'SBS' and not token():
+            self.add_error('fuente_tipo_cambio', 'Para usar el tipo de cambio SBS registre primero el token de '
+                                                 'Decolecta en el panel de servicios (pestaña Ajustes, para todos '
+                                                 'los ERP).')
         for nombre in self.fields:  # MAN-17: tolerancias y alertas en %
             valor = datos.get(nombre)
             if nombre.endswith('_pct') and valor is not None and not 0 <= valor <= 100:
@@ -712,19 +699,15 @@ class TipoCambioForm(BootstrapMixin, forms.ModelForm):
 
 
 class FacturacionConfigForm(BootstrapMixin, forms.ModelForm):
-    sol_clave_nueva = forms.CharField(label='Clave SOL del usuario secundario', required=False,
-                                      widget=forms.PasswordInput, help_text='Se guarda cifrada. Vacía = no cambia')
+    # v1.117.1: el usuario SOL secundario, su clave y las credenciales de guías van en Ajustes › Credenciales SUNAT y SIRE
     certificado_archivo = forms.FileField(label='Certificado digital (.pfx / .p12)', required=False,
                                           help_text='El certificado de la empresa para firmar los comprobantes')
     certificado_clave_nueva = forms.CharField(label='Clave del certificado', required=False,
                                               widget=forms.PasswordInput)
-    gre_client_secret_nuevo = forms.CharField(label='Guías: client_secret', required=False,
-                                              widget=forms.PasswordInput, help_text='Se guarda cifrado. Vacío = no '
-                                                                                    'cambia')
 
     class Meta:
         model = FacturacionConfig
-        fields = ['proveedor', 'ruta', 'token', 'entorno', 'sol_usuario', 'gre_client_id', 'envio_automatico']
+        fields = ['proveedor', 'ruta', 'token', 'entorno', 'envio_automatico']
         widgets = {'token': forms.PasswordInput(render_value=True)}
 
     def __init__(self, *args, **kwargs):
@@ -746,10 +729,9 @@ class FacturacionConfigForm(BootstrapMixin, forms.ModelForm):
                 except ErrorSunatDirecto as exc:
                     self.add_error('certificado_clave_nueva', str(exc))
         if datos.get('proveedor') == 'SUNAT' and datos.get('entorno') == 'PRODUCCION':
-            if not datos.get('sol_usuario'):
-                self.add_error('sol_usuario', 'En producción indique el usuario SOL secundario.')
-            if not (datos.get('sol_clave_nueva') or self.instance.sol_clave):
-                self.add_error('sol_clave_nueva', 'En producción indique la clave SOL del usuario secundario.')
+            if not (self.instance.sol_usuario and self.instance.sol_clave):
+                self.add_error('entorno', 'En producción hace falta el usuario SOL secundario y su clave: '
+                                          'regístrelos en Ajustes › Credenciales SUNAT y SIRE.')
             if not (archivo or self.instance.certificado) or (self.instance.certificado_prueba and not archivo):
                 self.add_error('certificado_archivo', 'En producción cargue el certificado digital de la empresa '
                                                       '(el de prueba no sirve).')
@@ -757,13 +739,6 @@ class FacturacionConfigForm(BootstrapMixin, forms.ModelForm):
 
     def save(self, commit=True):
         cfg = super().save(commit=False)
-        if self.cleaned_data.get('sol_clave_nueva'):
-            from .cifrado import cifrar
-            cfg.sol_clave = cifrar(self.cleaned_data['sol_clave_nueva'])
-        if self.cleaned_data.get('gre_client_secret_nuevo'):
-            from .cifrado import cifrar
-            cfg.gre_client_secret = cifrar(self.cleaned_data['gre_client_secret_nuevo'].strip())
-        cfg.gre_client_id = (cfg.gre_client_id or '').strip()
         cfg.save()
         if getattr(self, '_pfx', None):
             from .sunat_directo import guardar_certificado

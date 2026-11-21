@@ -186,15 +186,19 @@ class BajaConTicketTest(Base):
 class ConfiguracionTest(Base):
     def test_claves_cifradas_y_produccion_exige_certificado_real(self):
         self.client.force_login(self.admin)
-        r = self.client.post(reverse('facturacion'), {'proveedor': 'SUNAT', 'entorno': 'PRODUCCION',
-                                                       'sol_usuario': 'FACTURA1', 'sol_clave_nueva': 'ClaveSol123'})
+        # v1.117.1: sin el usuario SOL secundario (Ajustes › Credenciales SUNAT y SIRE) no pasa a producción
+        r = self.client.post(reverse('facturacion'), {'proveedor': 'SUNAT', 'entorno': 'PRODUCCION'})
+        self.assertContains(r, 'regístrelos en Ajustes › Credenciales SUNAT y SIRE')
+        r = self.client.post(reverse('credenciales_sunat'), {'sol_usuario': 'FACTURA1', 'sol_clave': 'ClaveSol123'})
+        self.assertRedirects(r, reverse('credenciales_sunat'), fetch_redirect_response=False)
+        r = self.client.post(reverse('facturacion'), {'proveedor': 'SUNAT', 'entorno': 'PRODUCCION'})
         self.assertContains(r, 'el de prueba no sirve')
         self.cfg.refresh_from_db()
         self.assertEqual(self.cfg.entorno, 'BETA')  # no se guardó
         pfx = bytes(self.cfg.certificado)
         clave_pfx = descifrar(self.cfg.certificado_clave)
         r = self.client.post(reverse('facturacion'), {
-            'proveedor': 'SUNAT', 'entorno': 'PRODUCCION', 'sol_usuario': 'FACTURA1', 'sol_clave_nueva': 'ClaveSol123',
+            'proveedor': 'SUNAT', 'entorno': 'PRODUCCION',
             'certificado_archivo': SimpleUploadedFile('empresa.pfx', pfx), 'certificado_clave_nueva': clave_pfx})
         self.assertRedirects(r, reverse('facturacion'), fetch_redirect_response=False)
         self.cfg.refresh_from_db()

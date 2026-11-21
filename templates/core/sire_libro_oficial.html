@@ -9,8 +9,8 @@
   </div>
 </div>
 <p class="small text-muted mb-3">Cuando el registro de ventas (RVIE) o de compras (RCE) del periodo ya está generado en el SIRE, descárguelo de SUNAT junto con su constancia de recepción: quedan guardados como sustento (el libro oficial del periodo) y se comparan con lo registrado en el sistema, por tipo de comprobante.</p>
-{% if not configurada %}<div class="alert alert-info small py-2"><i class="bi bi-info-circle"></i> Para descargar el registro de SUNAT registre el client_id, el client_secret y el usuario SOL del SIRE en <a href="{% url 'empresa' %}">Ajustes › Empresa</a>.</div>
-{% elif not sesion %}<div class="alert alert-warning small py-2"><i class="bi bi-key"></i> Falta la clave SOL del SIRE. Regístrela una vez en <a href="{% url 'empresa' %}">Ajustes › Empresa</a>, junto al usuario SOL: el sistema mantiene la sesión con SUNAT solo.</div>{% endif %}
+{% if not configurada %}<div class="alert alert-info small py-2"><i class="bi bi-info-circle"></i> Para descargar el registro de SUNAT registre el client_id, el client_secret y el usuario SOL del SIRE en <a href="{% url 'credenciales_sunat' %}">Ajustes › Credenciales SUNAT y SIRE</a>.</div>
+{% elif not sesion %}<div class="alert alert-warning small py-2"><i class="bi bi-key"></i> Falta la clave SOL del SIRE. Regístrela una vez en <a href="{% url 'credenciales_sunat' %}">Ajustes › Credenciales SUNAT y SIRE</a>, junto al usuario SOL: el sistema mantiene la sesión con SUNAT solo.</div>{% endif %}
 <div class="card mb-3"><div class="card-body">
   <form method="post" class="row g-3 align-items-end" autocomplete="off">
     {% csrf_token %}

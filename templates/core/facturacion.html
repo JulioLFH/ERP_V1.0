@@ -13,8 +13,11 @@
         <div class="col-12 solo-nubefact">{% with field=form.ruta %}{% include 'core/_campo.html' %}{% endwith %}</div>
         <div class="col-12 solo-nubefact">{% with field=form.token %}{% include 'core/_campo.html' %}{% endwith %}</div>
         <div class="col-12 solo-sunat">{% with field=form.entorno %}{% include 'core/_campo.html' %}{% endwith %}</div>
-        <div class="col-md-6 solo-sunat solo-produccion">{% with field=form.sol_usuario %}{% include 'core/_campo.html' %}{% endwith %}</div>
-        <div class="col-md-6 solo-sunat solo-produccion">{% with field=form.sol_clave_nueva %}{% include 'core/_campo.html' %}{% endwith %}{% if cfg.sol_clave %}<div class="form-text text-success">Hay una clave guardada.</div>{% endif %}</div>
+        <div class="col-12 solo-sunat solo-produccion"><div class="border rounded p-2 small">
+          <i class="bi bi-key"></i> <b>Usuario SOL secundario y credenciales de guías</b>: se registran en <a href="{% url 'credenciales_sunat' %}">Ajustes › Credenciales SUNAT y SIRE</a>.
+          <div class="mt-1">Usuario SOL: {% if cfg.sol_usuario and cfg.sol_clave %}<span class="badge text-bg-success"><i class="bi bi-lock"></i> Registrado</span>{% else %}<span class="badge text-bg-secondary">Falta</span>{% endif %}
+            · Guías (API GRE): {% if cfg.gre_client_id and cfg.gre_client_secret %}<span class="badge text-bg-success"><i class="bi bi-lock"></i> Registradas</span>{% else %}<span class="badge text-bg-secondary">No registradas</span>{% endif %}</div>
+        </div></div>
         <div class="col-12 solo-sunat">
           <div class="border rounded p-2 small mb-2">
             {% if cfg.certificado %}<i class="bi bi-patch-check text-success"></i> Certificado: <b>{{ cfg.certificado_nombre }}</b>{% if cfg.certificado_vence %} · vence el {{ cfg.certificado_vence|date:'d/m/Y' }}{% endif %}{% if cfg.certificado_prueba %} <span class="badge text-bg-warning">de prueba (solo beta)</span>{% endif %}
@@ -23,9 +26,6 @@
         </div>
         <div class="col-md-7 solo-sunat">{% with field=form.certificado_archivo %}{% include 'core/_campo.html' %}{% endwith %}</div>
         <div class="col-md-5 solo-sunat">{% with field=form.certificado_clave_nueva %}{% include 'core/_campo.html' %}{% endwith %}</div>
-        <div class="col-12 solo-sunat solo-produccion"><div class="small fw-semibold mt-1">Guías de remisión (API de SUNAT)</div></div>
-        <div class="col-md-6 solo-sunat solo-produccion">{% with field=form.gre_client_id %}{% include 'core/_campo.html' %}{% endwith %}</div>
-        <div class="col-md-6 solo-sunat solo-produccion">{% with field=form.gre_client_secret_nuevo %}{% include 'core/_campo.html' %}{% endwith %}{% if cfg.gre_client_secret %}<div class="form-text text-success">Hay un client_secret guardado.</div>{% endif %}</div>
         {% with field=form.envio_automatico %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endwith %}
       </div>
       <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>

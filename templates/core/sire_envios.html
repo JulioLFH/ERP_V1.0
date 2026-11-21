@@ -6,8 +6,8 @@
   <a href="{% url 'sire_propuestas' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-cloud-download"></i> Propuestas de SUNAT</a>
 </div>
 <p class="small text-muted mb-3">Arma con lo registrado en el sistema el archivo del SIRE (TXT dentro de un ZIP, con el nombre LE + RUC + periodo + registro + oportunidad que pide SUNAT), lo valida y lo envía: <b>reemplazo de la propuesta</b> del Registro de Ventas (14.4) o de Compras (8.4), las <b>compras con no domiciliados (8.5)</b> y los <b>ajustes posteriores</b> (03, 04 y 05). Luego muestra el ticket y las inconsistencias que devuelva SUNAT.</p>
-{% if not configurada %}<div class="alert alert-info small py-2"><i class="bi bi-info-circle"></i> Para enviarlo directamente a SUNAT registre el client_id, el client_secret y el usuario SOL del SIRE en <a href="{% url 'empresa' %}">Ajustes › Empresa</a>. Mientras tanto puede descargar el ZIP y subirlo en el portal SIRE.</div>
-{% elif not sesion %}<div class="alert alert-warning small py-2"><i class="bi bi-key"></i> Falta la clave SOL del SIRE. Regístrela una vez en <a href="{% url 'empresa' %}">Ajustes › Empresa</a>.</div>{% endif %}
+{% if not configurada %}<div class="alert alert-info small py-2"><i class="bi bi-info-circle"></i> Para enviarlo directamente a SUNAT registre el client_id, el client_secret y el usuario SOL del SIRE en <a href="{% url 'credenciales_sunat' %}">Ajustes › Credenciales SUNAT y SIRE</a>. Mientras tanto puede descargar el ZIP y subirlo en el portal SIRE.</div>
+{% elif not sesion %}<div class="alert alert-warning small py-2"><i class="bi bi-key"></i> Falta la clave SOL del SIRE. Regístrela una vez en <a href="{% url 'credenciales_sunat' %}">Ajustes › Credenciales SUNAT y SIRE</a>.</div>{% endif %}
 <div class="card mb-3"><div class="card-body">
   <form method="post" class="row g-3 align-items-end" autocomplete="off">{% csrf_token %}
     {% if form.non_field_errors %}<div class="col-12"><div class="alert alert-danger small py-2 mb-0">{{ form.non_field_errors|join:' ' }}</div></div>{% endif %}

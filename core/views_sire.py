@@ -385,7 +385,7 @@ def envios(request):
             if not puede(request.user, PERMISO_ENVIAR):
                 messages.error(request, 'Enviar el registro a SUNAT exige el permiso de cerrar periodos contables.')
             elif not sire_api.configurada():
-                messages.error(request, 'Registre las credenciales del SIRE en Ajustes › Empresa para enviar a SUNAT '
+                messages.error(request, 'Registre las credenciales del SIRE en Ajustes › Credenciales SUNAT y SIRE para enviar a SUNAT '
                                         '(o descargue el ZIP y súbalo en el portal SIRE).')
             else:
                 return _enviar(request, datos, archivo, correlativo)
