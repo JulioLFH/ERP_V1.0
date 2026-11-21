@@ -56,14 +56,16 @@ def consultar(ruc, token=''):
     """{'ruc', 'razon_social', 'estado', 'condicion', 'direccion', 'ubigeo', 'alerta'} o ErrorPadron."""
     from . import ubigeo
     from .forms import error_ruc
-    from .models import Empresa
+    from .token_decolecta import compartido, de_la_empresa
     ruc = (ruc or '').strip()
     if error_ruc(ruc):
         raise ErrorPadron(error_ruc(ruc))
-    token = (token or '').strip() or Empresa.objects.values_list('token_tipo_cambio', flat=True).first() or ''
+    # v1.117.0: primero el token compartido del panel de servicios; luego el escrito en el formulario o el de la empresa
+    token = compartido() or (token or '').strip() or de_la_empresa()
     if not token:
-        raise ErrorPadron('Para traer los datos de SUNAT falta el token de Decolecta: regístrelo en Ajustes › Empresa '
-                          '(«Token Decolecta», cuenta gratuita en decolecta.com).')
+        raise ErrorPadron('Para traer los datos de SUNAT falta el token de Decolecta: regístrelo en el panel de '
+                          'servicios (Ajustes, para todos los ERP) o en Ajustes › Empresa («Token Decolecta», cuenta '
+                          'gratuita en decolecta.com).')
     clave = f'padron-ruc-{ruc}'
     r = cache.get(clave)
     if r is None:

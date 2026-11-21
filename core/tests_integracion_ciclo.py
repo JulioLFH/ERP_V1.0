@@ -6,6 +6,7 @@ from decimal import Decimal as D
 from unittest.mock import patch
 
 from django.contrib.auth.models import Group, User
+from finanzas.tests_v1117 import voucher  # v1.117.0: las cobranzas exigen sustento
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.db.models import Sum
@@ -173,7 +174,8 @@ class CicloCompletoTest(TestCase):
         self.como('tesorero')
         r = self.client.post(reverse('finanzas:cobranza_multiple'), {
             'cuenta': self.banco.pk, 'cuenta_detraccion': self.bn.pk, 'fecha': HOY.isoformat(),
-            'medio_pago': 'TRANSFERENCIA', f'monto_{v1.pk}': '1038.40', f'monto_{v2.pk}': '2076.80'})
+            'medio_pago': 'TRANSFERENCIA', f'monto_{v1.pk}': '1038.40', f'monto_{v2.pk}': '2076.80',
+            'sustento': voucher()})
         self.assertEqual(r.status_code, 302)
         reporte = ('Número de Constancia|Fecha de Pago|Monto de Depósito|Tipo de Comprobante|Serie de Comprobante|'
                    'Número de Comprobante|Número de Documento del Adquiriente\n'

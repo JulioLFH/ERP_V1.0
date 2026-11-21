@@ -65,6 +65,7 @@ class CompraXMLTest(TestCase):
         cls.user = User.objects.create_superuser('t', 't@t.com', 'x')
 
     def setUp(self):
+        Empresa.objects.update(exigir_orden_compra=False)  # compras directas (sin orden) desde el XML
         self.client.force_login(self.user)
         p = patch('core.tipo_cambio._consultar', return_value=(D('3.441'), D('3.450')))
         p.start()

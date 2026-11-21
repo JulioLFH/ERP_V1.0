@@ -20,11 +20,23 @@
     <div class="fw-semibold">{% if ext.saldo_final is not None %}{{ ext.saldo_final|money }}{% else %}—{% endif %} / {{ saldo_libros|money }}</div>
     {% if diferencia %}<div class="small text-danger">Diferencia {{ diferencia|money }}</div>{% endif %}</div></div></div>
 </div>
+{% if puede.tesoreria_registrar and n_pendientes %}
+<form method="post" action="{% url 'finanzas:extracto_accion' ext.pk %}" id="form-marcadas" class="card mb-2"><div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}
+  <span class="small"><i class="bi bi-check2-square"></i> Líneas marcadas: <b id="n-marcadas">0</b></span>
+  <select name="concepto" class="form-select form-select-sm w-auto" title="Concepto de los movimientos que se crean">
+    <option value="">Concepto automático (comisión / ITF → gasto bancario; el resto → otro)</option>
+    {% for v, t in conceptos %}<option value="{{ v }}">{{ t }}</option>{% endfor %}
+  </select>
+  <button name="accion" value="crear_marcadas" class="btn btn-sm btn-success" data-confirm="¿Registrar en tesorería las líneas marcadas? Cada una crea su movimiento conciliado."><i class="bi bi-plus-lg"></i> Crear movimientos de las marcadas</button>
+  <button name="accion" value="ignorar_marcadas" class="btn btn-sm btn-outline-secondary" data-confirm="¿Ignorar las líneas marcadas?"><i class="bi bi-eye-slash"></i> Ignorar marcadas</button>
+</div></form>
+{% endif %}
 <div class="card mb-3">
   <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-    <thead><tr><th>Fecha</th><th>Descripción del banco</th><th>Operación</th><th class="num">Abono</th><th class="num">Cargo</th><th>Movimiento del ERP</th><th></th></tr></thead>
+    <thead><tr>{% if puede.tesoreria_registrar and n_pendientes %}<th><input type="checkbox" class="form-check-input" data-marcar-todos="input.js-linea" aria-label="Marcar todas las pendientes"></th>{% endif %}<th>Fecha</th><th>Descripción del banco</th><th>Operación</th><th class="num">Abono</th><th class="num">Cargo</th><th>Movimiento del ERP</th><th></th></tr></thead>
     <tbody>
       {% for l in lineas %}<tr class="{% if l.estado == 'PENDIENTE' %}table-warning{% elif l.estado == 'IGNORADA' %}text-muted{% endif %}">
+        {% if puede.tesoreria_registrar and n_pendientes %}<td>{% if l.estado == 'PENDIENTE' %}<input type="checkbox" class="form-check-input js-linea" name="lineas" value="{{ l.pk }}" form="form-marcadas" aria-label="Marcar línea"{% if l.gasto %} title="Comisión / ITF"{% endif %}>{% endif %}</td>{% endif %}
         <td class="text-nowrap">{{ l.fecha|date:'d/m/Y' }}</td>
         <td class="small">{{ l.descripcion }}</td>
         <td class="small">{{ l.operacion }}</td>
@@ -57,4 +69,15 @@
     <tbody>{% for m in en_transito %}<tr><td>{{ m.fecha|date:'d/m/Y' }}</td><td>{{ m.voucher }}</td><td class="small">{{ m.glosa }}</td><td>{{ m.numero_operacion }}</td><td class="num">{% if m.tipo == 'INGRESO' %}{{ m.monto|money }}{% else %}-{{ m.monto|money }}{% endif %}</td></tr>{% endfor %}</tbody>
   </table></div></div>
 {% endif %}
+{% endblock %}
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  const n = document.getElementById('n-marcadas');
+  if (!n) return;
+  const contar = () => { n.textContent = document.querySelectorAll('input.js-linea:checked').length; };
+  document.addEventListener('change', (e) => { if (e.target.matches('input.js-linea, [data-marcar-todos]')) contar(); });
+  document.addEventListener('click', (e) => { if (e.target.matches('[data-marcar-todos]')) setTimeout(contar, 0); });
+})();
+</script>
 {% endblock %}

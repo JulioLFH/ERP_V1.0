@@ -80,7 +80,8 @@ def consultar_ruc(ruc):
     clave = f'ruc-{ruc}'
     datos = cache.get(clave)
     if datos is None:
-        token = Empresa.objects.values_list('token_tipo_cambio', flat=True).first()
+        from core.token_decolecta import token as token_decolecta
+        token = token_decolecta()  # v1.117.0: el compartido del panel o el de la empresa
         if token:
             try:
                 req = urllib.request.Request(RUC_URL.format(ruc=ruc), headers={

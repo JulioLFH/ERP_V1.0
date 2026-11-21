@@ -3,6 +3,16 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.0 — 21/11/2026 · Tesorería con aprobación de pagos, cobranzas con sustento, XML conectado a la orden de compra y token de Decolecta para todos los ERP
+- **Token de Decolecta compartido**: el panel de servicios (pestaña «Ajustes») guarda un solo token para todos los Ceiba ERP del servidor; tipo de cambio, consulta RUC y lectura de comprobantes lo usan sin reiniciar. Si el panel no tiene token, cada ERP usa el de su empresa, como antes.
+- **Movimientos masivos desde el estado de cuenta**: en la conciliación automática se marcan varias líneas del banco y se crean de una vez sus movimientos en tesorería (con concepto automático o elegido), o se ignoran juntas.
+- **Ya no salta arriba**: al marcar, guardar o filtrar en una pantalla y volver a ella, se queda donde estaba; los avisos se muestran flotando y, si hay un error en un campo, se va a ese campo.
+- **Cobranzas con sustento**: no se registra una cobranza (individual o múltiple) sin adjuntar el voucher o la constancia; solo el cobro en efectivo se registra sin sustento, marcando «El cliente pagó en efectivo» (queda con medio «Efectivo» y en una cuenta de caja). El depósito de detracción que hace el cliente se sustenta con el número de su constancia.
+- **Cobranza múltiple** ordenada por cliente y, dentro de cada uno, por vencimiento.
+- **Reglas de aprobación de pagos**: nuevo documento «Pagos de tesorería» en Reglas de aprobación (por nivel, usuario, jefe o puesto y desde un monto). La propuesta de pagos pasa por esos niveles (bandeja de aprobaciones, avisos y ruta de aprobación en la propuesta). Con reglas, los pagos desde el monto mínimo ya no se registran directo: van por la propuesta de pagos. Sin reglas, todo sigue como antes.
+- **XML de compras conectado a la orden de compra**: al registrar una factura desde su XML se elige la orden (o se toma la que el proveedor cita en el XML): completa los productos con los de la orden, controla lo recibido y pedido y actualiza el avance de la orden. Si la empresa exige orden de compra, la mercadería que llega por XML también la necesita (como en el registro manual). Nuevo botón «Factura desde XML» en la orden de compra; la carga de varios XML conecta la orden citada cuando el cruce lo permite.
+- **Menús ordenados**: se quitaron accesos repetidos que pertenecen a otro módulo (consulta RUC en SUNAT, resultado por obra en Obras, documentos de flota en Mantenimiento, flujo proyectado y presupuesto de caja en Tesorería —quedan en Finanzas—, requerimientos en Inventario y «Nueva solicitud» en Compras).
+
 ## v1.116.9 — 19/11/2026 · SIRE: el envío «Procesado» por SUNAT ya no se queda en «SUNAT lo procesa»
 - **Enviar al SIRE**: cuando SUNAT termina un envío (reemplazo de la propuesta, no domiciliados o ajuste) responde «Procesado» o «Procesado con Errores», no «Terminado» como en la propuesta. El ERP solo reconocía «Terminado», así que un envío aceptado quedaba para siempre en «Enviado: SUNAT lo procesa» aunque se consultara. Ahora «Procesado» se toma como terminado (con su reporte de inconsistencias, si SUNAT lo manda) y queda listo para registrar el preliminar.
 

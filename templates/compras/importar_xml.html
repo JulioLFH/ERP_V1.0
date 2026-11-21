@@ -9,6 +9,7 @@
   <div class="col-lg-6"><div class="card"><div class="card-body">
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
+      {% if oc %}<div class="alert alert-success py-2 small"><i class="bi bi-link-45deg"></i> La factura se conectará a la orden de compra <b>{{ oc.numero }}</b> de {{ oc.tercero.nombre }}.</div><input type="hidden" name="oc" value="{{ oc.pk }}">{% endif %}
       {% for field in form %}{% include 'core/_campo.html' %}{% endfor %}
       <button class="btn btn-primary mt-3"><i class="bi bi-upload"></i> Leer XML</button>
     </form>
@@ -19,6 +20,7 @@
       <li>Comprueba que esté emitida al RUC de la empresa y que no esté registrada.</li>
       <li>Busca al proveedor por RUC (si no existe, lo crea con la razón social del XML).</li>
       <li>Sugiere el producto de cada línea por código, compras anteriores al mismo proveedor o nombre; usted confirma.</li>
+      <li>Conecta la factura a su orden de compra (la que cita el XML o la que usted elija): toma sus productos, controla lo recibido y actualiza su avance.</li>
       <li>El XML queda como sustento de la compra.</li>
     </ul>
   </div></div></div>

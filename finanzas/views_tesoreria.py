@@ -364,8 +364,15 @@ def pago_masivo_nuevo(request):
         docs = _pendientes(Compra, pago_bloqueado=False, **filtro)[:400]  # las bloqueadas por Compras no se pagan
     if request.method == 'POST' and cuenta:
         try:
-            pago = op.crear_pago_masivo(cuenta, _fecha(request.POST.get('fecha')),
-                                        _montos_documentos(request, docs), request.user,
+            lineas = _montos_documentos(request, docs)
+            from types import SimpleNamespace
+
+            from .propuesta_pagos import error_pago_directo  # v1.117.0: reglas de aprobación de pagos
+            error = error_pago_directo([SimpleNamespace(monto=m, cuenta=cuenta, fecha=timezone.localdate(),
+                                                        concepto='PAGO') for _, m in lineas])
+            if error:
+                raise op.ErrorTesoreria(error)
+            pago = op.crear_pago_masivo(cuenta, _fecha(request.POST.get('fecha')), lineas, request.user,
                                         request.POST.get('glosa', '')[:250])
             messages.success(request, f'{pago} generado por {cuenta.simbolo} {pago.total:,.2f}. Descargue el archivo '
                                       f'para el banco y, cuando el banco confirme, registre los pagos.')

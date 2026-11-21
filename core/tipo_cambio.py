@@ -77,15 +77,18 @@ def _mes_decolecta(anio, mes, token):
 
 
 def _token():
-    empresa = Empresa.objects.only('token_tipo_cambio').first()
-    return (empresa.token_tipo_cambio or '') if empresa else ''
+    """v1.117.0: el token compartido del panel de servicios o, si no hay, el de la empresa."""
+    from .token_decolecta import token
+    return token()
 
 
 def fuente_actual():
-    """('SBS', token) si la empresa eligió SBS y tiene token; si no ('SUNAT', '')."""
-    empresa = Empresa.objects.only('fuente_tipo_cambio', 'token_tipo_cambio').first()
-    if empresa and empresa.fuente_tipo_cambio == 'SBS' and empresa.token_tipo_cambio:
-        return 'SBS', empresa.token_tipo_cambio
+    """('SBS', token) si la empresa eligió SBS y hay token (compartido o suyo); si no ('SUNAT', '')."""
+    empresa = Empresa.objects.only('fuente_tipo_cambio').first()
+    if empresa and empresa.fuente_tipo_cambio == 'SBS':
+        token = _token()
+        if token:
+            return 'SBS', token
     return 'SUNAT', ''
 
 

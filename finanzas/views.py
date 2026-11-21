@@ -264,7 +264,7 @@ def cobrar_pagar(request, modo):
     if cheque:
         inicial.update(medio_pago='CHEQUE', numero_operacion=cheque.numero, cuenta=cheque.cuenta_id,
                        fecha=max(timezone.localdate(), cheque.fecha_pago or timezone.localdate()))
-    form = OperacionForm(request.POST or None, request.FILES or None, initial=inicial)
+    form = OperacionForm(request.POST or None, request.FILES or None, initial=inicial, modo=modo)
     if request.method == 'POST' and form.is_valid():
         data = form.cleaned_data
         creados = []
@@ -321,6 +321,10 @@ def cobrar_pagar(request, modo):
                     monto=_monto_en_cuenta(monto, d, data['cuenta'], data['fecha'], data['es_detraccion']),
                     monto_doc=monto, glosa=data['glosa'] or f'{cfg["concepto"].title()} {d}', creado_por=request.user,
                     **{cfg['fk']: d}))
+            if modo == 'pago' and creados and not errores:  # v1.117.0: reglas de aprobación de pagos
+                from .propuesta_pagos import error_pago_directo
+                if error_pago_directo(creados):
+                    errores.append(error_pago_directo(creados))
             if cfg['tipo'] == 'EGRESO' and creados and not errores:
                 # con los pagos ya creados, la cuenta no debe quedar negativa en ningún día desde su fecha
                 cuenta = data['cuenta']

@@ -16,13 +16,14 @@ DOCUMENTOS = [('OC', 'Órdenes de compra'), ('SOLPED', 'Solicitudes de pedido'),
               ('REQUERIMIENTO', 'Requerimientos de materiales'), ('RENDICION', 'Rendiciones de gastos'),
               ('VACACION', 'Vacaciones y permisos'), ('MOVIMIENTO', 'Movimientos de personal'),
               ('PEDIDO', 'Pedidos de venta (tarifa, descuentos y crédito)'),
-              ('HES', 'Conformidades de servicio (HES)')]
+              ('HES', 'Conformidades de servicio (HES)'),
+              ('PAGO', 'Pagos de tesorería (propuesta de pagos)')]
 # permiso que aprueba cada documento cuando no hay reglas (o en un nivel sin usuario)
 PERMISOS = {'OC': 'compras.aprobar_oc', 'SOLPED': 'requerimientos.liberar_solped',
             'REQUERIMIENTO': 'requerimientos.aprobar', 'RENDICION': 'rendiciones.aprobar',
             'VACACION': 'tiempo_personal.registrar', 'MOVIMIENTO': 'empleados.aprobar_movimientos',
             'PEDIDO': 'ventas.aprobar_pedidos',
-            'HES': 'compras.liberar_hes'}
+            'HES': 'compras.liberar_hes', 'PAGO': 'tesoreria.aprobar_pagos'}
 
 
 class ErrorAprobacion(Exception):
@@ -259,6 +260,12 @@ def ruta(documento, objeto, niveles, nivel_aprobado, rechazado=False):
     return filas
 
 
+def _propuestas_por_aprobar():
+    """v1.117.0: propuestas de pago enviadas con ruta de aprobación (reglas «Pagos de tesorería»)."""
+    from finanzas.models import PropuestaPago
+    return PropuestaPago.objects.filter(estado='ENVIADA').exclude(niveles=[])
+
+
 def sin_aprobador():
     """Documentos pendientes cuyo nivel actual nadie puede aprobar (titular inactivo sin jefe ni suplente)."""
     from compras.models import ConformidadServicio, OrdenCompra, SolicitudPedido
@@ -267,7 +274,8 @@ def sin_aprobador():
     for doc, qs in (('OC', OrdenCompra.objects.filter(estado='PENDIENTE').exclude(niveles=[])),
                     ('SOLPED', SolicitudPedido.objects.filter(estado='ENVIADA').exclude(niveles=[])),
                     ('REQUERIMIENTO', RequerimientoInterno.objects.filter(estado='ENVIADO').exclude(niveles=[])),
-                    ('HES', ConformidadServicio.objects.filter(estado='POR_LIBERAR').exclude(niveles=[]))):
+                    ('HES', ConformidadServicio.objects.filter(estado='POR_LIBERAR').exclude(niveles=[])),
+                    ('PAGO', _propuestas_por_aprobar())):
         for o in qs:
             n = pendiente(o.niveles, o.nivel_aprobado)
             if n is not None and not aprobadores(n):
@@ -284,7 +292,8 @@ def pendientes_de(user):
                            ('SOLPED', SolicitudPedido.objects.filter(estado='ENVIADA'), 'solicitante_id'),
                            ('REQUERIMIENTO', RequerimientoInterno.objects.filter(estado='ENVIADO'), 'solicitante_id'),
                            ('HES', ConformidadServicio.objects.filter(estado='POR_LIBERAR').exclude(niveles=[]),
-                            'conforme_por_id')):
+                            'conforme_por_id'),
+                           ('PAGO', _propuestas_por_aprobar(), 'creado_por_id')):
         n = sum(1 for o in qs if o.niveles and puede_aprobar(user, doc, o.niveles, o.nivel_aprobado,
                                                               getattr(o, campo, None)))
         if n:

@@ -20,8 +20,9 @@ def detraccion_pendiente(doc):
 def pendientes(modelo, tercero=None, hasta=None, moneda='', solo_detraccion=False, q='', limite=400):
     """Comprobantes con saldo de todos los terceros (o de uno), con lo sugerido como saldo y como detracción."""
     from django.db.models import Q
+    # v1.117.0: por cliente (o proveedor) y, dentro de cada uno, por vencimiento
     qs = (modelo.objects.con_saldos().cobrables().filter(estado='REGISTRADO').exclude(tipo_comprobante='07')
-          .select_related('tercero').order_by('fecha_vencimiento', 'id'))
+          .select_related('tercero').order_by('tercero__nombre', 'tercero_id', 'fecha_vencimiento', 'id'))
     if tercero:
         qs = qs.filter(tercero=tercero)
     if hasta:
@@ -104,6 +105,10 @@ def registrar(modo, datos, lineas, usuario):
             monto_doc=monto, creado_por=usuario,
             glosa=(datos.get('glosa') or f'{"Detracción" if es_detraccion else concepto.title()} {doc}')[:250],
             **{cfg['fk']: doc}))
+    if modo == 'pago' and creados and not errores:  # v1.117.0: reglas de aprobación de pagos
+        from .propuesta_pagos import error_pago_directo
+        if error_pago_directo(creados):
+            errores.append(error_pago_directo(creados))
     if cfg['tipo'] == 'EGRESO' and creados and not errores:
         for cuenta in {m.cuenta for m in creados}:
             negativo = None if cuenta.admite_negativo else cuenta.primer_negativo(desde=datos['fecha'])

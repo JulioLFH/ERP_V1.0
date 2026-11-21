@@ -114,9 +114,19 @@ def procesar(subidos, opciones, usuario=None):
                                      f'({compra.total:,.2f}): revise la compra.')
                 continue
             analisis = importar_xml.analizar(datos, nombre)
+            # v1.117.0: si el XML cita una orden de compra aprobada del proveedor, la factura se conecta a ella
+            oc, motivo = importar_xml.orden_sugerida(analisis, analisis['proveedor'])
+            oc = oc if motivo == 'citada en el XML' else None
+            importar_xml.aplicar_orden(analisis, oc)
             productos = {i: l['producto'] for i, l in enumerate(analisis['lineas'])}
-            compra = importar_xml.registrar(analisis, productos, {**opciones, 'ingresar_almacen': False}, usuario,
-                                            nombre)
+            base = {**opciones, 'ingresar_almacen': False}
+            try:
+                compra = importar_xml.registrar(analisis, productos, {**base, 'orden_compra': oc}, usuario, nombre)
+            except importar_xml.ErrorImportacion as exc:
+                if oc is None:
+                    raise
+                compra = importar_xml.registrar(analisis, productos, base, usuario, nombre)
+                fila['aviso'] = f'No se conectó a la orden {oc.numero}: {exc}'
             fila['compra'], fila['accion'] = compra, 'creada'
             fila['sin_producto'] = sum(1 for p in productos.values() if p is None)
         except importar_xml.ErrorImportacion as exc:

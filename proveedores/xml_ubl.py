@@ -107,6 +107,7 @@ def leer(datos, nombre='factura.xml'):
         'nombre_emisor': _txt(raiz, 'cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName'),
         'vencimiento': _txt(raiz, 'cbc:DueDate'),
         'referencia': _txt(raiz, 'cac:BillingReference/cac:InvoiceDocumentReference/cbc:ID'),
+        'orden': _txt(raiz, 'cac:OrderReference/cbc:ID'),  # v1.117.0: N° de la orden de compra que cita el proveedor
         'moneda': _txt(raiz, 'cbc:DocumentCurrencyCode') or 'PEN',
         'ruc_emisor': _ruc(raiz.find('cac:AccountingSupplierParty', NS)),
         'ruc_receptor': _ruc(raiz.find('cac:AccountingCustomerParty', NS)),

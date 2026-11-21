@@ -5,6 +5,7 @@ from decimal import Decimal as D
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from finanzas.tests_v1117 import voucher  # v1.117.0: las cobranzas exigen sustento
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import TestCase
@@ -98,7 +99,8 @@ class MultipleTest(TestCase):
         # cobranza múltiple: el saldo neto de v1 y v2 (dos clientes) al banco
         r = self.client.post(reverse('finanzas:cobranza_multiple'), {
             'cuenta': self.banco.pk, 'cuenta_detraccion': self.bn.pk, 'fecha': '2026-10-04',
-            'medio_pago': 'TRANSFERENCIA', f'monto_{v1.pk}': '1038.40', f'monto_{v2.pk}': '2076.80'})
+            'medio_pago': 'TRANSFERENCIA', f'monto_{v1.pk}': '1038.40', f'monto_{v2.pk}': '2076.80',
+            'sustento': voucher()})
         self.assertEqual(r.status_code, 302)
         self.assertEqual(Movimiento.objects.filter(concepto='COBRANZA', venta__in=[v1, v2]).count(), 2)
         # reporte de SUNAT: una constancia por factura (v1 y v2), una repetida y una de otra empresa

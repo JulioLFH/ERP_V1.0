@@ -261,6 +261,11 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
         self.fields['direccion'].required = True
         self.fields['email'].required = True
         self.fields['ruc'].help_text = 'Al escribirlo se traen de SUNAT la razón social, la dirección y el ubigeo'
+        from .token_decolecta import compartido, oculto
+        if 'token_tipo_cambio' in self.fields and compartido():  # v1.117.0
+            self.fields['token_tipo_cambio'].help_text = (
+                f'Se usa el token compartido del panel de servicios ({oculto(compartido())}) para todos los ERP; '
+                f'este campo queda solo de respaldo')
         if self.instance.sire_clave_sol:
             self.fields['sire_clave_nueva'].help_text = ('Hay una clave guardada (cifrada). Escriba otra solo para '
                                                          'cambiarla')
@@ -308,8 +313,10 @@ class EmpresaForm(UbigeoMixin, BootstrapMixin, forms.ModelForm):
 
     def clean(self):
         datos = super().clean()
-        if datos.get('fuente_tipo_cambio') == 'SBS' and not datos.get('token_tipo_cambio'):
-            self.add_error('token_tipo_cambio', 'Para usar el tipo de cambio SBS indique el token de Decolecta.')
+        from .token_decolecta import compartido
+        if datos.get('fuente_tipo_cambio') == 'SBS' and not datos.get('token_tipo_cambio') and not compartido():
+            self.add_error('token_tipo_cambio', 'Para usar el tipo de cambio SBS indique el token de Decolecta (o '
+                                                'regístrelo en el panel de servicios para todos los ERP).')
         for nombre in self.fields:  # MAN-17: tolerancias y alertas en %
             valor = datos.get(nombre)
             if nombre.endswith('_pct') and valor is not None and not 0 <= valor <= 100:

@@ -51,12 +51,46 @@
   document.addEventListener('change', (e) => {
     const t = e.target;
     if (!(t instanceof Element)) return;
-    if (t.matches('[data-autoenvio]') && t.form) { t.form.submit(); return; }
+    if (t.matches('[data-autoenvio]') && t.form) { recordarScroll(t.form); t.form.submit(); return; }
     if (t.matches('select[data-ir-con]')) { irCon(t); return; }
     if (t.matches('[data-alterna]')) {
       document.querySelectorAll(t.dataset.alterna).forEach((x) => x.classList.toggle('d-none', !t.checked));
     }
   });
+
+  // v1.117.0: al guardar, marcar o filtrar y volver a la misma pantalla, se queda donde estaba (no salta arriba).
+  // Se recuerda la posición al enviar el formulario y se repone si la respuesta es la misma ruta (hasta 2 minutos).
+  const CLAVE_SCROLL = 'erp-scroll';
+  function recordarScroll(form) {
+    if (!form || form.target === '_blank' || form.hasAttribute('data-sin-scroll')) return;
+    try {
+      sessionStorage.setItem(CLAVE_SCROLL, JSON.stringify({ ruta: location.pathname, y: window.scrollY, t: Date.now() }));
+    } catch (err) { /* navegador sin almacenamiento: no pasa nada */ }
+  }
+  document.addEventListener('submit', (e) => { if (!e.defaultPrevented) recordarScroll(e.target); });
+  (function reponerScroll() {
+    let dato = null;
+    try {
+      dato = JSON.parse(sessionStorage.getItem(CLAVE_SCROLL) || 'null');
+      sessionStorage.removeItem(CLAVE_SCROLL);
+    } catch (err) { return; }
+    if (!dato || dato.ruta !== location.pathname || Date.now() - dato.t > 120000 || !dato.y) return;
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    const invalido = document.querySelector('.is-invalid, .invalid-feedback.d-block');
+    const ir = () => (invalido ? invalido.scrollIntoView({ block: 'center' }) : window.scrollTo(0, dato.y));
+    ir();
+    window.addEventListener('load', ir, { once: true });
+    // los avisos («registrado», errores) quedan arriba de la página: se muestran flotando para que se vean
+    const avisos = [...document.querySelectorAll('main.content > .alert')];
+    if (avisos.length && !invalido) {
+      const caja = document.createElement('div');
+      caja.className = 'd-print-none';
+      caja.style.cssText = 'position:fixed;top:12px;right:12px;z-index:1080;max-width:min(520px,calc(100vw - 24px))';
+      avisos.forEach((a) => { a.classList.add('shadow'); caja.appendChild(a); });
+      document.body.appendChild(caja);
+      setTimeout(() => caja.querySelectorAll('.alert:not(.alert-danger)').forEach((a) => a.remove()), 8000);
+    }
+  })();
 
   // va a la misma pantalla con los valores de los campos indicados del formulario (?cuenta=…&hasta=…)
   function irCon(el) {

@@ -110,8 +110,62 @@ def enviar(p, usuario):
         raise ErrorPropuesta(f'La propuesta suma {p.cuenta.simbolo} {p.total:,.2f} y la caja disponible es '
                              f'{p.cuenta.simbolo} {p.cuenta.saldo - p.reserva:,.2f}.')
     p.estado, p.motivo = 'ENVIADA', ''
-    p.save(update_fields=['estado', 'motivo'])
+    # v1.117.0: ruta de aprobación por niveles según las reglas «Pagos de tesorería» (monto en soles)
+    from core import aprobaciones as motor
+    p.niveles = motor.calcular_niveles('PAGO', p.creado_por or usuario, total_en_soles(p)) \
+        if motor.hay_reglas('PAGO') else []
+    p.nivel_aprobado = 0
+    p.save(update_fields=['estado', 'motivo', 'niveles', 'nivel_aprobado'])
+    motor.registrar('PAGO', p, usuario, 'ENVIADA')
     return p
+
+
+def umbral_aprobacion():
+    """v1.117.0: monto (S/) desde el que un pago necesita aprobación según las reglas activas «Pagos de tesorería»;
+    None si no hay reglas."""
+    from django.db.models import Min
+
+    from core.models import ReglaAprobacion
+    return ReglaAprobacion.objects.filter(documento='PAGO', activo=True).aggregate(m=Min('monto_desde'))['m']
+
+
+def en_soles(movimientos):
+    from core.tipo_cambio import venta_del_dia
+    return sum((m.monto if m.cuenta.moneda == 'PEN' else r2(m.monto * venta_del_dia(m.fecha))
+                for m in movimientos), D0)
+
+
+def error_pago_directo(movimientos):
+    """Con reglas de aprobación de pagos, los pagos a proveedores desde el umbral no se registran directo: van por la
+    propuesta de pagos (que pasa por sus niveles). Las detracciones (tributo) no cuentan."""
+    umbral = umbral_aprobacion()
+    pagos = [m for m in movimientos if m.concepto != 'DETRACCION']
+    if umbral is None or not pagos:
+        return ''
+    total = en_soles(pagos)
+    if total < umbral or (umbral == 0 and total == 0):
+        return ''
+    desde = f'desde S/ {umbral:,.2f}' if umbral else 'de cualquier monto'
+    return (f'Los pagos {desde} necesitan aprobación (Ajustes › Reglas de aprobación › Pagos de tesorería): este '
+            f'suma S/ {total:,.2f}. Inclúyalo en una propuesta de pagos (Tesorería › Propuestas de pago) y, ya '
+            f'aprobada, genere el pago masivo.')
+
+
+def total_en_soles(p):
+    if p.cuenta.moneda == 'PEN':
+        return p.total
+    from core.tipo_cambio import venta_del_dia
+    return r2(p.total * venta_del_dia(p.fecha))
+
+
+def nivel_pendiente(p):
+    from core import aprobaciones as motor
+    return motor.pendiente(p.niveles, p.nivel_aprobado) if p.niveles else None
+
+
+def ruta(p):
+    from core import aprobaciones as motor
+    return motor.ruta('PAGO', p, p.niveles, p.nivel_aprobado, rechazado=p.estado == 'RECHAZADA') if p.niveles else []
 
 
 @transaction.atomic
@@ -132,23 +186,46 @@ def anular(p, usuario, motivo):
 
 
 def puede_aprobar(user, p):
-    """FIN-10: quien la armó no la aprueba (tampoco el administrador), salvo que sea el único usuario activo."""
+    """FIN-10: quien la armó no la aprueba (tampoco el administrador), salvo que sea el único usuario activo.
+    v1.117.0: con reglas «Pagos de tesorería», aprueba el usuario del nivel pendiente (su suplente o su jefe si
+    escaló); sin reglas, la gerencia con el permiso «Aprobar la propuesta de pagos»."""
     from core.permisos import puede
     from core.segregacion import propio
-    return (user.is_superuser or puede(user, 'tesoreria.aprobar_pagos')) and not propio(user, p)
+    if propio(user, p):
+        return False
+    if p.niveles:
+        from core import aprobaciones as motor
+        return motor.puede_aprobar(user, 'PAGO', p.niveles, p.nivel_aprobado, p.creado_por_id)
+    return user.is_superuser or puede(user, 'tesoreria.aprobar_pagos')
 
 
 def aprobar(p, usuario, aprobar_=True, motivo=''):
+    from core import aprobaciones as motor
     if p.estado != 'ENVIADA':
         raise ErrorPropuesta('Solo se aprueba una propuesta enviada.')
     if not puede_aprobar(usuario, p):
-        raise ErrorPropuesta('La aprueba la gerencia (permiso «Aprobar la propuesta de pagos») y no quien la armó.')
+        n = nivel_pendiente(p)
+        raise ErrorPropuesta(f'Le toca aprobarla a {n["nombre"]} (nivel {n["nivel"]}); quien la armó no la aprueba.'
+                             if n else 'La aprueba la gerencia (permiso «Aprobar la propuesta de pagos») y no quien '
+                                       'la armó.')
     if not aprobar_ and len((motivo or '').strip()) < 10:
         raise ErrorPropuesta('Indique el motivo del rechazo (mínimo 10 caracteres).')
+    n = nivel_pendiente(p)
+    if aprobar_ and n is not None:
+        p.nivel_aprobado = n['nivel']
+        motor.avanzar(p.niveles, p.nivel_aprobado)
+        siguiente = nivel_pendiente(p)
+        p.aprobado_por, p.aprobado_en = usuario, timezone.now()
+        p.estado = 'ENVIADA' if siguiente else 'APROBADA'
+        p.save(update_fields=['estado', 'niveles', 'nivel_aprobado', 'aprobado_por', 'aprobado_en'])
+        motor.registrar('PAGO', p, usuario, 'APROBADA', motivo, n['nivel'])
+        return p
     p.estado = 'APROBADA' if aprobar_ else 'RECHAZADA'
     p.motivo = '' if aprobar_ else motivo.strip()[:250]
     p.aprobado_por, p.aprobado_en = usuario, timezone.now()
     p.save(update_fields=['estado', 'motivo', 'aprobado_por', 'aprobado_en'])
+    motor.registrar('PAGO', p, usuario, 'APROBADA' if aprobar_ else 'RECHAZADA', p.motivo,
+                    n['nivel'] if n else None)
     return p
 
 

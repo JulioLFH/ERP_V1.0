@@ -1100,7 +1100,8 @@ class ReglaAprobacion(models.Model):
                   ('REQUERIMIENTO', 'Requerimientos de materiales'), ('RENDICION', 'Rendiciones de gastos'),
                   ('VACACION', 'Vacaciones y permisos'), ('MOVIMIENTO', 'Movimientos de personal'),
                   ('PEDIDO', 'Pedidos de venta (tarifa, descuentos y crédito)'),
-                  ('HES', 'Conformidades de servicio (HES)')]
+                  ('HES', 'Conformidades de servicio (HES)'),
+                  ('PAGO', 'Pagos de tesorería (propuesta de pagos)')]
     TIPOS = [('JEFE', 'Jefe del solicitante'), ('RESPONSABLE_CC', 'Responsable del centro de costo'),
              ('USUARIO', 'Usuario específico'), ('PUESTO', 'Ocupante de un puesto'),
              ('JERARQUIA', 'Nivel N de la jerarquía (jefe del jefe…)')]

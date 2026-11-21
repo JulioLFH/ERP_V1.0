@@ -5,6 +5,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from finanzas.tests_v1117 import voucher  # v1.117.0: las cobranzas exigen sustento
 from django.core.management import call_command
 from django.db.models import Sum
 from django.test import TestCase
@@ -120,7 +121,7 @@ class TesoreriaTest(TestCase):
         # cobro de la primera letra desde Cobranzas
         r = self.client.post(f'{reverse("finanzas:cobranza")}?tercero={self.cliente.pk}', {
             f'letra_{letras[0].pk}': '1000', 'cuenta': self.banco.pk, 'fecha': HOY.isoformat(),
-            'medio_pago': 'TRANSFERENCIA', 'numero_operacion': '123'})
+            'medio_pago': 'TRANSFERENCIA', 'numero_operacion': '123', 'sustento': voucher()})
         self.assertEqual(r.status_code, 302)
         letras[0].refresh_from_db()
         self.assertEqual(letras[0].estado, 'CANCELADA')
@@ -146,7 +147,7 @@ class TesoreriaTest(TestCase):
         v = self.venta('1180', '88031')
         self.client.post(f'{reverse("finanzas:cobranza")}?tercero={self.cliente.pk}', {
             f'monto_{v.pk}': str(v.saldo), 'cuenta': self.banco.pk, 'fecha': HOY.isoformat(),
-            'medio_pago': 'CHEQUE', 'numero_operacion': '00012345'})
+            'medio_pago': 'CHEQUE', 'numero_operacion': '00012345', 'sustento': voucher()})
         ch = Cheque.objects.get(numero='00012345')
         self.assertEqual((ch.tipo, ch.estado, ch.monto), ('RECIBIDO', 'COBRADO', v.saldo))
         self.assertEqual(Venta.objects.get(pk=v.pk).saldo, 0)
@@ -166,7 +167,7 @@ class TesoreriaTest(TestCase):
         self.assertEqual(ch.estado, 'CARTERA')
         self.client.post(f'{reverse("finanzas:cobranza")}?tercero={self.cliente.pk}&cheque={ch.pk}', {
             f'monto_{v.pk}': str(v.saldo), 'cuenta': self.banco.pk, 'fecha': HOY.isoformat(),
-            'medio_pago': 'CHEQUE', 'numero_operacion': '777'})
+            'medio_pago': 'CHEQUE', 'numero_operacion': '777', 'sustento': voucher()})
         ch.refresh_from_db()
         self.assertEqual(ch.estado, 'COBRADO')
         self.assertEqual(ch.movimientos.count(), 1)

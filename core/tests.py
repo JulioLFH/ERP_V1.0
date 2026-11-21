@@ -3,6 +3,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from finanzas.tests_v1117 import voucher  # v1.117.0: las cobranzas exigen sustento
 from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
@@ -102,7 +103,8 @@ class SmokeTest(TestCase):
 
         cuenta = Cuenta.objects.filter(tipo='BANCO').first()
         r = self.client.post(reverse('finanzas:cobranza') + f'?doc={venta.pk}', {
-            'cuenta': cuenta.pk, 'fecha': HOY, 'medio_pago': 'TRANSFERENCIA', f'monto_{venta.pk}': '100'})
+            'cuenta': cuenta.pk, 'fecha': HOY, 'medio_pago': 'TRANSFERENCIA', f'monto_{venta.pk}': '100',
+            'sustento': voucher()})
         self.assertEqual(r.status_code, 302)
         self.assertEqual(venta.saldo, Decimal('136.00'))
 

@@ -72,6 +72,7 @@ def extracto(request, pk):
     return render(request, 'finanzas/extracto.html', {
         'ext': ext, 'lineas': lineas, 'resumen': ext.resumen, 'en_transito': en_transito,
         'saldo_libros': saldo_libros, 'gastos_pendientes': sum(1 for l in pendientes if l.gasto),
+        'n_pendientes': len(pendientes), 'conceptos': Movimiento.CONCEPTOS,
         'diferencia': (ext.saldo_final - saldo_libros) if ext.saldo_final is not None and saldo_libros is not None
         else None})
 
@@ -92,6 +93,23 @@ def extracto_accion(request, pk):
                 for l in lineas:
                     servicio.crear_movimiento(l, request.user, 'GASTO_BANCARIO')
                 messages.success(request, f'{len(lineas)} comisiones / ITF registrados como gastos bancarios.')
+            elif accion in ('crear_marcadas', 'ignorar_marcadas'):  # v1.117.0: varias líneas marcadas a la vez
+                ids = [int(x) for x in request.POST.getlist('lineas') if x.isdigit()]
+                lineas = list(ext.lineas.filter(pk__in=ids, estado='PENDIENTE').order_by('fecha', 'id'))
+                if not lineas:
+                    messages.warning(request, 'Marque al menos una línea pendiente.')
+                elif accion == 'crear_marcadas':
+                    concepto = request.POST.get('concepto') or None
+                    if concepto and concepto not in dict(Movimiento.CONCEPTOS):
+                        raise servicio.ErrorExtracto('Concepto no válido.')
+                    movs = [servicio.crear_movimiento(l, request.user, concepto) for l in lineas]
+                    messages.success(request, f'{len(movs)} movimientos registrados en tesorería y conciliados '
+                                              f'({movs[0].voucher} a {movs[-1].voucher}).')
+                else:
+                    for l in lineas:
+                        l.estado, l.regla = 'IGNORADA', f'Ignorada por {request.user.username}'
+                        l.save(update_fields=['estado', 'regla'])
+                    messages.info(request, f'{len(lineas)} líneas ignoradas.')
             else:
                 linea = get_object_or_404(LineaExtracto, pk=request.POST.get('linea'), extracto=ext)
                 if accion == 'crear':

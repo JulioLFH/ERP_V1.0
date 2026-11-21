@@ -3,13 +3,14 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
+from django.urls import reverse
 
 from contabilidad.models import CentroCosto, CuentaContable
 from core.forms import BootstrapMixin
 from core.models import Almacen, Producto
 
 from . import importar_xml as servicio
-from .models import Compra
+from .models import Compra, OrdenCompra
 
 SESION = 'compra_xml'
 
@@ -27,9 +28,14 @@ class RevisarXMLForm(BootstrapMixin, forms.Form):
     centro_costo = forms.ModelChoiceField(CentroCosto.objects.none(), label='Centro de costo', required=False)
     cuenta_contable = forms.ModelChoiceField(CuentaContable.objects.none(), label='Cuenta de gasto / compra',
                                              required=False, help_text='Vacío = según la clasificación')
+    orden_compra = forms.ModelChoiceField(OrdenCompra.objects.none(), label='Orden de compra', required=False,
+                                          help_text='Conecta la factura a su orden: avance, cruce con lo recibido y '
+                                                    'vencimiento desde el ingreso')
 
-    def __init__(self, *args, lineas=(), **kwargs):
+    def __init__(self, *args, lineas=(), ordenes=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['orden_compra'].queryset = ordenes if ordenes is not None else OrdenCompra.objects.none()
+        self.fields['orden_compra'].widget.attrs['data-ir-con'] = 'orden_compra'  # recarga con sus productos
         self.fields['almacen'].queryset = Almacen.objects.filter(activo=True)
         self.fields['centro_costo'].queryset = CentroCosto.para_formulario(self)
         self.fields['cuenta_contable'].queryset = CuentaContable.objects.filter(
@@ -81,9 +87,17 @@ def importar(request):
                 messages.error(request, str(exc))
             else:
                 request.session[SESION] = {'xml': xml['xml'], 'nombre': archivo.name[:150]}
+                oc = request.GET.get('oc') or request.POST.get('oc') or ''
+                if oc.isdigit():  # v1.117.0: desde la orden de compra («Factura desde XML»)
+                    return redirect(f"{reverse('compras:importar_xml_revisar')}?orden_compra={oc}")
                 return redirect('compras:importar_xml_revisar')
-        return render(request, 'compras/importar_xml.html', {'form': form})
-    return render(request, 'compras/importar_xml.html', {'form': SubirXMLForm()})
+        return render(request, 'compras/importar_xml.html', {'form': form, 'oc': _oc_de(request)})
+    return render(request, 'compras/importar_xml.html', {'form': SubirXMLForm(), 'oc': _oc_de(request)})
+
+
+def _oc_de(request):
+    oc = request.GET.get('oc') or ''
+    return OrdenCompra.objects.filter(pk=oc).select_related('tercero').first() if oc.isdigit() else None
 
 
 @login_required
@@ -98,10 +112,28 @@ def revisar(request):
         request.session.pop(SESION, None)
         return redirect('compras:importar_xml')
     proveedor = xml['proveedor']
+    # v1.117.0: la orden de compra elegida (o la que cita el XML) completa los productos de las líneas
+    ordenes = servicio.ordenes_candidatas(proveedor)
+    elegida = request.POST.get('orden_compra') if request.method == 'POST' else request.GET.get('orden_compra')
+    if elegida is not None:
+        oc, motivo_oc = (ordenes.filter(pk=elegida).first() if str(elegida).isdigit() else None), 'elegida'
+        if str(elegida).isdigit() and oc is None:
+            messages.warning(request, 'Esa orden de compra no es una orden aprobada de este proveedor.')
+    else:
+        oc, motivo_oc = servicio.orden_sugerida(xml, proveedor)
+    servicio.aplicar_orden(xml, oc)
     inicial = {'clasificacion': 'MERCADERIA' if any(l['producto'] for l in xml['lineas']) else 'GASTO',
                'forma_pago': 'CREDITO' if xml['vencimiento'] and xml['vencimiento'] > xml['fecha'].isoformat()
-               else 'CONTADO', 'almacen': Almacen.principal()}
-    form = RevisarXMLForm(request.POST or None, lineas=xml['lineas'], initial=inicial)
+               else 'CONTADO', 'almacen': Almacen.principal(), 'orden_compra': oc}
+    if oc is not None:
+        inicial['clasificacion'] = Compra.clasificacion_de(oc.items.select_related('producto'))
+        inicial['centro_costo'] = oc.centro_costo_id
+        if oc.dias_credito:
+            inicial['forma_pago'] = 'CREDITO'
+        from inventario.servicios import tiene_recepciones
+        if tiene_recepciones(orden=oc):
+            inicial['ingresar_almacen'] = False  # ya se recibió en Inventario
+    form = RevisarXMLForm(request.POST or None, lineas=xml['lineas'], initial=inicial, ordenes=ordenes)
     if request.method == 'POST' and form.is_valid():
         d = form.cleaned_data
         productos = {i: d.get(f'producto_{i}') for i in range(len(xml['lineas']))}
@@ -115,5 +147,5 @@ def revisar(request):
                                       f'el XML (total {compra.simbolo} {compra.total:,.2f}).')
             return redirect('compras:detalle', compra.pk)
     return render(request, 'compras/importar_xml_revisar.html', {
-        'xml': xml, 'form': form, 'proveedor': proveedor, 'nombre': nombre,
+        'xml': xml, 'form': form, 'proveedor': proveedor, 'nombre': nombre, 'oc': oc, 'motivo_oc': motivo_oc,
         'filas': list(zip(xml['lineas'], form.lineas()))})

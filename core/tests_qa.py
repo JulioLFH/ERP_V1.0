@@ -5,6 +5,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from finanzas.tests_v1117 import voucher  # v1.117.0: las cobranzas exigen sustento
 from django.core.management import call_command
 from django.db import connection
 from django.db.models import Sum
@@ -209,7 +210,8 @@ class HallazgosQATest(TestCase):
         v = Venta.objects.latest('id')
         usd = Cuenta.objects.get(nombre='BCP Cta. Cte. Dólares')
         self.client.post(reverse('finanzas:cobranza') + f'?doc={v.pk}', {
-            'cuenta': usd.pk, 'fecha': FECHA, 'medio_pago': 'TRANSFERENCIA', f'monto_{v.pk}': str(v.total)})
+            'cuenta': usd.pk, 'fecha': FECHA, 'medio_pago': 'TRANSFERENCIA', f'monto_{v.pk}': str(v.total),
+            'sustento': voucher()})
         actualizar_pendientes()
         a = Movimiento.objects.get(venta=v).asientos.get()
         self.assertEqual(a.lineas.get(cuenta__codigo='1212').haber, v.total_pen)
@@ -225,7 +227,7 @@ class HallazgosQATest(TestCase):
         saldo_bn = bn.saldo
         self.client.post(reverse('finanzas:cobranza') + f'?doc={v.pk}&detraccion=1', {
             'cuenta': bn.pk, 'fecha': FECHA, 'medio_pago': 'DEPOSITO', 'es_detraccion': 'on',
-            f'monto_{v.pk}': str(v.detraccion_monto)})
+            f'monto_{v.pk}': str(v.detraccion_monto), 'sustento': voucher()})
         m = Movimiento.objects.get(venta=v)
         self.assertEqual(m.monto_doc, v.detraccion_monto)  # US$ 141.60 aplicados a la factura
         self.assertEqual(m.monto, Decimal('481.44'))  # S/ en la cuenta del BN (141.60 x 3.400)

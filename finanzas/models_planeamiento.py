@@ -129,6 +129,9 @@ class PropuestaPago(models.Model):
     aprobado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
                                      editable=False)
     aprobado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    # v1.117.0: ruta de aprobación según las reglas «Pagos de tesorería» (Ajustes › Reglas de aprobación)
+    niveles = models.JSONField(default=list, blank=True, editable=False)
+    nivel_aprobado = models.PositiveSmallIntegerField(default=0, editable=False)
     pago_masivo = models.ForeignKey('finanzas.PagoMasivo', on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='+', editable=False)
     creado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',

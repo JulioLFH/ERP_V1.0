@@ -5,6 +5,7 @@ from decimal import Decimal as D
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from finanzas.tests_v1117 import voucher  # v1.117.0: las cobranzas exigen sustento
 from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
@@ -183,7 +184,8 @@ class DetraccionTest(TestCase):
         self.assertEqual(v.detraccion_estado, ('PENDIENTE', None))
         banco = Cuenta.objects.filter(tipo='BANCO', moneda='PEN', es_detracciones=False).first()
         self.client.post(reverse('finanzas:cobranza') + f'?doc={v.pk}', {
-            'cuenta': banco.pk, 'fecha': '2026-10-01', 'medio_pago': 'TRANSFERENCIA', f'monto_{v.pk}': '2360'})
+            'cuenta': banco.pk, 'fecha': '2026-10-01', 'medio_pago': 'TRANSFERENCIA', f'monto_{v.pk}': '2360',
+            'sustento': voucher()})
         v = Venta.objects.get(pk=v.pk)
         self.assertEqual(v.saldo, 0)
         self.assertEqual(v.detraccion_estado, ('SIN_DEPOSITO', date(2026, 10, 1)))

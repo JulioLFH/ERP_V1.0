@@ -15,10 +15,10 @@ log = logging.getLogger(__name__)
 NOMBRES = {'OC': 'la orden de compra', 'SOLPED': 'la solicitud de pedido', 'REQUERIMIENTO': 'el requerimiento',
            'RENDICION': 'la rendición de gastos', 'VACACION': 'la solicitud de vacaciones o permiso',
            'MOVIMIENTO': 'el movimiento de personal', 'PEDIDO': 'el pedido de venta',
-           'HES': 'la conformidad de servicio (HES)'}
+           'HES': 'la conformidad de servicio (HES)', 'PAGO': 'la propuesta de pagos'}
 RUTAS = {'OC': 'compras:oc_detalle', 'SOLPED': 'solicitudes:detalle', 'REQUERIMIENTO': 'requerimientos:detalle',
          'RENDICION': 'rendiciones:detalle', 'MOVIMIENTO': 'planillas:movimiento', 'PEDIDO': 'ventas:cot_detalle',
-         'HES': 'compras:hes', 'VACACION': 'planillas:solicitudes_personal'}
+         'HES': 'compras:hes', 'VACACION': 'planillas:solicitudes_personal', 'PAGO': 'finanzas:propuesta'}
 PIDE = {'ENVIADA', 'ENVIADO', 'SOLICITADA'}
 APRUEBA = {'APROBADA', 'APROBADO', 'LIBERADA', 'EN_REVISION'}  # EN_REVISION: rendición aprobada en un nivel
 DEVUELVE = {'RECHAZADA': 'rechazó', 'RECHAZADO': 'rechazó', 'OBSERVADA': 'observó'}

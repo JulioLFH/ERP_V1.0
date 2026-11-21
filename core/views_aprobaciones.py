@@ -39,7 +39,8 @@ class ReglaForm(BootstrapMixin, forms.ModelForm):
 def reglas(request):
     if not request.user.is_superuser:
         from .permisos import puede
-        if not (puede(request.user, 'compras.aprobar_oc') or puede(request.user, 'rendiciones.configurar')):
+        if not (puede(request.user, 'compras.aprobar_oc') or puede(request.user, 'rendiciones.configurar')
+                or puede(request.user, 'tesoreria.aprobar_pagos')):  # v1.117.0: la gerencia, las de pagos
             return render(request, 'core/sin_acceso.html',
                           {'motivo': 'Solo el administrador configura las reglas de aprobación.'}, status=403)
     documento = request.GET.get('documento') or 'OC'
@@ -166,6 +167,13 @@ def _pendientes(user):
                               f'S/ {r.total:,.2f}'))
     except ImportError:  # pragma: no cover
         pass
+    from finanzas import propuesta_pagos as pp  # v1.117.0: pagos de tesorería
+    from finanzas.models import PropuestaPago
+    for p in PropuestaPago.objects.filter(estado='ENVIADA').select_related('cuenta', 'creado_por'):
+        if pp.puede_aprobar(user, p):
+            filas.append(('PAGO', 'Propuesta de pagos', p, motor.pendiente(p.niveles, p.nivel_aprobado),
+                          reverse('finanzas:propuesta', args=[p.pk]),
+                          f'{p.cuenta} · {p.cuenta.simbolo} {p.total:,.2f} · pago el {p.fecha:%d/%m/%Y}'))
     return filas
 
 
@@ -246,6 +254,15 @@ def _resolver(user, doc, pk, accion, comentario):
         h = get_object_or_404(ConformidadServicio, pk=pk)
         hes.resolver(h, user, 'liberar' if aprobar else 'rechazar', comentario)
         return f'{h}: {h.get_estado_display().lower()}.'
+    if doc == 'PAGO':
+        from finanzas import propuesta_pagos as pp
+        from finanzas.models import PropuestaPago
+        p = get_object_or_404(PropuestaPago, pk=pk)
+        try:
+            pp.aprobar(p, user, aprobar, comentario)
+        except pp.ErrorPropuesta as exc:
+            raise motor.ErrorAprobacion(str(exc)) from exc
+        return f'{p}: {p.get_estado_display().lower()}.'
     if doc == 'RENDICION':
         from finanzas import rendiciones
         from finanzas.models_rendicion import Rendicion

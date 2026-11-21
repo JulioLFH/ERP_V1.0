@@ -11,6 +11,17 @@
   <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2"><div class="small text-muted">Caja disponible (menos saldo mínimo)</div><div class="fs-5 fw-semibold">{{ p.cuenta.simbolo }} {{ caja|money }}</div></div></div></div>
   <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2"><div class="small text-muted">Total propuesto</div><div class="fs-5 fw-semibold{% if p.total > caja %} text-danger{% endif %}">{{ p.cuenta.simbolo }} {{ p.total|money }}</div></div></div></div>
 </div>
+{% if ruta %}
+<div class="card mb-3"><div class="card-header small"><i class="bi bi-diagram-3"></i> Ruta de aprobación (reglas «Pagos de tesorería»)</div>
+  <div class="table-responsive"><table class="table table-sm mb-0 small">
+    <thead><tr><th>Nivel</th><th>Aprueba</th><th>Estado</th><th>Quién y cuándo</th><th>Comentario</th></tr></thead>
+    <tbody>{% for r in ruta %}<tr><td>{{ r.nivel }}</td><td>{{ r.nombre }}</td>
+      <td>{% if r.estado == 'APROBADO' %}<span class="badge text-bg-success">Aprobado</span>{% elif r.estado == 'RECHAZADO' %}<span class="badge text-bg-danger">Rechazado</span>{% elif r.estado == 'PENDIENTE' %}<span class="badge text-bg-warning">Pendiente</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+      <td>{{ r.usuario }}{% if r.fecha %} · {{ r.fecha|date:'d/m/Y H:i' }}{% endif %}</td><td>{{ r.comentario }}</td></tr>{% endfor %}</tbody>
+  </table></div></div>
+{% elif umbral is not None and p.estado == 'BORRADOR' %}
+<div class="alert alert-info py-2 small">Al enviarla, se arma su ruta de aprobación con las reglas «Pagos de tesorería» (desde S/ {{ umbral|money }}).</div>
+{% endif %}
 <form method="post">{% csrf_token %}
 <div class="card mb-3"><div class="table-responsive"><table class="table table-sm mb-0 small align-middle">
   <thead><tr><th>Pagar</th><th>Prioridad</th><th>Comprobante</th><th>Proveedor</th><th>Vence</th><th class="num">Saldo</th><th class="num" style="width:130px">A pagar</th><th class="num">Descuento</th><th>Motivo</th></tr></thead>
@@ -25,7 +36,7 @@
 <div class="d-flex flex-wrap gap-2 align-items-center">
   {% if p.estado == 'BORRADOR' or p.estado == 'RECHAZADA' %}{% if puede.tesoreria_registrar %}<button name="accion" value="guardar" class="btn btn-sm btn-outline-primary">Guardar cambios</button><button name="accion" value="enviar" class="btn btn-sm btn-primary">Enviar a aprobación</button>{% endif %}{% endif %}
   {% if p.estado == 'ENVIADA' and puede_aprobar %}<button name="accion" value="aprobar" class="btn btn-sm btn-success" data-confirm="¿Aprobar la propuesta por {{ p.cuenta.simbolo }} {{ p.total|money }}?"><i class="bi bi-check2"></i> Aprobar</button>
-    <input name="motivo" class="form-control form-control-sm w-auto" placeholder="Motivo del rechazo" aria-label="Motivo del rechazo"><button name="accion" value="rechazar" class="btn btn-sm btn-outline-danger">Rechazar</button>{% elif p.estado == 'ENVIADA' %}<span class="small text-muted">La aprueba la gerencia (permiso «Aprobar la propuesta de pagos»), no quien la armó.</span>{% endif %}
+    <input name="motivo" class="form-control form-control-sm w-auto" placeholder="Motivo del rechazo" aria-label="Motivo del rechazo"><button name="accion" value="rechazar" class="btn btn-sm btn-outline-danger">Rechazar</button>{% elif p.estado == 'ENVIADA' %}<span class="small text-muted">{% if nivel %}Le toca aprobarla a {{ nivel.nombre }} (nivel {{ nivel.nivel }} de {{ ruta|length }}).{% else %}La aprueba la gerencia (permiso «Aprobar la propuesta de pagos»), no quien la armó.{% endif %}</span>{% endif %}
   {% if p.estado == 'APROBADA' and puede.tesoreria_registrar %}<button name="accion" value="generar" class="btn btn-sm btn-success"><i class="bi bi-send"></i> Generar el pago masivo</button>{% endif %}
   {% if p.pago_masivo %}<a href="{% url 'finanzas:pago_masivo' p.pago_masivo_id %}" class="btn btn-sm btn-outline-success">Ver {{ p.pago_masivo.numero }}</a>{% endif %}
 </div>

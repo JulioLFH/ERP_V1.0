@@ -237,6 +237,31 @@ class MovimientoForm(BootstrapMixin, forms.ModelForm):
                                     f'«Aprobar la propuesta de pagos») o va por una compra y la propuesta de pagos.')
 
 
+def campo_efectivo():
+    return forms.BooleanField(label='El cliente pagó en efectivo', required=False,
+                              help_text='Solo el cobro en efectivo se registra sin sustento (va a una cuenta de caja)')
+
+
+def validar_sustento_cobranza(form, cuentas=('cuenta',)):
+    """v1.117.0: no se registra una cobranza sin sustento (foto o PDF del voucher, constancia), salvo que el cliente
+    haya pagado en efectivo: entonces el medio es «Efectivo» y la cuenta debe ser de caja."""
+    data = form.cleaned_data
+    efectivo = bool(data.get('en_efectivo')) or data.get('medio_pago') == 'EFECTIVO'
+    if efectivo:
+        data['en_efectivo'], data['medio_pago'] = True, 'EFECTIVO'
+        for nombre in cuentas:
+            cuenta = data.get(nombre)
+            if cuenta is not None and cuenta.tipo != 'CAJA' and not data.get('sustento'):
+                form.add_error(nombre, f'{cuenta} es un banco: el efectivo se registra en una cuenta de caja. Si el '
+                                       f'cliente lo depositó en el banco, adjunte el voucher como sustento.')
+    elif data.get('es_detraccion') and (data.get('numero_operacion') or '').strip():
+        pass  # depósito de detracción del cliente: la constancia (su número) se verifica en SUNAT
+    elif not data.get('sustento'):
+        form.add_error('sustento', 'Adjunte el sustento del cobro (foto o PDF del voucher, transferencia o '
+                                   'constancia). Sin sustento solo se registra el cobro en efectivo: marque «El '
+                                   'cliente pagó en efectivo».')
+
+
 class OperacionForm(BootstrapMixin, forms.Form):
     """Cabecera de cobranzas / pagos (individuales o grupales)."""
     cuenta = forms.ModelChoiceField(Cuenta.objects.filter(activo=True))
@@ -246,12 +271,23 @@ class OperacionForm(BootstrapMixin, forms.Form):
     es_detraccion = forms.BooleanField(label='Es depósito de detracción', required=False)
     glosa = forms.CharField(required=False)
     sustento = SustentoField(required=False, label='Sustento (voucher, constancia de detracción)')
+    en_efectivo = campo_efectivo()
     confirmar_repetido = confirmar_repetido_field()
+
+    def __init__(self, *args, modo='pago', **kwargs):
+        super().__init__(*args, **kwargs)
+        self.modo = modo
+        if modo == 'cobranza':
+            self.fields['sustento'].label = 'Sustento del cobro (obligatorio salvo efectivo)'
+        else:
+            del self.fields['en_efectivo']
 
     def clean(self):
         data = super().clean()
         validar_periodo_abierto(self, 'fecha')
         validar_tesoreria(self)
+        if self.modo == 'cobranza':
+            validar_sustento_cobranza(self)
         return data
 
 
@@ -266,10 +302,16 @@ class OperacionMultipleForm(BootstrapMixin, forms.Form):
     numero_operacion = forms.CharField(label='N° operación (saldos)', required=False)
     glosa = forms.CharField(required=False)
     sustento = SustentoField(required=False, label='Sustento (voucher, constancias)')
+    en_efectivo = campo_efectivo()
     confirmar_repetido = confirmar_repetido_field()
 
     def __init__(self, *args, modo='pago', **kwargs):
         super().__init__(*args, **kwargs)
+        self.modo = modo
+        if modo == 'cobranza':
+            self.fields['sustento'].label = 'Sustento de los cobros (obligatorio salvo efectivo)'
+        else:
+            del self.fields['en_efectivo']
         if modo == 'cobranza':  # el cliente deposita la detracción en la cuenta del BN de la empresa
             self.fields['cuenta_detraccion'].queryset = Cuenta.objects.filter(activo=True, es_detracciones=True)
             self.fields['cuenta_detraccion'].help_text = 'Su cuenta de detracciones del Banco de la Nación'
@@ -282,6 +324,8 @@ class OperacionMultipleForm(BootstrapMixin, forms.Form):
         data = super().clean()
         validar_periodo_abierto(self, 'fecha')
         validar_tesoreria(self)
+        if self.modo == 'cobranza':
+            validar_sustento_cobranza(self)
         return data
 
 

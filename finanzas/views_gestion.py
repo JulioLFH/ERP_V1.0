@@ -363,7 +363,8 @@ def propuesta(request, pk):
         return redirect('finanzas:propuesta', pk)
     return render(request, 'finanzas/propuesta_pago.html', {
         'p': p, 'lineas': p.lineas.select_related('compra__tercero'), 'puede_aprobar': pp.puede_aprobar(request.user, p),
-        'caja': p.cuenta.saldo - p.reserva})
+        'caja': p.cuenta.saldo - p.reserva, 'ruta': pp.ruta(p), 'nivel': pp.nivel_pendiente(p),
+        'umbral': pp.umbral_aprobacion()})
 
 
 @login_required
