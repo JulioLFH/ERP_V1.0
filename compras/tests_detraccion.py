@@ -133,13 +133,13 @@ class DetraccionTest(TestCase):
             'items-0-cantidad': '1', 'items-0-precio_unitario': '2000'})
         self.assertEqual(r.status_code, 302, r.content[:3000] if r.status_code == 200 else '')
         v = Venta.objects.latest('id')
-        self.assertEqual((v.detraccion_pct, v.detraccion_codigo, v.detraccion_monto), (D('12'), '18', D('283.20')))
+        self.assertEqual((v.detraccion_pct, v.detraccion_codigo, v.detraccion_monto), (D('12'), '18', D('283.00')))
         # representación impresa: leyenda SPOT, bien o servicio, monto en soles, cuenta del BN y cuotas netas
         r = self.client.get(reverse('ventas:imprimir', args=[v.pk]))
         for texto in ('Sistema de Pago de Obligaciones Tributarias', '020 Mantenimiento y reparación',
-                      'S/ 283.20', '00-068-123456', 'Monto neto pendiente de pago: S/ 2,076.80', '30/11/2026'):
+                      'S/ 283.00', '00-068-123456', 'Monto neto pendiente de pago: S/ 2,077.00', '30/11/2026'):
             self.assertContains(r, texto)
-        self.assertEqual([c[2] for c in v.cronograma_cuotas], [D('1038.40'), D('1038.40')])
+        self.assertEqual([c[2] for c in v.cronograma_cuotas], [D('1038.50'), D('1038.50')])
 
     def test_detraccion_sobre_el_valor_referencial(self):
         """v1.116.6: transporte de carga: la detracción es el % del mayor entre el total y el valor referencial."""
@@ -162,9 +162,9 @@ class DetraccionTest(TestCase):
         self.assertContains(self.client.get(reverse('ventas:detalle', args=[v.pk])), 'sobre el valor referencial')
         self.assertContains(self.client.get(reverse('ventas:imprimir', args=[v.pk])), 'Valor referencial: S/ 3,000.00')
         v = emitir('1500')  # el total es mayor: 4% de 2,360
-        self.assertEqual((v.detraccion_monto, v.usa_valor_referencial), (D('94.40'), False))
+        self.assertEqual((v.detraccion_monto, v.usa_valor_referencial), (D('94.00'), False))  # v1.117.4: sin decimales
         v = emitir('0')
-        self.assertEqual(v.detraccion_monto, D('94.40'))
+        self.assertEqual(v.detraccion_monto, D('94.00'))
 
     def venta(self):
         cli = Tercero.objects.filter(tipo='CLIENTE', tipo_doc='6').first()
@@ -180,7 +180,7 @@ class DetraccionTest(TestCase):
         return Venta.objects.latest('id')
 
     def test_cliente_paga_el_total_y_la_empresa_deposita(self):
-        v = self.venta()  # 2360, detracción 283.20
+        v = self.venta()  # 2360, detracción 283.00
         self.assertEqual(v.detraccion_estado, ('PENDIENTE', None))
         banco = Cuenta.objects.filter(tipo='BANCO', moneda='PEN', es_detracciones=False).first()
         self.client.post(reverse('finanzas:cobranza') + f'?doc={v.pk}', {
@@ -201,7 +201,7 @@ class DetraccionTest(TestCase):
                          (('DEPOSITADA', None), '55500011', date(2026, 10, 6)))
         entrada = v.detraccion_deposito
         self.assertEqual((entrada.cuenta, entrada.monto, entrada.transferencia_par.cuenta),
-                         (self.bn, D('283.20'), banco))
+                         (self.bn, D('283.00'), banco))
         self.assertEqual(v.saldo, 0)  # la transferencia no cuenta como cobro de la venta
         # anulada la transferencia, la venta vuelve a «sin depósito»
         self.client.post(reverse('finanzas:movimiento_eliminar', args=[entrada.pk]), {'motivo': 'Depósito duplicado'})
@@ -212,7 +212,7 @@ class DetraccionTest(TestCase):
         v = self.venta()
         self.client.post(reverse('finanzas:cobranza') + f'?doc={v.pk}&detraccion=1', {
             'cuenta': self.bn.pk, 'fecha': '2026-10-03', 'medio_pago': 'DEPOSITO', 'numero_operacion': '44400022',
-            'es_detraccion': 'on', 'detraccion': '1', f'monto_{v.pk}': '283.20'})
+            'es_detraccion': 'on', 'detraccion': '1', f'monto_{v.pk}': '283.00'})
         v = Venta.objects.get(pk=v.pk)
         self.assertEqual((v.detraccion_estado[0], v.detraccion_constancia, v.detraccion_fecha),
                          ('DEPOSITADA', '44400022', date(2026, 10, 3)))

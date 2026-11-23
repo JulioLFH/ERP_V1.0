@@ -40,5 +40,6 @@
     </tfoot>
   </table>
 </div></div>
-<p class="small text-muted mt-2">Como en la hoja de trabajo del PCGE: por naturaleza van la clase 6 (60 a 68) y la 7; por función el costo de ventas (69), la clase 9 y la 7. El costo de ventas llega a la naturaleza cancelado contra la variación de existencias (61, mercaderías) o de la producción (71, productos), y la 79 se cancela con la clase 9 (solo aparece en sumas y saldos). Los tres resultados deben coincidir.</p>
+{% if tot.res_nat != tot.res_fun %}<div class="alert alert-warning small mt-2 mb-0">El resultado por función ({{ tot.res_fun|money }}) no coincide con el de naturaleza ({{ tot.res_nat|money }}). Las cuentas 60 a 68 no pasan a la columna por función: lo que no llegó a la 69 o a la clase 9 queda solo por naturaleza.{% if tot.sin_funcion %}<ul class="mb-0">{% for n, v in tot.sin_funcion %}<li>{{ n }}: {{ v|money }}</li>{% endfor %}</ul>{% endif %}Asigne el destino a la clase 9 o pase las compras al costo de ventas para que cuadren.</div>{% endif %}
+<p class="small text-muted mt-2">Como en la hoja de trabajo del PCGE: por naturaleza van la clase 6 (60 a 68) y la 7; por función solo el costo de ventas (69), la clase 9 y la 7 (las 60 a 68 no aparecen por función). El costo de ventas llega a la naturaleza cancelado contra la variación de existencias (61, mercaderías) o de la producción (71, productos), y la 79 se cancela con la clase 9 (solo aparece en sumas y saldos). Los tres resultados deben coincidir.</p>
 {% endblock %}

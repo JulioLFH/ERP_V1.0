@@ -2127,6 +2127,8 @@ class ComprobanteBase(TotalesMixin):
         self.base_pen = self.total_pen - self.igv_pen - self.icbper_pen - self.nograv_pen - self.otros_pen
         self.ret_pen, self.perc_pen = r2(self.retencion_monto * tc), r2(self.percepcion_monto * tc)
         self.detr_pen = r2(self.detraccion_monto * tc)
+        if self._meta.model_name == 'venta':  # v1.117.4: en soles y sin decimales (también la de facturas en dólares)
+            self.detr_pen = self.detr_pen.quantize(Decimal('1'), ROUND_HALF_UP).quantize(D2)
 
     def anular(self, usuario=None, motivo=''):
         self.revertir_stock()
@@ -2262,6 +2264,10 @@ class ComprobanteBase(TotalesMixin):
         self.otros_cargos = self.otros_cargos or D0  # v1.116.7: nunca nulo (la columna no lo admite)
         self.total += self.otros_cargos  # no salen de los ítems: se suman aparte
         self.detraccion_monto = r2(self.base_detraccion * self.detraccion_pct / 100)
+        if self._meta.model_name == 'venta' and self.moneda == 'PEN':
+            # v1.117.4: la detracción de la factura de venta va sin decimales (redondeo a la unidad: desde 0.50
+            # sube), como se deposita en el Banco de la Nación
+            self.detraccion_monto = self.detraccion_monto.quantize(Decimal('1'), ROUND_HALF_UP).quantize(D2)
         self.retencion_monto = r2(self.total * self.retencion_pct / 100)
         self.percepcion_monto = r2(self.total * self.percepcion_pct / 100)
 

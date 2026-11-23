@@ -1,7 +1,7 @@
 """v1.117.2: balance de comprobación como la hoja de trabajo del PCGE. Por naturaleza van la clase 6 (60 a 68) y la
 7; por función el costo de ventas (69), la clase 9 y la 7. El costo de ventas llega a la naturaleza cancelado contra
-la variación de existencias (61, mercaderías) o de la producción (71, productos); las compras sin pasar al costo y los
-gastos sin destino son costo por función. Los tres resultados son el mismo."""
+la variación de existencias (61, mercaderías) o de la producción (71, productos). v1.117.4: las 60 a 68 no pasan a
+la columna por función; las compras sin pasar al costo y los gastos sin destino se informan como diferencia."""
 from datetime import date
 from decimal import Decimal
 
@@ -61,12 +61,19 @@ class HojaDeTrabajoTest(TestCase):
             return next(a for a in tot['ajustes'] if a['nombre'].startswith(inicio))
         self.assertEqual(ajuste('Costo de ventas de mercaderías')['nat_p'], D('600'))
         self.assertEqual(ajuste('Costo de ventas de productos')['nat_p'], D('250'))
-        self.assertEqual(ajuste('Compras y variación de existencias')['fun_p'], D('80'))
-        self.assertEqual(ajuste('Gastos 62-68 sin destino')['fun_p'], D('50'))
-        self.assertEqual((tot['res_bal'], tot['res_nat'], tot['res_fun']), (D('770'), D('770'), D('770')))
+        # v1.117.4: las 60 a 68 no pasan a la columna por función; lo que no llegó a la 69 o a la 9 se informa aparte
+        self.assertEqual(len(tot['ajustes']), 2)
+        self.assertFalse(any(a['fun_p'] or a['fun_g'] for a in tot['ajustes']))
+        self.assertFalse(any(f.get('fun_p') or f.get('fun_g') for f in filas if f['codigo'][:2] in
+                             ('60', '61', '62', '63', '64', '65', '66', '67', '68')))
+        self.assertEqual(tot['sin_funcion'],
+                         [('Compras y variación de existencias (60/61) que no pasaron al costo de ventas', D('80')),
+                          ('Gastos 62-68 sin destino a la clase 9', D('50'))])
+        self.assertEqual((tot['res_bal'], tot['res_nat'], tot['res_fun']), (D('770'), D('770'), D('900')))
         for nivel in (2, 3):  # agrupado: las transferencias salen de las cuentas a detalle
             _, t = reportes.balance_comprobacion(MES, MES, nivel)
-            self.assertEqual((t['res_bal'], t['res_nat'], t['res_fun']), (D('770'), D('770'), D('770')))
+            self.assertEqual((t['res_bal'], t['res_nat'], t['res_fun']), (D('770'), D('770'), D('900')))
+            self.assertEqual(t['sin_funcion'], tot['sin_funcion'])
 
     def test_estado_por_naturaleza_sin_linea_de_costo_de_ventas(self):
         lineas, neta = reportes.estado_resultados_naturaleza(MES, MES)
@@ -96,4 +103,6 @@ class HojaDeTrabajoTest(TestCase):
         r = self.client.get(url)
         self.assertContains(r, 'cancelado contra la variación de existencias (61)')
         self.assertContains(r, 'Transferencias y cancelaciones de la hoja de trabajo')
+        self.assertContains(r, 'Las cuentas 60 a 68 no pasan a la columna por función')
+        self.assertContains(r, 'Gastos 62-68 sin destino a la clase 9: 50.00')
         self.assertEqual(self.client.get(url + '&formato=excel').status_code, 200)

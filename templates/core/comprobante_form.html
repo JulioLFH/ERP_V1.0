@@ -13,11 +13,12 @@
     <div class="card-header">Datos del documento</div>
     <div class="card-body">
       <div class="row g-3">
-        {% for field in form %}{% if field.name != 'glosa' %}
+        {% for field in form %}{% if field.name != 'glosa' and field.name != 'guias_referencia' %}
           <div class="{% if field.name == 'tercero' or field.name == 'doc_referencia' or field.name == 'cotizacion' or field.name == 'orden_compra' %}col-md-6{% else %}col-6 col-md-3{% endif %}">
             {% include 'core/_campo.html' %}
           </div>
         {% endif %}{% endfor %}
+        {% if form.guias_referencia %}<div class="col-12">{% with field=form.guias_referencia %}{% include 'core/_campo.html' %}{% endwith %}</div>{% endif %}
         {% if form.glosa %}<div class="col-12">{% with field=form.glosa %}{% include 'core/_campo.html' %}{% endwith %}</div>{% endif %}
       </div>
       {% if form.series %}

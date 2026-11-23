@@ -270,6 +270,12 @@ def xml_comprobante(venta):
         doc_ref = _e(_e(raiz, 'cac:BillingReference'), 'cac:InvoiceDocumentReference')
         _e(doc_ref, 'cbc:ID', f'{ref.serie}-{int(ref.numero)}')
         _e(doc_ref, 'cbc:DocumentTypeCode', ref.tipo_comprobante)
+    for tipo_guia, guia in getattr(venta, 'guias_citadas', []):  # v1.117.4: guías de remisión que la sustentan
+        serie_guia, numero_guia = guia.split('-')
+        despacho = _e(raiz, 'cac:DespatchDocumentReference')
+        _e(despacho, 'cbc:ID', f'{serie_guia}-{int(numero_guia)}')
+        _e(despacho, 'cbc:DocumentTypeCode', tipo_guia, listAgencyName='PE:SUNAT', listName='Tipo de Documento',
+           listURI='urn:pe:gob:sunat:cpe:see:gem:catalogos:catalogo01')
     _firma_cac(raiz, empresa)
     _emisor(raiz, empresa)
     _cliente(raiz, venta.tercero)

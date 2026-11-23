@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.4 — 23/11/2026 · Factura de transporte con guías y detracción sin decimales; balance sin las 60-68 por función
+- **Ventas › Emitir comprobante**: nuevo campo **«Guías de remisión»** (separadas por comas, p. ej. EG03-35, T005-2721882). Salen en la «Referencia» del impreso y en el XML a SUNAT (y a Nubefact) como guías de remisión: las EG03 y las de serie V como transportista, las demás como remitente. Las guías emitidas en el ERP para la venta se agregan solas.
+- **Detracción sin decimales**: en la factura de venta el monto de la detracción en soles se redondea a la unidad (desde 0.50 sube), como se deposita en el Banco de la Nación.
+- **Una cuota = contado**: una factura o boleta con 1 cuota sale «Contado» y el impreso muestra la condición de pago en días (p. ej. 15 días) y el vencimiento; con 2 cuotas o más sigue al crédito con su cronograma. El control de crédito del cliente (mora, deuda vencida, límite) sigue aplicando.
+- **Representación impresa**: el valor referencial se muestra sin la nota «mayor que el importe de la operación»; ya no aparece la versión del ERP (antes de que SUNAT acepte dice «Vista previa»); los encabezados de las tablas van centrados.
+- **Balance de comprobación**: en «Resultados por función» ya no aparecen las cuentas 60 a 68; quedan el costo de ventas (69), la clase 9 y la 7. Las 60-68 siguen por naturaleza. Si los resultados no coinciden, la pantalla avisa cuánto quedó sin pasar a la 69 o a la clase 9.
+
 ## v1.117.3 — 23/11/2026 · Aprobación de pagos por centro de costo
 - **Reglas de pagos por centro de costo**: la propuesta de pagos junta facturas de varios centros (el de la factura o, si no tiene, el de su orden de compra). Una regla «Pagos de tesorería» de un centro ahora aplica cuando la propuesta trae pagos de ese centro o de sus subcentros, y se compara con lo que suman esos pagos (no con el total). Antes esas reglas se guardaban pero nunca se aplicaban.
 - **Responsable del centro de costo**: en pagos aprueba el responsable de cada centro que trae la propuesta, uno tras otro; si es la misma persona para varios centros, aprueba una sola vez. Las reglas sin centro siguen evaluándose con el total de la propuesta.

@@ -134,7 +134,11 @@ class VentasViews(ComprobanteViews):
         from core.models import Empresa, r2
         doc, datos = form.instance, form.cleaned_data
         cliente = datos.get('tercero')
-        if not cliente or datos.get('forma_pago') != 'CREDITO' or datos.get('tipo_comprobante') in ('07', '08'):
+        # v1.117.4: a plazo también la de una cuota (sale «Contado» con condición de pago en días)
+        a_plazo = datos.get('forma_pago') == 'CREDITO' or (
+            datos.get('fecha_vencimiento') and datos.get('fecha_emision')
+            and datos['fecha_vencimiento'] > datos['fecha_emision'])
+        if not cliente or not a_plazo or datos.get('tipo_comprobante') in ('07', '08'):
             return []
         if self._pedido_aprobado(datos) and datos['cotizacion'].tercero_id == cliente.pk:
             return []

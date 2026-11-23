@@ -151,7 +151,9 @@
       const p = num(document.getElementById('id_percepcion_pct'));
       const partes = [];
       const vr = num(document.getElementById('id_valor_referencial'));  // v1.116.6: el mayor entre total y V.R.
-      if (d) partes.push(`Detracción ${d}%: ${fmt(Math.max(total, vr) * d / 100)}` +
+      const monedaDoc = document.getElementById('id_moneda');
+      const detr = Math.max(total, vr) * d / 100;  // v1.117.4: en soles, sin decimales
+      if (d) partes.push(`Detracción ${d}%: ${fmt(!monedaDoc || monedaDoc.value === 'PEN' ? Math.round(detr) : detr)}` +
         (vr > total ? ` (sobre el valor referencial ${fmt(vr)})` : ''));
       if (r) partes.push(`Retención ${r}%: ${fmt(total * r / 100)}`);
       if (p) partes.push(`Percepción ${p}%: ${fmt(total * p / 100)}`);

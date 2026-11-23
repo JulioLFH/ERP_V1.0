@@ -90,6 +90,10 @@ class Venta(ComprobanteBase, ElectronicoMixin):
         'Valor referencial', max_digits=14, decimal_places=2, default=0,
         help_text='Transporte de carga u otro servicio con valor referencial (en la moneda del comprobante): la '
                   'detracción se calcula sobre el mayor entre el total y este valor. 0 = sobre el total.')
+    guias_referencia = models.TextField(
+        'Guías de remisión', blank=True,
+        help_text='Guías que sustentan la factura, separadas por comas (p. ej. EG03-35, T005-2721882): salen en la '
+                  'referencia del impreso y en el XML. Las guías emitidas en el ERP para esta venta se agregan solas.')
     # el cliente pagó el total: la empresa (proveedor) depositó la detracción en su cuenta del BN (transferencia)
     detraccion_deposito = models.ForeignKey('finanzas.Movimiento', on_delete=models.SET_NULL, null=True, blank=True,
                                             related_name='+', editable=False,
@@ -103,7 +107,8 @@ class Venta(ComprobanteBase, ElectronicoMixin):
                                       help_text='Vacío = la lista del cliente')
     cuotas = models.PositiveSmallIntegerField('N° de cuotas', default=1,
                                               help_text='Venta al crédito: cuotas iguales; la primera vence en la '
-                                                        'fecha de vencimiento')
+                                                        'fecha de vencimiento. Con 1 cuota la factura sale al contado '
+                                                        'con su condición de pago en días')
     dias_entre_cuotas = models.PositiveSmallIntegerField('Días entre cuotas', default=30)
 
     class Meta(ComprobanteBase.Meta):
@@ -112,6 +117,34 @@ class Venta(ComprobanteBase, ElectronicoMixin):
 
     def _signo_stock(self):
         return 1 if self.es_nota_credito else -1
+
+    @property
+    def guias_citadas(self):
+        """v1.117.4: [(tipo, 'SERIE-NUMERO')] de las guías de la factura: las escritas en «Guías de remisión» y las
+        emitidas en el ERP para esta venta, sin repetir. Tipo 31 (transportista) si la serie empieza con V o es EG03
+        (la de SUNAT Operaciones en Línea); si no, 09 (remitente)."""
+        import re
+        vistas, salida = set(), []
+
+        def agregar(tipo, serie, numero):
+            clave = f'{serie}-{int(numero)}'
+            if clave not in vistas:
+                vistas.add(clave)
+                salida.append((tipo, f'{serie}-{numero}'))
+        for serie, numero in re.findall(r'\b([A-Z0-9]{4})-(\d{1,8})\b', (self.guias_referencia or '').upper()):
+            agregar('31' if serie.startswith('V') or serie == 'EG03' else '09', serie, numero)
+        if self.pk:
+            for g in self.guias.filter(estado='EMITIDA'):
+                if g.serie and str(g.numero).isdigit():
+                    agregar(g.tipo, g.serie.upper(), str(g.numero))
+        return salida[:100]
+
+    @property
+    def condicion_dias(self):
+        """v1.117.4: días entre la emisión y el vencimiento (condición de pago del impreso)."""
+        if self.fecha_vencimiento and self.fecha_emision and self.fecha_vencimiento > self.fecha_emision:
+            return (self.fecha_vencimiento - self.fecha_emision).days
+        return 0
 
     @property
     def cronograma_cuotas(self):

@@ -38,21 +38,15 @@ def _columnas(codigos):
 
 
 def ajustes_hoja_trabajo(sumas):
-    """Filas de transferencia de la hoja de trabajo, a partir de las cuentas a detalle (v1.117.2):
-
-    - el costo de ventas (69), que va por función, llega a la naturaleza cancelado contra la variación de existencias:
-      el de mercaderías contra la 61 (comercio) y el de productos contra la 71 (industria);
-    - las compras y su variación (60/61) que no pasaron al costo de ventas (sin el destino 20 / 61 o del sistema
-      anterior, con inventario periódico) son costo en la columna por función;
-    - los gastos 62-68 que no pasaron a la clase 9 también son gasto por función.
-    Así los resultados por naturaleza y por función siempre son el mismo. [{nombre, nat_p, nat_g, fun_p, fun_g}]"""
+    """Filas de transferencia de la hoja de trabajo, a partir de las cuentas a detalle (v1.117.2): el costo de ventas
+    (69), que va por función, llega a la naturaleza cancelado contra la variación de existencias: el de mercaderías
+    contra la 61 (comercio) y el de productos contra la 71 (industria). v1.117.4: las cuentas 60 a 68 no pasan a la
+    columna por función (ver sin_pasar_a_funcion). [{nombre, nat_p, nat_g, fun_p, fun_g}]"""
     columnas = _columnas(list(sumas))
-    traslado, compras = {'61': D0, '71': D0}, D0
+    traslado = {'61': D0, '71': D0}
     for codigo, (d, h) in sumas.items():
         if codigo.startswith('69') and columnas[codigo] not in ('NATURALEZA', 'RESULTADO'):
             traslado[pcge.variacion_del_costo_de_ventas(codigo)] += d - h
-        elif codigo.startswith(('60', '61')) and columnas[codigo] not in ('FUNCION', 'RESULTADO'):
-            compras += d - h
     filas = []
 
     def fila(nombre, importe, columna):
@@ -62,14 +56,24 @@ def ajustes_hoja_trabajo(sumas):
                           'fun_p': p if columna == 'fun' else D0, 'fun_g': g if columna == 'fun' else D0})
     fila('Costo de ventas de mercaderías (69) cancelado contra la variación de existencias (61)', traslado['61'], 'nat')
     fila('Costo de ventas de productos (69) cancelado contra la variación de la producción (71)', traslado['71'], 'nat')
-    fila('Compras y variación de existencias (60/61) que no pasaron al costo de ventas', compras, 'fun')
-    fila('Gastos 62-68 sin destino a la clase 9',
-         _neto(sumas, ('62', '63', '64', '65', '66', '67', '68')) - _neto(sumas, ('9',)), 'fun')
     return filas
+
+
+def sin_pasar_a_funcion(sumas):
+    """v1.117.4: lo que está por naturaleza y no llegó a la columna por función (las 60 a 68 no se transfieren):
+    compras y variación (60/61) que no pasaron al costo de ventas y gastos 62-68 sin destino a la clase 9. Explica
+    la diferencia entre el resultado por naturaleza y por función. [(concepto, importe)]"""
+    columnas = _columnas(list(sumas))
+    compras = sum((d - h for c, (d, h) in sumas.items()
+                   if c.startswith(('60', '61')) and columnas[c] not in ('FUNCION', 'RESULTADO')), D0)
+    gastos = _neto(sumas, ('62', '63', '64', '65', '66', '67', '68')) - _neto(sumas, ('9',))
+    return [(n, v) for n, v in (('Compras y variación de existencias (60/61) que no pasaron al costo de ventas', compras),
+                                ('Gastos 62-68 sin destino a la clase 9', gastos)) if v]
 
 
 def balance_comprobacion(desde, hasta, nivel=None):
     sumas = sumas_por_cuenta(desde, hasta)
+    sumas_detalle = sumas
     ajustes = ajustes_hoja_trabajo(sumas)  # con las cuentas a detalle, antes de agrupar
     if nivel:  # agrupar a nivel de cuenta mayor (2 dígitos) o subcuenta (3 dígitos)
         agrupado = {}
@@ -101,8 +105,9 @@ def balance_comprobacion(desde, hasta, nivel=None):
         for k in tot:
             tot[k] += f.get(k, D0)
         filas.append(f)
-    # transferencias de la hoja de trabajo (costo de ventas a la variación, compras y gastos sin destino)
+    # transferencias de la hoja de trabajo (el costo de ventas a la variación de existencias)
     tot['ajustes'] = ajustes
+    tot['sin_funcion'] = sin_pasar_a_funcion(sumas_detalle)
     for a in ajustes:
         for k in ('nat_p', 'nat_g', 'fun_p', 'fun_g'):
             tot[k] += a[k]

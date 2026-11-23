@@ -62,9 +62,10 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
         model = Venta
         fields = ['tipo_comprobante', 'serie', 'numero', 'tercero', 'fecha_emision', 'fecha_vencimiento',
                   'forma_pago', 'cuotas', 'dias_entre_cuotas', 'moneda', 'tipo_cambio', 'tipo_operacion',
-                  'detraccion_pct', 'retencion_pct', 'percepcion_pct', 'icbper', 'otros_cargos', 'detraccion_codigo', 'valor_referencial', 'vendedor', 'cotizacion', 'doc_referencia',
+                  'detraccion_pct', 'retencion_pct', 'percepcion_pct', 'icbper', 'otros_cargos', 'detraccion_codigo', 'valor_referencial', 'guias_referencia', 'vendedor', 'cotizacion', 'doc_referencia',
                   'motivo_nota', 'descontar_stock', 'almacen', 'centro_costo', 'lista_precios', 'glosa']
         widgets = {'glosa': forms.Textarea(attrs={'rows': 2}),
+                   'guias_referencia': forms.Textarea(attrs={'rows': 2, 'placeholder': 'EG03-00000035, T005-02721882'}),
                    'detraccion_codigo': forms.Select(choices=[('', '---')] + DETRACCION_TIPOS)}
         labels = {'tercero': 'Cliente', 'numero': 'Número (vacío = automático)'}
         help_texts = {'serie': 'Vacío = serie por defecto del tipo'}
@@ -127,6 +128,10 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
                 self.add_error('fecha_vencimiento', 'En una venta al crédito el vencimiento debe ser posterior a la '
                                                     'emisión (déjelo vacío para usar los días de crédito del cliente).')
         tipo = data.get('tipo_comprobante')
+        if data.get('forma_pago') == 'CREDITO' and cuotas == 1 and tipo in ('01', '03') and not self.errors:
+            # v1.117.4: con una sola cuota la factura es al contado con su condición de pago (días al vencimiento);
+            # el control de crédito del cliente sigue aplicando porque el vencimiento queda después de la emisión
+            data['forma_pago'] = 'CONTADO'
         if tipo in ('07', '08') and not data.get('doc_referencia'):
             self.add_error('doc_referencia', 'Indique el comprobante que modifica la nota.')
         if tipo in ('07', '08') and not data.get('motivo_nota'):

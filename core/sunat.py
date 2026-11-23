@@ -319,8 +319,10 @@ def payload_comprobante(venta):
         payload['medio_de_pago'] = 'credito'
         payload['venta_al_credito'] = [{'cuota': n, 'fecha_de_pago': _fecha(fecha), 'importe': _num(importe)}
                                        for n, fecha, importe in venta.cronograma_cuotas]
-    for g in venta.guias.filter(estado='EMITIDA'):
-        payload.setdefault('guias', []).append({'guia_tipo': 1, 'guia_serie_numero': g.numero_completo})
+    for tipo_guia, guia in venta.guias_citadas:  # v1.117.4: las escritas en la venta y las emitidas en el ERP
+        payload.setdefault('guias', []).append({'guia_tipo': 2 if tipo_guia == '31' else 1, 'guia_serie_numero': guia})
+    if venta.forma_pago == 'CONTADO' and venta.condicion_dias:
+        payload['condiciones_de_pago'] = f'Contado - {venta.condicion_dias} días'
     return payload
 
 
