@@ -108,7 +108,7 @@ class DetraccionTest(Base):
         from django.utils import timezone
         v = self.venta(detraccion_pct=D('12'), detraccion_codigo='25', forma_pago='CREDITO',
                        fecha_vencimiento=timezone.localdate() + timedelta(days=30))
-        self.assertEqual((v.total, v.detraccion_monto), (D('2360.00'), D('283.20')))
+        self.assertEqual((v.total, v.detraccion_monto), (D('2360.00'), D('283.00')))  # v1.117.4: sin decimales
         arbol = self.xml(v)
         self.assertEqual(arbol.find(q('cbc', 'InvoiceTypeCode')).get('listID'), '1001')
         self.assertIn('2006', [n.get('languageLocaleID') for n in arbol.findall(q('cbc', 'Note'))])
@@ -119,8 +119,8 @@ class DetraccionTest(Base):
         terminos = {t.findtext(q('cbc', 'PaymentMeansID')): t for t in arbol.findall(q('cac', 'PaymentTerms'))}
         self.assertEqual(terminos['027'].findtext(q('cbc', 'ID')), 'Detraccion')  # 027 transporte de carga
         self.assertEqual(terminos['027'].find(q('cbc', 'Amount')).get('currencyID'), 'PEN')
-        self.assertEqual(terminos['027'].findtext(q('cbc', 'Amount')), '283.20')
-        self.assertEqual(terminos['Credito'].findtext(q('cbc', 'Amount')), '2076.80')  # total − detracción
+        self.assertEqual(terminos['027'].findtext(q('cbc', 'Amount')), '283.00')
+        self.assertEqual(terminos['Credito'].findtext(q('cbc', 'Amount')), '2077.00')  # total − detracción
         # en dólares la detracción va en soles
         dolares = self.venta(serie='F778', detraccion_pct=D('12'), moneda='USD', tipo_cambio=D('3.750'))
         monto = [t for t in self.xml(dolares).findall(q('cac', 'PaymentTerms'))

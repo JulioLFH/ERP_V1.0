@@ -69,18 +69,18 @@ class NubefactTest(TestCase):
         return self.client.post(reverse('ventas:nuevo'), data)
 
     def test_factura_credito_con_detraccion(self):
-        self._venta(detraccion_pct='12', detraccion_codigo='20')
+        self._venta(detraccion_pct='12', detraccion_codigo='20', cuotas='2')  # v1.117.4: con 1 cuota sale al contado
         v = Venta.objects.latest('id')
         p = sunat.payload_comprobante(v)
         self.assertEqual(p['numero'], int(v.numero))  # sin ceros a la izquierda
         self.assertEqual(p['sunat_transaction'], 30)
         self.assertEqual(p['detraccion'], 'true')
         self.assertEqual(p['detraccion_tipo'], '20')  # 022 Otros servicios empresariales
-        self.assertEqual(p['detraccion_total'], 141.6)
+        self.assertEqual(p['detraccion_total'], 142.0)  # sin decimales
         self.assertEqual(p['total_gravada'], 1000.0)
         self.assertEqual(p['total_igv'], 180.0)
         self.assertEqual(p['medio_de_pago'], 'credito')
-        self.assertEqual(p['venta_al_credito'][0]['importe'], 1038.4)  # total - detracción
+        self.assertEqual(p['venta_al_credito'][0]['importe'], 519.0)  # (total - detracción) / 2
         self.assertEqual(p['venta_al_credito'][0]['fecha_de_pago'], f'{HOY + timedelta(days=30):%d-%m-%Y}')
         self.assertEqual(p['items'][0]['tipo_de_igv'], 1)
         self.assertEqual(p['items'][0]['precio_unitario'], 590.0)
