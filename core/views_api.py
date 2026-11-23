@@ -1,9 +1,12 @@
-"""Pantallas de la API: documentación y claves de acceso del usuario."""
+"""Pantallas de la API: documentación y claves de acceso. v1.117.2: solo para el administrador (acceso a todos los
+módulos), que ve y revoca las claves de todos los usuarios."""
 from datetime import date
+from functools import wraps
 
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .api import ENDPOINTS
@@ -25,18 +28,29 @@ class ApiTokenForm(BootstrapMixin, forms.ModelForm):
         return expira
 
 
+def solo_administrador(vista):
+    @wraps(vista)
+    def envuelta(request, *args, **kwargs):
+        if not request.user.is_superuser:
+            raise PermissionDenied('Las claves de API solo las administra el administrador del sistema.')
+        return vista(request, *args, **kwargs)
+    return envuelta
+
+
 @login_required
+@solo_administrador
 def docs(request):
     return render(request, 'core/api_docs.html', {
         'endpoints': ENDPOINTS, 'base': request.build_absolute_uri('/api/v1/')})
 
 
 @login_required
+@solo_administrador
 def claves(request):
     form = ApiTokenForm(request.POST or None)
     nueva = None
     if request.method == 'POST' and request.POST.get('revocar'):
-        token = get_object_or_404(ApiToken, pk=request.POST['revocar'], usuario=request.user)
+        token = get_object_or_404(ApiToken, pk=request.POST['revocar'])
         token.activo = False
         token.save(update_fields=['activo'])
         messages.info(request, f'Clave "{token.nombre}" revocada.')
@@ -46,4 +60,5 @@ def claves(request):
         token, nueva = ApiToken.crear(request.user, d['nombre'], d['solo_lectura'], d['expira'])
         form = ApiTokenForm()
     return render(request, 'core/api_claves.html', {
-        'form': form, 'nueva': nueva, 'tokens': ApiToken.objects.filter(usuario=request.user)})
+        'form': form, 'nueva': nueva,
+        'tokens': ApiToken.objects.select_related('usuario').order_by('-activo', 'usuario__username', 'nombre')})

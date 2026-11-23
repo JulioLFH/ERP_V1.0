@@ -491,7 +491,58 @@ def balance_comprobacion(periodo):
         if columna in ('NATURALEZA', 'RESULTADO'):
             f['perdidas'], f['ganancias'] = f['saldo_deudor'], f['saldo_acreedor']
         filas.append(f)
+    _cancelar_costo_de_ventas(filas, columnas)
     return filas
+
+
+def _cuenta_de_variacion(filas, prefijo):
+    """Fila de la cuenta de variación (61 o 71) que recibe el costo de ventas: la de mercaderías / productos
+    terminados con movimiento o, si no hay, la primera imputable del plan (se agrega la fila)."""
+    preferidos = (prefijo + '11', prefijo + '1', prefijo)
+    for preferido in preferidos:
+        f = next((f for f in filas if f['cuenta'].startswith(preferido)), None)
+        if f:
+            return f
+    for preferido in preferidos:
+        c = (CuentaContable.objects.filter(codigo__startswith=preferido, imputable=True, activo=True)
+             .order_by('codigo').values_list('codigo', flat=True).first())
+        if c:
+            f = {k: D0 for k in filas[0] if k != 'cuenta'} if filas else {}
+            f['cuenta'] = c
+            filas.append(f)
+            filas.sort(key=lambda x: x['cuenta'])
+            return f
+    return None
+
+
+def _cancelar_costo_de_ventas(filas, columnas):
+    """v1.117.2, hoja de trabajo del PCGE: el costo de ventas (69) va por función; en las columnas de transferencias
+    y cancelaciones se cancela contra la variación de existencias (61, mercaderías) o de la producción (71,
+    productos), y con eso llega al resultado por naturaleza (columnas 15-16)."""
+    from . import pcge
+    traslado = {'61': D0, '71': D0}
+    costo = [f for f in filas if f['cuenta'].startswith('69')
+             and (columnas.get(f['cuenta']) or pcge.columna_por_defecto(f['cuenta'])) not in ('NATURALEZA', 'RESULTADO')]
+    for f in costo:
+        traslado[pcge.variacion_del_costo_de_ventas(f['cuenta'])] += f['saldo_deudor'] - f['saldo_acreedor']
+    for prefijo, importe in traslado.items():
+        if not importe:
+            continue
+        destino = _cuenta_de_variacion(filas, prefijo)
+        if destino is None:  # sin cuenta de variación en el plan: el costo queda por naturaleza en la 69
+            for f in costo:
+                if pcge.variacion_del_costo_de_ventas(f['cuenta']) == prefijo:
+                    f['perdidas'], f['ganancias'] = f['saldo_deudor'], f['saldo_acreedor']
+            continue
+        for f in costo:
+            if pcge.variacion_del_costo_de_ventas(f['cuenta']) == prefijo:
+                f['transf_haber'] += f['saldo_deudor']
+                f['transf_debe'] += f['saldo_acreedor']
+        destino['transf_debe'] += max(importe, D0)
+        destino['transf_haber'] += max(-importe, D0)
+        neto = (destino['saldo_deudor'] - destino['saldo_acreedor'] + destino['transf_debe']
+                - destino['transf_haber'])
+        destino['perdidas'], destino['ganancias'] = max(neto, D0), max(-neto, D0)
 
 
 def _3_17(ctx):

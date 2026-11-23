@@ -98,9 +98,18 @@ class ApiTest(TestCase):
         with patch('core.api.LIMITE_MINUTO', 3):
             codigos = [self._get('/api/v1/', clave).status_code for _ in range(4)]
         self.assertEqual(codigos, [200, 200, 200, 429])
+        # v1.117.2: las claves de API solo las ve y administra el administrador (acceso a todos los módulos)
+        ApiToken.crear(self.almacenero, 'Integración del almacén')
         self.client.force_login(self.almacenero)
+        self.assertNotContains(self.client.get(reverse('home')), reverse('api_claves'))
+        self.assertEqual(self.client.get(reverse('api_claves')).status_code, 403)
+        self.assertEqual(self.client.post(reverse('api_claves'), {'nombre': 'Power BI'}).status_code, 403)
+        self.assertEqual(self.client.get(reverse('api:docs')).status_code, 403)
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(reverse('home')), reverse('api_claves'))
         r = self.client.post(reverse('api_claves'), {'nombre': 'Power BI', 'solo_lectura': 'on'})
         self.assertContains(r, 'ceiba_')
+        self.assertContains(r, 'Integración del almacén')  # ve las claves de todos los usuarios
         token = ApiToken.objects.get(usuario=self.almacenero)
         self.client.post(reverse('api_claves'), {'revocar': token.pk})
         self.assertFalse(ApiToken.objects.get(pk=token.pk).activo)

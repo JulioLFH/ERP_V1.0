@@ -69,7 +69,7 @@
           <li><a class="dropdown-item" href="{% url 'novedades' %}"><i class="bi bi-stars me-2"></i>Novedades (v{{ erp_version }})</a></li>
           <li><a class="dropdown-item" href="{% url 'cambiar_clave' %}"><i class="bi bi-key me-2"></i>Cambiar contraseña</a></li>
           <li><a class="dropdown-item" href="{% url 'seguridad' %}"><i class="bi bi-shield-lock me-2"></i>Verificación en dos pasos</a></li>
-          <li><a class="dropdown-item" href="{% url 'api_claves' %}"><i class="bi bi-plug me-2"></i>Claves de API</a></li>
+          {% if user.is_superuser %}<li><a class="dropdown-item" href="{% url 'api_claves' %}"><i class="bi bi-plug me-2"></i>Claves de API</a></li>{% endif %}
           {% if admin_django %}<li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-shield-lock me-2"></i>Administración avanzada</a></li>{% endif %}
           <li><a class="dropdown-item" href="{% url 'soporte:lista' %}"><i class="bi bi-life-preserver me-2"></i>Soporte y tickets</a></li>
           <li><hr class="dropdown-divider"></li>

@@ -47,6 +47,8 @@ class RequerimientosTest(TestCase):
                                                                        'requerimientos.aprobar'])
         self.almacenero = User.objects.create_user('almacen', password='x')
         self.almacenero.groups.add(Group.objects.get_or_create(name=GRUPOS['inventario'])[0])
+        # v1.117.2: Requerimientos se tiene solo si se marca (ya no llega solo con Inventario)
+        self.almacenero.groups.add(Group.objects.get_or_create(name=GRUPOS['requerimientos'])[0])
 
     def crear(self, cantidad='10'):
         self.client.force_login(self.area)
@@ -118,7 +120,7 @@ class RequerimientosTest(TestCase):
         self.client.force_login(otro)
         self.assertRedirects(self.client.get(reverse('requerimientos:detalle', args=[req.pk])),
                              reverse('requerimientos:lista'))
-        self.client.force_login(self.almacenero)  # el almacén entra por ser de Inventario
+        self.client.force_login(self.almacenero)  # el almacén, con el módulo Requerimientos marcado
         for url in [reverse('requerimientos:lista'), reverse('requerimientos:detalle', args=[req.pk]),
                     reverse('requerimientos:lista') + '?estado=APROBADO']:
             self.assertEqual(self.client.get(url).status_code, 200, url)

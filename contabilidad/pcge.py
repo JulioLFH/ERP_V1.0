@@ -227,13 +227,20 @@ def columna_por_defecto(codigo):
         return 'INVENTARIO'
     if codigo.startswith('79'):  # cargas imputables: se cancelan con la clase 9
         return 'SALDO'
-    # inventario permanente: la 61 solo refleja compras, por eso el costo de ventas (69) también va por naturaleza;
-    # por función: compras y variación (60/61), costo de ventas (69), ingresos (7), destinos (9) e impuesto (88)
-    naturaleza = codigo.startswith(('60', '61', '62', '63', '64', '65', '66', '67', '68', '69', '88')) or clase == '7'
-    funcion = codigo.startswith(('60', '61', '69', '88')) or clase in '79'
+    # hoja de trabajo del PCGE (v1.117.2): por naturaleza la clase 6 (60 a 68) y la 7; por función el costo de ventas
+    # (69), la clase 9 y la 7; el impuesto a la renta (88) en ambas. El costo de ventas llega a la naturaleza
+    # cancelado contra la variación de existencias (variacion_del_costo_de_ventas), no como cuenta propia
+    naturaleza = codigo.startswith(('60', '61', '62', '63', '64', '65', '66', '67', '68', '88')) or clase == '7'
+    funcion = codigo.startswith(('69', '88')) or clase in '79'
     if naturaleza and funcion:
         return 'RESULTADO'
     return 'NATURALEZA' if naturaleza else 'FUNCION' if funcion else 'SALDO'
+
+
+def variacion_del_costo_de_ventas(codigo):
+    """Cuenta de variación contra la que se cancela el costo de ventas en la hoja de trabajo (columna de
+    transferencias): el de mercaderías contra la 61 (comercio) y el de productos contra la 71 (industria)."""
+    return '61' if str(codigo).startswith(('691', '6951')) else '71'
 
 
 def centro_por_defecto(codigo):

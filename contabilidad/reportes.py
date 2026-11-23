@@ -31,8 +31,46 @@ def _neto(sumas, prefijos, excluir=()):
     return total
 
 
+def _columnas(codigos):
+    """{código: columna del balance} (la configurada en la cuenta o, si no tiene, la del PCGE)."""
+    guardadas = dict(CuentaContable.objects.filter(codigo__in=codigos).values_list('codigo', 'columna_balance'))
+    return {c: guardadas.get(c) or pcge.columna_por_defecto(c) for c in codigos}
+
+
+def ajustes_hoja_trabajo(sumas):
+    """Filas de transferencia de la hoja de trabajo, a partir de las cuentas a detalle (v1.117.2):
+
+    - el costo de ventas (69), que va por función, llega a la naturaleza cancelado contra la variación de existencias:
+      el de mercaderías contra la 61 (comercio) y el de productos contra la 71 (industria);
+    - las compras y su variación (60/61) que no pasaron al costo de ventas (sin el destino 20 / 61 o del sistema
+      anterior, con inventario periódico) son costo en la columna por función;
+    - los gastos 62-68 que no pasaron a la clase 9 también son gasto por función.
+    Así los resultados por naturaleza y por función siempre son el mismo. [{nombre, nat_p, nat_g, fun_p, fun_g}]"""
+    columnas = _columnas(list(sumas))
+    traslado, compras = {'61': D0, '71': D0}, D0
+    for codigo, (d, h) in sumas.items():
+        if codigo.startswith('69') and columnas[codigo] not in ('NATURALEZA', 'RESULTADO'):
+            traslado[pcge.variacion_del_costo_de_ventas(codigo)] += d - h
+        elif codigo.startswith(('60', '61')) and columnas[codigo] not in ('FUNCION', 'RESULTADO'):
+            compras += d - h
+    filas = []
+
+    def fila(nombre, importe, columna):
+        if importe:
+            p, g = max(importe, D0), max(-importe, D0)
+            filas.append({'nombre': nombre, 'nat_p': p if columna == 'nat' else D0, 'nat_g': g if columna == 'nat' else D0,
+                          'fun_p': p if columna == 'fun' else D0, 'fun_g': g if columna == 'fun' else D0})
+    fila('Costo de ventas de mercaderías (69) cancelado contra la variación de existencias (61)', traslado['61'], 'nat')
+    fila('Costo de ventas de productos (69) cancelado contra la variación de la producción (71)', traslado['71'], 'nat')
+    fila('Compras y variación de existencias (60/61) que no pasaron al costo de ventas', compras, 'fun')
+    fila('Gastos 62-68 sin destino a la clase 9',
+         _neto(sumas, ('62', '63', '64', '65', '66', '67', '68')) - _neto(sumas, ('9',)), 'fun')
+    return filas
+
+
 def balance_comprobacion(desde, hasta, nivel=None):
     sumas = sumas_por_cuenta(desde, hasta)
+    ajustes = ajustes_hoja_trabajo(sumas)  # con las cuentas a detalle, antes de agrupar
     if nivel:  # agrupar a nivel de cuenta mayor (2 dígitos) o subcuenta (3 dígitos)
         agrupado = {}
         for codigo, (d, h) in sumas.items():
@@ -50,8 +88,8 @@ def balance_comprobacion(desde, hasta, nivel=None):
         f = {'codigo': codigo, 'nombre': nombre, 'd': d, 'h': h,
              'sd': max(saldo, D0), 'sa': max(-saldo, D0)}
         # columna configurada en la cuenta (Plan de cuentas › Columna del balance); por defecto, la del PCGE: clases
-        # 1-5 al inventario; 62-68 por naturaleza; 60, 61, 69, 7 y 88 por naturaleza y por función; 9 por función;
-        # la 79 y las de saldo no pasan a los estados
+        # 1-5 al inventario; 60-68 por naturaleza; 69 y 9 por función; 7 y 88 en ambas; la 79 y las de saldo no
+        # pasan a los estados
         columna = columna or pcge.columna_por_defecto(codigo)
         f['columna'] = columna
         if columna == 'INVENTARIO':
@@ -63,13 +101,11 @@ def balance_comprobacion(desde, hasta, nivel=None):
         for k in tot:
             tot[k] += f.get(k, D0)
         filas.append(f)
-    # gastos 62-68 que no pasaron a la clase 9 (sin destino, frecuente en lo importado del sistema anterior): también
-    # son gasto en la columna por función; así su resultado es el del estado de resultados por función
-    sin_destino = _neto(sumas, ('62', '63', '64', '65', '66', '67', '68')) - _neto(sumas, ('9',))
-    tot['sin_destino'] = sin_destino
-    tot['sin_destino_p'], tot['sin_destino_g'] = max(sin_destino, D0), max(-sin_destino, D0)
-    tot['fun_p'] += tot['sin_destino_p']
-    tot['fun_g'] += tot['sin_destino_g']
+    # transferencias de la hoja de trabajo (costo de ventas a la variación, compras y gastos sin destino)
+    tot['ajustes'] = ajustes
+    for a in ajustes:
+        for k in ('nat_p', 'nat_g', 'fun_p', 'fun_g'):
+            tot[k] += a[k]
     tot['res_bal'] = tot['activo'] - tot['pasivo']
     tot['res_nat'] = tot['nat_g'] - tot['nat_p']
     tot['res_fun'] = tot['fun_g'] - tot['fun_p']
@@ -164,24 +200,26 @@ def estado_resultados(desde, hasta, sumas=None):
 
 
 def estado_resultados_naturaleza(desde, hasta, sumas=None):
-    """Estado de resultados por naturaleza (PCGE): ingresos y gastos por su clase; mismo resultado que por función."""
+    """Estado de resultados por naturaleza (PCGE): ingresos y gastos por su clase; mismo resultado que por función.
+    El costo de ventas (69) no es una línea propia: como en la hoja de trabajo, el de mercaderías se cancela contra la
+    variación de existencias (61) y el de productos contra la variación de la producción almacenada (71)."""
     s = sumas_por_cuenta(desde, hasta) if sumas is None else sumas
+    merc, prod = _costo_de_ventas_por_variacion(s)
     ventas = -_neto(s, ('70',))
-    produccion = -_neto(s, ('71', '72'))
+    produccion = -_neto(s, ('71', '72')) - prod
     otros_ing = -_neto(s, ('73', '74', '75', '76', '78'))
     ing_fin = -_neto(s, ('77',))
-    compras = _neto(s, ('60', '61'))
-    costo_ventas = _neto(s, ('69',))
+    compras = _neto(s, ('60', '61')) + merc
     gastos = [('Gastos de personal', _neto(s, ('62',))), ('Servicios prestados por terceros', _neto(s, ('63',))),
               ('Tributos', _neto(s, ('64',))), ('Otros gastos de gestión', _neto(s, ('65',))),
               ('Pérdida por medición de activos', _neto(s, ('66',))),
               ('Valuación, deterioro y provisiones', _neto(s, ('68',)))]
     fin = _neto(s, ('67',))
     renta = _neto(s, ('88',))
-    antes = ventas + produccion + otros_ing + ing_fin - compras - costo_ventas - sum(g for _, g in gastos) - fin
+    antes = ventas + produccion + otros_ing + ing_fin - compras - sum(g for _, g in gastos) - fin
     neta = antes - renta
     lineas = [('Ventas netas', ventas, 'total'), ('Variación de la producción almacenada', produccion, ''),
-              ('Compras y variación de existencias', -compras, ''), ('Costo de ventas', -costo_ventas, '')]
+              ('Compras y variación de existencias', -compras, '')]
     lineas += [(n, -v, '') for n, v in gastos]
     lineas += [('Otros ingresos de gestión', otros_ing, ''), ('Ingresos financieros', ing_fin, ''),
                ('Gastos financieros', -fin, ''),
@@ -190,14 +228,25 @@ def estado_resultados_naturaleza(desde, hasta, sumas=None):
     return lineas, neta
 
 
+def _costo_de_ventas_por_variacion(s):
+    """(costo de ventas de mercaderías, de productos): debe − haber de la 69 según la variación contra la que se
+    cancela (61 o 71)."""
+    merc = sum((d - h for c, (d, h) in s.items() if c.startswith('69')
+                and pcge.variacion_del_costo_de_ventas(c) == '61'), D0)
+    return merc, _neto(s, ('69',)) - merc
+
+
 def _cuentas_de_linea(vista, s):
     """{concepto del estado: [(código, signo)]}: con qué cuentas se forma cada línea. Cada cuenta aporta
     signo × (haber − debe), así la suma de sus cuentas es el importe que muestra la línea."""
     def de(prefijos, excluir=(), signo=1):
         return [(c, signo) for c in sorted(s) if c.startswith(prefijos) and not c.startswith(excluir)]
     if vista == 'naturaleza':
-        return {'Ventas netas': de(('70',)), 'Variación de la producción almacenada': de(('71', '72')),
-                'Compras y variación de existencias': de(('60', '61')), 'Costo de ventas': de(('69',)),
+        costo = de(('69',))
+        merc = [x for x in costo if pcge.variacion_del_costo_de_ventas(x[0]) == '61']
+        return {'Ventas netas': de(('70',)),
+                'Variación de la producción almacenada': de(('71', '72')) + [x for x in costo if x not in merc],
+                'Compras y variación de existencias': de(('60', '61')) + merc,
                 'Gastos de personal': de(('62',)), 'Servicios prestados por terceros': de(('63',)),
                 'Tributos': de(('64',)), 'Otros gastos de gestión': de(('65',)),
                 'Pérdida por medición de activos': de(('66',)), 'Valuación, deterioro y provisiones': de(('68',)),

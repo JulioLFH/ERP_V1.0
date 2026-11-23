@@ -3,6 +3,14 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.2 — 23/11/2026 · Balance de comprobación como la hoja de trabajo del PCGE; claves de API solo para el administrador; módulos del usuario sin sorpresas
+- **Columnas del balance**: por naturaleza van la clase 6 (60 a 68) y la 7; por función, el costo de ventas (69), la clase 9 y la 7. Antes el costo de ventas iba también por naturaleza y las compras (60/61) también por función. Las cuentas que tenían la columna por defecto anterior se actualizan solas; las configuradas a mano quedan como están.
+- **Transferencias y cancelaciones**: el costo de ventas llega a la naturaleza cancelado contra la variación de existencias (61, mercaderías) o de la producción (71, productos). Las compras que no pasaron al costo de ventas y los gastos 62-68 sin destino a la clase 9 son costo por función. Se ven al pie del balance y en el Excel; los tres resultados siguen siendo el mismo.
+- **Estado de resultados por naturaleza**: ya no tiene la línea «Costo de ventas»; el de mercaderías va en «Compras y variación de existencias» y el de productos en «Variación de la producción almacenada». El resultado no cambia.
+- **PLE 3.17**: el costo de ventas se cancela en las columnas de transferencias contra la 61 / 71, que es la que entra en el resultado por naturaleza.
+- **Claves de API**: el menú y las pantallas de claves y documentación de la API solo los ve el administrador (acceso a todos los módulos), que ve y revoca las claves de todos los usuarios. Las claves ya creadas siguen funcionando hasta que se revoquen.
+- **Módulos del usuario**: «Rendición de gastos» y «Requerimientos» se tienen solo si se marcan en el usuario. Antes llegaban solos con Tesorería, Finanzas o Contabilidad (rendiciones) y con Inventario, Compras u Obras (requerimientos), aunque la casilla estuviera desmarcada. Contactos, Consulta RUC y los módulos para todos siguen llegando como antes.
+
 ## v1.117.1 — 21/11/2026 · Credenciales de SUNAT y del SIRE en una sola pantalla; el token de Decolecta solo en el panel
 - **Token de Decolecta**: ya no aparece en Ajustes › Empresa de ningún ERP; se registra una sola vez en el panel de servicios (pestaña Ajustes) para todos. La fuente del tipo de cambio indica si el token está activo.
 - **Credenciales en Ajustes › Credenciales SUNAT y SIRE**: el usuario SOL y la clave del SIRE, su client_id y client_secret y los de la API SUNAT salieron de Ajustes › Empresa; el usuario SOL secundario, su clave y las credenciales de guías salieron de Facturación electrónica (que ahora muestra si están registradas, con el enlace). Lo ya guardado se conserva.

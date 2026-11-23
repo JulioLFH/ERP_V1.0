@@ -742,11 +742,10 @@ SIN_GRUPO = {'contactos', 'consulta_ruc'} | PARA_TODOS
 # Nombre de grupo de Django por módulo (lo que se asigna a cada usuario)
 GRUPOS = {m['clave']: m['nombre'] for m in MODULOS if m['clave'] not in SIN_GRUPO}
 
-# Contactos no tiene grupo propio: lo usan quienes venden, compran, cobran o despachan
+# Contactos no tiene grupo propio: lo usan quienes venden, compran, cobran o despachan. Solo se derivan los módulos sin
+# grupo propio (SIN_GRUPO): los que tienen su casilla (Requerimientos, Rendición de gastos) se tienen solo si se
+# marcan, así lo que muestra el usuario es lo que ve (v1.117.2)
 DERIVADOS = {'contactos': {'crm', 'ventas', 'compras', 'tesoreria', 'finanzas', 'logistica', 'contabilidad'},
-             # el almacén atiende los requerimientos de las áreas; Compras ve y libera sus solicitudes de pedido
-             'requerimientos': {'inventario', 'compras', 'obras'},  # la obra pide materiales y servicios
-             'rendiciones': {'tesoreria', 'finanzas', 'contabilidad'},  # tesorería y contabilidad revisan las rendiciones
              'consulta_ruc': {'crm', 'toma_pedido', 'ventas', 'compras', 'portal_proveedores', 'tesoreria', 'finanzas',
                               'logistica', 'contabilidad', 'sunat', 'ajustes'},
              **{m: {g for g in GRUPOS if g != 'cliente'} for m in PARA_TODOS}}
@@ -825,7 +824,7 @@ RUTAS_LIBRES = {'home', 'tipo_cambio_api', 'ubigeos_json', 'login', 'logout', 'c
                 'sustento_subir', 'sustento_ver',  # los sustentos validan el módulo del documento
                 'validacion_accion',  # validación por especialista: valida el módulo y el permiso del registro
                 'lista_preferencias', 'lista_auto',  # columnas y filtros de las listas: preferencia de cada usuario
-                'api_claves',  # cada usuario administra sus claves de API (actúan con sus propios permisos)
+                'api_claves',  # claves de API: la vista exige ser administrador (core/views_api.solo_administrador)
                 'opciones',  # listas de los selectores (códigos y nombres, sin importes)
                 'producto_datos',  # precio y unidad del producto elegido (valida los módulos; el costo según permiso)
                 'reportar', 'salud',  # «Reportar problema» lo usa cualquiera; /salud/ es para el monitor de caídas
