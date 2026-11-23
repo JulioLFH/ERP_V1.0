@@ -32,6 +32,9 @@ class ReglaForm(BootstrapMixin, forms.ModelForm):
             self.add_error('aprobador', 'Elija el usuario que aprueba.')
         if d.get('tipo') == 'PUESTO' and not d.get('puesto'):
             self.add_error('puesto', 'Elija el puesto que aprueba.')
+        if d.get('documento') == 'PAGO' and d.get('aplica_a'):  # v1.117.3: la propuesta de pagos no tiene tipo
+            self.add_error('aplica_a', 'En los pagos de tesorería no se usa: deje «Todos» (para filtrar use el centro '
+                                       'de costo).')
         return d
 
 

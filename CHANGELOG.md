@@ -3,6 +3,12 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.3 — 23/11/2026 · Aprobación de pagos por centro de costo
+- **Reglas de pagos por centro de costo**: la propuesta de pagos junta facturas de varios centros (el de la factura o, si no tiene, el de su orden de compra). Una regla «Pagos de tesorería» de un centro ahora aplica cuando la propuesta trae pagos de ese centro o de sus subcentros, y se compara con lo que suman esos pagos (no con el total). Antes esas reglas se guardaban pero nunca se aplicaban.
+- **Responsable del centro de costo**: en pagos aprueba el responsable de cada centro que trae la propuesta, uno tras otro; si es la misma persona para varios centros, aprueba una sola vez. Las reglas sin centro siguen evaluándose con el total de la propuesta.
+- **Ruta de aprobación**: cada nivel muestra a qué centro de costo corresponde.
+- **«Aplica a» (tipo de documento)** ya no se acepta en las reglas de pagos: la propuesta no tiene tipo y la regla nunca se cumplía. La pantalla de reglas explica cómo funcionan los centros en pagos.
+
 ## v1.117.2 — 23/11/2026 · Balance de comprobación como la hoja de trabajo del PCGE; claves de API solo para el administrador; módulos del usuario sin sorpresas
 - **Columnas del balance**: por naturaleza van la clase 6 (60 a 68) y la 7; por función, el costo de ventas (69), la clase 9 y la 7. Antes el costo de ventas iba también por naturaleza y las compras (60/61) también por función. Las cuentas que tenían la columna por defecto anterior se actualizan solas; las configuradas a mano quedan como están.
 - **Transferencias y cancelaciones**: el costo de ventas llega a la naturaleza cancelado contra la variación de existencias (61, mercaderías) o de la producción (71, productos). Las compras que no pasaron al costo de ventas y los gastos 62-68 sin destino a la clase 9 son costo por función. Se ven al pie del balance y en el Excel; los tres resultados siguen siendo el mismo.

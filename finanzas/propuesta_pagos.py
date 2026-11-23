@@ -110,10 +110,11 @@ def enviar(p, usuario):
         raise ErrorPropuesta(f'La propuesta suma {p.cuenta.simbolo} {p.total:,.2f} y la caja disponible es '
                              f'{p.cuenta.simbolo} {p.cuenta.saldo - p.reserva:,.2f}.')
     p.estado, p.motivo = 'ENVIADA', ''
-    # v1.117.0: ruta de aprobación por niveles según las reglas «Pagos de tesorería» (monto en soles)
+    # v1.117.0: ruta de aprobación por niveles según las reglas «Pagos de tesorería» (monto en soles); v1.117.3: las
+    # reglas de un centro de costo aplican a los pagos de las facturas de ese centro, con lo que esos pagos suman
     from core import aprobaciones as motor
-    p.niveles = motor.calcular_niveles('PAGO', p.creado_por or usuario, total_en_soles(p)) \
-        if motor.hay_reglas('PAGO') else []
+    p.niveles = motor.calcular_niveles_por_centros('PAGO', p.creado_por or usuario, total_en_soles(p),
+                                                   montos_por_centro(p)) if motor.hay_reglas('PAGO') else []
     p.nivel_aprobado = 0
     p.save(update_fields=['estado', 'motivo', 'niveles', 'nivel_aprobado'])
     motor.registrar('PAGO', p, usuario, 'ENVIADA')
@@ -149,6 +150,24 @@ def error_pago_directo(movimientos):
     return (f'Los pagos {desde} necesitan aprobación (Ajustes › Reglas de aprobación › Pagos de tesorería): este '
             f'suma S/ {total:,.2f}. Inclúyalo en una propuesta de pagos (Tesorería › Propuestas de pago) y, ya '
             f'aprobada, genere el pago masivo.')
+
+
+def centro_de(compra):
+    """Centro de costo del pago: el de la factura o, si no lo tiene, el de su orden de compra."""
+    return compra.centro_costo or (compra.orden_compra.centro_costo if compra.orden_compra_id else None)
+
+
+def montos_por_centro(p):
+    """v1.117.3: {centro de costo o None: importe en soles} de los comprobantes incluidos en la propuesta."""
+    tc = Decimal('1')
+    if p.cuenta.moneda != 'PEN':
+        from core.tipo_cambio import venta_del_dia
+        tc = venta_del_dia(p.fecha)
+    montos = {}
+    for l in p.lineas.filter(incluir=True).select_related('compra__centro_costo', 'compra__orden_compra__centro_costo'):
+        c = centro_de(l.compra)
+        montos[c] = montos.get(c, D0) + l.monto_pen
+    return {c: r2(m * tc) for c, m in montos.items()}
 
 
 def total_en_soles(p):

@@ -15,7 +15,7 @@
 <div class="card mb-3"><div class="card-header small"><i class="bi bi-diagram-3"></i> Ruta de aprobación (reglas «Pagos de tesorería»)</div>
   <div class="table-responsive"><table class="table table-sm mb-0 small">
     <thead><tr><th>Nivel</th><th>Aprueba</th><th>Estado</th><th>Quién y cuándo</th><th>Comentario</th></tr></thead>
-    <tbody>{% for r in ruta %}<tr><td>{{ r.nivel }}</td><td>{{ r.nombre }}</td>
+    <tbody>{% for r in ruta %}<tr><td>{{ r.nivel }}</td><td>{{ r.nombre }}{% if r.centro %} <span class="text-muted">· {{ r.centro }}</span>{% endif %}</td>
       <td>{% if r.estado == 'APROBADO' %}<span class="badge text-bg-success">Aprobado</span>{% elif r.estado == 'RECHAZADO' %}<span class="badge text-bg-danger">Rechazado</span>{% elif r.estado == 'PENDIENTE' %}<span class="badge text-bg-warning">Pendiente</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
       <td>{{ r.usuario }}{% if r.fecha %} · {{ r.fecha|date:'d/m/Y H:i' }}{% endif %}</td><td>{{ r.comentario }}</td></tr>{% endfor %}</tbody>
   </table></div></div>

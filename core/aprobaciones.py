@@ -129,22 +129,90 @@ def calcular_niveles(documento, solicitante, monto, centro_costo=None, tipo='', 
     ahora = timezone.now().isoformat()
     for nivel in sorted(por_nivel):
         regla = por_nivel[nivel]
-        try:
-            usuario = _usuario_de_regla(regla, solicitante, centro_costo)
-        except ErrorAprobacion as exc:
-            # APR-02: sin jefe o puesto vacante: el aprobador de reemplazo de la regla o se salta al siguiente nivel
-            if regla.reemplazo_id and not es_del_portal(regla.reemplazo):
-                usuario = regla.reemplazo
-            else:
-                if avisos is not None:
-                    avisos.append(f'Nivel {nivel}: {exc} Se pasó al siguiente nivel.')
-                continue
+        usuario = _aprobador(regla, solicitante, centro_costo, nivel, avisos)
+        if usuario is None:
+            continue
         if solicitante is not None and usuario.pk == solicitante.pk:
             continue  # nadie aprueba lo suyo: su nivel se salta
         if niveles and niveles[-1]['usuario'] == usuario.pk:
             continue
         niveles.append({'nivel': len(niveles) + 1, 'usuario': usuario.pk,
                         'nombre': usuario.get_full_name() or usuario.username, 'desde': ahora if not niveles else None})
+    return niveles
+
+
+def _aprobador(regla, solicitante, centro, nivel, avisos):
+    """Usuario que aprueba la regla; None (y el aviso) si no tiene a quién y tampoco aprobador de reemplazo."""
+    try:
+        return _usuario_de_regla(regla, solicitante, centro)
+    except ErrorAprobacion as exc:
+        # APR-02: sin jefe o puesto vacante: el aprobador de reemplazo de la regla o se salta al siguiente nivel
+        if regla.reemplazo_id and not es_del_portal(regla.reemplazo):
+            return regla.reemplazo
+        if avisos is not None and f'Nivel {nivel}: {exc} Se pasó al siguiente nivel.' not in avisos:
+            avisos.append(f'Nivel {nivel}: {exc} Se pasó al siguiente nivel.')
+        return None
+
+
+def calcular_niveles_por_centros(documento, solicitante, total, montos, avisos=None):
+    """v1.117.3: ruta de un documento que reúne importes de varios centros de costo (la propuesta de pagos junta
+    facturas de distintos centros). montos = {centro de costo o None: importe en soles}.
+    - Regla sin centro de costo: se evalúa con el total del documento (como siempre). Si aprueba el «responsable del
+      centro de costo», aprueba el responsable de cada centro que trae el documento.
+    - Regla de un centro: aplica si el documento trae importes de ese centro (o de sus subcentros) y se evalúa con
+      la suma de esos importes, no con el total.
+    En cada nivel y para cada centro aplica la regla de mayor monto; si en un nivel aprueban varias personas (una por
+    centro), van una tras otra. La misma persona aprueba una sola vez por nivel. Las reglas con «tipo de documento»
+    no aplican (el documento no lo tiene). Sin centros (o sin reglas de centro) da lo mismo que calcular_niveles."""
+    from .models import ReglaAprobacion
+    reglas = [r for r in ReglaAprobacion.objects.filter(documento=documento, activo=True).select_related(
+        'aprobador', 'centro_costo', 'puesto', 'reemplazo') if not r.aplica_a]
+    centros = sorted(montos, key=lambda c: (c is None, getattr(c, 'codigo', '') or '', getattr(c, 'pk', 0))) or [None]
+    subcentros = {}
+
+    def monto_de(regla):
+        if not regla.centro_costo_id:
+            return total
+        ids = subcentros.setdefault(regla.centro_costo_id, set(regla.centro_costo.descendientes_ids()))
+        return sum((m for c, m in montos.items() if c is not None and c.pk in ids), 0)
+
+    pasos = {}  # nivel -> [(regla, centro)]
+    for centro in centros:
+        por_nivel = {}
+        for regla in reglas:
+            if regla.centro_costo_id:
+                ids = subcentros.setdefault(regla.centro_costo_id, set(regla.centro_costo.descendientes_ids()))
+                if centro is None or centro.pk not in ids:
+                    continue
+            if monto_de(regla) < regla.monto_desde:
+                continue
+            actual = por_nivel.get(regla.nivel)
+            if actual is None or regla.monto_desde > actual.monto_desde:
+                por_nivel[regla.nivel] = regla
+        for nivel, regla in por_nivel.items():
+            pasos.setdefault(nivel, []).append((regla, centro))
+    niveles = []
+    ahora = timezone.now().isoformat()
+    for nivel in sorted(pasos):
+        del_nivel = {}  # usuario -> paso de este nivel
+        for regla, centro in pasos[nivel]:
+            usuario = _aprobador(regla, solicitante, centro, nivel, avisos)
+            if usuario is None or (solicitante is not None and usuario.pk == solicitante.pk):
+                continue  # sin a quién (ya avisado) o nadie aprueba lo suyo
+            por_centro = centro is not None and (regla.centro_costo_id or regla.tipo == 'RESPONSABLE_CC')
+            paso = del_nivel.get(usuario.pk) or (niveles[-1] if niveles and niveles[-1]['usuario'] == usuario.pk
+                                                  else None)
+            if paso is None:
+                paso = {'nivel': len(niveles) + 1, 'usuario': usuario.pk,
+                        'nombre': usuario.get_full_name() or usuario.username, 'desde': ahora if not niveles else None,
+                        'centro': ''}
+                niveles.append(paso)
+            del_nivel[usuario.pk] = paso
+            if por_centro and str(centro) not in paso['centro'].split(' · '):
+                paso['centro'] = ' · '.join(filter(None, [paso['centro'], str(centro)]))
+    for paso in niveles:
+        if not paso['centro']:
+            del paso['centro']
     return niveles
 
 
@@ -254,7 +322,7 @@ def ruta(documento, objeto, niveles, nivel_aprobado, rechazado=False):
             estado = 'PENDIENTE'
         else:
             estado = ''
-        filas.append({'nivel': n['nivel'], 'nombre': n['nombre'], 'estado': estado,
+        filas.append({'nivel': n['nivel'], 'nombre': n['nombre'], 'estado': estado, 'centro': n.get('centro', ''),
                       'usuario': (h.usuario.get_full_name() or h.usuario.username) if h and h.usuario_id else '',
                       'fecha': h.fecha if h else None, 'comentario': h.comentario if h else ''})
     return filas
