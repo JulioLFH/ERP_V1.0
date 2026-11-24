@@ -27,6 +27,7 @@ class CompraForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS'])
         remoto(self.fields['tercero'], 'proveedores')
+        self.fields['tercero'].widget.attrs['data-alta'] = 'PROVEEDOR'  # «Nuevo proveedor» en otra ventana
         self.fields['serie'].required = True
         self.fields['numero'].required = True
         self.fields['orden_compra'].queryset = OrdenCompra.objects.exclude(estado='ANULADO')
@@ -207,6 +208,7 @@ class OrdenCompraForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['PROVEEDOR', 'AMBOS'])
         remoto(self.fields['tercero'], 'proveedores')
+        self.fields['tercero'].widget.attrs['data-alta'] = 'PROVEEDOR'  # «Nuevo proveedor» en otra ventana
         from django.contrib.auth import get_user_model
         self.fields['comprador'].queryset = get_user_model().objects.filter(
             is_active=True, acceso_proveedor__isnull=True).order_by('username')

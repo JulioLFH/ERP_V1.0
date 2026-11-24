@@ -1039,3 +1039,42 @@ document.querySelectorAll('input[data-ver-numero]').forEach((inp) => {
     }).observe(document.body, {childList: true, subtree: true});
   });
 })();
+
+// Alta de un cliente o proveedor sin salir del documento (factura, cotización, OC): «Nuevo cliente» abre la ficha en
+// otra ventana; al guardarla, esa ventana avisa (postMessage) y el selector lo elige. Lo ya llenado no se pierde.
+(function () {
+  const url = window.ERP_ALTA_TERCERO_URL;
+  if (!url) return;  // sin el permiso «Crear y editar clientes y proveedores» no se ofrece
+  document.querySelectorAll('select[data-alta]').forEach((sel) => {
+    // con el buscador (TomSelect) la etiqueta apunta a «id_tercero-ts-control»
+    const label = sel.id && document.querySelector(`label[for="${sel.id}"], label[for="${sel.id}-ts-control"]`);
+    if (!label) return;
+    const tipo = sel.dataset.alta === 'PROVEEDOR' ? 'PROVEEDOR' : 'CLIENTE';
+    const a = document.createElement('a');
+    a.href = `${url}?popup=1&tipo=${tipo}&campo=${encodeURIComponent(sel.id)}`;
+    a.className = 'small fw-normal ms-2 js-alta-tercero';
+    a.title = 'Se abre en otra ventana: lo que ya llenó en este documento no se pierde';
+    a.innerHTML = `<i class="bi bi-plus-circle"></i> Nuevo ${tipo === 'PROVEEDOR' ? 'proveedor' : 'cliente'}`;
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const w = window.open(a.href, 'alta_tercero', 'width=980,height=820,scrollbars=yes,resizable=yes');
+      if (w) w.focus();
+    });
+    label.insertAdjacentElement('afterend', a);
+  });
+  window.addEventListener('message', (e) => {
+    const d = e.data;
+    if (e.origin !== window.location.origin || !d || d.tipo !== 'ceiba:tercero' || !d.campo) return;
+    const sel = document.getElementById(d.campo);
+    if (!sel || sel.tagName !== 'SELECT') return;
+    const v = String(d.id);
+    if (sel.tomselect) {
+      sel.tomselect.addOption({ value: v, text: d.texto });
+      sel.tomselect.setValue(v);  // ya dispara «change» (crédito del cliente, lista de precios…)
+    } else {
+      if (![...sel.options].some((o) => o.value === v)) sel.add(new Option(d.texto, v));
+      sel.value = v;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+})();

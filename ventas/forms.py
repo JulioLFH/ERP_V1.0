@@ -76,6 +76,7 @@ class VentaForm(BootstrapMixin, forms.ModelForm):
                                                    if c[0] in ('01', '03', '07', '08', '12', '00')]
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['CLIENTE', 'AMBOS'])
         remoto(self.fields['tercero'], 'clientes')
+        self.fields['tercero'].widget.attrs['data-alta'] = 'CLIENTE'  # «Nuevo cliente» en otra ventana
         self.fields['serie'].widget.attrs['list'] = 'series-venta'
         self.fields['cotizacion'].queryset = cotizaciones_abiertas(self)
         self.fields['lista_precios'].queryset = ListaPrecios.objects.filter(activa=True)
@@ -221,6 +222,7 @@ class CotizacionForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['tercero'].queryset = Tercero.objects.filter(activo=True, tipo__in=['CLIENTE', 'AMBOS'])
         remoto(self.fields['tercero'], 'clientes')
+        self.fields['tercero'].widget.attrs['data-alta'] = 'CLIENTE'  # «Nuevo cliente» en otra ventana
         campo_vendedor(self)
 
     def clean_vendedor(self):

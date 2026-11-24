@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.5 — 24/11/2026 · Nuevo cliente o proveedor sin salir del documento
+- **Ventas y Compras**: junto al cliente (factura, boleta, cotización o pedido) y al proveedor (factura de compra, orden de compra) aparece **«Nuevo cliente» / «Nuevo proveedor»**. La ficha se abre en otra ventana, solo con el formulario (también trae los datos de SUNAT); al guardarla se cierra sola y el contacto queda elegido en el documento, sin perder lo que ya se había llenado. Lo ven los usuarios con el permiso «Crear y editar clientes y proveedores».
+
 ## v1.117.4 — 23/11/2026 · Factura de transporte con guías y detracción sin decimales; balance sin las 60-68 por función
 - **Ventas › Emitir comprobante**: nuevo campo **«Guías de remisión»** (separadas por comas, p. ej. EG03-35, T005-2721882). Salen en la «Referencia» del impreso y en el XML a SUNAT (y a Nubefact) como guías de remisión: las EG03 y las de serie V como transportista, las demás como remitente. Las guías emitidas en el ERP para la venta se agregan solas.
 - **Detracción sin decimales**: en la factura de venta el monto de la detracción en soles se redondea a la unidad (desde 0.50 sube), como se deposita en el Banco de la Nación.

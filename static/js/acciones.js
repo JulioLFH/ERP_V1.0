@@ -10,7 +10,11 @@
     if (!(t instanceof Element)) return;
     const imprimir = t.closest('[data-imprimir]');
     if (imprimir) { e.preventDefault(); window.print(); return; }
-    if (t.closest('[data-volver]')) { e.preventDefault(); window.history.back(); return; }
+    if (t.closest('[data-volver]')) {  // en la ventana de alta (Nuevo cliente desde un documento) cierra la ventana
+      e.preventDefault();
+      if (document.body.classList.contains('en-ventana') && window.opener) window.close(); else window.history.back();
+      return;
+    }
     // enlaces o casillas con confirmación propia (los botones ya la tienen en app.js)
     const conf = t.closest('a[data-confirm], input[type=submit][data-confirm], input[type=checkbox][data-confirm]');
     if (conf && !confirm(conf.dataset.confirm)) { e.preventDefault(); e.stopImmediatePropagation(); return; }

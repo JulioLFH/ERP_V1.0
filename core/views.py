@@ -630,6 +630,27 @@ class TerceroNuevo(FormGenerico, CreateView):
                 inicial.update(nombre=c.razon_social[:200], direccion=c.direccion[:250], ubigeo=c.ubigeo)
         return inicial
 
+    # Alta desde un documento (factura, cotización, OC): la ficha se abre en otra ventana (?popup=1&campo=id_tercero)
+    # para no perder lo ya llenado; al guardar, esa ventana le pasa el nuevo contacto al selector y se cierra.
+    def _en_ventana(self):
+        return self.request.GET.get('popup') == '1'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['en_ventana'] = self._en_ventana()
+        return ctx
+
+    def form_valid(self, form):
+        if not self._en_ventana():
+            return super().form_valid(form)
+        import re
+        self.object = form.save()
+        campo = self.request.GET.get('campo', '')
+        datos = {'tipo': 'ceiba:tercero', 'id': self.object.pk, 'texto': str(self.object),
+                 'campo': campo if re.fullmatch(r'[\w-]{1,60}', campo) else ''}
+        return render(self.request, 'core/tercero_guardado.html', {'datos': datos, 'tercero': self.object,
+                                                                    'en_ventana': True})
+
 
 class TerceroEditar(FormGenerico, UpdateView):
     model, form_class, titulo = Tercero, TerceroForm, 'Editar cliente / proveedor'

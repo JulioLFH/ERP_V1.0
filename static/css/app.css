@@ -207,3 +207,6 @@ body { background: var(--erp-bg); font-size: .875rem; font-family: var(--bs-font
 .solo-lectura main a.btn[href*="/editar"], .solo-lectura main a.btn[href*="/ajuste"],
 .solo-lectura main a.btn[href*="/anular"], .solo-lectura main a.btn[href*="/eliminar"],
 .solo-lectura main .accion-escritura { display: none !important; }
+
+/* ventana de alta (Nuevo cliente / proveedor desde un documento): solo el formulario */
+.en-ventana .topnav, .en-ventana .lateral { display: none !important; }
