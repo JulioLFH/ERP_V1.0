@@ -12,6 +12,7 @@
   <style>@media screen{.principal .marca-agua-logo{display:none}}</style>{# v1.115.6: en las pantallas del sistema (orden de compra, HES…) la marca de agua del logo solo sale al imprimir #}
 </head>
 <body class="{% if menu_modulo %}con-lateral{% endif %}{% if solo_lectura %} solo-lectura{% endif %}{% if en_ventana %} en-ventana{% endif %}"{% if user.is_authenticated %} data-usuario="{{ user.pk }}" data-usuario-nombre="{{ user.username }}"{% endif %} data-erp-version="{{ erp_version }}" data-empresa="{{ empresa.razon_social|default:'' }}">
+{% if erp_aviso %}<div class="erp-aviso d-print-none" role="status"><i class="bi bi-exclamation-triangle-fill"></i> {{ erp_aviso }}</div>{% endif %}
 <nav class="navbar navbar-dark topnav d-print-none" {% if modulo %}style="--mod-color: {{ modulo.color }}"{% endif %}>
   <div class="container-fluid flex-nowrap">
     {% if menu_modulo %}

@@ -29,13 +29,12 @@
         {% with field=form.envio_automatico %}<div class="col-12">{% include 'core/_campo.html' %}</div>{% endwith %}
       </div>
       <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Guardar</button>
+      {# SUNAT en pruebas (beta): aparece apenas se elige, sin guardar antes; al pulsarlo guarda SUNAT · beta y genera #}
+      <button name="accion" value="certificado_prueba" formnovalidate class="btn btn-outline-secondary mt-3 ms-1 solo-sunat solo-beta" {% if cfg.certificado and not cfg.certificado_prueba %}data-confirm="Ya hay un certificado cargado. ¿Reemplazarlo por uno de prueba?"{% endif %} title="Guarda SUNAT en pruebas (beta) y genera un certificado que solo sirve en beta"><i class="bi bi-file-earmark-lock"></i> Generar certificado de prueba</button>
     </form>
     <div class="d-flex flex-wrap gap-2 mt-2">
       {% if cfg.activa %}<form method="post">{% csrf_token %}
         <button name="accion" value="probar" class="btn btn-outline-success"><i class="bi bi-plug"></i> Probar conexión con {% if cfg.proveedor == 'SUNAT' %}SUNAT{% else %}Nubefact{% endif %}</button>
-      </form>{% endif %}
-      {% if cfg.proveedor == 'SUNAT' and cfg.entorno == 'BETA' %}<form method="post">{% csrf_token %}
-        <button name="accion" value="certificado_prueba" class="btn btn-outline-secondary" {% if cfg.certificado and not cfg.certificado_prueba %}data-confirm="Ya hay un certificado cargado. ¿Reemplazarlo por uno de prueba?"{% endif %}><i class="bi bi-file-earmark-lock"></i> Generar certificado de prueba</button>
       </form>{% endif %}
     </div>
   </div></div></div>
@@ -76,6 +75,7 @@
     document.querySelectorAll('.solo-sunat').forEach(e => e.classList.toggle('d-none', proveedor.value !== 'SUNAT'));
     if (proveedor.value === 'SUNAT') {
       document.querySelectorAll('.solo-produccion').forEach(e => e.classList.toggle('d-none', entorno.value !== 'PRODUCCION'));
+      document.querySelectorAll('.solo-beta').forEach(e => e.classList.toggle('d-none', entorno.value === 'PRODUCCION'));
     }
   };
   proveedor.addEventListener('change', sync);

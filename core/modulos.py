@@ -923,7 +923,8 @@ RUTAS_MANUFACTURA = {
 RUTAS_FINANZAS = {
     **{nombre: ['tesoreria'] for nombre in (
         'inicio', 'cuentas', 'cuenta_nueva', 'cuenta_editar', 'saldo_inicial', 'saldo_inicial_sustento', 'movimientos',
-        'movimiento_nuevo', 'movimiento_eliminar', 'transferencia', 'cheques', 'cheque_estado', 'entregas', 'entrega',
+        'movimiento_nuevo', 'movimiento_eliminar', 'movimiento_editar',
+        'transferencia', 'cheques', 'cheque_estado', 'entregas', 'entrega',
         'entrega_nueva', 'cobranza', 'cobranza_multiple', 'pago', 'pago_multiple', 'pagos_masivos', 'pago_masivo',
         'pago_masivo_nuevo', 'detracciones_masivas', 'detracciones_masivas_nuevo', 'detraccion_masiva',
         'constancias_clientes', 'extractos', 'extracto', 'extracto_accion', 'conciliacion', 'importar', 'flujo')},

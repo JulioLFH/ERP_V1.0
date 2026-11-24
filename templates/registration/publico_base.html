@@ -27,6 +27,7 @@
   </style>
 </head>
 <body>
+  {% if erp_aviso %}<div class="erp-aviso d-print-none" role="status"><i class="bi bi-exclamation-triangle-fill"></i> {{ erp_aviso }}</div>{% endif %}
   <header class="login-top">
     {% include 'core/_marca.html' with oscuro=True %}
     <span class="empresa d-none d-sm-inline">{{ empresa.razon_social }}</span>

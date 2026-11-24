@@ -66,6 +66,7 @@ urlpatterns = [
     path('movimientos/', views.movimientos, name='movimientos'),
     path('movimientos/nuevo/', views.movimiento_nuevo, name='movimiento_nuevo'),
     path('movimientos/<int:pk>/eliminar/', views.movimiento_eliminar, name='movimiento_eliminar'),
+    path('movimientos/<int:pk>/editar/', views.movimiento_editar, name='movimiento_editar'),
     path('movimientos/<int:pk>/voucher/', views.voucher, name='voucher'),
     path('cobranzas/', views.cobrar_pagar, {'modo': 'cobranza'}, name='cobranza'),
     path('pagos/', views.cobrar_pagar, {'modo': 'pago'}, name='pago'),

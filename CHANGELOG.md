@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.6 — 24/11/2026 · Editar movimientos de caja y bancos; franja del ERP de pruebas
+- **Tesorería › Movimientos**: nuevo lápiz para **editar** un movimiento mientras no esté conciliado (conciliado, anulado o en un periodo cerrado ya no se edita). El manual se corrige completo (cuenta, tipo, concepto, monto, tercero, fecha, glosa…); el de una cobranza, pago, transferencia u otro documento solo en fecha, medio de pago, N° de operación, glosa, centro de costo y rubro (para el monto o la cuenta se anula y se registra otra vez). Pide el motivo, queda en la bitácora y la contabilidad se actualiza al centralizar. Lo hace quien tiene el permiso «Anular y corregir movimientos».
+- **ERP de pruebas**: con la variable ERP_AVISO (p. ej. «Base de datos de prueba») aparece una franja naranja arriba de todas las pantallas y del ingreso, para no confundirlo con el ERP real.
+- **Facturación electrónica**: el botón **«Generar certificado de prueba»** aparece apenas se elige SUNAT en el entorno de pruebas (beta), sin tener que guardar antes; al pulsarlo deja guardado SUNAT · beta y genera el certificado de prueba.
+
 ## v1.117.5 — 24/11/2026 · Nuevo cliente o proveedor sin salir del documento
 - **Ventas y Compras**: junto al cliente (factura, boleta, cotización o pedido) y al proveedor (factura de compra, orden de compra) aparece **«Nuevo cliente» / «Nuevo proveedor»**. La ficha se abre en otra ventana, solo con el formulario (también trae los datos de SUNAT); al guardarla se cierra sola y el contacto queda elegido en el documento, sin perder lo que ya se había llenado. Lo ven los usuarios con el permiso «Crear y editar clientes y proveedores».
 

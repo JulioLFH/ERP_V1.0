@@ -38,8 +38,8 @@
           <td class="small">{{ m.glosa|truncatechars:40 }}</td>
           <td class="num text-success">{% if m.tipo == 'INGRESO' %}{{ m.monto|money }}{% endif %}</td>
           <td class="num text-danger">{% if m.tipo == 'EGRESO' %}{{ m.monto|money }}{% endif %}</td>
-          <td>{% if m.conciliado %}<i class="bi bi-check2-circle text-success" title="Conciliado"></i>{% endif %}</td>
-          <td>{% if not m.conciliado and m.estado == 'VIGENTE' %}<form method="post" action="{% url 'finanzas:movimiento_eliminar' m.pk %}" class="js-anular" data-voucher="{{ m.voucher }}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="motivo"><button class="btn btn-sm btn-link text-danger p-0" title="Anular con motivo"><i class="bi bi-x-circle"></i></button></form>{% endif %}</td>
+          <td>{% if m.conciliado %}<i class="bi bi-check2-circle text-success" title="Conciliado: ya no se edita ni se anula"></i>{% endif %}</td>
+          <td class="text-nowrap">{% if not m.conciliado and m.estado == 'VIGENTE' %}<a href="{% url 'finanzas:movimiento_editar' m.pk %}" class="btn btn-sm btn-link p-0 me-1" title="Editar (mientras no esté conciliado)"><i class="bi bi-pencil"></i></a><form method="post" action="{% url 'finanzas:movimiento_eliminar' m.pk %}" class="js-anular d-inline" data-voucher="{{ m.voucher }}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="motivo"><button class="btn btn-sm btn-link text-danger p-0" title="Anular con motivo"><i class="bi bi-x-circle"></i></button></form>{% endif %}</td>
         </tr>
       {% empty %}<tr><td colspan="10" class="text-center text-muted py-4">Sin movimientos.</td></tr>{% endfor %}
       </tbody>

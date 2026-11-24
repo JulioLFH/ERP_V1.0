@@ -171,7 +171,7 @@ def _post_save(sender, instance, created, **kwargs):
         return
     accion = 'ANULAR' if any(str(v[1]).startswith('Anulad') for k, v in cambios.items() if k.lower() == 'estado') \
         else 'MODIFICAR'
-    motivo = ''
+    motivo = getattr(instance, '_audit_motivo', '') or ''  # p. ej. la corrección de un movimiento
     for clave in ('Motivo de anulación', 'motivo anulacion', 'Motivo anulacion'):
         if clave in cambios:
             motivo = cambios[clave][1] or ''

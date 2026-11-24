@@ -60,7 +60,7 @@ ACCIONES = {
               ('aprobar_lecturas', 'Aprobar partes de odómetro / horómetro', True)],
     'tesoreria': [('registrar', 'Registrar cobros, pagos, depósitos de detracción y movimientos', False),
                   ('transferir', 'Transferencias entre cuentas', False),
-                  ('anular', 'Anular movimientos, cheques y entregas a rendir', True),
+                  ('anular', 'Anular y corregir movimientos (no conciliados), cheques y entregas a rendir', True),
                   ('cuentas', 'Crear cuentas de caja y bancos y sus saldos iniciales', True),
                   ('aprobar_pagos', 'Aprobar la propuesta de pagos (gerencia)', True),
                   ('datos_bancarios', 'Cambiar y aprobar las cuentas bancarias de clientes y proveedores (doble '
@@ -260,6 +260,7 @@ RUTAS = {
     'finanzas:cobranza_multiple': {'POST': 'tesoreria.registrar'}, 'finanzas:pago_multiple': {'POST': 'tesoreria.registrar'},
     'finanzas:extractos': {'POST': 'tesoreria.registrar'}, 'finanzas:extracto_accion': 'tesoreria.registrar',
     'finanzas:transferencia': 'tesoreria.transferir', 'finanzas:movimiento_eliminar': 'tesoreria.anular',
+    'finanzas:movimiento_editar': 'tesoreria.anular',  # corregir = anular y volver a registrar
     'finanzas:cuenta_nueva': 'tesoreria.cuentas', 'finanzas:cuenta_editar': 'tesoreria.cuentas',
     'finanzas:cheques': {'POST': 'tesoreria.registrar'},
     'finanzas:cheque_estado': lambda r: 'tesoreria.registrar' if r.POST.get('estado') == 'COBRADO' else 'tesoreria.anular',

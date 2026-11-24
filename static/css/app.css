@@ -210,3 +210,7 @@ body { background: var(--erp-bg); font-size: .875rem; font-family: var(--bs-font
 
 /* ventana de alta (Nuevo cliente / proveedor desde un documento): solo el formulario */
 .en-ventana .topnav, .en-ventana .lateral { display: none !important; }
+
+/* ERP_AVISO: franja arriba de todo (p. ej. «Base de datos de prueba») para no confundir el ERP de pruebas */
+.erp-aviso { background: #f59f00; color: #1f2328; text-align: center; font-weight: 700; font-size: .85rem;
+  letter-spacing: .04em; text-transform: uppercase; padding: .3rem 1rem; }

@@ -362,6 +362,108 @@ class TransferenciaForm(BootstrapMixin, forms.Form):
         return data
 
 
+# ---------------------------------------------------------------- corregir un movimiento (no conciliado)
+# relaciones que no atan el movimiento a otro documento (los asientos se regeneran al centralizar)
+_RELACIONES_LIBRES = {'contabilidad.Asiento', 'finanzas.LineaExtracto'}
+CAMPOS_EDITABLES_CON_DOCUMENTO = ['fecha', 'medio_pago', 'numero_operacion', 'centro_costo', 'rubro_flujo', 'glosa']
+
+
+def bloqueo_edicion(mov):
+    """Por qué el movimiento ya no se corrige ('' si se puede)."""
+    if mov.estado != 'VIGENTE':
+        return 'el movimiento está anulado.'
+    par = mov.transferencia_par or Movimiento.objects.filter(transferencia_par=mov).first()
+    if mov.conciliado or (par is not None and par.conciliado):
+        return 'está conciliado con el extracto del banco. Quite primero la conciliación.'
+    from core.forms import periodo_cerrado
+    if periodo_cerrado(mov.fecha.strftime('%Y%m')):
+        return f'el periodo contable {mov.fecha:%m/%Y} está cerrado.'
+    return ''
+
+
+def origen_documento(mov):
+    """Documento u operación que generó el movimiento ('' = movimiento manual, se corrige completo). Con documento
+    solo se corrigen los datos que no cambian su importe ni a quién se aplicó (fecha, medio, N° de operación, glosa,
+    centro de costo y rubro): para lo demás se anula y se registra otra vez desde su pantalla."""
+    if mov.venta_id:
+        return f'la cobranza de {mov.venta.numero_completo}'
+    if mov.compra_id:
+        return f'el pago de {mov.compra.numero_completo}'
+    if mov.transferencia_par_id or Movimiento.objects.filter(transferencia_par=mov).exists() \
+            or mov.concepto == 'TRANSFERENCIA':
+        return 'una transferencia entre cuentas'
+    for campo, texto in (('letra_id', 'una letra'), ('cheque_id', 'un cheque'), ('entrega_id', 'una entrega a rendir'),
+                         ('prestamo_id', 'un préstamo'), ('cuota_id', 'la cuota de un préstamo')):
+        if getattr(mov, campo):
+            return texto
+    if mov.concepto in ('COBRANZA', 'PAGO'):
+        return 'una cobranza o un pago'
+    for rel in Movimiento._meta.get_fields(include_hidden=True):
+        if rel.auto_created and not rel.concrete and rel.related_model is not Movimiento \
+                and rel.related_model._meta.label not in _RELACIONES_LIBRES \
+                and rel.related_model._default_manager.filter(**{rel.field.name: mov}).exists():
+            return f'{rel.related_model._meta.verbose_name}'
+    return ''
+
+
+class _MotivoCorreccion(forms.Form):
+    motivo_correccion = forms.CharField(label='Motivo de la corrección', max_length=250,
+                                        help_text='Queda en la bitácora del movimiento (mínimo 10 caracteres)')
+
+    def clean_motivo_correccion(self):
+        motivo = self.cleaned_data['motivo_correccion'].strip()
+        if len(motivo) < 10:
+            raise forms.ValidationError('Explique el motivo de la corrección (mínimo 10 caracteres).')
+        return motivo
+
+
+class MovimientoEditarForm(MovimientoForm):
+    """Movimiento manual (sin documento): se corrige completo, con motivo; el sustento nuevo es opcional."""
+    motivo_correccion = _MotivoCorreccion.base_fields['motivo_correccion']
+    clean_motivo_correccion = _MotivoCorreccion.clean_motivo_correccion
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['sustento'].required = False
+        self.fields['sustento'].help_text = 'Opcional: otro documento de sustento (el anterior se conserva)'
+        if self.instance.concepto not in dict(self.fields['concepto'].choices):
+            self.fields['concepto'].choices = Movimiento.CONCEPTOS
+
+
+class MovimientoEditarDocumentoForm(BootstrapMixin, forms.ModelForm):
+    """Movimiento de una cobranza, pago, transferencia u otro documento: solo los datos que no cambian el importe."""
+    sustento = SustentoField(required=False, help_text='Opcional: otro documento de sustento (el anterior se conserva)')
+    motivo_correccion = _MotivoCorreccion.base_fields['motivo_correccion']
+    clean_motivo_correccion = _MotivoCorreccion.clean_motivo_correccion
+
+    class Meta:
+        model = Movimiento
+        fields = CAMPOS_EDITABLES_CON_DOCUMENTO
+
+    def __init__(self, *args, usuario=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from contabilidad.models import RubroFlujo
+        self.fields['rubro_flujo'].queryset = RubroFlujo.objects.filter(activo=True)
+        if self.instance.cheque_id:  # el N° y el medio son los del cheque emitido
+            for c in ('medio_pago', 'numero_operacion'):
+                self.fields[c].disabled = True
+        self.fields[CONFIRMAR_REPETIDO] = confirmar_repetido_field()
+
+    def clean(self):
+        data = super().clean()
+        validar_periodo_abierto(self, 'fecha')
+        data['cuenta'] = self.instance.cuenta  # para el aviso del N° de operación repetido en la misma cuenta
+        validar_tesoreria(self, excluir=self.instance)
+        data.pop('cuenta', None)
+        from contabilidad.models import CuentaDefecto
+        from contabilidad.pcge import exige_centro
+        cuenta = self.instance.cuenta_contable or CuentaDefecto.mapa().get(f'mov_{self.instance.concepto}')
+        if cuenta and exige_centro(cuenta) and not data.get('centro_costo') and self.instance.centro_costo_id:
+            self.add_error('centro_costo', f'Obligatorio: el movimiento va a la cuenta {cuenta.codigo}, que exige '
+                                           f'centro de costo.')
+        return data
+
+
 class AnularMovimientoForm(forms.Form):
     motivo = forms.CharField(max_length=250)
 

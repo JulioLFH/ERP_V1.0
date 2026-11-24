@@ -1,0 +1,20 @@
+{% extends 'core/form.html' %}
+{% load erp_tags %}
+{% block despues %}
+<div class="card mt-3" style="max-width: 900px">
+  <div class="card-body small">
+    <div class="d-flex flex-wrap gap-3 mb-2">
+      <span><b>Voucher:</b> {{ mov.voucher }}</span>
+      <span><b>Cuenta:</b> {{ mov.cuenta.nombre }}</span>
+      <span><b>{{ mov.get_tipo_display }}:</b> {{ mov.monto|money }}</span>
+      <span><b>Concepto:</b> {{ mov.get_concepto_display }}</span>
+      {% if mov.tercero %}<span><b>Tercero:</b> {{ mov.tercero.nombre }}</span>{% endif %}
+    </div>
+    {% if origen %}
+    <div class="alert alert-info py-2 mb-2"><i class="bi bi-link-45deg"></i> Viene de {{ origen }}: aquí se corrigen la fecha, el medio de pago, el N° de operación, la glosa, el centro de costo y el rubro. Para cambiar el monto, la cuenta o a quién se aplicó, anúlelo y regístrelo otra vez desde su pantalla.</div>
+    {% endif %}
+    <div class="text-muted">Mientras no esté conciliado se puede corregir; conciliado ya no se edita. La corrección queda en la bitácora con su motivo y la contabilidad se actualiza al centralizar.</div>
+  </div>
+</div>
+{% include 'core/_bitacora.html' with objeto=mov %}
+{% endblock %}

@@ -156,6 +156,55 @@ def movimiento_nuevo(request):
     return render(request, 'core/form.html', {'form': form, 'titulo': 'Ingreso / egreso de caja y bancos'})
 
 
+@login_required
+def movimiento_editar(request, pk):
+    """Corrige un movimiento vigente que no está conciliado (ni en un periodo cerrado). El manual se corrige completo;
+    el de una cobranza, pago, transferencia u otro documento, solo en los datos que no cambian su importe. Con motivo y
+    en la bitácora; los asientos se regeneran al centralizar (se marcan el periodo de antes y el nuevo)."""
+    from contabilidad.automatico import marcar_pendiente
+    from core.sustentos import adjuntar
+    from .forms import MovimientoEditarDocumentoForm, MovimientoEditarForm, bloqueo_edicion, origen_documento
+    mov = get_object_or_404(Movimiento.todos.select_related('cuenta', 'venta', 'compra'), pk=pk)
+    bloqueo = bloqueo_edicion(mov)
+    if bloqueo:
+        messages.error(request, f'El movimiento {mov.voucher} no se puede editar: {bloqueo}')
+        return redirect('finanzas:movimientos')
+    origen = origen_documento(mov)
+    clase = MovimientoEditarDocumentoForm if origen else MovimientoEditarForm
+    antes = {f.name: getattr(mov, f.attname) for f in Movimiento._meta.concrete_fields}
+    fecha_antes = mov.fecha
+    par = mov.transferencia_par or Movimiento.objects.filter(transferencia_par=mov).first()
+    form = clase(request.POST or None, request.FILES or None, instance=mov, usuario=request.user)
+    if request.method == 'POST' and form.is_valid():
+        nuevo = form.save(commit=False)
+        error = ''
+        # quitar o achicar un ingreso (o pasarlo a otra cuenta o a una fecha posterior) no puede dejar saldo negativo
+        if antes['tipo'] == 'INGRESO' and (nuevo.tipo != 'INGRESO' or nuevo.cuenta_id != antes['cuenta']
+                                           or nuevo.monto < antes['monto'] or nuevo.fecha > fecha_antes):
+            original = Movimiento.todos.get(pk=mov.pk)
+            error = original.cuenta.error_sobregiro(D0, fecha=fecha_antes, excluir_ids=[mov.pk])
+        if not error and par is not None and par.tipo == 'INGRESO' and nuevo.fecha > fecha_antes:
+            error = par.cuenta.error_sobregiro(D0, fecha=fecha_antes, excluir_ids=[par.pk])  # llega más tarde
+        if error:
+            form.add_error(None, f'No se puede guardar la corrección: {error}')
+        else:
+            motivo = f'Corrección: {form.cleaned_data["motivo_correccion"]}'
+            with transaction.atomic():
+                nuevo._audit_motivo = motivo  # la bitácora automática guarda los cambios con este motivo
+                nuevo.save()
+                if par is not None and par.fecha != nuevo.fecha:  # la transferencia sale y llega el mismo día
+                    par.fecha, par._audit_motivo = nuevo.fecha, f'{motivo} (transferencia {nuevo.voucher})'
+                    par.save()
+                if form.cleaned_data.get('sustento'):
+                    adjuntar(nuevo, form.cleaned_data['sustento'], request.user, nuevo.glosa[:200])
+                if nuevo.fecha != fecha_antes:
+                    marcar_pendiente(fecha_antes.strftime('%Y%m'))
+            messages.success(request, f'Movimiento {nuevo.voucher} corregido.')
+            return redirect('finanzas:movimientos')
+    return render(request, 'finanzas/movimiento_editar.html', {
+        'form': form, 'mov': mov, 'origen': origen, 'titulo': f'Editar movimiento {mov.voucher}'})
+
+
 def _error_al_eliminar(mov):
     """Quitar un ingreso (o una transferencia, que es ingreso en la cuenta destino) no puede dejar saldo negativo."""
     par = mov.transferencia_par or Movimiento.objects.filter(transferencia_par=mov).first()

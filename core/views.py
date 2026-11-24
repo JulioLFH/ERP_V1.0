@@ -178,12 +178,21 @@ def facturacion_config(request):
         (messages.success if ok else messages.error)(request, mensaje)
         return redirect('facturacion')
     if request.method == 'POST' and request.POST.get('accion') == 'certificado_prueba':
-        if cfg.entorno != 'BETA':
-            messages.error(request, 'El certificado de prueba solo sirve en el entorno beta de SUNAT.')
+        # el botón está en el formulario: vale lo elegido en pantalla aunque aún no se haya guardado (p. ej. «Ninguno»
+        # guardado y SUNAT · Pruebas elegido): se guarda SUNAT en beta y se genera el certificado
+        proveedor = request.POST.get('proveedor') or cfg.proveedor
+        entorno = request.POST.get('entorno') or ('BETA' if 'proveedor' in request.POST else cfg.entorno)
+        if proveedor != 'SUNAT' or entorno != 'BETA':
+            messages.error(request, 'El certificado de prueba solo sirve con SUNAT directo en el entorno de pruebas '
+                                    '(beta).')
         else:
+            if (cfg.proveedor, cfg.entorno) != ('SUNAT', 'BETA'):
+                cfg.proveedor, cfg.entorno = 'SUNAT', 'BETA'
+                cfg.save(update_fields=['proveedor', 'entorno'])
             from .sunat_directo import generar_certificado_prueba
             generar_certificado_prueba(cfg)
-            messages.success(request, 'Certificado de prueba generado: sirve solo para el entorno beta de SUNAT.')
+            messages.success(request, 'Facturación en pruebas (beta de SUNAT) con un certificado de prueba generado: '
+                                      'lo que se envíe no tiene validez tributaria.')
         return redirect('facturacion')
     form = FacturacionConfigForm(request.POST or None, request.FILES or None, instance=cfg)
     if request.method == 'POST' and form.is_valid():

@@ -13,7 +13,7 @@ def csp(request):
 
 def empresa(request):
     if not request.user.is_authenticated:
-        return {'erp_version': settings.ERP_VERSION, 'erp_nombre': settings.ERP_NOMBRE,
+        return {'erp_version': settings.ERP_VERSION, 'erp_nombre': settings.ERP_NOMBRE, 'erp_aviso': settings.ERP_AVISO,
                 'empresa': Empresa.actual()}  # inicio de sesión y enlace de aceptación del proveedor
     mods = modulos_del_usuario(request.user)
     clave = getattr(request, 'modulo_actual', None)
@@ -34,6 +34,7 @@ def empresa(request):
         'empresa': Empresa.actual(),
         'admin_django': bool(settings.ADMIN_URL) and request.user.is_superuser,
         'erp_version': settings.ERP_VERSION,
+        'erp_aviso': settings.ERP_AVISO,  # franja «Base de datos de prueba» (ERP_AVISO)
         'erp_nombre': settings.ERP_NOMBRE,
         'mods': mods,
         'apps': [m for m in MODULOS if m['clave'] in mods],
