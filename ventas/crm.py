@@ -292,6 +292,29 @@ def _siguiente_actividad(request, o):
 
 
 @login_required
+def sugerir_respuesta(request, pk):
+    """v1.117.10: borrador con IA para responder al cliente de la oportunidad (lo que escribió está en las notas)."""
+    from django.http import JsonResponse
+    from . import crm_ia
+    o = get_object_or_404(Oportunidad, pk=pk)
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Use el botón «Sugerir respuesta».'}, status=405)
+    if not srv.puede_ver(request.user, o):
+        return HttpResponseForbidden('Esta oportunidad es de otro vendedor.')
+    if not crm_ia.disponible():
+        return JsonResponse({'error': 'La IA no está activa (CRM › Configuración).'}, status=400)
+    historial = [(True, o.notas or o.nombre)]
+    historial += [(False, a.descripcion) for a in o.actividades.filter(hecha=True).order_by('fecha', 'id')[:10]
+                  if a.descripcion]
+    try:
+        texto = crm_ia.sugerir(historial, 'correo' if o.email else 'mensaje', cliente=o.contacto or o.cliente,
+                               vendedor=request.user.get_full_name() or request.user.username)
+    except crm_ia.ErrorIA as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+    return JsonResponse({'texto': texto, 'asunto': f'Re: {o.nombre}'[:150], 'email': o.email})
+
+
+@login_required
 def oportunidad(request, pk):
     o = get_object_or_404(Oportunidad.objects.select_related('tercero', 'responsable', 'cotizacion', 'campana',
                                                             'unidad__obra'), pk=pk)
@@ -364,6 +387,7 @@ def oportunidad(request, pk):
         'cotizaciones': o.cotizaciones.order_by('-fecha', '-id'), 'entrega': entrega,
         'contactos': o.tercero.contactos_crm.filter(activo=True) if o.tercero_id else [],
         'consentimientos': o.consentimientos.all(), 'canales': ConsentimientoDatos.CANALES,
+        'ia': __import__('ventas.crm_ia', fromlist=['disponible']).disponible(),
         'casos': o.casos.all(), 'sin_siguiente': o.abierta and pendiente is None,
         'estancada': o.pk in _estancadas([o]), 'puede_reasignar': srv.puede_reasignar(request.user, o),
         'usuarios': _usuarios(), 'tipos_actividad': ActividadCRM.TIPOS,

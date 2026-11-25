@@ -33,15 +33,28 @@ def registrar(datos, ip='', origen='WEB'):
     """Crea la oportunidad de un canal de entrada (web, buzón comercial, mensajería o anuncios). datos: nombre,
     empresa, telefono, email, mensaje. Devuelve la oportunidad."""
     from . import crm_servicios as srv
+    from . import crm_ia
     from .models import ActividadCRM, ConfigCRM, ConsentimientoDatos, Oportunidad
+    # v1.117.10: con la IA activa, el teléfono, la empresa, el RUC y lo que pide salen del texto del mensaje
+    ia = crm_ia.datos_para_oportunidad(datos, origen)
+    datos = {**datos, 'telefono': datos.get('telefono') or ia.get('telefono', ''),
+             'empresa': datos.get('empresa') or ia.get('empresa', '')}
     responsable = srv.asignar_web()
     quien = datos.get('empresa') or datos['nombre']
     titulo, medio = MEDIOS.get(origen, MEDIOS['WEB'])
-    o = Oportunidad(nombre=f'{titulo}: {quien}'[:150],
+    pide = f' – {ia["interes"]}' if ia.get('interes') else ''
+    o = Oportunidad(nombre=f'{titulo}: {quien}{pide}'[:150],
                     prospecto=quien[:150], contacto=datos['nombre'][:120],
                     telefono=datos.get('telefono', '')[:40], email=datos.get('email', '')[:254], etapa='PROSPECTO',
                     origen=origen, responsable=responsable,
                     notas=f'{datos.get("mensaje", "")}\n(Recibida por {medio}{f" desde {ip}" if ip else ""})'.strip())
+    if ia.get('ruc'):
+        from core.models import Tercero
+        o.tercero = Tercero.objects.filter(numero_doc=ia['ruc']).first()
+    if any(ia.values()):
+        leido = [f'{e}: {ia[k]}' for k, e in (('telefono', 'teléfono'), ('empresa', 'empresa'), ('ruc', 'RUC'),
+                                               ('interes', 'pide')) if ia.get(k)]
+        o.notas += '\nDatos leídos con IA: ' + ' · '.join(leido)
     repetidas = srv.duplicados(o)
     if repetidas:
         o.notas += '\nPosible duplicado de: ' + ', '.join(f'«{d.nombre}» (#{d.pk})' for d in repetidas[:3])

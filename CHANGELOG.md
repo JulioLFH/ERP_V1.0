@@ -3,6 +3,12 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.10 — 25/11/2026 · CRM: IA de Groq (datos de los mensajes y respuestas sugeridas); el buzón comercial se lee solo
+- **CRM › Configuración › IA del CRM (Groq)**: nuevos campos «Usar IA en el CRM», «Clave API de Groq» (se guarda cifrada y nunca se muestra) y «Modelo» (por defecto openai/gpt-oss-120b, el mismo de la plataforma de requerimientos), con el botón **«Probar la IA»**.
+- **Datos leídos con IA**: en cada correo o mensaje que entra (correo, WhatsApp, Messenger, Instagram, Telegram, chat web), la IA saca el **teléfono**, la **empresa**, el **RUC** y **qué pide** el cliente, y llena la oportunidad nueva: el nombre queda como «Consulta por correo: Empresa – cotización de…», con teléfono se agenda «Llamar hoy» y, si el RUC es de un cliente registrado, se vincula a él. Si la IA no responde, la oportunidad se crea igual, como antes.
+- **«Sugerir respuesta»**: en la bandeja de mensajes y en la ficha de la oportunidad, la IA redacta una respuesta con lo que escribió el cliente (sin inventar precios ni plazos). El vendedor la revisa antes de enviarla; en la oportunidad se puede copiar, pedir otra versión o abrirla en el correo.
+- **Buzón comercial automático**: el servidor lee el buzón del CRM cada 5 minutos (antes había que programar `leer_correo_crm` aparte). Una empresa con la clave mal ya no frena a las demás y un correo que no se puede procesar no bloquea a los siguientes; el registro solo anota cuando entra un correo o hay un error.
+
 ## v1.117.9 — 25/11/2026 · Referencias de la factura con otros documentos (orden de compra, contrato…)
 - **Ventas › Emitir comprobante**: nuevo campo **«Otros documentos de referencia»**, junto a «Guías de remisión». Se escriben separados por comas (p. ej. OC 4500012345, Contrato 12-2026) y salen en la **«Referencia»** del impreso y la vista previa, después de las guías (GRE-…). También se ven en el detalle del comprobante. Es un campo aparte de las guías: lo que se escribe ahí no se toma como guía ni cambia el XML que va a SUNAT.
 

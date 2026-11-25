@@ -14,9 +14,15 @@
       <form method="post" action="{% url 'obras:desde_oportunidad' o.pk %}">{% csrf_token %}
         <button class="btn btn-sm btn-outline-warning" data-confirm="Se creará la obra en «Propuesta / licitación» con su licitación, vinculada a esta oportunidad. ¿Continuar?"><i class="bi bi-cone-striped"></i> Convertir en obra / licitación</button></form>{% endif %}
     {% if o.tercero %}<a href="{% url 'crm:cliente' o.tercero_id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person-vcard"></i> Ficha del cliente</a>{% endif %}
+    {% if ia %}<button type="button" class="btn btn-sm btn-outline-secondary" id="ia-sugerir" data-url="{% url 'crm:sugerir' o.pk %}"><i class="bi bi-stars"></i> Sugerir respuesta</button>{% endif %}
     <a href="{% url 'crm:embudo' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-kanban"></i> Embudo</a>
   </div>
 </div>
+{% if ia %}<div class="card mb-3 d-none" id="ia-card"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-stars"></i> Respuesta sugerida con IA <span class="small text-muted">(revísela antes de enviarla)</span></span><button type="button" class="btn-close" aria-label="Cerrar" id="ia-cerrar"></button></div>
+  <div class="card-body"><div class="small text-danger" id="ia-error"></div><textarea class="form-control" rows="7" id="ia-texto"></textarea>
+    <div class="d-flex flex-wrap gap-2 mt-2"><button type="button" class="btn btn-sm btn-outline-secondary" data-copiar="#ia-texto"><i class="bi bi-clipboard"></i> Copiar</button>
+      {% if o.email %}<a class="btn btn-sm btn-primary" id="ia-correo" href="#"><i class="bi bi-envelope"></i> Responder por correo</a>{% endif %}
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="ia-otra"><i class="bi bi-arrow-repeat"></i> Otra versión</button></div></div></div>{% endif %}
 {% for d in duplicados %}{% if forloop.first %}<div class="alert alert-warning py-2 small"><i class="bi bi-files"></i> <b>Posible duplicado:</b>{% endif %} <a href="{% url 'crm:oportunidad' d.pk %}">{{ d.nombre }}</a> ({{ d.cliente }}, {{ d.responsable|default:'sin responsable' }}){% if not forloop.last %} ·{% else %}</div>{% endif %}{% endfor %}
 {% if sin_siguiente %}<div class="alert alert-danger py-2 small"><i class="bi bi-exclamation-triangle"></i> Esta oportunidad abierta no tiene próxima actividad: agende el siguiente paso.</div>{% endif %}
 {% if credito and credito.en_mora %}<div class="alert alert-danger py-2 small"><i class="bi bi-cash-coin"></i> <b>Cliente en mora:</b> {{ credito.documentos_vencidos }} comprobante(s) vencido(s) por S/ {{ credito.vencida|money }}. Revíselo con Cobranzas antes de enviar la propuesta.</div>{% endif %}
@@ -76,4 +82,27 @@
     <div class="card"><div class="card-header">Historial de etapas</div><ul class="list-group list-group-flush small">{% for h in historial %}<li class="list-group-item">{{ h.fecha|date:'d/m/Y H:i' }} · {% if h.de %}{{ etapas_nombres|get_item:h.de }} → {% endif %}<b>{{ etapas_nombres|get_item:h.a }}</b> · {{ h.usuario|default:'Sistema' }}</li>{% empty %}<li class="list-group-item text-muted">Sin cambios registrados.</li>{% endfor %}</ul></div>
   </div>
 </div>
+{% if ia %}<script nonce="{{ csp_nonce }}">
+(function () {  // v1.117.10: respuesta sugerida con IA (se revisa antes de enviar)
+  var boton = document.getElementById('ia-sugerir'), card = document.getElementById('ia-card'), caja = document.getElementById('ia-texto'),
+      err = document.getElementById('ia-error'), correo = document.getElementById('ia-correo'), asunto = '', email = '';
+  function pedir() {
+    var csrf = document.querySelector('[name=csrfmiddlewaretoken]').value, antes = boton.innerHTML;
+    boton.disabled = true; boton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Pensando…'; err.textContent = '';
+    card.classList.remove('d-none');
+    fetch(boton.dataset.url, {method: 'POST', credentials: 'same-origin', headers: {'X-CSRFToken': csrf}})
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d.texto) { caja.value = d.texto; asunto = d.asunto || ''; email = d.email || ''; } else { err.textContent = d.error || 'No se pudo.'; } })
+      .catch(function () { err.textContent = 'No se pudo conectar.'; })
+      .finally(function () { boton.disabled = false; boton.innerHTML = antes; });
+  }
+  boton.addEventListener('click', pedir);
+  document.getElementById('ia-otra').addEventListener('click', pedir);
+  document.getElementById('ia-cerrar').addEventListener('click', function () { card.classList.add('d-none'); });
+  if (correo) correo.addEventListener('click', function (e) {
+    e.preventDefault();
+    window.location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(asunto) + '&body=' + encodeURIComponent(caja.value);
+  });
+})();
+</script>{% endif %}
 {% endblock %}

@@ -67,6 +67,14 @@ class ConfigCRM(models.Model):
                                    default='Hola, gracias por escribirnos. Un asesor le responde en breve.')
     tiktok_activo = models.BooleanField('Recibir formularios de anuncios de TikTok', default=False)
     tiktok_clave = CampoCifrado('Clave del enlace de TikTok', max_length=80, default=_token, editable=False)
+    # v1.117.10: IA (Groq) para leer los datos de los mensajes que entran y sugerir respuestas
+    ia_activa = models.BooleanField('Usar IA en el CRM (Groq)', default=False,
+                                    help_text='Lee teléfono, empresa, RUC y qué pide el cliente en los correos y '
+                                              'mensajes que entran, y sugiere respuestas en la bandeja')
+    ia_api_key = CampoCifrado('Clave API de Groq', max_length=200, blank=True,
+                              help_text='La de console.groq.com (la misma de la plataforma de requerimientos)')
+    ia_modelo = models.CharField('Modelo de Groq', max_length=60, default='openai/gpt-oss-120b', blank=True,
+                                 help_text='Vacío = openai/gpt-oss-120b')
 
     class Meta:
         verbose_name = 'configuración del CRM'

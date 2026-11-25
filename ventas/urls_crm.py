@@ -14,9 +14,11 @@ urlpatterns = [
     path('<int:pk>/convertir/', crm.convertir_cliente, name='convertir'),
     path('<int:pk>/whatsapp/', crm.whatsapp, name='whatsapp'),
     path('<int:pk>/proforma/', crm.proforma, name='proforma'),
+    path('<int:pk>/sugerir/', crm.sugerir_respuesta, name='sugerir'),  # v1.117.10: IA
     # seguimiento
     path('mensajes/', canales.bandeja, name='bandeja'),
     path('mensajes/<int:pk>/', canales.conversacion, name='conversacion'),
+    path('mensajes/<int:pk>/sugerir/', canales.sugerir_respuesta, name='conversacion_sugerir'),
     path('actividades/', crm.mis_actividades, name='actividades'),
     path('actividades/<int:pk>/hecha/', crm.actividad_hecha, name='actividad_hecha'),
     path('visitas/', crm.visitas, name='visitas'),

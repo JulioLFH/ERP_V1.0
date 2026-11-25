@@ -23,12 +23,24 @@
 {% if puede %}
 <form method="post" class="card"><div class="card-body">{% csrf_token %}
   {{ form.texto }}
-  <div class="d-flex justify-content-between align-items-center mt-2"><small class="text-muted">Se envía por {{ conv.get_canal_display }}.</small><button class="btn btn-primary"><i class="bi bi-send"></i> Enviar</button></div>
+  <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mt-2"><small class="text-muted">Se envía por {{ conv.get_canal_display }}.</small>
+    <div class="d-flex gap-2 align-items-center">{% if ia %}<span class="small text-danger" id="ia-error"></span><button type="button" class="btn btn-outline-secondary" id="ia-sugerir" data-url="{% url 'crm:conversacion_sugerir' conv.pk %}"><i class="bi bi-stars"></i> Sugerir respuesta</button>{% endif %}<button class="btn btn-primary"><i class="bi bi-send"></i> Enviar</button></div></div>
 </div></form>
 {% else %}<div class="alert alert-warning small">{{ motivo }}</div>{% endif %}
 <script nonce="{{ csp_nonce }}">
 (function () {
   var hilo = document.getElementById('hilo'), ultimo = {{ ultimo_id }};
+  var sug = document.getElementById('ia-sugerir');
+  if (sug) sug.addEventListener('click', function () {  // v1.117.10: borrador con IA en el cuadro de respuesta
+    var caja = document.querySelector('form textarea[name=texto]'), err = document.getElementById('ia-error');
+    var csrf = document.querySelector('[name=csrfmiddlewaretoken]').value, antes = sug.innerHTML;
+    sug.disabled = true; sug.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Pensando…'; err.textContent = '';
+    fetch(sug.dataset.url, {method: 'POST', credentials: 'same-origin', headers: {'X-CSRFToken': csrf}})
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d.texto) { caja.value = d.texto; caja.focus(); } else { err.textContent = d.error || 'No se pudo.'; } })
+      .catch(function () { err.textContent = 'No se pudo conectar.'; })
+      .finally(function () { sug.disabled = false; sug.innerHTML = antes; });
+  });
   hilo.scrollTop = hilo.scrollHeight;
   function burbuja(m) {
     var fila = document.createElement('div'), caja = document.createElement('div'), t = document.createElement('div'),

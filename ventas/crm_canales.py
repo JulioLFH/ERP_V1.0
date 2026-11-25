@@ -598,6 +598,27 @@ def conversacion(request, pk):
         type(conv).objects.filter(pk=conv.pk).update(sin_leer=0)
     ok, motivo = puede_responder(conv)
     mensajes = list(conv.mensajes.select_related('usuario'))
+    from . import crm_ia
     return render(request, 'ventas/crm_conversacion.html', {
         'conv': conv, 'mensajes': mensajes, 'form': form, 'puede': ok, 'motivo': motivo,
-        'ultimo_id': mensajes[-1].id if mensajes else 0})
+        'ultimo_id': mensajes[-1].id if mensajes else 0, 'ia': crm_ia.disponible()})
+
+
+@login_required
+def sugerir_respuesta(request, pk):
+    """v1.117.10: borrador con IA para la respuesta de la conversación (el vendedor lo revisa antes de enviar)."""
+    from . import crm_ia
+    from . import crm_servicios as srv
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Use el botón «Sugerir respuesta».'}, status=405)
+    conv = get_object_or_404(_visibles(request.user), pk=pk)
+    if conv.oportunidad_id and not srv.puede_ver(request.user, conv.oportunidad):
+        return HttpResponseForbidden('Esta conversación es de otro vendedor.')
+    if not crm_ia.disponible():
+        return JsonResponse({'error': 'La IA no está activa (CRM › Configuración).'}, status=400)
+    historial = [(m.entrante, m.texto) for m in conv.mensajes.order_by('-fecha', '-id')[:20]][::-1]
+    try:
+        texto = crm_ia.sugerir(historial, conv.get_canal_display(), cliente=conv.nombre)
+    except crm_ia.ErrorIA as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+    return JsonResponse({'texto': texto})

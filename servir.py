@@ -13,6 +13,8 @@
   las usa.
 - v1.116.8: cada hora (la primera, unos minutos después de encender) carga el tipo de cambio de los días que falten
   en todas las empresas (manage.py cargar_tipo_cambio --diario --todas). TIPO_CAMBIO_DIARIO=0 lo desactiva.
+- v1.117.10: cada 5 minutos lee el buzón comercial del CRM de las empresas que lo tienen configurado (manage.py
+  leer_correo_crm): cada correo nuevo es una oportunidad. CORREO_CRM=0 lo desactiva.
 """
 import argparse
 import multiprocessing as mp
@@ -31,6 +33,7 @@ EXCLUIR = {'.venv', 'staticfiles', '__pycache__', '.git', 'media', 'logs', 'resp
            'migracion_local', 'docs'}
 ESPERA_FIN = 60  # segundos que un proceso viejo tiene para terminar lo que estaba atendiendo
 CADA_TIPO_CAMBIO = 3600  # segundos entre cargas del tipo de cambio
+CADA_CORREO_CRM = 300  # segundos entre lecturas del buzón comercial del CRM
 
 
 def log(texto):
@@ -163,6 +166,16 @@ def cargar_tipo_cambio(settings):
         return None
 
 
+def leer_correo_crm(settings):
+    """v1.117.10: lee el buzón comercial del CRM en segundo plano. Su salida (solo si hubo correos o errores) va al
+    registro."""
+    try:
+        return subprocess.Popen([sys.executable, 'manage.py', 'leer_correo_crm', f'--settings={settings}'], cwd=BASE)
+    except OSError as exc:
+        log(f'No se pudo lanzar la lectura del buzón del CRM: {exc}')
+        return None
+
+
 def principal():
     p = argparse.ArgumentParser(description='Servidor de producción de Ceiba ERP')
     p.add_argument('--puerto', type=int, default=int(os.environ.get('PUERTO', 8030)))
@@ -191,12 +204,18 @@ def principal():
     tc_activo = os.environ.get('TIPO_CAMBIO_DIARIO', '1') != '0'
     tc_siguiente = time.time() + random.randint(120, 900)  # cada ERP a una hora distinta: la API limita por equipo
     tc_proceso = None
+    crm_activo = os.environ.get('CORREO_CRM', '1') != '0'
+    crm_siguiente = time.time() + random.randint(60, 240)
+    crm_proceso = None
     try:
         while True:
             time.sleep(2)
             if tc_activo and time.time() >= tc_siguiente and (tc_proceso is None or tc_proceso.poll() is not None):
                 tc_siguiente = time.time() + CADA_TIPO_CAMBIO
                 tc_proceso = cargar_tipo_cambio(a.settings)
+            if crm_activo and time.time() >= crm_siguiente and (crm_proceso is None or crm_proceso.poll() is not None):
+                crm_siguiente = time.time() + CADA_CORREO_CRM
+                crm_proceso = leer_correo_crm(a.settings)
             for i, t in enumerate(trabajadores):  # proceso caído: se reemplaza
                 if not t.vivo():
                     log(f'El proceso {t.n} se detuvo (código {t.proceso.exitcode}): se inicia otro.')

@@ -483,14 +483,16 @@ class ConfigForm(BootstrapMixin, forms.ModelForm):
                   'correo_clave',
                   # v1.107: canales de mensajería y anuncios
                   'whatsapp_activo', 'meta_activo', 'meta_leads', 'meta_token', 'meta_app_secret', 'chat_activo',
-                  'chat_saludo', 'telegram_activo', 'telegram_token', 'tiktok_activo']
+                  'chat_saludo', 'telegram_activo', 'telegram_token', 'tiktok_activo',
+                  'ia_activa', 'ia_api_key', 'ia_modelo']  # v1.117.10: IA (Groq)
         # SEG-06: el navegador no debe llenar el buzón con el usuario y la clave de Ceiba
         _clave = forms.PasswordInput(render_value=False, attrs={'autocomplete': 'new-password'})
         widgets = {'avisar_ganadas': forms.CheckboxSelectMultiple,
                    'correo_usuario': forms.TextInput(attrs={'autocomplete': 'off'}),
-                   'correo_clave': _clave, 'meta_token': _clave, 'meta_app_secret': _clave, 'telegram_token': _clave}
+                   'correo_clave': _clave, 'meta_token': _clave, 'meta_app_secret': _clave, 'telegram_token': _clave,
+                   'ia_api_key': _clave}
 
-    SECRETOS = ('correo_clave', 'meta_token', 'meta_app_secret', 'telegram_token')
+    SECRETOS = ('correo_clave', 'meta_token', 'meta_app_secret', 'telegram_token', 'ia_api_key')
 
     def clean(self):  # una clave vacía = la que ya estaba (no se muestra)
         datos = super().clean()
@@ -536,6 +538,18 @@ def configuracion(request):
         cfg.save(update_fields=['tiktok_clave'])
         messages.success(request, 'Clave del enlace de TikTok cambiada: actualice el enlace en TikTok.')
         return redirect('crm:configuracion')
+    if request.method == 'POST' and request.POST.get('accion') == 'probar_ia':  # v1.117.10
+        from . import crm_ia
+        if not cfg.ia_api_key:
+            messages.error(request, 'Primero guarde la clave API de Groq.')
+        else:
+            try:
+                crm_ia.probar(cfg)
+                messages.success(request, f'La IA responde: Groq aceptó la clave (modelo {cfg.ia_modelo or crm_ia.MODELO}).'
+                                          + ('' if cfg.ia_activa else ' Marque «Usar IA en el CRM» para que trabaje.'))
+            except crm_ia.ErrorIA as exc:
+                messages.error(request, str(exc))
+        return redirect('crm:configuracion')
     if request.method == 'POST' and request.POST.get('accion') == 'conectar_telegram':
         from . import crm_canales
         try:
@@ -561,4 +575,5 @@ def configuracion(request):
         'url_whatsapp': request.build_absolute_uri('/rendiciones/whatsapp/') + f'?empresa={actual()}',
         'url_meta': url('crm_meta'), 'url_tiktok': url('crm_tiktok', cfg.tiktok_clave),
         'url_chat': url('crm_chat_widget', cfg.token_web), 'canales': crm_canales.canales_activos(),
+        'ia_lista': bool(cfg.ia_activa and cfg.ia_api_key),
         'parametros': reverse('parametros') + '?grupo=CRM'})
