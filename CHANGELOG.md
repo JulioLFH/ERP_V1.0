@@ -3,6 +3,9 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.9 — 25/11/2026 · Referencias de la factura con otros documentos (orden de compra, contrato…)
+- **Ventas › Emitir comprobante**: nuevo campo **«Otros documentos de referencia»**, junto a «Guías de remisión». Se escriben separados por comas (p. ej. OC 4500012345, Contrato 12-2026) y salen en la **«Referencia»** del impreso y la vista previa, después de las guías (GRE-…). También se ven en el detalle del comprobante. Es un campo aparte de las guías: lo que se escribe ahí no se toma como guía ni cambia el XML que va a SUNAT.
+
 ## v1.117.8 — 25/11/2026 · Panel del grupo: apagar secciones de los módulos; firma de correos con el remitente
 - **Panel del grupo › Módulos y secciones del grupo** (nuevo diseño): cada módulo es una tarjeta con su interruptor y, debajo, «Secciones» con las opciones de su menú. Se puede apagar un módulo entero o solo algunas secciones (por ejemplo, en Ventas: Punto de venta, Notas de crédito/débito o Detracciones) para todas las empresas del grupo: nadie las ve ni las abre, ni los administradores, y no se ofrecen al asignar usuarios. Al volver a prenderlas, cada usuario recupera lo que tenía. Tiene buscador, filtros (activos / con algo apagado), contador de secciones y aviso de cambios sin guardar. La pantalla de inicio de cada módulo se apaga junto con el módulo.
 - **Correos**: la firma ya no muestra un correo fijo: muestra el correo con que realmente se envía (el correo saliente de la empresa o el correo de Ceiba). Si no hay uno, la línea «Correo» no aparece.

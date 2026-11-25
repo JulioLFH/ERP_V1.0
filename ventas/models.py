@@ -94,6 +94,10 @@ class Venta(ComprobanteBase, ElectronicoMixin):
         'Guías de remisión', blank=True,
         help_text='Guías que sustentan la factura, separadas por comas (p. ej. EG03-35, T005-2721882): salen en la '
                   'referencia del impreso y en el XML. Las guías emitidas en el ERP para esta venta se agregan solas.')
+    otros_documentos = models.CharField(
+        'Otros documentos de referencia', max_length=250, blank=True,
+        help_text='Orden de compra, contrato, cotización u otro documento del cliente, separados por comas (p. ej. '
+                  'OC 4500012345, Contrato 12-2026): salen en la «Referencia» del impreso junto a las guías.')
     # el cliente pagó el total: la empresa (proveedor) depositó la detracción en su cuenta del BN (transferencia)
     detraccion_deposito = models.ForeignKey('finanzas.Movimiento', on_delete=models.SET_NULL, null=True, blank=True,
                                             related_name='+', editable=False,
@@ -138,6 +142,17 @@ class Venta(ComprobanteBase, ElectronicoMixin):
                 if g.serie and str(g.numero).isdigit():
                     agregar(g.tipo, g.serie.upper(), str(g.numero))
         return salida[:100]
+
+    @property
+    def otros_citados(self):
+        """v1.117.9: los «Otros documentos de referencia» escritos, uno por cada coma o punto y coma."""
+        import re
+        return [d.strip() for d in re.split(r'[,;\n]', self.otros_documentos or '') if d.strip()][:30]
+
+    @property
+    def referencias_impreso(self):
+        """v1.117.9: lo que sale en la «Referencia» del impreso: las guías (GRE-…) y luego los otros documentos."""
+        return [f'GRE-{g}' for t, g in self.guias_citadas] + self.otros_citados
 
     @property
     def condicion_dias(self):

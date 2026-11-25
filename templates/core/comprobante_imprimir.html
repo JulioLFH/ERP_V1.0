@@ -24,7 +24,7 @@
     <tr><td style="width:18%" class="text-muted">{{ etiqueta_tercero }}</td><td>{{ doc.tercero.nombre }}</td><td class="text-muted">Fecha emisión</td><td>{{ doc.fecha_emision|date:'d/m/Y' }}</td></tr>
     <tr><td class="text-muted">{{ doc.tercero.get_tipo_doc_display }}</td><td>{{ doc.tercero.numero_doc }}</td><td class="text-muted">Vencimiento</td><td>{{ doc.fecha_vencimiento|date:'d/m/Y' }}</td></tr>
     <tr><td class="text-muted">Dirección</td><td>{{ doc.tercero.direccion }}</td><td class="text-muted">Moneda / pago</td><td>{{ doc.get_moneda_display }} · {{ doc.get_forma_pago_display }}{% if doc.forma_pago == 'CONTADO' and doc.condicion_dias %} · Condición de pago: {{ doc.condicion_dias }} días{% endif %}</td></tr>
-    {% if doc.guias_citadas %}<tr><td class="text-muted">Referencia</td><td colspan="3">{% for t, g in doc.guias_citadas %}GRE-{{ g }}{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>{% endif %}
+    {% if doc.referencias_impreso %}<tr><td class="text-muted">Referencia</td><td colspan="3">{{ doc.referencias_impreso|join:', ' }}</td></tr>{% endif %}
     {% if doc.doc_referencia %}<tr><td class="text-muted">Doc. modificado</td><td>{{ doc.doc_referencia }}</td><td class="text-muted">Motivo</td><td>{{ doc.get_motivo_nota_display|default:'' }}</td></tr>{% endif %}
   </table>
   <table class="table table-sm table-bordered">

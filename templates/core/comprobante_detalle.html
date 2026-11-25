@@ -189,6 +189,7 @@
         <tr><td class="text-muted">Ingreso de mercadería</td><td class="text-end">{% if doc.fecha_ingreso %}{{ doc.fecha_ingreso|date:'d/m/Y' }}{% else %}Pendiente{% endif %} · {{ doc.orden_compra.dias_credito|default:0 }} días</td></tr>{% endif %}
         {% if doc.factura_portal %}<tr><td class="text-muted">Portal de proveedores</td><td class="text-end"><a href="{% url 'compras:portal_factura' doc.factura_portal.pk %}">Registrada por el proveedor</a></td></tr>{% endif %}{% endif %}
         {% if app == 'ventas' and doc.guias_referencia %}<tr><td class="text-muted">Guías (referencia)</td><td class="text-end small">{% for t, g in doc.guias_citadas %}{{ g }}{% if not forloop.last %}, {% endif %}{% empty %}{{ doc.guias_referencia }}{% endfor %}</td></tr>{% endif %}
+        {% if app == 'ventas' and doc.otros_documentos %}<tr><td class="text-muted">Otros documentos (referencia)</td><td class="text-end small">{{ doc.otros_citados|join:', ' }}</td></tr>{% endif %}
         {% if app == 'ventas' %}{% if doc.vendedor %}<tr><td class="text-muted">Vendedor</td><td class="text-end">{{ doc.vendedor }}</td></tr>{% endif %}
         {% if doc.cotizacion %}<tr><td class="text-muted">Cotización</td><td class="text-end"><a href="{% url 'ventas:cot_detalle' doc.cotizacion_id %}">{{ doc.cotizacion }}</a></td></tr>{% endif %}
         {% if doc.motivo_nota %}<tr><td class="text-muted">Motivo</td><td class="text-end">{{ doc.get_motivo_nota_display }}</td></tr>{% endif %}{% endif %}
