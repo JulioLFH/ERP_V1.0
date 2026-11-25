@@ -43,7 +43,8 @@ def _calcular():
     todos = todos_los_modulos()
     del_plan = todos if plan is None or plan.todos else (set(plan.modulos or []) & todos) | FIJOS
     apagados = (set(getattr(plan, 'apagados', None) or []) & del_plan) - FIJOS
-    _MEMO.update(hora=time.monotonic(), valor=del_plan - apagados, del_plan=del_plan)
+    _MEMO.update(hora=time.monotonic(), valor=del_plan - apagados, del_plan=del_plan,
+                 secciones=frozenset(getattr(plan, 'secciones_apagadas', None) or []))
 
 
 def modulos_del_plan():
@@ -62,15 +63,49 @@ def modulos_permitidos():
     return _MEMO['valor']
 
 
+def secciones_apagadas():
+    """v1.117.7: pantallas del menú (claves del catálogo de permisos por pantalla) que el administrador del grupo
+    desactivó en todas las empresas: no salen en el menú ni se abren, ni para los administradores."""
+    if _MEMO['valor'] is None or time.monotonic() - _MEMO['hora'] >= SEGUNDOS_MEMO:
+        _calcular()
+    return _MEMO['secciones']
+
+
+def secciones_de_modulo(modulo):
+    """[(titulo, es_grupo, [(clave, etiqueta)])] del menú de un módulo, solo pantallas del catálogo (las que se
+    pueden ocultar). La pantalla de inicio de un módulo no se ofrece: para eso se apaga el módulo entero."""
+    from .modulos import MODULOS
+    from .politicas import catalogo
+    validas = {p['clave'] for p in catalogo()}
+    inicios = {m.get('inicio', '').partition('?')[0] for m in MODULOS}
+    salida, vistos = [], set(inicios)
+    for etiqueta, destino in modulo['menu']:
+        hijos = destino if isinstance(destino, list) else [(etiqueta, destino, '')]
+        pantallas = []
+        for texto, d, _ in hijos:
+            c = d.partition('?')[0]
+            if c in validas and c not in vistos:
+                vistos.add(c)
+                pantallas.append((c, texto))
+        if pantallas:
+            salida.append((etiqueta, isinstance(destino, list), pantallas))
+    return salida
+
+
 def invalidar():
     _MEMO.update(hora=0.0, valor=None)
 
 
-def guardar_apagados(apagados, usuario):
-    """El administrador del grupo apaga (o vuelve a prender) módulos del plan para todas sus empresas."""
+def guardar_apagados(apagados, usuario, secciones=None):
+    """El administrador del grupo apaga (o vuelve a prender) módulos del plan, y secciones de sus módulos, para todas
+    sus empresas. `secciones` None = no se tocan."""
     from .models import PlanGrupo
     plan = plan_actual() or PlanGrupo()
     plan.apagados = sorted((set(apagados) & modulos_del_plan()) - FIJOS)
+    if secciones is not None:
+        from .modulos import MODULOS
+        validas = {c for m in MODULOS if m['clave'] not in FIJOS for _, _, ps in secciones_de_modulo(m) for c, _ in ps}
+        plan.secciones_apagadas = sorted(set(secciones) & validas)
     plan.modificado_por = usuario.username
     plan.save(using='default')
     invalidar()

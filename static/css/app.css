@@ -214,3 +214,10 @@ body { background: var(--erp-bg); font-size: .875rem; font-family: var(--bs-font
 /* ERP_AVISO: franja arriba de todo (p. ej. «Base de datos de prueba») para no confundir el ERP de pruebas */
 .erp-aviso { background: #f59f00; color: #1f2328; text-align: center; font-weight: 700; font-size: .85rem;
   letter-spacing: .04em; text-transform: uppercase; padding: .3rem 1rem; }
+/* v1.117.7: Panel del grupo › Módulos y secciones */
+.mg > summary { cursor: pointer; list-style: none; }
+.mg > summary::-webkit-details-marker { display: none; }
+.mg-tarjeta { transition: opacity .15s, background-color .15s; }
+.mg-tarjeta.mg-off { opacity: .55; background: var(--bs-tertiary-bg); }
+.mg-secciones > summary { cursor: pointer; }
+.mg-pie { position: sticky; bottom: 0; background: var(--bs-body-bg); z-index: 2; }

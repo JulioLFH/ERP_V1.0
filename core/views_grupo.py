@@ -182,17 +182,26 @@ def panel(request):
             return redirect('grupo_panel')
         from .modulos import POR_CLAVE
         from .plataforma import FIJOS, guardar_apagados, modulos_del_plan, modulos_permitidos
-        antes = modulos_permitidos()
+        from .plataforma import secciones_apagadas
+        antes, sec_antes = modulos_permitidos(), set(secciones_apagadas())
         prendidos = set(request.POST.getlist('modulos'))
-        plan = guardar_apagados(modulos_del_plan() - FIJOS - prendidos, principal)
-        despues = modulos_permitidos()
+        # v1.117.7: secciones de cada módulo; las que no vinieron en el formulario conservan su estado
+        vistas, marcadas = set(request.POST.getlist('secciones_vistas')), set(request.POST.getlist('secciones'))
+        plan = guardar_apagados(modulos_del_plan() - FIJOS - prendidos, principal,
+                                secciones=(vistas - marcadas) | (sec_antes - vistas))
+        despues, sec_despues = modulos_permitidos(), set(secciones_apagadas())
         from .auditoria import registrar
         registrar('MODIFICAR', plan, {'apagados': [', '.join(sorted(POR_CLAVE[k]['nombre'] for k in antes - despues)),
-                                                   ', '.join(sorted(POR_CLAVE[k]['nombre'] for k in despues - antes))]},
+                                                   ', '.join(sorted(POR_CLAVE[k]['nombre'] for k in despues - antes))],
+                                      'secciones_apagadas': [', '.join(sorted(sec_despues - sec_antes)),
+                                                             ', '.join(sorted(sec_antes - sec_despues))]},
                   f'Módulos del grupo cambiados por {principal.username}')
         apagados = [POR_CLAVE[k]['nombre'] for k in plan.apagados]
-        messages.success(request, 'Módulos del grupo guardados.' + (
-            f' Desactivados en todas las empresas: {", ".join(apagados)}.' if apagados else ' Todos los del plan activos.'))
+        n_sec = len(plan.secciones_apagadas or [])
+        messages.success(request, 'Módulos y secciones del grupo guardados.' + (
+            f' Módulos desactivados en todas las empresas: {", ".join(apagados)}.' if apagados
+            else ' Todos los módulos del plan activos.') + (
+            (f' {n_sec} secciones desactivadas.' if n_sec > 1 else ' 1 sección desactivada.') if n_sec else ''))
         return redirect('grupo_panel')
     if request.method == 'POST' and request.POST.get('accion') == 'nuevo_corporativo':
         if not principal.is_superuser:
@@ -296,14 +305,40 @@ def _plan_para_panel():
     from .modulos import MODULOS
     from .plataforma import FIJOS, modulos_del_plan, modulos_permitidos, plan_actual
     plan, del_plan, activos = plan_actual(), modulos_del_plan(), modulos_permitidos()
+    licencia = _licencia(del_plan, activos)
     return {'plan_grupo': plan.nombre if plan else 'Completo', 'plan_todos': plan is None or plan.todos,
             'plan_modulos': [m['nombre'] for m in MODULOS if m['clave'] in del_plan and m['clave'] not in FIJOS],
             'plan_fuera': [m['nombre'] for m in MODULOS if m['clave'] not in del_plan],
             # licencia del grupo: los del plan que el administrador deja activos o apaga para todas las empresas
-            'licencia': [{'clave': m['clave'], 'nombre': m['nombre'], 'icono': m.get('icono', 'bi-grid'),
-                          'activo': m['clave'] in activos} for m in MODULOS
-                         if m['clave'] in del_plan and m['clave'] not in FIJOS],
-            'plan_apagados': [m['nombre'] for m in MODULOS if m['clave'] in del_plan - activos]}
+            'licencia': licencia,
+            'plan_apagados': [m['nombre'] for m in MODULOS if m['clave'] in del_plan - activos],
+            'secciones_off': sum(m['n_total'] - m['n_activas'] for m in licencia if m['activo'])}
+
+
+def _licencia(del_plan, activos):
+    """Módulos del plan (salvo los fijos) con sus secciones del menú y si están activas en el grupo (v1.117.7)."""
+    from .modulos import MODULOS
+    from .plataforma import FIJOS, secciones_apagadas, secciones_de_modulo
+    apagadas = secciones_apagadas()
+    mods = [m for m in MODULOS if m['clave'] in del_plan and m['clave'] not in FIJOS]
+    secciones = {m['clave']: secciones_de_modulo(m) for m in mods}
+    donde = {}  # pantalla -> módulos donde aparece (Clientes / Proveedores son la misma pantalla)
+    for m in mods:
+        for _, _, ps in secciones[m['clave']]:
+            for c, _ in ps:
+                donde.setdefault(c, []).append(m['nombre'])
+    salida = []
+    for m in mods:
+        secs = [{'titulo': t, 'grupo': g, 'pantallas': [
+            {'clave': c, 'etiqueta': e, 'activa': c not in apagadas,
+             'otros': ', '.join(n for n in donde[c] if n != m['nombre'])} for c, e in ps]}
+            for t, g, ps in secciones[m['clave']]]
+        claves = [p for s in secs for p in s['pantallas']]
+        salida.append({'clave': m['clave'], 'nombre': m['nombre'], 'icono': m.get('icono', 'bi-grid'),
+                       'color': m.get('color', '#495057'), 'descripcion': m.get('descripcion', ''),
+                       'activo': m['clave'] in activos, 'secciones': secs, 'n_total': len(claves),
+                       'n_activas': sum(1 for p in claves if p['activa'])})
+    return salida
 
 
 def _proceso_masivo(request):

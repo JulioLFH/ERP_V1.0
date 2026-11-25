@@ -86,7 +86,8 @@ def pantallas_de(user):
 
 
 def ocultas(user):
-    return {c for c, n in pantallas_de(user).items() if n == 'OCULTA'}
+    from .plataforma import secciones_apagadas  # v1.117.7: las que el grupo apagó, para todos
+    return {c for c, n in pantallas_de(user).items() if n == 'OCULTA'} | secciones_apagadas()
 
 
 def nivel_pantalla(user, path):
@@ -111,6 +112,10 @@ def es_exportacion(request):
 def restriccion_de_pantalla(request, match):
     """Motivo del bloqueo por el nivel de la pantalla, o None."""
     user = request.user
+    from .plataforma import secciones_apagadas
+    apagadas = secciones_apagadas()
+    if apagadas and pantalla_de_ruta(request.path) in apagadas:  # v1.117.7: ni los administradores
+        return 'Esta sección está desactivada en todas las empresas del grupo (Panel del grupo › Módulos y secciones).'
     if user.is_superuser:
         return None
     vista = match.view_name if match else ''

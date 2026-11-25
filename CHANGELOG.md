@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.8 — 25/11/2026 · Panel del grupo: apagar secciones de los módulos; firma de correos con el remitente
+- **Panel del grupo › Módulos y secciones del grupo** (nuevo diseño): cada módulo es una tarjeta con su interruptor y, debajo, «Secciones» con las opciones de su menú. Se puede apagar un módulo entero o solo algunas secciones (por ejemplo, en Ventas: Punto de venta, Notas de crédito/débito o Detracciones) para todas las empresas del grupo: nadie las ve ni las abre, ni los administradores, y no se ofrecen al asignar usuarios. Al volver a prenderlas, cada usuario recupera lo que tenía. Tiene buscador, filtros (activos / con algo apagado), contador de secciones y aviso de cambios sin guardar. La pantalla de inicio de cada módulo se apaga junto con el módulo.
+- **Correos**: la firma ya no muestra un correo fijo: muestra el correo con que realmente se envía (el correo saliente de la empresa o el correo de Ceiba). Si no hay uno, la línea «Correo» no aparece.
+
 ## v1.117.7 — 24/11/2026 · Secciones de cada módulo al asignar permisos
 - **Ajustes › Usuarios** y **Perfiles de acceso**: bajo cada módulo marcado aparece «Secciones» con las opciones de su menú (por ejemplo, en Ventas: Punto de venta, Ventas › Cotizaciones, Comprobantes…, Cuentas por cobrar, Reportes…). Se marcan o desmarcan una por una o por grupo; la desmarcada no aparece en el menú ni se abre. Es lo mismo que «Oculta» en Permisos por pantalla, que sigue abajo para los niveles finos (solo lectura, sin exportar). Las pantallas que comparten dos módulos (Clientes / Proveedores, Productos) llevan un ícono de enlace: se ocultan en ambos.
 

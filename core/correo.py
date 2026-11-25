@@ -47,7 +47,9 @@ def enviar(destinatarios, asunto, plantilla, contexto, adjuntos=None, solo_ceiba
     if not destinatarios:
         raise ErrorCorreo('El destinatario no tiene correo electrónico registrado.')
     empresa = Empresa.actual()
-    contexto = {'empresa': empresa, **contexto}
+    # v1.117.8: la firma muestra el correo con que realmente se envía (el de la empresa o el de Ceiba)
+    desde = (cfg.remitente or cfg.usuario or '').strip()
+    contexto = {'empresa': empresa, 'correo_remitente': desde if '@' in desde else '', **contexto}
     html = render_to_string(plantilla, contexto)
     nombre = cfg.nombre_remitente or (empresa.razon_social if origen == 'empresa' else
                                       f'Ceiba ERP · {empresa.razon_social}')

@@ -12,6 +12,14 @@ from .models import PerfilAcceso
 from .modulos import GRUPO_COSTOS, GRUPOS, POR_CLAVE
 
 
+def _con_apagadas(enviadas, previas):
+    """Las secciones que el grupo apagó no salen en el formulario: se conserva lo que el usuario o perfil tenía en
+    ellas, para que al volver a activarlas quede como estaba."""
+    from .plataforma import secciones_apagadas
+    apagadas = secciones_apagadas()
+    return {**enviadas, **{k: v for k, v in dict(previas).items() if k in apagadas}}
+
+
 class UsuarioForm(BootstrapMixin, forms.ModelForm):
     modulos = forms.MultipleChoiceField(
         label='Módulos permitidos', required=False, widget=forms.CheckboxSelectMultiple,
@@ -240,7 +248,8 @@ class UsuarioForm(BootstrapMixin, forms.ModelForm):
         validos = {n for n, _ in NIVELES_PANTALLA if n}
         if not self.is_bound:
             return self.pantallas_actuales
-        return {k.partition('|')[2]: v for k, v in self.data.items() if k.startswith('pantalla|') and v in validos}
+        return _con_apagadas({k.partition('|')[2]: v for k, v in self.data.items()
+                              if k.startswith('pantalla|') and v in validos}, self.pantallas_actuales)
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -355,8 +364,9 @@ def modulos_con_secciones(claves):
     """Módulos con sus secciones del menú, para elegirlas al asignar el módulo (Ajustes › Usuarios y perfiles).
     Cada sección son pantallas del catálogo de permisos por pantalla: desmarcarla las deja «Oculta»."""
     from .modulos import MODULOS
+    from .plataforma import secciones_apagadas
     from .politicas import catalogo
-    validas = {p['clave'] for p in catalogo()}
+    validas = {p['clave'] for p in catalogo()} - secciones_apagadas()  # las apagadas por el grupo no se asignan
 
     def hijos(etiqueta, destino):
         return destino if isinstance(destino, list) else [(etiqueta, destino, '')]
@@ -389,9 +399,12 @@ def modulos_con_secciones(claves):
 
 def grupos_pantallas(actuales):
     """Pantallas del menú por módulo con el nivel de acceso actual (para la tabla de permisos por pantalla)."""
+    from .plataforma import secciones_apagadas
     from .politicas import catalogo
-    grupos = {}
+    grupos, apagadas = {}, secciones_apagadas()
     for p in catalogo():
+        if p['clave'] in apagadas:  # desactivada para todo el grupo (Panel del grupo)
+            continue
         grupos.setdefault(p['modulo'], []).append({**p, 'nivel': actuales.get(p['clave'], '')})
     from .modulos import DERIVADOS
     return [{'modulo': POR_CLAVE[m], 'pantallas': lista,
@@ -436,7 +449,8 @@ class PerfilAccesoForm(BootstrapMixin, forms.ModelForm):
         validos = {n for n, _ in NIVELES_PANTALLA if n}
         if not self.is_bound:
             return dict(self.instance.pantallas or {})
-        return {k.partition('|')[2]: v for k, v in self.data.items() if k.startswith('pantalla|') and v in validos}
+        return _con_apagadas({k.partition('|')[2]: v for k, v in self.data.items()
+                              if k.startswith('pantalla|') and v in validos}, self.instance.pantallas or {})
 
     def save(self, commit=True):
         p = super().save(commit=False)

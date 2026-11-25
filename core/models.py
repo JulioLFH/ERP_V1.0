@@ -2536,6 +2536,10 @@ class PlanGrupo(models.Model):
     # dentro del plan, el administrador del grupo apaga módulos para todas sus empresas (Panel del grupo)
     apagados = models.JSONField('Apagados por el grupo', default=list, null=True, blank=True,
                                 help_text='Módulos del plan que el administrador del grupo desactivó')
+    # v1.117.7: y secciones (opciones del menú de un módulo) para todas sus empresas, también para los administradores
+    secciones_apagadas = models.JSONField('Secciones apagadas por el grupo', default=list, null=True, blank=True,
+                                          help_text='Pantallas del menú (como en permisos por pantalla) desactivadas '
+                                                    'en todas las empresas')
     modificado = models.DateTimeField(auto_now=True)
     modificado_por = models.CharField(max_length=150, blank=True)
 

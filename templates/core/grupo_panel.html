@@ -15,16 +15,58 @@
   <i class="bi bi-box-seam"></i> <b>Plan contratado: {{ plan_grupo }}</b>
   {% if plan_todos %}· todos los módulos.{% else %}· {{ plan_modulos|length }} módulos para todas las empresas del grupo: {{ plan_modulos|join:', ' }}.
   <div class="text-muted mt-1">Fuera del plan (no disponibles en ninguna empresa): {{ plan_fuera|join:', ' }}. Para ampliarlo, comuníquese con Ceiba.</div>{% endif %}
-  {% if principal.is_superuser %}
-  <details class="mt-2" {% if plan_apagados %}open{% endif %}><summary class="fw-semibold">Módulos del grupo{% if plan_apagados %} · {{ plan_apagados|length }} desactivado{{ plan_apagados|length|pluralize }}{% endif %}</summary>
-    <form method="post" class="mt-2">{% csrf_token %}<input type="hidden" name="accion" value="licencia">
-      <div class="text-muted mb-2">Desmarque un módulo para desactivarlo en todas las empresas del grupo: nadie lo ve ni lo abre, ni sus administradores, y no aparece en el menú, el inicio ni en la asignación de usuarios. Al volver a marcarlo, cada usuario recupera lo que tenía.</div>
-      <div class="d-flex flex-wrap gap-3">{% for m in licencia %}<label class="{% if not m.activo %}text-muted{% endif %}"><input type="checkbox" name="modulos" value="{{ m.clave }}" {% if m.activo %}checked{% endif %}> <i class="bi {{ m.icono }}"></i> {{ m.nombre }}</label>{% endfor %}</div>
-      <button class="btn btn-sm btn-primary mt-2" data-confirm="¿Guardar los módulos del grupo? Los desmarcados dejan de verse en todas las empresas."><i class="bi bi-check-lg"></i> Guardar módulos</button>
-    </form>
-  </details>
-  {% elif plan_apagados %}<div class="text-muted mt-1">Desactivados por el administrador del grupo: {{ plan_apagados|join:', ' }}.</div>{% endif %}
+  {% if not principal.is_superuser and plan_apagados %}<div class="text-muted mt-1">Desactivados por el administrador del grupo: {{ plan_apagados|join:', ' }}.</div>{% endif %}
 </div></div>
+{% if principal.is_superuser %}
+<details class="card mb-3 mg" id="modulos-grupo"{% if plan_apagados or secciones_off %} open{% endif %}>
+  <summary class="card-header d-flex flex-wrap align-items-center gap-2">
+    <span class="fw-semibold"><i class="bi bi-grid-3x3-gap"></i> Módulos y secciones del grupo</span>
+    <span class="badge rounded-pill text-bg-light border" id="mg-resumen">{{ licencia|length }} módulos</span>
+    <span class="small text-muted ms-auto"><i class="bi bi-chevron-expand"></i> Abrir / cerrar</span>
+  </summary>
+  <form method="post" class="card-body">{% csrf_token %}<input type="hidden" name="accion" value="licencia">
+    <p class="small text-muted mb-2">Apague un <b>módulo</b> con su interruptor, o solo algunas de sus <b>secciones</b> (abra «Secciones»), para <b>todas las empresas del grupo</b>: nadie lo ve ni lo abre, ni los administradores, y no aparece en el menú, el inicio ni en la asignación de usuarios. Al volver a activarlo, cada usuario recupera lo que tenía. La pantalla de inicio de cada módulo se apaga junto con el módulo.</p>
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+      <div class="input-group input-group-sm" style="max-width:300px"><span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="search" class="form-control" id="mg-buscar" placeholder="Buscar módulo o sección…"></div>
+      <div class="btn-group btn-group-sm" role="group">
+        <button type="button" class="btn btn-outline-secondary active" data-mg="todos">Todos</button>
+        <button type="button" class="btn btn-outline-secondary" data-mg="activos">Activos</button>
+        <button type="button" class="btn btn-outline-secondary" data-mg="apagados">Con algo apagado</button>
+      </div>
+    </div>
+    <div class="row g-2">
+      {% for m in licencia %}
+      <div class="col-md-6 col-xl-4 mg-modulo" data-busca="{{ m.nombre|lower }} {{ m.descripcion|lower }}">
+        <div class="border rounded h-100 mg-tarjeta{% if not m.activo %} mg-off{% endif %}">
+          <label class="d-flex align-items-center gap-2 p-2 mb-0" style="cursor:pointer">
+            <span class="rounded d-inline-grid text-white flex-shrink-0" style="width:34px;height:34px;place-items:center;background:{{ m.color }}"><i class="bi {{ m.icono }}"></i></span>
+            <span class="flex-grow-1 lh-sm"><span class="fw-semibold d-block">{{ m.nombre }}</span><span class="small text-muted">{{ m.descripcion }}</span></span>
+            <span class="form-check form-switch m-0"><input class="form-check-input mg-switch" type="checkbox" role="switch" name="modulos" value="{{ m.clave }}"{% if m.activo %} checked{% endif %} aria-label="Activar {{ m.nombre }}"></span>
+          </label>
+          {% if m.secciones %}
+          <details class="border-top px-2 py-1 small mg-secciones"{% if m.activo and m.n_activas < m.n_total %} open{% endif %}>
+            <summary class="text-muted">Secciones <span class="mg-cuenta">({{ m.n_activas }} de {{ m.n_total }})</span></summary>
+            <div class="pb-1">
+              {% for s in m.secciones %}<div class="mg-seccion">
+                {% if s.grupo %}<label class="d-block fw-semibold mt-1"><input type="checkbox" class="form-check-input me-1 mg-grupo"> {{ s.titulo }}</label><div class="ps-4">{% endif %}
+                {% for p in s.pantallas %}<label class="d-block{% if not s.grupo %} fw-semibold mt-1{% endif %}"><input type="hidden" name="secciones_vistas" value="{{ p.clave }}"><input type="checkbox" class="form-check-input me-1 mg-pantalla" name="secciones" value="{{ p.clave }}"{% if p.activa %} checked{% endif %}> {% if s.grupo %}{{ p.etiqueta }}{% else %}{{ s.titulo }}{% endif %}{% if p.otros %} <i class="bi bi-link-45deg text-muted" title="Es la misma pantalla que en {{ p.otros }}: se activa o apaga en ambos"></i>{% endif %}</label>{% endfor %}
+                {% if s.grupo %}</div>{% endif %}
+              </div>{% endfor %}
+            </div>
+          </details>
+          {% else %}<div class="border-top px-2 py-1 small text-muted">Solo tiene su pantalla de inicio: se apaga con el módulo.</div>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-3 pt-2 border-top mg-pie">
+      <button class="btn btn-primary btn-sm" data-confirm="¿Guardar los módulos y secciones del grupo? Lo apagado deja de verse en todas las empresas."><i class="bi bi-check-lg"></i> Guardar módulos y secciones</button>
+      <span class="small" id="mg-aviso"></span>
+    </div>
+  </form>
+</details>
+{% endif %}
 <div class="row g-3 mb-3">
   {% for t in tarjetas %}<div class="col-md-6 col-xl-4"><div class="card h-100 {% if t.actual %}border-success{% endif %}"><div class="card-body">
     <div class="d-flex justify-content-between align-items-start">
@@ -106,6 +148,55 @@
 </div>
 {% endblock %}
 {% block scripts %}
+{% if principal.is_superuser %}<script nonce="{{ csp_nonce }}">
+  // v1.117.7: módulos y secciones del grupo (interruptor por módulo; casillas por sección, con grupos y pantallas compartidas)
+  (() => {
+    const raiz = document.getElementById('modulos-grupo'); if (!raiz) return;
+    const form = raiz.querySelector('form');
+    const firma = () => { const fd = new FormData(form); return JSON.stringify([fd.getAll('modulos').sort(), fd.getAll('secciones').sort()]); };
+    const firmaInicial = firma();
+    const buscar = document.getElementById('mg-buscar'); let vista = 'todos';
+    const pintar = () => {
+      raiz.querySelectorAll('.mg-seccion').forEach(sec => {
+        const g = sec.querySelector('.mg-grupo'); if (!g) return;
+        const h = [...sec.querySelectorAll('.mg-pantalla')], n = h.filter(x => x.checked).length;
+        g.checked = n === h.length; g.indeterminate = n > 0 && n < h.length;
+      });
+      let total = 0, activos = 0, apagadas = 0;
+      raiz.querySelectorAll('.mg-modulo').forEach(col => {
+        const on = col.querySelector('.mg-switch').checked, h = [...col.querySelectorAll('.mg-pantalla')], n = h.filter(x => x.checked).length;
+        total++; if (on) { activos++; apagadas += h.length - n; }
+        col.querySelector('.mg-tarjeta').classList.toggle('mg-off', !on);
+        col.dataset.algoApagado = (!on || n < h.length) ? '1' : '';
+        const c = col.querySelector('.mg-cuenta');
+        if (c) c.textContent = !on ? '(módulo apagado)' : n === h.length ? `(todas: ${n})` : `(${n} de ${h.length} · ${h.length - n} apagada${h.length - n > 1 ? 's' : ''})`;
+      });
+      document.getElementById('mg-resumen').textContent = `${activos} de ${total} módulos activos` + (apagadas ? ` · ${apagadas} ${apagadas > 1 ? 'secciones apagadas' : 'sección apagada'}` : '');
+      document.getElementById('mg-aviso').innerHTML = firma() !== firmaInicial ? '<span class="text-warning-emphasis"><i class="bi bi-exclamation-circle"></i> Hay cambios sin guardar.</span>' : '';
+    };
+    const filtrar = () => {
+      const q = buscar.value.trim().toLowerCase();
+      raiz.querySelectorAll('.mg-modulo').forEach(col => {
+        const on = col.querySelector('.mg-switch').checked, texto = col.dataset.busca + ' ' + col.textContent.toLowerCase();
+        col.classList.toggle('d-none', Boolean(q && !texto.includes(q)) || (vista === 'activos' && !on) || (vista === 'apagados' && !col.dataset.algoApagado));
+        const det = col.querySelector('.mg-secciones');
+        if (q && det && !col.dataset.busca.includes(q) && texto.includes(q)) det.open = true;
+      });
+    };
+    const igualar = (valor, marcar) => raiz.querySelectorAll('.mg-pantalla').forEach(x => { if (x.value === valor) x.checked = marcar; });
+    raiz.addEventListener('change', ev => {
+      const t = ev.target;
+      if (t.classList.contains('mg-pantalla')) igualar(t.value, t.checked);
+      else if (t.classList.contains('mg-grupo')) t.closest('.mg-seccion').querySelectorAll('.mg-pantalla').forEach(x => igualar(x.value, t.checked));
+      pintar(); filtrar();
+    });
+    buscar.addEventListener('input', filtrar);
+    raiz.querySelectorAll('[data-mg]').forEach(b => b.addEventListener('click', () => {
+      vista = b.dataset.mg; raiz.querySelectorAll('[data-mg]').forEach(x => x.classList.toggle('active', x === b)); filtrar();
+    }));
+    pintar();
+  })();
+</script>{% endif %}
 {% load static %}{% if puede_crear %}<script src="{% static 'js/consulta_ruc.js' %}?v={{ erp_version }}"></script>
 <script src="{% static 'js/copiar_empresa.js' %}?v={{ erp_version }}"></script>
 <script nonce="{{ csp_nonce }}">

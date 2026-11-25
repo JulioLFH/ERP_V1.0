@@ -52,9 +52,10 @@ El logo es un PNG público (Gmail no muestra SVG): https://ceiba-tecnologic.com/
             <td style="padding-left:12px; font-size:14px; line-height:21px; vertical-align:middle;">
               <b style="color:#0F3D2E; font-size:15px;">Administrador de Ceiba ERP</b><br>
               <span style="color:#6B7A72;">Teléfono / WhatsApp:</span>
-              <a href="tel:+51928248648" style="color:#1F7A52; text-decoration:none; font-weight:600;">928 248 648</a><br>
-              <span style="color:#6B7A72;">Correo:</span>
-              <a href="mailto:juliochroli@gmail.com" style="color:#1F7A52; text-decoration:none; font-weight:600;">juliochroli@gmail.com</a>
+              <a href="tel:+51928248648" style="color:#1F7A52; text-decoration:none; font-weight:600;">928 248 648</a>
+              {# v1.117.8: el correo con que se envía (core.correo.enviar lo pone en correo_remitente) #}
+              {% if correo_remitente %}<br><span style="color:#6B7A72;">Correo:</span>
+              <a href="mailto:{{ correo_remitente }}" style="color:#1F7A52; text-decoration:none; font-weight:600;">{{ correo_remitente }}</a>{% endif %}
             </td>
           </tr></table>
         </td></tr>
