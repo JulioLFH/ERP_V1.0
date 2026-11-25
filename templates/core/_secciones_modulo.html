@@ -1,0 +1,21 @@
+{% comment %}Secciones del módulo m: casillas que manejan los «Permisos por pantalla» (desmarcada = Oculta).{% endcomment %}
+{% if m.secciones %}
+<details class="secciones-modulo small mt-1" data-modulo="{{ m.clave }}">
+  <summary class="text-muted">Secciones <span class="resumen-secciones"></span></summary>
+  <div class="border rounded p-2 mt-1">
+    {% for s in m.secciones %}
+    <div class="seccion{% if not forloop.first %} mt-1{% endif %}">
+      {% if s.grupo %}
+        <label class="d-block fw-semibold"><input type="checkbox" class="form-check-input me-1 chk-seccion"> {{ s.titulo }}</label>
+        <div class="ps-4">
+        {% for p in s.pantallas %}<label class="d-block"><input type="checkbox" class="form-check-input me-1 chk-pantalla" data-clave="{{ p.clave }}"> {{ p.etiqueta }}{% if p.otros %} <i class="bi bi-link-45deg text-muted" title="Es la misma pantalla que en {{ p.otros }}: se muestra u oculta en ambos"></i>{% endif %}</label>{% endfor %}
+        </div>
+      {% else %}{% with p=s.pantallas.0 %}
+        <label class="d-block fw-semibold"><input type="checkbox" class="form-check-input me-1 chk-pantalla" data-clave="{{ p.clave }}"> {{ s.titulo }}{% if p.otros %} <i class="bi bi-link-45deg text-muted" title="Es la misma pantalla que en {{ p.otros }}: se muestra u oculta en ambos"></i>{% endif %}</label>
+      {% endwith %}{% endif %}
+    </div>
+    {% endfor %}
+    <div class="form-text">Desmarcada = no aparece en el menú ni se abre («Oculta» en Permisos por pantalla).</div>
+  </div>
+</details>
+{% endif %}

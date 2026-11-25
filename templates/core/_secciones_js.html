@@ -1,0 +1,29 @@
+  // secciones de cada módulo: casillas enlazadas con los selectores de «Permisos por pantalla» (desmarcada = OCULTA)
+  const seccionesSync = (() => {
+    const sel = c => document.querySelector(`select[name="pantalla|${c}"]`);
+    const fijar = (c, ver) => { const s = sel(c); if (!s) return; if (!ver) s.value = 'OCULTA'; else if (s.value === 'OCULTA') s.value = ''; };
+    let primera = true;
+    const pintar = () => {
+      document.querySelectorAll('.chk-pantalla').forEach(ch => { const s = sel(ch.dataset.clave); if (s) ch.checked = s.value !== 'OCULTA'; });
+      document.querySelectorAll('.secciones-modulo .seccion').forEach(sec => {
+        const g = sec.querySelector('.chk-seccion'); if (!g) return;
+        const h = [...sec.querySelectorAll('.chk-pantalla')], n = h.filter(x => x.checked).length;
+        g.checked = n === h.length; g.indeterminate = n > 0 && n < h.length;
+      });
+      document.querySelectorAll('.secciones-modulo').forEach(d => {
+        const h = [...d.querySelectorAll('.chk-pantalla')], n = h.filter(x => x.checked).length;
+        d.querySelector('.resumen-secciones').textContent = n === h.length ? `(todas: ${n})` : `(${n} de ${h.length})`;
+        if (primera && n < h.length) d.open = true;
+      });
+      primera = false;
+    };
+    document.addEventListener('change', ev => {
+      const t = ev.target;
+      if (t.classList.contains('chk-pantalla')) fijar(t.dataset.clave, t.checked);
+      else if (t.classList.contains('chk-seccion')) t.closest('.seccion').querySelectorAll('.chk-pantalla').forEach(ch => fijar(ch.dataset.clave, t.checked));
+      else if (!(t.name || '').startsWith('pantalla|')) return;
+      pintar();
+    });
+    pintar();
+    return (marcados, todo) => document.querySelectorAll('.secciones-modulo').forEach(d => d.classList.toggle('d-none', todo || !marcados.has(d.dataset.modulo)));
+  })();

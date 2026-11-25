@@ -339,7 +339,8 @@ def _guardar(request, usuario, titulo):
         {'valor': f'{m}.{a}', 'texto': d, 'sensible': s, 'marcada': f'{m}.{a}' in marcadas} for a, d, s in lista]}
         for m, lista in ACCIONES.items() if m in POR_CLAVE]
     return render(request, 'core/usuario_form.html', {'form': form, 'titulo': titulo,
-                                                       'modulos_info': [POR_CLAVE[c] for c, _ in form.fields['modulos'].choices],
+                                                       'modulos_info': modulos_con_secciones(
+                                                           [c for c, _ in form.fields['modulos'].choices]),
                                                        'grupos_acciones': grupos_acciones,
                                                        'grupos_pantallas': grupos_pantallas(form.pantallas_enviadas()),
                                                        'niveles': _niveles()})
@@ -348,6 +349,42 @@ def _guardar(request, usuario, titulo):
 def _niveles():
     from .politicas import NIVELES_PANTALLA
     return NIVELES_PANTALLA
+
+
+def modulos_con_secciones(claves):
+    """Módulos con sus secciones del menú, para elegirlas al asignar el módulo (Ajustes › Usuarios y perfiles).
+    Cada sección son pantallas del catálogo de permisos por pantalla: desmarcarla las deja «Oculta»."""
+    from .modulos import MODULOS
+    from .politicas import catalogo
+    validas = {p['clave'] for p in catalogo()}
+
+    def hijos(etiqueta, destino):
+        return destino if isinstance(destino, list) else [(etiqueta, destino, '')]
+
+    donde = {}  # pantalla -> módulos en cuyo menú aparece (p. ej. Clientes/Proveedores son la misma pantalla)
+    for m in MODULOS:
+        for etiqueta, destino in m['menu']:
+            for _, d, _ in hijos(etiqueta, destino):
+                c = d.partition('?')[0]
+                if c in validas and m['nombre'] not in donde.setdefault(c, []):
+                    donde[c].append(m['nombre'])
+    salida = []
+    for clave in claves:
+        m = POR_CLAVE[clave]
+        secciones, vistos = [], set()
+        for etiqueta, destino in m['menu']:
+            pantallas = []
+            for texto, d, _ in hijos(etiqueta, destino):
+                c = d.partition('?')[0]
+                if c not in validas or c in vistos:
+                    continue
+                vistos.add(c)
+                pantallas.append({'clave': c, 'etiqueta': texto,
+                                  'otros': ', '.join(n for n in donde.get(c, []) if n != m['nombre'])})
+            if pantallas:
+                secciones.append({'titulo': etiqueta, 'grupo': isinstance(destino, list), 'pantallas': pantallas})
+        salida.append({**m, 'secciones': secciones})
+    return salida
 
 
 def grupos_pantallas(actuales):
@@ -459,7 +496,8 @@ def perfil_editar(request, pk=None):
         for m, lista in ACCIONES.items() if m in POR_CLAVE]
     return render(request, 'core/perfil_acceso_form.html', {
         'form': form, 'titulo': f'Perfil {perfil.nombre}' if pk else 'Nuevo perfil de acceso',
-        'modulos_info': [POR_CLAVE[c] for c, _ in form.fields['modulos'].choices], 'grupos_acciones': grupos_acciones,
+        'modulos_info': modulos_con_secciones([c for c, _ in form.fields['modulos'].choices]),
+        'grupos_acciones': grupos_acciones,
         'grupos_pantallas': grupos_pantallas(form.pantallas_enviadas()), 'niveles': _niveles()})
 
 

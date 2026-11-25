@@ -13,15 +13,16 @@
         <div class="col-12">{% include 'core/_campo.html' %}</div>
       {% endif %}{% endfor %}
     </div></div></div></div>
-    <div class="col-lg-7"><div class="card h-100"><div class="card-header">Módulos</div><div class="card-body">
+    <div class="col-lg-7"><div class="card h-100"><div class="card-header">Módulos y secciones</div><div class="card-body">
       <div class="row g-2" id="lista-modulos">
         {% for m in modulos_info %}
-          <div class="col-md-6">
-            <label class="d-flex align-items-center gap-2 border rounded p-2 h-100" style="cursor:pointer">
+          <div class="col-md-6 d-flex flex-column">
+            <label class="d-flex align-items-center gap-2 border rounded p-2 flex-grow-1" style="cursor:pointer">
               <input type="checkbox" class="form-check-input mt-0" name="modulos" value="{{ m.clave }}" {% if m.clave in form.modulos.value %}checked{% endif %}>
               <span class="rounded d-inline-grid text-white" style="width:32px;height:32px;place-items:center;background:{{ m.color }}"><i class="bi {{ m.icono }}"></i></span>
               <span class="fw-semibold">{{ m.nombre }}</span>
             </label>
+            {% include 'core/_secciones_modulo.html' %}
           </div>
         {% endfor %}
       </div>
@@ -47,8 +48,10 @@
 {% block scripts %}
 <script nonce="{{ csp_nonce }}">
   const lista = document.getElementById('lista-modulos');
+{% include 'core/_secciones_js.html' %}
   const sync = () => {
     const marcados = new Set([...lista.querySelectorAll('input[name=modulos]:checked')].map(i => i.value));
+    seccionesSync(marcados, false);
     document.querySelectorAll('.grupo-acciones').forEach(g => g.classList.toggle('d-none', !marcados.has(g.dataset.modulo)));
     document.querySelectorAll('.grupo-pantallas').forEach(g => g.classList.toggle('d-none', !g.dataset.origenes.split(' ').some(m => marcados.has(m))));
   };
