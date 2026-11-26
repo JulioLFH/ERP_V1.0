@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal as D
 from types import SimpleNamespace
 
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
@@ -11,7 +11,8 @@ from asistente import motor
 from asistente.models import Consulta, Defecto, Manual
 from compras.models import OrdenCompra, OrdenCompraItem
 from contabilidad.models import Asiento
-from core.models import Almacen, Bitacora, Producto
+from core.models import Almacen, Bitacora, PerfilUsuario, Producto
+from core.modulos import GRUPOS
 from core.tests_v197 import LuchoBase
 from produccion import servicios
 from produccion.models import InspeccionCalidad, PlantillaCertificado
@@ -73,11 +74,16 @@ class AuditoriaTest(LuchoBase):
 
     def test_aud08_quien_crea_la_oc_no_la_aprueba(self):
         from compras.aprobacion_oc import ErrorAprobacionOC, aprobar
+        comprador = User.objects.create_user('comprador_aud08', password='x')
         oc = self.oc(self.masa, precio='6')
-        Bitacora.objects.create(accion='CREAR', modelo=oc._meta.label, objeto_id=str(oc.pk), usuario=self.user)
+        Bitacora.objects.create(accion='CREAR', modelo=oc._meta.label, objeto_id=str(oc.pk), usuario=comprador)
         with self.assertRaisesMessage(ErrorAprobacionOC, 'no puede aprobarlo'):
-            aprobar(oc, self.user)
+            aprobar(oc, comprador)
         self.assertIn('Aprobado', aprobar(oc, self.ingeniero))
+        # v1.117.11: el administrador no tiene segregación de funciones: aprueba la orden que él mismo registró
+        propia = self.oc(self.masa, precio='6')
+        Bitacora.objects.create(accion='CREAR', modelo=propia._meta.label, objeto_id=str(propia.pk), usuario=self.user)
+        self.assertIn('Aprobado', aprobar(propia, self.user))
 
     def test_aud07_aprobar_pedido_no_exige_emitir(self):
         from core.permisos import accion_de_ruta
@@ -171,6 +177,12 @@ class LuchoV1100Test(LuchoBase):
     def test_luc01_luc04_luc07_luc08_manual_leido_validado_y_citado(self):
         texto = ('Manual bomba BL-200\n4.1 Grumos: limpiar el filtro de succion antes de arrancar.\n'
                  '4.3 Ruido y vibracion: revisar el rodamiento y el anclaje de la bomba.\n').encode()
+        # lo carga un usuario de ingeniería (no administrador) con permiso de configurar y de validar
+        tecnico = User.objects.create_user('tecnico_luc07', password='x')
+        tecnico.groups.add(Group.objects.get_or_create(name=GRUPOS['asistente'])[0])
+        PerfilUsuario.objects.create(usuario=tecnico, acciones=['asistente.consultar', 'asistente.configurar',
+                                                                'asistente.aprobar_ficha'])
+        self.client.force_login(tecnico)
         r = self.client.post(reverse('asistente:manual_nuevo'), {
             'titulo': 'Manual BL-200', 'tipo': 'MANUAL_EQUIPO', 'equipo': self.equipo.pk, 'contenido': '',
             'activo': 'on', 'archivo': SimpleUploadedFile('bl200.txt', texto, content_type='text/plain')})
@@ -188,7 +200,14 @@ class LuchoV1100Test(LuchoBase):
         self.client.post(reverse('asistente:manual', args=[m.pk]), {'accion': 'validar'})
         m.refresh_from_db()
         self.assertEqual((m.validado, m.validado_por), (True, self.ingeniero))
-        ctx = {'producto': self.galleta, 'equipo': self.equipo, 'proceso': self.iny, 'ficha': None}
+        # v1.117.11: el administrador no tiene segregación de funciones: valida el manual que él mismo cargó
+        propio = Manual.objects.create(titulo='Notas del administrador', equipo=self.equipo, creado_por=self.user,
+                                       contenido='Arranque: purgar la bomba.')
+        self.client.force_login(self.user)
+        self.client.post(reverse('asistente:manual', args=[propio.pk]), {'accion': 'validar'})
+        propio.refresh_from_db()
+        self.assertEqual((propio.validado, propio.validado_por), (True, self.user))
+        ctx ={'producto': self.galleta, 'equipo': self.equipo, 'proceso': self.iny, 'ficha': None}
         # LUC-04: no es un defecto del catálogo, pero el manual lo explica (sección y página)
         r = motor.responder('La bomba hace ruido y vibra', ctx)
         self.assertIn('4.3 Ruido y vibracion', r['texto'])

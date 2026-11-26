@@ -89,14 +89,17 @@ class AdendasTest(Base186):
     def test_adenda_cambia_el_contrato_con_segregacion(self):
         """HR-03."""
         Obra.objects.filter(pk=self.obra.pk).update(monto_contratado=D('21240'), plazo_dias=120, fecha_inicio=HOY)
+        residente = usuario('residente_obras', ['obras'], ['obras.ejecutar'])  # la registra un usuario normal
+        self.client.force_login(residente)
         r = self.client.post(reverse('obras:adendas', args=[self.obra.pk]), {
             'tipo': 'MONTO_PLAZO', 'fecha': HOY.isoformat(), 'monto': '2360', 'plazo_dias': '30',
             'motivo': 'Adicional N° 1: veredas', 'resolucion': 'RA-015-2026'})
         self.assertEqual(r.status_code, 302)
         a = self.obra.adendas.get()
         jefe = usuario('jefe_obras', ['obras'], ['obras.aprobar'])
+        self.assertEqual(a.creado_por, residente)
         with self.assertRaisesMessage(g.ErrorGestion, 'Segregación'):  # hay otro usuario que puede aprobarla
-            g.aprobar_adenda(a, self.user)
+            g.aprobar_adenda(a, residente)
         self.client.force_login(jefe)
         self.client.post(reverse('obras:adendas', args=[self.obra.pk]), {'adenda': a.pk, 'accion': 'aprobar'})
         self.obra.refresh_from_db()
@@ -108,6 +111,9 @@ class AdendasTest(Base186):
         g.anular_adenda(a, jefe, 'Resolución dejada sin efecto')
         self.obra.refresh_from_db()
         self.assertEqual((self.obra.monto_contratado, self.obra.plazo_dias), (D('21240.00'), 120))
+        # v1.117.11: el administrador no tiene segregación de funciones: aprueba la adenda que él mismo registró
+        propia = g.registrar_adenda(self.obra, 'MONTO_PLAZO', D('100'), 10, 'Adicional N° 2: señalización', self.user)
+        self.assertEqual(g.aprobar_adenda(propia, self.user).estado, 'APROBADA')
 
 
 class SensibilidadTest(Base186):

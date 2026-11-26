@@ -47,16 +47,25 @@ class PedidoSegregacionTest(Base):
         from ventas.aprobacion_pedido import ErrorAprobacionPedido, aprobar, enviar
         ped = Cotizacion.objects.create(tipo='PED', numero='PD01-00000014', tercero=self.cli)
         CotizacionItem.objects.create(documento=ped, descripcion='Servicio', cantidad=1, precio_unitario=D('100'))
-        Bitacora.objects.create(usuario=self.user, accion='CREAR', modelo=ped._meta.label, modelo_nombre='pedido',
+        vendedor = User.objects.create_user('vendedor_v1103', password='x')  # usuario normal, no administrador
+        Bitacora.objects.create(usuario=vendedor, accion='CREAR', modelo=ped._meta.label, modelo_nombre='pedido',
                                 objeto_id=str(ped.pk), objeto=str(ped))
         with self.assertRaisesMessage(ErrorAprobacionPedido, 'Segregación de funciones'):
-            aprobar(ped, self.user)
-        self.assertIn('enviado a aprobación', enviar(ped, self.user))  # sin motivos ya no se aprueba solo
+            aprobar(ped, vendedor)
+        self.assertIn('enviado a aprobación', enviar(ped, vendedor))  # sin motivos ya no se aprueba solo
         ped.refresh_from_db()
         self.assertEqual(ped.estado, 'PENDIENTE')
         aprobar(ped, self.otro)
         ped.refresh_from_db()
         self.assertEqual(ped.estado, 'APROBADO')
+        # v1.117.11: el administrador no tiene segregación de funciones: aprueba el pedido que él mismo registró
+        propio = Cotizacion.objects.create(tipo='PED', numero='PD01-00000015', tercero=self.cli)
+        CotizacionItem.objects.create(documento=propio, descripcion='Servicio', cantidad=1, precio_unitario=D('100'))
+        Bitacora.objects.create(usuario=self.user, accion='CREAR', modelo=propio._meta.label, modelo_nombre='pedido',
+                                objeto_id=str(propio.pk), objeto=str(propio))
+        aprobar(propio, self.user)
+        propio.refresh_from_db()
+        self.assertEqual(propio.estado, 'APROBADO')
 
 
 # ---------------------------------------------------------------- MAN-01

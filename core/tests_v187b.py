@@ -185,20 +185,31 @@ class ConsumoOrdenTest(BaseProduccion):
         o = self.orden()
         c = o.consumos.get(producto=self.masa)
         h = o.horas.get()
+        operario = User.objects.create_user('operario.produccion', password='x')  # usuario normal, no administrador
         with self.assertRaisesMessage(servicios.ErrorProduccion, 'indique el motivo'):
-            servicios.terminar(o, self.user, D('100'), {c.pk: D('55')}, {h.pk: D('2')})
+            servicios.terminar(o, operario, D('100'), {c.pk: D('55')}, {h.pk: D('2')})
         with self.assertRaisesMessage(servicios.ErrorProduccion, 'Requiere la aprobación'):
-            servicios.terminar(o, self.user, D('100'), {c.pk: D('55')}, {h.pk: D('2')},
+            servicios.terminar(o, operario, D('100'), {c.pk: D('55')}, {h.pk: D('2')},
                                motivos={c.pk: 'Merma del horno'})
         c.refresh_from_db()
-        self.assertEqual((c.aprobacion, c.solicitado), ('POR_APROBAR', D('55')))
+        self.assertEqual((c.aprobacion, c.solicitado, c.solicitado_por), ('POR_APROBAR', D('55'), operario))
         jefe = User.objects.create_user('jefe.produccion', password='x')
         with self.assertRaisesMessage(consumo.ErrorConsumo, 'no lo aprueba'):
-            consumo.resolver(c, self.user, True)
+            consumo.resolver(c, operario, True)
         consumo.resolver(c, jefe, True)
-        servicios.terminar(o, self.user, D('100'), {c.pk: D('55')}, {h.pk: D('2')})
+        servicios.terminar(o, operario, D('100'), {c.pk: D('55')}, {h.pk: D('2')})
         o.refresh_from_db()
         self.assertEqual((o.estado, o.consumos.get(producto=self.masa).cantidad_real), ('TERMINADA', D('55')))
+        # v1.117.11: el administrador también pide la aprobación (tolerancia), pero no tiene segregación de funciones:
+        # aprueba el consumo que él mismo pidió
+        o2 = self.orden()
+        c2 = o2.consumos.get(producto=self.masa)
+        h2 = o2.horas.get()
+        with self.assertRaisesMessage(servicios.ErrorProduccion, 'Requiere la aprobación'):
+            servicios.terminar(o2, self.user, D('100'), {c2.pk: D('55')}, {h2.pk: D('2')},
+                               motivos={c2.pk: 'Merma del horno'})
+        c2.refresh_from_db()
+        self.assertEqual(consumo.resolver(c2, self.user, True).aprobado_por, self.user)
 
     def test_politica_estricta(self):
         from produccion import servicios

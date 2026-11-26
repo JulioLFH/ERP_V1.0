@@ -150,12 +150,16 @@ class AprobacionPagosTest(Base):
     def test_propuesta_pasa_por_los_niveles_de_las_reglas(self):
         self.reglas()
         self.compra('1')
-        p = pp.armar(self.banco, HOY, HOY + timedelta(days=10), D('0'), self.user)
-        pp.enviar(p, self.user)
+        tesorero = User.objects.create_user('tesorero1117', password='Clave-segura-9')  # usuario normal
+        p = pp.armar(self.banco, HOY, HOY + timedelta(days=10), D('0'), tesorero)
+        pp.enviar(p, tesorero)
         p.refresh_from_db()
         self.assertEqual([n['usuario'] for n in p.niveles], [self.jefe.pk, self.gerente.pk])
         self.assertFalse(pp.puede_aprobar(self.gerente, p))  # todavía le toca al nivel 1
-        self.assertFalse(pp.puede_aprobar(self.user, p))  # quien la armó no la aprueba
+        from core.segregacion import propio
+        self.assertIn('Segregación de funciones', propio(tesorero, p))  # quien la armó no la aprueba
+        self.assertFalse(pp.puede_aprobar(tesorero, p))
+        self.assertTrue(pp.puede_aprobar(self.user, p))  # v1.117.11: el administrador aprueba cualquier nivel
         from core.aprobaciones import pendientes_de
         self.assertEqual(pendientes_de(self.jefe).get('PAGO'), 1)
         pp.aprobar(p, self.jefe)

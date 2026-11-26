@@ -87,6 +87,15 @@ class AvanzadoTest(TestCase):
             avanzado.registrar_avance(o, hora, D('-1'), None, None, '', '', self.user)
 
     def test_cambio_de_ingenieria_lo_aprueba_otra_persona(self):
+        from django.contrib.auth.models import Group
+
+        from core.models import PerfilUsuario
+        from core.modulos import GRUPOS
+        # lo pide un usuario de ingeniería (no administrador) con permiso de recetas
+        solicitante = User.objects.create_user('ing.procesos', password='x')
+        solicitante.groups.add(Group.objects.get_or_create(name=GRUPOS['manufactura'])[0])
+        PerfilUsuario.objects.create(usuario=solicitante, acciones=['manufactura.recetas'])
+        self.client.force_login(solicitante)
         r = self.client.post(reverse('manufactura:cambio_nuevo'), {
             'lista_actual': self.receta.pk, 'motivo': 'COSTO', 'descripcion': 'Menos insumo por mejora del horno',
             'fecha_efectiva': (HOY + timedelta(days=5)).isoformat()})
@@ -96,8 +105,9 @@ class AvanzadoTest(TestCase):
             avanzado.enviar(cambio)
         cambio.lista_nueva.componentes.update(cantidad=D('0.8'))
         avanzado.enviar(cambio)
+        self.assertEqual(cambio.solicitado_por, solicitante)
         with self.assertRaises(avanzado.ErrorAvanzado):  # quien lo pidió no lo aprueba
-            avanzado.aprobar(cambio, self.user)
+            avanzado.aprobar(cambio, solicitante)
         avanzado.aprobar(cambio, self.otro, 'Conforme')
         self.receta.refresh_from_db()
         nueva = cambio.lista_nueva
@@ -109,6 +119,13 @@ class AvanzadoTest(TestCase):
         self.assertEqual(servicios.version_para(self.prod, D('1'), HOY + timedelta(days=6)).lista, nueva)
         filas, _ = avanzado.diferencias(cambio)
         self.assertEqual(filas[0]['tipo'], 'Modificado')
+        # v1.117.11: el administrador no tiene segregación de funciones: aprueba el cambio que él mismo pidió
+        from .models import CambioIngenieria
+        propio = avanzado.crear_cambio(CambioIngenieria(lista_actual=nueva, motivo='COSTO', descripcion='Ajuste fino',
+                                                        fecha_efectiva=HOY + timedelta(days=10)), self.user)
+        propio.lista_nueva.componentes.update(cantidad=D('0.7'))
+        avanzado.enviar(propio)
+        self.assertEqual(avanzado.aprobar(propio, self.user).estado, 'APROBADO')
 
     def test_costeo_abc(self):
         cc = CentroCosto.objects.create(codigo='CAL', nombre='Control de calidad', tipo='SERVICIO')

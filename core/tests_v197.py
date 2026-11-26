@@ -45,11 +45,12 @@ class FichasTest(LuchoBase):
         with self.assertRaisesMessage(srv.ErrorAsistente, 'la unidad es obligatoria'):
             srv.guardar_ficha(base, [{'nombre': 'Velocidad', 'minimo': '1', 'objetivo': '2', 'maximo': '3'}],
                               self.user)
-        f = srv.guardar_ficha(base, SETPOINTS, self.user)
+        tecnico = User.objects.create_user('tecnico_fichas', password='x')  # usuario normal, no administrador
+        f = srv.guardar_ficha(base, SETPOINTS, tecnico)
         self.assertEqual((f.revision, f.estado, f.setpoints.count()), (1, 'BORRADOR', 3))
-        srv.proponer(f, self.user)
+        srv.proponer(f, tecnico)
         with self.assertRaisesMessage(srv.ErrorAsistente, 'no aprueba su propio estándar'):
-            srv.aprobar(f, self.user)
+            srv.aprobar(f, tecnico)
         srv.aprobar(f, self.ingeniero)
         self.assertEqual(srv.vigente(self.galleta, self.equipo), f)
         rev2 = srv.nueva_revision(f, self.user, {'Velocidad de inyección': D('85')})
@@ -57,7 +58,8 @@ class FichasTest(LuchoBase):
         v = rev2.setpoints.get(nombre='Velocidad de inyección')
         self.assertEqual((v.objetivo, v.maximo), (D('85'), D('85')))  # el rango se amplía al valor real
         srv.proponer(rev2, self.user)
-        srv.aprobar(rev2, self.ingeniero)
+        # v1.117.11: el administrador no tiene segregación de funciones: aprueba la revisión que él mismo propuso
+        self.assertEqual(srv.aprobar(rev2, self.user).aprobada_por, self.user)
         f.refresh_from_db()
         self.assertEqual(f.estado, 'RETIRADA')  # una sola vigente por combinación
         self.assertEqual(srv.vigente(self.galleta, self.equipo), rev2)
