@@ -534,6 +534,11 @@ MODULOS = [
                                     'bi-credit-card-2-back'),
                                    ('Propuestas de pago (con aprobación)', 'finanzas:propuestas', 'bi-list-check'),
                                    ('Pagos masivos a bancos', 'finanzas:pagos_masivos', 'bi-send')]),
+            # v1.117.12: los mismos documentos de Finanzas (anticipos, letras, canjes y factoring) también aquí
+            ('Documentos', [('Anticipos', 'finanzas:anticipos', 'bi-hourglass-split'),
+                            ('Letras por cobrar y pagar', 'finanzas:letras', 'bi-file-earmark-ruled'),
+                            ('Canje de facturas por letras', 'finanzas:canje_nuevo', 'bi-arrow-repeat'),
+                            ('Facturas negociables y factoring', 'finanzas:cesiones', 'bi-receipt')]),
             ('Detracciones', [('Depósito masivo de detracciones', 'finanzas:detracciones_masivas', 'bi-bank'),
                               ('Constancias de detracción de clientes (SUNAT)', 'finanzas:constancias_clientes',
                                'bi-cloud-upload')]),
@@ -947,6 +952,9 @@ RUTAS_FINANZAS = {
         'detracciones_masivas', 'detracciones_masivas_nuevo', 'detraccion_masiva', 'constancias_clientes')},
     # v1.116: Libro Caja y Bancos 1.1 / 1.2 (manda RUTAS_COMPARTIDAS, que además lo abre a Contabilidad)
     'libro_caja': ['tesoreria', 'sunat'],
+    # v1.117.12: la sección Documentos (anticipos, letras, canjes y factoring) también está en Tesorería
+    **{nombre: ['finanzas', 'tesoreria'] for nombre in (
+        'anticipos', 'anticipo_aplicar', 'letras', 'letra', 'canje', 'canje_nuevo', 'cesiones')},
 }
 # pantallas de un módulo que también abre otro (vista: módulos; el primero es el principal)
 RUTAS_COMPARTIDAS = {'contabilidad:reparto_resultado': ['contabilidad', 'obras'],

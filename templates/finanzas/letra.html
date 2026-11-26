@@ -23,7 +23,7 @@
     </div>
     {% if renovaciones %}<div class="card"><div class="card-header">Renovada por</div><ul class="list-group list-group-flush">{% for r in renovaciones %}<li class="list-group-item small"><a href="{% url 'finanzas:letra' r.pk %}">{{ r.numero }}</a> · vence {{ r.fecha_vencimiento|date:'d/m/Y' }} · {{ r.monto|money }} · {{ r.get_estado_display }}</li>{% endfor %}</ul></div>{% endif %}
   </div>
-  {% if l.estado in 'CARTERA COBRANZA DESCUENTO PROTESTADA' and puede.finanzas_registrar %}
+  {% if l.estado in 'CARTERA COBRANZA DESCUENTO PROTESTADA' and puede.finanzas_registrar or l.estado in 'CARTERA COBRANZA DESCUENTO PROTESTADA' and puede.tesoreria_registrar %}
   <div class="col-lg-6">
     <div class="card mb-3"><div class="card-header">Cambiar estado</div><div class="card-body">
       <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="estado">

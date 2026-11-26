@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
   <h1 class="page-title">Canje {{ c.numero }} {% if c.estado == 'ANULADO' %}<span class="badge badge-ANULADO">Anulado</span>{% endif %}</h1>
-  {% if c.estado == 'VIGENTE' and puede.finanzas_anular %}
+  {% if c.estado == 'VIGENTE' and puede.finanzas_anular or c.estado == 'VIGENTE' and puede.tesoreria_anular %}
   <form method="post" class="js-motivo" data-pregunta="Motivo de la anulación del canje (mínimo 10 caracteres):">{% csrf_token %}<input type="hidden" name="motivo"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> Anular canje</button></form>
   {% endif %}
 </div>

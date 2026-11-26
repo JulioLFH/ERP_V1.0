@@ -3,6 +3,10 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.12 — 26/11/2026 · La sección Documentos de Finanzas también en Tesorería
+- **Tesorería › Documentos**: nueva sección en el menú de Tesorería con **Anticipos**, **Letras por cobrar y pagar**, **Canje de facturas por letras** y **Facturas negociables y factoring**, las mismas pantallas de Finanzas › Documentos (que sigue igual).
+- Quien tiene el módulo Tesorería ya las abre, y con el permiso «Registrar cobros, pagos…» de Tesorería puede **aplicar anticipos**, canjear y registrar letras y factoring (antes solo con los permisos de Finanzas, que siguen sirviendo). Anular aplicaciones y canjes: con el permiso de anular de Tesorería o de Finanzas.
+
 ## v1.117.11 — 26/11/2026 · El administrador no tiene segregación de funciones; avisos de ingreso al buzón de Ceiba
 - **Administrador sin segregación de funciones**: las reglas «quien registra no aprueba» y la segregación estricta ya no aplican al administrador (superusuario); siguen aplicando a los demás usuarios. El administrador puede aprobar sus propias órdenes de compra, pedidos, requerimientos (y atenderlos), propuestas de pagos, rendiciones, partes de lecturas, cambios de receta, fichas de parámetros e inventarios físicos.
 - **Sin límite de aprobación para el administrador**: el límite de monto para aprobar órdenes de compra es solo de los usuarios.

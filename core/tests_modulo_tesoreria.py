@@ -53,9 +53,23 @@ class ModuloTesoreriaTest(Base):
         self.assertEqual(r.context['modulo']['clave'], 'tesoreria')
         self.assertContains(r, 'Cobranza múltiple')
         self.assertNotContains(r, 'Préstamos y leasing')
-        for nombre in ('finanzas:letras', 'finanzas:anticipos', 'finanzas:prestamos'):
-            self.assertEqual(self.client.get(reverse(nombre)).status_code, 403, nombre)
+        self.assertEqual(self.client.get(reverse('finanzas:prestamos')).status_code, 403)
+        # v1.117.12: la sección Documentos de Finanzas también está en Tesorería
+        self.assertContains(r, 'Canje de facturas por letras')
+        for nombre in ('finanzas:letras', 'finanzas:anticipos', 'finanzas:canje_nuevo', 'finanzas:cesiones'):
+            r = self.client.get(reverse(nombre))
+            self.assertEqual(r.status_code, 200, nombre)
+            self.assertEqual(r.context['modulo']['clave'], 'tesoreria', nombre)
         self.assertIn('contactos', modulos_del_usuario(User.objects.get(username='cajero')))
+
+    def test_documentos_con_el_permiso_de_tesoreria(self):
+        """v1.117.12: aplicar anticipos y canjear letras basta con «tesoreria.registrar» (o «finanzas.registrar»)."""
+        self.client.force_login(self.usuario('consulta_doc', ['tesoreria'], acciones=[]))
+        self.assertEqual(self.client.post(reverse('finanzas:canje_nuevo'), {}).status_code, 403)
+        self.client.force_login(self.usuario('cajero_doc', ['tesoreria'], acciones=['tesoreria.registrar']))
+        self.assertNotEqual(self.client.post(reverse('finanzas:canje_nuevo'), {}).status_code, 403)
+        self.client.force_login(self.usuario('analista_doc', ['finanzas'], acciones=['finanzas.registrar']))
+        self.assertNotEqual(self.client.post(reverse('finanzas:canje_nuevo'), {}).status_code, 403)
 
     def test_usuario_solo_de_finanzas(self):
         self.client.force_login(self.usuario('analista', ['finanzas']))

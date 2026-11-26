@@ -271,11 +271,12 @@ RUTAS = {
        for r in ('finanzas:detracciones_masivas_nuevo', 'finanzas:detraccion_masiva', 'finanzas:constancias_clientes',
                  'ventas:deposito_detraccion')},
     'finanzas:saldo_inicial': {'POST': 'tesoreria.cuentas'}, 'finanzas:saldo_inicial_sustento': 'tesoreria.cuentas',
-    # finanzas: anticipos, letras, canjes, préstamos y leasing
-    'finanzas:anticipo_aplicar': {'POST': 'finanzas.registrar'},
+    # finanzas: anticipos, letras, canjes, préstamos y leasing (v1.117.12: los documentos también con el permiso de
+    # Tesorería, porque la sección Documentos está en los dos módulos)
+    **{r: (lambda req: _una_de(req, 'finanzas.registrar', 'tesoreria.registrar') if req.method == 'POST' else None)
+       for r in ('finanzas:anticipo_aplicar', 'finanzas:canje_nuevo', 'finanzas:letra')},
     'finanzas:aplicacion_anular': lambda r: _aplicacion(r),
-    'finanzas:canje_nuevo': {'POST': 'finanzas.registrar'},
-    'finanzas:canje': {'POST': 'finanzas.anular'}, 'finanzas:letra': {'POST': 'finanzas.registrar'},
+    'finanzas:canje': lambda r: _una_de(r, 'finanzas.anular', 'tesoreria.anular') if r.method == 'POST' else None,
     'finanzas:prestamo_nuevo': {'POST': 'finanzas.cuentas'},
     'finanzas:prestamo': lambda r: (None if r.method != 'POST' else 'finanzas.anular'
                                     if r.POST.get('accion') == 'anular' else 'finanzas.cuentas'
@@ -288,7 +289,9 @@ RUTAS = {
     'finanzas:propuesta': lambda r: (None if r.method != 'POST' else 'tesoreria.aprobar_pagos'
                                      if r.POST.get('accion') in ('aprobar', 'rechazar') else 'tesoreria.registrar'),
     'finanzas:lineas_credito': {'POST': 'finanzas.financiamiento'},
-    'finanzas:depositos': {'POST': 'finanzas.financiamiento'}, 'finanzas:cesiones': {'POST': 'finanzas.financiamiento'},
+    'finanzas:depositos': {'POST': 'finanzas.financiamiento'},
+    'finanzas:cesiones': lambda r: (_una_de(r, 'finanzas.financiamiento', 'tesoreria.registrar')
+                                    if r.method == 'POST' else None),
     'finanzas:cartas_fianza': {'POST': 'finanzas.financiamiento'},
     'finanzas:arrendamientos': {'POST': 'finanzas.financiamiento'},
     'finanzas:prestamos_cierre': {'POST': 'finanzas.cuentas'}, 'finanzas:forwards': {'POST': 'finanzas.financiamiento'},
@@ -511,11 +514,12 @@ def _flota(request):
 
 
 def _aplicacion(request):
-    """Anular la aplicación de una entrega a rendir es de Tesorería; la de un anticipo o un canje, de Finanzas."""
+    """Anular la aplicación de una entrega a rendir es de Tesorería; la de un anticipo o un canje, de Finanzas o de
+    Tesorería (v1.117.12: la sección Documentos está en los dos módulos)."""
     from finanzas.models import Aplicacion
     pk = request.resolver_match.kwargs.get('pk')
     entrega = Aplicacion.objects.filter(pk=pk, entrega__isnull=False).exists()
-    return 'tesoreria.anular' if entrega else 'finanzas.anular'
+    return 'tesoreria.anular' if entrega else _una_de(request, 'finanzas.anular', 'tesoreria.anular')
 
 
 def perfil_de(user):
