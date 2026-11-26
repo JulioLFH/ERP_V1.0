@@ -218,7 +218,8 @@ def registrar(doc, cantidades, usuario, reconteo=False, motivos=None):
 
 
 def _hay_otro(usuario):
-    return get_user_model().objects.filter(is_active=True).exclude(pk=usuario.pk).exists()
+    from core.segregacion import _otro_usuario  # el administrador no tiene segregación (v1.117.11)
+    return _otro_usuario(usuario)
 
 
 def responsables(doc):

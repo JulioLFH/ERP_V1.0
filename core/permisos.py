@@ -672,6 +672,8 @@ def puede_aprobar(user, monto_pen):
     """Aprobación de órdenes de compra hasta el límite del usuario (0 = sin límite)."""
     if not puede(user, 'compras.aprobar_oc'):
         return False
+    if user.is_superuser:  # v1.117.11: el administrador no tiene límite de aprobación
+        return True
     perfil = perfil_de(user)
     limite = perfil.limite_aprobacion if perfil else Decimal('0')
     return not limite or monto_pen <= limite

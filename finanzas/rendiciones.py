@@ -235,7 +235,8 @@ def evaluar(rendicion, guardar=True):
 
 # ---------------------------------------------------------------- aprobadores
 def _otro_usuario(user):
-    return get_user_model().objects.filter(is_active=True).exclude(pk=user.pk).exists()
+    from core.segregacion import _otro_usuario as otro  # el administrador no tiene segregación (v1.117.11)
+    return otro(user)
 
 
 def calcular_niveles(rendicion):

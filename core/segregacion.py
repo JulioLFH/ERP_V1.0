@@ -31,13 +31,14 @@ REGLAS = [
 # reglas fijas del sistema (se cumplen siempre, sin importar los permisos)
 REGLAS_FIJAS = ['Nadie aprueba su propia rendición de gastos: pasa al siguiente nivel o a otro aprobador.',
                 'Nadie libera su propia solicitud de pedido: pasa al siguiente nivel o a otro liberador.',
-                'Nadie aprueba su propia propuesta de pagos ni su propio parte de lecturas (tampoco el administrador), '
-                'salvo que sea el único usuario activo.']
+                'Nadie aprueba su propia propuesta de pagos ni su propio parte de lecturas, salvo que sea el único '
+                'usuario activo.',
+                'El administrador no tiene segregación de funciones: puede registrar y aprobar sus propios documentos.']
 
 
 def propio(user, obj):
     """FIN-10: mensaje si el usuario quiere aprobar lo que él mismo registró y hay otro usuario que puede hacerlo
-    (regla fija: también para el administrador)."""
+    (regla fija, salvo para el administrador)."""
     if creador(obj) == user.pk and _otro_usuario(user):
         return (f'Segregación de funciones: usted registró {obj} y no puede aprobarlo; debe hacerlo otro usuario '
                 f'(regla fija del sistema).')
@@ -71,7 +72,16 @@ def estricta():
     return Empresa.actual().segregacion_estricta
 
 
+def exento(user):
+    """v1.117.11: el administrador (superusuario) no tiene segregación de funciones ni restricciones por usuario."""
+    return bool(getattr(user, 'is_superuser', False))
+
+
 def _otro_usuario(user):
+    """¿Aplica la regla «nadie aprueba lo suyo»? Sí si hay otro usuario activo que pueda hacerlo; nunca para el
+    administrador (v1.117.11)."""
+    if exento(user):
+        return False
     return get_user_model().objects.filter(is_active=True).exclude(pk=user.pk).exists()
 
 

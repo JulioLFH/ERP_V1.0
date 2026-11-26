@@ -273,8 +273,8 @@ def puede_aprobar(user, documento, niveles, nivel_aprobado, solicitante_id=None)
     from .permisos import puede
     if not user.is_authenticated or es_del_portal(user):
         return False
-    if solicitante_id and user.pk == solicitante_id and get_user_model().objects.filter(is_active=True).exclude(
-            pk=user.pk).exists():
+    from .segregacion import _otro_usuario  # el administrador sí aprueba lo suyo (v1.117.11)
+    if solicitante_id and user.pk == solicitante_id and _otro_usuario(user):
         return False
     n = pendiente(niveles, nivel_aprobado)
     if niveles and n is None:

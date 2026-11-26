@@ -275,7 +275,9 @@ def enviar(cambio):
     cambio.save(update_fields=['estado'])
 
 
-def _hay_otro_usuario():
+def _hay_otro_usuario(usuario=None):
+    if usuario is not None and usuario.is_superuser:  # el administrador no tiene segregación (v1.117.11)
+        return False
     return get_user_model().objects.filter(is_active=True).count() > 1
 
 
@@ -287,7 +289,7 @@ def aprobar(cambio, usuario, comentario=''):
     from core.auditoria import registrar
     if cambio.estado != 'POR_APROBAR':
         raise ErrorAvanzado('Solo se aprueban cambios enviados a aprobación.')
-    if usuario.pk == cambio.solicitado_por_id and _hay_otro_usuario():
+    if usuario.pk == cambio.solicitado_por_id and _hay_otro_usuario(usuario):
         raise ErrorAvanzado('Quien solicita el cambio no puede aprobarlo: debe aprobarlo otra persona.')
     actual, nueva, efectiva = cambio.lista_actual, cambio.lista_nueva, cambio.fecha_efectiva
     nueva.estado, nueva.vigente_desde = 'APROBADA', efectiva

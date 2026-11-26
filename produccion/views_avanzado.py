@@ -190,7 +190,7 @@ def cambio(request, pk):
     return render(request, 'produccion/cambio.html', {
         'c': c, 'filas': filas, 'base_antes': base_antes, 'base_despues': base_despues,
         'puede_aprobar': c.estado == 'POR_APROBAR' and (request.user.pk != c.solicitado_por_id
-                                                         or not avanzado._hay_otro_usuario())})
+                                                         or not avanzado._hay_otro_usuario(request.user))})
 
 
 # ---------------------------------------------------------------- costeo por actividades (ABC)

@@ -205,7 +205,7 @@ def anular(p, usuario, motivo):
 
 
 def puede_aprobar(user, p):
-    """FIN-10: quien la armó no la aprueba (tampoco el administrador), salvo que sea el único usuario activo.
+    """FIN-10: quien la armó no la aprueba, salvo el administrador o que sea el único usuario activo.
     v1.117.0: con reglas «Pagos de tesorería», aprueba el usuario del nivel pendiente (su suplente o su jefe si
     escaló); sin reglas, la gerencia con el permiso «Aprobar la propuesta de pagos»."""
     from core.permisos import puede

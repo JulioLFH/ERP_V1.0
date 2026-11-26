@@ -91,7 +91,7 @@ def aprobar(cot, user):
     from core.permisos import puede
     from core.segregacion import error_aprobacion, propio
     # VEN-01: quien registró el pedido no lo aprueba (regla fija, como la orden de compra), aunque no requiera
-    # aprobación por precio o crédito y también para el administrador, salvo que sea el único usuario
+    # aprobación por precio o crédito. No aplica al administrador ni si es el único usuario
     error = propio(user, cot) or error_aprobacion(user, cot)
     if error:
         raise ErrorAprobacionPedido(error)

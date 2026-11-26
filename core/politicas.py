@@ -310,9 +310,21 @@ def _huella(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def correo_avisos_sesion():
+    """v1.117.11: los avisos de ingreso van solo al buzón de Ceiba (el correo general del Panel del grupo, hoy
+    jflores@ceiba-tecnologic.com), no al correo de cada usuario. Sin ese correo configurado no se avisa."""
+    from .models import CorreoCeiba
+    try:
+        cfg = CorreoCeiba.objects.using('default').first()
+    except Exception:  # noqa: BLE001  (base sin la tabla todavía)
+        return ''
+    destino = ((cfg.remitente or cfg.usuario) if cfg else '').strip()
+    return destino if '@' in destino else ''
+
+
 def revisar_equipo(request, user, response):
-    """Reconoce el equipo por una cookie firmada; si es nuevo para el usuario (y ya había ingresado desde otro), le
-    avisa por correo. Devuelve True si el equipo era nuevo."""
+    """Reconoce el equipo por una cookie firmada; si es nuevo para el usuario (y ya había ingresado desde otro), avisa
+    por correo al buzón de Ceiba (v1.117.11). Devuelve True si el equipo era nuevo."""
     from .models import DispositivoConocido
     token = request.get_signed_cookie(COOKIE_EQUIPO, default='', salt='ceiba-equipo')
     if not token:
@@ -329,12 +341,14 @@ def revisar_equipo(request, user, response):
         return False
     tenia_otros = DispositivoConocido.objects.filter(usuario=user).exists()
     DispositivoConocido.objects.create(usuario=user, huella=huella, navegador=navegador, ip=_ip(request))
-    if tenia_otros and user.email and _empresa().aviso_equipo_nuevo:
+    destino = correo_avisos_sesion() if tenia_otros and _empresa().aviso_equipo_nuevo else ''
+    if destino:
         from . import correo
         try:
-            correo.enviar([user.email], 'Ingreso desde un equipo nuevo', 'registration/correo_equipo_nuevo.html',
+            correo.enviar([destino], f'Ingreso desde un equipo nuevo · {user.username}',
+                          'registration/correo_equipo_nuevo.html',
                           {'usuario': user, 'navegador': navegador, 'ip': _ip(request),
-                           'fecha': timezone.localtime()})
+                           'fecha': timezone.localtime(), 'sitio': request.get_host()})
         except correo.ErrorCorreo:
             pass
     return True

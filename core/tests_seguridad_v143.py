@@ -276,6 +276,9 @@ class IntentosBloqueoTest(Base):
 
 class EquipoNuevoTest(Base):
     def test_avisa_el_ingreso_desde_otro_equipo(self):
+        """v1.117.11: el aviso va solo al buzón de Ceiba (correo general del grupo), no al correo del usuario."""
+        from core.models import CorreoCeiba
+        CorreoCeiba.objects.create(servidor='mail.ceiba.pe', usuario='avisos@ceiba.pe', clave='x')
         u = self.usuario('equipo1')
         datos = {'username': 'equipo1', 'password': 'Clave-segura-9'}
         with patch('core.correo.enviar') as enviar:
@@ -286,8 +289,28 @@ class EquipoNuevoTest(Base):
             otro = self.client_class()
             otro.post(reverse('login'), datos)
             self.assertTrue(enviar.called)
-            self.assertEqual(enviar.call_args[0][0], ['equipo1@x.pe'])
+            self.assertEqual(enviar.call_args[0][0], ['avisos@ceiba.pe'])
+            self.assertEqual(enviar.call_args[0][1], 'Ingreso desde un equipo nuevo · equipo1')
         self.assertEqual(DispositivoConocido.objects.filter(usuario=u).count(), 2)
+
+    def test_sin_correo_de_ceiba_no_avisa_al_usuario(self):
+        self.usuario('equipo2')
+        datos = {'username': 'equipo2', 'password': 'Clave-segura-9'}
+        with patch('core.correo.enviar') as enviar:
+            self.client.post(reverse('login'), datos)
+            self.client_class().post(reverse('login'), datos)
+            self.assertFalse(enviar.called)
+
+    def test_texto_del_aviso_para_el_administrador(self):
+        from django.template.loader import render_to_string
+        from django.utils import timezone
+        u = self.usuario('equipo3')
+        html = render_to_string('registration/correo_equipo_nuevo.html', {
+            'usuario': u, 'empresa': Empresa.objects.first(), 'navegador': 'Chrome', 'ip': '190.1.2.3',
+            'fecha': timezone.localtime(), 'sitio': 'rotonda.ceiba-tecnologic.com'})
+        self.assertIn('El usuario <b>equipo3</b>', html)
+        self.assertIn('rotonda.ceiba-tecnologic.com', html)
+        self.assertIn('equipo3@x.pe', html)
 
 
 class AlertaSeguridadAdminTest(Base):

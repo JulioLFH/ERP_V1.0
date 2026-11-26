@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.11 — 26/11/2026 · El administrador no tiene segregación de funciones; avisos de ingreso al buzón de Ceiba
+- **Administrador sin segregación de funciones**: las reglas «quien registra no aprueba» y la segregación estricta ya no aplican al administrador (superusuario); siguen aplicando a los demás usuarios. El administrador puede aprobar sus propias órdenes de compra, pedidos, requerimientos (y atenderlos), propuestas de pagos, rendiciones, partes de lecturas, cambios de receta, fichas de parámetros e inventarios físicos.
+- **Sin límite de aprobación para el administrador**: el límite de monto para aprobar órdenes de compra es solo de los usuarios.
+- **Avisos de ingreso desde un equipo nuevo**: ya no van al correo personal de cada usuario sino al buzón de Ceiba (el correo general del Panel del grupo). El correo indica usuario, empresa, sistema, correo del usuario, fecha, IP y navegador. Sin ese correo configurado no se envía el aviso.
+
 ## v1.117.10 — 25/11/2026 · CRM: IA de Groq (datos de los mensajes y respuestas sugeridas); el buzón comercial se lee solo
 - **CRM › Configuración › IA del CRM (Groq)**: nuevos campos «Usar IA en el CRM», «Clave API de Groq» (se guarda cifrada y nunca se muestra) y «Modelo» (por defecto openai/gpt-oss-120b, el mismo de la plataforma de requerimientos), con el botón **«Probar la IA»**.
 - **Datos leídos con IA**: en cada correo o mensaje que entra (correo, WhatsApp, Messenger, Instagram, Telegram, chat web), la IA saca el **teléfono**, la **empresa**, el **RUC** y **qué pide** el cliente, y llena la oportunidad nueva: el nombre queda como «Consulta por correo: Empresa – cotización de…», con teléfono se agenda «Llamar hoy» y, si el RUC es de un cliente registrado, se vincula a él. Si la IA no responde, la oportunidad se crea igual, como antes.

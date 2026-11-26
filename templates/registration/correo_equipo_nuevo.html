@@ -1,11 +1,15 @@
 {% extends 'proveedores/correo_base.html' %}
+{% comment %}v1.117.11: el aviso va al buzón de Ceiba (administrador), no al usuario que ingresó.{% endcomment %}
 {% block cuerpo %}
-<p>Hola <b>{{ usuario.get_full_name|default:usuario.username }}</b>:</p>
-<p>Su usuario <b>{{ usuario.username }}</b> ingresó al sistema desde un equipo o navegador nuevo.</p>
+<p>Aviso de seguridad para el administrador:</p>
+<p>El usuario <b>{{ usuario.username }}</b>{% if usuario.get_full_name %} ({{ usuario.get_full_name }}){% endif %} ingresó al sistema desde un equipo o navegador nuevo.</p>
 <table style="font-size:13px; border-collapse:collapse;">
+  <tr><td style="padding:2px 12px 2px 0; color:#666;">Empresa</td><td>{{ empresa.razon_social }}</td></tr>
+  {% if sitio %}<tr><td style="padding:2px 12px 2px 0; color:#666;">Sistema</td><td>{{ sitio }}</td></tr>{% endif %}
+  {% if usuario.email %}<tr><td style="padding:2px 12px 2px 0; color:#666;">Correo del usuario</td><td>{{ usuario.email }}</td></tr>{% endif %}
   <tr><td style="padding:2px 12px 2px 0; color:#666;">Fecha y hora</td><td>{{ fecha|date:'d/m/Y H:i' }}</td></tr>
   <tr><td style="padding:2px 12px 2px 0; color:#666;">Dirección IP</td><td>{{ ip|default:'—' }}</td></tr>
   <tr><td style="padding:2px 12px 2px 0; color:#666;">Navegador</td><td>{{ navegador|default:'—' }}</td></tr>
 </table>
-<p style="font-size:12px; color:#666;">Si fue usted, no tiene que hacer nada. Si no reconoce este ingreso, cambie su contraseña de inmediato y avise al administrador.</p>
+<p style="font-size:12px; color:#666;">Si el ingreso es conocido, no hay que hacer nada. Si no lo reconoce, cambie la contraseña de ese usuario o desactívelo.</p>
 {% endblock %}

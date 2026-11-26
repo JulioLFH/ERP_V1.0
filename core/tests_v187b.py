@@ -155,23 +155,24 @@ class RequerimientosSegregacionTest(ConDemo):
         self.otro = User.objects.create_superuser('gerente', 'g@x.pe', 'x')
         self.almacenero = User.objects.create_user('almacenero', password='x')
         self.almacenero.groups.add(Group.objects.get_or_create(name=GRUPOS['inventario'])[0])
+        self.jefe = User.objects.create_user('jefe.mnt', password='x')  # v1.117.11: el administrador no tiene SoD
+        self.jefe.groups.add(Group.objects.get_or_create(name=GRUPOS['inventario'])[0])
         self.req = RequerimientoInterno.objects.create(
-            centro_costo=cc, almacen=self.almacen, motivo='Hornos', solicitante=self.user,
+            centro_costo=cc, almacen=self.almacen, motivo='Hornos', solicitante=self.jefe,
             cuenta_gasto=CuentaContable.objects.get(codigo='6343'))
         self.req.items.create(producto=p, cantidad=D('2'))
 
     def test_solicitante_no_aprueba_ni_atiende(self):
-        """REQ-03 y REQ-02."""
+        """REQ-03 y REQ-02 (v1.117.11: no aplican al administrador)."""
         from inventario import requerimientos as srv
-        srv.enviar(self.req, self.user)
-        with self.assertRaisesMessage(srv.ErrorRequerimiento, 'tampoco el administrador'):
-            srv.aprobar(self.req, self.user)
+        srv.enviar(self.req, self.jefe)
+        with self.assertRaisesMessage(srv.ErrorRequerimiento, 'Quien pidió el requerimiento no lo aprueba'):
+            srv.aprobar(self.req, self.jefe)
         srv.aprobar(self.req, self.otro)
         item = self.req.items.get()
         with self.assertRaisesMessage(srv.ErrorRequerimiento, 'El solicitante no puede atender'):
-            srv.atender(self.req, self.user, {item.pk: D('2')})
-        with self.assertRaisesMessage(srv.ErrorRequerimiento, 'El solicitante no puede atender'):
-            srv.atender(self.req, self.otro, {item.pk: D('2')})  # quien aprobó tampoco
+            srv.atender(self.req, self.jefe, {item.pk: D('2')})
+        self.assertTrue(srv.puede_atender(self.otro, self.req))  # el administrador que aprobó sí puede
         op = srv.atender(self.req, self.almacenero, {item.pk: D('2')}, recibe='Luis Ramos')
         self.assertIn('Recibió: Luis Ramos', op.glosa)
 

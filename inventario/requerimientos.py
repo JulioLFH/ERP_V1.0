@@ -59,7 +59,7 @@ def historial(req):
 
 
 def _propio(user, req):
-    """REQ-03: quien pidió el requerimiento no lo aprueba, rechaza ni atiende (tampoco el administrador), salvo que
+    """REQ-03: quien pidió el requerimiento no lo aprueba, rechaza ni atiende (salvo el administrador o que
     sea el único usuario activo."""
     from core.segregacion import _otro_usuario
     return req.solicitante_id == user.pk and _otro_usuario(user)
@@ -113,10 +113,10 @@ def aprobar(req, usuario, motivo=''):
     if req.estado != 'ENVIADO':
         raise ErrorRequerimiento('Solo se aprueban requerimientos por aprobar.')
     if _propio(usuario, req):
-        raise ErrorRequerimiento('Quien pidió el requerimiento no lo aprueba (tampoco el administrador): lo aprueba '
+        raise ErrorRequerimiento('Quien pidió el requerimiento no lo aprueba (salvo el administrador): lo aprueba '
                                  'otro usuario.')
     from core.segregacion import error_aprobacion
-    if error_aprobacion(usuario, req):  # estricta: tampoco el administrador aprueba lo suyo
+    if error_aprobacion(usuario, req):  # estricta: nadie aprueba lo suyo (salvo el administrador)
         raise ErrorRequerimiento(error_aprobacion(usuario, req))
     if req.niveles:
         if not puede_aprobar(usuario, req):

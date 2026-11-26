@@ -2,7 +2,6 @@
 planta enganchados a la orden (merma, parada, no conformidad y aviso de mantenimiento) e importación de fichas."""
 from decimal import Decimal, InvalidOperation
 
-from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Max
 from django.utils import timezone
@@ -139,7 +138,8 @@ def aprobar(ficha, usuario):
     """Publica el estándar: otra persona que quien lo propuso (segregación); la vigente anterior queda retirada."""
     if ficha.estado != 'POR_APROBAR':
         raise ErrorAsistente('Solo se aprueba una ficha por aprobar.')
-    otros = get_user_model().objects.filter(is_active=True).exclude(pk=usuario.pk).exists()
+    from core.segregacion import _otro_usuario  # el administrador sí aprueba lo suyo (v1.117.11)
+    otros = _otro_usuario(usuario)
     if ficha.propuesta_por_id == usuario.pk and otros:
         raise ErrorAsistente('Quien propone la ficha no aprueba su propio estándar: la aprueba otra persona de '
                              'ingeniería o calidad.')

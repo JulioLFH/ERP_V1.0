@@ -66,13 +66,14 @@ class CorreccionesTest(Base):
         self.assertEqual(Accion.objects.get().responsable, self.user)
 
     def test_quien_arma_la_propuesta_no_la_aprueba(self):
-        """FIN-10: tampoco el administrador, si hay otro usuario."""
+        """FIN-10: quien la arma no la aprueba si hay otro usuario; v1.117.11: salvo el administrador."""
         from finanzas import propuesta_pagos as pp
         from finanzas.models import Cuenta
-        usuario('gerente_fin', ['tesoreria'], ['tesoreria.aprobar_pagos'])
+        gerente = usuario('gerente_fin', ['tesoreria'], ['tesoreria.aprobar_pagos'])
         banco = Cuenta.objects.create(nombre='BCP', banco='BCP', tipo='BANCO', saldo_inicial=D('1000'))
-        p = pp.armar(banco, HOY, HOY, D('0'), self.user)
-        self.assertFalse(pp.puede_aprobar(self.user, p))
+        p = pp.armar(banco, HOY, HOY, D('0'), gerente)
+        self.assertFalse(pp.puede_aprobar(gerente, p))
+        self.assertTrue(pp.puede_aprobar(self.user, pp.armar(banco, HOY, HOY, D('0'), self.user)))
         from core.segregacion import REGLAS_FIJAS
         self.assertTrue(any('propuesta de pagos' in r for r in REGLAS_FIJAS))
 
