@@ -310,6 +310,10 @@ class LineaGasto(models.Model):
                                      verbose_name='Centro de costo')
     proyecto = models.ForeignKey(Proyecto, on_delete=models.PROTECT, null=True, blank=True)
     sitio = models.ForeignKey(Sitio, on_delete=models.PROTECT, null=True, blank=True)
+    # operador logístico: el pago al transportista se carga a su guía consolidada (costo y margen por guía)
+    guia_consolidada = models.ForeignKey('logistica.GuiaRemision', on_delete=models.SET_NULL, null=True, blank=True,
+                                         related_name='gastos_rendicion', verbose_name='Guía consolidada',
+                                         limit_choices_to={'consolidado__isnull': False})
     kilometros = models.DecimalField('Kilómetros', max_digits=10, decimal_places=2, default=D0)
     destino = models.CharField('Destino (movilidad)', max_length=150, blank=True)
     glosa = models.CharField(max_length=200)

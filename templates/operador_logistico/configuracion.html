@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Configuración del operador logístico{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2">Configuración del operador logístico</h1>
+<p class="small text-muted">Series y motivo de las guías que emite el módulo. El motivo de la guía consolidada está por validar con el contador; por defecto, 13 «Otros» con la descripción «Traslado de mercadería de terceros».</p>
+<form method="post" class="card"><div class="card-body row g-3">{% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1">{{ e }}</div>{% endfor %}
+  {% for field in form %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}
+  {% if configurar %}<div class="col-12"><button class="btn btn-primary btn-sm">Guardar</button></div>{% endif %}
+</div></form>
+<div class="card mt-3"><div class="card-body small">
+  <b>App del operador:</b> los operadores abren <a href="{% url 'operador_logistico:movil' %}">{{ request.scheme }}://{{ request.get_host }}{% url 'operador_logistico:movil' %}</a> en el celular (pueden agregarla a la pantalla de inicio). Necesitan el permiso «Operador logístico · operar».
+</div></div>
+{% endblock %}

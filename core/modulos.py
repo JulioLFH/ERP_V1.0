@@ -497,6 +497,28 @@ MODULOS = [
             ('Reportes', [('Efectividad de entregas', 'distribucion:reporte', 'bi-bar-chart')]),
         ],
     },
+    # Go Just In Time: recojo con QR, consolidación por destino, transporte tercero y entrega (solo con el giro
+    # «Operador logístico»: SOLO_CON_GIRO)
+    {
+        'clave': 'operador_logistico', 'nombre': 'Operador logístico', 'icono': 'bi-box-seam', 'color': '#101d7e',
+        'inicio': 'operador_logistico:tablero',
+        'descripcion': 'Solicitudes de recojo, guías de los clientes por QR, consolidación por destino y entrega',
+        'menu': [
+            ('Tablero', 'operador_logistico:tablero'),
+            ('Recojo', [('Solicitudes de recojo', 'operador_logistico:solicitudes', 'bi-inbox'),
+                        ('Nueva solicitud', 'operador_logistico:solicitud_nueva', 'bi-plus-circle'),
+                        ('Guías de los clientes', 'operador_logistico:guias', 'bi-qr-code')]),
+            ('Planificación', [('Tablero por destino', 'operador_logistico:planificacion', 'bi-signpost-split'),
+                               ('Consolidados', 'operador_logistico:consolidados', 'bi-truck')]),
+            ('App del operador (celular)', 'operador_logistico:movil'),
+            ('Reportes', [('Bitácora de estados', 'operador_logistico:bitacora', 'bi-clock-history'),
+                          ('Costo por guía', 'operador_logistico:costos', 'bi-cash-coin'),
+                          ('Recibido de Ceiba GO', 'operador_logistico:recibido_ceibago', 'bi-cloud-arrow-down')]),
+            ('Configuración', [('Clientes del servicio logístico', 'operador_logistico:clientes', 'bi-person-vcard'),
+                               ('Maestro de estados', 'operador_logistico:estados', 'bi-palette'),
+                               ('Configuración', 'operador_logistico:configuracion', 'bi-gear')]),
+        ],
+    },
     # v1.83: la flota sale de Logística (las URL siguen en /flota/…; Mantenimiento también la usa)
     {
         'clave': 'flota', 'nombre': 'Flota', 'icono': 'bi-car-front-fill', 'color': '#5f3dc4',
@@ -859,10 +881,23 @@ def puede_ver_costos(user):
     return cache
 
 
+# Módulos que solo existen para un giro: se activan por empresa al marcar ese giro en Ajustes › Giro y régimen; las
+# demás empresas no los ven (aunque su plan incluya todos los módulos)
+SOLO_CON_GIRO = {'operador_logistico': 'OPERADOR_LOGISTICO'}
+
+
 def _ocultos_empresa():
     """Módulos que la empresa no usa (Ajustes › Giro y régimen): no se muestran ni se abren. Ajustes nunca."""
     from .models import Empresa
-    return set(Empresa.objects.values_list('modulos_ocultos', flat=True).first() or []) - {'ajustes', 'tablero'}
+    ocultos, giros = Empresa.objects.values_list('modulos_ocultos', 'giros').first() or ([], [])
+    ocultos = set(ocultos or []) | {m for m, g in SOLO_CON_GIRO.items() if g not in (giros or [])}
+    return ocultos - {'ajustes', 'tablero'}
+
+
+def modulo_activo(clave):
+    """¿La empresa activa usa el módulo? (sin mirar al usuario: canales, procesos automáticos)"""
+    from .plataforma import modulos_permitidos
+    return clave in POR_CLAVE and clave not in _ocultos_empresa() and clave in modulos_permitidos()
 
 
 def modulos_del_usuario(user):

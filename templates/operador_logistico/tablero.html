@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Tablero{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Operador logístico</h1>
+  <div class="d-flex gap-2"><a href="{% url 'operador_logistico:movil' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-phone"></i> App del operador</a><a href="{% url 'operador_logistico:planificacion' %}" class="btn btn-sm btn-primary"><i class="bi bi-signpost-split"></i> Tablero por destino</a></div>
+</div>
+<div class="d-flex flex-wrap gap-2 mb-3">{% for e, n in estados %}
+  <a href="{% url 'operador_logistico:guias' %}?estado={{ e.codigo }}" class="card text-decoration-none" style="min-width:9rem;border-left:6px solid {{ e.color }}"><div class="card-body py-2"><div class="small text-muted">{% if e.icono %}<i class="bi {{ e.icono }}"></i> {% endif %}{{ e.nombre }}</div><div class="fs-4 fw-semibold text-body">{{ n }}</div></div></a>
+{% endfor %}</div>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-inbox"></i> Solicitudes por atender</span><a href="{% url 'operador_logistico:solicitudes' %}" class="small">Ver todas</a></div>
+    <div class="table-responsive"><table class="table table-sm mb-0 small"><tbody>{% for s in solicitudes %}<tr><td><a href="{% url 'operador_logistico:solicitud' s.pk %}">{{ s.numero }}</a></td><td>{{ s.cliente.nombre }}</td><td>{{ s.get_canal_display }}</td><td>{% if s.operador %}{{ s.operador.get_full_name|default:s.operador.username }}{% else %}—{% endif %}</td><td class="text-muted">{{ s.creado|date:'d/m H:i' }}</td></tr>{% empty %}<tr><td class="text-muted">No hay solicitudes pendientes.</td></tr>{% endfor %}</tbody></table></div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-signpost-split"></i> Grupos por destino</span><a href="{% url 'operador_logistico:planificacion' %}" class="small">Planificar</a></div>
+    <div class="table-responsive"><table class="table table-sm mb-0 small"><tbody>{% for g in grupos %}<tr><td><a href="{% url 'operador_logistico:consolidado' g.pk %}">{{ g.numero }}</a></td><td>{{ g.destino }}</td><td>{{ g.get_estado_display }}</td><td class="num">{{ g.n }} guía(s)</td></tr>{% empty %}<tr><td class="text-muted">No hay guías recogidas por despachar.</td></tr>{% endfor %}</tbody></table></div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header"><i class="bi bi-truck"></i> En trayecto</div>
+    <div class="table-responsive"><table class="table table-sm mb-0 small"><tbody>{% for g in en_trayecto %}<tr><td><a href="{% url 'operador_logistico:consolidado' g.pk %}">{{ g.numero }}</a></td><td>{{ g.destino }}</td><td>{{ g.guia.numero_completo }}</td><td>{{ g.transportista.nombre|default:'—' }}</td></tr>{% empty %}<tr><td class="text-muted">Nada en trayecto.</td></tr>{% endfor %}</tbody></table></div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-body small">
+    <div class="mb-2"><b>{{ entregadas_hoy }}</b> guía(s) entregadas hoy.</div>
+    {% if pendientes_datos %}<div class="alert alert-warning py-2 mb-0"><b>{{ pendientes_datos }}</b> guía(s) escaneadas esperan sus datos (su XML o la lectura del QR de SUNAT). <a href="{% url 'operador_logistico:guias' %}?pendientes=1">Ver</a></div>{% endif %}
+  </div></div></div>
+</div>
+{% endblock %}

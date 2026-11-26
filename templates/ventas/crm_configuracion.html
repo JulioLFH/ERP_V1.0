@@ -28,7 +28,7 @@
     <form method="post" data-confirm="Las páginas con el enlace anterior dejarán de enviar consultas. ¿Continuar?">{% csrf_token %}<input type="hidden" name="accion" value="nueva_clave"><button class="btn btn-sm btn-outline-danger">Cambiar la clave del enlace</button></form>
     <hr><p class="mb-1"><b>Otras tareas:</b></p>
     <ul class="mb-0"><li>Recordatorios por correo: configure el correo saliente (Ajustes › Correo saliente) y programe la tarea diaria <code>python manage.py recordatorios_crm</code>.</li>
-      <li>Correo a oportunidad: complete el buzón comercial (IMAP) en esta pantalla y programe cada pocos minutos <code>python manage.py leer_correo_crm</code>: cada correo nuevo crea su oportunidad con origen «Correo».</li></ul>
+      <li>Correo a oportunidad: complete el buzón comercial (IMAP) en esta pantalla y el servidor lo lee solo cada 5 minutos: cada correo <b>sin leer</b> crea su oportunidad con origen «Correo» y se mueve a la <b>carpeta del CRM</b> del buzón (por defecto «CRM»; se crea sola). Un correo que alguien abrió antes en su programa de correo ya no se toma: lo mejor es un buzón solo para el CRM (ventas@…).</li></ul>
   </div></div>
 
   <div class="card mt-3"><div class="card-header fw-semibold"><i class="bi bi-broadcast"></i> Canales de entrada</div>

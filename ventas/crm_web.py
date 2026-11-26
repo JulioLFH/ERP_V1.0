@@ -72,12 +72,18 @@ def registrar(datos, ip='', origen='WEB'):
 
 
 def procesar_correo(mensaje):
-    """Un correo del buzón comercial -> oportunidad (origen «Correo»). Devuelve la oportunidad o None."""
+    """Un correo del buzón comercial -> oportunidad (origen «Correo»). Devuelve la oportunidad o None.
+    Operador logístico: si lo envía un correo autorizado de un cliente con crédito o de servicio logístico, crea una
+    solicitud de recojo en vez de la oportunidad (operador_logistico.canales) y la devuelve."""
     from email.header import decode_header, make_header
     from email.utils import parseaddr
     nombre, direccion = parseaddr(mensaje.get('From', ''))
     if not direccion:
         return None
+    from operador_logistico.canales import correo_a_solicitud
+    solicitud = correo_a_solicitud(mensaje)
+    if solicitud is not None:
+        return solicitud
     try:
         nombre = str(make_header(decode_header(nombre))) if nombre else ''
         asunto = str(make_header(decode_header(mensaje.get('Subject', '') or '')))

@@ -23,12 +23,14 @@ urlpatterns += [
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('cambiar-empresa/', cambiar_empresa, name='cambiar_empresa'),
     path('api/v1/', include('core.urls_api')),
+    path('api/ceibago/', include('operador_logistico.urls_ceibago')),  # puente con Ceiba GO (portal del cliente)
     path('compras/', include('compras.urls')),
     path('ventas/', include('ventas.urls')),
     path('crm/', include('ventas.urls_crm')),
     path('toma-pedido/', include('ventas.urls_toma_pedido')),
     path('codigo-barras/', include('inventario.urls_barras')),
     path('distribucion/', include('distribucion.urls')),
+    path('operador/', include('operador_logistico.urls')),
     path('asistente/', include('asistente.urls')),
     path('soporte/', include('soporte.urls')),  # tickets de soporte (base central de todas las instalaciones)
     path('agentes/', include('agentes.urls')),

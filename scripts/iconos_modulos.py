@@ -392,6 +392,14 @@ def i_distribucion(i):  # marcador de ubicación
     i.circulo(50, 38, 12, BLANCO)
 
 
+def i_operador_logistico(i):  # caja con su marcador de destino
+    i.solido(rect(10, 40, 56, 46), i.a, .85)
+    i.plano(rect(33, 40, 10, 46), BLANCO, ' fill-opacity=".75"')
+    i.plano(rect(15, 74, 12, 6), BLANCO, ' fill-opacity=".9"')
+    i.solido(circ(72, 30, 18, 145, 395, 32) + [(72, 64)], tono(i.a, -.2))
+    i.circulo(72, 30, 7, BLANCO)
+
+
 def i_flota(i):  # auto de frente
     for x in (16, 70):
         i.solido(rrect(x, 70, 14, 16, 3), OSCURO, .5)

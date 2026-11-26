@@ -28,6 +28,9 @@ MODULO_DE = {'contabilidad.asiento': 'contabilidad', 'finanzas.movimiento': 'tes
              'obras.ventainmueble': 'obras',
              # v1.84: fotos de la orden y del aviso de mantenimiento (MNT-03, MNT-07)
              'produccion.ordenmantenimiento': 'mantenimiento', 'produccion.avisomantenimiento': 'mantenimiento',
+             # operador logístico: adjuntos del correo, foto del recibo y foto de la entrega
+             **{f'operador_logistico.{m}': 'operador_logistico' for m in ('solicitudrecojo', 'consolidado',
+                                                                          'guiacliente')},
              **{f'sst.{m}': 'sst' for m in ('examenmedico', 'monitoreo', 'inspeccion', 'capacitacion',
                                            'equipoemergencia', 'iperc', 'entregaepp', 'sctr', 'permisotrabajo',
                                            'evento')},

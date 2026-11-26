@@ -36,22 +36,24 @@ def manuales(request):
 
 def versiones(desde='1.0'):
     """[{version, fecha, titulo, items}] del CHANGELOG.md (lo más reciente primero), con los textos en HTML seguro
-    (solo **negritas**). desde: versión mínima incluida."""
+    (solo **negritas**). desde: versión mínima incluida. Una línea propia (CHANGELOG_ARCHIVO, versiones X.Y.Z-sufijo,
+    p. ej. el ERP de Go Just In Time) se muestra completa: «desde» recorta solo la numeración de Ceiba."""
     import re
 
     from django.utils.html import escape
-    ruta = settings.BASE_DIR / 'CHANGELOG.md'
+    ruta = settings.BASE_DIR / getattr(settings, 'CHANGELOG_ARCHIVO', 'CHANGELOG.md')
     if not ruta.exists():
         return []
     minimo = tuple(int(x) for x in desde.split('.'))
     salida, actual = [], None
     for linea in ruta.read_text(encoding='utf-8').splitlines():
-        m = re.match(r'^## v(\d+)\.(\d+)\.(\d+) — ([\d/]+) · (.+)$', linea.strip())
+        m = re.match(r'^## v(\d+)\.(\d+)\.(\d+)(-[a-z]+)? — ([\d/]+) · (.+)$', linea.strip())
         if m:
             numero = tuple(int(x) for x in m.groups()[:3])
             actual = None
-            if numero[:len(minimo)] >= minimo:
-                actual = {'version': '.'.join(m.groups()[:3]), 'fecha': m.group(4), 'titulo': m.group(5), 'items': []}
+            if m.group(4) or numero[:len(minimo)] >= minimo:
+                actual = {'version': '.'.join(m.groups()[:3]) + (m.group(4) or ''), 'fecha': m.group(5),
+                          'titulo': m.group(6), 'items': []}
                 salida.append(actual)
         elif actual is not None and linea.startswith('- '):
             texto = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', escape(linea[2:].strip()))

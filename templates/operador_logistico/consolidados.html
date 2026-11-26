@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Consolidados{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Consolidados</h1>
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3 small">
+  <div><label class="form-label mb-0" for="f-estado">Estado</label><select name="estado" id="f-estado" class="form-select form-select-sm"><option value="">Todos (menos anulados)</option>{% for v, n in estados %}<option value="{{ v }}"{% if v == estado %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <button class="btn btn-sm btn-outline-primary">Filtrar</button>
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+  <thead><tr><th>N°</th><th>Destino</th><th class="num">Guías</th><th>Guía consolidada</th><th>Transportista</th><th>Doc. del transportista</th><th>Estado</th><th>Creado</th></tr></thead>
+  <tbody>{% for c in page_obj %}<tr>
+    <td><a href="{% url 'operador_logistico:consolidado' c.pk %}">{{ c.numero }}</a></td><td>{{ c.destino }}</td><td class="num">{{ c.n }}</td>
+    <td>{% if c.guia %}<a href="{% url 'logistica:detalle' c.guia.pk %}">{{ c.guia.numero_completo }}</a>{% endif %}</td>
+    <td>{{ c.transportista.nombre|default:'' }}</td><td>{{ c.doc_transportista_numero }}</td>
+    <td>{{ c.get_estado_display }}</td><td>{{ c.creado|date:'d/m/Y' }}</td>
+  </tr>{% empty %}<tr><td colspan="8" class="text-muted">No hay consolidados.</td></tr>{% endfor %}</tbody>
+</table></div>{% include 'core/_paginacion.html' %}</div>
+{% endblock %}

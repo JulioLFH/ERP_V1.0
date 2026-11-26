@@ -202,6 +202,25 @@ class GuiaItem(models.Model):
     class Meta:
         ordering = ['id']  # en el orden en que se registraron (PostgreSQL no lo garantiza sin esto)
 
+
+class DocumentoRelacionado(models.Model):
+    """Documentos relacionados adicionales de la guía (catálogo 61), además de su comprobante o su doc_relacionado:
+    la guía consolidada del operador logístico lleva todas las guías de sus clientes, y la del último tramo la del
+    cliente, la consolidada y la del transportista."""
+    guia = models.ForeignKey(GuiaRemision, on_delete=models.CASCADE, related_name='relacionados')
+    tipo = models.CharField('Tipo (catálogo 61)', max_length=2, default='09')
+    numero = models.CharField('Serie-número', max_length=30)
+    emisor_ruc = models.CharField('RUC del emisor', max_length=11, blank=True)
+
+    class Meta:
+        ordering = ['id']
+        verbose_name = 'documento relacionado'
+        verbose_name_plural = 'documentos relacionados'
+
+    def __str__(self):
+        return f'{self.tipo} {self.numero}'
+
+
 class RegistroGarita(models.Model):
     """Control de garita: ingreso y salida de vehículos con mercadería, contra la orden de compra (recepción) o la
     guía (despacho), enlazado a la operación de almacén. Los montos solo los ve quien tiene «Ver montos en garita»."""

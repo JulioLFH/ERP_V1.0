@@ -220,10 +220,15 @@ def enviar(conv, texto, usuario=None):
 
 # ---------------------------------------------------------------- WhatsApp (lo llama el webhook de Rendiciones)
 def whatsapp_entrante(mensaje, contactos=()):
-    """Mensaje de WhatsApp de un número que no es de un usuario del sistema -> bandeja del CRM."""
+    """Mensaje de WhatsApp de un número que no es de un usuario del sistema -> bandeja del CRM. Operador logístico:
+    el celular autorizado de un cliente con crédito o de servicio logístico crea una solicitud de recojo."""
     telefono = mensaje.get('from', '')
     if not telefono:
         return None
+    from operador_logistico.canales import whatsapp_a_solicitud
+    solicitud = whatsapp_a_solicitud(mensaje)
+    if solicitud is not None:
+        return solicitud
     tipo = mensaje.get('type')
     if tipo == 'text':
         texto = mensaje.get('text', {}).get('body', '')

@@ -4,6 +4,7 @@ import secrets
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 
@@ -45,6 +46,12 @@ class ConfigCRM(models.Model):
     correo_puerto = models.PositiveIntegerField('Puerto IMAP', default=993)
     correo_usuario = models.CharField('Usuario IMAP (ventas@…)', max_length=120, blank=True)
     correo_clave = CampoCifrado('Contraseña IMAP', max_length=200, blank=True)  # SEG-04: cifrada en la base
+    # v1.117.13: los correos que se vuelven oportunidad salen de la bandeja de entrada a esta carpeta del buzón
+    correo_carpeta = models.CharField(
+        'Carpeta del buzón para los correos del CRM', max_length=60, blank=True, default='CRM',
+        validators=[RegexValidator(r'^[\w ()-]+$', 'Use letras, números, espacios, guiones o paréntesis.')],
+        help_text='Cada correo que se vuelve oportunidad se mueve a esta carpeta (se crea sola si no existe). '
+                  'Vacío = se queda en la bandeja de entrada, marcado como leído.')
     # v1.107: canales de mensajería. Cada mensaje entra a la bandeja del CRM; el primero de cada persona crea la
     # oportunidad. WhatsApp usa la conexión oficial de Rendiciones (mismo número y mismo webhook).
     whatsapp_activo = models.BooleanField(

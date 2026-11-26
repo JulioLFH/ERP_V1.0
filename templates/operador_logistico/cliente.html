@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Servicio logístico · {{ t.nombre }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Servicio logístico · {{ t.nombre }}</h1>
+  <div class="d-flex gap-2"><a href="{% url 'tercero_editar' t.pk %}" class="btn btn-sm btn-outline-secondary">Ficha del cliente</a><a href="{% url 'operador_logistico:clientes' %}" class="btn btn-sm btn-outline-secondary">‹ Clientes</a></div>
+</div>
+{% if not perfil.habilitado %}<div class="alert alert-warning small">Este cliente aún no puede pedir recojos por correo o WhatsApp: necesita crédito (días o límite) en su ficha o marcar «Cliente de servicio logístico».</div>{% endif %}
+<form method="post" class="card"><div class="card-body row g-3">{% csrf_token %}
+  {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1">{{ e }}</div>{% endfor %}
+  <div class="col-12">{% include 'core/_campo.html' with field=form.servicio_logistico %}</div>
+  <div class="col-md-6">{% include 'core/_campo.html' with field=form.correos %}</div>
+  <div class="col-md-6">{% include 'core/_campo.html' with field=form.celulares %}</div>
+  <div class="col-12"><h6 class="mb-0">Almacén de origen (de donde se recoge)</h6></div>
+  <div class="col-md-8">{% include 'core/_campo.html' with field=form.almacen_direccion %}</div>
+  <div class="col-md-4">{% include 'core/_campo.html' with field=form.almacen_ubigeo %}</div>
+  <div class="col-md-8">{% include 'core/_campo.html' with field=form.almacen_referencia %}</div>
+  <div class="col-md-4">{% include 'core/_campo.html' with field=form.contacto %}</div>
+  {% if configurar %}<div class="col-12"><button class="btn btn-primary btn-sm">Guardar</button></div>{% endif %}
+</div></form>
+{% endblock %}

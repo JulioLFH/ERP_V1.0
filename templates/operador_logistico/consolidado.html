@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}Consolidado {{ c.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Consolidado {{ c.numero }} · {{ c.destino }} <span class="badge fs-6 text-bg-secondary">{{ c.get_estado_display }}</span></h1>
+  <div class="d-flex gap-2">{% if c.guia %}<a href="{% url 'operador_logistico:hoja_despacho' c.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Hoja de despacho (QR)</a>{% endif %}<a href="{% url 'operador_logistico:planificacion' %}" class="btn btn-sm btn-outline-secondary">‹ Tablero</a></div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header"><i class="bi bi-file-earmark-text"></i> Guía remitente consolidada</div><div class="card-body small">
+    {% if c.guia %}
+      <p class="mb-1">Guía <a href="{% url 'logistica:detalle' c.guia.pk %}"><b>{{ c.guia.numero_completo }}</b></a> · {{ c.guia.fecha_traslado|date:'d/m/Y' }} · SUNAT: {{ c.guia.get_estado_sunat_display }}</p>
+      <p class="mb-1">Llegada: {{ c.llegada_direccion }} [{{ c.llegada_ubigeo }}]{% if c.agencia_destino %} · {{ c.agencia_destino.nombre }}{% endif %}</p>
+      <p class="mb-0 text-muted">Lleva {{ c.guia.relacionados.count }} guía(s) de clientes como documentos relacionados.</p>
+    {% elif c.estado == 'ARMANDO' %}
+      <p class="text-muted">Confirme el grupo para emitir su guía consolidada.</p>
+      {% if planificar %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="confirmar"><button class="btn btn-sm btn-success"><i class="bi bi-check2"></i> Confirmar grupo</button></form>{% endif %}
+    {% elif planificar %}
+      <form method="post" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="emitir">
+        {% for e in emitir.non_field_errors %}<div class="col-12 alert alert-danger py-1">{{ e }}</div>{% endfor %}
+        {% for field in emitir %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}
+        <div class="col-12"><button class="btn btn-sm btn-primary"><i class="bi bi-send"></i> Emitir guía consolidada</button>
+        <div class="form-text">Una guía remitente de la empresa con las {{ guias|length }} guía(s) del grupo como relacionadas. Las guías pasan a En trayecto. Se envía a SUNAT si la empresa tiene el envío automático.</div></div>
+      </form>
+    {% endif %}
+  </div></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header"><i class="bi bi-truck"></i> Transporte tercero</div><div class="card-body small">
+    {% if c.doc_transportista_numero or c.transportista %}
+      <p class="mb-1">{{ c.transportista.nombre|default:'—' }} · {{ c.get_doc_transportista_tipo_display }} {{ c.doc_transportista_numero }} · {{ c.doc_transportista_fecha|date:'d/m/Y' }}</p>
+      <p class="mb-2">{% if c.doc_transportista_peso %}{{ c.doc_transportista_peso|floatformat:2 }} kg · {% endif %}{% if c.doc_transportista_bultos %}{{ c.doc_transportista_bultos }} bulto(s){% endif %}</p>
+    {% endif %}
+    {% if planificar and c.estado != 'ARMANDO' and c.estado != 'CERRADO' %}
+    <form method="post" enctype="multipart/form-data" class="row g-2">{% csrf_token %}<input type="hidden" name="accion" value="transportista">
+      {% for field in transporte %}{% if field.is_hidden %}{{ field }}{% else %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endif %}{% endfor %}
+      <div class="col-12"><button class="btn btn-sm btn-outline-primary">Guardar documento del transportista</button></div>
+    </form>{% endif %}
+    {% if c.recibido_en %}<div class="alert alert-success py-2 mt-2 mb-0">Recibido en destino el {{ c.recibido_en|date:'d/m/Y H:i' }}{% if c.recibido_por %} por {{ c.recibido_por.get_full_name|default:c.recibido_por.username }}{% endif %}.</div>{% endif %}
+  </div></div></div>
+</div>
+<div class="card mt-3"><div class="card-header d-flex justify-content-between"><span><i class="bi bi-qr-code"></i> Guías del grupo ({{ guias|length }})</span><span class="small">Costo del transporte: S/ {{ total_costo|floatformat:2 }}</span></div>
+<div class="table-responsive"><table class="table table-sm mb-0 small">
+  <thead><tr><th>Guía</th><th>Remitente</th><th>Destinatario</th><th>Llegada</th><th class="num">Bultos</th><th class="num">Peso</th><th class="num">Costo S/</th><th>Último tramo</th><th>Estado</th></tr></thead>
+  <tbody>{% for g in guias %}<tr><td><a href="{% url 'operador_logistico:guia' g.pk %}">{{ g.numero_completo }}</a></td><td>{{ g.emisor_nombre|default:g.cliente.nombre }}</td><td>{{ g.destinatario_nombre }}</td><td>{{ g.llegada_direccion|truncatechars:40 }}</td><td class="num">{{ g.bultos }}</td><td class="num">{{ g.peso|floatformat:2 }}</td><td class="num">{% for k, v in costos.items %}{% if k == g.pk %}{{ v|floatformat:2 }}{% endif %}{% endfor %}</td><td>{% if g.ultimo_tramo %}<a href="{% url 'logistica:detalle' g.ultimo_tramo.pk %}">{{ g.ultimo_tramo.numero_completo }}</a>{% endif %}</td><td>{% include 'operador_logistico/_estado.html' with e=g.estado %}</td></tr>{% empty %}<tr><td colspan="9" class="text-muted">Sin guías.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% if ultimos %}<div class="card mt-3"><div class="card-header d-flex justify-content-between align-items-center"><span><i class="bi bi-signpost-split"></i> Guías del último tramo</span>{% if planificar and not c.hoja_reparto %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="hoja"><button class="btn btn-sm btn-outline-primary">Crear hoja de reparto</button></form>{% elif c.hoja_reparto %}<a href="{% url 'distribucion:hoja' c.hoja_reparto.pk %}" class="small">Hoja {{ c.hoja_reparto.numero }}</a>{% endif %}</div>
+<ul class="list-group list-group-flush small">{% for gr in ultimos %}<li class="list-group-item"><a href="{% url 'logistica:detalle' gr.pk %}">{{ gr.numero_completo }}</a> → {{ gr.llegada_direccion }} · relacionadas: {% for r in gr.relacionados.all %}<span class="badge text-bg-light border">{{ r.tipo }} {{ r.numero }}</span> {% endfor %}</li>{% endfor %}</ul></div>{% endif %}
+{% include 'core/_sustentos.html' with objeto=c solo_lectura=True %}
+{% endblock %}

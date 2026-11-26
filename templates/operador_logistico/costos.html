@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Costo por guía{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2">Costo del transporte por guía</h1>
+<p class="small text-muted">Lo que costó cada consolidado (gastos de rendición ligados a su guía consolidada) repartido entre sus guías según el peso; si no hay pesos, según los bultos. El margen queda pendiente: el sistema todavía no tiene la tarifa cobrada por guía.</p>
+{% for c, total, por_guia in filas %}
+<div class="card mb-3"><div class="card-header d-flex justify-content-between"><span><a href="{% url 'operador_logistico:consolidado' c.pk %}">{{ c.numero }}</a> · {{ c.destino }} · guía {{ c.guia.numero_completo }}</span><b>S/ {{ total|floatformat:2 }}</b></div>
+<div class="table-responsive"><table class="table table-sm mb-0 small">
+  <thead><tr><th>Guía del cliente</th><th>Cliente</th><th class="num">Peso</th><th class="num">Bultos</th><th class="num">Costo S/</th></tr></thead>
+  <tbody>{% for g, costo in por_guia %}<tr><td><a href="{% url 'operador_logistico:guia' g.pk %}">{{ g.numero_completo }}</a></td><td>{{ g.cliente.nombre }}</td><td class="num">{{ g.peso|floatformat:2 }}</td><td class="num">{{ g.bultos }}</td><td class="num">{{ costo|floatformat:2 }}</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% empty %}<div class="alert alert-info">Aún no hay guías consolidadas emitidas.</div>{% endfor %}
+{% endblock %}

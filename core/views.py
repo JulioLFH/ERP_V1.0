@@ -671,6 +671,12 @@ class TerceroEditar(FormGenerico, UpdateView):
         t = self.object
         nombres = {c: str(Tercero._meta.get_field(c).verbose_name) for c in t.cambio_bancario}
         ctx['cambio_bancario_filas'] = [(nombres[c].capitalize(), getattr(t, c), v) for c, v in t.cambio_bancario.items()]
+        from .modulos import modulo_activo
+        if modulo_activo('operador_logistico') and t.tipo in ('CLIENTE', 'AMBOS'):
+            from operador_logistico.models import ClienteLogistico
+            perfil = ClienteLogistico.objects.filter(tercero=t).first() or ClienteLogistico(tercero=t)
+            ctx['servicio_logistico'] = {'habilitado': perfil.habilitado,
+                                         'autorizados': perfil.autorizados.count() if perfil.pk else 0}
         return ctx
 
     def form_valid(self, form):

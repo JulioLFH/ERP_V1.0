@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Nueva solicitud de recojo{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Nueva solicitud de recojo</h1>
+<p class="small text-muted">Lo normal es que lleguen solas por correo o WhatsApp. Aquí se registra una que llegó por otro medio (teléfono, en persona).</p>
+<form method="post">{% csrf_token %}
+  <div class="card mb-3"><div class="card-body row g-3">
+    {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1 small">{{ e }}</div>{% endfor %}
+    {% for field in form %}<div class="{% if field.name == 'mensaje' or field.name == 'almacen' %}col-12{% else %}col-md-4{% endif %}">{% include 'core/_campo.html' %}</div>{% endfor %}
+  </div></div>
+  <div class="d-flex gap-2"><button class="btn btn-primary"><i class="bi bi-check-lg"></i> Registrar</button><a href="{% url 'operador_logistico:solicitudes' %}" class="btn btn-outline-secondary">Cancelar</a></div>
+</form>
+{% endblock %}

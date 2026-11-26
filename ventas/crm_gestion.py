@@ -480,7 +480,7 @@ class ConfigForm(BootstrapMixin, forms.ModelForm):
         model = ConfigCRM
         fields = ['web_activo', 'asignacion_web', 'responsable_web', 'equipo_web', 'avisar_ganadas',
                   'finalidad_datos', 'correo_activo', 'correo_servidor', 'correo_puerto', 'correo_usuario',
-                  'correo_clave',
+                  'correo_clave', 'correo_carpeta',  # v1.117.13: carpeta del buzón para los correos del CRM
                   # v1.107: canales de mensajería y anuncios
                   'whatsapp_activo', 'meta_activo', 'meta_leads', 'meta_token', 'meta_app_secret', 'chat_activo',
                   'chat_saludo', 'telegram_activo', 'telegram_token', 'tiktok_activo',

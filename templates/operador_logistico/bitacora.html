@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Bitácora de estados{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Bitácora de estados</h1>
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3 small">
+  <div><label class="form-label mb-0" for="f-desde">Desde</label><input type="date" id="f-desde" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm"></div>
+  <div><label class="form-label mb-0" for="f-q">Buscar</label><input name="q" id="f-q" value="{{ q }}" class="form-control form-control-sm" placeholder="Guía, solicitud, usuario"></div>
+  <button class="btn btn-sm btn-outline-primary">Filtrar</button>
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-sm mb-0 small">
+  <thead><tr><th>Fecha</th><th>Documento</th><th>De</th><th>A</th><th>Tiempo en el anterior</th><th>Quién</th><th>Cómo</th><th>Detalle</th></tr></thead>
+  <tbody>{% for b in page_obj %}<tr>
+    <td class="text-nowrap">{{ b.fecha|date:'d/m/Y H:i' }}</td>
+    <td>{% if b.guia %}<a href="{% url 'operador_logistico:guia' b.guia.pk %}">Guía {{ b.guia.numero_completo }}</a>{% elif b.solicitud %}<a href="{% url 'operador_logistico:solicitud' b.solicitud.pk %}">{{ b.solicitud.numero }}</a>{% endif %}</td>
+    <td>{{ b.de|default:'—' }}</td><td>{% if b.estado %}{% include 'operador_logistico/_estado.html' with e=b.estado %}{% else %}{{ b.a }}{% endif %}</td><td>{{ b.tiempo_anterior }}</td>
+    <td>{% if b.usuario %}{{ b.usuario.get_full_name|default:b.usuario.username }}{% else %}Sistema{% endif %}</td><td>{{ b.get_origen_display }}</td><td>{{ b.detalle }}</td>
+  </tr>{% empty %}<tr><td colspan="8" class="text-muted">Sin cambios en estas fechas.</td></tr>{% endfor %}</tbody>
+</table></div>{% include 'core/_paginacion.html' %}</div>
+{% endblock %}

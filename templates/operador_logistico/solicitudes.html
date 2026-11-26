@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Solicitudes de recojo{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Solicitudes de recojo</h1>
+  {% if puede.operador_logistico_planificar %}<a href="{% url 'operador_logistico:solicitud_nueva' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Nueva solicitud</a>{% endif %}
+</div>
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3 small">
+  <div><label class="form-label mb-0">Estado</label><select name="estado" class="form-select form-select-sm"><option value="todas">Todas</option>{% for v, n in estados %}<option value="{{ v }}"{% if v == estado %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div><label class="form-label mb-0">Buscar</label><input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="N°, cliente, remitente"></div>
+  <button class="btn btn-sm btn-outline-primary">Filtrar</button>
+</form>
+<p class="small text-muted">Llegan solas por correo o WhatsApp de los correos y celulares autorizados de cada cliente (con crédito o de servicio logístico). Los demás mensajes siguen al CRM.</p>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+  <thead><tr><th>N°</th><th>Fecha</th><th>Cliente</th><th>Canal</th><th>Almacén de origen</th><th class="num">Bultos</th><th class="num">Guías</th><th>Operador</th><th>Estado</th></tr></thead>
+  <tbody>{% for s in page_obj %}<tr>
+    <td><a href="{% url 'operador_logistico:solicitud' s.pk %}">{{ s.numero }}</a></td><td>{{ s.creado|date:'d/m/Y H:i' }}</td><td>{{ s.cliente.nombre }}</td><td>{{ s.get_canal_display }}</td><td>{{ s.almacen|truncatechars:50 }}</td><td class="num">{{ s.bultos|default:'' }}</td><td class="num">{{ s.n_guias }}</td><td>{% if s.operador %}{{ s.operador.get_full_name|default:s.operador.username }}{% else %}—{% endif %}</td>
+    <td><span class="badge text-bg-{% if s.estado == 'ASIGNADO' %}warning{% elif s.estado == 'ATENDIDO' %}success{% else %}secondary{% endif %}">{{ s.get_estado_display }}</span></td>
+  </tr>{% empty %}<tr><td colspan="9" class="text-muted">No hay solicitudes.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% include 'core/_paginacion.html' %}
+{% endblock %}

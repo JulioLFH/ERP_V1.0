@@ -54,6 +54,11 @@ ACCIONES = {
                   ('anular', 'Anular guías', True),
                   ('garita', 'Registrar ingresos y salidas en garita', False),
                   ('ver_montos', 'Ver montos de la mercadería en garita (OC, guías)', True)],
+    'operador_logistico': [('operar', 'Escanear y confirmar en el celular: recojo, ingreso al almacén, llegada y '
+                                      'entrega', False),
+                           ('planificar', 'Solicitudes de recojo, tablero por destino, guías consolidadas y transporte '
+                                          'tercero', False),
+                           ('configurar', 'Clientes del servicio logístico, maestro de estados y configuración', True)],
     'distribucion': [('programar', 'Programar hojas de reparto (vehículo, conductor y paradas) y cerrarlas', False),
                      ('entregar', 'Registrar las entregas en ruta (conductor)', False)],
     'flota': [('registrar', 'Registrar equipos, documentos, lecturas, combustible y viajes de la flota', False),
@@ -409,6 +414,13 @@ RUTAS = {
     'distribucion:nueva': 'distribucion.programar',
     'distribucion:hoja': {'POST': 'distribucion.programar'},
     'distribucion:movil': {'POST': 'distribucion.entregar'},
+    # operador logístico (Go Just In Time): el celular escanea y confirma; logística planifica; la configuración aparte
+    'operador_logistico:movil_registrar': 'operador_logistico.operar',
+    'operador_logistico:solicitud_nueva': 'operador_logistico.planificar',
+    **{f'operador_logistico:{n}': {'POST': 'operador_logistico.planificar'}
+       for n in ('solicitud', 'guia', 'planificacion', 'consolidado')},
+    **{f'operador_logistico:{n}': {'POST': 'operador_logistico.configurar'}
+       for n in ('clientes', 'cliente', 'estados', 'configuracion')},
     'proyectos:nuevo': 'proyectos.gestionar', 'proyectos:editar': 'proyectos.gestionar',
     'compras:grupo_nuevo': 'compras.grupos', 'compras:grupo': 'compras.grupos',
     'compras:hes': lambda r: (None if r.method != 'POST' else 'compras.hes'

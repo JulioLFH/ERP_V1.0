@@ -482,6 +482,13 @@ def payload_guia(guia):
         m = re.match(r'^\s*(\d{2})\s+([A-Z0-9]{4})-(\d+)\s*$', guia.doc_relacionado.upper())
         if m:
             relacionados.append({'tipo': m.group(1), 'serie': m.group(2), 'numero': str(int(m.group(3)))})
+    if guia.pk:  # documentos relacionados adicionales (guía consolidada del operador logístico)
+        for r in guia.relacionados.all():
+            m = re.match(r'^\s*([A-Z0-9]{4})-(\d+)\s*$', (r.numero or '').upper())
+            if m:
+                fila = {'tipo': r.tipo, 'serie': m.group(1), 'numero': str(int(m.group(2)))}
+                if fila not in relacionados:
+                    relacionados.append(fila)
     if relacionados:
         payload['documento_relacionado'] = relacionados
     return payload

@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Maestro de estados{% endblock %}
+{% block content %}
+<h1 class="page-title mb-2">Maestro de estados</h1>
+<p class="small text-muted">Nombre, color, sigla y orden de cada estado de las guías. Los estados que cambia el sistema solos (recojo, ingreso, despacho, llegada, entrega) mantienen su código; aquí solo se cambia cómo se ven. «Actualizar» y «Actualizar 2» quedan manuales hasta que Go confirme para qué sirven.</p>
+<div class="card"><div class="table-responsive"><table class="table table-sm align-middle mb-0 small">
+  <thead><tr><th>Se ve así</th><th>Nombre</th><th>Color</th><th>Ícono</th><th>Sigla</th><th>Orden</th><th>Disparador</th><th>Inicial</th><th>Activo</th><th></th></tr></thead>
+  <tbody>{% for e, f in filas %}<tr>
+    <td>{% include 'operador_logistico/_estado.html' %}<div class="text-muted">{{ e.codigo }}</div></td>
+    <td colspan="9"><form method="post" class="d-flex flex-wrap gap-1 align-items-center">{% csrf_token %}<input type="hidden" name="estado" value="{{ e.pk }}">
+      <span style="width:11rem">{{ f.nombre }}</span><span style="width:4rem">{{ f.color }}</span><span style="width:8rem">{{ f.icono }}</span><span style="width:4rem">{{ f.sigla }}</span><span style="width:4rem">{{ f.orden }}</span><span style="width:14rem">{{ f.disparador }}</span>
+      <label class="form-check-label d-flex gap-1">{{ f.inicial }} inicial</label><label class="form-check-label d-flex gap-1">{{ f.activo }} activo</label>
+      {% if configurar %}<button class="btn btn-sm btn-outline-primary">Guardar</button>{% endif %}
+    </form></td>
+  </tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

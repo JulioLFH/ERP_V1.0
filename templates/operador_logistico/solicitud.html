@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Solicitud {{ sol.numero }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Solicitud de recojo {{ sol.numero }} <span class="badge fs-6 text-bg-{% if sol.estado == 'ASIGNADO' %}warning{% elif sol.estado == 'ATENDIDO' %}success{% else %}secondary{% endif %}">{{ sol.get_estado_display }}</span></h1>
+  <a href="{% url 'operador_logistico:solicitudes' %}" class="btn btn-sm btn-outline-secondary">‹ Solicitudes</a>
+</div>
+<div class="row g-3">
+  <div class="col-lg-7"><div class="card h-100"><div class="card-body small">
+    <dl class="row mb-0">
+      <dt class="col-sm-4">Cliente</dt><dd class="col-sm-8">{{ sol.cliente.nombre }} ({{ sol.cliente.numero_doc }}) · <a href="{% url 'operador_logistico:cliente' sol.cliente.pk %}">ficha logística</a></dd>
+      <dt class="col-sm-4">Llegó por</dt><dd class="col-sm-8">{{ sol.get_canal_display }}{% if sol.remitente %} · {{ sol.remitente }}{% endif %} · {{ sol.creado|date:'d/m/Y H:i' }}</dd>
+      <dt class="col-sm-4">Almacén de origen</dt><dd class="col-sm-8">{{ sol.almacen|default:'—' }}</dd>
+      <dt class="col-sm-4">Bultos indicados</dt><dd class="col-sm-8">{{ sol.bultos|default:'—' }}</dd>
+      <dt class="col-sm-4">Contacto</dt><dd class="col-sm-8">{{ sol.contacto|default:'—' }}</dd>
+      <dt class="col-sm-4">Fecha pedida</dt><dd class="col-sm-8">{{ sol.fecha_recojo|date:'d/m/Y'|default:'—' }}</dd>
+      <dt class="col-sm-4">Operador</dt><dd class="col-sm-8">{% if sol.operador %}{{ sol.operador.get_full_name|default:sol.operador.username }}{% else %}Cualquiera{% endif %}</dd>
+      {% if sol.atendida_en %}<dt class="col-sm-4">Atendida</dt><dd class="col-sm-8">{{ sol.atendida_en|date:'d/m/Y H:i' }}{% if sol.atendida_por %} por {{ sol.atendida_por.get_full_name|default:sol.atendida_por.username }}{% endif %}{% if sol.latitud %} · <a href="https://www.google.com/maps/search/?api=1&query={{ sol.latitud }},{{ sol.longitud }}" target="_blank" rel="noopener"><i class="bi bi-geo-alt"></i> GPS</a>{% endif %}</dd>{% endif %}
+    </dl>
+    {% if sol.asunto %}<div class="mt-2"><b>Asunto:</b> {{ sol.asunto }}</div>{% endif %}
+    {% if sol.mensaje %}<pre class="mt-2 p-2 bg-light border rounded small" style="white-space:pre-wrap">{{ sol.mensaje }}</pre>{% endif %}
+    {% if sol.avisos %}<div class="alert alert-info py-2 mt-2 mb-0" style="white-space:pre-wrap">{{ sol.avisos }}</div>{% endif %}
+  </div></div></div>
+  <div class="col-lg-5"><div class="card h-100"><div class="card-body small">
+    {% if planificar and sol.estado == 'ASIGNADO' %}
+    <form method="post" class="mb-3">{% csrf_token %}<input type="hidden" name="accion" value="asignar">
+      <label class="form-label mb-1">Operador de recojo</label>
+      <div class="input-group input-group-sm"><select name="operador" class="form-select" aria-label="Operador de recojo"><option value="">— Cualquiera —</option>{% for u in operadores %}<option value="{{ u.pk }}"{% if u == sol.operador %} selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select><button class="btn btn-outline-primary">Asignar</button></div>
+    </form>
+    <form method="post" enctype="multipart/form-data" class="mb-3">{% csrf_token %}<input type="hidden" name="accion" value="xml">
+      <label class="form-label mb-1">Cargar el XML de una guía del cliente</label>
+      <div class="input-group input-group-sm"><input type="file" name="xml" accept=".xml" class="form-control" required aria-label="XML de la guía"><button class="btn btn-outline-primary">Cargar</button></div>
+    </form>
+    <form method="post" class="d-flex gap-2">{% csrf_token %}<input type="hidden" name="accion" value="anular"><input name="motivo" class="form-control form-control-sm" placeholder="Motivo de la anulación" aria-label="Motivo de la anulación"><button class="btn btn-sm btn-outline-danger" data-confirmar="¿Anular la solicitud?">Anular</button></form>
+    {% else %}<p class="text-muted mb-0">{% if sol.estado == 'ASIGNADO' %}El operador la atiende escaneando las guías en el almacén del cliente.{% else %}Solicitud cerrada.{% endif %}</p>{% endif %}
+  </div></div></div>
+</div>
+<div class="card mt-3"><div class="card-header"><i class="bi bi-qr-code"></i> Guías del cliente ({{ guias|length }})</div>
+<div class="table-responsive"><table class="table table-sm mb-0 small">
+  <thead><tr><th>Guía</th><th>Destinatario</th><th>Destino</th><th class="num">Bultos</th><th class="num">Peso</th><th>Cargada desde</th><th>Estado</th></tr></thead>
+  <tbody>{% for g in guias %}<tr><td><a href="{% url 'operador_logistico:guia' g.pk %}">{{ g.numero_completo }}</a>{% if not g.datos_completos %} <span class="badge text-bg-warning">datos pendientes</span>{% endif %}</td><td>{{ g.destinatario_nombre }}</td><td>{{ g.destino }}</td><td class="num">{{ g.bultos }}</td><td class="num">{{ g.peso|floatformat:2 }} {{ g.unidad_peso }}</td><td>{{ g.get_origen_datos_display }}</td><td>{% include 'operador_logistico/_estado.html' with e=g.estado %}</td></tr>{% empty %}<tr><td colspan="7" class="text-muted">Aún sin guías: llegan con el XML del correo o al escanear el QR en el recojo.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% include 'core/_sustentos.html' with objeto=sol solo_lectura=True %}
+{% include 'operador_logistico/_bitacora.html' %}
+{% endblock %}

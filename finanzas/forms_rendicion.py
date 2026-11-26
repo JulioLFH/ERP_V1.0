@@ -57,11 +57,19 @@ class LineaGastoForm(BootstrapMixin, forms.ModelForm):
         model = LineaGasto
         fields = ['fecha', 'tipo_comprobante', 'ruc', 'razon_social', 'serie', 'numero', 'a_nombre_empresa',
                   'indicador', 'moneda', 'tipo_cambio', 'base', 'igv', 'total', 'kilometros', 'categoria',
-                  'centro_costo', 'proyecto', 'sitio', 'destino', 'glosa', 'justificacion']
+                  'centro_costo', 'proyecto', 'sitio', 'destino', 'guia_consolidada', 'glosa', 'justificacion']
         widgets = {'fecha': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d')}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        from core.modulos import modulo_activo
+        if modulo_activo('operador_logistico'):  # el gasto del flete se liga a su guía consolidada (costo por guía)
+            self.fields['guia_consolidada'].queryset = \
+                self.fields['guia_consolidada'].queryset.select_related('consolidado').order_by('-id')
+            self.fields['guia_consolidada'].label_from_instance = lambda g: f'{g.numero_completo} · {g.consolidado.destino}'
+            self.fields['guia_consolidada'].help_text = 'Solo si este gasto es el transporte de un consolidado'
+        else:
+            del self.fields['guia_consolidada']
         self.fields['indicador'].queryset = IndicadorImpuesto.objects.filter(activo=True)
         self.fields['indicador'].required = True
         self.fields['indicador'].help_text = 'Define el IGV y si da crédito fiscal (registro de compras)'

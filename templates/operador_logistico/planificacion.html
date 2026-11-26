@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Tablero por destino{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title mb-0">Tablero por destino</h1>
+  <a href="{% url 'operador_logistico:consolidados' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-truck"></i> Consolidados</a>
+</div>
+<p class="small text-muted">Las guías recogidas se agrupan solas por departamento y provincia de destino, de cualquier cliente. Logística confirma cada grupo o mueve guías entre grupos; luego emite una guía consolidada por grupo.</p>
+<div class="row g-3">
+{% for grupo, guias in grupos %}
+  <div class="col-xl-4 col-lg-6"><div class="card h-100{% if grupo.estado == 'CONFIRMADO' %} border-success{% endif %}">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><b>{{ grupo.destino }}</b> · <a href="{% url 'operador_logistico:consolidado' grupo.pk %}">{{ grupo.numero }}</a></span>
+      <span class="badge text-bg-{% if grupo.estado == 'CONFIRMADO' %}success{% else %}secondary{% endif %}">{{ grupo.get_estado_display }}</span>
+    </div>
+    <ul class="list-group list-group-flush small">{% for g in guias %}
+      <li class="list-group-item">
+        <div class="d-flex justify-content-between gap-2"><a href="{% url 'operador_logistico:guia' g.pk %}">{{ g.numero_completo }}</a>{% include 'operador_logistico/_estado.html' with e=g.estado %}</div>
+        <div class="text-muted">{{ g.emisor_nombre|default:g.cliente.nombre }} → {{ g.destinatario_nombre|default:'—' }} · {{ g.bultos }} bulto(s) · {{ g.peso|floatformat:2 }} kg</div>
+        {% if planificar %}
+        <form method="post" class="d-flex gap-1 mt-1">{% csrf_token %}<input type="hidden" name="accion" value="mover"><input type="hidden" name="guia" value="{{ g.pk }}">
+          <select name="grupo" class="form-select form-select-sm" aria-label="Mover a otro grupo">{% for otro in abiertos %}{% if otro != grupo %}<option value="{{ otro.pk }}">{{ otro.numero }} · {{ otro.destino }}</option>{% endif %}{% endfor %}<option value="nuevo">Nuevo grupo con su destino</option></select>
+          <button class="btn btn-sm btn-outline-secondary text-nowrap">Mover</button>
+        </form>{% endif %}
+      </li>{% endfor %}</ul>
+    <div class="card-footer d-flex justify-content-between align-items-center small">
+      <span>{{ guias|length }} guía(s)</span>
+      {% if planificar %}{% if grupo.estado == 'ARMANDO' %}<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="confirmar"><input type="hidden" name="grupo" value="{{ grupo.pk }}"><button class="btn btn-sm btn-success"><i class="bi bi-check2"></i> Confirmar grupo</button></form>{% else %}<a href="{% url 'operador_logistico:consolidado' grupo.pk %}" class="btn btn-sm btn-primary">Emitir guía consolidada</a>{% endif %}{% endif %}
+    </div>
+  </div></div>
+{% empty %}<div class="col-12"><div class="alert alert-info">No hay guías recogidas por despachar.</div></div>{% endfor %}
+</div>
+{% if sin_destino %}
+<div class="card mt-3 border-warning"><div class="card-header">Recogidas sin destino (esperan su XML)</div>
+<ul class="list-group list-group-flush small">{% for g in sin_destino %}<li class="list-group-item d-flex justify-content-between"><a href="{% url 'operador_logistico:guia' g.pk %}">{{ g.numero_completo }}</a><span>{{ g.cliente.nombre }}</span>{% include 'operador_logistico/_estado.html' with e=g.estado %}</li>{% endfor %}</ul></div>
+{% endif %}
+{% endblock %}

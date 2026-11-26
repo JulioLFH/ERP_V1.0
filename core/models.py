@@ -197,7 +197,8 @@ class Empresa(models.Model):
              ('CONSTRUCCION', 'Construcción por contrato'), ('INMOBILIARIA', 'Inmobiliaria (venta de inmuebles)'),
              ('SERVICIOS', 'Servicios'),
              ('SERVICIOS_PROYECTO', 'Servicios profesionales por proyecto (arquitectura, ingeniería, consultoría, '
-                                    'supervisión)')]
+                                    'supervisión)'),
+             ('OPERADOR_LOGISTICO', 'Operador logístico (recojo, consolidación y despacho de carga de terceros)')]
     REGIMENES = [('GENERAL', 'Régimen General'), ('MYPE', 'Régimen MYPE Tributario'),
                  ('RER', 'Régimen Especial (RER)'), ('NRUS', 'Nuevo RUS')]
     COSTEOS = [('NATURALEZA', 'Sin costeo: gasto directo por naturaleza (sin clase 9)'),

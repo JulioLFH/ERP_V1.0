@@ -192,7 +192,7 @@ class CicloCompletoTest(TestCase):
         for nombre in ('finanzas:cuentas', 'finanzas:movimientos', 'finanzas:flujo', 'finanzas:conciliacion',
                        'finanzas:flujo_proyectado', 'finanzas:detracciones_masivas'):
             self.assertEqual(self.client.get(reverse(nombre)).status_code, 200, nombre)
-        self.no_puede('tesorero', reverse('contabilidad:asientos'), reverse('finanzas:letras'))
+        self.no_puede('tesorero', reverse('contabilidad:asientos'), reverse('finanzas:prestamos'))  # v1.117.12: letras también en Tesorería
 
         # 6. Contabilidad: abrir el módulo centraliza; todo cuadra con los auxiliares y el EFE pasa sus validaciones
         self.como('contador')
@@ -235,7 +235,11 @@ class CicloCompletoTest(TestCase):
 
     def test_recorrido_de_todos_los_menus(self):
         """Cada opción del menú de cada módulo abre sin error (administrador y datos de demostración)."""
-        from .modulos import MODULOS, menu_de
+        from .models import Empresa
+        from .modulos import MODULOS, SOLO_CON_GIRO, menu_de
+        empresa = Empresa.objects.first()  # los módulos de un giro (operador logístico) también se recorren
+        empresa.giros = sorted(set(empresa.giros or []) | set(SOLO_CON_GIRO.values()))
+        empresa.save(update_fields=['giros'])
         self.como('gerente')
         errores, vistas = [], set()
         for m in MODULOS:

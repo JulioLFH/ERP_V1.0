@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Guía {{ g.numero_completo }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+  <h1 class="page-title mb-0">Guía {{ g.numero_completo }} {% include 'operador_logistico/_estado.html' with e=g.estado %}</h1>
+  <a href="{% url 'operador_logistico:guias' %}" class="btn btn-sm btn-outline-secondary">‹ Guías</a>
+</div>
+{% if not g.datos_completos %}<div class="alert alert-warning small">Se escaneó su QR pero aún no tiene sus datos (remitente, destinatario, llegada, bultos, peso e ítems). Cárguelos con el XML de la guía{% if g.qr_texto %}. QR leído: <code>{{ g.qr_texto|truncatechars:120 }}</code>{% endif %}.</div>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-8"><div class="card h-100"><div class="card-body small"><dl class="row mb-0">
+    <dt class="col-sm-3">Remitente</dt><dd class="col-sm-9">{{ g.emisor_nombre|default:'—' }} (RUC {{ g.emisor_ruc }}) · cliente {{ g.cliente.nombre }}</dd>
+    <dt class="col-sm-3">Emisión / traslado</dt><dd class="col-sm-9">{{ g.fecha_emision|date:'d/m/Y'|default:'—' }} · {{ g.fecha_traslado|date:'d/m/Y'|default:'—' }}{% if g.motivo_traslado %} · motivo {{ g.motivo_traslado }}{% endif %}</dd>
+    <dt class="col-sm-3">Destinatario</dt><dd class="col-sm-9">{{ g.destinatario_nombre|default:'—' }} {% if g.destinatario_doc %}({{ g.destinatario_doc }}){% endif %}</dd>
+    <dt class="col-sm-3">Partida</dt><dd class="col-sm-9">{{ g.partida_direccion|default:'—' }} {% if g.partida_ubigeo %}<span class="text-muted">[{{ g.partida_ubigeo }}]</span>{% endif %}</dd>
+    <dt class="col-sm-3">Llegada</dt><dd class="col-sm-9">{{ g.llegada_direccion|default:'—' }} {% if g.llegada_ubigeo %}<span class="text-muted">[{{ g.llegada_ubigeo }}]</span>{% endif %} · <b>{{ g.destino|default:'sin destino' }}</b></dd>
+    <dt class="col-sm-3">Bultos / peso</dt><dd class="col-sm-9">{{ g.bultos }} · {{ g.peso|floatformat:3 }} {{ g.unidad_peso }}</dd>
+    <dt class="col-sm-3">Cargada desde</dt><dd class="col-sm-9">{{ g.get_origen_datos_display }}{% if g.solicitud %} · solicitud <a href="{% url 'operador_logistico:solicitud' g.solicitud.pk %}">{{ g.solicitud.numero }}</a>{% endif %}</dd>
+    {% if g.recogida_en %}<dt class="col-sm-3">Recojo</dt><dd class="col-sm-9">{{ g.recogida_en|date:'d/m/Y H:i' }}{% if g.recogida_por %} · {{ g.recogida_por.get_full_name|default:g.recogida_por.username }}{% endif %}{% if g.recojo_latitud %} · <a href="https://www.google.com/maps/search/?api=1&query={{ g.recojo_latitud }},{{ g.recojo_longitud }}" target="_blank" rel="noopener"><i class="bi bi-geo-alt"></i> GPS</a>{% endif %}</dd>{% endif %}
+    {% if g.consolidado %}<dt class="col-sm-3">Consolidado</dt><dd class="col-sm-9"><a href="{% url 'operador_logistico:consolidado' g.consolidado.pk %}">{{ g.consolidado }}</a>{% if g.consolidado.guia %} · guía <a href="{% url 'logistica:detalle' g.consolidado.guia.pk %}">{{ g.consolidado.guia.numero_completo }}</a>{% endif %}</dd>{% endif %}
+    {% if g.ultimo_tramo %}<dt class="col-sm-3">Último tramo</dt><dd class="col-sm-9"><a href="{% url 'logistica:detalle' g.ultimo_tramo.pk %}">{{ g.ultimo_tramo.numero_completo }}</a></dd>{% endif %}
+    {% if g.entregado_en %}<dt class="col-sm-3">Entrega</dt><dd class="col-sm-9">{{ g.entregado_en|date:'d/m/Y H:i' }} · recibió DNI {{ g.receptor_dni }} {{ g.receptor_nombre }}{% if g.entrega_latitud %} · <a href="https://www.google.com/maps/search/?api=1&query={{ g.entrega_latitud }},{{ g.entrega_longitud }}" target="_blank" rel="noopener"><i class="bi bi-geo-alt"></i> GPS</a>{% endif %}{% if g.firma %}<div class="mt-1"><img src="{{ g.firma }}" alt="Firma de quien recibió" style="max-height:90px;border:1px solid #ccc;border-radius:4px"></div>{% endif %}</dd>{% endif %}
+  </dl></div></div></div>
+  <div class="col-lg-4"><div class="card h-100"><div class="card-body small">
+    {% if planificar %}
+    <form method="post" class="mb-3">{% csrf_token %}<input type="hidden" name="accion" value="estado">
+      <label class="form-label mb-1" for="c-estado">Cambiar el estado a mano</label>
+      <select name="estado" id="c-estado" class="form-select form-select-sm mb-1">{% for e in estados %}<option value="{{ e.pk }}"{% if e == g.estado %} selected{% endif %}>{{ e.nombre }}{% if e.codigo == 'ACTUALIZAR_2' %} (2){% endif %}</option>{% endfor %}</select>
+      <input name="detalle" class="form-control form-control-sm mb-1" placeholder="Motivo (queda en la bitácora)" aria-label="Motivo">
+      <button class="btn btn-sm btn-outline-primary">Cambiar</button>
+    </form>
+    <form method="post" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="accion" value="xml">
+      <label class="form-label mb-1" for="c-xml">Completar con el XML de la guía</label>
+      <div class="input-group input-group-sm"><input type="file" name="xml" id="c-xml" accept=".xml" class="form-control" required><button class="btn btn-outline-primary">Cargar</button></div>
+    </form>
+    {% else %}<p class="text-muted mb-0">Los estados cambian solos con el escaneo y las fotos.</p>{% endif %}
+  </div></div></div>
+</div>
+{% if g.items %}<div class="card mt-3"><div class="card-header">Ítems</div><div class="table-responsive"><table class="table table-sm mb-0 small"><thead><tr><th>Código</th><th>Descripción</th><th>U.M.</th><th class="num">Cantidad</th></tr></thead><tbody>{% for i in g.items %}<tr><td>{{ i.codigo }}</td><td>{{ i.descripcion }}</td><td>{{ i.unidad }}</td><td class="num">{{ i.cantidad }}</td></tr>{% endfor %}</tbody></table></div></div>{% endif %}
+{% include 'core/_sustentos.html' with objeto=g solo_lectura=True %}
+{% include 'operador_logistico/_bitacora.html' %}
+{% endblock %}

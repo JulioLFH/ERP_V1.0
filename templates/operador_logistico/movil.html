@@ -1,0 +1,96 @@
+{% load static %}<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101d7e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Operador">
+<link rel="icon" href="{% static 'img/ceiba-app.svg' %}">
+<link rel="apple-touch-icon" href="{% static 'img/ceiba-app.svg' %}">
+<title>Operador logístico</title>
+<style>
+/* Operadores mayores: letra grande, alto contraste, una acción por pantalla y botones enormes */
+:root{--c:#101d7e;--f:#ffffff;--t:#000000;--m:#333333;--b:#000000;--ok:#0b7a1f;--mal:#b00000;--amb:#8a5a00}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--f);color:var(--t);font-size:22px;line-height:1.3}
+header{background:var(--c);color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;position:sticky;top:0;z-index:2}
+header b{font-size:22px}
+#red{font-size:16px;padding:6px 10px;border-radius:14px;background:#ffffff;color:var(--c);font-weight:700;white-space:nowrap}
+#red.sin{background:#ffd43b;color:#000}
+main{padding:16px;max-width:560px;margin:0 auto}
+.pantalla{display:none}.pantalla.activa{display:block}
+h1{font-size:28px;margin:4px 0 16px}
+.grande{display:block;width:100%;border:3px solid var(--b);border-radius:16px;padding:26px 16px;margin:0 0 16px;font-size:28px;font-weight:800;background:var(--c);color:#fff;cursor:pointer;text-align:center}
+.grande.sec{background:#fff;color:var(--t)}
+.grande.verde{background:var(--ok);border-color:var(--ok)}
+.grande small{display:block;font-size:18px;font-weight:500;margin-top:6px}
+.enlace{display:block;width:100%;background:none;border:0;color:var(--c);font-size:22px;text-decoration:underline;padding:14px;cursor:pointer}
+.resultado{border-radius:16px;padding:22px 18px;margin-bottom:18px;border:4px solid}
+.resultado.ok{background:#e6f7ea;border-color:var(--ok);color:#00380c}
+.resultado.mal{background:#ffe9e9;border-color:var(--mal);color:#5c0000}
+.resultado.amb{background:#fff4d6;border-color:var(--amb);color:#3d2800}
+.resultado .icono{font-size:64px;line-height:1;font-weight:900}
+.resultado .titulo{font-size:28px;font-weight:800;margin:8px 0 4px}
+.resultado .detalle{font-size:22px}
+video,#vista-foto{width:100%;border-radius:16px;border:3px solid var(--b);background:#000}
+#vista-foto{display:none;margin-bottom:16px}
+input.dni{width:100%;font-size:40px;letter-spacing:6px;text-align:center;padding:14px;border:3px solid var(--b);border-radius:14px;margin-bottom:16px}
+label{display:block;font-size:22px;font-weight:700;margin:8px 0}
+#firma{width:100%;height:200px;border:3px dashed var(--b);border-radius:14px;touch-action:none;background:#fff;margin-bottom:8px}
+.item{display:block;width:100%;text-align:left;border:3px solid var(--b);border-radius:14px;padding:18px;margin-bottom:12px;background:#fff;font-size:24px;cursor:pointer;color:var(--t)}
+.item small{display:block;font-size:19px;color:var(--m);margin-top:4px}
+.nota{font-size:18px;color:var(--m)}
+.oculto{display:none!important}
+</style>
+</head><body>
+<header><b id="cabecera">Operador logístico</b><span id="red">En línea</span></header>
+<main>
+  <!-- 1. ¿Qué está haciendo? -->
+  <section class="pantalla activa" id="p-inicio">
+    <h1>¿Qué está haciendo?</h1>
+    <div id="pasos"></div>
+    <div id="problemas"></div>
+    <p class="nota">{{ datos.usuario }} · <a href="{{ datos.urls.sistema }}">Sistema completo</a> · v{{ version }}</p>
+  </section>
+
+  <!-- 2. Escanear -->
+  <section class="pantalla" id="p-escanear">
+    <h1 id="titulo-paso"></h1>
+    <button class="grande" id="escanear" type="button">Escanear</button>
+    <video id="video" class="oculto" playsinline muted></video>
+    <button class="grande sec oculto" id="detener" type="button">Cerrar la cámara</button>
+    <input type="file" id="foto-qr" accept="image/*" capture="environment" class="oculto">
+    <button class="enlace" id="ver-lista" type="button">¿No se lee el código? Elegir de la lista</button>
+    <button class="enlace" data-volver type="button">‹ Volver</button>
+  </section>
+
+  <!-- 3. Lista corta de pendientes -->
+  <section class="pantalla" id="p-lista">
+    <h1>Elija de la lista</h1>
+    <div id="lista"></div>
+    <button class="enlace" data-ir="p-escanear" type="button">‹ Volver a escanear</button>
+  </section>
+
+  <!-- 4. Resultado y confirmación -->
+  <section class="pantalla" id="p-resultado">
+    <div id="resultado" class="resultado"></div>
+    <div id="pide-foto" class="oculto">
+      <img id="vista-foto" alt="Foto tomada">
+      <button class="grande" id="tomar-foto" type="button">Tomar foto</button>
+      <input type="file" id="foto" accept="image/*" capture="environment" class="oculto">
+    </div>
+    <div id="pide-dni" class="oculto">
+      <label for="dni">DNI de quien recibe</label>
+      <input id="dni" class="dni" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off">
+      <label>Firma de quien recibe</label>
+      <canvas id="firma"></canvas>
+      <button class="enlace" id="borrar-firma" type="button">Borrar la firma</button>
+    </div>
+    <button class="grande verde" id="confirmar" type="button">Confirmar</button>
+    <button class="grande sec" id="otra-vez" type="button">Volver a escanear</button>
+  </section>
+</main>
+{{ datos|json_script:"datos-app" }}
+<script nonce="{{ csp_nonce }}">window.CSRF = '{{ csrf_token }}';</script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" defer></script>
+<script src="{% static 'js/operador_movil.js' %}?v={{ version }}" defer></script>
+</body></html>

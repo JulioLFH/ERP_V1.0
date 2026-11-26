@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Guías de los clientes{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Guías de los clientes</h1>
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3 small">
+  <div><label class="form-label mb-0" for="f-estado">Estado</label><select name="estado" id="f-estado" class="form-select form-select-sm"><option value="">Todos</option>{% for e in estados %}<option value="{{ e.codigo }}"{% if e.codigo == estado %} selected{% endif %}>{{ e.nombre }}{% if e.codigo == 'ACTUALIZAR_2' %} (2){% endif %}</option>{% endfor %}</select></div>
+  <div><label class="form-label mb-0" for="f-q">Buscar</label><input name="q" id="f-q" value="{{ q }}" class="form-control form-control-sm" placeholder="Guía, cliente, destinatario, destino"></div>
+  <div class="form-check mb-1"><input type="checkbox" name="pendientes" value="1" id="pend" class="form-check-input"{% if request.GET.pendientes %} checked{% endif %}><label for="pend" class="form-check-label">Con datos pendientes</label></div>
+  <button class="btn btn-sm btn-outline-primary">Filtrar</button>
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
+  <thead><tr><th>Guía</th><th>Remitente</th><th>Destinatario</th><th>Destino</th><th class="num">Bultos</th><th class="num">Peso</th><th>Consolidado</th><th>Último tramo</th><th>Estado</th><th>Desde</th></tr></thead>
+  <tbody>{% for g in page_obj %}<tr>
+    <td><a href="{% url 'operador_logistico:guia' g.pk %}">{{ g.numero_completo }}</a>{% if not g.datos_completos %} <span class="badge text-bg-warning">datos pendientes</span>{% endif %}</td>
+    <td>{{ g.emisor_nombre|default:g.cliente.nombre }}</td><td>{{ g.destinatario_nombre }}</td><td>{{ g.destino }}</td><td class="num">{{ g.bultos }}</td><td class="num">{{ g.peso|floatformat:2 }}</td>
+    <td>{% if g.consolidado %}<a href="{% url 'operador_logistico:consolidado' g.consolidado.pk %}">{{ g.consolidado.numero }}</a>{% endif %}</td>
+    <td>{% if g.ultimo_tramo %}<a href="{% url 'logistica:detalle' g.ultimo_tramo.pk %}">{{ g.ultimo_tramo.numero_completo }}</a>{% endif %}</td>
+    <td>{% include 'operador_logistico/_estado.html' with e=g.estado %}</td><td class="text-nowrap">{{ g.estado_desde|date:'d/m H:i' }}</td>
+  </tr>{% empty %}<tr><td colspan="10" class="text-muted">No hay guías.</td></tr>{% endfor %}</tbody>
+</table></div>{% include 'core/_paginacion.html' %}</div>
+{% endblock %}

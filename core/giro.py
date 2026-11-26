@@ -33,6 +33,13 @@ GIROS = {
                            'Cada proyecto con su centro de costo y la clase 9; servicio en proceso 2351 y su variación '
                            '7152; ingreso 7041 por entregable (o por avance, NIIF 15); detracción 022 (12 %); recibos '
                            'por honorarios con retención de 4ta; cartas fianza', 'ORDENES'),
+    # Go Just In Time: recoge en los almacenes de sus clientes, consolida por destino y despacha con transportistas
+    'OPERADOR_LOGISTICO': ('Operador logístico: recoge la mercadería de sus clientes, la consolida por destino y la '
+                           'despacha con transportistas subcontratados',
+                           {'crm', 'ventas', 'compras', 'logistica', 'operador_logistico', 'tesoreria', 'finanzas',
+                            'rendiciones', 'contabilidad'},
+                           'Sin existencias propias (la mercadería es del cliente): servicio 70 y costo del flete por '
+                           'guía consolidada', 'NATURALEZA'),
     'SERVICIOS': ('Presta servicios (sin inventario propio relevante)',
                   {'crm', 'ventas', 'compras', 'tesoreria', 'finanzas', 'contabilidad', 'planillas'},
                   'Sin existencias: gastos por naturaleza; 70 servicios', 'NATURALEZA'),

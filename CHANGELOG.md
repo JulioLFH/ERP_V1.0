@@ -3,6 +3,20 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.13 — 26/11/2026 · Módulo «Operador logístico» (Go Just In Time) y carpeta «CRM» del buzón
+- **Operador logístico** (módulo nuevo): solo aparece en las empresas con el giro **«Operador logístico»** (Ajustes › Empresa); las demás no lo ven ni cambia nada para ellas. Tablero, **solicitudes de recojo**, guías de los clientes, **planificación** (tablero por destino y **guías consolidadas** por camión con hoja de despacho y QR), bitácora de estados, costo por guía, clientes del servicio logístico y maestro de estados. Permisos propios: operar (celular), planificar y configurar.
+- **App del operador (celular)**: una pantalla por acción (recojo, ingreso al almacén, llegada a destino, entrega) con escaneo del QR, foto obligatoria en la llegada y la entrega, DNI y firma del receptor, y cola sin señal que se envía sola.
+- **Solicitudes de recojo por correo y WhatsApp**: el correo o celular autorizado de un cliente con crédito (o «Cliente de servicio logístico») crea la solicitud en vez de una oportunidad del CRM; los XML de guías adjuntos se cargan solos. En la ficha del cliente, tarjeta «Servicio logístico» con los autorizados y el almacén de origen.
+- **Guías de remisión con varios documentos relacionados** (la guía consolidada lleva todas las guías de los clientes), en la GRE directa y por Nubefact; sin documentos adicionales, la guía sale igual que antes.
+- **Rendiciones**: el gasto del flete se puede ligar a su guía consolidada y su costo se reparte entre las guías.
+- **Puente con Ceiba GO** (`/api/ceibago/`, con una clave de API del ERP): el portal del cliente consulta su ficha y crédito, pide recojos (canal «Ceiba GO»), ve sus solicitudes con el estado de cada guía y sus comprobantes; la cola de Ceiba GO se ve en Operador logístico › Reportes › «Recibido de Ceiba GO».
+
+### CRM: los correos que entran se guardan en la carpeta «CRM» del buzón
+- **CRM › Configuración › «Carpeta del buzón para los correos del CRM»** (por defecto **CRM**): cada correo del buzón comercial que se vuelve oportunidad sale de la bandeja de entrada y se mueve a esa carpeta del buzón. La carpeta se crea sola la primera vez y queda visible en el programa de correo (en buzones como cPanel o Dovecot queda dentro de la bandeja: INBOX.CRM). Se puede poner otro nombre (con tildes, espacios o guiones) o dejarlo vacío para que los correos se queden en la bandeja como antes, marcados como leídos.
+- Un correo que no se pudo convertir en oportunidad **no se mueve**: queda leído en la bandeja para revisarlo. Si el servidor no deja mover, la oportunidad se crea igual y el correo queda en la bandeja.
+- El buzón se recorre por identificador fijo del correo (UID), así mover uno no cambia cuál es el siguiente; nunca se vacía la papelera ni se borran otros correos del usuario.
+- Recordatorio: solo se toman los correos **sin leer**. Si alguien abre el correo antes en su programa de correo, el CRM ya no lo toma; por eso conviene un buzón solo para el CRM (ventas@…).
+
 ## v1.117.12 — 26/11/2026 · La sección Documentos de Finanzas también en Tesorería
 - **Tesorería › Documentos**: nueva sección en el menú de Tesorería con **Anticipos**, **Letras por cobrar y pagar**, **Canje de facturas por letras** y **Facturas negociables y factoring**, las mismas pantallas de Finanzas › Documentos (que sigue igual).
 - Quien tiene el módulo Tesorería ya las abre, y con el permiso «Registrar cobros, pagos…» de Tesorería puede **aplicar anticipos**, canjear y registrar letras y factoring (antes solo con los permisos de Finanzas, que siguen sirviendo). Anular aplicaciones y canjes: con el permiso de anular de Tesorería o de Finanzas.

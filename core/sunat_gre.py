@@ -68,17 +68,27 @@ def _direccion(padre, etiqueta, ubigeo, direccion, ruc='', establecimiento=''):
 
 
 def documentos_relacionados(guia):
-    """[(tipo, serie-número, RUC del emisor)] del comprobante o documento relacionado a la guía."""
+    """[(tipo, serie-número, RUC del emisor)] del comprobante o documento relacionado a la guía, más los documentos
+    relacionados adicionales (guía consolidada del operador logístico: muchas guías relacionadas)."""
     import re
     empresa = Empresa.actual()
+    filas = []
     if guia.venta_id:
         v = guia.venta
-        return [(v.tipo_comprobante, f'{v.serie}-{int(v.numero)}', empresa.ruc)]
-    m = re.match(r'^\s*(\d{2})\s+([A-Z0-9]{4})-(\d+)\s*$', (guia.doc_relacionado or '').upper())
-    if m and m.group(1) in DOCUMENTOS:
-        emisor = guia.remitente.numero_doc if guia.tipo == '31' and guia.remitente else empresa.ruc
-        return [(m.group(1), f'{m.group(2)}-{int(m.group(3))}', emisor)]
-    return []
+        filas.append((v.tipo_comprobante, f'{v.serie}-{int(v.numero)}', empresa.ruc))
+    else:
+        m = re.match(r'^\s*(\d{2})\s+([A-Z0-9]{4})-(\d+)\s*$', (guia.doc_relacionado or '').upper())
+        if m and m.group(1) in DOCUMENTOS:
+            emisor = guia.remitente.numero_doc if guia.tipo == '31' and guia.remitente else empresa.ruc
+            filas.append((m.group(1), f'{m.group(2)}-{int(m.group(3))}', emisor))
+    if guia.pk:
+        for r in guia.relacionados.all():
+            m = re.match(r'^\s*([A-Z0-9]{4})-(\d+)\s*$', (r.numero or '').upper())
+            if m and r.tipo in DOCUMENTOS:
+                fila = (r.tipo, f'{m.group(1)}-{int(m.group(2))}', r.emisor_ruc or empresa.ruc)
+                if fila not in filas:
+                    filas.append(fila)
+    return filas
 
 
 def xml_guia(guia):
