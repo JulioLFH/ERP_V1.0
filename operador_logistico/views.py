@@ -361,3 +361,92 @@ def configuracion(request):
         return redirect('operador_logistico:configuracion')
     return render(request, 'operador_logistico/configuracion.html', {
         'form': form, 'configurar': puede(request.user, 'operador_logistico.configurar')})
+
+
+# ---------------------------------------------------------------- rutas de recojo (v1.117.15)
+def _fecha_get(valor):
+    from datetime import date
+    try:
+        return date.fromisoformat(valor or '')
+    except ValueError:
+        return timezone.localdate()
+
+
+@login_required
+def rutas(request):
+    """Ruta de recojo del día: sugerencia por zona y cercanía, ajuste a mano, operador y placa."""
+    from django.contrib.auth.models import User
+    from . import rutas as rr
+    from .models import RutaRecojo
+    fecha = _fecha_get(request.POST.get('fecha') or request.GET.get('fecha'))
+    if request.method == 'POST':
+        P, accion = request.POST, request.POST.get('accion', '')
+        ruta = RutaRecojo.objects.filter(pk=P.get('ruta') or 0).first()
+        sol = SolicitudRecojo.objects.filter(pk=P.get('solicitud') or 0).first()
+        try:
+            if accion in ('sugerir', 'rehacer'):
+                creadas = rr.sugerir(fecha, request.user, rehacer=accion == 'rehacer')
+                messages.success(request, f'{len(creadas)} ruta(s) sugerida(s).' if creadas else
+                                 'No hay solicitudes por recoger sin ruta para ese día.')
+            elif accion == 'nueva':
+                ruta = rr.nueva(fecha, request.user, (P.get('zona') or 'Manual').strip()[:60])
+                messages.success(request, f'Ruta {ruta.numero} creada: agréguele paradas.')
+            elif accion == 'agregar' and sol is not None:
+                destino = RutaRecojo.objects.filter(pk=P.get('destino') or 0).first()
+                if destino is None:
+                    destino = rr.nueva(fecha, request.user)
+                rr.agregar(sol, destino)
+            elif accion == 'quitar' and sol is not None:
+                rr.quitar(sol)
+            elif accion in ('subir', 'bajar') and sol is not None:
+                rr.mover(sol, -1 if accion == 'subir' else 1)
+            elif ruta is None:
+                raise rr.ErrorRuta('Elija la ruta.')
+            elif accion == 'ordenar':
+                rr.ordenar_por_cercania(ruta)
+                messages.success(request, f'{ruta.numero}: paradas ordenadas por cercanía.')
+            elif accion == 'asignar':
+                operador = User.objects.filter(pk=P.get('operador') or 0, is_active=True).first()
+                rr.asignar(ruta, operador, P.get('placa', ''))
+                messages.success(request, f'{ruta.numero}: asignada a '
+                                          f'{(operador.get_full_name() or operador.username) if operador else "nadie"}.')
+            elif accion == 'iniciar':
+                rr.iniciar(ruta)
+                messages.success(request, f'{ruta.numero} en curso: el operador la ve en el celular.')
+            elif accion == 'eliminar':
+                numero = ruta.numero
+                rr.eliminar(ruta)
+                messages.success(request, f'Ruta {numero} deshecha: sus solicitudes quedan sin ruta.')
+        except rr.ErrorRuta as exc:
+            _error(request, exc)
+        return redirect(f"{request.path}?fecha={fecha.isoformat()}")
+    perfiles = {p.tercero_id: p for p in ClienteLogistico.objects.all()}
+    lista = []
+    for r in RutaRecojo.objects.filter(fecha=fecha).select_related('operador'):
+        paradas = [rr.detalle(s, perfiles.get(s.cliente_id)) for s in r.paradas_en_orden()]
+        lista.append({'r': r, 'paradas': paradas, 'kg': sum((d['kg'] for d in paradas), 0),
+                      'bultos': sum(d['bultos'] for d in paradas),
+                      'hechas': sum(1 for d in paradas if d['sol'].estado != 'ASIGNADO'),
+                      'google': rr.enlace_google(r, paradas)})
+    sin_ruta = [rr.detalle(s, perfiles.get(s.cliente_id)) for s in rr.pendientes(fecha)]
+    operadores = [u for u in User.objects.filter(is_active=True).order_by('first_name', 'username')
+                  if puede(u, 'operador_logistico.operar')]
+    return render(request, 'operador_logistico/rutas.html', {
+        'fecha': fecha, 'rutas': lista, 'sin_ruta': sin_ruta, 'operadores': operadores, 'cfg': ConfigOperador.actual(),
+        'base': rr.base(), 'planificar': puede(request.user, 'operador_logistico.planificar'),
+        'abiertas': [x['r'] for x in lista if x['r'].estado != 'CERRADA']})
+
+
+@login_required
+def ruta_hoja(request, pk):
+    """Hoja de ruta impresa: paradas en orden con contacto, bultos y espacio para la firma."""
+    from core.models import Empresa
+    from . import rutas as rr
+    from .models import RutaRecojo
+    r = get_object_or_404(RutaRecojo.objects.select_related('operador'), pk=pk)
+    perfiles = {p.tercero_id: p for p in ClienteLogistico.objects.all()}
+    paradas = [rr.detalle(s, perfiles.get(s.cliente_id)) for s in r.paradas_en_orden()]
+    return render(request, 'operador_logistico/ruta_hoja.html', {
+        'r': r, 'paradas': paradas, 'empresa': Empresa.actual(), 'cfg': ConfigOperador.actual(),
+        'kg': sum((d['kg'] for d in paradas), 0), 'bultos': sum(d['bultos'] for d in paradas),
+        'google': rr.enlace_google(r, paradas)})

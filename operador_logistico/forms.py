@@ -6,6 +6,15 @@ from core.models import Tercero
 from .models import ClienteLogistico, Consolidado, ConfigOperador, EstadoLogistico, SolicitudRecojo
 
 
+def validar_coordenadas(form, campo_lat, campo_lon):
+    """v1.117.15: latitud y longitud van juntas y dentro del Perú (para las rutas de recojo)."""
+    lat, lon = form.cleaned_data.get(campo_lat), form.cleaned_data.get(campo_lon)
+    if (lat is None) != (lon is None):
+        form.add_error(campo_lon if lon is None else campo_lat, 'Escriba la latitud y la longitud, o deje ambas vacías.')
+    elif lat is not None and not (-19 <= lat <= 0 and -82 <= lon <= -68):
+        form.add_error(campo_lat, 'Las coordenadas no están en el Perú (ej. latitud -12.046, longitud -77.042).')
+
+
 class SolicitudForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = SolicitudRecojo
@@ -32,7 +41,8 @@ class ClienteLogisticoForm(BootstrapMixin, forms.ModelForm):
 
     class Meta:
         model = ClienteLogistico
-        fields = ['servicio_logistico', 'almacen_direccion', 'almacen_ubigeo', 'almacen_referencia', 'contacto']
+        fields = ['servicio_logistico', 'almacen_direccion', 'almacen_ubigeo', 'almacen_referencia', 'contacto',
+                  'almacen_latitud', 'almacen_longitud']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -65,6 +75,7 @@ class ClienteLogisticoForm(BootstrapMixin, forms.ModelForm):
 
     def clean(self):
         datos = super().clean()
+        validar_coordenadas(self, 'almacen_latitud', 'almacen_longitud')
         from .models import RemitenteAutorizado
         for tipo, campo in (('CORREO', 'correos'), ('CELULAR', 'celulares')):
             for valor in datos.get(campo) or []:
@@ -102,7 +113,8 @@ class ConfigForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = ConfigOperador
         fields = ['almacen', 'serie_consolidada', 'serie_ultimo_tramo', 'motivo_traslado', 'descripcion_motivo',
-                  'ultimo_tramo_por']
+                  'ultimo_tramo_por', 'base_direccion', 'base_latitud', 'base_longitud', 'capacidad_kg',
+                  'capacidad_bultos', 'max_paradas']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -112,6 +124,11 @@ class ConfigForm(BootstrapMixin, forms.ModelForm):
                                                            help_text=self.Meta.model._meta.get_field(
                                                                'motivo_traslado').help_text)
         self.fields['motivo_traslado'].widget.attrs['class'] = 'form-select'
+
+    def clean(self):
+        datos = super().clean()
+        validar_coordenadas(self, 'base_latitud', 'base_longitud')
+        return datos
 
 
 class EmitirForm(BootstrapMixin, forms.Form):

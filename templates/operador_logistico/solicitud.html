@@ -15,6 +15,7 @@
       <dt class="col-sm-4">Contacto</dt><dd class="col-sm-8">{{ sol.contacto|default:'—' }}</dd>
       <dt class="col-sm-4">Fecha pedida</dt><dd class="col-sm-8">{{ sol.fecha_recojo|date:'d/m/Y'|default:'—' }}</dd>
       <dt class="col-sm-4">Operador</dt><dd class="col-sm-8">{% if sol.operador %}{{ sol.operador.get_full_name|default:sol.operador.username }}{% else %}Cualquiera{% endif %}</dd>
+      <dt class="col-sm-4">Ruta de recojo</dt><dd class="col-sm-8">{% if sol.ruta %}<a href="{% url 'operador_logistico:rutas' %}?fecha={{ sol.ruta.fecha|date:'Y-m-d' }}">{{ sol.ruta }}</a> · parada {{ sol.orden_ruta }} · {{ sol.ruta.get_estado_display }}{% else %}<a href="{% url 'operador_logistico:rutas' %}{% if sol.fecha_recojo %}?fecha={{ sol.fecha_recojo|date:'Y-m-d' }}{% endif %}">Sin ruta: armarla</a>{% endif %}</dd>
       {% if sol.atendida_en %}<dt class="col-sm-4">Atendida</dt><dd class="col-sm-8">{{ sol.atendida_en|date:'d/m/Y H:i' }}{% if sol.atendida_por %} por {{ sol.atendida_por.get_full_name|default:sol.atendida_por.username }}{% endif %}{% if sol.latitud %} · <a href="https://www.google.com/maps/search/?api=1&query={{ sol.latitud }},{{ sol.longitud }}" target="_blank" rel="noopener"><i class="bi bi-geo-alt"></i> GPS</a>{% endif %}</dd>{% endif %}
     </dl>
     {% if sol.asunto %}<div class="mt-2"><b>Asunto:</b> {{ sol.asunto }}</div>{% endif %}

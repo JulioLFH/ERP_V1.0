@@ -10,7 +10,7 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 
 from . import lector_qr, xml_guias
@@ -332,6 +332,8 @@ def registrar_recojo(usuario, qr='', guia_id=None, latitud=None, longitud=None, 
                 cambiar_estado(otra, 'CONFIRMADO', usuario, 'SISTEMA',
                                f'Recojo completo de la solicitud {solicitud.numero}', latitud, longitud, ahora)
                 asignar_grupo(otra)
+        from .rutas import al_recoger  # v1.117.15: aprende la ubicación del almacén y cierra la ruta terminada
+        al_recoger(solicitud)
     return guia
 
 
@@ -773,9 +775,13 @@ def pendientes(usuario, paso):
     if paso == 'RECOJO':
         qs = GuiaCliente.objects.filter(estado__codigo='ATENDIDO', solicitud__estado='ASIGNADO') \
             .filter(Q(solicitud__operador=usuario) | Q(solicitud__operador__isnull=True))
-        return [{'id': g.pk, 'titulo': g.emisor_nombre or g.cliente.nombre, 'detalle': f'Guía {g.numero_completo} · '
-                 f'{g.bultos} bulto(s)', 'qr': g.qr_texto, 'serie': g.serie, 'numero': g.numero}
-                for g in qs.select_related('cliente').order_by('solicitud__creado')[:MAX_LISTA]]
+        # v1.117.15: en el orden de su ruta de recojo (las que no están en una ruta, al final)
+        qs = qs.select_related('cliente', 'solicitud__ruta').order_by(
+            F('solicitud__ruta').asc(nulls_last=True), 'solicitud__orden_ruta', 'solicitud__creado')
+        return [{'id': g.pk, 'titulo': g.emisor_nombre or g.cliente.nombre, 'detalle':
+                 (f'Parada {g.solicitud.orden_ruta} · ' if g.solicitud and g.solicitud.ruta_id else '') +
+                 f'Guía {g.numero_completo} · {g.bultos} bulto(s)', 'qr': g.qr_texto, 'serie': g.serie,
+                 'numero': g.numero} for g in qs[:MAX_LISTA]]
     if paso == 'INGRESO':
         qs = GuiaCliente.objects.filter(estado__codigo='CONFIRMADO').order_by('-recogida_en')
         return [{'id': g.pk, 'titulo': g.emisor_nombre or g.cliente.nombre, 'detalle': f'Guía {g.numero_completo} · '

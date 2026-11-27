@@ -16,6 +16,9 @@
   <div class="col-md-4">{% include 'core/_campo.html' with field=form.almacen_ubigeo %}</div>
   <div class="col-md-8">{% include 'core/_campo.html' with field=form.almacen_referencia %}</div>
   <div class="col-md-4">{% include 'core/_campo.html' with field=form.contacto %}</div>
+  <div class="col-md-4">{% include 'core/_campo.html' with field=form.almacen_latitud %}</div>
+  <div class="col-md-4">{% include 'core/_campo.html' with field=form.almacen_longitud %}</div>
+  <div class="col-md-4 small text-muted d-flex align-items-center">{% if perfil.almacen_latitud %}<a href="https://www.google.com/maps/search/?api=1&query={{ perfil.almacen_latitud }},{{ perfil.almacen_longitud }}" target="_blank" rel="noopener"><i class="bi bi-geo-alt"></i> Ver el almacén en Google Maps</a>{% else %}Para la ruta de recojo: si la deja vacía, se toma sola del GPS en el primer recojo.{% endif %}</div>
   {% if configurar %}<div class="col-12"><button class="btn btn-primary btn-sm">Guardar</button></div>{% endif %}
 </div></form>
 {% endblock %}

@@ -40,12 +40,23 @@ label{display:block;font-size:22px;font-weight:700;margin:8px 0}
 .item small{display:block;font-size:19px;color:var(--m);margin-top:4px}
 .nota{font-size:18px;color:var(--m)}
 .oculto{display:none!important}
+.ruta{margin-bottom:22px;border-bottom:3px solid var(--b);padding-bottom:8px}
+a.grande{text-decoration:none}
+.item.hecha{opacity:.55;cursor:default}
 </style>
 </head><body>
 <header><b id="cabecera">Operador logístico</b><span id="red">En línea</span></header>
 <main>
   <!-- 1. ¿Qué está haciendo? -->
   <section class="pantalla activa" id="p-inicio">
+    {% if ruta %}<div class="ruta" id="mi-ruta">
+      <h1>Mi ruta de hoy</h1>
+      <p class="nota">{{ ruta.numero }} · {{ ruta.zona }}{% if ruta.placa %} · {{ ruta.placa }}{% endif %} · {{ hechas }} de {{ paradas|length }} recogidas</p>
+      {% if google %}<a class="grande verde" href="{{ google }}" target="_blank" rel="noopener">Abrir la ruta en Google Maps<small>las paradas que faltan, en orden</small></a>{% endif %}
+      {% for d in paradas %}<div class="item{% if d.sol.estado != 'ASIGNADO' %} hecha{% endif %}"><b>{{ forloop.counter }}. {{ d.sol.cliente.nombre }}</b>{% if d.sol.estado != 'ASIGNADO' %} ✔{% endif %}
+        <small>{{ d.sol.almacen }}{% if d.distrito %} · {{ d.distrito }}{% endif %} · {{ d.bultos }} bulto(s)</small>
+        {% if d.sol.contacto %}<small>{{ d.sol.contacto }}</small>{% endif %}</div>{% endfor %}
+    </div>{% endif %}
     <h1>¿Qué está haciendo?</h1>
     <div id="pasos"></div>
     <div id="problemas"></div>

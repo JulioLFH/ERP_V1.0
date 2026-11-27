@@ -3,6 +3,14 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.15 — 26/11/2026 · Operador logístico: Ruta de recojo (sugerida o manual)
+- **Recojo › Ruta de recojo** (pantalla nueva): las solicitudes por recoger del día se agrupan por **zona** (Norte, Callao, Centro, Este, Sur) según el distrito del almacén del cliente y se ordenan por **cercanía** saliendo del almacén de Go. Al pasar la capacidad de la unidad (kg, bultos o paradas, en Configuración) se abre otra ruta. «Rehacer» vuelve a sugerir lo que sigue en «Armando».
+- **Ajuste manual**: agregar una solicitud a una ruta o a una ruta nueva, subir, bajar o quitar paradas, «Ordenar por cercanía», crear una ruta manual con su nombre y deshacerla.
+- **Operador y placa**: se asigna la ruta a un operador (queda como operador de cada solicitud) y se inicia. En la app del celular el operador ve **«Mi ruta de hoy»** con sus paradas en orden y el botón **«Abrir la ruta en Google Maps»**; la lista de recojos pendientes sale en el orden de la ruta («Parada N»).
+- **Hoja de ruta** imprimible con las paradas, contacto, bultos, kg, casilla de firma y un QR para abrir el recorrido en Google Maps.
+- **Ubicación**: la ficha logística del cliente admite latitud y longitud del almacén (dentro del Perú). Si no las tiene, se usa el GPS de un recojo anterior y, si no, el centro del distrito. El primer recojo con GPS guarda la ubicación en la ficha. La ruta se cierra sola cuando se recogen todas sus paradas.
+- **Configuración**: punto de partida (dirección, latitud y longitud del almacén de Go) y capacidad por ruta (kg, bultos y número de paradas).
+
 ## v1.117.14 — 26/11/2026 · Operador logístico: solo el cliente con contrato pide recojos solo
 - **Cliente con contrato**: el correo o WhatsApp de un remitente autorizado pasa solo a **solicitud de recojo** con sus guías (pedidos) únicamente si el cliente tiene contrato: la casilla **«Cliente con contrato de servicio logístico»** o un **contrato vigente en CRM › Contratos** (dentro de sus fechas). El crédito solo ya no basta.
 - **Proceso regular**: un remitente no registrado o un cliente sin contrato (o con el contrato vencido o terminado) sigue al CRM como oportunidad (cotización), aunque mande guías adjuntas. Lo mismo desde Ceiba GO: sin contrato, el pedido se rechaza con «proceso regular».

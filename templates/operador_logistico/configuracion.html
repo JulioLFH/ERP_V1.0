@@ -2,7 +2,7 @@
 {% block title %}Configuración del operador logístico{% endblock %}
 {% block content %}
 <h1 class="page-title mb-2">Configuración del operador logístico</h1>
-<p class="small text-muted">Series y motivo de las guías que emite el módulo. El motivo de la guía consolidada está por validar con el contador; por defecto, 13 «Otros» con la descripción «Traslado de mercadería de terceros».</p>
+<p class="small text-muted">Series y motivo de las guías que emite el módulo; punto de partida y capacidad de las <a href="{% url 'operador_logistico:rutas' %}">rutas de recojo</a>. El motivo de la guía consolidada está por validar con el contador; por defecto, 13 «Otros» con la descripción «Traslado de mercadería de terceros».</p>
 <form method="post" class="card"><div class="card-body row g-3">{% csrf_token %}
   {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1">{{ e }}</div>{% endfor %}
   {% for field in form %}<div class="col-md-6">{% include 'core/_campo.html' %}</div>{% endfor %}

@@ -39,6 +39,20 @@ class ConfigOperador(models.Model):
                                           default='Traslado de mercadería de terceros (operador logístico)')
     ultimo_tramo_por = models.CharField('Guía del último tramo', max_length=12, choices=POR, default='DESTINATARIO',
                                         help_text='Por confirmar con Go: una por destinatario o una por cliente')
+    # v1.117.15: rutas de recojo
+    base_direccion = models.CharField('Punto de partida de las rutas de recojo', max_length=250, blank=True,
+                                      help_text='Dirección del almacén de Go (sale de aquí y vuelve aquí)')
+    base_latitud = models.DecimalField('Latitud del punto de partida', max_digits=9, decimal_places=6, null=True,
+                                       blank=True, help_text='Ej. -12.046374 (en Google Maps: clic derecho sobre el '
+                                                             'lugar y copiar las coordenadas)')
+    base_longitud = models.DecimalField('Longitud del punto de partida', max_digits=9, decimal_places=6, null=True,
+                                        blank=True)
+    capacidad_kg = models.DecimalField('Capacidad por ruta (kg)', max_digits=10, decimal_places=2, default=Decimal('1000'),
+                                       help_text='La sugerencia abre otra ruta al pasar este peso. 0 = sin límite')
+    capacidad_bultos = models.PositiveIntegerField('Capacidad por ruta (bultos)', default=0,
+                                                   help_text='0 = sin límite')
+    max_paradas = models.PositiveSmallIntegerField('Paradas por ruta (máximo)', default=10,
+                                                   help_text='Google Maps abre hasta 10 paradas en un solo recorrido')
 
     class Meta:
         verbose_name = verbose_name_plural = 'configuración del operador logístico'
@@ -132,6 +146,10 @@ class ClienteLogistico(models.Model):
     almacen_ubigeo = models.CharField('Ubigeo del almacén', max_length=6, blank=True)
     almacen_referencia = models.CharField('Referencia', max_length=150, blank=True)
     contacto = models.CharField('Contacto en el almacén', max_length=120, blank=True)
+    almacen_latitud = models.DecimalField('Latitud del almacén', max_digits=9, decimal_places=6, null=True, blank=True,
+                                          help_text='Vacía: se aprende sola en el primer recojo (GPS del celular)')
+    almacen_longitud = models.DecimalField('Longitud del almacén', max_digits=9, decimal_places=6, null=True,
+                                           blank=True)
 
     class Meta:
         verbose_name = 'cliente del servicio logístico'
@@ -225,6 +243,9 @@ class SolicitudRecojo(models.Model):
                                      related_name='+')
     latitud = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitud = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    ruta = models.ForeignKey('RutaRecojo', on_delete=models.SET_NULL, null=True, blank=True, related_name='paradas',
+                             verbose_name='Ruta de recojo')
+    orden_ruta = models.PositiveSmallIntegerField('Orden en la ruta', default=0)
     creado = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -240,6 +261,41 @@ class SolicitudRecojo(models.Model):
         if not self.numero:
             self.numero = f'SR-{self.pk:06d}'
             type(self).objects.filter(pk=self.pk).update(numero=self.numero)
+
+
+class RutaRecojo(models.Model):
+    """v1.117.15: recorrido de un día para recoger en los almacenes de los clientes. La sugerencia agrupa las
+    solicitudes por zona de Lima y Callao y las ordena por cercanía; logística la ajusta a mano y la asigna a un
+    operador, que la ve en el celular con el botón de Google Maps."""
+    ESTADOS = [('ARMANDO', 'Armando'), ('EN_CURSO', 'En curso'), ('CERRADA', 'Cerrada')]
+    numero = models.CharField('N°', max_length=20, editable=False)
+    fecha = models.DateField(default=timezone.localdate)
+    zona = models.CharField(max_length=60, blank=True)
+    operador = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name='rutas_recojo', verbose_name='Operador de recojo')
+    placa = models.CharField('Placa de la unidad', max_length=15, blank=True)
+    estado = models.CharField(max_length=8, choices=ESTADOS, default='ARMANDO')
+    sugerida = models.BooleanField('Armada por la sugerencia', default=False, editable=False)
+    creado = models.DateTimeField(default=timezone.now)
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+', editable=False)
+
+    class Meta:
+        ordering = ['-fecha', 'id']
+        verbose_name = 'ruta de recojo'
+        verbose_name_plural = 'rutas de recojo'
+
+    def __str__(self):
+        return f'{self.numero} · {self.zona}' if self.zona else self.numero
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if not self.numero:
+            self.numero = f'RR-{self.pk:06d}'
+            type(self).objects.filter(pk=self.pk).update(numero=self.numero)
+
+    def paradas_en_orden(self):
+        return self.paradas.select_related('cliente').order_by('orden_ruta', 'pk')
 
 
 class Consolidado(models.Model):

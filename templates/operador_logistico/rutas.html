@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Ruta de recojo{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title mb-0">Ruta de recojo</h1>
+  <form method="get" class="d-flex gap-2 align-items-center small">
+    <label for="f-fecha" class="mb-0">Día</label>
+    <input type="date" name="fecha" id="f-fecha" value="{{ fecha|date:'Y-m-d' }}" class="form-control form-control-sm">
+    <button class="btn btn-sm btn-outline-primary">Ver</button>
+  </form>
+</div>
+<p class="small text-muted mb-2">La sugerencia agrupa las solicitudes por recoger por zona (Norte, Callao, Centro, Este, Sur) según el distrito del almacén del cliente, las ordena por cercanía saliendo del almacén de Go y abre otra ruta al pasar la capacidad de la unidad. Ajústela a mano, asígnela a un operador e iníciela: el operador la ve en la app del celular con el botón de Google Maps.</p>
+{% if not base %}<div class="alert alert-warning small py-2">Falta el punto de partida (almacén de Go): sin él la ruta empieza en la parada más al norte. <a href="{% url 'operador_logistico:configuracion' %}">Configúrelo aquí</a>, junto con la capacidad de cada ruta ({{ cfg.capacidad_kg|floatformat:0 }} kg{% if cfg.capacidad_bultos %}, {{ cfg.capacidad_bultos }} bultos{% endif %}, {{ cfg.max_paradas }} paradas).</div>{% endif %}
+
+<div class="row g-3">
+  <div class="col-xl-4">
+    <div class="card h-100"><div class="card-header d-flex justify-content-between align-items-center">
+      <span><b>Por recoger sin ruta</b> · {{ sin_ruta|length }}</span>
+      {% if planificar %}<form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}">
+        <button name="accion" value="sugerir" class="btn btn-sm btn-primary" {% if not sin_ruta %}disabled{% endif %}><i class="bi bi-magic"></i> Sugerir rutas</button>
+        {% if rutas %}<button name="accion" value="rehacer" class="btn btn-sm btn-outline-secondary" data-confirm="Se deshacen las rutas del día que siguen en «Armando» y se vuelven a sugerir con todo lo pendiente. ¿Continuar?" title="Deshace las rutas en «Armando» y vuelve a sugerir">Rehacer</button>{% endif %}
+      </form>{% endif %}
+    </div>
+    <ul class="list-group list-group-flush small">{% for d in sin_ruta %}
+      <li class="list-group-item">
+        <div class="d-flex justify-content-between gap-2"><a href="{% url 'operador_logistico:solicitud' d.sol.pk %}">{{ d.sol.numero }}</a><span class="badge text-bg-light border">{{ d.zona }}</span></div>
+        <div><b>{{ d.sol.cliente.nombre }}</b></div>
+        <div class="text-muted">{{ d.sol.almacen|default:'—' }}{% if d.distrito %} · {{ d.distrito }}{% endif %}</div>
+        <div class="text-muted">{{ d.bultos }} bulto(s) · {{ d.kg|floatformat:1 }} kg{% if d.sol.fecha_recojo %} · pide {{ d.sol.fecha_recojo|date:'d/m' }}{% endif %}{% if not d.fuente %} · <span class="text-danger">sin ubicación</span>{% endif %}</div>
+        {% if planificar %}<form method="post" class="d-flex gap-1 mt-1">{% csrf_token %}<input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}"><input type="hidden" name="accion" value="agregar"><input type="hidden" name="solicitud" value="{{ d.sol.pk }}">
+          <select name="destino" class="form-select form-select-sm" aria-label="Ruta">{% for r in abiertas %}<option value="{{ r.pk }}">{{ r }}</option>{% endfor %}<option value="">Ruta nueva</option></select>
+          <button class="btn btn-sm btn-outline-secondary text-nowrap">Agregar</button></form>{% endif %}
+      </li>{% empty %}<li class="list-group-item text-muted">Todo lo pendiente de este día ya está en una ruta.</li>{% endfor %}</ul>
+    {% if planificar %}<div class="card-footer"><form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}"><input type="hidden" name="accion" value="nueva">
+      <input name="zona" class="form-control form-control-sm" placeholder="Nombre de la ruta (ej. Lima Norte)" maxlength="60" aria-label="Nombre de la ruta">
+      <button class="btn btn-sm btn-outline-primary text-nowrap"><i class="bi bi-plus"></i> Ruta manual</button></form></div>{% endif %}
+    </div>
+  </div>
+
+  <div class="col-xl-8">
+  {% for x in rutas %}{% with r=x.r %}
+    <div class="card mb-3{% if r.estado == 'EN_CURSO' %} border-primary{% elif r.estado == 'CERRADA' %} border-success{% endif %}">
+      <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+        <span><b>{{ r.numero }}</b> · {{ r.zona|default:'Ruta' }} <span class="badge text-bg-{% if r.estado == 'EN_CURSO' %}primary{% elif r.estado == 'CERRADA' %}success{% else %}secondary{% endif %}">{{ r.get_estado_display }}</span></span>
+        <span class="small">{{ x.paradas|length }} parada(s) · {{ x.bultos }} bulto(s) · {{ x.kg|floatformat:1 }} kg{% if r.estado != 'ARMANDO' %} · {{ x.hechas }}/{{ x.paradas|length }} recogidas{% endif %}</span>
+        <span class="d-flex gap-1">
+          {% if x.google %}<a href="{{ x.google }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success"><i class="bi bi-map"></i> Google Maps</a>{% endif %}
+          <a href="{% url 'operador_logistico:ruta_hoja' r.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Hoja</a>
+        </span>
+      </div>
+      <ol class="list-group list-group-flush small">{% for d in x.paradas %}
+        <li class="list-group-item d-flex gap-2 align-items-start{% if d.sol.estado != 'ASIGNADO' %} bg-body-tertiary{% endif %}">
+          <span class="badge rounded-pill text-bg-{% if d.sol.estado != 'ASIGNADO' %}success{% else %}dark{% endif %}">{{ forloop.counter }}</span>
+          <div class="flex-grow-1">
+            <div><a href="{% url 'operador_logistico:solicitud' d.sol.pk %}">{{ d.sol.numero }}</a> · <b>{{ d.sol.cliente.nombre }}</b>{% if d.sol.estado != 'ASIGNADO' %} <span class="text-success"><i class="bi bi-check2"></i> {{ d.sol.get_estado_display }}</span>{% endif %}</div>
+            <div class="text-muted">{{ d.sol.almacen|default:'—' }}{% if d.distrito %} · {{ d.distrito }}{% endif %} · {{ d.bultos }} bulto(s) · {{ d.kg|floatformat:1 }} kg{% if d.sol.contacto %} · {{ d.sol.contacto }}{% endif %}</div>
+            <div class="text-muted" style="font-size:.75rem">Ubicación: {% if d.fuente == 'ficha' %}ficha del cliente{% elif d.fuente == 'recojo anterior' %}GPS de un recojo anterior{% elif d.fuente == 'distrito' %}aproximada (centro del distrito){% else %}<span class="text-danger">sin ubicación: va al final</span>{% endif %}</div>
+          </div>
+          {% if planificar and r.estado != 'CERRADA' and d.sol.estado == 'ASIGNADO' %}
+          <form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}"><input type="hidden" name="solicitud" value="{{ d.sol.pk }}">
+            <button name="accion" value="subir" class="btn btn-sm btn-outline-secondary" title="Subir" aria-label="Subir" {% if forloop.first %}disabled{% endif %}><i class="bi bi-arrow-up"></i></button>
+            <button name="accion" value="bajar" class="btn btn-sm btn-outline-secondary" title="Bajar" aria-label="Bajar" {% if forloop.last %}disabled{% endif %}><i class="bi bi-arrow-down"></i></button>
+            <button name="accion" value="quitar" class="btn btn-sm btn-outline-danger" title="Quitar de la ruta" aria-label="Quitar de la ruta"><i class="bi bi-x-lg"></i></button>
+          </form>{% endif %}
+        </li>{% empty %}<li class="list-group-item text-muted">Sin paradas: agréguelas desde «Por recoger sin ruta».</li>{% endfor %}</ol>
+      <div class="card-footer small">
+        {% if planificar and r.estado != 'CERRADA' %}
+        <form method="post" class="d-flex flex-wrap gap-2 align-items-center">{% csrf_token %}<input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}"><input type="hidden" name="ruta" value="{{ r.pk }}">
+          <select name="operador" class="form-select form-select-sm w-auto" aria-label="Operador de recojo"><option value="">— Operador —</option>{% for u in operadores %}<option value="{{ u.pk }}" {% if u.pk == r.operador_id %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select>
+          <input name="placa" value="{{ r.placa }}" class="form-control form-control-sm w-auto" placeholder="Placa" maxlength="15" aria-label="Placa">
+          <button name="accion" value="asignar" class="btn btn-sm btn-outline-primary">Asignar</button>
+          <button name="accion" value="ordenar" class="btn btn-sm btn-outline-secondary" title="Vuelve a ordenar las paradas pendientes por cercanía"><i class="bi bi-sort-down"></i> Ordenar por cercanía</button>
+          {% if r.estado == 'ARMANDO' %}<button name="accion" value="iniciar" class="btn btn-sm btn-success"><i class="bi bi-play-fill"></i> Iniciar ruta</button>
+          <button name="accion" value="eliminar" class="btn btn-sm btn-outline-danger ms-auto" data-confirm="Las solicitudes de esta ruta vuelven a «sin ruta». ¿Deshacer la ruta?">Deshacer</button>{% endif %}
+        </form>
+        {% else %}{% if r.operador %}Operador: {{ r.operador.get_full_name|default:r.operador.username }}{% endif %}{% if r.placa %} · Placa {{ r.placa }}{% endif %}{% endif %}
+        {% if x.paradas|length > 10 %}<div class="text-muted mt-1">Google Maps abre las primeras 10 paradas pendientes; las demás, en la hoja.</div>{% endif %}
+      </div>
+    </div>
+  {% endwith %}{% empty %}
+    <div class="alert alert-info">No hay rutas para el {{ fecha|date:'d/m/Y' }}. {% if sin_ruta %}Use «Sugerir rutas» o cree una ruta manual.{% endif %}</div>
+  {% endfor %}
+  </div>
+</div>
+{% endblock %}

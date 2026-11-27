@@ -418,7 +418,7 @@ RUTAS = {
     'operador_logistico:movil_registrar': 'operador_logistico.operar',
     'operador_logistico:solicitud_nueva': 'operador_logistico.planificar',
     **{f'operador_logistico:{n}': {'POST': 'operador_logistico.planificar'}
-       for n in ('solicitud', 'guia', 'planificacion', 'consolidado')},
+       for n in ('solicitud', 'guia', 'planificacion', 'consolidado', 'rutas')},
     **{f'operador_logistico:{n}': {'POST': 'operador_logistico.configurar'}
        for n in ('clientes', 'cliente', 'estados', 'configuracion')},
     'proyectos:nuevo': 'proyectos.gestionar', 'proyectos:editar': 'proyectos.gestionar',

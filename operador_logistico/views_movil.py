@@ -35,7 +35,15 @@ def movil(request):
                  'registrar': reverse('operador_logistico:movil_registrar'),
                  'sistema': reverse('operador_logistico:tablero')},
     }
-    return render(request, 'operador_logistico/movil.html', {'datos': datos, 'version': settings.ERP_VERSION})
+    # v1.117.15: la ruta de recojo de hoy del operador, en orden y con el botón de Google Maps
+    from . import rutas as rr
+    ruta, paradas, google = rr.ruta_del_operador(request.user), [], ''
+    if ruta is not None:
+        paradas = [rr.detalle(s) for s in ruta.paradas_en_orden()]
+        google = rr.enlace_google(ruta, paradas)
+    return render(request, 'operador_logistico/movil.html', {
+        'datos': datos, 'version': settings.ERP_VERSION, 'ruta': ruta, 'paradas': paradas, 'google': google,
+        'hechas': sum(1 for d in paradas if d['sol'].estado != 'ASIGNADO')})
 
 
 @login_required

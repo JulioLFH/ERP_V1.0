@@ -507,6 +507,7 @@ MODULOS = [
             ('Tablero', 'operador_logistico:tablero'),
             ('Recojo', [('Solicitudes de recojo', 'operador_logistico:solicitudes', 'bi-inbox'),
                         ('Nueva solicitud', 'operador_logistico:solicitud_nueva', 'bi-plus-circle'),
+                        ('Ruta de recojo', 'operador_logistico:rutas', 'bi-signpost-2'),
                         ('Guías de los clientes', 'operador_logistico:guias', 'bi-qr-code')]),
             ('Planificación', [('Tablero por destino', 'operador_logistico:planificacion', 'bi-signpost-split'),
                                ('Consolidados', 'operador_logistico:consolidados', 'bi-truck')]),

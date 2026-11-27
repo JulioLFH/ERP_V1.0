@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Versión visible en el menú del usuario; actualizarla junto con CHANGELOG.md y la etiqueta de git
 ERP_NOMBRE = 'Ceiba ERP'
-ERP_VERSION = '1.117.14'
+ERP_VERSION = '1.117.15'
 # franja arriba de todas las pantallas (p. ej. «Base de datos de prueba» en el ERP de pruebas); vacío = sin franja
 ERP_AVISO = os.environ.get('ERP_AVISO', '').strip()[:120]
 
