@@ -3,7 +3,7 @@ from django import forms
 from core.forms import BootstrapMixin
 from core.models import Tercero
 
-from .models import ClienteLogistico, Consolidado, ConfigOperador, EstadoLogistico, SolicitudRecojo
+from .models import ClienteLogistico, Consolidado, ConfigOperador, EstadoLogistico, OperadorRecojo, SolicitudRecojo
 
 
 def validar_coordenadas(form, campo_lat, campo_lon):
@@ -13,6 +13,29 @@ def validar_coordenadas(form, campo_lat, campo_lon):
         form.add_error(campo_lon if lon is None else campo_lat, 'Escriba la latitud y la longitud, o deje ambas vacías.')
     elif lat is not None and not (-19 <= lat <= 0 and -82 <= lon <= -68):
         form.add_error(campo_lat, 'Las coordenadas no están en el Perú (ej. latitud -12.046, longitud -77.042).')
+
+
+class OperadorRecojoForm(BootstrapMixin, forms.ModelForm):
+    """v1.117.16: de dónde sale el operador; la ruta se programa desde ahí."""
+    class Meta:
+        model = OperadorRecojo
+        fields = ['direccion', 'ubigeo', 'latitud', 'longitud', 'placa', 'activo']
+
+    def __init__(self, *args, **kwargs):
+        from .rutas import DISTRITOS
+        super().__init__(*args, **kwargs)
+        self.fields['ubigeo'] = forms.ChoiceField(
+            label='Distrito', required=False,
+            choices=[('', '—')] + sorted(((k, v[0]) for k, v in DISTRITOS.items()), key=lambda x: x[1]),
+            widget=forms.Select(attrs={'class': 'form-select form-select-sm'}))
+
+    def clean_placa(self):
+        return (self.cleaned_data.get('placa') or '').strip().upper()
+
+    def clean(self):
+        datos = super().clean()
+        validar_coordenadas(self, 'latitud', 'longitud')
+        return datos
 
 
 class SolicitudForm(BootstrapMixin, forms.ModelForm):

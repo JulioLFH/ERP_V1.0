@@ -33,6 +33,7 @@ def movil(request):
         'urls': {'pendientes': reverse('operador_logistico:movil_pendientes'),
                  'verificar': reverse('operador_logistico:movil_verificar'),
                  'registrar': reverse('operador_logistico:movil_registrar'),
+                 'salida': reverse('operador_logistico:movil_salida'),
                  'sistema': reverse('operador_logistico:tablero')},
     }
     # v1.117.15: la ruta de recojo de hoy del operador, en orden y con el botón de Google Maps
@@ -96,3 +97,23 @@ def registrar(request):
     except (ErrorSustento, ErrorXML) as exc:
         return _json({'ok': False, 'mensaje': str(exc), 'id_local': P.get('id_local')})
     return _json({'ok': True, 'mensaje': mensaje, 'id_local': P.get('id_local')})
+
+
+@login_required
+@require_POST
+def mi_salida(request):
+    """v1.117.16: el operador guarda con el GPS del celular el punto de donde sale (su casa): la ruta se programa desde
+    ahí."""
+    if not puede(request.user, 'operador_logistico.operar'):
+        raise PermissionDenied
+    from decimal import Decimal, InvalidOperation
+    from .models import OperadorRecojo
+    try:
+        lat = Decimal(request.POST.get('latitud', '')).quantize(Decimal('0.000001'))
+        lon = Decimal(request.POST.get('longitud', '')).quantize(Decimal('0.000001'))
+    except (InvalidOperation, ValueError):
+        return _json({'ok': False, 'mensaje': 'No llegó la ubicación del celular.'})
+    if not (-19 <= lat <= 0 and -82 <= lon <= -68):
+        return _json({'ok': False, 'mensaje': 'La ubicación no está en el Perú.'})
+    OperadorRecojo.objects.update_or_create(usuario=request.user, defaults={'latitud': lat, 'longitud': lon})
+    return _json({'ok': True, 'mensaje': 'Punto de partida guardado: sus rutas de recojo salen de aquí.'})

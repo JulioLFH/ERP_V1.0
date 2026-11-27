@@ -11,6 +11,7 @@ urlpatterns = [
     path('solicitudes/<int:pk>/', views.solicitud, name='solicitud'),
     path('rutas/', views.rutas, name='rutas'),
     path('rutas/<int:pk>/hoja/', views.ruta_hoja, name='ruta_hoja'),
+    path('rutas/operadores/', views.operadores_recojo, name='operadores_recojo'),
     path('guias/', views.guias, name='guias'),
     path('guias/<int:pk>/', views.guia, name='guia'),
     path('planificacion/', views.planificacion, name='planificacion'),
@@ -28,5 +29,6 @@ urlpatterns = [
     path('celular/', views_movil.movil, name='movil'),
     path('celular/pendientes/', views_movil.pendientes, name='movil_pendientes'),
     path('celular/verificar/', views_movil.verificar, name='movil_verificar'),
+    path('celular/mi-salida/', views_movil.mi_salida, name='movil_salida'),
     path('celular/registrar/', views_movil.registrar, name='movil_registrar'),
 ]

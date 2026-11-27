@@ -9,11 +9,11 @@ from core.models import Tercero
 
 from . import rutas as rr
 from . import servicios as srv
-from .models import ClienteLogistico, ConfigOperador, RutaRecojo, SolicitudRecojo
+from .models import ClienteLogistico, ConfigOperador, OperadorRecojo, RutaRecojo, SolicitudRecojo
 from .tests import RUC_CLIENTE, Base, xml_guia
 
 
-class RutasTest(Base):
+class BaseRutas(Base):
     def setUp(self):
         super().setUp()
         cfg = ConfigOperador.actual()
@@ -38,6 +38,8 @@ class RutasTest(Base):
     def sol(self, s):
         return SolicitudRecojo.objects.get(pk=s.pk)
 
+
+class RutasTest(BaseRutas):
     def test_sugerir_agrupa_por_zona_y_ordena_por_cercania(self):
         creadas = rr.sugerir(self.hoy, self.admin)
         self.assertEqual(len(creadas), 3)
@@ -121,3 +123,72 @@ class RutasTest(Base):
         self.assertIn('almacen_longitud', f.errors)
         f = ClienteLogisticoForm({'almacen_latitud': '40.4', 'almacen_longitud': '-3.7'}, instance=self.perfil)
         self.assertIn('almacen_latitud', f.errors)
+
+
+class RutaDesdeElOperadorTest(BaseRutas):
+    """v1.117.16: la ruta se programa desde la dirección (casa) de los operadores."""
+
+    def operador(self, nombre, **ficha):
+        u = self.usuario(nombre, ['operador_logistico'], ['operador_logistico.operar'])
+        if ficha:
+            OperadorRecojo.objects.create(usuario=u, **ficha)
+        return u
+
+    def test_sugerir_da_a_cada_operador_la_ruta_mas_cercana_a_su_casa(self):
+        ana = self.operador('ana', direccion='Av. Túpac Amaru 100', ubigeo='150110',
+                            latitud=D('-11.940000'), longitud=D('-77.060000'))
+        beto = self.operador('beto', ubigeo='150140', placa='xyz-1')  # solo el distrito
+        self.operador('carla', latitud=D('-12.050000'), longitud=D('-77.120000'), activo=False)  # hoy no sale
+        self.operador('dani')  # sin dirección
+        rr.sugerir(self.hoy)
+        norte, sur, callao = (RutaRecojo.objects.get(zona=z) for z in ('Norte', 'Sur', 'Callao'))
+        self.assertEqual((norte.operador, sur.operador, callao.operador), (ana, beto, None))
+        self.assertEqual(sur.placa, 'XYZ-1')
+        # sale de la casa de Ana (Comas): primero Comas, luego Los Olivos
+        self.assertEqual(self.zonas()['Norte'], [self.sol_comas.pk, self.sol_olivos.pk])
+        self.assertEqual(self.sol(self.sol_olivos).operador, ana)
+        g = rr.enlace_google(norte)
+        self.assertIn('origin=-11.940000%2C-77.060000', g)
+        self.assertIn('destination=-12.046400%2C-77.042800', g)  # termina en el almacén de Go
+        self.assertIn('origin=Santiago%20de%20Surco%2C%20Lima%2C%20Per%C3%BA', rr.enlace_google(sur))
+        self.assertEqual(rr.origen(callao)['fuente'], 'go')  # sin operador: sale del almacén de Go
+        # un operador con ruta abierta ese día ya no recibe otra
+        nueva = self.otra('20100000014', 'Comas Dos SAC', '150110')
+        rr.sugerir(self.hoy)
+        self.assertIsNone(self.sol(nueva).ruta.operador)
+
+    def test_asignar_reordena_saliendo_de_la_casa_del_operador(self):
+        rr.sugerir(self.hoy)
+        norte = RutaRecojo.objects.get(zona='Norte')
+        self.assertEqual(self.zonas()['Norte'], [self.sol_olivos.pk, self.sol_comas.pk])  # desde el almacén de Go
+        ana = self.operador('ana', latitud=D('-11.940000'), longitud=D('-77.060000'), placa='ab-123')
+        rr.asignar(norte, ana, '')
+        norte.refresh_from_db()
+        self.assertEqual(norte.placa, 'AB-123')  # la placa habitual
+        self.assertEqual(self.zonas()['Norte'], [self.sol_comas.pk, self.sol_olivos.pk])
+
+    def test_pantalla_de_operadores_y_ubicacion_desde_el_celular(self):
+        ana = self.operador('ana')
+        planificador = self.usuario('plan', ['operador_logistico'], ['operador_logistico.planificar'])
+        mirador = self.usuario('mira', ['operador_logistico'])
+        url = reverse('operador_logistico:operadores_recojo')
+        datos = {'usuario': ana.pk, f'op{ana.pk}-direccion': 'Jr. Las Flores 123', f'op{ana.pk}-ubigeo': '150110',
+                 f'op{ana.pk}-latitud': '', f'op{ana.pk}-longitud': '', f'op{ana.pk}-placa': 'abc-1',
+                 f'op{ana.pk}-activo': 'on'}
+        self.client.force_login(mirador)
+        self.assertEqual(self.client.post(url, datos).status_code, 403)
+        self.client.force_login(planificador)
+        self.assertContains(self.client.get(url), 'sin punto')
+        self.assertRedirects(self.client.post(url, datos), url)
+        f = OperadorRecojo.objects.get(usuario=ana)
+        self.assertEqual((f.direccion, f.ubigeo, f.placa), ('Jr. Las Flores 123', '150110', 'ABC-1'))
+        self.assertContains(self.client.get(reverse('operador_logistico:rutas')), '1 operador(es) libre(s)')
+        self.client.force_login(ana)
+        self.assertContains(self.client.get(reverse('operador_logistico:movil')), 'Guardar mi ubicación')
+        salida = reverse('operador_logistico:movil_salida')
+        self.assertFalse(self.client.post(salida, {'latitud': '40.4', 'longitud': '-3.7'}).json()['ok'])
+        self.assertTrue(self.client.post(salida, {'latitud': '-11.9401234', 'longitud': '-77.06'}).json()['ok'])
+        f.refresh_from_db()
+        self.assertEqual((f.latitud, f.direccion), (D('-11.940123'), 'Jr. Las Flores 123'))
+        self.client.force_login(mirador)
+        self.assertEqual(self.client.post(salida, {'latitud': '-12', 'longitud': '-77'}).status_code, 403)

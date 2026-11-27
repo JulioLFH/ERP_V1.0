@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Operadores de recojo{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2">
+  <h1 class="page-title mb-0">Operadores de recojo</h1>
+  <a href="{% url 'operador_logistico:rutas' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-signpost-2"></i> Ruta de recojo</a>
+</div>
+<p class="small text-muted mb-2">La ruta de recojo se programa desde la dirección de cada operador: «Sugerir rutas» le da a cada uno la ruta más cercana a su punto de partida y ordena las paradas saliendo de ahí; el recorrido termina en el almacén de Go. Con latitud y longitud el punto es exacto; con solo el distrito se usa su centro. El operador también puede guardarlo desde la app del celular («Guardar mi ubicación como punto de partida»). Aparecen los usuarios que pueden usar la app del operador.</p>
+<div class="row g-3">
+{% for x in filas %}{% with f=x.form %}
+  <div class="col-lg-6 col-xxl-4">
+    <form method="post" class="card h-100">{% csrf_token %}<input type="hidden" name="usuario" value="{{ x.u.pk }}">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <b>{{ x.u.get_full_name|default:x.u.username }}</b>
+        <span class="small">{% if x.salida %}{% if x.salida.fuente == 'operador' %}<a href="https://www.google.com/maps?q={{ x.salida.lat }},{{ x.salida.lon }}" target="_blank" rel="noopener"><i class="bi bi-geo-alt"></i> punto exacto</a>{% else %}<i class="bi bi-geo"></i> centro del distrito{% endif %}{% else %}<span class="text-danger">sin punto: no recibe ruta sugerida</span>{% endif %}</span>
+      </div>
+      <div class="card-body small">
+        {% if f.non_field_errors %}<div class="text-danger mb-1">{{ f.non_field_errors|join:' ' }}</div>{% endif %}
+        <div class="mb-2"><label class="form-label mb-0" for="{{ f.direccion.id_for_label }}">Dirección de partida</label>{{ f.direccion }}{% for e in f.direccion.errors %}<div class="text-danger">{{ e }}</div>{% endfor %}</div>
+        <div class="row g-2 mb-2">
+          <div class="col-7"><label class="form-label mb-0" for="{{ f.ubigeo.id_for_label }}">Distrito</label>{{ f.ubigeo }}</div>
+          <div class="col-5"><label class="form-label mb-0" for="{{ f.placa.id_for_label }}">Placa habitual</label>{{ f.placa }}</div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label mb-0" for="{{ f.latitud.id_for_label }}">Latitud</label>{{ f.latitud }}{% for e in f.latitud.errors %}<div class="text-danger">{{ e }}</div>{% endfor %}</div>
+          <div class="col-6"><label class="form-label mb-0" for="{{ f.longitud.id_for_label }}">Longitud</label>{{ f.longitud }}{% for e in f.longitud.errors %}<div class="text-danger">{{ e }}</div>{% endfor %}</div>
+        </div>
+        <div class="form-check">{{ f.activo }}<label class="form-check-label" for="{{ f.activo.id_for_label }}">Sale a recoger (desmarque si hoy no sale)</label></div>
+      </div>
+      {% if planificar %}<div class="card-footer text-end"><button class="btn btn-sm btn-primary">Guardar</button></div>{% endif %}
+    </form>
+  </div>
+{% endwith %}{% empty %}
+  <div class="col-12"><div class="alert alert-info">No hay usuarios con permiso para la app del operador (Operador logístico › operar).</div></div>
+{% endfor %}
+</div>
+{% endblock %}

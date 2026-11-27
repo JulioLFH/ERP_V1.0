@@ -9,8 +9,9 @@
     <button class="btn btn-sm btn-outline-primary">Ver</button>
   </form>
 </div>
-<p class="small text-muted mb-2">La sugerencia agrupa las solicitudes por recoger por zona (Norte, Callao, Centro, Este, Sur) según el distrito del almacén del cliente, las ordena por cercanía saliendo del almacén de Go y abre otra ruta al pasar la capacidad de la unidad. Ajústela a mano, asígnela a un operador e iníciela: el operador la ve en la app del celular con el botón de Google Maps.</p>
-{% if not base %}<div class="alert alert-warning small py-2">Falta el punto de partida (almacén de Go): sin él la ruta empieza en la parada más al norte. <a href="{% url 'operador_logistico:configuracion' %}">Configúrelo aquí</a>, junto con la capacidad de cada ruta ({{ cfg.capacidad_kg|floatformat:0 }} kg{% if cfg.capacidad_bultos %}, {{ cfg.capacidad_bultos }} bultos{% endif %}, {{ cfg.max_paradas }} paradas).</div>{% endif %}
+<p class="small text-muted mb-2">La sugerencia agrupa las solicitudes por recoger por zona (Norte, Callao, Centro, Este, Sur) según el distrito del almacén del cliente y abre otra ruta al pasar la capacidad de la unidad. La ruta se programa desde la dirección del operador: cada ruta va al operador libre que vive más cerca y sus paradas se ordenan por cercanía saliendo de su casa; el recorrido termina en el almacén de Go. Ajústela a mano e iníciela: el operador la ve en la app del celular con el botón de Google Maps.</p>
+{% if not con_salida %}<div class="alert alert-warning small py-2">Ningún operador libre tiene dirección de partida: la sugerencia no asigna operador y la ruta sale del almacén de Go. <a href="{% url 'operador_logistico:operadores_recojo' %}">Registre de dónde sale cada operador</a>.</div>{% else %}<div class="small mb-2"><i class="bi bi-house-door"></i> {{ con_salida }} operador(es) libre(s) con punto de partida · <a href="{% url 'operador_logistico:operadores_recojo' %}">Operadores de recojo</a></div>{% endif %}
+{% if not base %}<div class="alert alert-warning small py-2">Falta el almacén de Go (donde termina la ruta y donde parte si el operador no tiene dirección). <a href="{% url 'operador_logistico:configuracion' %}">Configúrelo aquí</a>, junto con la capacidad de cada ruta ({{ cfg.capacidad_kg|floatformat:0 }} kg{% if cfg.capacidad_bultos %}, {{ cfg.capacidad_bultos }} bultos{% endif %}, {{ cfg.max_paradas }} paradas).</div>{% endif %}
 
 <div class="row g-3">
   <div class="col-xl-4">
@@ -48,6 +49,7 @@
           <a href="{% url 'operador_logistico:ruta_hoja' r.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Hoja</a>
         </span>
       </div>
+      <div class="px-3 py-1 small border-bottom bg-body-tertiary"><i class="bi bi-house-door"></i> Sale de: {% if x.origen.fuente == 'go' %}{{ x.origen.texto }}{% elif x.origen %}<b>{{ x.origen.texto|default:'casa del operador' }}</b> (punto de partida de {{ r.operador.get_full_name|default:r.operador.username }}{% if x.origen.fuente == 'operador (distrito)' %}, aproximado{% endif %}){% else %}<span class="text-muted">la primera parada (sin operador con dirección ni almacén de Go)</span>{% endif %}</div>
       <ol class="list-group list-group-flush small">{% for d in x.paradas %}
         <li class="list-group-item d-flex gap-2 align-items-start{% if d.sol.estado != 'ASIGNADO' %} bg-body-tertiary{% endif %}">
           <span class="badge rounded-pill text-bg-{% if d.sol.estado != 'ASIGNADO' %}success{% else %}dark{% endif %}">{{ forloop.counter }}</span>

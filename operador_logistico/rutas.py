@@ -1,10 +1,12 @@
 """v1.117.15: rutas de recojo en Lima y Callao.
 
 La sugerencia toma las solicitudes de recojo pendientes del día (Asignado, sin ruta, con fecha pedida hasta ese día o
-sin fecha), las agrupa por zona (Norte, Centro, Este, Sur, Callao) según el distrito del almacén del cliente, las ordena
-por cercanía saliendo del almacén de Go (vecino más cercano) y abre otra ruta al pasar la capacidad de la unidad (kg,
-bultos o paradas). Logística la ajusta a mano y la asigna a un operador, que la ve en el celular con el botón de
-Google Maps.
+sin fecha), las agrupa por zona (Norte, Centro, Este, Sur, Callao) según el distrito del almacén del cliente y abre
+otra ruta al pasar la capacidad de la unidad (kg, bultos o paradas). v1.117.16: la ruta se programa desde la dirección
+del operador: cada ruta va al operador libre que vive más cerca y sus paradas se ordenan por cercanía saliendo de su
+casa (vecino más cercano); el recorrido termina en el almacén de Go, donde la carga queda en custodia. Sin operadores
+con dirección, la ruta sale del almacén de Go. Logística la ajusta a mano y el operador la ve en el celular con el
+botón de Google Maps.
 
 Dónde está cada almacén, sin servicios de mapas pagados:
 1. las coordenadas de la ficha logística del cliente (se aprenden solas en el primer recojo con el GPS del celular);
@@ -18,7 +20,7 @@ from django.db import transaction
 from django.db.models import Max, Sum
 from django.utils import timezone
 
-from .models import ClienteLogistico, ConfigOperador, SolicitudRecojo, RutaRecojo
+from .models import ClienteLogistico, ConfigOperador, OperadorRecojo, SolicitudRecojo, RutaRecojo
 
 
 class ErrorRuta(Exception):
@@ -84,6 +86,89 @@ def base():
     if cfg.base_latitud is not None and cfg.base_longitud is not None:
         return (cfg.base_latitud, cfg.base_longitud)
     return None
+
+
+def salida(ficha):
+    """De dónde sale el operador según su ficha: {'lat', 'lon', 'fuente', 'texto'} o None. Con coordenadas, el punto
+    exacto; con solo el distrito, su centro (alcanza para elegir la zona y el orden)."""
+    if ficha is None:
+        return None
+    fila = DISTRITOS.get((ficha.ubigeo or '').strip())
+    texto = ', '.join(x for x in (ficha.direccion, fila[0] if fila else '') if x)
+    if ficha.latitud is not None and ficha.longitud is not None:
+        return {'lat': ficha.latitud, 'lon': ficha.longitud, 'fuente': 'operador', 'texto': texto}
+    if fila:
+        return {'lat': Decimal(str(fila[2])), 'lon': Decimal(str(fila[3])), 'fuente': 'operador (distrito)',
+                'texto': texto}
+    return None
+
+
+def salida_de(usuario):
+    if usuario is None:
+        return None
+    return salida(OperadorRecojo.objects.filter(usuario=usuario).first())
+
+
+def origen(ruta):
+    """Punto de partida de la ruta: la casa del operador asignado o, si no tiene dirección, el almacén de Go."""
+    o = salida_de(ruta.operador) if ruta.operador_id else None
+    if o:
+        return o
+    b = base()
+    if b:
+        return {'lat': b[0], 'lon': b[1], 'fuente': 'go',
+                'texto': ConfigOperador.actual().base_direccion or 'Almacén de Go'}
+    return None
+
+
+def _xy(o):
+    return (o['lat'], o['lon']) if o else None
+
+
+def operadores():
+    """Usuarios activos que pueden recoger (la app del celular)."""
+    from django.contrib.auth import get_user_model
+    from core.permisos import puede
+    return [u for u in get_user_model().objects.filter(is_active=True).order_by('first_name', 'username')
+            if puede(u, 'operador_logistico.operar')]
+
+
+def operadores_libres(fecha):
+    """Operadores que salen ese día, con dirección y sin otra ruta abierta: [(ficha, salida)]."""
+    ocupados = set(RutaRecojo.objects.filter(fecha=fecha, operador__isnull=False)
+                   .exclude(estado='CERRADA').values_list('operador_id', flat=True))
+    validos = {u.pk for u in operadores()}
+    libres = []
+    for f in OperadorRecojo.objects.filter(activo=True, usuario__is_active=True).select_related('usuario'):
+        o = salida(f)
+        if o and f.usuario_id in validos and f.usuario_id not in ocupados:
+            libres.append((f, o))
+    return libres
+
+
+def _centro(items):
+    con = [i for i in items if i['lat'] is not None]
+    if not con:
+        return None
+    return (sum(float(i['lat']) for i in con) / len(con), sum(float(i['lon']) for i in con) / len(con))
+
+
+def _repartir(tramos, libres):
+    """A cada ruta, el operador libre que vive más cerca de sus paradas (primero los pares más cercanos).
+    Devuelve {índice de la ruta: (ficha, salida)}."""
+    pares = []
+    for n, tramo in enumerate(tramos):
+        c = _centro(tramo)
+        if c is None:
+            continue
+        for k, (_, o) in enumerate(libres):
+            pares.append((distancia_km(c, _xy(o)), n, k))
+    asignado, usados = {}, set()
+    for _, n, k in sorted(pares):
+        if n not in asignado and k not in usados:
+            asignado[n] = libres[k]
+            usados.add(k)
+    return asignado
 
 
 def punto(sol, perfil=None):
@@ -174,18 +259,29 @@ def sugerir(fecha, usuario=None, rehacer=False):
         d = detalle(sol, perfiles.get(sol.cliente_id))
         por_zona.setdefault(d['zona'], []).append(d)
     desde = base()
-    creadas = []
+    rutas = []  # (nombre, paradas)
     for zona in ZONAS + [SIN_ZONA]:
         items = por_zona.get(zona)
         if not items:
             continue
         tramos = _partir(_ordenar(items, desde), cfg)
-        for n, tramo in enumerate(tramos, 1):
-            ruta = RutaRecojo.objects.create(fecha=fecha, zona=zona if len(tramos) == 1 else f'{zona} {n}',
-                                             sugerida=True, creado_por=usuario if _es_usuario(usuario) else None)
-            for orden, i in enumerate(tramo, 1):
-                SolicitudRecojo.objects.filter(pk=i['sol'].pk).update(ruta=ruta, orden_ruta=orden)
-            creadas.append(ruta)
+        rutas += [(zona if len(tramos) == 1 else f'{zona} {n}', tramo) for n, tramo in enumerate(tramos, 1)]
+    asignado = _repartir([tramo for _, tramo in rutas], operadores_libres(fecha))
+    creadas = []
+    for n, (zona, tramo) in enumerate(rutas):
+        ficha, sale = asignado.get(n, (None, None))
+        if ficha is not None:
+            tramo = _ordenar(tramo, _xy(sale))  # sale de la casa del operador
+        ruta = RutaRecojo.objects.create(fecha=fecha, zona=zona, sugerida=True,
+                                         operador=ficha.usuario if ficha else None,
+                                         placa=(ficha.placa or '').upper()[:15] if ficha else '',
+                                         creado_por=usuario if _es_usuario(usuario) else None)
+        for orden, i in enumerate(tramo, 1):
+            cambios = {'ruta': ruta, 'orden_ruta': orden}
+            if ficha is not None:
+                cambios['operador'] = ficha.usuario
+            SolicitudRecojo.objects.filter(pk=i['sol'].pk).update(**cambios)
+        creadas.append(ruta)
     return creadas
 
 
@@ -251,12 +347,13 @@ def mover(sol, paso):
 
 
 def ordenar_por_cercania(ruta):
-    """Vuelve a ordenar las paradas pendientes de la ruta por cercanía (las ya recogidas quedan primero)."""
+    """Vuelve a ordenar las paradas pendientes por cercanía saliendo de la casa del operador (o del almacén de Go); las
+    ya recogidas quedan primero y el orden sigue desde la última."""
     _editable(ruta)
     perfiles = {p.tercero_id: p for p in ClienteLogistico.objects.all()}
     hechas = list(ruta.paradas.exclude(estado='ASIGNADO').order_by('orden_ruta', 'pk'))
     items = [detalle(s, perfiles.get(s.cliente_id)) for s in ruta.paradas.filter(estado='ASIGNADO')]
-    desde = base()
+    desde = _xy(origen(ruta))
     if hechas and hechas[-1].latitud is not None:
         desde = (hechas[-1].latitud, hechas[-1].longitud)
     for n, s in enumerate(hechas + [i['sol'] for i in _ordenar(items, desde)], 1):
@@ -265,11 +362,19 @@ def ordenar_por_cercania(ruta):
 
 @transaction.atomic
 def asignar(ruta, operador=None, placa=''):
-    """Operador y placa de la ruta; sus paradas quedan asignadas a ese operador (lo ve en el celular)."""
+    """Operador y placa de la ruta; sus paradas quedan asignadas a ese operador (lo ve en el celular). Si cambia el
+    operador y tiene dirección, las paradas pendientes se reordenan saliendo de su casa. Sin placa, la habitual."""
     _editable(ruta)
-    ruta.operador, ruta.placa = operador, (placa or '').strip().upper()[:15]
+    cambia = ruta.operador_id != (operador.pk if operador else None)
+    placa = (placa or '').strip().upper()[:15]
+    if not placa and operador is not None:
+        ficha = OperadorRecojo.objects.filter(usuario=operador).first()
+        placa = (ficha.placa if ficha else '').upper()[:15]
+    ruta.operador, ruta.placa = operador, placa
     ruta.save(update_fields=['operador', 'placa'])
     ruta.paradas.filter(estado='ASIGNADO').update(operador=operador)
+    if cambia and salida_de(operador):
+        ordenar_por_cercania(ruta)
 
 
 def iniciar(ruta):
@@ -310,23 +415,36 @@ def _lugar(d):
     return ', '.join(x for x in (sol.almacen, d['distrito'], 'Lima, Perú') if x)
 
 
+def _lugar_salida(o):
+    if o is None:
+        return ''
+    if o['fuente'] == 'operador (distrito)' and o['texto']:
+        return f"{o['texto']}, Lima, Perú"  # sin coordenadas exactas, mejor la dirección escrita
+    return f"{o['lat']},{o['lon']}"
+
+
+def _almacen_go():
+    b = base()
+    return f'{b[0]},{b[1]}' if b else (ConfigOperador.actual().base_direccion or '')
+
+
 def enlace_google(ruta, detalles=None):
-    """Recorrido en Google Maps: sale del almacén de Go, pasa por las paradas pendientes en orden y vuelve. Google
-    abre hasta 10 paradas: con más, el enlace lleva las primeras."""
+    """Recorrido en Google Maps: sale de la casa del operador (o del almacén de Go), pasa por las paradas pendientes en
+    orden y termina en el almacén de Go, donde la carga queda en custodia. Google abre hasta 10 paradas: con más, el
+    enlace lleva las primeras."""
     detalles = detalles if detalles is not None else [detalle(s) for s in ruta.paradas_en_orden()]
     puntos = [_lugar(d) for d in detalles if d['sol'].estado == 'ASIGNADO'][:MAX_GOOGLE]
     if not puntos:
         return ''
-    cfg = ConfigOperador.actual()
-    b = base()
-    origen = f'{b[0]},{b[1]}' if b else (cfg.base_direccion or '')
-    if origen:
-        destino, intermedios = origen, puntos[:9]
+    sale = _lugar_salida(origen(ruta))
+    fin = _almacen_go()
+    if fin:
+        destino, intermedios = fin, puntos[:9]
     else:
-        destino, intermedios = puntos[-1], puntos[:-1][:8]
+        destino, intermedios = puntos[-1], puntos[:-1][:9]
     url = f'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination={quote(destino)}'
-    if origen:
-        url += f'&origin={quote(origen)}'
+    if sale:
+        url += f'&origin={quote(sale)}'
     if intermedios:
         url += f"&waypoints={quote('|'.join(intermedios))}"
     return url

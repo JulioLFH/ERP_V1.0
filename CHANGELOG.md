@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.16 — 26/11/2026 · Operador logístico: la ruta de recojo sale de la casa del operador
+- **Recojo › Operadores de recojo** (pantalla nueva): de dónde sale cada operador (dirección, distrito, latitud y longitud), su placa habitual y si hoy sale a recoger. Si el usuario es un trabajador de Planillas, se propone su dirección.
+- **La ruta se programa desde la dirección del operador**: «Sugerir rutas» da a cada ruta el operador libre que vive más cerca de sus paradas, con su placa, y ordena las paradas por cercanía saliendo de su casa. El recorrido termina en el almacén de Go, donde la carga queda en custodia. Un operador con una ruta abierta ese día no recibe otra. Sin operadores con dirección, la ruta sale del almacén de Go como antes.
+- Al **asignar** otro operador a mano, las paradas pendientes se reordenan desde su casa, y sin placa se usa la habitual.
+- **App del celular**: botón «Guardar mi ubicación como punto de partida» para que el operador guarde con el GPS el punto desde donde sale.
+- La pantalla de rutas, la hoja de ruta y Google Maps muestran desde dónde sale cada ruta y que llega al almacén de Go.
+
 ## v1.117.15 — 26/11/2026 · Operador logístico: Ruta de recojo (sugerida o manual)
 - **Recojo › Ruta de recojo** (pantalla nueva): las solicitudes por recoger del día se agrupan por **zona** (Norte, Callao, Centro, Este, Sur) según el distrito del almacén del cliente y se ordenan por **cercanía** saliendo del almacén de Go. Al pasar la capacidad de la unidad (kg, bultos o paradas, en Configuración) se abre otra ruta. «Rehacer» vuelve a sugerir lo que sigue en «Armando».
 - **Ajuste manual**: agregar una solicitud a una ruta o a una ruta nueva, subir, bajar o quitar paradas, «Ordenar por cercanía», crear una ruta manual con su nombre y deshacerla.

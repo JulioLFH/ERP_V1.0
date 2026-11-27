@@ -60,6 +60,8 @@ a.grande{text-decoration:none}
     <h1>¿Qué está haciendo?</h1>
     <div id="pasos"></div>
     <div id="problemas"></div>
+    {% if datos.puede %}<button class="grande sec" id="mi-salida" type="button">Guardar mi ubicación como punto de partida</button>
+    <p class="nota" id="mi-salida-msg">Hágalo desde donde sale a recoger (su casa): la ruta se programa desde ahí.</p>{% endif %}
     <p class="nota">{{ datos.usuario }} · <a href="{{ datos.urls.sistema }}">Sistema completo</a> · v{{ version }}</p>
   </section>
 

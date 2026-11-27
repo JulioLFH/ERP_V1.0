@@ -416,9 +416,10 @@ RUTAS = {
     'distribucion:movil': {'POST': 'distribucion.entregar'},
     # operador logístico (Go Just In Time): el celular escanea y confirma; logística planifica; la configuración aparte
     'operador_logistico:movil_registrar': 'operador_logistico.operar',
+    'operador_logistico:movil_salida': 'operador_logistico.operar',
     'operador_logistico:solicitud_nueva': 'operador_logistico.planificar',
     **{f'operador_logistico:{n}': {'POST': 'operador_logistico.planificar'}
-       for n in ('solicitud', 'guia', 'planificacion', 'consolidado', 'rutas')},
+       for n in ('solicitud', 'guia', 'planificacion', 'consolidado', 'rutas', 'operadores_recojo')},
     **{f'operador_logistico:{n}': {'POST': 'operador_logistico.configurar'}
        for n in ('clientes', 'cliente', 'estados', 'configuracion')},
     'proyectos:nuevo': 'proyectos.gestionar', 'proyectos:editar': 'proyectos.gestionar',

@@ -298,6 +298,26 @@ class RutaRecojo(models.Model):
         return self.paradas.select_related('cliente').order_by('orden_ruta', 'pk')
 
 
+class OperadorRecojo(models.Model):
+    """v1.117.16: de dónde sale cada operador de recojo. La ruta se programa desde su dirección: la sugerencia le da
+    la zona más cercana a su casa y ordena las paradas saliendo de ahí."""
+    usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='operador_recojo')
+    direccion = models.CharField('Dirección de partida', max_length=250, blank=True)
+    ubigeo = models.CharField('Distrito (ubigeo)', max_length=6, blank=True)
+    latitud = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitud = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    placa = models.CharField('Placa habitual', max_length=15, blank=True)
+    activo = models.BooleanField('Sale a recoger', default=True,
+                                 help_text='Desmarque si hoy no sale (vacaciones, descanso): la sugerencia no le da ruta')
+
+    class Meta:
+        verbose_name = 'operador de recojo'
+        verbose_name_plural = 'operadores de recojo'
+
+    def __str__(self):
+        return self.usuario.get_full_name() or self.usuario.username
+
+
 class Consolidado(models.Model):
     """Grupo de guías recogidas con el mismo destino (departamento y provincia): viaja con una guía remitente de la
     empresa que lleva todas las guías del grupo como documentos relacionados."""

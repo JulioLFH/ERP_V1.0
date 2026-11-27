@@ -374,4 +374,22 @@
   window.addEventListener('offline', pintarRed);
   setInterval(sincronizar, 30000);
   pintarRed(); pintarProblemas(); sincronizar();
+
+  // ---------------------------------------------------------------- v1.117.16: punto de partida de la ruta (su casa)
+  var botonSalida = $('mi-salida');
+  if (botonSalida) {
+    botonSalida.addEventListener('click', function () {
+      var msg = $('mi-salida-msg');
+      if (!navigator.geolocation) { msg.textContent = 'Este celular no da la ubicación.'; return; }
+      msg.textContent = 'Buscando su ubicación…';
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        var f = new FormData();
+        f.append('latitud', pos.coords.latitude.toFixed(6));
+        f.append('longitud', pos.coords.longitude.toFixed(6));
+        post(D.urls.salida, f).then(function (r) { msg.textContent = r.mensaje; })
+          .catch(function () { msg.textContent = 'No se pudo guardar: revise la señal e intente otra vez.'; });
+      }, function () { msg.textContent = 'Active la ubicación (GPS) del celular e intente otra vez.'; },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    });
+  }
 })();

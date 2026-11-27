@@ -427,13 +427,13 @@ def rutas(request):
         lista.append({'r': r, 'paradas': paradas, 'kg': sum((d['kg'] for d in paradas), 0),
                       'bultos': sum(d['bultos'] for d in paradas),
                       'hechas': sum(1 for d in paradas if d['sol'].estado != 'ASIGNADO'),
-                      'google': rr.enlace_google(r, paradas)})
+                      'google': rr.enlace_google(r, paradas), 'origen': rr.origen(r)})
     sin_ruta = [rr.detalle(s, perfiles.get(s.cliente_id)) for s in rr.pendientes(fecha)]
-    operadores = [u for u in User.objects.filter(is_active=True).order_by('first_name', 'username')
-                  if puede(u, 'operador_logistico.operar')]
+    operadores = rr.operadores()
     return render(request, 'operador_logistico/rutas.html', {
         'fecha': fecha, 'rutas': lista, 'sin_ruta': sin_ruta, 'operadores': operadores, 'cfg': ConfigOperador.actual(),
         'base': rr.base(), 'planificar': puede(request.user, 'operador_logistico.planificar'),
+        'con_salida': len(rr.operadores_libres(fecha)),
         'abiertas': [x['r'] for x in lista if x['r'].estado != 'CERRADA']})
 
 
@@ -449,4 +449,36 @@ def ruta_hoja(request, pk):
     return render(request, 'operador_logistico/ruta_hoja.html', {
         'r': r, 'paradas': paradas, 'empresa': Empresa.actual(), 'cfg': ConfigOperador.actual(),
         'kg': sum((d['kg'] for d in paradas), 0), 'bultos': sum(d['bultos'] for d in paradas),
-        'google': rr.enlace_google(r, paradas)})
+        'google': rr.enlace_google(r, paradas), 'origen': rr.origen(r)})
+
+
+@login_required
+def operadores_recojo(request):
+    """v1.117.16: de dónde sale cada operador de recojo (su casa o punto de partida); la ruta se programa desde ahí."""
+    from . import rutas as rr
+    from .forms import OperadorRecojoForm
+    from .models import OperadorRecojo
+    usuarios = rr.operadores()
+    fichas = {f.usuario_id: f for f in OperadorRecojo.objects.filter(usuario__in=usuarios)}
+
+    def ficha_de(u):
+        f = fichas.get(u.pk)
+        if f is None:  # nueva: toma la dirección del trabajador de Planillas, si el usuario es uno
+            trabajador = getattr(u, 'trabajador_planilla', None)
+            f = OperadorRecojo(usuario=u, direccion=getattr(trabajador, 'direccion', '') or '')
+        return f
+
+    filas = []
+    for u in usuarios:
+        enviado = request.method == 'POST' and request.POST.get('usuario') == str(u.pk)
+        form = OperadorRecojoForm(request.POST if enviado else None, instance=ficha_de(u), prefix=f'op{u.pk}')
+        if enviado:
+            if form.is_valid():
+                form.save()
+                messages.success(request, f'{u.get_full_name() or u.username}: punto de partida guardado.')
+                return redirect('operador_logistico:operadores_recojo')
+            messages.error(request, 'Revise los datos del operador.')
+        f = form.instance
+        filas.append({'u': u, 'form': form, 'salida': rr.salida(f)})
+    return render(request, 'operador_logistico/operadores_recojo.html', {
+        'filas': filas, 'planificar': puede(request.user, 'operador_logistico.planificar')})
