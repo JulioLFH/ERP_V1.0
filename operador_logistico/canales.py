@@ -2,8 +2,9 @@
 
 El remitente es la llave: un correo o un WhatsApp crea una Solicitud de recojo (y no una oportunidad) solo si su
 dirección o su número coincide con un correo o celular autorizado del cliente (los celulares por sus últimos 9
-dígitos) y el cliente tiene crédito (días o límite) o la casilla «Cliente de servicio logístico». Todo lo demás sigue
-al CRM como hoy. No se exige ningún texto; las líneas «Almacén:», «Bultos:», «Contacto:» y «Fecha:» se leen si vienen.
+dígitos) y el cliente tiene contrato (la casilla «Cliente con contrato» o un contrato vigente en CRM › Contratos):
+entonces pasa solo a solicitud con sus guías (pedidos). Remitente no registrado o cliente sin contrato: proceso regular
+del CRM (oportunidad, cotización). El crédito solo ya no basta (v1.117.14). No se exige ningún texto; las líneas «Almacén:», «Bultos:», «Contacto:» y «Fecha:» se leen si vienen.
 
 Correo: los adjuntos .xml de guías remitente se cargan como guías de la solicitud, los .zip se descomprimen y los PDF
 se guardan como sustento. WhatsApp: un documento o una imagen solo se registra como aviso (descargar la media de Meta
@@ -100,7 +101,7 @@ def _del_zip(nombre, datos):
 
 def correo_a_solicitud(mensaje):
     """Correo del buzón comercial -> Solicitud de recojo si el remitente es un correo autorizado de un cliente con
-    crédito o de servicio logístico. Devuelve la solicitud o None (el correo sigue al CRM)."""
+    contrato. Devuelve la solicitud o None (el correo sigue al CRM)."""
     from email.utils import parseaddr
     if not activo():
         return None

@@ -9,7 +9,7 @@
         <button name="accion" value="rechazar" class="btn btn-sm btn-outline-danger">Rechazar</button></form>
       {% elif object.cambio_bancario_por_id == user.pk %}<div class="text-muted">Lo aprueba otro usuario con el permiso «Cambiar y aprobar las cuentas bancarias».</div>{% endif %}</div></div>{% endif %}
   {% if servicio_logistico %}<div class="card mt-3"><div class="card-header fw-semibold d-flex justify-content-between"><span><i class="bi bi-box-seam"></i> Servicio logístico</span><a href="{% url 'operador_logistico:cliente' object.pk %}" class="small">Correos, celulares y almacén de recojo ›</a></div>
-    <div class="card-body small">{% if servicio_logistico.habilitado %}Puede pedir recojos desde {{ servicio_logistico.autorizados }} correo(s) o celular(es) autorizado(s).{% else %}Aún no puede pedir recojos por correo o WhatsApp: necesita crédito o marcar «Cliente de servicio logístico».{% endif %}</div></div>{% endif %}
+    <div class="card-body small">{% if servicio_logistico.habilitado %}Con contrato: sus pedidos desde {{ servicio_logistico.autorizados }} correo(s) o celular(es) autorizado(s) pasan solos a solicitud de recojo.{% else %}Sin contrato: sus correos y WhatsApp siguen el proceso regular del CRM (oportunidad y cotización).{% endif %}</div></div>{% endif %}
   {% include 'core/_bitacora.html' with objeto=object %}</div>{% endif %}{% endblock %}
 {% block scripts %}
 <script src="{% static 'js/consulta_ruc.js' %}?v={{ erp_version }}"></script>

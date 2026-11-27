@@ -48,6 +48,7 @@ def s_cliente(t):
     return {'documento': t.numero_doc, 'nombre': t.nombre, 'activo': t.activo,
             'habilitado': bool(p and p.habilitado),
             'servicio_logistico': bool(p and p.servicio_logistico),
+            'con_contrato': bool(p and p.con_contrato),
             'almacen': (p.direccion_recojo if p else t.direccion) or '',
             'contacto': (p.contacto if p else '') or '',
             'credito': {'dias': t.dias_credito, 'limite': t.limite_credito, 'deuda': _deuda(t)}}
@@ -114,8 +115,8 @@ def solicitud(request):
         return err
     p = servicios.perfil(t)
     if not (p and p.habilitado):
-        return error('El cliente no está habilitado para pedir recojos: necesita crédito o la casilla «Cliente de '
-                     'servicio logístico» en el ERP.', 422, codigo='no_habilitado')
+        return error('El cliente no tiene contrato de servicio logístico: su pedido sigue el proceso regular '
+                     '(cotización con el área comercial).', 422, codigo='no_habilitado')
     try:
         campos = {'fecha': _fecha(datos.get('fecha')), 'bultos': _bultos(datos.get('bultos')),
                   'almacen': str(datos.get('almacen') or '').strip()[:250],

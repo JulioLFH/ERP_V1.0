@@ -86,7 +86,7 @@ class Base(TestCase):
                                              nombre='Cliente Logístico SAC', direccion='Av. Argentina 123, Lima',
                                              ubigeo='150101', dias_credito=30)
         cls.perfil = ClienteLogistico.objects.create(tercero=cls.cliente, almacen_direccion='Almacén Callao, Av. Gambetta 5',
-                                                     almacen_ubigeo='070101', contacto='Rosa')
+                                                     almacen_ubigeo='070101', contacto='Rosa', servicio_logistico=True)
         RemitenteAutorizado.objects.create(cliente=cls.perfil, tipo='CORREO', valor='Despachos@Cliente.pe')
         RemitenteAutorizado.objects.create(cliente=cls.perfil, tipo='CELULAR', valor='987 654 321')
 
@@ -179,11 +179,42 @@ class CanalesTest(Base):
         self.assertIsInstance(r, Oportunidad)
         self.assertFalse(SolicitudRecojo.objects.exists())
 
-    def test_cliente_sin_credito_ni_casilla_va_al_crm(self):
-        Tercero.objects.filter(pk=self.cliente.pk).update(dias_credito=0, limite_credito=0)
+    def test_sin_contrato_va_al_proceso_regular_aunque_tenga_credito(self):
+        # v1.117.14: el crédito solo ya no basta; sin contrato el correo es una oportunidad del CRM
+        ClienteLogistico.objects.filter(pk=self.perfil.pk).update(servicio_logistico=False)
+        self.assertTrue(Tercero.objects.get(pk=self.cliente.pk).dias_credito)
         self.assertIsInstance(procesar_correo(correo('despachos@cliente.pe')), Oportunidad)
+        self.assertFalse(SolicitudRecojo.objects.exists())
         ClienteLogistico.objects.filter(pk=self.perfil.pk).update(servicio_logistico=True)
         self.assertIsInstance(procesar_correo(correo('despachos@cliente.pe')), SolicitudRecojo)
+
+    def test_contrato_vigente_del_crm_cuenta_y_el_vencido_no(self):
+        from ventas.models import ContratoServicio
+        ClienteLogistico.objects.filter(pk=self.perfil.pk).update(servicio_logistico=False)
+        hoy = timezone.localdate()
+        c = ContratoServicio.objects.create(tercero=self.cliente, descripcion='Servicio logístico 2026',
+                                            inicio=hoy - timedelta(days=200), fin=hoy - timedelta(days=1))
+        self.assertIsInstance(procesar_correo(correo('despachos@cliente.pe')), Oportunidad)  # vencido
+        ContratoServicio.objects.filter(pk=c.pk).update(fin=hoy + timedelta(days=30))
+        self.assertTrue(ClienteLogistico.objects.get(pk=self.perfil.pk).con_contrato)
+        self.assertIsInstance(procesar_correo(correo('despachos@cliente.pe')), SolicitudRecojo)
+        ContratoServicio.objects.filter(pk=c.pk).update(estado='TERMINADO')
+        self.assertFalse(ClienteLogistico.objects.get(pk=self.perfil.pk).habilitado)
+
+    def test_correo_con_cuatro_pedidos_crea_una_solicitud_con_cuatro_guias(self):
+        destinos = [('040101', 'AREQUIPA'), ('040101', 'AREQUIPA'), ('130101', 'LA LIBERTAD'), ('200101', 'PIURA')]
+        m = correo('despachos@cliente.pe', '4 pedidos aprobados', 'Bultos: 18' + chr(10) + 'Fecha: mañana',
+                   [(f'EG01-{n}.xml', xml_guia(numero=n, ubigeo=u), 'application/xml')
+                    for n, (u, _) in enumerate(destinos, 101)])
+        sol = procesar_correo(m)
+        self.assertIsInstance(sol, SolicitudRecojo)
+        self.assertEqual((sol.estado, sol.bultos), ('ASIGNADO', 18))
+        guias = list(sol.guias.order_by('numero'))
+        self.assertEqual([g.numero for g in guias], ['101', '102', '103', '104'])
+        self.assertEqual([g.departamento for g in guias], [d for _, d in destinos])
+        inicial = EstadoLogistico.el_inicial().codigo
+        self.assertTrue(all(g.estado.codigo == inicial and g.datos_completos for g in guias))
+        self.assertFalse(Oportunidad.objects.exists())
 
     def test_whatsapp_por_los_ultimos_9_digitos(self):
         sol = whatsapp_entrante({'from': '51987654321', 'type': 'image', 'image': {'caption': 'Bultos: 2'}})

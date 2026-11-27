@@ -5,7 +5,7 @@
   <h1 class="page-title mb-0">Servicio logístico · {{ t.nombre }}</h1>
   <div class="d-flex gap-2"><a href="{% url 'tercero_editar' t.pk %}" class="btn btn-sm btn-outline-secondary">Ficha del cliente</a><a href="{% url 'operador_logistico:clientes' %}" class="btn btn-sm btn-outline-secondary">‹ Clientes</a></div>
 </div>
-{% if not perfil.habilitado %}<div class="alert alert-warning small">Este cliente aún no puede pedir recojos por correo o WhatsApp: necesita crédito (días o límite) en su ficha o marcar «Cliente de servicio logístico».</div>{% endif %}
+{% if perfil.pk and perfil.habilitado %}<div class="alert alert-success small py-2">Con contrato{% if not perfil.servicio_logistico and perfil.contrato_crm %} (CRM › Contratos: {{ perfil.contrato_crm.descripcion }}, hasta {{ perfil.contrato_crm.fin|date:'d/m/Y' }}){% endif %}: los correos y WhatsApp de los remitentes autorizados pasan solos a solicitud de recojo con sus guías.</div>{% else %}<div class="alert alert-warning small">Sin contrato: sus correos y WhatsApp siguen el proceso regular del CRM (oportunidad y cotización). Marque «Cliente con contrato de servicio logístico» o registre un contrato vigente en CRM › Contratos.</div>{% endif %}
 <form method="post" class="card"><div class="card-body row g-3">{% csrf_token %}
   {% for e in form.non_field_errors %}<div class="col-12 alert alert-danger py-1">{{ e }}</div>{% endfor %}
   <div class="col-12">{% include 'core/_campo.html' with field=form.servicio_logistico %}</div>

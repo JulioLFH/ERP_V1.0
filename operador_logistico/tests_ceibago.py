@@ -33,6 +33,7 @@ class PuenteCeibaGOTest(Base):
         self.assertEqual(r.status_code, 200)
         d = r.json()
         self.assertTrue(d['habilitado'])
+        self.assertTrue(d['con_contrato'])
         self.assertEqual(d['almacen'], 'Almacén Callao, Av. Gambetta 5')
         self.assertEqual(d['credito']['dias'], 30)
         self.assertEqual(self.get('cliente/', documento='20999999999').json()['codigo'], 'no_registrado')
@@ -54,7 +55,9 @@ class PuenteCeibaGOTest(Base):
     def test_datos_invalidos_y_cliente_no_habilitado(self):
         self.assertEqual(self.post('solicitud/', {'documento': RUC_CLIENTE, 'bultos': 'muchos'}).status_code, 422)
         self.assertEqual(self.post('solicitud/', {'documento': RUC_CLIENTE, 'fecha': '27/11'}).status_code, 422)
-        Tercero.objects.filter(pk=self.cliente.pk).update(dias_credito=0, limite_credito=0)
+        # v1.117.14: con crédito pero sin contrato no pide recojos (proceso regular)
+        from .models import ClienteLogistico
+        ClienteLogistico.objects.filter(tercero=self.cliente).update(servicio_logistico=False)
         r = self.post('solicitud/', {'documento': RUC_CLIENTE})
         self.assertEqual((r.status_code, r.json()['codigo']), (422, 'no_habilitado'))
         self.assertFalse(SolicitudRecojo.objects.exists())

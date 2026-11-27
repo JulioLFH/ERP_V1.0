@@ -2,18 +2,18 @@
 {% block title %}Clientes del servicio logístico{% endblock %}
 {% block content %}
 <h1 class="page-title mb-2">Clientes del servicio logístico</h1>
-<p class="small text-muted">Un correo o WhatsApp crea una solicitud de recojo solo si viene de un correo o celular autorizado de un cliente con crédito o marcado como «Cliente de servicio logístico». Lo demás sigue yendo al CRM.</p>
+<p class="small text-muted">Un correo o WhatsApp crea una solicitud de recojo solo si viene de un correo o celular autorizado de un cliente <b>con contrato</b> (la casilla «Cliente con contrato de servicio logístico» o un contrato vigente en CRM › Contratos): pasa solo a solicitud con sus guías. Un remitente no registrado o un cliente sin contrato sigue el proceso regular del CRM (oportunidad y cotización), aunque tenga crédito.</p>
 <form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3 small">
   <div><label class="form-label mb-0" for="f-q">Buscar cliente</label><input name="q" id="f-q" value="{{ q }}" class="form-control form-control-sm" placeholder="Nombre o RUC"></div>
   <button class="btn btn-sm btn-outline-primary">Buscar</button>
   <a href="?todos=1" class="btn btn-sm btn-outline-secondary">Ver todos los clientes</a>
 </form>
 <div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0 small">
-  <thead><tr><th>Cliente</th><th>RUC / DNI</th><th>Crédito</th><th>Servicio logístico</th><th class="num">Autorizados</th><th>Almacén de recojo</th></tr></thead>
+  <thead><tr><th>Cliente</th><th>RUC / DNI</th><th>Crédito</th><th>Contrato</th><th class="num">Autorizados</th><th>Almacén de recojo</th></tr></thead>
   <tbody>{% for t in page_obj %}<tr>
     <td><a href="{% url 'operador_logistico:cliente' t.pk %}">{{ t.nombre }}</a></td><td>{{ t.numero_doc }}</td>
     <td>{% if t.dias_credito %}{{ t.dias_credito }} días{% endif %}{% if t.limite_credito %} · S/ {{ t.limite_credito|floatformat:2 }}{% endif %}</td>
-    <td>{% if t.servicio_logistico.servicio_logistico %}<i class="bi bi-check2 text-success"></i> Sí{% endif %}</td>
+    <td>{% if t.servicio_logistico.con_contrato %}<i class="bi bi-check2 text-success"></i> Sí{% else %}<span class="text-muted">No: proceso regular</span>{% endif %}</td>
     <td class="num">{{ t.n_autorizados }}</td><td>{{ t.servicio_logistico.almacen_direccion|default:''|truncatechars:50 }}</td>
   </tr>{% empty %}<tr><td colspan="6" class="text-muted">Ningún cliente con crédito o servicio logístico. Busque uno por nombre para habilitarlo.</td></tr>{% endfor %}</tbody>
 </table></div>{% include 'core/_paginacion.html' %}</div>

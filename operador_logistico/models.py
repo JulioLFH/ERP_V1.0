@@ -123,9 +123,11 @@ class EstadoLogistico(models.Model):
 class ClienteLogistico(models.Model):
     """Lo que el servicio logístico necesita de la ficha del cliente."""
     tercero = models.OneToOneField('core.Tercero', on_delete=models.CASCADE, related_name='servicio_logistico')
-    servicio_logistico = models.BooleanField('Cliente de servicio logístico', default=False,
-                                             help_text='Sus mensajes crean solicitudes de recojo aunque no tenga '
-                                                       'crédito (cliente con contrato)')
+    servicio_logistico = models.BooleanField(
+        'Cliente con contrato de servicio logístico', default=False,
+        help_text='Con contrato, el correo o WhatsApp de un remitente autorizado pasa solo a solicitud de recojo con '
+                  'sus guías (pedidos). Sin contrato, el mensaje sigue el proceso regular del CRM (oportunidad y '
+                  'cotización). También cuenta un contrato vigente del cliente en CRM › Contratos.')
     almacen_direccion = models.CharField('Almacén de origen (dirección de recojo)', max_length=250, blank=True)
     almacen_ubigeo = models.CharField('Ubigeo del almacén', max_length=6, blank=True)
     almacen_referencia = models.CharField('Referencia', max_length=150, blank=True)
@@ -144,9 +146,25 @@ class ClienteLogistico(models.Model):
         return bool(t.dias_credito) or (t.limite_credito or D0) > 0
 
     @property
+    def contrato_crm(self):
+        """Contrato de servicio vigente hoy en CRM › Contratos (dentro de sus fechas)."""
+        try:
+            from ventas.models import ContratoServicio
+        except ImportError:
+            return None
+        hoy = timezone.localdate()
+        return ContratoServicio.objects.filter(tercero=self.tercero, estado__in=('VIGENTE', 'RENOVADO'),
+                                               inicio__lte=hoy, fin__gte=hoy).order_by('-fin').first()
+
+    @property
+    def con_contrato(self):
+        return self.servicio_logistico or self.contrato_crm is not None
+
+    @property
     def habilitado(self):
-        """Solo los clientes con crédito o con la casilla «Cliente de servicio logístico» generan solicitudes."""
-        return self.tercero.activo and (self.servicio_logistico or self.tiene_credito)
+        """v1.117.14: solo el cliente con contrato (la casilla o un contrato vigente del CRM) pide recojos solo. El
+        crédito ya no basta: sin contrato, el mensaje sigue el proceso regular (oportunidad en el CRM)."""
+        return self.tercero.activo and self.con_contrato
 
     @property
     def direccion_recojo(self):

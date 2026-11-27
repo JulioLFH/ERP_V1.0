@@ -3,6 +3,11 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.14 — 26/11/2026 · Operador logístico: solo el cliente con contrato pide recojos solo
+- **Cliente con contrato**: el correo o WhatsApp de un remitente autorizado pasa solo a **solicitud de recojo** con sus guías (pedidos) únicamente si el cliente tiene contrato: la casilla **«Cliente con contrato de servicio logístico»** o un **contrato vigente en CRM › Contratos** (dentro de sus fechas). El crédito solo ya no basta.
+- **Proceso regular**: un remitente no registrado o un cliente sin contrato (o con el contrato vencido o terminado) sigue al CRM como oportunidad (cotización), aunque mande guías adjuntas. Lo mismo desde Ceiba GO: sin contrato, el pedido se rechaza con «proceso regular».
+- Clientes del servicio logístico: columna «Contrato»; la ficha logística y la del cliente dicen si tiene contrato o si sigue el proceso regular.
+
 ## v1.117.13 — 26/11/2026 · Módulo «Operador logístico» (Go Just In Time) y carpeta «CRM» del buzón
 - **Operador logístico** (módulo nuevo): solo aparece en las empresas con el giro **«Operador logístico»** (Ajustes › Empresa); las demás no lo ven ni cambia nada para ellas. Tablero, **solicitudes de recojo**, guías de los clientes, **planificación** (tablero por destino y **guías consolidadas** por camión con hoja de despacho y QR), bitácora de estados, costo por guía, clientes del servicio logístico y maestro de estados. Permisos propios: operar (celular), planificar y configurar.
 - **App del operador (celular)**: una pantalla por acción (recojo, ingreso al almacén, llegada a destino, entrega) con escaneo del QR, foto obligatoria en la llegada y la entrega, DNI y firma del receptor, y cola sin señal que se envía sola.

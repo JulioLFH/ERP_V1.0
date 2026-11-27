@@ -312,8 +312,8 @@ def clientes(request):
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(nombre__icontains=q) | Q(numero_doc__icontains=q))
-    elif not request.GET.get('todos'):  # por defecto, los que ya usan el servicio o tienen crédito
-        qs = qs.filter(Q(servicio_logistico__isnull=False) | Q(dias_credito__gt=0) | Q(limite_credito__gt=0))
+    elif not request.GET.get('todos'):  # por defecto, los que ya tienen ficha logística (con o sin contrato)
+        qs = qs.filter(servicio_logistico__isnull=False)
     qs = qs.select_related('servicio_logistico').annotate(n_autorizados=Count('servicio_logistico__autorizados'))
     return render(request, 'operador_logistico/clientes.html', {
         'page_obj': Paginator(qs.order_by('nombre'), 50).get_page(request.GET.get('page')), 'q': q})
