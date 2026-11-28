@@ -3,6 +3,13 @@
 Cada versión es una "etiqueta" (tag) en GitHub: https://github.com/JulioLFH/ERP_V1.0/tags
 El número de versión instalada se ve en el sistema, en el menú del usuario (arriba a la derecha).
 
+## v1.117.17 — 27/11/2026 · Operador logístico: el QR de SUNAT trae los datos de la guía
+- **Escanear el QR de SUNAT** de la guía impresa (en el recojo o en el ingreso al almacén): el QR es un enlace de descarga de SUNAT que no trae el número de guía, así que Go descarga el documento (solo de direcciones *.sunat.gob.pe, con un tope de 15 segundos y 5 MB) y lee sus datos: remitente, serie y número, fechas, motivo, destinatario, punto de partida y de llegada con sus ubigeos, bultos y peso. Acepta XML, ZIP con el XML o PDF.
+- Si la guía ya estaba en el sistema (por ejemplo, cargada del XML del correo) se reconoce y se confirma sin duplicarla; si estaba pendiente de datos, se completa; si no estaba, se crea con los datos de SUNAT.
+- Sin internet o si SUNAT no responde, la guía queda pendiente de datos como antes y se completa después.
+- **App del celular**: la lista para elegir la guía cuando el QR no se lee muestra primero las paradas de la ruta del operador («Parada N»), luego las de otras rutas (con su número) y al final las que no tienen ruta. Antes, con muchas guías pendientes, la parada de su propia ruta podía quedar fuera de la lista.
+- **Ruta de recojo**: el aviso «Ningún operador libre tiene dirección de partida» sale solo cuando hay solicitudes por recoger sin ruta (cuando todos los operadores ya tienen ruta, no es un error).
+
 ## v1.117.16 — 26/11/2026 · Operador logístico: la ruta de recojo sale de la casa del operador
 - **Recojo › Operadores de recojo** (pantalla nueva): de dónde sale cada operador (dirección, distrito, latitud y longitud), su placa habitual y si hoy sale a recoger. Si el usuario es un trabajador de Planillas, se propone su dirección.
 - **La ruta se programa desde la dirección del operador**: «Sugerir rutas» da a cada ruta el operador libre que vive más cerca de sus paradas, con su placa, y ordena las paradas por cercanía saliendo de su casa. El recorrido termina en el almacén de Go, donde la carga queda en custodia. Un operador con una ruta abierta ese día no recibe otra. Sin operadores con dirección, la ruta sale del almacén de Go como antes.

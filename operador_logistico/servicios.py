@@ -231,14 +231,42 @@ def _guia_desde_qr(lectura, cliente, solicitud, usuario):
         serie, numero = lectura.serie, lectura.numero
     else:  # un enlace sin serie ni número: la misma guía vuelve a reconocerse por su enlace
         serie, numero = 'QR', hashlib.sha1(lectura.texto.encode()).hexdigest()[:10].upper()
-    datos = lector_qr.obtener_datos_de_enlace(lectura.url) if lectura.url else None
+    datos = getattr(lectura, 'datos', None)
+    if datos is None and lectura.url:
+        datos = lector_qr.obtener_datos_de_enlace(lectura.url)
     guia = GuiaCliente(cliente=cliente, solicitud=solicitud, emisor_ruc=lectura.ruc or cliente.numero_doc,
                        emisor_nombre=cliente.nombre if (lectura.ruc or cliente.numero_doc) == cliente.numero_doc
                        else '', tipo=lectura.tipo or '09', serie=serie, numero=numero, origen_datos='QR',
                        qr_texto=lectura.texto, datos_completos=False)
     if datos:
-        _datos_xml(guia, datos)
+        _datos_qr(guia, datos)
     return guia
+
+
+def _datos_qr(guia, datos):
+    """v1.117.17: datos leídos de SUNAT por el QR. Completos, como el XML; si no, solo lo que se leyó (lo demás queda
+    pendiente hasta que llegue el XML)."""
+    if datos.get('completos'):
+        _datos_xml(guia, datos)
+        return
+    for campo in ('emisor_nombre', 'fecha_emision', 'fecha_traslado', 'motivo_traslado', 'destinatario_tipo_doc',
+                  'destinatario_doc', 'destinatario_nombre', 'partida_ubigeo', 'partida_direccion', 'llegada_ubigeo',
+                  'llegada_direccion', 'bultos', 'peso', 'unidad_peso'):
+        if datos.get(campo):
+            setattr(guia, campo, datos[campo])
+    guia.poner_destino()
+
+
+def _leer_sunat(lectura):
+    """Si el QR es el enlace de SUNAT de la guía, descarga sus datos y los pone en la lectura (RUC, serie y número),
+    para reconocer la guía aunque se haya cargado antes por su XML."""
+    if lectura.clase != 'ENLACE' or lectura.identifica_guia or not lector_qr.es_enlace_sunat(lectura.url):
+        return
+    datos = lector_qr.obtener_datos_de_enlace(lectura.url)
+    if datos:
+        lectura.datos = datos
+        lectura.ruc, lectura.tipo = datos['emisor_ruc'], '09'
+        lectura.serie, lectura.numero = datos['serie'], datos['numero']
 
 
 def _solicitud_para(guia_o_cliente, usuario):
@@ -278,6 +306,14 @@ def _guia_de_qr(qr, guia_id, permitir_nueva=False, usuario=None):
     if lectura.clase == 'DESCONOCIDO':
         raise ErrorOperador('Este código no es de una guía. Elija la guía de la lista.')
     guia = buscar_guia(lectura)
+    if guia is None:  # v1.117.17: el QR de SUNAT trae la guía (RUC, serie y número)
+        _leer_sunat(lectura)
+        if lectura.identifica_guia:
+            guia = buscar_guia(lectura)
+            if guia is not None and not guia.datos_completos and getattr(lectura, 'datos', None):
+                _datos_qr(guia, lectura.datos)
+                guia.datos_completos = guia.datos_completos or bool(lectura.datos.get('completos'))
+                guia.save()
     if guia is None and not permitir_nueva:
         guia = _guia_por_ultimo_tramo(lectura)
     if guia is None and not permitir_nueva:
@@ -775,12 +811,22 @@ def pendientes(usuario, paso):
     if paso == 'RECOJO':
         qs = GuiaCliente.objects.filter(estado__codigo='ATENDIDO', solicitud__estado='ASIGNADO') \
             .filter(Q(solicitud__operador=usuario) | Q(solicitud__operador__isnull=True))
-        # v1.117.15: en el orden de su ruta de recojo (las que no están en una ruta, al final)
-        qs = qs.select_related('cliente', 'solicitud__ruta').order_by(
-            F('solicitud__ruta').asc(nulls_last=True), 'solicitud__orden_ruta', 'solicitud__creado')
+        # v1.117.15: en el orden de su ruta de recojo; v1.117.17: primero su ruta («Parada N»), luego las de otras
+        # rutas (con el número de la ruta) y al final las que no están en ninguna
+        from django.db.models import Case, IntegerField, Value, When
+        qs = qs.select_related('cliente', 'solicitud__ruta').annotate(mia=Case(
+            When(solicitud__ruta__operador=usuario, then=Value(0)), When(solicitud__ruta__isnull=False, then=Value(1)),
+            default=Value(2), output_field=IntegerField())).order_by(
+            'mia', F('solicitud__ruta').asc(nulls_last=True), 'solicitud__orden_ruta', 'solicitud__creado')
+
+        def parada(g):
+            ruta = g.solicitud.ruta if g.solicitud else None
+            if ruta is None:
+                return ''
+            return f'Parada {g.solicitud.orden_ruta} · ' if ruta.operador_id == getattr(usuario, 'pk', None) \
+                else f'{ruta.numero} · parada {g.solicitud.orden_ruta} · '
         return [{'id': g.pk, 'titulo': g.emisor_nombre or g.cliente.nombre, 'detalle':
-                 (f'Parada {g.solicitud.orden_ruta} · ' if g.solicitud and g.solicitud.ruta_id else '') +
-                 f'Guía {g.numero_completo} · {g.bultos} bulto(s)', 'qr': g.qr_texto, 'serie': g.serie,
+                 parada(g) + f'Guía {g.numero_completo} · {g.bultos} bulto(s)', 'qr': g.qr_texto, 'serie': g.serie,
                  'numero': g.numero} for g in qs[:MAX_LISTA]]
     if paso == 'INGRESO':
         qs = GuiaCliente.objects.filter(estado__codigo='CONFIRMADO').order_by('-recogida_en')

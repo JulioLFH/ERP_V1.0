@@ -98,6 +98,22 @@ class RutasTest(BaseRutas):
         self.assertEqual(ClienteLogistico.objects.get(pk=self.perfil.pk).almacen_latitud, D('-12.051000'))
         self.assertEqual(rr.punto(self.sol(self.sol_callao))[2], 'ficha')
 
+    def test_lista_del_celular_pone_primero_su_ruta(self):
+        """v1.117.17: con más guías pendientes que el tope de la lista, la parada de su ruta no se queda fuera."""
+        operador = self.usuario('op', ['operador_logistico'], ['operador_logistico.operar'])
+        rr.sugerir(self.hoy)
+        for n in range(1, srv.MAX_LISTA + 2):  # guías de otra ruta (sin operador), anteriores a la suya
+            srv.registrar_guia_xml(xml_guia(numero=n), self.cliente, self.sol(self.sol_olivos))
+        mia, _ = srv.registrar_guia_xml(xml_guia(numero=90), self.cliente, self.sol(self.sol_surco))
+        rr.asignar(self.sol(self.sol_surco).ruta, operador, 'abc-123')
+        self.client.force_login(operador)
+        items = self.client.get(reverse('operador_logistico:movil_pendientes'), {'paso': 'RECOJO'}).json()['items']
+        self.assertEqual(len(items), srv.MAX_LISTA)
+        self.assertEqual(items[0]['id'], mia.pk)
+        self.assertTrue(items[0]['detalle'].startswith('Parada 1 · '))
+        norte = self.sol(self.sol_olivos).ruta.numero
+        self.assertTrue(items[1]['detalle'].startswith(f'{norte} · parada 1 · '))
+
     def test_pantalla_hoja_y_permisos(self):
         planificador = self.usuario('plan', ['operador_logistico'], ['operador_logistico.planificar'])
         mirador = self.usuario('mira', ['operador_logistico'])
